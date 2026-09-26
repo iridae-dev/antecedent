@@ -8285,9 +8285,10 @@ impl Study {
         };
         let nested_counterfactual = match (&self.graph, &self.query) {
             (_, CausalQuery::NestedCounterfactual(query)) => {
-                let graph = self.graph.as_dag().ok_or(CausalError::Unsupported {
-                    message: "cross_world_not_identified: natural direct effect requires the licensed three-node DAG",
-                })?;
+                let graph = self.graph.as_dag().ok_or(crate::unsupported_reason!(
+                    "cross_world_not_identified",
+                    "natural direct effect requires the licensed three-node DAG"
+                ))?;
                 Some(crate::gcm::NestedCounterfactualOperation::compile(graph.clone(), *query)?)
             }
             _ => None,
@@ -11683,9 +11684,10 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
         }
         (DataInput::Tabular(_), CausalQuery::NestedCounterfactual(_)) => {
             if analysis.graph.class() != GraphClass::Dag {
-                return Err(CausalError::Unsupported {
-                    message: "cross_world_not_identified: nested effect requires a supplied DAG",
-                });
+                return Err(crate::unsupported_reason!(
+                    "cross_world_not_identified",
+                    "nested effect requires a supplied DAG"
+                ));
             }
         }
         (

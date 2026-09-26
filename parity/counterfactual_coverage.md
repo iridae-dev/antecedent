@@ -15,3 +15,8 @@ artifact replay/consumption in
 `crates/antecedent/tests/nested_counterfactual_route_evidence.rs`. The support
 registry remains the coordinate-level license; a missing implementation is not
 a zero-probability counterfactual event.
+
+No additional compatible fixed-DAG cell is required for the 2.1 release claim:
+the natural direct effect is the one named fixed-DAG nested cell. Natural
+indirect effects, other nested world pairs, and transported nested outcomes
+remain separate future cells and must not be inferred from this row.

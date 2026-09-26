@@ -114,7 +114,7 @@ pub use crossfit_aipw::{
 };
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
-pub use dr::DrLearner;
+pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};
 pub use empirical_table::{
     BayesianLawDrawer, BayesianTransportLawDraw, BayesianTransportLawProvider,
     EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN,

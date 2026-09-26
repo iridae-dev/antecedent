@@ -186,6 +186,78 @@ pub struct FixedGraphMechanismSensitivityResult {
     pub response: DiscreteKernelSensitivityResult,
 }
 
+/// Auditable one-factor sensitivity result for changing an isolated root
+/// mechanism among the non-treatment parents of the outcome.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixedGraphRootMechanismSensitivityResult {
+    /// Human-readable target estimand and perturbed factor.
+    pub estimand: String,
+    /// Outcome whose target response is evaluated.
+    pub outcome: VariableId,
+    /// Named root variable whose target marginal mechanism is perturbed.
+    pub mechanism: VariableId,
+    /// Source and target population identities from the checked query.
+    pub source_population: String,
+    /// Target population identity from the checked query.
+    pub target_population: String,
+    /// Snapshot binding used for the source outcome kernel.
+    pub source_kernel_binding: (RegimeId, String),
+    /// Snapshot binding used for the target parent law.
+    pub target_parent_binding: (RegimeId, String),
+    /// Response at the unmodified source root mechanism.
+    pub baseline: f64,
+    /// Minimum response over the declared contamination domain.
+    pub minimum: f64,
+    /// Maximum response over the declared contamination domain.
+    pub maximum: f64,
+    /// Smallest contamination fraction at which the range reaches the threshold.
+    pub tipping_fraction: Option<f64>,
+    /// Declared contamination fraction interval.
+    pub fraction_domain: [f64; 2],
+    /// Root-mechanism level selected at each extremum.
+    pub minimizing_mechanism_level: usize,
+    /// Root-mechanism level selected for the maximum response.
+    pub maximizing_mechanism_level: usize,
+    /// Assumptions required for the named factor perturbation to remain coherent.
+    pub assumptions: Vec<String>,
+}
+
+/// Auditable one-factor sensitivity result for a checked categorical
+/// conditional mechanism among the outcome's non-treatment parents.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixedGraphConditionalMechanismSensitivityResult {
+    /// Human-readable target estimand and perturbed factor.
+    pub estimand: String,
+    /// Outcome whose target response is evaluated.
+    pub outcome: VariableId,
+    /// Named conditional mechanism changed in the target population.
+    pub mechanism: VariableId,
+    /// Source and target population identities from the checked query.
+    pub source_population: String,
+    /// Target population identity from the checked query.
+    pub target_population: String,
+    /// Snapshot binding used for the source outcome kernel.
+    pub source_kernel_binding: (RegimeId, String),
+    /// Snapshot binding used for the target parent law.
+    pub target_parent_binding: (RegimeId, String),
+    /// Response at the unmodified source mechanism.
+    pub baseline: f64,
+    /// Minimum response over the declared contamination domain.
+    pub minimum: f64,
+    /// Maximum response over the declared contamination domain.
+    pub maximum: f64,
+    /// Smallest contamination fraction at which the range reaches the threshold.
+    pub tipping_fraction: Option<f64>,
+    /// Declared contamination fraction interval.
+    pub fraction_domain: [f64; 2],
+    /// Mechanism category selected at each parent stratum for the extrema.
+    pub minimizing_mechanism_level_by_parent_stratum: Vec<usize>,
+    /// Mechanism category selected at each parent stratum for the maximum.
+    pub maximizing_mechanism_level_by_parent_stratum: Vec<usize>,
+    /// Assumptions and factorization checks defining the result's scope.
+    pub assumptions: Vec<String>,
+}
+
 /// Auditable result for outcome-kernel contamination of the checked z formula.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ZTransportMechanismSensitivityResult {
@@ -758,6 +830,454 @@ fn fixed_graph_mechanism_sensitivity_inner(
     })
 }
 
+/// Evaluate bounded contamination of one isolated root-parent mechanism.
+///
+/// The existing checked contract supplies complete source outcome kernels and
+/// source/target parent laws. This route additionally requires the named
+/// mechanism to be a root, to have no directed path to another non-treatment
+/// outcome parent, and to factor independently from those parents in the
+/// supplied joint law. Under those conditions its marginal is the complete
+/// conditional mechanism, so replacing it preserves the checked SCM factorization.
+pub fn fixed_graph_root_mechanism_sensitivity(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    functional: &BoundTransportFunctional,
+    spec: &FixedGraphMechanismSensitivitySpec,
+    mechanism: VariableId,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<FixedGraphRootMechanismSensitivityResult, FixedGraphSensitivityError> {
+    let mut baseline_spec = spec.clone();
+    baseline_spec.max_fraction = 0.0;
+    baseline_spec.decision_threshold = None;
+    let checked =
+        fixed_graph_mechanism_sensitivity(diagram, query, functional, &baseline_spec, ctx)?;
+    let graph = diagram.causal_graph();
+    let dense = graph
+        .nodes()
+        .iter()
+        .position(|node| *node == NodeRef::Static(mechanism))
+        .and_then(|i| u32::try_from(i).ok())
+        .map(DenseNodeId::from_raw)
+        .ok_or(FixedGraphSensitivityError::UnsupportedGraph)?;
+    let treatment = query.treatments[0];
+    if mechanism == treatment {
+        return Err(FixedGraphSensitivityError::InvalidQuery);
+    }
+    let parents = &checked.parents;
+    let mechanism_position = parents
+        .iter()
+        .position(|parent| *parent == mechanism)
+        .ok_or(FixedGraphSensitivityError::InvalidQuery)?;
+    let mechanism_cardinality = spec.parent_cardinalities[mechanism_position];
+    let treatment_position = parents
+        .iter()
+        .position(|parent| *parent == treatment)
+        .ok_or(FixedGraphSensitivityError::InvalidQuery)?;
+    let other_positions: Vec<_> = parents
+        .iter()
+        .enumerate()
+        .filter_map(|(position, parent)| {
+            (*parent != treatment && *parent != mechanism).then_some(position)
+        })
+        .collect();
+    if !graph.parents(dense).is_empty()
+        || parents.iter().enumerate().any(|(position, parent)| {
+            position != mechanism_position
+                && *parent != treatment
+                && graph
+                    .nodes()
+                    .iter()
+                    .position(|node| *node == NodeRef::Static(*parent))
+                    .and_then(|i| u32::try_from(i).ok())
+                    .map(DenseNodeId::from_raw)
+                    .is_some_and(|other| graph.reaches(dense, other))
+        })
+    {
+        return Err(FixedGraphSensitivityError::UnsupportedGraph);
+    }
+
+    let source_joint: BTreeMap<Vec<usize>, f64> = spec
+        .source_parent_law
+        .iter()
+        .map(|row| (row.parent_levels.clone(), row.probability))
+        .collect();
+    let mut mechanism_mass = vec![0.0; mechanism_cardinality];
+    let mut other_mass = BTreeMap::<Vec<usize>, f64>::new();
+    for (levels, probability) in &source_joint {
+        mechanism_mass[levels[mechanism_position]] += probability;
+        let other: Vec<_> = other_positions.iter().map(|position| levels[*position]).collect();
+        *other_mass.entry(other).or_default() += probability;
+    }
+    for (levels, probability) in &source_joint {
+        let other: Vec<_> = other_positions.iter().map(|position| levels[*position]).collect();
+        if (probability - mechanism_mass[levels[mechanism_position]] * other_mass[&other]).abs()
+            > 1e-10
+        {
+            return Err(FixedGraphSensitivityError::InvalidParentLaw);
+        }
+    }
+
+    let kernel_map: BTreeMap<Vec<usize>, &[f64]> = spec
+        .source_kernel
+        .iter()
+        .map(|row| (row.parent_levels.clone(), row.outcome_probabilities.as_slice()))
+        .collect();
+    let other_cardinalities: Vec<_> =
+        other_positions.iter().map(|position| spec.parent_cardinalities[*position]).collect();
+    let other_strata = cartesian_levels(&other_cardinalities)?;
+    let mut mechanism_effects = Vec::with_capacity(mechanism_cardinality);
+    for mechanism_level in 0..mechanism_cardinality {
+        let mut effect = 0.0;
+        for other in &other_strata {
+            let mut control = vec![0; parents.len()];
+            let mut active = vec![0; parents.len()];
+            control[treatment_position] = spec.treatment_levels[0];
+            active[treatment_position] = spec.treatment_levels[1];
+            control[mechanism_position] = mechanism_level;
+            active[mechanism_position] = mechanism_level;
+            for (position, level) in other_positions.iter().zip(other) {
+                control[*position] = *level;
+                active[*position] = *level;
+            }
+            let other_probability = other_mass.get(other).copied().unwrap_or(0.0);
+            let control_mean = kernel_map[&control]
+                .iter()
+                .zip(&spec.outcome_values)
+                .map(|(probability, value)| probability * value)
+                .sum::<f64>();
+            let active_mean = kernel_map[&active]
+                .iter()
+                .zip(&spec.outcome_values)
+                .map(|(probability, value)| probability * value)
+                .sum::<f64>();
+            effect += other_probability * (active_mean - control_mean);
+        }
+        mechanism_effects.push(effect);
+    }
+    let range = DiscreteKernelSensitivity {
+        source_kernel: vec![mechanism_mass],
+        outcome_values: mechanism_effects,
+        stratum_contrast_weights: vec![1.0],
+        max_fraction: spec.max_fraction,
+        decision_threshold: spec.decision_threshold,
+    }
+    .evaluate()
+    .map_err(FixedGraphSensitivityError::Kernel)?;
+    if (range.baseline - checked.response.baseline).abs() > 1e-9 {
+        return Err(FixedGraphSensitivityError::InvalidParentLaw);
+    }
+    Ok(FixedGraphRootMechanismSensitivityResult {
+        estimand: format!(
+            "target active-minus-control mean response for {} under contamination of root mechanism {mechanism}",
+            checked.outcome
+        ),
+        outcome: checked.outcome,
+        mechanism,
+        source_population: checked.source_population,
+        target_population: checked.target_population,
+        source_kernel_binding: checked.source_kernel_binding,
+        target_parent_binding: checked.target_parent_binding,
+        baseline: range.baseline,
+        minimum: range.minimum,
+        maximum: range.maximum,
+        tipping_fraction: range.tipping_fraction,
+        fraction_domain: range.receipt.fraction_domain,
+        minimizing_mechanism_level: range.receipt.minimizing_outcome_by_stratum[0],
+        maximizing_mechanism_level: range.receipt.maximizing_outcome_by_stratum[0],
+        assumptions: vec![
+            "fixed fully observed DAG; no latent bidirected edges".into(),
+            "only the named isolated root mechanism changes across populations".into(),
+            "the root mechanism is independent of the other non-treatment outcome parents, as checked from the supplied joint law".into(),
+            "the outcome mechanism and all other parent mechanisms remain invariant".into(),
+        ],
+    })
+}
+
+/// Evaluate a one-factor conditional mechanism deviation for a categorical
+/// non-treatment parent of the outcome.
+///
+/// The graph contract requires every non-treatment outcome parent to have all
+/// its directed parents inside that same observed parent set. Complete source
+/// and target joint parent laws then identify each categorical conditional
+/// mechanism. The route checks their factorization against the fixed DAG and
+/// perturbs one factor with row-wise bounded simplex contamination, propagating
+/// the changed joint law through downstream parent mechanisms.
+pub fn fixed_graph_conditional_mechanism_sensitivity(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    functional: &BoundTransportFunctional,
+    spec: &FixedGraphMechanismSensitivitySpec,
+    mechanism: VariableId,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<FixedGraphConditionalMechanismSensitivityResult, FixedGraphSensitivityError> {
+    let mut baseline_spec = spec.clone();
+    baseline_spec.max_fraction = 0.0;
+    baseline_spec.decision_threshold = None;
+    let checked =
+        fixed_graph_mechanism_sensitivity(diagram, query, functional, &baseline_spec, ctx)?;
+    if !spec.max_fraction.is_finite() || !(0.0..=1.0).contains(&spec.max_fraction) {
+        return Err(FixedGraphSensitivityError::Kernel(
+            DiscreteKernelSensitivityError::InvalidFraction,
+        ));
+    }
+    if spec.decision_threshold.is_some_and(|threshold| !threshold.is_finite()) {
+        return Err(FixedGraphSensitivityError::Kernel(
+            DiscreteKernelSensitivityError::InvalidContrast,
+        ));
+    }
+
+    let graph = diagram.causal_graph();
+    let treatment = query.treatments[0];
+    let parents = &checked.parents;
+    let treatment_position = parents
+        .iter()
+        .position(|parent| *parent == treatment)
+        .ok_or(FixedGraphSensitivityError::InvalidQuery)?;
+    let mechanism_position = parents
+        .iter()
+        .position(|parent| *parent == mechanism)
+        .filter(|_| mechanism != treatment)
+        .ok_or(FixedGraphSensitivityError::InvalidQuery)?;
+    let non_treatment_positions: Vec<_> = parents
+        .iter()
+        .enumerate()
+        .filter_map(|(position, parent)| (*parent != treatment).then_some(position))
+        .collect();
+    let non_treatment_variables: BTreeSet<_> =
+        non_treatment_positions.iter().map(|position| parents[*position]).collect();
+    let dense_ids: BTreeMap<_, _> = graph
+        .nodes()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, node)| match node {
+            NodeRef::Static(variable) => {
+                u32::try_from(index).ok().map(|raw| (*variable, DenseNodeId::from_raw(raw)))
+            }
+            _ => None,
+        })
+        .collect();
+    let mut factor_parents = BTreeMap::<VariableId, Vec<VariableId>>::new();
+    for variable in &non_treatment_variables {
+        let dense =
+            dense_ids.get(variable).copied().ok_or(FixedGraphSensitivityError::UnsupportedGraph)?;
+        let mut graph_parents: Vec<_> = graph
+            .parents(dense)
+            .iter()
+            .map(|parent| match graph.nodes()[parent.as_usize()] {
+                NodeRef::Static(id) => Ok(id),
+                _ => Err(FixedGraphSensitivityError::UnsupportedGraph),
+            })
+            .collect::<Result<_, _>>()?;
+        graph_parents.sort_unstable();
+        if graph_parents.iter().any(|parent| !non_treatment_variables.contains(parent)) {
+            return Err(FixedGraphSensitivityError::UnsupportedGraph);
+        }
+        factor_parents.insert(*variable, graph_parents);
+    }
+    let selected_parents =
+        factor_parents.get(&mechanism).ok_or(FixedGraphSensitivityError::UnsupportedGraph)?;
+
+    let source_joint: BTreeMap<Vec<usize>, f64> = spec
+        .source_parent_law
+        .iter()
+        .map(|row| (row.parent_levels.clone(), row.probability))
+        .collect();
+    let full_non_treatment_cardinalities: Vec<_> = non_treatment_positions
+        .iter()
+        .map(|position| spec.parent_cardinalities[*position])
+        .collect();
+    let all_parent_rows = cartesian_levels(&full_non_treatment_cardinalities)?;
+    if source_joint.len() != all_parent_rows.len()
+        || all_parent_rows.iter().any(|levels| !source_joint.contains_key(levels))
+    {
+        return Err(FixedGraphSensitivityError::InvalidParentLaw);
+    }
+    let position_by_variable: BTreeMap<_, _> = non_treatment_positions
+        .iter()
+        .enumerate()
+        .map(|(local, position)| (parents[*position], local))
+        .collect();
+    let mut conditional_tables = BTreeMap::<VariableId, BTreeMap<Vec<usize>, Vec<f64>>>::new();
+    for variable in &non_treatment_variables {
+        let graph_parents = &factor_parents[variable];
+        let parent_positions: Vec<_> =
+            graph_parents.iter().map(|parent| position_by_variable[parent]).collect();
+        let parent_cardinalities: Vec<_> = graph_parents
+            .iter()
+            .map(|parent| {
+                let position = parents.iter().position(|item| item == parent).unwrap();
+                spec.parent_cardinalities[position]
+            })
+            .collect();
+        let variable_position = position_by_variable[variable];
+        let variable_cardinality =
+            spec.parent_cardinalities[parents.iter().position(|item| item == variable).unwrap()];
+        let contexts = cartesian_levels(&parent_cardinalities)?;
+        let mut table = BTreeMap::new();
+        for context in contexts {
+            let mut probabilities = vec![0.0; variable_cardinality];
+            let mut denominator = 0.0;
+            for (levels, probability) in &source_joint {
+                if parent_positions
+                    .iter()
+                    .zip(&context)
+                    .all(|(position, level)| levels[*position] == *level)
+                {
+                    denominator += probability;
+                    probabilities[levels[variable_position]] += probability;
+                }
+            }
+            if denominator <= 0.0 {
+                return Err(FixedGraphSensitivityError::InvalidParentLaw);
+            }
+            probabilities.iter_mut().for_each(|probability| *probability /= denominator);
+            table.insert(context, probabilities);
+        }
+        conditional_tables.insert(*variable, table);
+    }
+    for levels in &all_parent_rows {
+        let mut product = 1.0;
+        for variable in &non_treatment_variables {
+            let graph_parents = &factor_parents[variable];
+            let context: Vec<_> =
+                graph_parents.iter().map(|parent| levels[position_by_variable[parent]]).collect();
+            let variable_position = position_by_variable[variable];
+            product *= conditional_tables[variable][&context][levels[variable_position]];
+        }
+        if (product - source_joint[levels]).abs() > 1e-10 {
+            return Err(FixedGraphSensitivityError::InvalidParentLaw);
+        }
+    }
+
+    let selected_parent_positions: Vec<_> =
+        selected_parents.iter().map(|parent| position_by_variable[parent]).collect();
+    let selected_parent_cardinalities: Vec<_> = selected_parents
+        .iter()
+        .map(|parent| {
+            let position = parents.iter().position(|item| item == parent).unwrap();
+            spec.parent_cardinalities[position]
+        })
+        .collect();
+    let mechanism_cardinality = spec.parent_cardinalities[mechanism_position];
+    let contexts = cartesian_levels(&selected_parent_cardinalities)?;
+    let kernel_map: BTreeMap<Vec<usize>, &[f64]> = spec
+        .source_kernel
+        .iter()
+        .map(|row| (row.parent_levels.clone(), row.outcome_probabilities.as_slice()))
+        .collect();
+    let mut minimizing_levels = Vec::with_capacity(contexts.len());
+    let mut maximizing_levels = Vec::with_capacity(contexts.len());
+    let mut baseline = 0.0;
+    let mut min_slope = 0.0;
+    let mut max_slope = 0.0;
+    for context in &contexts {
+        let mut replacement_values = vec![0.0; mechanism_cardinality];
+        for levels in &all_parent_rows {
+            if !selected_parent_positions
+                .iter()
+                .zip(context)
+                .all(|(position, level)| levels[*position] == *level)
+            {
+                continue;
+            }
+            let mechanism_level = levels[position_by_variable[&mechanism]];
+            let mut nonselected_probability = 1.0;
+            for variable in &non_treatment_variables {
+                if *variable == mechanism {
+                    continue;
+                }
+                let graph_parents = &factor_parents[variable];
+                let parent_context: Vec<_> = graph_parents
+                    .iter()
+                    .map(|parent| levels[position_by_variable[parent]])
+                    .collect();
+                nonselected_probability *= conditional_tables[variable][&parent_context]
+                    [levels[position_by_variable[variable]]];
+            }
+            let mut control = vec![0; parents.len()];
+            let mut active = vec![0; parents.len()];
+            for (local, position) in non_treatment_positions.iter().enumerate() {
+                control[*position] = levels[local];
+                active[*position] = levels[local];
+            }
+            control[treatment_position] = spec.treatment_levels[0];
+            active[treatment_position] = spec.treatment_levels[1];
+            let control_mean = kernel_map[&control]
+                .iter()
+                .zip(&spec.outcome_values)
+                .map(|(probability, value)| probability * value)
+                .sum::<f64>();
+            let active_mean = kernel_map[&active]
+                .iter()
+                .zip(&spec.outcome_values)
+                .map(|(probability, value)| probability * value)
+                .sum::<f64>();
+            replacement_values[mechanism_level] +=
+                nonselected_probability * (active_mean - control_mean);
+        }
+        let source_row = &conditional_tables[&mechanism][context];
+        let source_contribution = source_row
+            .iter()
+            .zip(&replacement_values)
+            .map(|(probability, value)| probability * value)
+            .sum::<f64>();
+        baseline += source_contribution;
+        let min_value = replacement_values.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_value = replacement_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        min_slope += min_value - source_contribution;
+        max_slope += max_value - source_contribution;
+        minimizing_levels
+            .push(replacement_values.iter().position(|value| *value == min_value).unwrap_or(0));
+        maximizing_levels
+            .push(replacement_values.iter().position(|value| *value == max_value).unwrap_or(0));
+    }
+    if (baseline - checked.response.baseline).abs() > 1e-9 {
+        return Err(FixedGraphSensitivityError::InvalidParentLaw);
+    }
+    let minimum = baseline + spec.max_fraction * min_slope;
+    let maximum = baseline + spec.max_fraction * max_slope;
+    let tipping_fraction = spec.decision_threshold.and_then(|threshold| {
+        if (baseline - threshold).abs() <= 1e-12 {
+            Some(0.0)
+        } else {
+            let slope = if threshold < baseline { min_slope } else { max_slope };
+            if slope == 0.0 {
+                None
+            } else {
+                let fraction = (threshold - baseline) / slope;
+                (fraction >= 0.0 && fraction <= spec.max_fraction + 1e-12)
+                    .then_some(fraction.clamp(0.0, spec.max_fraction))
+            }
+        }
+    });
+    Ok(FixedGraphConditionalMechanismSensitivityResult {
+        estimand: format!(
+            "target active-minus-control mean response for {} under contamination of conditional mechanism {mechanism}",
+            checked.outcome
+        ),
+        outcome: checked.outcome,
+        mechanism,
+        source_population: checked.source_population,
+        target_population: checked.target_population,
+        source_kernel_binding: checked.source_kernel_binding,
+        target_parent_binding: checked.target_parent_binding,
+        baseline,
+        minimum,
+        maximum,
+        tipping_fraction,
+        fraction_domain: [0.0, spec.max_fraction],
+        minimizing_mechanism_level_by_parent_stratum: minimizing_levels,
+        maximizing_mechanism_level_by_parent_stratum: maximizing_levels,
+        assumptions: vec![
+            "fixed fully observed DAG; no latent bidirected edges".into(),
+            "all parents of every non-treatment outcome parent are contained in the supplied joint outcome-parent set".into(),
+            "supplied joint parent law factorizes over the fixed DAG conditional mechanisms".into(),
+            "only the named conditional mechanism changes; every other parent and outcome mechanism remains fixed".into(),
+            "row-wise contamination uses a normalized categorical replacement distribution per parent stratum".into(),
+        ],
+    })
+}
+
 fn validate_sensitivity_bindings(
     functional: &BoundTransportFunctional,
     query: &ClassicalTransportQuery,
@@ -1270,6 +1790,84 @@ mod tests {
         (diagram, query, *functional)
     }
 
+    fn checked_transport_fixture_with_dependent_outcome_parent()
+    -> (SelectionDiagram, ClassicalTransportQuery, antecedent_identify::BoundTransportFunctional)
+    {
+        let u = VariableId::from_raw(0);
+        let x = VariableId::from_raw(1);
+        let v = VariableId::from_raw(2);
+        let y = VariableId::from_raw(3);
+        let coordinate =
+            |variable| VariableCoordinate { variable, domain: VariableDomain::Binary, unit: None };
+        let source = Environment::try_new(
+            "source",
+            [coordinate(u), coordinate(x), coordinate(v), coordinate(y)],
+            [x],
+        )
+        .unwrap();
+        let target = Environment::try_new("target", [coordinate(u), coordinate(v)], []).unwrap();
+        let source_regime = EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [x],
+            [],
+            [u, v, y],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let target_regime = EvidenceRegime::try_new(
+            RegimeId::from_raw(2),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [u, v],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let binding = |regime, snapshot: &str| RegimeBinding {
+            dataset_identity: None,
+            regime,
+            snapshot_identity: Arc::from(snapshot),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::UnknownDependence,
+        };
+        let catalog = EvidenceCatalog::try_new(
+            [source, target],
+            [source_regime, target_regime],
+            [
+                binding(RegimeId::from_raw(1), "source-snapshot"),
+                binding(RegimeId::from_raw(2), "target-snapshot"),
+            ],
+            Some(TargetSampling::RepresentativeSample),
+        )
+        .unwrap();
+        let mut graph = Admg::with_variables(4);
+        for (from, to) in [(0, 1), (0, 2), (2, 3), (1, 3), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, [x]).unwrap();
+        let query = ClassicalTransportQuery {
+            outcomes: Arc::from([y]),
+            treatments: Arc::from([x]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let CatalogTransportResult::Identified(functional) =
+            identify_catalog_transport(&diagram, &query, &catalog, SidLimits::default(), &ctx)
+                .unwrap()
+        else {
+            panic!("source intervention should identify the fixed-DAG response");
+        };
+        (diagram, query, *functional)
+    }
+
     #[test]
     fn fixed_graph_route_derives_stratum_weights_and_matches_known_truth() {
         let (diagram, query, functional) = checked_transport_fixture();
@@ -1358,6 +1956,50 @@ mod tests {
         assert!((active_only.response.minimum - 0.395).abs() < 1e-12);
         assert!((active_only.response.maximum - 0.595).abs() < 1e-12);
         assert!((active_only.response.tipping_fraction.unwrap() - (0.05 / 0.775)).abs() < 1e-12);
+
+        // The root U mechanism is available as a distinct one-factor family:
+        // replace its target marginal while preserving the Y|X,U kernel.
+        spec.decision_threshold = Some(0.53);
+        let root_mechanism = fixed_graph_root_mechanism_sensitivity(
+            &diagram,
+            &query,
+            &functional,
+            &spec,
+            VariableId::from_raw(0),
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!((root_mechanism.baseline - 0.55).abs() < 1e-12);
+        assert!((root_mechanism.minimum - 0.52).abs() < 1e-12);
+        assert!((root_mechanism.maximum - 0.56).abs() < 1e-12);
+        assert!((root_mechanism.tipping_fraction.unwrap() - (0.02 / 0.15)).abs() < 1e-12);
+        assert_eq!(root_mechanism.minimizing_mechanism_level, 1);
+        assert_eq!(root_mechanism.maximizing_mechanism_level, 0);
+        let mut zero_fraction_spec = spec.clone();
+        zero_fraction_spec.max_fraction = 0.0;
+        let root_zero = fixed_graph_root_mechanism_sensitivity(
+            &diagram,
+            &query,
+            &functional,
+            &zero_fraction_spec,
+            VariableId::from_raw(0),
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!((root_zero.minimum - root_zero.baseline).abs() < 1e-12);
+        assert!((root_zero.maximum - root_zero.baseline).abs() < 1e-12);
+        assert_eq!(
+            fixed_graph_root_mechanism_sensitivity(
+                &diagram,
+                &query,
+                &functional,
+                &spec,
+                VariableId::from_raw(1),
+                &antecedent_core::ExecutionContext::for_tests(1),
+            )
+            .unwrap_err(),
+            FixedGraphSensitivityError::InvalidQuery
+        );
 
         spec.max_fraction = 0.0;
         let zero = fixed_graph_treatment_level_sensitivity(
@@ -1468,5 +2110,140 @@ mod tests {
             ),
             Err(FixedGraphSensitivityError::InvalidParentLaw)
         ));
+    }
+
+    #[test]
+    fn root_mechanism_route_refuses_dependency_on_another_outcome_parent() {
+        let (diagram, query, functional) =
+            checked_transport_fixture_with_dependent_outcome_parent();
+        let mut source_kernel = Vec::new();
+        for u in 0..2 {
+            for x in 0..2 {
+                for v in 0..2 {
+                    let probability_one = if x == 1 { 0.7 } else { 0.3 };
+                    source_kernel.push(SourceOutcomeKernelRow {
+                        parent_levels: vec![u, x, v],
+                        outcome_probabilities: vec![1.0 - probability_one, probability_one],
+                    });
+                }
+            }
+        }
+        let source_parent_law = (0..2)
+            .flat_map(|u| {
+                (0..2).map(move |v| SourceParentLawRow {
+                    parent_levels: vec![u, v],
+                    probability: 0.25,
+                })
+            })
+            .collect();
+        let target_parent_law = (0..2)
+            .flat_map(|x| {
+                (0..2).flat_map(move |u| {
+                    (0..2).map(move |v| TargetParentLawRow {
+                        treatment_level: x,
+                        parent_levels: vec![u, v],
+                        probability: 0.25,
+                    })
+                })
+            })
+            .collect();
+        let spec = FixedGraphMechanismSensitivitySpec {
+            outcome_values: vec![0.0, 1.0],
+            parent_cardinalities: vec![2, 2, 2],
+            treatment_levels: [0, 1],
+            max_fraction: 0.2,
+            decision_threshold: None,
+            source_kernel_regime: RegimeId::from_raw(1),
+            source_kernel_snapshot: "source-snapshot".into(),
+            target_parent_regime: RegimeId::from_raw(2),
+            target_parent_snapshot: "target-snapshot".into(),
+            source_kernel,
+            source_parent_law,
+            target_parent_law,
+        };
+        assert_eq!(
+            fixed_graph_root_mechanism_sensitivity(
+                &diagram,
+                &query,
+                &functional,
+                &spec,
+                VariableId::from_raw(0),
+                &antecedent_core::ExecutionContext::for_tests(1),
+            )
+            .unwrap_err(),
+            FixedGraphSensitivityError::UnsupportedGraph
+        );
+    }
+
+    #[test]
+    fn conditional_mechanism_route_propagates_a_nonroot_factor_exactly() {
+        let (diagram, query, functional) =
+            checked_transport_fixture_with_dependent_outcome_parent();
+        let mut source_kernel = Vec::new();
+        for u in 0..2 {
+            for x in 0..2 {
+                for v in 0..2 {
+                    let probability_one = match (u, x, v) {
+                        (0, 0, 0) => 0.1,
+                        (0, 0, 1) => 0.2,
+                        (0, 1, 0) => 0.3,
+                        (0, 1, 1) => 0.6,
+                        (1, 0, 0) => 0.15,
+                        (1, 0, 1) => 0.25,
+                        (1, 1, 0) => 0.4,
+                        (1, 1, 1) => 0.7,
+                        _ => unreachable!(),
+                    };
+                    source_kernel.push(SourceOutcomeKernelRow {
+                        parent_levels: vec![u, x, v],
+                        outcome_probabilities: vec![1.0 - probability_one, probability_one],
+                    });
+                }
+            }
+        }
+        let source_parent_law = vec![
+            SourceParentLawRow { parent_levels: vec![0, 0], probability: 0.6 },
+            SourceParentLawRow { parent_levels: vec![0, 1], probability: 0.15 },
+            SourceParentLawRow { parent_levels: vec![1, 0], probability: 0.05 },
+            SourceParentLawRow { parent_levels: vec![1, 1], probability: 0.2 },
+        ];
+        let target_parent_law = (0..2)
+            .flat_map(|x| {
+                source_parent_law.iter().map(move |row| TargetParentLawRow {
+                    treatment_level: x,
+                    parent_levels: row.parent_levels.clone(),
+                    probability: row.probability,
+                })
+            })
+            .collect();
+        let spec = FixedGraphMechanismSensitivitySpec {
+            outcome_values: vec![0.0, 1.0],
+            parent_cardinalities: vec![2, 2, 2],
+            treatment_levels: [0, 1],
+            max_fraction: 0.2,
+            decision_threshold: Some(0.27),
+            source_kernel_regime: RegimeId::from_raw(1),
+            source_kernel_snapshot: "source-snapshot".into(),
+            target_parent_regime: RegimeId::from_raw(2),
+            target_parent_snapshot: "target-snapshot".into(),
+            source_kernel,
+            source_parent_law,
+            target_parent_law,
+        };
+        let result = fixed_graph_conditional_mechanism_sensitivity(
+            &diagram,
+            &query,
+            &functional,
+            &spec,
+            VariableId::from_raw(2),
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!((result.baseline - 0.2825).abs() < 1e-12);
+        assert!((result.minimum - 0.2685).abs() < 1e-12);
+        assert!((result.maximum - 0.3085).abs() < 1e-12);
+        assert!((result.tipping_fraction.unwrap() - (0.0125 / 0.07)).abs() < 1e-12);
+        assert_eq!(result.minimizing_mechanism_level_by_parent_stratum, [0, 0]);
+        assert_eq!(result.maximizing_mechanism_level_by_parent_stratum, [1, 1]);
     }
 }

@@ -240,9 +240,10 @@ impl NestedCounterfactualOperation {
         ];
         expected.sort_unstable();
         if graph.node_count() != 3 || observed != expected {
-            return Err(CausalError::Unsupported {
-                message: "cross_world_not_identified: query requires exactly X -> M, X -> Y, M -> Y with no other nodes or edges",
-            });
+            return Err(crate::unsupported_reason!(
+                "cross_world_not_identified",
+                "query requires exactly X -> M, X -> Y, M -> Y with no other nodes or edges"
+            ));
         }
         Ok(Self {
             graph,

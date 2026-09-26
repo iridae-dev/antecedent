@@ -499,6 +499,48 @@ impl PreparedStudy<ExactPreparedState> {
         )
     }
 
+    /// Evaluate bounded contamination of an isolated root mechanism that is a
+    /// non-treatment parent of the outcome.
+    pub fn mechanism_sensitivity_root_mechanism(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        mechanism: antecedent_core::VariableId,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphRootMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_root_mechanism_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            mechanism,
+            ctx,
+        )
+    }
+
+    /// Evaluate bounded contamination of a checked categorical conditional
+    /// mechanism among the outcome's non-treatment parents.
+    pub fn mechanism_sensitivity_conditional_mechanism(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        mechanism: antecedent_core::VariableId,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphConditionalMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_conditional_mechanism_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            mechanism,
+            ctx,
+        )
+    }
+
     fn reasoning(evaluated: bool) -> ReasoningView {
         ReasoningView::new(
             SlotAvailability::Available(IdentificationSlot::identified_singleton(

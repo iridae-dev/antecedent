@@ -194,7 +194,14 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         .unwrap()
         .prepare(&ctx)
         .unwrap_err();
-    assert!(err.to_string().contains("cross_world_not_identified"), "{err}");
+    let antecedent::CausalError::Unsupported { message } = err else {
+        panic!("expected typed cross-world refusal, got {err:?}");
+    };
+    let (code, detail) = antecedent_core::reason_code::split_prefix(message)
+        .expect("registered reason-coded refusal");
+    assert_eq!(code, "cross_world_not_identified");
+    assert!(antecedent_core::reason_code::is_runtime_refusal(code));
+    assert!(detail.contains("exactly X -> M"), "{detail}");
 }
 
 fn naive_ols_slope(a: &[f64], y: &[f64]) -> f64 {

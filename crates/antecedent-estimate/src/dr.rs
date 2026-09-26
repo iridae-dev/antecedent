@@ -38,6 +38,35 @@ pub struct DrLearner {
     pub overlap: OverlapPolicy,
 }
 
+/// A prespecified profile in the complete ordered adjustment set.
+///
+/// Profile inference is deliberately restricted to exact empirical support: the complete
+/// design row must occur among retained observations in both treatment arms.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CateProfile {
+    /// Covariate values in the same order as [`PreparedPropensityProblem::adjustment_set`].
+    pub values: Arc<[f64]>,
+}
+
+/// Pointwise inferential result for one prespecified, exactly supported profile.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PointwiseCateEstimate {
+    /// Profile values in adjustment-set order.
+    pub profile: CateProfile,
+    /// Linear-final-stage prediction of the cross-fitted DR score at this profile.
+    pub estimate: f64,
+    /// HC0 standard error evaluated at this profile.
+    pub standard_error: f64,
+    /// Pointwise 95% normal-approximation lower bound; not calibrated in this release.
+    pub lower_95: f64,
+    /// Pointwise 95% normal-approximation upper bound; not calibrated in this release.
+    pub upper_95: f64,
+    /// Retained observed control units at the exact profile.
+    pub control_count: usize,
+    /// Retained observed treated units at the exact profile.
+    pub treated_count: usize,
+}
+
 impl Default for DrLearner {
     fn default() -> Self {
         Self::new()
@@ -127,6 +156,43 @@ impl DrLearner {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.fit_with_profiles(problem, &[], ctx, assumptions).map(|(effect, _)| effect)
+    }
+
+    /// Fit and evaluate prespecified profiles with pointwise linear HC0 inference.
+    ///
+    /// Every profile must exactly match a row in the retained empirical design, have at least
+    /// one retained unit in each treatment arm, and all such rows must pass the configured
+    /// propensity clip. This exact-support API intentionally refuses continuous extrapolation.
+    /// Returned bounds are uncalibrated and must not be described as calibrated intervals.
+    pub fn fit_pointwise_profiles(
+        &self,
+        problem: &PreparedPropensityProblem,
+        profiles: &[CateProfile],
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, Arc<[PointwiseCateEstimate]>), EstimationError> {
+        if profiles.is_empty() {
+            return Err(EstimationError::data_msg(
+                "pointwise CATE inference requires at least one prespecified profile",
+            ));
+        }
+        if !matches!(self.final_learner, LearnerSpec::Linear(_)) {
+            return Err(EstimationError::data_msg(
+                "pointwise DR CATE inference requires an unpenalized linear final stage",
+            ));
+        }
+        let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
+        Ok((effect, results.expect("profiles requested")))
+    }
+
+    fn fit_with_profiles(
+        &self,
+        problem: &PreparedPropensityProblem,
+        profiles: &[CateProfile],
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<(EffectEstimate, Option<Arc<[PointwiseCateEstimate]>>), EstimationError> {
         if !matches!(problem.target_population, TargetPopulation::AllObserved) {
             return Err(EstimationError::TargetPopulation);
         }
@@ -225,8 +291,112 @@ impl DrLearner {
             Err(antecedent_learn::LearnError::Unsupported { .. }) => {}
             Err(error) => return Err(learn_err(error)),
         }
-        Ok(effect)
+        let pointwise = if profiles.is_empty() {
+            None
+        } else {
+            Some(Arc::from(pointwise_profile_results(
+                self.final_learner,
+                problem,
+                profiles,
+                &phi,
+                &cate,
+                raw_e,
+                retained.as_deref(),
+            )?))
+        };
+        Ok((effect, pointwise))
     }
+}
+
+fn pointwise_profile_results(
+    spec: LearnerSpec,
+    problem: &PreparedPropensityProblem,
+    profiles: &[CateProfile],
+    phi: &[f64],
+    cate: &[f64],
+    propensity: &[f64],
+    retained: Option<&[usize]>,
+) -> Result<Vec<PointwiseCateEstimate>, EstimationError> {
+    if !matches!(spec, LearnerSpec::Linear(_)) {
+        return Err(EstimationError::data_msg("pointwise CATE requires a linear final stage"));
+    }
+    let rows: Vec<usize> = retained.map_or_else(|| (0..problem.nrows).collect(), <[usize]>::to_vec);
+    let clip = clip_of(problem.overlap).unwrap_or(crate::overlap::DEFAULT_PROPENSITY_CLIP);
+    let mut output = Vec::with_capacity(profiles.len());
+    for profile in profiles {
+        if profile.values.len() != problem.adjustment_set.len()
+            || profile.values.iter().any(|v| !v.is_finite())
+        {
+            return Err(EstimationError::data_msg(
+                "CATE profile must contain one finite value per adjustment variable",
+            ));
+        }
+        let matching: Vec<usize> = rows
+            .iter()
+            .copied()
+            .filter(|&r| {
+                problem
+                    .covariates
+                    .iter()
+                    .zip(profile.values.iter())
+                    .all(|(col, value)| col[r] == *value)
+            })
+            .collect();
+        let control_count = matching.iter().filter(|&&r| problem.treatment[r] <= 0.5).count();
+        let treated_count = matching.iter().filter(|&&r| problem.treatment[r] > 0.5).count();
+        if control_count == 0 || treated_count == 0 {
+            return Err(EstimationError::data_msg(
+                "CATE profile lacks exact retained empirical support in both treatment arms",
+            ));
+        }
+        if matching.iter().any(|&r| {
+            !propensity[r].is_finite()
+                || if clip > 0.0 {
+                    propensity[r] < clip || propensity[r] > 1.0 - clip
+                } else {
+                    propensity[r] <= 0.0 || propensity[r] >= 1.0
+                }
+        }) {
+            return Err(EstimationError::data_msg(
+                "CATE profile rows fail the configured propensity overlap clip",
+            ));
+        }
+        let p = problem.design_ncols;
+        let x: Vec<f64> = std::iter::once(1.0).chain(profile.values.iter().copied()).collect();
+        let mut design = vec![0.0; rows.len() * p];
+        for c in 0..p {
+            for (i, &r) in rows.iter().enumerate() {
+                design[c * rows.len() + i] =
+                    if c == 0 { 1.0 } else { problem.covariates[c - 1][r] };
+            }
+        }
+        let residuals: Vec<f64> = rows.iter().map(|&r| phi[r] - cate[r]).collect();
+        let covariance =
+            coefficient_covariance(&design, rows.len(), p, &residuals, SandwichKind::Hc0)
+                .map_err(|_| EstimationError::data_msg("CATE HC0 covariance is not estimable"))?;
+        let estimate = matching[0].to_owned();
+        let fitted = cate[estimate];
+        let mut variance = 0.0;
+        for j in 0..p {
+            for k in 0..p {
+                variance += x[j] * covariance[j * p + k] * x[k];
+            }
+        }
+        if !variance.is_finite() || variance < 0.0 {
+            return Err(EstimationError::data_msg("CATE HC0 variance is invalid"));
+        }
+        let standard_error = variance.sqrt();
+        output.push(PointwiseCateEstimate {
+            profile: profile.clone(),
+            estimate: fitted,
+            standard_error,
+            lower_95: fitted - 1.96 * standard_error,
+            upper_95: fitted + 1.96 * standard_error,
+            control_count,
+            treated_count,
+        });
+    }
+    Ok(output)
 }
 
 /// HC0 sandwich SEs for a linear CATE regression of orthogonal scores.
@@ -390,6 +560,85 @@ mod tests {
         )
     }
 
+    fn categorical_interaction_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xA11u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = if rng.next_f64() >= 0.5 { 1.0 } else { 0.0 };
+            let ti = if rng.next_f64() < if zi == 1.0 { 0.7 } else { 0.3 } { 1.0 } else { 0.0 };
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = (1.0 + zi) * ti + 0.4 * zi + standard_normal(&mut rng) * 0.25;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        (
+            TabularData::new(storage),
+            IdentifiedEstimand::backdoor(
+                "backdoor.adjustment",
+                Arc::from([VariableId::from_raw(2)]),
+                ExprId::from_raw(0),
+            ),
+        )
+    }
+
     #[test]
     fn interaction_recovers_monotone_cate() {
         let (data, estimand, z) = interaction_scm(900, 3);
@@ -443,8 +692,57 @@ mod tests {
                 cate[row]
             );
             assert!(se[row].is_finite() && se[row] > 0.0, "profile {profile}: {}", se[row]);
+            assert!(
+                (cate[row] - truth).abs() <= 1.96 * se[row],
+                "pointwise interval at profile {profile} misses known truth: estimate={}, se={}, truth={truth}",
+                cate[row],
+                se[row]
+            );
             assert_ne!(cate[row].to_bits(), se[row].to_bits());
         }
+    }
+
+    #[test]
+    fn exact_supported_categorical_profile_returns_distinct_point_and_hc0_interval() {
+        let (data, estimand) = categorical_interaction_scm(5_000, 88);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let learner = DrLearner::new();
+        let prepared = learner.prepare(&data, &estimand, &query).unwrap();
+        let (effect, results) = learner
+            .fit_pointwise_profiles(
+                &prepared,
+                &[CateProfile { values: Arc::from([1.0]) }],
+                &ExecutionContext::for_tests(9),
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(effect.cate.is_some(), "rowwise fitted CATE remains a separate diagnostic");
+        let result = &results[0];
+        assert_eq!(result.profile.values.as_ref(), &[1.0]);
+        assert!(result.control_count > 0 && result.treated_count > 0);
+        assert!((result.estimate - 2.0).abs() < 0.12, "estimate {}", result.estimate);
+        assert!(result.standard_error.is_finite() && result.standard_error > 0.0);
+        assert!(result.lower_95 < result.estimate && result.upper_95 > result.estimate);
+        assert!(result.lower_95 <= 2.0 && 2.0 <= result.upper_95);
+    }
+
+    #[test]
+    fn exact_profile_route_refuses_unobserved_joint_profiles() {
+        let (data, estimand) = categorical_interaction_scm(1_000, 91);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let learner = DrLearner::new();
+        let prepared = learner.prepare(&data, &estimand, &query).unwrap();
+        let error = learner
+            .fit_pointwise_profiles(
+                &prepared,
+                &[CateProfile { values: Arc::from([0.5]) }],
+                &ExecutionContext::for_tests(9),
+                AssumptionSet::new(),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("exact retained empirical support"));
     }
 
     #[test]

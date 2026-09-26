@@ -100,3 +100,40 @@ fn interventional_distribution_admg_frontdoor_frequentist_nominal_coverage() {
     }
     gate(&tallies, &[None, None]);
 }
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage() {
+    const ACCEPTED_TEST: &str =
+        "interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage";
+    let mut tallies = [REPORTED_LEVEL, GATE_LEVEL].map(|level| {
+        CoverageTally::for_record(
+            RecordKey { test: ACCEPTED_TEST, dgp: "frontdoor_data", interval: "bootstrap_se" },
+            level,
+        )
+    });
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0105, rep);
+        let data = data(SampleGrid::HEAVY.n(1000), seed);
+        let (study, result) = run(&data, true, seed);
+        let distribution = result.distribution.as_ref().unwrap();
+        let reported = distribution.mean_interval.and_then(|interval| interval.bounds());
+        let gated =
+            logit_probability_interval(distribution.mean, distribution.se_bootstrap, GATE_LEVEL)
+                .bounds();
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.distribution"));
+            assert_eq!(distribution.bootstrap_replicates_ok, Some(199));
+            assert!(reported.is_some());
+        }
+        (study, result, [reported, gated])
+    });
+    for (study, result, intervals) in &runs {
+        let [reported, gated] = &mut tallies;
+        bind_all(&mut [reported, gated], study, result);
+        for (tally, interval) in tallies.iter_mut().zip(intervals) {
+            tally.record(*interval, TRUTH);
+        }
+    }
+    gate(&tallies, &[None, None]);
+}
