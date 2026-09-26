@@ -110,7 +110,7 @@ impl PendingEdge {
 pub enum CausalError {
     /// Identification failed.
     #[error(transparent)]
-    Identify(#[from] IdentificationError),
+    Identify(IdentificationError),
     /// Estimation failed.
     #[error(transparent)]
     Estimate(#[from] EstimationError),
@@ -258,6 +258,8 @@ const STAGE_DISCOVER: &str = "discover";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by a standalone
 /// attribution call (Shapley allocation, root-cause ranking).
 const STAGE_ATTRIBUTE: &str = "attribute";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by identification.
+const STAGE_IDENTIFY: &str = "identify";
 
 /// Cooperative cancellation and resource refusals are non-scientific facade
 /// outcomes, not refutation/discovery/attribution findings, so they are
@@ -274,6 +276,19 @@ impl From<ValidationError> for CausalError {
                 Self::Resource { message }
             }
             other => Self::Validate(other),
+        }
+    }
+}
+
+/// Identification cancellation and budget exhaustion are non-scientific
+/// outcomes: they reach the facade as [`CausalError::Cancelled`] and
+/// [`CausalError::Resource`], never as an identification finding.
+impl From<IdentificationError> for CausalError {
+    fn from(error: IdentificationError) -> Self {
+        match error {
+            IdentificationError::Cancelled => Self::Cancelled { stage: STAGE_IDENTIFY },
+            IdentificationError::Budget { .. } => Self::Resource { message: error.to_string() },
+            other => Self::Identify(other),
         }
     }
 }
@@ -437,7 +452,8 @@ impl CausalError {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
-            Self::Estimate(EstimationError::Refused { code, .. }) => return Some(code),
+            Self::Estimate(EstimationError::Refused { code, .. })
+            | Self::Serialization(IoError::Refused { code, .. }) => return Some(code),
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
@@ -588,6 +604,24 @@ mod tests {
             "expected top-level Cancelled, got {error:?}"
         );
         assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn identification_cancel_and_budget_are_non_scientific_blockers() {
+        use antecedent_identify::{IdentificationBudget, IdentificationError};
+        let cancelled = CausalError::from(IdentificationError::Cancelled);
+        assert!(matches!(cancelled, CausalError::Cancelled { stage: "identify" }), "{cancelled:?}");
+        assert!(cancelled.blocker_id().is_some_and(|b| !b.scientific));
+        let budget = CausalError::from(IdentificationError::budget(IdentificationBudget::Steps));
+        assert!(
+            matches!(&budget, CausalError::Resource { message } if message == "transport.identification_budget"),
+            "{budget:?}"
+        );
+        assert!(budget.blocker_id().is_some_and(|b| !b.scientific));
+        assert!(matches!(
+            CausalError::from(IdentificationError::invalid_input("z_transport.invalid_query")),
+            CausalError::Identify(IdentificationError::InvalidInput { .. })
+        ));
     }
 
     #[test]

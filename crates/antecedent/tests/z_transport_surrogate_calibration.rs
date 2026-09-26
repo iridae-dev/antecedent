@@ -21,7 +21,7 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    ZTransportQuery, ZTransportResult, bind_z_transport_catalog, identify_z_transport_surrogate,
+    SidLimits, ZTransportQuery, ZTransportResult, bind_z_transport_catalog, identify_z_transport,
 };
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
@@ -164,9 +164,13 @@ fn surrogate_cited_margin_nominal_coverage() {
     let diagram = diagram();
     let query = query();
     let catalog = catalog();
-    let ZTransportResult::Identified(derivation) =
-        identify_z_transport_surrogate(&diagram, &query).unwrap()
-    else {
+    let ZTransportResult::Identified(derivation) = identify_z_transport(
+        &diagram,
+        &query,
+        SidLimits::default(),
+        &antecedent_core::ExecutionContext::for_tests(0),
+    )
+    .unwrap() else {
         panic!("registered surrogate");
     };
     let functional = bind_z_transport_catalog(&diagram, &query, &derivation, &catalog).unwrap();

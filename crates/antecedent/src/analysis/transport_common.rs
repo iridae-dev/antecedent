@@ -16,6 +16,12 @@ pub(super) fn err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())
 }
 
+/// Carry an estimation failure across the prepared-study boundary, keeping a
+/// registered refusal code as [`IoError::Refused`] rather than flattening it.
+pub(super) fn estimate_err(error: antecedent_estimate::EstimationError) -> IoError {
+    IoError::from(error)
+}
+
 /// Hex digest of a wire value under `domain`.
 pub(super) fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
     Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())

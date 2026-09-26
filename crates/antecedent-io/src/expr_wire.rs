@@ -16,6 +16,7 @@ use crate::query_wire::ValueWire;
 
 /// Expr arena wire (tables only; hash indexes rebuilt on load).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ExprArenaWire {
     /// Derivation records keyed by expression id; absent on legacy artifacts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -32,6 +33,7 @@ pub struct ExprArenaWire {
 
 /// Complete checked functional program wire record.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct FunctionalProgramWire {
     /// Owned expression arena.
     pub arena: ExprArenaWire,
@@ -116,6 +118,7 @@ pub fn functional_program_from_wire(
 
 /// Durable derivation step, separate from expression algebraic identity.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct DerivationWire {
     /// Named inference rule.
     pub rule: String,
@@ -137,6 +140,7 @@ pub struct DerivationWire {
 
 /// Intervention assignment wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct InterventionAssignmentWire {
     /// Symbolic placeholder rather than a concrete floating-point value.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]

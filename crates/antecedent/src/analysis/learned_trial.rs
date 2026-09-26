@@ -230,6 +230,9 @@ impl PreparedStudy<LearnedTrialState> {
         input: TrialAipwInput,
         ctx: &ExecutionContext,
     ) -> Result<LearnedTrialResult, IoError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(err("trial transport cancelled"));
+        }
         if input.features != self.state.input.features
             || input.sampling != self.state.input.sampling
         {
