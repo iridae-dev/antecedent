@@ -1401,7 +1401,18 @@ impl super::Study {
                         if *variable == query.treatment && value.as_f64() == Some(1.0))
                     && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
                         if *variable == query.treatment && value.as_f64() == Some(0.0)));
-        if checked_glm || checked_rd || checked_propensity {
+        if checked_rd {
+            if let DataInput::Tabular(data) = &self.data {
+                // A sharp-RD design that does not fit its data (assignment not
+                // sharp, no rows in the bandwidth window) is not retained; the
+                // ordinary dispatch below then reports that refusal at execute,
+                // as the route always did.
+                let prepared = self.prepare(ctx)?;
+                if prepared.has_checked_rd_operation() {
+                    return prepared.estimate(data, ctx);
+                }
+            }
+        } else if checked_glm || checked_propensity {
             if let DataInput::Tabular(data) = &self.data {
                 return self.run_sealed_tabular(
                     data,
@@ -1409,8 +1420,6 @@ impl super::Study {
                     |prepared| {
                         if checked_glm {
                             prepared.has_sealed_glm_operation()
-                        } else if checked_rd {
-                            prepared.has_checked_rd_operation()
                         } else {
                             prepared.has_checked_propensity_operation()
                         }

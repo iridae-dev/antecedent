@@ -8745,34 +8745,39 @@ impl Study {
                 );
                 fitter.bootstrap_replicates = analysis.bootstrap_replicates;
                 fitter.se_kind = config.se_kind;
-                let preparation = fitter.prepare_checked(data, &identification, 0)?;
+                // The design is checked against the data (sharp assignment,
+                // rows inside the bandwidth window) when it executes, as the
+                // route always did; a prepare on data the design does not fit
+                // still succeeds and leaves the click to report that refusal.
                 let identifier = crate::strategy_table::IdentifierId::RdSharp;
                 let estimator = crate::strategy_table::EstimatorId::RdSharp;
-                Some(CheckedRdOperation {
-                    source_query: query.clone(),
-                    query: identified_query,
-                    identification,
-                    estimand,
-                    identifier,
-                    estimator,
-                    physical: plan.clone(),
-                    fitter,
-                    preparation,
-                    inference: analysis.inference.clone(),
-                    refute: analysis.refute,
-                    graph_class: analysis.graph.class(),
-                    graph_version: analysis.graph.version(),
-                    support_status: analysis.support_status,
-                    structure_source: analysis.structure_source,
-                    population_registry: analysis.population_registry.clone(),
-                    latency_mode: analysis.latency_mode,
-                    custom_validator_names: Arc::from(
-                        analysis
-                            .custom_validators
-                            .iter()
-                            .map(|v| Arc::from(v.name()))
-                            .collect::<Vec<_>>(),
-                    ),
+                fitter.prepare_checked(data, &identification, 0).ok().map(|preparation| {
+                    CheckedRdOperation {
+                        source_query: query.clone(),
+                        query: identified_query,
+                        identification,
+                        estimand,
+                        identifier,
+                        estimator,
+                        physical: plan.clone(),
+                        fitter,
+                        preparation,
+                        inference: analysis.inference.clone(),
+                        refute: analysis.refute,
+                        graph_class: analysis.graph.class(),
+                        graph_version: analysis.graph.version(),
+                        support_status: analysis.support_status,
+                        structure_source: analysis.structure_source,
+                        population_registry: analysis.population_registry.clone(),
+                        latency_mode: analysis.latency_mode,
+                        custom_validator_names: Arc::from(
+                            analysis
+                                .custom_validators
+                                .iter()
+                                .map(|v| Arc::from(v.name()))
+                                .collect::<Vec<_>>(),
+                        ),
+                    }
                 })
             }
             _ => None,
