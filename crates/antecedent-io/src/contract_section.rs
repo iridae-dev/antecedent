@@ -127,9 +127,11 @@ pub struct CheckedAipwLoweringWire {
     pub adjustment: Vec<u32>,
     /// Target population name (`all_observed` for this checked route).
     pub population: String,
-    /// Licensed procedure (`cross_fitted_logistic_ols`).
+    /// Licensed procedure: `cross_fitted_logistic_ols` under an untrimmed overlap
+    /// policy, `trimmed_logistic_ols` (full-sample common-support refit) under a
+    /// trimming one.
     pub procedure: String,
-    /// Cross-fitting folds.
+    /// Cross-fitting folds (zero for the trimmed procedure).
     pub folds: u64,
     /// Analytic standard-error kind.
     pub se_kind: String,
@@ -138,6 +140,10 @@ pub struct CheckedAipwLoweringWire {
     pub se_lag: Option<u64>,
     /// Bootstrap replicate count (zero means disabled).
     pub bootstrap_replicates: u32,
+    /// Propensity trim threshold bits of the retained overlap policy; present
+    /// exactly for the `trimmed_logistic_ols` procedure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trim_bits: Option<u64>,
 }
 
 /// Data-dependent complete-case rows bound to a checked AIPW lowering.
@@ -2627,6 +2633,20 @@ fn intervention_bits(wire: &crate::query_wire::InterventionWire, variable: u32) 
     }
 }
 
+/// Whether a study-level overlap policy tag (as `inference_binding.overlap_policy`
+/// spells it) trims exactly as the checked AIPW lowering does; no tag means the
+/// estimator's default, untrimmed policy ran.
+fn overlap_tag_trim_matches(tag: Option<&str>, lowering: &CheckedAipwLoweringWire) -> bool {
+    let expected = format!(
+        ":trim={}",
+        lowering.trim_bits.map_or_else(|| "none".into(), |bits| format!("{bits:016x}"))
+    );
+    match tag {
+        None => lowering.trim_bits.is_none(),
+        Some(tag) => tag.starts_with("require_diagnostics:") && tag.ends_with(&expected),
+    }
+}
+
 fn overlap_policy_tag(policy: &crate::OverlapPolicyWire) -> String {
     match policy {
         crate::OverlapPolicyWire::ExplicitOverride => "explicit_override".into(),
@@ -2703,15 +2723,11 @@ fn verify_layer_links(contract: &AnalysisResultContractWire, unresolved: &mut Ve
     }
 }
 
-fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
-    let lowering =
-        contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
-    if contract.estimator.as_deref() == Some("aipw") && lowering.is_none() {
-        unresolved.push(Arc::from("program.checked_aipw_lowering"));
-        return;
-    }
-    let Some(lowering) = lowering else { return };
-    let valid_format = lowering.format == 1;
+/// Whether a checked AIPW lowering is internally well formed: a known format
+/// and uncertainty method, a lag exactly for the lagged methods, and a
+/// procedure the trim rule selects (cross-fitted scores run five folds without
+/// a trim, the common-support refit runs no folds with one).
+fn checked_aipw_lowering_well_formed(lowering: &CheckedAipwLoweringWire) -> bool {
     let valid_method = matches!(
         lowering.se_kind.as_str(),
         "homoskedastic"
@@ -2726,7 +2742,23 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
     );
     let lag_valid = matches!(lowering.se_kind.as_str(), "newey_west" | "panel_cluster_hac")
         == lowering.se_lag.is_some();
-    if !valid_format || !valid_method || !lag_valid || lowering.folds != 5 {
+    let valid_procedure = match lowering.procedure.as_str() {
+        "cross_fitted_logistic_ols" => lowering.folds == 5 && lowering.trim_bits.is_none(),
+        "trimmed_logistic_ols" => lowering.folds == 0 && lowering.trim_bits.is_some(),
+        _ => false,
+    };
+    lowering.format == 1 && valid_method && lag_valid && valid_procedure
+}
+
+fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+    let lowering =
+        contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
+    if contract.estimator.as_deref() == Some("aipw") && lowering.is_none() {
+        unresolved.push(Arc::from("program.checked_aipw_lowering"));
+        return;
+    }
+    let Some(lowering) = lowering else { return };
+    if !checked_aipw_lowering_well_formed(lowering) {
         unresolved.push(Arc::from("program.checked_aipw_lowering"));
     }
     if !is_aipw_contract(contract) {
@@ -2749,14 +2781,19 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
                     && config.se_kind.as_deref() == Some(lowering.se_kind.as_str())
                     && matches!(
                         config.overlap,
-                        crate::OverlapPolicyWire::RequireDiagnostics { trim_bits: None, .. }
+                        crate::OverlapPolicyWire::RequireDiagnostics { trim_bits, .. }
+                            if trim_bits == lowering.trim_bits
                     )
             }
             Some(crate::EstimatorSpecWire::Default(estimator)) if estimator == "aipw" => {
                 lowering.se_kind == "homoskedastic"
                     && binding.bootstrap_replicates == lowering.bootstrap_replicates
+                    && overlap_tag_trim_matches(binding.overlap_policy.as_deref(), lowering)
             }
-            None => binding.bootstrap_replicates == lowering.bootstrap_replicates,
+            None => {
+                binding.bootstrap_replicates == lowering.bootstrap_replicates
+                    && overlap_tag_trim_matches(binding.overlap_policy.as_deref(), lowering)
+            }
             _ => false,
         };
         binding.inference != "frequentist" || binding.bayesian.is_some() || !choices_match
@@ -2799,7 +2836,10 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
     if !query_matches
         || !estimand_matches
         || !adjustments_unique
-        || lowering.procedure != "cross_fitted_logistic_ols"
+        || !matches!(
+            lowering.procedure.as_str(),
+            "cross_fitted_logistic_ols" | "trimmed_logistic_ols"
+        )
     {
         unresolved.push(Arc::from("program.checked_aipw_binding"));
     }
@@ -4420,6 +4460,7 @@ mod tests {
             se_kind: "hc1".into(),
             se_lag: None,
             bootstrap_replicates: 0,
+            trim_bits: None,
         });
         contract.identities.program =
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
@@ -4445,6 +4486,59 @@ mod tests {
         );
     }
 
+    /// The trim rule selects the procedure: a trimmed lowering must run no
+    /// cross-fit folds and carry its trim, and the cross-fitted one neither.
+    #[test]
+    fn checked_aipw_lowering_procedure_must_agree_with_its_folds_and_trim() {
+        let cases = [
+            ("trimmed_logistic_ols", 0, Some(0.02f64.to_bits()), true),
+            ("trimmed_logistic_ols", 5, Some(0.02f64.to_bits()), false),
+            ("trimmed_logistic_ols", 0, None, false),
+            ("cross_fitted_logistic_ols", 5, None, true),
+            ("cross_fitted_logistic_ols", 5, Some(0.02f64.to_bits()), false),
+            ("cross_fitted_logistic_ols", 0, None, false),
+            ("full_sample_logistic_ols", 0, None, false),
+        ];
+        for (procedure, folds, trim_bits, consistent) in cases {
+            let (body, target, names) = fixture_body();
+            let mut contract = contract_for(target, &body);
+            contract.estimator = Some("aipw".into());
+            let program = contract.program.as_mut().unwrap();
+            program.commitments.estimator = Some("aipw".into());
+            program.commitments.resolved_estimator = Some("aipw".into());
+            program.checked_aipw_lowering = Some(CheckedAipwLoweringWire {
+                format: 1,
+                functional: 0,
+                treatment: 0,
+                outcome: 1,
+                adjustment: Vec::new(),
+                population: "all_observed".into(),
+                procedure: procedure.into(),
+                folds,
+                se_kind: "hc1".into(),
+                se_lag: None,
+                bootstrap_replicates: 0,
+                trim_bits,
+            });
+            contract.identities.program =
+                *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+            seal_claim(&mut contract, &body);
+            let consumed =
+                consume_analysis_result(&replace_contract_section(&body, names.clone(), &contract))
+                    .unwrap();
+            assert_eq!(
+                consumed
+                    .acceptance
+                    .unresolved
+                    .iter()
+                    .any(|key| key.as_ref() == "program.checked_aipw_lowering"),
+                !consistent,
+                "{procedure} folds={folds} trim={trim_bits:?}: {:?}",
+                consumed.acceptance.unresolved
+            );
+        }
+    }
+
     #[test]
     fn checked_aipw_rows_require_the_sealed_snapshot_digest() {
         let (body, target, names) = fixture_body();
@@ -4465,6 +4559,7 @@ mod tests {
             se_kind: "hc1".into(),
             se_lag: None,
             bootstrap_replicates: 0,
+            trim_bits: None,
         });
         contract.identities.program =
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();

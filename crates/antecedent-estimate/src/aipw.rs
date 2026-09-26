@@ -96,6 +96,40 @@ pub struct AipwWorkspace {
 pub enum CheckedAipwProcedure {
     /// Logistic propensity and arm-specific OLS outcome nuisances with cross-fitted scores.
     CrossFittedLogisticOls,
+    /// Logistic propensity and arm-specific OLS outcome nuisances refit on the
+    /// common-support rows a trim rule retains; full-sample residualized, no score table.
+    TrimmedLogisticOls,
+}
+
+impl CheckedAipwProcedure {
+    /// The procedure an overlap policy selects: the trim rule decides between the
+    /// cross-fitted score table and the full-sample common-support refit.
+    #[must_use]
+    pub fn for_overlap(overlap: OverlapPolicy) -> Self {
+        if trim_of(overlap).is_some() {
+            Self::TrimmedLogisticOls
+        } else {
+            Self::CrossFittedLogisticOls
+        }
+    }
+
+    /// Cross-fit fold count the procedure runs; zero for the full-sample refit.
+    #[must_use]
+    pub const fn folds(self) -> usize {
+        match self {
+            Self::CrossFittedLogisticOls => crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+            Self::TrimmedLogisticOls => 0,
+        }
+    }
+
+    /// Stable wire spelling of the procedure.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CrossFittedLogisticOls => "cross_fitted_logistic_ols",
+            Self::TrimmedLogisticOls => "trimmed_logistic_ols",
+        }
+    }
 }
 
 /// Selected target roles and numerical choices for checked AIPW execution.
@@ -113,7 +147,10 @@ pub struct CheckedAipwLowering {
     pub population: TargetPopulation,
     /// Estimator procedure retained for execution.
     pub procedure: CheckedAipwProcedure,
-    /// Cross-fit fold count.
+    /// Overlap policy the procedure clips and trims with; its trim rule selects
+    /// `procedure`.
+    pub overlap: OverlapPolicy,
+    /// Cross-fit fold count (zero for the trimmed full-sample procedure).
     pub folds: usize,
     /// Analytic uncertainty method.
     pub se_kind: AnalyticSeKind,
@@ -348,8 +385,10 @@ impl AipwAte {
     /// Prepare the licensed logistic/OLS AIPW route from one identified mean ATE claim.
     ///
     /// The receipt retains the selected functional, identification assumptions, semantic
-    /// roles, cross-fit procedure, uncertainty choices, and complete-case row identities.
-    /// This checked route currently covers the untrimmed `AllObserved` mean ATE.
+    /// roles, procedure, overlap policy, uncertainty choices, and complete-case row
+    /// identities. This checked route covers the `AllObserved` mean ATE: cross-fitted
+    /// scores under an untrimmed policy, the full-sample common-support refit under a
+    /// trimming one.
     #[allow(
         clippy::too_many_lines,
         reason = "the checked AIPW receipt binds identification, treatment contrast, program, procedure, and row identities atomically"
@@ -402,11 +441,6 @@ impl AipwAte {
                 "checked AIPW currently supports the AllObserved mean ATE",
             ));
         }
-        if crate::propensity::trim_of(self.overlap).is_some() {
-            return Err(EstimationError::unsupported(
-                "checked AIPW currently requires the untrimmed cross-fitted ATE procedure",
-            ));
-        }
         let (active, control, _) =
             crate::prepare::treatment_contrast(&query.active, &query.control)?;
         #[allow(
@@ -447,14 +481,16 @@ impl AipwAte {
         .map_err(|e| EstimationError::data_msg(format!("checked AIPW target program: {e}")))?;
         let problem = self.prepare(data, target, query)?;
         let factor_requirements = Arc::from(program.factor_requirements().to_vec());
+        let procedure = CheckedAipwProcedure::for_overlap(self.overlap);
         let lowering = CheckedAipwLowering {
             functional: target.functional,
             treatment: query.treatment,
             outcome: query.outcome,
             adjustment: Arc::clone(&target.adjustment_set),
             population: query.target_population.clone(),
-            procedure: CheckedAipwProcedure::CrossFittedLogisticOls,
-            folds: crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+            procedure,
+            overlap: self.overlap,
+            folds: procedure.folds(),
             se_kind: self.se_kind,
             bootstrap_replicates: self.bootstrap_replicates,
             rows: Arc::clone(&problem.row_index),
@@ -490,8 +526,10 @@ impl AipwAte {
             || checked.lowering.outcome != checked.query.outcome
             || checked.lowering.adjustment != checked.target.adjustment_set
             || checked.lowering.population != checked.query.target_population
-            || checked.lowering.procedure != CheckedAipwProcedure::CrossFittedLogisticOls
-            || checked.lowering.folds != crate::crossfit_aipw::DEFAULT_AIPW_FOLDS
+            || checked.lowering.procedure != CheckedAipwProcedure::for_overlap(self.overlap)
+            || checked.lowering.overlap != self.overlap
+            || checked.problem.overlap != self.overlap
+            || checked.lowering.folds != checked.lowering.procedure.folds()
             || checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
         {
@@ -514,6 +552,9 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         if checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+            || checked.lowering.overlap != self.overlap
+            || checked.problem.overlap != self.overlap
+            || checked.lowering.procedure != CheckedAipwProcedure::for_overlap(self.overlap)
         {
             return Err(EstimationError::data_msg(
                 "AIPW estimator configuration differs from the checked procedure receipt",
@@ -1417,6 +1458,45 @@ mod tests {
         );
         let estimator = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
         assert!(estimator.prepare_checked(&data, &identification, 0).is_err());
+    }
+
+    /// A trimming policy lowers to the full-sample common-support procedure and
+    /// the checked fit is the estimator's own trimmed fit, bit for bit.
+    #[test]
+    fn checked_trimmed_aipw_retains_its_policy_and_matches_the_plain_fit() {
+        let (data, estimand) = confounded_scm(1200, 4171);
+        let identification = identified_aipw(&estimand);
+        let overlap = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.05) };
+        let estimator = AipwAte { bootstrap_replicates: 6, overlap, ..AipwAte::new() };
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(checked.lowering().procedure, CheckedAipwProcedure::TrimmedLogisticOls);
+        assert_eq!(checked.lowering().overlap, overlap);
+        assert_eq!(checked.lowering().folds, 0);
+        assert_eq!(checked.problem().overlap, overlap);
+        let rebound = estimator.rebind_checked(&checked, &data).unwrap();
+        assert_eq!(rebound.lowering().procedure, CheckedAipwProcedure::TrimmedLogisticOls);
+
+        let mut workspace = AipwWorkspace::default();
+        let sealed = estimator
+            .fit_checked(&checked, &mut workspace, &ExecutionContext::for_tests(441))
+            .unwrap();
+        let query = identification.average_effect().unwrap();
+        let problem = estimator.prepare(&data, &identification.estimands[0], query).unwrap();
+        let plain = estimator
+            .fit(&problem, &mut workspace, &ExecutionContext::for_tests(441), AssumptionSet::new())
+            .unwrap();
+        assert_eq!(sealed.ate.to_bits(), plain.ate.to_bits());
+        assert_eq!(sealed.se_analytic.to_bits(), plain.se_analytic.to_bits());
+        assert_eq!(sealed.se_bootstrap.map(f64::to_bits), plain.se_bootstrap.map(f64::to_bits));
+        assert!(sealed.score_table.is_none(), "the trimmed fit has no cross-fitted score table");
+        assert!(
+            sealed.overlap_report.as_ref().is_some_and(|report| report.excluded_fraction > 0.0)
+        );
+
+        // An estimator whose policy differs from the receipt cannot execute it.
+        let untrimmed = AipwAte { bootstrap_replicates: 6, ..AipwAte::new() };
+        assert!(untrimmed.fit_checked(&checked, &mut workspace, &ctx()).is_err());
+        assert!(untrimmed.rebind_checked(&checked, &data).is_err());
     }
 
     fn ctx() -> ExecutionContext {
