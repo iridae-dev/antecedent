@@ -50,8 +50,12 @@ def _validate_entry_contract(
     delayed_entry: str | None, assumption: IndependentGiven | None
 ) -> None:
     if delayed_entry is None:
-        if assumption is not None:
-            raise CausalValueError("observation_assumption is only used with delayed_entry")
+        if assumption is not None and (
+            not isinstance(assumption, IndependentGiven) or tuple(assumption.variables)
+        ):
+            raise CausalValueError(
+                "the unadjusted survival route accepts only marginal IndependentGiven(())"
+            )
         return
     if not isinstance(delayed_entry, str) or not delayed_entry.strip():
         raise CausalValueError("delayed_entry must be a non-empty column name")

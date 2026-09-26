@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from importlib import metadata
 from types import MappingProxyType
 from typing import Any, Protocol, runtime_checkable
 
@@ -274,6 +275,34 @@ class ProviderRegistry:
 
     def __init__(self) -> None:
         self._providers: dict[str, tuple[CausalProvider, ProviderTrust]] = {}
+        self._entry_points: dict[str, str] = {}
+
+    def load_entry_point(self, name: str) -> CausalProvider:
+        """Explicitly load one installed ``antecedent.providers`` entry point.
+
+        An entry point must expose a zero-argument factory returning an
+        executable provider. Discovery and provider code run only when this
+        method is called. Installing a separate Python distribution therefore
+        needs no Antecedent or Rust rebuild. Every loaded provider remains
+        externally attested under the same validation as ``register``.
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("provider name must be a non-empty string")
+        if name in self._providers:
+            raise ValueError(f"provider {name!r} is already registered")
+        matches = tuple(metadata.entry_points().select(group="antecedent.providers", name=name))
+        if not matches:
+            raise KeyError(f"provider entry point {name!r} is not installed")
+        if len(matches) != 1:
+            raise ValueError(f"provider entry point {name!r} is ambiguous")
+        entry_point = matches[0]
+        factory = entry_point.load()
+        if not callable(factory):
+            raise TypeError(f"provider entry point {name!r} must expose a factory")
+        provider = factory()
+        self.register(name, provider)
+        self._entry_points[name] = entry_point.value
+        return provider
 
     def register(
         self,
@@ -328,6 +357,8 @@ class ProviderRegistry:
         provenance = dict(spec.provenance)
         provenance.update(raw.provenance)
         provenance["registry_name"] = name
+        if name in self._entry_points:
+            provenance["entry_point"] = self._entry_points[name]
         provenance["trust_boundary"] = trust.value
         return ProviderResult(
             estimate,

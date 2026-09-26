@@ -210,6 +210,9 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         if not isinstance(policy, Mapping):
             return Answer("unavailable", detail="policy_value_payload_missing")
         return Answer("policy_value", detail="held_out_randomized_dr", structured=dict(policy))
+    survival = payload.get("survival")
+    if kind == "point" and isinstance(survival, Mapping):
+        return Answer("structured", detail="randomized_survival_point_only", structured=dict(survival))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
     bounds = None
@@ -351,6 +354,11 @@ class ResultAPI:
     @property
     def answer(self) -> Answer:
         """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
+        survival = getattr(self, "survival", None)
+        if survival is not None:
+            from dataclasses import asdict
+
+            return Answer("structured", detail="randomized_survival_point_only", structured=asdict(survival))
         policy = getattr(self, "policy_value", None)
         if policy is not None:
             from dataclasses import asdict
@@ -379,6 +387,18 @@ class ResultAPI:
 
     def claim(self) -> str:
         """One paragraph: identification, answer, calibration. Same table as HTML."""
+        survival = getattr(self, "survival", None)
+        if survival is not None:
+            if hasattr(survival, "rmst_difference"):
+                return (
+                    f"Randomized survival through {survival.tau:g}: restricted mean survival "
+                    f"difference {survival.rmst_difference:g}. Point-only; no calibrated interval."
+                )
+            return (
+                f"Randomized competing-risk cumulative incidence through {survival.tau:g}: "
+                f"cause {survival.target_cause} difference {survival.incidence_difference:g}. "
+                "Point-only; no calibrated interval."
+            )
         policy = getattr(self, "policy_value", None)
         if policy is not None:
             return (

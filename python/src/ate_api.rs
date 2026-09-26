@@ -2317,9 +2317,8 @@ pub(crate) fn ate_result_from_analysis(
         posterior,
         validation,
         performance,
-        assumptions: result
-            .estimate
-            .assumptions
+        assumptions: effect
+            .map_or(&result.identification.required_assumptions, |estimate| &estimate.assumptions)
             .entries
             .iter()
             .map(|r| format!("{:?}", r.assumption))
@@ -2400,6 +2399,7 @@ pub(crate) fn ate_result_from_analysis(
             .map(crate::transport_interference_api::InterferenceSection::from_estimate),
         randomized_effect: result.randomized_effect.as_ref().map(Into::into),
         panel_did: result.panel_did.as_ref().map(Into::into),
+        survival: result.survival.as_ref().map(Into::into),
         anomaly: result
             .anomaly
             .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores, names)),

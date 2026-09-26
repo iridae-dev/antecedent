@@ -37,7 +37,8 @@ def test_backdoor_ate_emits_adjustment_set() -> None:
     np.testing.assert_array_equal(cols["W"][:, 0], _backdoor_data()["z"])
 
 
-def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact() -> None:
+def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monkeypatch) -> None:
+    import antecedent.extensibility as extension
     from antecedent.extensibility import ProviderRegistry, ProviderTrust
 
     data = _backdoor_data()
@@ -59,8 +60,20 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact() ->
             "label": "ate",
         }
 
+    class EconMLEntryPoint:
+        value = "caller_package:create_econml_provider"
+
+        def load(self):
+            return lambda: spec.as_provider(caller_fit)
+
+    class EntryPoints:
+        def select(self, *, group, name):
+            assert (group, name) == ("antecedent.providers", "econml")
+            return [EconMLEntryPoint()]
+
+    monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints())
     registry = ProviderRegistry()
-    registry.register("econml", spec.as_provider(caller_fit))
+    registry.load_entry_point("econml")
     executed = registry.execute("econml", {"data": data})
     loaded = antecedent.load(executed.artifact)
     assert seen["columns"]["W"].shape == (len(data["t"]), 1)
@@ -68,6 +81,7 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact() ->
     assert loaded.calibration.reason == "attested_not_reverifiable"
     assert executed.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert executed.provenance["adapter"] == "antecedent.handoff.EconMLProviderAdapter"
+    assert executed.provenance["entry_point"] == EconMLEntryPoint.value
 
 
 def test_analyze_result_handoff_matches_identify() -> None:

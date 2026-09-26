@@ -225,6 +225,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "panel_did",
         "plan",
         "policy_value",
+        "survival",
         "posterior",
         "provenance",
         "query",

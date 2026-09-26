@@ -158,6 +158,7 @@ def coerce_query(value: Any) -> Any:
     """
     from .experiment import RandomizedEffect
     from .interference import InterferenceQuery
+    from .policy import PolicyValue
     from .quasi import PanelDifferenceInDifferences
     from .query import (
         AnomalyAttribution,
@@ -181,6 +182,7 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
+    from .survival import CompetingRisksOutcome, SurvivalOutcome
     from .transport import Transport
     from .transport.advanced import TransportQuery
 
@@ -208,8 +210,11 @@ def coerce_query(value: Any) -> Any:
         TransportQuery,
         Transport,
         InterferenceQuery,
+        PolicyValue,
         RandomizedEffect,
         PanelDifferenceInDifferences,
+        SurvivalOutcome,
+        CompetingRisksOutcome,
     )
     if isinstance(value, valid):
         return value

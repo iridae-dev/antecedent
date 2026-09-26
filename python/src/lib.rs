@@ -1133,6 +1133,9 @@ pub(crate) struct AteAnalysisResult {
     /// Balanced two-period panel DiD estimate and cluster standard error.
     #[pyo3(get)]
     panel_did: Option<quasi_api::PanelDidSection>,
+    /// Randomized survival or competing-risk curves with no interval claim.
+    #[pyo3(get)]
+    survival: Option<survival_api::SurvivalSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
     #[pyo3(get)]
     anomaly: Option<Vec<gcm_api::AnomalyScores>>,
@@ -1563,20 +1566,15 @@ pub(crate) fn shared_study_sections(
         method: method.clone(),
         overlap_ess,
         overlap_propensity_min,
-        functional_means: result
-            .estimate
-            .score_inference
-            .as_ref()
-            .map(|s| s.raw_means.clone())
-            .or_else(|| {
-                result
-                    .estimate
+        functional_means: estimate.score_inference.as_ref().map(|s| s.raw_means.clone()).or_else(
+            || {
+                estimate
                     .score_table
                     .as_ref()
                     .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
-            }),
-        joint_covariance: result
-            .estimate
+            },
+        ),
+        joint_covariance: estimate
             .joint_covariance
             .as_ref()
             .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
@@ -1610,8 +1608,7 @@ pub(crate) fn shared_study_sections(
         adjusted_p_values: estimate.adjusted_p_values,
         family_contrast: estimate.family_contrast,
         family_contrast_interval: estimate.family_contrast_interval,
-        candidate_selection: result
-            .estimate
+        candidate_selection: estimate
             .candidate_selection
             .as_ref()
             .map(|s| CandidateSelectionSection {
@@ -1645,8 +1642,7 @@ pub(crate) fn shared_study_sections(
         treatment_oof_logloss: estimate.treatment_oof_logloss,
         crossfit_folds: estimate.crossfit_folds,
         crossfit_seed: estimate.crossfit_seed,
-        learner_provenance: result
-            .estimate
+        learner_provenance: estimate
             .learner_provenance
             .iter()
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))

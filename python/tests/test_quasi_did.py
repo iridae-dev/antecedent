@@ -121,6 +121,53 @@ def test_panel_did_runs_through_retained_public_prepare_and_analyze_routes():
     assert direct.panel_did == estimate.panel_did
 
 
+def test_repeated_cross_section_did_runs_through_public_flow_and_direct_utility():
+    import antecedent
+
+    data = {
+        "y": [0.0, 2.0, 2.0, 4.0, 10.0, 12.0, 14.0, 16.0],
+        "id": [f"s{i}" for i in range(8)],
+        "group": [False] * 4 + [True] * 4,
+        "after": [False, False, True, True] * 2,
+    }
+    query = PanelDifferenceInDifferences.repeated_cross_section("y", "id", "group", "after")
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    assert result.panel_did is not None
+    assert result.panel_did.estimate == pytest.approx(2.0)
+    assert result.panel_did.standard_error == pytest.approx((16.0 / 7.0) ** 0.5)
+    assert result.panel_did.treated_subjects == 4
+    assert result.panel_did.control_subjects == 4
+    assert result.panel_did.clusters == 8
+    assert result.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
+    assert result.panel_did.design == "repeated_cross_section_2x2"
+    assert "repeated_cross_section" in " ".join(result.assumptions or [])
+    assert antecedent.analyze(data, query=query).panel_did == result.panel_did
+    assert estimate_panel_did(data, query) == result.panel_did
+
+
+def test_repeated_cross_section_did_refuses_duplicate_subject_and_sparse_cell_clusters():
+    import antecedent
+    from antecedent.errors import CausalError
+
+    data = {
+        "y": [0.0, 2.0, 2.0, 4.0, 10.0, 12.0, 14.0, 16.0],
+        "id": [f"s{i}" for i in range(8)],
+        "group": [False] * 4 + [True] * 4,
+        "after": [False, False, True, True] * 2,
+        "cluster": [f"c{i}" for i in range(8)],
+    }
+    query = PanelDifferenceInDifferences.repeated_cross_section(
+        "y", "id", "group", "after", cluster="cluster"
+    )
+    duplicated = {**data, "id": ["s0", "s0", *data["id"][2:]]}
+    with pytest.raises(CausalError, match="one row per subject"):
+        antecedent.analyze(duplicated, query=query)
+    collapsed = {**data, "cluster": ["c0", "c0", *data["cluster"][2:]]}
+    with pytest.raises(CausalError, match="at least two clusters in each group-period cell"):
+        antecedent.analyze(collapsed, query=query)
+
+
 def test_prepared_panel_did_refuses_too_few_rows():
     import antecedent
     from antecedent.errors import CausalError

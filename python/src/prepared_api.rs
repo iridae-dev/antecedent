@@ -3429,9 +3429,9 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Freeze a balanced two-period panel DiD with subject-clustered uncertainty.
+    /// Freeze a two-period panel or repeated-cross-section DiD with cluster uncertainty.
     #[staticmethod]
-    #[pyo3(signature = (names, columns, outcome, treated, post, subjects, clusters, *, accepted=false, seed=1, threads=None, options=None))]
+    #[pyo3(signature = (names, columns, outcome, treated, post, subjects, clusters, *, repeated_cross_section=false, accepted=false, seed=1, threads=None, options=None))]
     fn prepare_panel_did(
         py: Python<'_>,
         names: Vec<String>,
@@ -3441,6 +3441,7 @@ impl PyPreparedAnalysis {
         post: Vec<bool>,
         subjects: Vec<String>,
         clusters: Vec<String>,
+        repeated_cross_section: bool,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3456,18 +3457,80 @@ impl PyPreparedAnalysis {
                 subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
             let cluster_arc: Vec<Arc<str>> =
                 clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-            let query = antecedent_core::PanelDidQuery::new(
-                outcome_id,
-                treated,
-                post,
-                subject_arc,
-                cluster_arc,
-            );
+            let query = if repeated_cross_section {
+                antecedent_core::PanelDidQuery::repeated_cross_section(
+                    outcome_id,
+                    treated,
+                    post,
+                    subject_arc,
+                    cluster_arc,
+                )
+            } else {
+                antecedent_core::PanelDidQuery::new(
+                    outcome_id,
+                    treated,
+                    post,
+                    subject_arc,
+                    cluster_arc,
+                )
+            };
             query
                 .validate()
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a graphless randomized survival or competing-risk analysis.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, duration, event, treatment, tau, target_cause=None, delayed_entry=None, *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_survival(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        duration: String,
+        event: String,
+        treatment: String,
+        tau: f64,
+        target_cause: Option<i64>,
+        delayed_entry: Option<String>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("randomized survival")?;
+        opts.refuse_population("randomized survival")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+            let query = antecedent_core::SurvivalQuery {
+                duration: id(&duration)?,
+                event: id(&event)?,
+                treatment: id(&treatment)?,
+                tau,
+                delayed_entry: delayed_entry.as_deref().map(id).transpose()?,
+                observation_assumption: antecedent_core::ObservationAssumption::IndependentGiven(
+                    Arc::from([]),
+                ),
+                functional: target_cause.map_or(
+                    antecedent_core::SurvivalFunctional::SurvivalAndRmst,
+                    |target_cause| antecedent_core::SurvivalFunctional::CumulativeIncidence {
+                        target_cause,
+                    },
+                ),
+            };
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::Survival(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
             Ok(finished_prepared(prepared, names, false))
