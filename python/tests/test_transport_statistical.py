@@ -86,6 +86,46 @@ def test_statistical_prepare_estimate_and_inspect_license():
     assert loaded.uncertainty["available"]
 
 
+def test_prepare_statistical_retains_checked_plan_after_builder_disposal():
+    """The prepared statistical study keeps its checked plan, refreshes atomically and
+    invalidates its execution identity when the snapshot changes."""
+    from dataclasses import replace
+
+    identified, catalog, data = fixture()
+    query_builder = transport.StatisticalTransportQuery(
+        identified, catalog, {"x": 1.0}, bootstrap=40, seed=7
+    )
+    plan = prepare(data, query=query_builder)
+    del query_builder, identified
+    before = plan.inspect()
+    assert before.identification.available
+    assert before.uncertainty.available
+    result = plan.estimate()
+    # Independent arithmetic: 80 of 100 trial rows have y = 1.
+    assert result.mean("y") == pytest.approx(0.8)
+    assert result.uncertainty["row"]["method"] == "percentile_bootstrap"
+    assert result.uncertainty["row"]["interval_scope"] == "pointwise"
+    assert plan.inspect().execution_id == result.inspect().execution_id
+    # A sample outside the declared domain is rejected atomically; the execution stands.
+    invalid = replace(data.samples[0], interventions=(("x", 2.0),))
+    with pytest.raises(ValueError, match="declared finite domain"):
+        plan.refresh(transport.StatisticalTransportData(samples=(invalid,)))
+    assert plan.inspect().execution_id == result.inspect().execution_id
+    # A different snapshot invalidates the execution claim until it is re-run.
+    larger = replace(data.samples[0], columns={"y": data.samples[0].columns["y"] * 2})
+    plan.replace_snapshot(transport.StatisticalTransportData(samples=(larger,)))
+    assert plan.inspect().program_id == before.program_id
+    assert plan.inspect().identification_id == before.identification_id
+    assert plan.inspect().data_snapshot_id != before.data_snapshot_id
+    assert plan.inspect().execution_id != result.inspect().execution_id
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
+        plan.export()
+    again = plan.refresh(data)
+    assert again.probabilities == pytest.approx(result.probabilities)
+    assert again.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    assert plan.inspect().execution_id == result.inspect().execution_id
+
+
 def test_empirical_table_execution_survives_identification_builder_disposal():
     """The empirical joint table is evaluated from retained checked transport semantics."""
     identified, catalog, _ = fixture()
@@ -214,6 +254,39 @@ def test_statistical_native_authority_identity_and_load_round_trip():
     assert second.inspect().identification_id == study.inspect().identification_id
     changed = replace(result, probabilities=(1.0, 0.0), uncertainty={"available": False})
     assert load(changed.export()).uncertainty == result.uncertainty
+
+
+def test_consume_statistical_rechecks_the_point_and_refreshes_after_builder_disposal():
+    """The consumer rechecks the embedded plug-in point and replays only from raw samples."""
+    from dataclasses import replace
+
+    identified, catalog, data = fixture()
+    producer_builder = transport.prepare_statistical(
+        identified, catalog, data, at={"x": 1.0}, bootstrap=29, seed=41
+    )
+    plan = producer_builder.inspect()
+    assert plan.identification.available
+    result = producer_builder.estimate()
+    # Forged display fields are not the claim: the embedded native point is.
+    forged = replace(result, probabilities=(1.0, 0.0), uncertainty={"available": False})
+    wire = forged.export()
+    assert wire == result.export()
+    del producer_builder, identified
+    consumed = transport.consume_statistical(wire)
+    assert consumed.inspect().program_id == plan.program_id
+    assert consumed.inspect().identification.available
+    assert consumed.inspect().execution_id == result.inspect().execution_id
+    # Raw samples are an explicit dependency for re-estimation; nothing is fitted or fetched on load.
+    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
+        consumed.estimate()
+    replay = consumed.refresh(data)
+    # Independent arithmetic: 80 of 100 trial rows have y = 1.
+    assert replay.mean("y") == pytest.approx(0.8)
+    assert replay.probabilities == pytest.approx(result.probabilities)
+    assert replay.uncertainty == result.uncertainty
+    assert replay.uncertainty["row"]["calibration_status"] == "not_bound_to_this_execution"
+    assert load(wire).probabilities == result.probabilities
+    assert load(wire).uncertainty == result.uncertainty
 
 
 def test_statistical_cancel_and_memory_limits_preserve_atomic_refresh():

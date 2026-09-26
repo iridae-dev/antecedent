@@ -173,6 +173,32 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
     )
 
 
+def test_z_transport_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
+    """Preparation compiles the exact table against the checked proof; the stage may then go."""
+    graph_builder, builder, catalog, _, laws = fixture(False)
+    program = builder.inspect_proof(catalog)
+    assert program["rules"] == ["ztr.surrogate_factorization"]
+    prepared = builder.prepare_exact(catalog, laws, {"x": 0.0})
+    del builder, graph_builder
+    result = json.loads(prepared.estimate())
+    assert result["status"] == "available"
+    assert result["scope"] == "single_source_z_transport_cited_joints_sound_incomplete"
+    true_mass = sum(
+        p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
+    )
+    # Independent arithmetic: P(y=1 | do(x=0)) = 0.2 under the fixture's Bernoulli law.
+    assert true_mass == pytest.approx(0.2, abs=1e-12)
+    # An exact law stays point-only; no interval is attached at estimate.
+    assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
+    consumed = json.loads(transport.consume_z_transport_artifact(prepared.export()))
+    assert consumed["proof"]["rules"] == program["rules"]
+    assert consumed["probabilities"] == pytest.approx(result["probabilities"])
+    prepared.refresh(laws)
+    assert json.loads(prepared.estimate())["probabilities"] == pytest.approx(
+        result["probabilities"]
+    )
+
+
 @pytest.mark.parametrize(
     "estimator",
     ["empirical_support_bayesian_bootstrap", "state_space_dirichlet"],
@@ -194,6 +220,38 @@ def test_bayesian_z_transport_publishes_an_unmeasured_posterior(estimator):
     )
     assert mean["lower"] <= true_mass <= mean["upper"]
     assert prepared.interval_type == "posterior_equal_tail"
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    ["empirical_support_bayesian_bootstrap", "state_space_dirichlet"],
+)
+def test_bayesian_z_transport_posterior_executes_retained_plan_after_builder_disposal(estimator):
+    """The posterior interval is drawn around the retained plug-in point with no stage alive."""
+    graph_builder, builder, catalog, prepared, _ = fixture(True)
+    program = builder.inspect_proof(catalog)
+    assert program["rules"]
+    del builder, graph_builder
+    plugin = json.loads(prepared.estimate())
+    posterior = json.loads(prepared.estimate(estimator=estimator, posterior_draws=40))
+    # The point stays the empirical plug-in; only the interval changes.
+    assert posterior["probabilities"] == pytest.approx(plugin["probabilities"])
+    interval = posterior["interval"]
+    assert interval["available"] is True
+    assert interval["method"] == "posterior_equal_tail"
+    assert interval["reason"] == "estimator_grid_not_measured"
+    mean = interval["mean_intervals"][0]
+    true_mass = sum(
+        p
+        for atom, p in zip(posterior["atoms"], posterior["probabilities"], strict=True)
+        if atom == [1.0]
+    )
+    assert mean["lower"] <= true_mass <= mean["upper"]
+    assert prepared.interval_type == "posterior_equal_tail"
+    # Portable artifacts carry the point result only; the posterior is never replayed.
+    consumed = json.loads(transport.consume_z_transport_artifact(prepared.export()))
+    assert consumed["probabilities"] == pytest.approx(posterior["probabilities"])
+    assert consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
 
 
 def test_z_transport_estimate_refresh_executes_retained_program_after_builder_disposal():
@@ -643,6 +701,31 @@ def test_z_transport_artifact_tamper_is_refused_by_the_consumer():
         transport.consume_z_transport_artifact(
             b"ANTECEDENT-EXACT-TRANSPORT\x01" + artifact[len(Z_PREFIX) :]
         )
+
+
+def test_z_transport_consumer_rechecks_the_embedded_point_after_builder_disposal():
+    """The consumer recomputes the point from the embedded proof and laws with no producer alive."""
+    graph_builder, builder, catalog, prepared, laws = fixture(False)
+    program = builder.inspect_proof(catalog)
+    assert program["rules"] == ["ztr.surrogate_factorization"]
+    result = json.loads(prepared.estimate())
+    artifact = prepared.export()
+    assert artifact.startswith(Z_PREFIX)
+    del builder, graph_builder, prepared
+    consumed = json.loads(transport.consume_z_transport_artifact(artifact))
+    assert consumed["outcomes"] == ["y"]
+    assert consumed["proof"]["rules"] == program["rules"]
+    assert consumed["probabilities"] == pytest.approx(result["probabilities"])
+    # Loaded artifacts stay point-only: no bootstrap interval is replayed.
+    assert consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
+    # An edited point result no longer matches the point recomputed from the embedded law.
+    moved = _rewrite_f64(artifact, result["probabilities"][1], result["probabilities"][1] + 0.05)
+    with pytest.raises(CausalSerializationError, match="point result mismatch"):
+        transport.consume_z_transport_artifact(moved)
+    # An edited embedded law changes the recomputed point or fails law validation.
+    edited_law = _rewrite_f64(artifact, laws[0].probabilities[0], laws[0].probabilities[0] + 0.01)
+    with pytest.raises((CausalSerializationError, CausalValueError)):
+        transport.consume_z_transport_artifact(edited_law)
 
 
 def test_z_transport_refusals_carry_typed_classes_and_registered_codes():
