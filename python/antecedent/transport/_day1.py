@@ -11,7 +11,13 @@ from typing import Any, Literal, get_args
 import numpy as np
 
 from .._data import as_columns
-from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from ..graph import Admg
 from ..query import (
     AverageDerivative,
@@ -41,6 +47,7 @@ from ._impl import (
     TargetSamplingName,
     TransportControls,
     TransportInference,
+    TransportStage,
     TrialAipw,
     TrialAipwData,
     VariableCoordinate,
@@ -635,16 +642,48 @@ def _catalog_from_statistical(
     )
 
 
+def transport_stage(
+    *,
+    identified: Any,
+    catalog: EvidenceCatalog | None,
+    bound: Any,
+    shape: str | None,
+    worlds: Sequence[Mapping[str, float]],
+    provider: Any,
+    graph: Admg | None,
+) -> TransportStage:
+    """The frozen inputs a prepared transport study keeps beside its native handle."""
+    return {
+        "identified": identified,
+        "catalog": catalog,
+        "bound": bound,
+        "shape": shape,
+        "worlds": list(worlds),
+        "provider": provider,
+        "graph": graph,
+    }
+
+
 def identify_transport(
-    graph: Admg, query: Transport, data: Any | None = None
+    graph: Admg,
+    query: Transport,
+    data: Any | None = None,
+    *,
+    catalog: EvidenceCatalog | None = None,
 ) -> tuple[Any, EvidenceCatalog]:
+    """Identify on the classical, meta or restricted (z-transport) stage.
+
+    ``catalog`` is the engine catalog already built for this query; when it is
+    omitted the structural catalog is built here.
+    """
     if not isinstance(graph, Admg):
         raise CausalTypeError("transport identify requires graph=Admg(...)")
     from ._restricted import identify_restricted, restricted_experiment
 
     if restricted_experiment(query):
         return identify_restricted(graph, query, data)
-    catalog, _bound = catalog_from_evidence(query, graph=graph)
+    if catalog is None:
+        catalog, _bound = catalog_from_evidence(query, graph=graph)
     treatments, outcomes = _question_parts(query.question)
     sources = query.evidence.sources
     if len(sources) == 1:
@@ -777,12 +816,12 @@ def prepare_transport(
             query=query,
             graph=graph,
             provider=provider,
+            inference=inference,
             controls=controls or TransportControls(),
         )
 
     catalog, bound = catalog_from_evidence(query, data, graph=graph)
-    identified, _catalog = identify_transport(graph, query, data)
-    catalog = _catalog if bound is None else catalog
+    identified, catalog = identify_transport(graph, query, data, catalog=catalog)
     shape, worlds = lower_question(query.question)
     resolved = default_provider(bound if bound is not None else data, provider)
     exact = isinstance(bound if bound is not None else data, ExactTransportData)
@@ -796,18 +835,19 @@ def prepare_transport(
             memory_bytes=limits.memory_bytes,
             cancel=cancel,
         )
+    stage_snapshot = transport_stage(
+        identified=identified,
+        catalog=catalog,
+        bound=bound if bound is not None else data,
+        shape=shape,
+        worlds=worlds,
+        provider=resolved,
+        graph=graph,
+    )
     if identified.outcome != "identified":
         study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="statistical_transport")
         study._query = query
-        study._transport_stage = {
-            "identified": identified,
-            "catalog": catalog,
-            "bound": bound,
-            "shape": shape,
-            "worlds": worlds,
-            "provider": resolved,
-            "graph": graph,
-        }
+        study._transport_stage = stage_snapshot
         return study
     payload = bound if bound is not None else data
     if isinstance(resolved, TrialAipw) or isinstance(payload, TrialAipwData):
@@ -843,15 +883,7 @@ def prepare_transport(
             controls=limits,
         )
         study._query = query
-        study._transport_stage = {
-            "identified": identified,
-            "catalog": catalog,
-            "bound": payload,
-            "shape": shape,
-            "worlds": worlds,
-            "provider": resolved,
-            "graph": graph,
-        }
+        study._transport_stage = stage_snapshot
         return study
     if isinstance(payload, ExactTransportData) and isinstance(resolved, LearnedCategorical):
         raise CausalValueError("Exact laws do not accept learner or sampling inference settings")
@@ -908,34 +940,16 @@ def prepare_transport(
             grid_request, payload, provider=resolved, inference=settings, controls=limits
         )
     study._query = query
-    study._transport_stage = {
-        "identified": identified,
-        "catalog": catalog,
-        "bound": payload,
-        "shape": shape,
-        "worlds": worlds,
-        "provider": resolved,
-        "graph": graph,
-    }
+    study._transport_stage = stage_snapshot
     return study
 
 
-#: Native catalog-search budget/cancellation messages
-#: (``crates/antecedent-identify/src/sid/meta.rs``: ``"transport.cancelled"``,
-#: ``"transport.binding_budget"``, ``"transport.memory_budget"``,
-#: ``"transport.identification_budget"``). ``inspect_catalog`` raises a bare
-#: ``ValueError`` for these (the native binding does not yet distinguish them
-#: by exception type — see the module docstring note below), so the message
-#: is the only signal available in Python; anything else is an unrecognized
-#: failure and must propagate rather than be treated as an incomplete search.
-_CATALOG_SEARCH_INCOMPLETE_REASONS = frozenset(
-    {
-        "transport.cancelled",
-        "transport.binding_budget",
-        "transport.memory_budget",
-        "transport.identification_budget",
-    }
-)
+#: A bounded catalog search that stopped before deciding raises one of these
+#: (cancellation, or an exhausted step/binding/memory budget); the native
+#: binding classifies the failure, so the class is the signal. Anything else
+#: is an unrecognized failure and must propagate rather than be treated as an
+#: incomplete search.
+_CATALOG_SEARCH_INCOMPLETE = (CausalCancelledError, CausalResourceError)
 
 
 def _catalog_search_incomplete_detail(query: Transport | None, reason: str) -> str:
@@ -967,7 +981,8 @@ def _identification_from_restricted(graph: Admg, query: Transport, identified: A
         "scope": identified.scope,
         "source": identified.source,
         "missing_detail": (
-            f"{_inner_phrase(query)} is identified for {query.target}, but {identified.reason} is unbound."
+            f"{_inner_phrase(query)} is identified for {query.target}, but "
+            f"{identified.detail or 'a cited joint law is not supplied'}."
             if note == "missing_evidence"
             else None
         ),
@@ -981,6 +996,8 @@ def _identification_from_restricted(graph: Admg, query: Transport, identified: A
             "rules": list(identified.rules),
             "native_outcome": outcome,
             "reason": identified.reason,
+            "missing": None if identified.missing is None else dict(identified.missing),
+            "obstructions": [dict(record) for record in identified.obstructions],
         },
     }
     return Identification(
@@ -1019,11 +1036,8 @@ def identification_from_transport(
     search_incomplete_reason: str | None = None
     try:
         search = inspect_catalog(identified, catalog)
-    except Exception as error:
-        message = str(error)
-        if message not in _CATALOG_SEARCH_INCOMPLETE_REASONS:
-            raise
-        search_incomplete_reason = message
+    except _CATALOG_SEARCH_INCOMPLETE as error:
+        search_incomplete_reason = str(error)
     outcome = identified.outcome
     if search_incomplete_reason is not None:
         # The search never finished, so whether the required evidence is
@@ -1090,4 +1104,5 @@ __all__ = [
     "missing_evidence_detail",
     "prepare_transport",
     "refuse_transport_only_kwargs",
+    "transport_stage",
 ]
