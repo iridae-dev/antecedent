@@ -212,7 +212,11 @@ class DoublyRobustPolicyEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class PolicyValue:
-    """Immutable query spec for held-out doubly robust binary policy value."""
+    """Immutable query spec for held-out doubly robust binary policy value.
+
+    Policy constraints and action availability are checked on the evaluation
+    rows before the retained native study is prepared.
+    """
 
     outcome: str
     assignment: Sequence[bool]
@@ -225,11 +229,22 @@ class PolicyValue:
     fold_ids: Sequence[int] | None = None
     prediction_excluded_fold_ids: Sequence[int] | None = None
     reference: BinaryPolicy | None = None
+    available: Sequence[bool] | None = None
     _ownership: str = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome:
             raise CausalValueError("outcome must be a non-empty column name")
+        if not isinstance(self.policy, BinaryPolicy):
+            raise CausalTypeError("policy must be a BinaryPolicy")
+        if self.reference is not None and not isinstance(self.reference, BinaryPolicy):
+            raise CausalTypeError("reference must be a BinaryPolicy or None")
+        if any(not isinstance(value, (bool, np.bool_)) for value in self.assignment):
+            raise CausalValueError("assignment entries must be bool values")
+        if self.available is not None and any(
+            not isinstance(value, (bool, np.bool_)) for value in self.available
+        ):
+            raise CausalValueError("available entries must be bool values")
         ownership = _prediction_ownership(
             self.evaluation_subject_ids, len(self.policy.actions), self.training_subject_ids,
             self.fold_ids, self.prediction_excluded_fold_ids,
@@ -238,6 +253,8 @@ class PolicyValue:
         object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0))
         object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1))
         object.__setattr__(self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids))
+        if self.available is not None:
+            object.__setattr__(self, "available", tuple(self.available))
         object.__setattr__(self, "_ownership", ownership)
 
 

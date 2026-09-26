@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, PrivateAttr
 
 from ..policy import DoublyRobustPolicyEvaluation
+from ..survival import CumulativeIncidenceEstimate, SurvivalEstimate
 
 if TYPE_CHECKING:
     from .._native import (
@@ -692,6 +693,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     randomized_effect: Any | None = None
     panel_did: Any | None = None
     policy_value: DoublyRobustPolicyEvaluation | None = None
+    survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: list[AnomalyScores] | None = None

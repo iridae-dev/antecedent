@@ -71,7 +71,7 @@ from .interference import (
     InterferenceQuery,
     RandomizationContrast,
 )
-from .policy import BinaryPolicy, DoublyRobustPolicyEvaluation, PolicyValue
+from .policy import BinaryPolicy, DoublyRobustPolicyEvaluation, PolicyValue, evaluate_policy
 from .population import coerce_target_population
 from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate
 from .query import (
@@ -127,6 +127,12 @@ from .results import (
     ValidationView,
 )
 from .results.response import IntervalInterpretation, SupportStatus, UncertaintyKind
+from .survival import (
+    CompetingRisksOutcome,
+    CumulativeIncidenceEstimate,
+    SurvivalEstimate,
+    SurvivalOutcome,
+)
 from .transport import (
     Transport,
     TransportControls,
@@ -284,15 +290,64 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
     )
 
 
-def _panel_did_from_raw(raw: Any) -> PanelDifferenceInDifferencesEstimate | None:
+def _panel_did_from_raw(
+    raw: Any, query: Any = None
+) -> PanelDifferenceInDifferencesEstimate | None:
     section = getattr(raw, "panel_did", None)
     if section is None:
         return None
+    repeated = isinstance(query, PanelDifferenceInDifferences) and query.sampling == "repeated_cross_section"
     return PanelDifferenceInDifferencesEstimate(
         estimate=section.effect, standard_error=section.standard_error,
         treated_subjects=section.treated_subjects, control_subjects=section.comparison_subjects,
         clusters=section.clusters, uncertainty=section.uncertainty,
+        design="repeated_cross_section_2x2" if repeated else "balanced_two_period_panel",
+        assumptions=(
+            "parallel_untreated_trends",
+            "no_anticipation",
+            "stable_group_definition",
+            "no_interference",
+            "independent_sampling_clusters",
+        ) if repeated else (
+            "parallel_untreated_trends",
+            "no_anticipation",
+            "stable_treatment_assignment_within_subject",
+            "complete_pre_post_panel",
+            "no_interference",
+            "independent_sampling_clusters",
+        ),
         support_status="unlicensed_point_utility",
+    )
+
+
+def _survival_from_raw(
+    raw: Any, query: Any = None
+) -> SurvivalEstimate | CumulativeIncidenceEstimate | None:
+    section = getattr(raw, "survival", None)
+    if section is None:
+        return None
+    times = tuple(section.times)
+    control = tuple(section.control)
+    treated = tuple(section.treated)
+    if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
+        return CumulativeIncidenceEstimate(
+            target_cause=int(section.target_cause),
+            times=times,
+            control_incidence=control,
+            treated_incidence=treated,
+            incidence_difference=treated[-1] - control[-1],
+            tau=section.tau,
+            uncertainty=section.uncertainty,
+        )
+    return SurvivalEstimate(
+        times=times,
+        control_survival=control,
+        treated_survival=treated,
+        rmst_control=float(section.rmst_control),
+        rmst_treated=float(section.rmst_treated),
+        rmst_difference=float(section.rmst_treated - section.rmst_control),
+        tau=section.tau,
+        uncertainty=section.uncertainty,
     )
 
 
@@ -633,8 +688,9 @@ def _wrap_ate(
         transport_overlap=_transport_overlap_from_raw(raw),
         interference=_interference_from_raw(raw),
         randomized_effect=_randomized_effect_from_raw(raw),
-        panel_did=_panel_did_from_raw(raw),
+        panel_did=_panel_did_from_raw(raw, query),
         policy_value=_policy_value_from_raw(raw),
+        survival=_survival_from_raw(raw, query),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,
@@ -1461,6 +1517,8 @@ _PreparedQuery = (
     | AnomalyAttribution
     | ChangeAttribution
     | PanelDifferenceInDifferences
+    | SurvivalOutcome
+    | CompetingRisksOutcome
 )
 
 
@@ -1576,6 +1634,7 @@ def _panel_did_payload(
         "clusters": clusters,
         "treated": tuple(_binary(raw[query.treated], query.treated)),
         "post": tuple(_binary(raw[query.post], query.post)),
+        "repeated_cross_section": query.sampling == "repeated_cross_section",
     }
     names, columns = ingest_columns({query.outcome: raw[query.outcome]})
     return names, columns, design
@@ -1750,6 +1809,8 @@ class _PrepareRoute:
             return self._randomized_effect()
         if isinstance(query, PanelDifferenceInDifferences):
             return self._panel_did()
+        if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
+            return self._survival()
         if self.discovery is not None:
             return self._graph_posterior()
         if self.graph is None:
@@ -2241,6 +2302,17 @@ class _PrepareRoute:
                 "PolicyValue supports row-score frequentist uncertainty only",
                 reason_code="option_not_applicable",
             )
+        # The direct randomized evaluator owns the constraint checks. Apply
+        # that same contract before freezing the retained doubly robust study.
+        evaluate_policy(
+            dict(zip(self.names, self.columns, strict=True)),
+            outcome=query.outcome,
+            assignment=query.assignment,
+            propensity=query.propensity,
+            policy=query.policy,
+            reference=query.reference,
+            available=query.available,
+        )
         propensity = [float(query.propensity)] if isinstance(query.propensity, (int, float)) else list(query.propensity)
         costs = [float(query.policy.costs)] if isinstance(query.policy.costs, (int, float)) else list(query.policy.costs)
         reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
@@ -2249,7 +2321,7 @@ class _PrepareRoute:
             self.names, self.columns, query.outcome, list(query.assignment), propensity,
             list(query.policy.actions), list(reference.actions), list(query.mu0), list(query.mu1),
             costs, reference_costs, list(query.evaluation_subject_ids),
-            query._ownership == "declared_disjoint_training_subject_ids",
+            query._ownership == "held_out_disjoint_subject_ids",
             query._ownership == "caller_declared_cross_fitted_excluded_fold_ids",
             accepted=self.accepted, **self._common(),
         )
@@ -2334,7 +2406,57 @@ class _PrepareRoute:
             raise CausalValueError("panel DiD design columns were not bound at prepare")
         native = _NativePreparedAnalysis.prepare_panel_did(
             names, columns, query.outcome, list(design["treated"]), list(design["post"]),
-            list(design["subjects"]), list(design["clusters"]), accepted=False, **self._common()
+            list(design["subjects"]), list(design["clusters"]),
+            repeated_cross_section=bool(design["repeated_cross_section"]),
+            accepted=False, **self._common()
+        )
+        return native, "average"
+
+    def _survival(self) -> tuple[Any, Literal["average"]]:
+        from .observation import IndependentGiven
+
+        query = cast(SurvivalOutcome | CompetingRisksOutcome, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                "randomized survival carries its own design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        self._refuse_ids("randomized survival")
+        self._refuse_estimator_config("randomized survival")
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                "randomized survival has no refutation or bootstrap route",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise CausalUnsupportedError(
+                "randomized survival reports point-only uncertainty",
+                reason_code="option_not_applicable",
+            )
+        if not query.randomized:
+            raise CausalUnsupportedError(
+                "randomized survival requires randomized=True for individual assignment",
+                reason_code="route_not_supported",
+            )
+        assumption = query.observation_assumption
+        if not isinstance(assumption, IndependentGiven) or tuple(assumption.variables):
+            raise CausalUnsupportedError(
+                "the unadjusted survival route requires an explicit marginal IndependentGiven(()) censoring and entry assumption",
+                reason_code="route_not_supported",
+            )
+        event = query.event_cause if isinstance(query, CompetingRisksOutcome) else query.event_observed
+        target_cause = query.target_cause if isinstance(query, CompetingRisksOutcome) else None
+        native = _NativePreparedAnalysis.prepare_survival(
+            self.names,
+            self.columns,
+            query.duration,
+            event,
+            query.treatment,
+            float(query.tau),
+            target_cause,
+            query.delayed_entry,
+            accepted=False,
+            **self._common(),
         )
         return native, "average"
 
@@ -3851,6 +3973,11 @@ class PreparedAnalysis(Generic[ResultT]):
             raw = self._run_click(lambda: bound(seed=seed, threads=threads, **controls))
             return self._with_deferred_suite(
                 self._wrap(raw), self._snapshot_data, seed=seed, threads=threads
+            )
+        if isinstance(self._query, PolicyValue):
+            raise CausalUnsupportedError(
+                "PolicyValue recommendations, nuisance predictions, and subject ownership are bound to the prepared evaluation rows; prepare a new study for new data",
+                reason_code="option_not_applicable",
             )
         names, columns, frame = self._click_payload(data)
         if frame is not None:

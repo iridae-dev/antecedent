@@ -5,6 +5,37 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+/// Retained randomized survival or competing-risk result from Study execution.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct SurvivalSection {
+    pub times: Vec<f64>,
+    pub control: Vec<f64>,
+    pub treated: Vec<f64>,
+    pub rmst_control: Option<f64>,
+    pub rmst_treated: Option<f64>,
+    pub target_cause: Option<i64>,
+    pub tau: f64,
+    pub minimum_event_risk_set: Option<usize>,
+    pub uncertainty: String,
+}
+
+impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
+    fn from(value: &antecedent::SurvivalEstimate) -> Self {
+        Self {
+            times: value.times.to_vec(),
+            control: value.control.to_vec(),
+            treated: value.treated.to_vec(),
+            rmst_control: value.rmst_control,
+            rmst_treated: value.rmst_treated,
+            target_cause: value.target_cause,
+            tau: value.tau,
+            minimum_event_risk_set: value.minimum_event_risk_set,
+            uncertainty: value.uncertainty.to_string(),
+        }
+    }
+}
+
 fn km_curve(times: &[f64], events: &[bool], tau: f64) -> (Vec<f64>, Vec<f64>, f64) {
     let mut event_times: Vec<f64> = times
         .iter()
@@ -792,6 +823,7 @@ fn randomized_cumulative_incidence_delayed_entry(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<SurvivalSection>()?;
     module.add_function(wrap_pyfunction!(randomized_survival_ipcw, module)?)?;
     module.add_function(wrap_pyfunction!(randomized_cumulative_incidence_ipcw, module)?)?;
     module.add_function(wrap_pyfunction!(randomized_survival, module)?)?;

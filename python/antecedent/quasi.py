@@ -6,8 +6,8 @@ These utilities do not add a support-matrix license or interval guarantee.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, replace
+from typing import Any, Literal
 
 import numpy as np
 
@@ -93,10 +93,11 @@ class DifferenceInDifferencesEstimate:
 
 @dataclass(frozen=True, slots=True)
 class PanelDifferenceInDifferences:
-    """A balanced, two-period panel DiD design.
+    """A two-period panel or repeated-cross-section DiD design.
 
     Subject IDs must identify the same unit at pre and post. Treatment is
-    stable within subject. Estimation reports a pointwise cluster-robust
+    stable within subject. Repeated cross sections sample each subject once.
+    Estimation reports a pointwise cluster-robust
     standard error, using subject IDs by default or an optional higher-level
     cluster column. The design does not support staggered adoption or missing
     waves.
@@ -107,6 +108,20 @@ class PanelDifferenceInDifferences:
     treated: str
     post: str
     cluster: str | None = None
+    sampling: Literal["balanced_panel", "repeated_cross_section"] = "balanced_panel"
+
+    @classmethod
+    def repeated_cross_section(
+        cls,
+        outcome: str,
+        subject: str,
+        treated: str,
+        post: str,
+        *,
+        cluster: str | None = None,
+    ) -> PanelDifferenceInDifferences:
+        """Bind one sampled subject per row across two periods."""
+        return cls(outcome, subject, treated, post, cluster, "repeated_cross_section")
 
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.treated, self.post)
@@ -116,6 +131,8 @@ class PanelDifferenceInDifferences:
             raise CausalValueError("outcome, subject, treated, and post must name distinct columns")
         if self.cluster is not None and (not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields):
             raise CausalValueError("cluster must be a distinct non-empty column name")
+        if self.sampling not in ("balanced_panel", "repeated_cross_section"):
+            raise CausalValueError("sampling must be balanced_panel or repeated_cross_section")
 
 
 @dataclass(frozen=True, slots=True)
@@ -495,6 +512,14 @@ def estimate_panel_did(
 
     if not isinstance(query, PanelDifferenceInDifferences):
         raise CausalValueError("query must be a PanelDifferenceInDifferences")
+    if query.sampling == "repeated_cross_section":
+        from ._analyze import analyze
+
+        effective = replace(query, cluster=cluster) if cluster is not None else query
+        result = analyze(data, query=effective)
+        if result.panel_did is None:
+            raise CausalValueError("repeated-cross-section DiD did not return a DiD section")
+        return result.panel_did
     names, columns = _raw_columns(data)
     for name in (query.outcome, query.subject, query.treated, query.post):
         if name not in names:

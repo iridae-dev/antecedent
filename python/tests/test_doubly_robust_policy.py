@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import policy
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results._execution import answer_from_artifact
 
 
@@ -86,3 +87,54 @@ def test_policy_artifact_answer_preserves_typed_values_and_uncertainty():
     answer = answer_from_artifact({"claim": {"kind": "policy_value"}}, payload)
     assert answer.kind == "policy_value"
     assert answer.structured == payload["policy_value"]
+
+
+def test_retained_policy_value_honors_capacity_budget_and_availability():
+    assignment = [True, False] * 4
+    outcome = 5.0 + 2.0 * np.asarray(assignment, dtype=float)
+    common = dict(
+        outcome="y",
+        assignment=assignment,
+        propensity=0.5,
+        mu0=[5.0] * 8,
+        mu1=[7.0] * 8,
+        evaluation_subject_ids=[f"eval-{i}" for i in range(8)],
+        training_subject_ids=[f"train-{i}" for i in range(8)],
+    )
+
+    valid = ant.policy.PolicyValue(
+        **common,
+        policy=policy.BinaryPolicy([True] * 4 + [False] * 4, capacity=4, costs=0.25, budget=1.0),
+        available=[True] * 4 + [False] * 4,
+    )
+    result = ant.analyze({"y": outcome}, query=valid, refute="none")
+    assert result.study is not None
+    assert result.policy_value.policy_value == pytest.approx(5.875)
+    assert result.answer.kind == "policy_value"
+    loaded = ant.load(result.export(artifact_id="retained-policy"))
+    assert loaded.answer.kind == "policy_value"
+    assert loaded.answer.structured["policy_value"] == pytest.approx(5.875)
+    with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
+        result.refresh({"y": outcome})
+
+    for constrained in (
+        policy.BinaryPolicy([True] * 4 + [False] * 4, capacity=3),
+        policy.BinaryPolicy([True] * 4 + [False] * 4, costs=0.25, budget=0.5),
+    ):
+        with pytest.raises(ValueError, match="capacity|budget"):
+            ant.analyze(
+                {"y": outcome},
+                query=ant.policy.PolicyValue(**common, policy=constrained),
+                refute="none",
+            )
+
+    with pytest.raises(ValueError, match="unavailable"):
+        ant.analyze(
+            {"y": outcome},
+            query=ant.policy.PolicyValue(
+                **common,
+                policy=policy.BinaryPolicy([True] * 4 + [False] * 4),
+                available=[False] + [True] * 7,
+            ),
+            refute="none",
+        )

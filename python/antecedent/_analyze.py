@@ -14,6 +14,7 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
 from .policy import PolicyValue
+from .quasi import PanelDifferenceInDifferences
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -37,6 +38,7 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import Analysis, ProviderAnalysisResult
+from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport import Transport, TransportControls, TransportInference
 from .transport.advanced import TransportQuery
 
@@ -59,6 +61,9 @@ def analyze(
         | ProviderQuery
         | RandomizedEffect
         | PolicyValue
+        | PanelDifferenceInDifferences
+        | SurvivalOutcome
+        | CompetingRisksOutcome
         | PulseEffect
         | SustainedEffect
         | InterventionalDistribution

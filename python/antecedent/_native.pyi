@@ -211,6 +211,7 @@ class AteAnalysisResult:
     interference: InterferenceSection | None
     randomized_effect: RandomizedEffectSection | None
     panel_did: PanelDidSection | None
+    survival: SurvivalSection | None
     policy_value: PolicyValueSection | None
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
@@ -363,6 +364,17 @@ class PanelDidSection:
     treated_subjects: int
     comparison_subjects: int
     clusters: int
+    uncertainty: str
+
+class SurvivalSection:
+    times: list[float]
+    control: list[float]
+    treated: list[float]
+    rmst_control: float | None
+    rmst_treated: float | None
+    target_cause: int | None
+    tau: float
+    minimum_event_risk_set: int | None
     uncertainty: str
 
 class PolicyValueSection:
@@ -1171,8 +1183,17 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_panel_did(
         names: list[str], columns: Sequence[Any], outcome: str, treated: list[bool],
-        post: list[bool], subjects: list[str], clusters: list[str], *, accepted: bool = False, seed: int = 1,
+        post: list[bool], subjects: list[str], clusters: list[str], *,
+        repeated_cross_section: bool = False, accepted: bool = False, seed: int = 1,
         threads: int | None = None, options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_survival(
+        names: list[str], columns: Sequence[Any], duration: str, event: str,
+        treatment: str, tau: float, target_cause: int | None = None,
+        delayed_entry: str | None = None, *, accepted: bool = False,
+        seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_policy_value(

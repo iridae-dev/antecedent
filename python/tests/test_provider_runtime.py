@@ -86,3 +86,75 @@ def test_analyze_dispatches_explicit_provider_query_to_shared_result_envelope():
     assert result.provenance["registry_name"] == name
     assert "native licensed causal claim" in result.claim()
     assert result.calibration.reason == "attested_not_reverifiable"
+
+
+def test_installed_entry_point_load_is_explicit_and_preserves_artifact(monkeypatch):
+    import antecedent.extensibility as extension
+
+    calls = []
+
+    class EntryPoint:
+        value = "external_package.provider:create_provider"
+
+        def load(self):
+            calls.append("load")
+
+            class External(_Provider):
+                def execute(self, request):
+                    return ProviderExecution(
+                        estimate=[1.0, 2.0],
+                        uncertainty=None,
+                        assumptions=("caller asserted exchangeability",),
+                        support_status="caller_asserted",
+                        provenance={"version": "0.2", "entry_point": "spoofed"},
+                        artifact=b"external portable receipt",
+                    )
+
+            return External
+
+    class EntryPoints:
+        def select(self, *, group, name):
+            assert group == "antecedent.providers"
+            assert name == "external"
+            return [EntryPoint()]
+
+    monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints())
+    registry = ProviderRegistry()
+    assert calls == []  # No plugin import or execution during registry construction.
+    registry.load_entry_point("external")
+    assert calls == ["load"]
+    result = registry.execute("external", {"query": "effect"})
+    assert result.artifact == b"external portable receipt"
+    assert result.provenance["entry_point"] == EntryPoint.value
+    assert result.provenance["trust_boundary"] == "externally_attested"
+    assert result.trust is ProviderTrust.EXTERNALLY_ATTESTED
+
+
+def test_entry_point_load_refuses_missing_duplicate_and_invalid_factories(monkeypatch):
+    import antecedent.extensibility as extension
+
+    class EntryPoints:
+        def __init__(self, matches):
+            self.matches = matches
+
+        def select(self, *, group, name):
+            return self.matches
+
+    class EntryPoint:
+        value = "external_package.provider:factory"
+
+        def load(self):
+            return object()  # Installed entry points must expose a factory.
+
+    registry = ProviderRegistry()
+    monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints([]))
+    with pytest.raises(KeyError, match="not installed"):
+        registry.load_entry_point("missing")
+    monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints([EntryPoint()] * 2))
+    with pytest.raises(ValueError, match="ambiguous"):
+        registry.load_entry_point("duplicate")
+    monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints([EntryPoint()]))
+    with pytest.raises(TypeError, match="must expose a factory"):
+        registry.load_entry_point("invalid")
+    with pytest.raises(KeyError, match="not explicitly registered"):
+        registry.get("invalid")
