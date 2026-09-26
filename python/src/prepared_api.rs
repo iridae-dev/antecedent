@@ -1121,7 +1121,7 @@ impl PyPreparedAnalysis {
             "validation",
             self.inner
                 .checked_bayesian_gcomp_validation()
-                .and_then(|suite| suite.validation_suite_id())
+                .and_then(antecedent::RefuteSuite::validation_suite_id)
                 .unwrap_or("none"),
         )?;
         descriptor.set_item(

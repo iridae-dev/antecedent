@@ -56,6 +56,7 @@ from ._native import runtime_refusal_codes as _runtime_refusal_codes
 from ._native import set_not_identified_error_class as _set_not_identified_error_class
 from ._native import set_review_error_class as _set_review_error_class
 from ._native import set_unsupported_error_class as _set_unsupported_error_class
+from ._native import set_value_error_class as _set_value_error_class
 
 _RUNTIME_REFUSAL_CODES = frozenset(_runtime_refusal_codes())
 
@@ -202,6 +203,7 @@ _set_review_error_class(ReviewRequired)
 # reason code already attached.
 _set_unsupported_error_class(CausalUnsupportedError)
 _set_not_identified_error_class(EffectNotIdentified)
+_set_value_error_class(CausalValueError)
 
 
 def build_review_error(

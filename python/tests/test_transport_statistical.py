@@ -2,6 +2,7 @@
 
 import pytest
 from antecedent import Admg, load, prepare
+from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.transport import advanced as transport
 
 
@@ -109,7 +110,7 @@ def test_empirical_table_execution_survives_identification_builder_disposal():
     assert consumer.inspect().program_id == plan.program_id
     assert consumer.inspect().identification.available
     # Raw empirical rows are an explicit dependency for a new estimate.
-    with pytest.raises(ValueError, match="transport.samples_not_embedded"):
+    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
         consumer.estimate()
     replay = consumer.refresh(data)
     assert replay.probabilities == pytest.approx(result.probabilities)
@@ -224,13 +225,13 @@ def test_statistical_cancel_and_memory_limits_preserve_atomic_refresh():
     before = study.export()
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         study.refresh(data, cancel=token)
     assert study.export() == before
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         study.replace_snapshot(data, cancel=token)
     assert study.export() == before
-    with pytest.raises(ValueError, match="memory"):
+    with pytest.raises(CausalResourceError, match="memory"):
         transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, memory_bytes=1024)
 
 
@@ -426,7 +427,7 @@ def test_iid_bootstrap_interval_executes_from_retained_plan_after_builder_dispos
     assert row["replicates_failed"] == 0
     consumer = transport.consume_statistical(result.export())
     assert consumer.inspect().program_id == plan.program_id
-    with pytest.raises(ValueError, match="transport.samples_not_embedded"):
+    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
         consumer.estimate()
     replay = consumer.refresh(data)
     assert replay.mean("y") == pytest.approx(0.8)

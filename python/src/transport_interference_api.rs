@@ -210,13 +210,8 @@ impl CheckedTransportProgram {
             at.unwrap_or_default()
                 .into_iter()
                 .map(|(name, value)| {
-                    let index = self
-                        .graph
-                        .names
-                        .iter()
-                        .position(|candidate| candidate == &name)
-                        .ok_or_else(|| PyValueError::new_err(format!("unknown variable {name}")))?;
-                    Ok((VariableId::from_raw(index as u32), antecedent_core::Value::f64(value)))
+                    let variable = crate::transport_common::resolve(&self.graph.names, &name)?;
+                    Ok((variable, antecedent_core::Value::f64(value)))
                 })
                 .collect::<PyResult<Vec<_>>>()?,
         );
@@ -290,9 +285,17 @@ fn checked_program_from_proof(
 ) -> PyResult<FunctionalProgram> {
     let (arena_wire, root) = lower_identified_formula(identification)?;
     let arena = expr_arena_from_wire(&arena_wire).map_err(py_err)?;
-    let schema = ProgramSchema::new(names.iter().enumerate().map(|(id, name)| {
-        (VariableId::from_raw(id as u32), ProgramVariable { name: Arc::from(name.as_str()) })
-    }));
+    let schema = ProgramSchema::new(
+        names
+            .iter()
+            .map(|name| {
+                Ok((
+                    crate::transport_common::resolve(names, name)?,
+                    ProgramVariable { name: Arc::from(name.as_str()) },
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?,
+    );
     FunctionalProgram::new(
         arena,
         schema,

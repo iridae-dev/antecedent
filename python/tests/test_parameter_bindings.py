@@ -434,7 +434,7 @@ def test_controls_reaches_plan():
     graph, data, query = _transport_query()
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancelled"):
+    with pytest.raises(ant.errors.CausalCancelledError, match="cancelled"):
         ant.analyze(
             data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
         )
