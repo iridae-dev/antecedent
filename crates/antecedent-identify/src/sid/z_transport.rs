@@ -2246,30 +2246,17 @@ fn search_trz_state(
         }
     }
     // `TRz` rule 10: exchange Z∩X and recurse with Z\X and active set I=Z∩X.
+    // The new kernel is the source c-factor Q^s_z[V\Z] = P^s_{z ∪ (V_all\V)}(V\Z):
+    // every coordinate outside the current vertex set is intervened, not
+    // conditioned on. When the state still spans the whole graph that is the
+    // cited source law itself; otherwise the c-factor is identified from that
+    // law by the interventional-distribution recursion on the graph with the
+    // exchanged coordinates removed (sID^z line 7).
     let remaining = super::difference(&state.v, &activated);
-    let variables = engine.arena.intern_var_set(engine.vars(&remaining)?);
-    // A district kernel can retain external parent coordinates after line 8.
-    // Its source replacement must keep those coordinates as parameters; a
-    // marginal source law would silently use the source parent distribution.
-    let mut external_parents = BitSet::with_len(engine.diagram.causal_graph().node_count());
-    for node in remaining.to_dense_ids() {
-        for parent in engine.diagram.causal_graph().parents(node) {
-            if !state.v.contains(*parent) && !activated.contains(*parent) {
-                external_parents.insert(*parent);
-            }
-        }
-    }
-    let conditioned_on = engine.arena.intern_var_set(engine.vars(&external_parents)?);
-    let intervention = engine.arena.intern_intervention_assignments(cumulative.iter().cloned());
-    let population = engine.arena.intern_population(Arc::clone(&query.source));
-    let kernel = engine.arena.intern(ExprNode::Distribution {
-        variables,
-        conditioned_on,
-        intervention,
-        domain: DomainRef::Interventional,
-        population,
-        regime: None,
-    });
+    let Some(kernel) = source_c_factor(engine, &remaining, &cumulative, query, depth, trace)?
+    else {
+        return Ok(None);
+    };
     let next = super::State {
         y: state.y,
         x: super::difference(&state.x, &activated),
@@ -2295,6 +2282,171 @@ fn search_trz_state(
         terminal_failure,
         unassigned,
     )
+}
+
+/// The source c-factor `Q^s_z[remaining]` after exchanging `cumulative`, in the
+/// z engine's arena. `None` when the interventional-distribution recursion cannot
+/// identify it from the cited source law; that is not an obstruction claim.
+fn source_c_factor(
+    engine: &mut super::Engine<'_>,
+    remaining: &BitSet,
+    cumulative: &[antecedent_expr::InterventionAssignment],
+    query: &ZTransportQuery,
+    depth: usize,
+    trace: &mut Vec<String>,
+) -> Result<Option<ExprId>, IdentificationError> {
+    let graph = engine.diagram.causal_graph();
+    let exchanged = cumulative.iter().map(|a| a.variable).collect::<Vec<_>>();
+    let remaining_vars = engine.vars(remaining)?;
+    // An outside coordinate that is not an ancestor of the remaining set in the
+    // graph without the exchanged coordinates neither changes the c-factor
+    // when intervened on nor needs to be measured: the source law over the
+    // ancestral closure is the marginal the theorem reads. Only the ancestral
+    // outside coordinates are intervened on and identified away.
+    let mut closure = BitSet::with_len(graph.node_count());
+    let mut pending = remaining.to_dense_ids();
+    while let Some(node) = pending.pop() {
+        if closure.contains(node) {
+            continue;
+        }
+        closure.insert(node);
+        for parent in graph.parents(node) {
+            let parent_var = engine.prepared.dense_to_var(*parent)?;
+            if !exchanged.contains(&parent_var) {
+                pending.push(*parent);
+            }
+        }
+    }
+    let kept = engine.vars(&closure)?;
+    let outside = kept.iter().copied().filter(|v| !remaining_vars.contains(v)).collect::<Vec<_>>();
+    let population = engine.arena.intern_population(Arc::clone(&query.source));
+    if outside.is_empty() {
+        let variables = engine.arena.intern_var_set(remaining_vars);
+        let conditioned_on = engine.arena.empty_var_set();
+        let intervention = engine.arena.intern_intervention_assignments(cumulative.iter().cloned());
+        return Ok(Some(engine.arena.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain: DomainRef::Interventional,
+            population,
+            regime: None,
+        })));
+    }
+    // Identify P^s_{z ∪ outside}(remaining) from P^s_z(kept) on the graph
+    // without the exchanged coordinates.
+    let mut reduced = antecedent_graph::Admg::empty();
+    for variable in &kept {
+        reduced.add_node(NodeRef::Static(*variable))?;
+    }
+    let dense = |variable: VariableId| {
+        kept.iter().position(|v| *v == variable).map(|i| DenseNodeId::from_raw(index_u32(i)))
+    };
+    for (from_index, node) in graph.nodes().iter().enumerate() {
+        let NodeRef::Static(from) = node else { continue };
+        let Some(reduced_from) = dense(*from) else { continue };
+        let from_dense = DenseNodeId::from_raw(index_u32(from_index));
+        for to in graph.children(from_dense) {
+            if let Some(reduced_to) = engine.prepared.dense_to_var(*to).ok().and_then(dense) {
+                reduced.insert_directed(reduced_from, reduced_to)?;
+            }
+        }
+        for other in graph.bidirected_neighbors(from_dense) {
+            if other.as_usize() > from_index {
+                if let Some(reduced_other) =
+                    engine.prepared.dense_to_var(*other).ok().and_then(dense)
+                {
+                    reduced.insert_bidirected(reduced_from, reduced_other)?;
+                }
+            }
+        }
+    }
+    let diagram = SelectionDiagram::try_new(reduced, Arc::<[VariableId]>::from([]))?;
+    let classical = super::ClassicalTransportQuery {
+        outcomes: remaining_vars.clone().into(),
+        treatments: outside.into(),
+        source: Arc::clone(&query.source),
+        target: Arc::clone(&query.target),
+    };
+    let limits = super::SidLimits {
+        steps: engine.limits.steps.saturating_sub(engine.steps).max(1),
+        depth: engine.limits.depth.saturating_sub(depth).max(1),
+    };
+    let mut sub = super::Engine::new(&diagram, &classical, limits, engine.ctx)?;
+    let initial = sub.initial_source_kernel(&query.source, cumulative)?;
+    let solved = sub.solve(initial, false, 0);
+    engine.steps = engine.steps.saturating_add(sub.steps);
+    let Some(root_step) = solved? else {
+        trace.push("ztr.line10.c_factor_not_identified".into());
+        return Ok(None);
+    };
+    trace.push(format!("ztr.line10.c_factor:{:?}", sub.reachable_rules(root_step)));
+    let output = sub.proof[root_step].output;
+    let mut memo = std::collections::HashMap::new();
+    Ok(Some(transplant(&sub.arena, output, &mut engine.arena, &mut memo)?))
+}
+
+/// Copy the expression `id` of `from` into `into`, re-interning every table.
+fn transplant(
+    from: &CausalExprArena,
+    id: ExprId,
+    into: &mut CausalExprArena,
+    memo: &mut std::collections::HashMap<ExprId, ExprId>,
+) -> Result<ExprId, IdentificationError> {
+    if let Some(copied) = memo.get(&id) {
+        return Ok(*copied);
+    }
+    let copied = match from.node(id).clone() {
+        ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        } => {
+            let variables = into.intern_var_set(from.var_set(variables).iter().copied());
+            let conditioned_on = into.intern_var_set(from.var_set(conditioned_on).iter().copied());
+            let intervention = into.intern_intervention_assignments(
+                from.intervention_assignments(intervention).iter().cloned(),
+            );
+            let population = into.intern_population(Arc::from(from.population(population)));
+            into.intern(ExprNode::Distribution {
+                variables,
+                conditioned_on,
+                intervention,
+                domain,
+                population,
+                regime,
+            })
+        }
+        ExprNode::Product(list) => {
+            let children = from
+                .list(list)
+                .iter()
+                .map(|child| transplant(from, *child, into, memo))
+                .collect::<Result<Vec<_>, _>>()?;
+            let list = into.intern_list(children);
+            into.intern(ExprNode::Product(list))
+        }
+        ExprNode::SumOut { variables, expr } => {
+            let expr = transplant(from, expr, into, memo)?;
+            let variables = into.intern_var_set(from.var_set(variables).iter().copied());
+            into.intern(ExprNode::SumOut { variables, expr })
+        }
+        ExprNode::Ratio { numerator, denominator } => {
+            let numerator = transplant(from, numerator, into, memo)?;
+            let denominator = transplant(from, denominator, into, memo)?;
+            into.intern(ExprNode::Ratio { numerator, denominator })
+        }
+        _ => {
+            return Err(IdentificationError::InvariantViolated {
+                message: "source c-factor identification produced an unexpected node",
+            });
+        }
+    };
+    memo.insert(id, copied);
+    Ok(copied)
 }
 
 #[cfg(test)]
