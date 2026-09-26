@@ -549,8 +549,16 @@ cells are 51 of 323 unmeasured. Most records are on Dag and TemporalDag (468 of
 604); Admg has 12 and Pag 24. The gap is the size of the license against the
 measured designs, not a shortage of calibration runs.
 
-- [ ] Publish the 69 coordinates as a tracked list generated from the registry,
-      with the count of cells behind each, and ratchet it: the count of
+**Current 2.1 branch inventory.** The checked-in registry now contains 472
+licensed cells and the generated `parity/calibration_backlog.md` lists 172
+unmeasured cells across 92 distinct coordinates. This supersedes the 2.0
+baseline counts for current planning; new 2.1 rows add calibration obligations.
+The coordinate inventory is generated and checked without running calibration.
+Run measurements and update records only after implementation and subsequent
+cleanup/refactoring are complete, so their attestations bind the stabilized code.
+
+- [x] Publish the current distinct coordinates as a tracked list generated from
+      the registry, with the count of cells behind each. Ratchet it: the count of
       `estimator_grid_not_measured` cells may only fall, as `max_uses` does in
       `parity/reason_codes.toml`. Report distinct coordinates beside cell counts
       wherever the 463/164 figures appear, so validation-level triplication does

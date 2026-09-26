@@ -1523,8 +1523,38 @@ mod tests {
             validate_z_transport_candidate(&snapshot, &mismatched_measurement).unwrap_err(),
             ZTransportPlanningError::Invalid(_)
         ));
+
+        // A syntactically valid design can still fail to supply the exact
+        // factor: repeating the already available high-z regime is not a
+        // substitute for the missing low-z regime.
+        let redundant_high = EvidenceRegime::try_new(
+            RegimeId::from_raw(12),
+            RegimeKind::Experimental,
+            EvidenceKind::Proposed,
+            [VariableId::from_raw(1)],
+            [InterventionAssignment {
+                variable: VariableId::from_raw(1),
+                value: Value::Bool(true),
+            }],
+            (0..4).map(VariableId::from_raw).collect::<Vec<_>>(),
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let insufficient_but_valid = TransportEvidenceCandidate {
+            id: Arc::from("repeated-high-z"),
+            delta: EvidenceCatalogDelta::try_new(&base, [redundant_high]).unwrap(),
+            ..candidate.clone()
+        };
+        let tied_sufficient =
+            TransportEvidenceCandidate { id: Arc::from("also-low-z"), ..candidate.clone() };
         let spec = ZTransportPlanSpec {
-            candidates: vec![candidate.clone(), mismatched_measurement.clone()],
+            candidates: vec![
+                candidate.clone(),
+                tied_sufficient,
+                insufficient_but_valid,
+                mismatched_measurement.clone(),
+            ],
             max_evaluated: 1,
             identification_limits: SidLimits::default(),
         };
@@ -1537,8 +1567,15 @@ mod tests {
         );
         assert!(plan.truncated());
         assert_eq!(plan.evaluated, [Arc::<str>::from("low-z")]);
-        assert_eq!(plan.unevaluated, [Arc::<str>::from("incomplete-measurement-action")]);
-        assert_eq!(plan.candidate_universe_size, 2);
+        assert_eq!(
+            plan.unevaluated,
+            [
+                Arc::<str>::from("also-low-z"),
+                Arc::from("repeated-high-z"),
+                Arc::from("incomplete-measurement-action"),
+            ]
+        );
+        assert_eq!(plan.candidate_universe_size, 4);
         assert!(matches!(
             plan_z_transport_evidence(
                 &snapshot,
@@ -1550,12 +1587,17 @@ mod tests {
         ));
         let full = plan_z_transport_evidence(
             &snapshot,
-            &ZTransportPlanSpec { max_evaluated: 2, ..spec },
+            &ZTransportPlanSpec { max_evaluated: 4, ..spec },
             &ctx(),
         )
         .unwrap();
         assert!(!full.truncated());
-        assert!(matches!(full.assessments[1].outcome, ZTransportCandidateOutcome::Rejected { .. }));
+        assert_eq!(full.ranked_sufficient, [Arc::<str>::from("also-low-z"), Arc::from("low-z")]);
+        assert!(matches!(full.assessments[2].outcome, ZTransportCandidateOutcome::Rejected { .. }));
+        let ZTransportCandidateOutcome::Rejected { reason } = &full.assessments[2].outcome else {
+            panic!("a repeated high-z experiment cannot repair the missing low-z factor");
+        };
+        assert!(reason.contains("missing"), "unexpected rejection: {reason}");
         let ZTransportCandidateOutcome::VerifiedSufficient(proposal) = &plan.assessments[0].outcome
         else {
             panic!("proposed joint evidence should complete the family");

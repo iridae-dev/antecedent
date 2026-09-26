@@ -55,7 +55,8 @@ pub use mechanism_sensitivity::{
     FixedGraphMechanismSensitivityResult, FixedGraphMechanismSensitivitySpec,
     FixedGraphSensitivityError, SourceOutcomeKernelRow, SourceParentLawRow, TargetParentLawRow,
     ZTransportMechanismSensitivityResult, ZTransportSensitivityError,
-    fixed_graph_mechanism_sensitivity, z_transport_mechanism_sensitivity,
+    fixed_graph_mechanism_sensitivity, fixed_graph_treatment_level_sensitivity,
+    z_transport_mechanism_sensitivity,
 };
 pub use mediation::QueryRefutationPlan;
 pub use overlap::OverlapRefuter;

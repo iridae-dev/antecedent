@@ -180,6 +180,149 @@ fn a_factor_from_each_source_is_not_combined() {
     ));
 }
 
+fn split_graph() -> Admg {
+    let mut graph = Admg::with_variables(4);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+    graph
+}
+
+fn component_catalog(
+    population: &str,
+    intervention: VariableId,
+    outcome: VariableId,
+) -> EvidenceCatalog {
+    let regime = EvidenceRegime::try_new(
+        RegimeId::from_raw(0),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [intervention],
+        [InterventionAssignment { variable: intervention, value: Value::Bool(false) }],
+        [outcome],
+        population,
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    EvidenceCatalog::try_new(
+        [environment("alpha"), environment("beta"), environment("target")],
+        [regime],
+        [RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(0),
+            snapshot_identity: Arc::from(format!("do-{intervention}-{population}")),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        }],
+        None,
+    )
+    .unwrap()
+}
+
+#[test]
+fn complementary_joint_regimes_identify_disconnected_outcome_components() {
+    let graph = split_graph();
+    let sources = [
+        ZTransportSourceSpec {
+            population: Arc::from("alpha"),
+            controllable: Arc::from([W]),
+            experiment_assignment: Arc::from([InterventionAssignment {
+                variable: W,
+                value: Value::Bool(false),
+            }]),
+            selection_targets: Arc::from([]),
+        },
+        ZTransportSourceSpec {
+            population: Arc::from("beta"),
+            controllable: Arc::from([X]),
+            experiment_assignment: Arc::from([InterventionAssignment {
+                variable: X,
+                value: Value::Bool(false),
+            }]),
+            selection_targets: Arc::from([]),
+        },
+    ];
+    let query = TwoSourceZTransportQuery {
+        outcomes: Arc::from([Z, Y]),
+        treatments: Arc::from([W, X]),
+        target: Arc::from("target"),
+        sources: sources.clone(),
+    };
+    let alpha = component_catalog("alpha", W, Z);
+    let beta = component_catalog("beta", X, Y);
+    let decision = decide_two_source_z_transport(
+        &graph,
+        &query,
+        [&alpha, &beta],
+        SidLimits::default(),
+        &ExecutionContext::for_tests(75),
+    )
+    .unwrap();
+    let TwoSourceZTransportDecision::CombinedIdentified { components } = decision else {
+        panic!(
+            "complementary joint factors should identify both disconnected components: {decision:?}"
+        );
+    };
+    assert_eq!(components[0].source.as_ref(), "alpha");
+    assert_eq!(components[0].derivation.to_record().rules, ["ztr.source_exchange_joint"]);
+    assert_eq!(components[1].source.as_ref(), "beta");
+    assert_eq!(components[1].derivation.to_record().rules, ["ztr.source_exchange_joint"]);
+    assert!(
+        components[0]
+            .derivation
+            .inspect_proof(&alpha)
+            .factors
+            .iter()
+            .all(|factor| factor.failure.is_none())
+    );
+    assert!(
+        components[1]
+            .derivation
+            .inspect_proof(&beta)
+            .factors
+            .iter()
+            .all(|factor| factor.failure.is_none())
+    );
+
+    // A separately measured marginal cannot bind either joint component law.
+    let separate = EvidenceRegime::try_new(
+        RegimeId::from_raw(0),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [W],
+        [InterventionAssignment { variable: W, value: Value::Bool(false) }],
+        [Z],
+        "alpha",
+        DistributionAvailability::SeparateMarginals { variables: Arc::from([Z]) },
+    )
+    .unwrap();
+    let alpha_marginal = EvidenceCatalog::try_new(
+        [environment("alpha"), environment("beta"), environment("target")],
+        [separate],
+        [RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(0),
+            snapshot_identity: Arc::from("alpha-marginal"),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        }],
+        None,
+    )
+    .unwrap();
+    let refused = decide_two_source_z_transport(
+        &graph,
+        &query,
+        [&alpha_marginal, &beta],
+        SidLimits::default(),
+        &ExecutionContext::for_tests(76),
+    )
+    .unwrap();
+    assert!(matches!(refused, TwoSourceZTransportDecision::NotCertified { .. }));
+}
+
 /// Two disjoint bows X1→Y1, X1↔Y1 and X2→Y2, X2↔Y2 with outcomes {Y1, Y2} and
 /// treatments {X1, X2}. Alone, a source that controls only X1 (or only X2)
 /// reaches line 11, yet P*_{x1,x2}(y1, y2) = P^α_{x1}(y1)·P^β_{x2}(y2) combines

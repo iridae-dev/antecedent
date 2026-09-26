@@ -14,17 +14,21 @@ provider and from an interval license. The support registry and
 | Selected confounded outcome with an independently checked classical s-hedge | Complete actual source experimental family and target observational joint law | A checked obstruction under the stronger all-experiments family implies obstruction for restricted experiments; portable snapshot carries the witness | Refused | Refused |
 | Restricted experiment with X↔Y, X→Y, and disconnected controllables Z and W | The declared controllable set. An empty catalog reaches the same terminal as the full family | Portable TRz line-11 obstruction, independently checked by two binary SCMs that agree on all supplied laws but differ on target `do(X)` | Refused | Refused |
 | Two sources, searched separately | Shared outcomes, treatments, and target. Each source has its own population, controllable set, experiment assignment, and selection diagram. At most two sources | One identifying source is enough and is named. Two line-11 terminals certify one obstruction only when both sources share the controllable set and selection targets; otherwise, and whenever a result would need a factor from each source, the decision is `transport_not_certified` naming `z_transport.multi_source_combination_not_searched` | The identifying source's own cited factors only | Same nominal interval as that source's empirical tables; no cross-source interval |
-| Cross-source factor combination, or more than two sources | Multiple source catalogs whose factors would be mixed | Refused by name. Classical meta-transport is not used, because it assumes every source can experiment on every variable | Refused | Refused |
-| Fixed graph outcome-kernel contamination, including the compatible registered surrogate formula | Checked baseline proof, shared outcome kernel across arms, and complete categorical support | Incompatible formula shapes refuse | Exact response range, witnesses, tipping fraction, and independent sensitivity-artifact replay | Assumption range, not a sampling interval |
+| Complementary evidence for a bounded disconnected two-component target | Exactly two disconnected static graph components; each has a queried outcome and treatment; each source supplies that component's jointly measured outcome law under its declared joint intervention regime | Two independently checked source-exchange derivations combine by graph component independence; separate marginals do not bind, and neither component may require evidence from both sources | Each component formula is evaluable by the exact provider; the joint law is the product of its component laws, checked against exact SCM truth | Exact laws are point-only; no cross-source interval is reported |
+| Cross-source factor combination outside the bounded disconnected case, or more than two sources | Multiple source catalogs whose factors would be mixed within a connected component, or more than two sources | Refused by name. Classical meta-transport is not used, because it assumes every source can experiment on every variable | Refused | Refused |
+| Fixed graph one-factor outcome-mechanism contamination | Checked baseline proof, complete categorical support, and source/target parent-law bindings. The factor may cover both response arms jointly (registered route) or one declared treatment-level slice while holding the other arm fixed | Incompatible formula shapes and out-of-domain arm selections refuse | Exact response range, witnesses, zero-fraction baseline, tipping fraction, and independent sensitivity-artifact replay for the registered two-arm route | Assumption range, not a sampling interval; arbitrary non-outcome mechanism perturbations and jointly varying factors remain closed |
 | Candidate evidence planning and arrival for the registered surrogate formula | Frozen failed catalog, feasible declared study and cost, matching actual provider snapshot and joint regime | A candidate ranks only after isolated hypothetical binding; arrival re-identifies against available evidence | Portable failure snapshot and replayable proposal; no effect estimate until evidence arrives | Cost rank is not a probability of success |
 
 A positive catalog decision binds the joints the formula cites. A line-11
 certificate is structural in the declared controllable set and does not wait
 for the experiment power set. The guarantee stays sound and incomplete within
 twelve observed and four controllable variables. Two sources are searched
-separately; cross-source combination stays closed under
-`z_transport.multi_source_combination_not_searched`. Missing cited factors,
-unsupported input, and exhausted search never become nonidentification proofs.
+separately; combination is supported only for two disconnected static graph
+components, each with one queried outcome/treatment component and one source
+that supplies its matching joint regime. Other mixed-source combinations stay
+closed under `z_transport.multi_source_combination_not_searched`. Missing cited
+factors, unsupported input, and exhausted search never become nonidentification
+proofs.
 
 The scoped route has a separate versioned artifact whose consumer rechecks the
 proof, catalog, laws, provider snapshots, and point result. An empirical
