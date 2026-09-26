@@ -23,6 +23,7 @@ from .transport._impl import (
     StatisticalTransportDistribution,
     TransportResponseGrid,
 )
+from .transport._restricted import RestrictedTransportExecution
 
 
 def prepare(
@@ -258,6 +259,7 @@ def load(
     | TransportResponseGrid
     | ClassicalTransportIdentification
     | LearnedTrialEstimate
+    | RestrictedTransportExecution
 ):
     """Load a contracted result through the Rust semantic consumer.
 
@@ -293,6 +295,10 @@ def load(
 
         prepared = consume_response_grid(encoded)
         return _response_grid(prepared._native, prepared._native.last_result())
+    if encoded.startswith(b"ANTECEDENT-Z-TRANSPORT\x01"):
+        from .transport._restricted import consume_restricted_artifacts
+
+        return consume_restricted_artifacts([encoded])
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01"):
         from .transport.advanced import consume_identification
 

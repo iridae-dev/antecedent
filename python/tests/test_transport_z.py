@@ -1,10 +1,40 @@
 """Bounded zTR search returns checked, point-only transport results."""
 
 import json
+import struct
 
 import pytest
 from antecedent import Admg
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalSerializationError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.transport import advanced as transport
+
+Z_PREFIX = b"ANTECEDENT-Z-TRANSPORT\x01"
+
+
+def _cbor_f64(value: float) -> bytes:
+    return b"\xfb" + struct.pack(">d", value)
+
+
+def _cbor_byte_array(raw: bytes) -> bytes:
+    """``raw`` as serde-CBOR spells a ``Vec<u8>``: an array of small unsigned ints."""
+    return b"".join(bytes([b]) if b < 24 else b"\x18" + bytes([b]) for b in raw)
+
+
+def _rewrite_f64(blob: bytes, value: float, replacement: float, *, last: bool = False) -> bytes:
+    """Re-encode one CBOR float64 field with another value, whether the field
+    sits at the top level of the wire or inside an embedded byte vector."""
+    for encode in (bytes, _cbor_byte_array):
+        pattern = encode(_cbor_f64(value))
+        if pattern in blob:
+            index = blob.rfind(pattern) if last else blob.find(pattern)
+            return blob[:index] + encode(_cbor_f64(replacement)) + blob[index + len(pattern) :]
+    raise AssertionError("the semantic field is not encoded as a CBOR float64")
 
 
 def fixture(empirical=False):
@@ -125,10 +155,22 @@ def test_z_transport_prepared_native_route_matches_independent_truth(empirical):
     replayed_sensitivity = transport.consume_z_transport_sensitivity_artifact(sensitivity_artifact)
     assert replayed_sensitivity["baseline"] == pytest.approx(sensitivity["baseline"])
     assert replayed_sensitivity["assumption_range"] == sensitivity["assumption_range"]
-    tampered_sensitivity = bytearray(sensitivity_artifact)
-    tampered_sensitivity[-1] ^= 0x01
-    with pytest.raises(ValueError, match=r".+"):
-        transport.consume_z_transport_sensitivity_artifact(bytes(tampered_sensitivity))
+    # Rewrite the recorded baseline contrast: the consumer recomputes the range
+    # from the embedded point artifact and refuses the edited claim.
+    tampered_sensitivity = _rewrite_f64(
+        sensitivity_artifact, sensitivity["baseline"], sensitivity["baseline"] + 0.05, last=True
+    )
+    with pytest.raises(CausalSerializationError, match="z-transport sensitivity .*mismatch"):
+        transport.consume_z_transport_sensitivity_artifact(tampered_sensitivity)
+    assert replayed_sensitivity["estimand"] == sensitivity["estimand"]
+    assert (
+        replayed_sensitivity["baseline_binding"]["query"]
+        == sensitivity["baseline_binding"]["query"]
+    )
+    assert (
+        replayed_sensitivity["baseline_binding"]["provider_snapshot"]
+        == sensitivity["baseline_binding"]["provider_snapshot"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -335,9 +377,22 @@ def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
 
     tampered = json.loads(snapshot)
     tampered["z_obstruction"]["terminal"]["treatments"] = []
-    with pytest.raises(ValueError, match="z_transport.obstruction_record_mismatch"):
+    with pytest.raises(CausalSerializationError, match="z_transport.obstruction_record_mismatch"):
         transport.plan_z_transport_evidence(
             stage, full, [], failure_snapshot=json.dumps(tampered).encode()
+        )
+    with pytest.raises(CausalSerializationError, match="does not match this stage and catalog"):
+        transport.plan_z_transport_evidence(
+            stage,
+            full,
+            [],
+            failure_snapshot=stage.failure_snapshot(
+                full.__class__(
+                    environments=full.environments,
+                    regimes=full.regimes[:2],
+                    bindings=full.bindings[:2],
+                )
+            ),
         )
     partial = transport.EvidenceCatalog(
         environments=full.environments,
@@ -413,6 +468,11 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
         recruitment_sampling="randomized source study",
         feasibility_constraints=["z is manipulable"],
     )
+    decision = stage.decide(base)
+    assert decision["outcome"] == "missing_evidence"
+    assert decision["reason"] == "z_transport.missing_evidence"
+    assert decision["missing"]["kind"] in {"cited_factor", "unassigned_controllable"}
+    assert "VariableId" not in json.dumps(decision)
     snapshot = stage.failure_snapshot(base)
     snapshot_wire = json.loads(snapshot)
     assert snapshot_wire["version"] == 1
@@ -431,10 +491,15 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     proposal.replay()
     portable_proposal = proposal.export()
     transport.replay_z_transport_proposal(portable_proposal)
-    tampered_proposal = bytearray(portable_proposal)
-    tampered_proposal[-1] ^= 0x01
-    with pytest.raises(ValueError, match=r".+"):
-        transport.replay_z_transport_proposal(bytes(tampered_proposal))
+    # Rename a bound snapshot inside the frozen failure catalog: the proposal's
+    # catalog digest no longer matches, and replay refuses by name.
+    edited = json.loads(portable_proposal)
+    assert "snapshot_z1" in json.dumps(edited["snapshot"]["catalog"])
+    edited["snapshot"]["catalog"] = json.loads(
+        json.dumps(edited["snapshot"]["catalog"]).replace("snapshot_z1", "snapshot_z1_edited")
+    )
+    with pytest.raises(CausalSerializationError, match="failure snapshot digest mismatch"):
+        transport.replay_z_transport_proposal(json.dumps(edited).encode())
 
     low_available = transport.EvidenceRegime(
         "do_z_0",
@@ -474,6 +539,9 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
         "snapshot_z0_arrival",
         interventions=(("z", 0.0),),
     )
+    with pytest.raises(CausalUnsupportedError, match="empirical_counts_required") as refused:
+        proposal.receive(actual, (law,), {"x": 0.0}, "snapshot_z0_arrival", empirical=True)
+    assert refused.value.reason_code == "transport_missing_provider"
     arrived = proposal.receive(actual, (law,), {"x": 0.0}, "snapshot_z0_arrival")
     result = json.loads(arrived.estimate())
     y1 = sum(
@@ -482,7 +550,7 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     assert y1 == pytest.approx(0.2)
     assert result["interval"] == {"available": False, "reason": "no_interval_reported"}
 
-    with pytest.raises(ValueError, match="provider snapshot"):
+    with pytest.raises(CausalValueError, match="provider snapshot"):
         proposal.receive(actual, (law,), {"x": 0.0}, "snapshot_z1")
 
 
@@ -551,3 +619,161 @@ def test_z_transport_decide_accepts_cited_margin_without_the_experiment_family()
         p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
     )
     assert true_mass == pytest.approx(0.2)
+
+
+def test_z_transport_artifact_tamper_is_refused_by_the_consumer():
+    """The consumer recomputes the point from the embedded proof and laws."""
+    _, _, _, prepared, laws = fixture(False)
+    result = json.loads(prepared.estimate())
+    artifact = prepared.export()
+    assert artifact.startswith(Z_PREFIX)
+    consumed = json.loads(transport.consume_z_transport_artifact(artifact))
+    assert consumed["outcomes"] == ["y"]
+    assert consumed["proof"]["rules"] == ["ztr.surrogate_factorization"]
+    # An edited point result no longer matches the recomputed one.
+    moved = _rewrite_f64(artifact, result["probabilities"][1], result["probabilities"][1] + 0.05)
+    with pytest.raises(CausalSerializationError, match="point result mismatch"):
+        transport.consume_z_transport_artifact(moved)
+    # An edited embedded law changes the recomputed point (or fails law validation).
+    edited_law = _rewrite_f64(artifact, laws[0].probabilities[0], laws[0].probabilities[0] + 0.01)
+    with pytest.raises((CausalSerializationError, CausalValueError)):
+        transport.consume_z_transport_artifact(edited_law)
+    # Foreign framing is refused before any byte is trusted.
+    with pytest.raises(CausalSerializationError, match="invalid z-transport artifact format"):
+        transport.consume_z_transport_artifact(
+            b"ANTECEDENT-EXACT-TRANSPORT\x01" + artifact[len(Z_PREFIX) :]
+        )
+
+
+def test_z_transport_refusals_carry_typed_classes_and_registered_codes():
+    graph, stage, catalog, prepared, laws = fixture(False)
+    law = laws[0]
+    with pytest.raises(CausalUnsupportedError, match="empirical_counts_required") as refused:
+        stage.prepare_empirical(catalog, (law,), {"x": 0.0})
+    assert refused.value.reason_code == "transport_missing_provider"
+    with pytest.raises(CausalValueError, match="unknown z-transport provider"):
+        prepared.estimate(estimator="not_a_provider")
+    with pytest.raises(CausalValueError, match="posterior_draws requires"):
+        prepared.estimate(posterior_draws=5)
+    fresh = stage.prepare_exact(catalog, (law,), {"x": 0.0})
+    for call in (
+        lambda: fresh.mechanism_sensitivity(0.2),
+        fresh.export,
+        lambda: fresh.export_sensitivity(0.2),
+    ):
+        with pytest.raises(CausalUnsupportedError, match="no_execution_claim") as refused:
+            call()
+        assert refused.value.reason_code == "not_executed"
+    from antecedent.state import CancellationToken
+
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError, match="cancel"):
+        fresh.estimate(cancel=token)
+    with pytest.raises(CausalResourceError, match="memory|budget"):
+        stage.prepare_exact(catalog, (law,), {"x": 0.0}, memory_bytes=1)
+    with pytest.raises(CausalValueError, match="non-negative"):
+        transport.ExactDiscreteLaw(
+            law.population,
+            law.regime,
+            law.axes,
+            law.probabilities,
+            law.snapshot_identity,
+            interventions=law.interventions,
+            empirical_counts=(-1,) * len(law.probabilities),
+        )
+    with pytest.raises(CausalValueError, match="memory_bytes"):
+        transport.identify_z_transport(
+            graph=graph,
+            query=transport.ZTransportQuery(
+                transport.SelectionDiagram("source", "target", []),
+                outcomes=["y"],
+                treatments=["x"],
+                controllable=["z"],
+                experiment_assignment={"z": 0.0},
+            ),
+            memory_bytes=-1,
+        )
+    from antecedent.transport import TransportControls
+
+    with pytest.raises(CausalValueError, match="non-negative"):
+        TransportControls(max_depth=-1)
+    refused_stage = transport.identify_z_transport(
+        graph=graph,
+        query=transport.ZTransportQuery(
+            transport.SelectionDiagram("source", "target", ["y"]),
+            outcomes=["y"],
+            treatments=["x"],
+            controllable=["z"],
+            experiment_assignment={"z": 0.0},
+        ),
+    )
+    assert refused_stage.outcome == "not_certified"
+    with pytest.raises(CausalUnsupportedError, match="no_checked_recursive_formula") as refused:
+        refused_stage.inspect_proof(catalog)
+    assert refused.value.reason_code == "transport_not_certified"
+    with pytest.raises(CausalValueError, match="design_kind"):
+        transport.ZTransportCandidate("bad", catalog, "observe")
+
+
+def test_z_transport_plan_evidence_refuses_a_candidate_that_rewrites_the_failure_catalog():
+    names = ["w", "z", "x", "y"]
+    graph, stage, catalog, _prepared, _laws = fixture(False)
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    base = transport.EvidenceCatalog(
+        environments=(transport.Environment("source", coordinates),),
+        regimes=catalog.regimes[1:],
+        bindings=catalog.bindings[1:],
+    )
+    rewritten = transport.EvidenceCatalog(
+        environments=base.environments,
+        regimes=(
+            *catalog.regimes[1:],
+            transport.EvidenceRegime(
+                "do_z_0",
+                "source",
+                kind="experimental",
+                evidence_kind="proposed",
+                interventions=["z"],
+                intervention_values={"z": 0.0},
+                measured=names,
+            ),
+        ),
+        bindings=base.bindings,
+        target_sampling="representative_sample",
+    )
+    candidate = transport.ZTransportCandidate(
+        "rewrite", rewritten, "intervene", targets=["z"], cost=1.0, sample_budget=10
+    )
+    with pytest.raises(CausalValueError, match="must preserve the failure catalog"):
+        transport.plan_z_transport_evidence(stage, base, [candidate])
+    del graph
+
+
+def test_z_transport_estimate_reports_its_seed_and_limits_are_inherited():
+    _, stage, catalog, _prepared, laws = fixture(True)
+    prepared = stage.prepare_empirical(catalog, laws, {"x": 0.0}, seed=7)
+    assert prepared.seed == 7
+    first = json.loads(prepared.estimate())
+    assert first["seed"] == 7 and first["interval"]["seed"] == 7
+    again = json.loads(prepared.estimate(seed=11))
+    assert again["seed"] == 11 and prepared.seed == 11
+    assert again["probabilities"] == pytest.approx(first["probabilities"])
+    bounded = transport.identify_z_transport(
+        graph=Admg.from_edges(
+            ["w", "z", "x", "y"],
+            [("w", "z"), ("z", "x"), ("x", "y"), ("w", "y")],
+            [("w", "y"), ("z", "y"), ("z", "x")],
+        ),
+        query=transport.ZTransportQuery(
+            transport.SelectionDiagram("source", "target", []),
+            outcomes=["y"],
+            treatments=["x"],
+            controllable=["z"],
+            experiment_assignment={"z": 0.0},
+        ),
+        memory_bytes=1,
+    )
+    # The stage's limits are inherited by every preparation made from it.
+    with pytest.raises(CausalResourceError, match="memory|budget"):
+        bounded.prepare_exact(catalog, laws, {"x": 0.0})

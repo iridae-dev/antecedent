@@ -7,10 +7,11 @@ queried treatment, identification and execution stay on the z-transport stage.
 
 from __future__ import annotations
 
+import functools
 import itertools
 import json
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from .._transport_results import TransportGridPoint, TransportUncertainty
@@ -29,15 +30,46 @@ from ._impl import (
     SelectionDiagram,
     StatisticalTransportData,
     TransportControls,
-    TransportStage,
+    TransportInference,
     TrialAipw,
     TrialAipwData,
     ZTransportQuery,
+    consume_z_transport_artifact,
     identify_z_transport,
 )
 
 SCOPE = "single_source_z_transport_cited_joints_sound_incomplete"
-_COMBINATION = "z_transport.multi_source_combination_not_searched"
+#: The native two-source decider's stable refusal detail. It is not itself a
+#: registered reason code: the refusal is raised as ``transport_not_certified``
+#: and names this detail in its message.
+COMBINATION_DETAIL = "z_transport.multi_source_combination_not_searched"
+COMBINATION_CODE = "transport_not_certified"
+
+#: Failure-snapshot statuses (``ZTransportFailureStatus``) and the
+#: identification outcome each re-derived status means.
+_SNAPSHOT_OUTCOME = {
+    "proof_obstruction": "proven_non_transportable",
+    "missing_evidence": "missing_evidence",
+    "unsupported_input": "not_certified",
+    "exhausted_computation": "not_certified",
+    "unresolved_identification": "not_certified",
+}
+
+_TRANSFORM_INTENTS = (
+    "display_precision",
+    "compatible_data_replace",
+    "retarget",
+    "filter_display",
+    "filter_population",
+    "new_conditional_query",
+    "change_graph",
+    "change_prior",
+    "change_physical_policy",
+    "average_unweighted_class",
+)
+#: Intents the z-transport handle honours: display edits and a compatible
+#: snapshot replacement (``replace_snapshot`` / ``refresh``).
+_ALLOWED_INTENTS = frozenset({"display_precision", "filter_display", "compatible_data_replace"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,27 +85,38 @@ class RestrictedTransportIdentification:
     stage: Any = None
     laws: tuple[ExactDiscreteLaw, ...] = ()
     empirical: bool = False
+    #: Human sentence for a missing-evidence outcome, in variable names.
+    detail: str | None = None
+    #: Structured missing-evidence object from the native decision.
+    missing: Mapping[str, Any] | None = None
+    #: Checked line-11 obstruction records, one per source, when proven.
+    obstructions: tuple[Mapping[str, Any], ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "rules", tuple(self.rules))
         object.__setattr__(self, "laws", tuple(self.laws))
+        object.__setattr__(self, "obstructions", tuple(self.obstructions))
 
 
 class RestrictedTransportExecution:
-    """Point results from the z-transport stage, one target assignment at a time."""
+    """Point results from the z-transport stage, one target assignment at a time.
+
+    ``artifacts`` holds one independently consumable z-transport artifact per
+    target assignment, in ``points`` order.
+    """
 
     def __init__(
         self,
         *,
         points: tuple[TransportGridPoint, ...],
         rules: tuple[str, ...],
-        prepared: Any,
+        artifacts: tuple[bytes, ...] = (),
     ) -> None:
         self.scope = SCOPE
         self.formula = SCOPE
         self.rules = rules
         self.points = points
-        self._prepared = prepared
+        self.artifacts = artifacts
         first = points[0] if points else None
         self.uncertainty = None if first is None else first.uncertainty
         self.outcomes = () if first is None else tuple(first.means)
@@ -84,9 +127,18 @@ class RestrictedTransportExecution:
         return float(self.points[0].means[outcome])
 
     def export(self) -> bytes:
-        if self._prepared is None:
-            raise CausalValueError("estimate before exporting a z-transport artifact")
-        return bytes(self._prepared.export())
+        """The single-assignment artifact; a grid exports per point via ``artifacts``."""
+        if not self.artifacts:
+            raise CausalUnsupportedError(
+                "estimate before exporting a z-transport artifact", reason_code="not_executed"
+            )
+        if len(self.artifacts) != 1:
+            raise CausalUnsupportedError(
+                "a z-transport grid execution carries one artifact per target assignment; "
+                "read .artifacts, or export the whole result with result.export()",
+                reason_code="option_not_applicable",
+            )
+        return self.artifacts[0]
 
     def inspect(self) -> Any:
         from ..results._report import InspectionReport, SlotModel
@@ -119,8 +171,67 @@ class RestrictedTransportExecution:
         )
 
 
+def consume_restricted_artifacts(
+    artifacts: Sequence[bytes], worlds: Sequence[Mapping[str, float]] = ()
+) -> RestrictedTransportExecution:
+    """Independently recheck one z-transport artifact per world and rebuild the execution.
+
+    Every number comes from the native consumer, which rechecks the embedded
+    proof, catalog binding and laws and recomputes the point. The loaded
+    execution is point-only: no interval is replayed.
+    """
+    if not artifacts:
+        raise CausalValueError("a restricted-experiment execution needs at least one artifact")
+    if worlds and len(worlds) != len(artifacts):
+        raise CausalValueError("one z-transport artifact per target assignment is required")
+    points = []
+    rules: tuple[str, ...] = ()
+    for index, artifact in enumerate(artifacts):
+        payload = json.loads(consume_z_transport_artifact(bytes(artifact)))
+        rules = tuple(payload.get("proof", {}).get("rules") or rules)
+        world = worlds[index] if worlds else {}
+        points.append(_point(world, payload))
+    return RestrictedTransportExecution(
+        points=tuple(points), rules=rules, artifacts=tuple(bytes(a) for a in artifacts)
+    )
+
+
+def identification_from_snapshot(snapshot: bytes) -> RestrictedTransportIdentification:
+    """Rebuild a non-identified decision from a rechecked failure snapshot."""
+    from .. import _native
+
+    report = _native.consume_z_transport_failure_snapshot(bytes(snapshot))
+    status = str(report.get("status"))
+    outcome = _SNAPSHOT_OUTCOME.get(status, "not_certified")
+    obligations = list(report.get("obligations") or ())
+    obstruction = report.get("z_obstruction")
+    reason = None
+    detail = None
+    if outcome == "missing_evidence":
+        reason = "z_transport.missing_evidence"
+        detail = obligations[0] if obligations else None
+    elif outcome == "not_certified":
+        reason = obligations[0] if obligations else f"z_transport.{status}"
+    return RestrictedTransportIdentification(
+        outcome=outcome,
+        reason=reason,
+        rules=(),
+        formula=SCOPE,
+        source=None,
+        detail=detail,
+        obstructions=() if obstruction is None else (obstruction,),
+    )
+
+
 class _RestrictedNative:
-    """PreparedAnalysis native adapter over ``ZTransportStage`` prepare/estimate."""
+    """PreparedAnalysis native adapter over one prepared z-transport handle per world.
+
+    Every target assignment keeps its own ``PreparedZTransportStage``. A
+    snapshot with the same catalog binding is rebound through the native
+    ``refresh``; a snapshot that changes the binding (a new snapshot identity)
+    rebuilds laws and catalog and prepares again, so the proof is rebound
+    rather than executed against a stale catalog.
+    """
 
     def __init__(
         self,
@@ -128,55 +239,131 @@ class _RestrictedNative:
         stage: Any,
         catalog: EvidenceCatalog,
         laws: tuple[ExactDiscreteLaw, ...],
-        worlds: list[dict[str, float]],
+        worlds: Sequence[Mapping[str, float]],
         empirical: bool,
         limits: TransportControls,
+        seed: int,
         rules: tuple[str, ...],
-        rebuild: Any,
+        rebuild: Callable[[Any], tuple[tuple[ExactDiscreteLaw, ...], EvidenceCatalog]],
     ) -> None:
         self.stage = stage
         self.catalog = catalog
         self.laws = laws
-        self.worlds = worlds
+        self.worlds = [dict(world) for world in worlds]
         self.empirical = empirical
         self.limits = limits
+        self.seed = seed
         self.rules = rules
         self.rebuild = rebuild
-        self._prepared: Any = None
+        self.last: RestrictedTransportExecution | None = None
+        #: The prepared study's frozen inputs; the catalog follows a rebound snapshot.
+        self.stage_snapshot: Any = None
+        self._prepared = self._prepare_all(catalog, laws, cancel=limits.cancel)
+
+    def _prepare_all(
+        self, catalog: EvidenceCatalog, laws: tuple[ExactDiscreteLaw, ...], *, cancel: Any
+    ) -> list[Any]:
+        kwargs = {
+            "max_operations": self.limits.max_operations,
+            "max_depth": self.limits.max_depth,
+            "max_support_rows": self.limits.max_support_rows,
+            "memory_bytes": self.limits.memory_bytes,
+            "seed": self.seed,
+            "cancel": cancel,
+        }
+        prepare = self.stage.prepare_empirical if self.empirical else self.stage.prepare_exact
+        return [prepare(catalog, laws, world, **kwargs) for world in self.worlds]
 
     def replace_snapshot(self, data: Any, cancel: Any = None) -> None:
-        del cancel
-        self.laws = self.rebuild(data)
-        self._prepared = None
+        cancel = self.limits.cancel if cancel is None else cancel
+        laws, catalog = self.rebuild(data)
+        if catalog == self.catalog:
+            done = 0
+            try:
+                for prepared in self._prepared:
+                    prepared.refresh(laws, cancel=cancel)
+                    done += 1
+            except Exception:
+                # Restore the handles already rebound so a failed refresh leaves
+                # every world on the previous valid snapshot.
+                for prepared in self._prepared[:done]:
+                    prepared.refresh(self.laws, cancel=cancel)
+                raise
+        else:
+            self._prepared = self._prepare_all(catalog, laws, cancel=cancel)
+        self.laws = laws
+        self.catalog = catalog
+        self.last = None
+        if self.stage_snapshot is not None:
+            self.stage_snapshot["catalog"] = catalog
+            self.stage_snapshot["bound"] = data
 
     def estimate(self, cancel: Any = None) -> RestrictedTransportExecution:
-        del cancel
-        return self._execute()
+        cancel = self.limits.cancel if cancel is None else cancel
+        points = []
+        artifacts = []
+        for world, prepared in zip(self.worlds, self._prepared, strict=True):
+            payload = json.loads(prepared.estimate(cancel=cancel))
+            points.append(_point(world, payload))
+            artifacts.append(bytes(prepared.export()))
+        self.last = RestrictedTransportExecution(
+            points=tuple(points), rules=self.rules, artifacts=tuple(artifacts)
+        )
+        return self.last
 
     def refresh(self, data: Any, cancel: Any = None) -> RestrictedTransportExecution:
         self.replace_snapshot(data, cancel=cancel)
-        return self._execute()
+        return self.estimate(cancel=cancel)
 
-    def _execute(self) -> RestrictedTransportExecution:
-        prepared = None
-        points: list[TransportGridPoint] = []
-        for world in self.worlds:
-            kwargs = {
-                "max_operations": self.limits.max_operations,
-                "max_depth": self.limits.max_depth,
-                "max_support_rows": self.limits.max_support_rows,
-                "memory_bytes": self.limits.memory_bytes,
-            }
-            if self.empirical:
-                prepared = self.stage.prepare_empirical(self.catalog, self.laws, world, **kwargs)
-            else:
-                prepared = self.stage.prepare_exact(self.catalog, self.laws, world, **kwargs)
-            payload = json.loads(prepared.estimate())
-            points.append(_point(world, payload))
-        self._prepared = prepared
-        return RestrictedTransportExecution(
-            points=tuple(points), rules=self.rules, prepared=prepared
-        )
+    def export(self) -> bytes:
+        """The last execution's artifacts, framed as one loadable transport view."""
+        if self.last is None:
+            raise CausalUnsupportedError(
+                "estimate before exporting the z-transport study", reason_code="not_executed"
+            )
+        return self.envelope(self.last)
+
+    #: Set by :func:`prepare_restricted`: encodes an execution as the loadable view.
+    envelope: Callable[[RestrictedTransportExecution], bytes]
+
+    def plan_summary(self) -> dict[str, str]:
+        bindings = ",".join(f"{law.regime}:{law.snapshot_identity}" for law in self.laws)
+        return {
+            "plan_id": f"z_transport:{bindings}:{len(self.worlds)}",
+            "structure_source": "explicit",
+            "deterministic_reductions": "true",
+            "kernels": (
+                "z_transport_empirical_plugin_point"
+                if self.empirical
+                else "z_transport_exact_point"
+            ),
+        }
+
+    def preview_transform(self, intent: str) -> dict[str, str]:
+        if intent not in _TRANSFORM_INTENTS:
+            raise CausalValueError(f"unknown transform intent {intent!r}")
+        report = {
+            "intent": intent,
+            "refused": str(intent not in _ALLOWED_INTENTS).lower(),
+            "obligations": "" if intent in _ALLOWED_INTENTS else "reprepare",
+        }
+        if intent not in _ALLOWED_INTENTS:
+            report["refusal_code"] = "option_not_applicable"
+            report["refusal"] = (
+                f"reason=option_not_applicable: {intent} is not licensed on the "
+                "z-transport handle; prepare again"
+            )
+        return report
+
+    def inspection_json(self) -> str:
+        execution = self.last or RestrictedTransportExecution(points=(), rules=self.rules)
+        return json.dumps(execution.inspect().to_dict())
+
+    def freeze(self) -> _RestrictedNative:
+        frozen = _RestrictedNative.__new__(_RestrictedNative)
+        frozen.__dict__.update(self.__dict__)
+        frozen._prepared = list(self._prepared)
+        return frozen
 
 
 def restricted_experiment(query: Any) -> bool:
@@ -194,7 +381,12 @@ def restricted_experiment(query: Any) -> bool:
 def identify_restricted(
     graph: Admg, query: Any, data: Any | None = None
 ) -> tuple[RestrictedTransportIdentification, EvidenceCatalog]:
-    """Identify on the z-transport stage. Do not call classical or meta transport."""
+    """Identify on the z-transport stage. Do not call classical or meta transport.
+
+    One source is decided by the native single-source decision; two sources go
+    through the native two-source decider, which searches each source
+    separately and refuses cross-source combination by name.
+    """
 
     from ._day1 import _question_parts
 
@@ -206,39 +398,40 @@ def identify_restricted(
     ]
     if len(sources) > 2:
         raise CausalUnsupportedError(
-            "restricted-experiment transport searches at most two sources separately",
-            reason_code=_COMBINATION,
+            f"{COMBINATION_DETAIL}: restricted-experiment transport searches at most two "
+            f"sources separately, {len(sources)} were declared",
+            reason_code=COMBINATION_CODE,
         )
     if not sources:
         raise CausalValueError("restricted-experiment transport requires a controllable set")
     bundles = [
         _source_bundle(graph, query, data, source, outcomes, treatments) for source in sources
     ]
-    decisions = [bundle["stage"].decide(bundle["catalog"]) for bundle in bundles]
-    identified = [
-        (bundle, decision)
-        for bundle, decision in zip(bundles, decisions, strict=True)
-        if decision["outcome"] == "identified"
-    ]
-    if identified:
-        bundle, decision = identified[0]
-        rules = tuple(decision.get("proof", {}).get("rules") or ())
-        return (
-            RestrictedTransportIdentification(
-                outcome="identified",
-                reason=None,
-                rules=rules,
-                formula=SCOPE,
-                source=bundle["source"].identity,
-                stage=bundle["stage"],
-                laws=bundle["laws"],
-                empirical=bundle["empirical"],
-            ),
-            bundle["catalog"],
-        )
-    if len(decisions) == 2 and all(
-        decision["outcome"] == "proven_non_transportable" for decision in decisions
-    ):
+    if len(bundles) == 1:
+        decision = bundles[0]["stage"].decide(bundles[0]["catalog"])
+        return _decided(bundles[0], decision), bundles[0]["catalog"]
+    from .. import _native
+
+    decision = _native.decide_two_source_z_transport_stage(
+        graph,
+        query.target,
+        list(outcomes),
+        list(treatments),
+        [
+            (
+                bundle["source"].identity,
+                list(bundle["source"].interventions),
+                dict(bundle["assignment"]),
+                list(bundle["source"].selections or query.resolved_selections),
+            )
+            for bundle in bundles
+        ],
+        [bundle["catalog"] for bundle in bundles],
+    )
+    if decision["outcome"] == "identified":
+        winner = next(b for b in bundles if b["source"].identity == decision["source"])
+        return _decided(winner, decision), winner["catalog"]
+    if decision["outcome"] == "proven_non_transportable":
         return (
             RestrictedTransportIdentification(
                 outcome="proven_non_transportable",
@@ -246,36 +439,41 @@ def identify_restricted(
                 rules=(),
                 formula=SCOPE,
                 source=None,
+                stage=bundles[0]["stage"],
+                obstructions=tuple(decision.get("obstructions") or ()),
             ),
             bundles[0]["catalog"],
         )
-    if len(sources) == 2:
-        return (
-            RestrictedTransportIdentification(
-                outcome="not_certified",
-                reason=_COMBINATION,
-                rules=(),
-                formula=SCOPE,
-                source=None,
-            ),
-            bundles[0]["catalog"],
-        )
-    decision = decisions[0]
-    reason = decision.get("reason")
-    if decision["outcome"] == "missing_evidence" and not reason:
-        reason = "transport.missing_evidence"
     return (
         RestrictedTransportIdentification(
-            outcome=decision["outcome"],
-            reason=reason,
-            rules=tuple(decision.get("proof", {}).get("rules") or ()),
+            outcome="not_certified",
+            reason=decision.get("reason") or COMBINATION_DETAIL,
+            rules=(),
             formula=SCOPE,
-            source=sources[0].identity,
+            source=None,
             stage=bundles[0]["stage"],
-            laws=bundles[0]["laws"],
-            empirical=bundles[0]["empirical"],
         ),
         bundles[0]["catalog"],
+    )
+
+
+def _decided(bundle: Mapping[str, Any], decision: Mapping[str, Any]) -> Any:
+    outcome = decision["outcome"]
+    missing = decision.get("missing")
+    return RestrictedTransportIdentification(
+        outcome=outcome,
+        reason=decision.get("reason"),
+        rules=tuple(decision.get("proof", {}).get("rules") or ()),
+        formula=SCOPE,
+        source=bundle["source"].identity,
+        stage=bundle["stage"],
+        laws=bundle["laws"],
+        empirical=bundle["empirical"],
+        detail=decision.get("detail"),
+        missing=None if missing is None else dict(missing),
+        obstructions=tuple(
+            [decision["obstruction"]] if decision.get("obstruction") is not None else ()
+        ),
     )
 
 
@@ -285,11 +483,14 @@ def prepare_restricted(
     query: Any,
     graph: Admg,
     provider: Any = None,
+    inference: TransportInference | None = None,
     controls: TransportControls | None = None,
 ) -> Any:
     """Prepare the licensed z-transport stage for a restricted experiment."""
 
     from ..estimation import PreparedAnalysis
+    from ._day1 import lower_question, transport_stage
+    from ._wrap import encode_restricted_execution
 
     if isinstance(provider, (LearnedCategorical, TrialAipw)) or isinstance(data, TrialAipwData):
         raise CausalUnsupportedError(
@@ -298,22 +499,20 @@ def prepare_restricted(
             reason_code="option_not_applicable",
         )
     identified, catalog = identify_restricted(graph, query, data)
-    from ._day1 import lower_question
-
     shape, worlds = lower_question(query.question)
     limits = controls or TransportControls()
-    study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="z_transport", query=query)
-    stage_snapshot: TransportStage = {
-        "identified": identified,
-        "catalog": catalog,
-        "bound": data,
-        "shape": shape,
-        "worlds": worlds,
-        "provider": EmpiricalTable() if identified.empirical else "exact_law",
-        "graph": graph,
-    }
-    study._transport_stage = stage_snapshot
+    stage_snapshot = transport_stage(
+        identified=identified,
+        catalog=catalog,
+        bound=data,
+        shape=shape,
+        worlds=worlds,
+        provider=EmpiricalTable() if identified.empirical else "exact_law",
+        graph=graph,
+    )
     if identified.outcome != "identified" or identified.stage is None:
+        study: PreparedAnalysis[Any] = PreparedAnalysis(None, kind="z_transport", query=query)
+        study._transport_stage = stage_snapshot
         return study
     native = _RestrictedNative(
         stage=identified.stage,
@@ -322,25 +521,27 @@ def prepare_restricted(
         worlds=worlds,
         empirical=identified.empirical,
         limits=limits,
+        seed=(inference or TransportInference()).seed,
         rules=identified.rules,
-        rebuild=lambda fresh, graph=graph, query=query, source=identified.source: _rebuild_laws(
-            graph, query, fresh, source
-        ),
+        rebuild=functools.partial(_rebuild, graph, query, source_name=identified.source),
     )
     prepared: PreparedAnalysis[Any] = PreparedAnalysis(native, kind="z_transport", query=query)
     prepared._transport_stage = stage_snapshot
+    native.stage_snapshot = stage_snapshot
+    native.envelope = functools.partial(encode_restricted_execution, prepared)
     return prepared
 
 
-def _rebuild_laws(
+def _rebuild(
     graph: Admg, query: Any, data: Any, source_name: str | None
-) -> tuple[ExactDiscreteLaw, ...]:
+) -> tuple[tuple[ExactDiscreteLaw, ...], EvidenceCatalog]:
+    """Laws and the catalog they bind to, for a replacement snapshot."""
     from ._day1 import _question_parts
 
     treatments, outcomes = _question_parts(query.question)
     source = next(source for source in query.evidence.sources if source.identity == source_name)
     bundle = _source_bundle(graph, query, data, source, outcomes, treatments)
-    return bundle["laws"]
+    return bundle["laws"], bundle["catalog"]
 
 
 def _source_bundle(
@@ -384,7 +585,7 @@ def _laws_for_source(
 
     if isinstance(data, ExactTransportData):
         owned = tuple(law for law in data.laws if law.population == source.identity)
-        return False, _retag_exact(source, owned), _assignment(source, owned)
+        return False, _retag_exact(source, owned), _assignment_from_pairs(source, owned)
     samples: list[RegimeSample] = []
     if isinstance(data, StatisticalTransportData):
         samples = [sample for sample in data.samples if sample.population == source.identity]
@@ -407,30 +608,22 @@ def _laws_for_source(
                     )
                 )
     laws = tuple(_law_from_sample(graph, source, sample) for sample in samples)
-    return True, laws, _assignment_from_pairs(source, [sample.interventions for sample in samples])
+    return True, laws, _assignment_from_pairs(source, samples)
 
 
 def _retag_exact(source: Any, laws: tuple[ExactDiscreteLaw, ...]) -> tuple[ExactDiscreteLaw, ...]:
-    retagged = []
-    for law in laws:
-        assignment = {name: float(value) for name, value in law.interventions}
-        retagged.append(
-            ExactDiscreteLaw(
-                source.identity,
-                _regime_id(source.identity, assignment),
-                law.axes,
-                law.probabilities,
-                law.snapshot_identity,
-                interventions=law.interventions,
-                absolute_tolerance=law.absolute_tolerance,
-                relative_tolerance=law.relative_tolerance,
-                empirical_counts=law.empirical_counts,
-            )
+    return tuple(
+        replace(
+            law,
+            population=source.identity,
+            regime=_regime_id(source.identity, dict(law.interventions)),
         )
-    return tuple(retagged)
+        for law in laws
+    )
 
 
 def _law_from_sample(graph: Admg, source: Any, sample: RegimeSample) -> ExactDiscreteLaw:
+    """Complete-observation frequency joint on the sample's observed finite domain."""
     names = [name for name in graph.nodes() if name in sample.columns]
     if not names:
         raise CausalValueError("restricted-experiment sample measured no graph variable")
@@ -468,17 +661,12 @@ def _law_from_sample(graph: Admg, source: Any, sample: RegimeSample) -> ExactDis
     )
 
 
-def _assignment(source: Any, laws: Sequence[ExactDiscreteLaw]) -> dict[str, float]:
-    return _assignment_from_pairs(source, [law.interventions for law in laws])
-
-
-def _assignment_from_pairs(
-    source: Any, groups: Sequence[Sequence[tuple[str, float]]]
-) -> dict[str, float]:
+def _assignment_from_pairs(source: Any, items: Sequence[Any]) -> dict[str, float]:
+    """The lowest complete controllable assignment among laws or samples."""
     controllable = list(source.interventions)
     found = []
-    for group in groups:
-        values = {name: float(value) for name, value in group}
+    for item in items:
+        values = {name: float(value) for name, value in item.interventions}
         if set(controllable).issubset(values):
             found.append({name: values[name] for name in controllable})
     if not found:
@@ -493,6 +681,12 @@ def _catalog(
     laws: Sequence[ExactDiscreteLaw],
     assignment: Mapping[str, float],
 ) -> EvidenceCatalog:
+    """One-source catalog with one experimental regime per intervention world.
+
+    The day-1 catalog builder keys regimes by source; the z-transport theorem
+    cites one joint per concrete ``do(z)`` world, so the regimes here carry
+    the intervention values and the bindings carry each law's snapshot.
+    """
     from ._day1 import _coordinates_from_columns
 
     columns: dict[str, list[float]] = {name: [] for name in source.interventions}
@@ -516,8 +710,7 @@ def _catalog(
     regimes = []
     bindings = []
     seen: set[str] = set()
-    groups = list(laws)
-    if not groups and assignment:
+    if not laws and assignment:
         regimes.append(
             EvidenceRegime(
                 _regime_id(source.identity, assignment),
@@ -528,7 +721,7 @@ def _catalog(
                 measured=tuple(name for name in graph.nodes() if name not in source.interventions),
             )
         )
-    for law in groups:
+    for law in laws:
         if law.regime in seen:
             continue
         seen.add(law.regime)
@@ -571,7 +764,7 @@ def _catalog(
 
 
 def _regime_id(population: str, assignment: Mapping[str, float]) -> str:
-    parts = ",".join(f"{name}={assignment[name]}" for name in sorted(assignment))
+    parts = ",".join(f"{name}={float(assignment[name])}" for name in sorted(assignment))
     return f"{population}:{parts}" if parts else population
 
 

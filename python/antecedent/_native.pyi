@@ -61,6 +61,9 @@ def set_review_error_class(cls: type) -> None:
 def set_unsupported_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for refusals."""
 
+def set_value_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for invalid input."""
+
 def set_not_identified_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for not-identified refusals."""
 
@@ -3630,8 +3633,10 @@ class ZTransportStage:
         *,
         max_operations: int = 10_000_000,
         max_depth: int = 256,
-        max_support_rows: int = 1_000_000,
+        max_support_rows: int | None = None,
         memory_bytes: int | None = None,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
     ) -> PreparedZTransportStage: ...
     def prepare_empirical(
         self,
@@ -3641,15 +3646,25 @@ class ZTransportStage:
         *,
         max_operations: int = 10_000_000,
         max_depth: int = 256,
-        max_support_rows: int = 1_000_000,
+        max_support_rows: int | None = None,
         memory_bytes: int | None = None,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
     ) -> PreparedZTransportStage: ...
     def plan_evidence(
         self, catalog: Any, candidates: list[Any], failure_snapshot: bytes | None = None
     ) -> tuple[str, list[ZTransportProposalStage]]: ...
     def failure_snapshot(self, catalog: Any) -> bytes: ...
     def inspect_proof(self, catalog: Any) -> dict[str, Any]: ...
-    def decide(self, catalog: Any) -> Any: ...
+    def decide(
+        self,
+        catalog: Any,
+        *,
+        max_steps: int | None = None,
+        max_depth: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> Any: ...
 
 class ZTransportProposalStage:
     def export(self) -> bytes: ...
@@ -3664,21 +3679,50 @@ class ZTransportProposalStage:
         empirical: bool = False,
         max_operations: int = 10_000_000,
         max_depth: int = 256,
+        max_support_rows: int | None = None,
         memory_bytes: int | None = None,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
     ) -> PreparedZTransportStage: ...
 
 class PreparedZTransportStage:
-    def estimate(self, estimator: str | None = None, posterior_draws: int | None = None) -> str: ...
+    def estimate(
+        self,
+        estimator: str | None = None,
+        posterior_draws: int | None = None,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+        seed: int | None = None,
+    ) -> str: ...
     def export(self) -> bytes: ...
     def mechanism_sensitivity(
-        self, max_fraction: float, decision_threshold: float | None = None
+        self,
+        max_fraction: float,
+        decision_threshold: float | None = None,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> ZTransportSensitivityResult: ...
     def export_sensitivity(
-        self, max_fraction: float, decision_threshold: float | None = None
+        self,
+        max_fraction: float,
+        decision_threshold: float | None = None,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> bytes: ...
-    def refresh(self, laws: Any) -> None: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
     @property
     def interval_type(self) -> str: ...
+    @property
+    def seed(self) -> int: ...
 
 def identify_z_transport_stage(
     graph: Admg,
@@ -3689,9 +3733,39 @@ def identify_z_transport_stage(
     treatments: list[str],
     controllable: list[str],
     experiment_assignment: dict[str, float],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> ZTransportStage: ...
-def consume_z_transport_artifact(artifact: bytes) -> str: ...
-def consume_z_transport_sensitivity_artifact(artifact: bytes) -> ZTransportSensitivityResult: ...
+def decide_two_source_z_transport_stage(
+    graph: Admg,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    sources: list[tuple[str, list[str], dict[str, float], list[str]]],
+    catalogs: list[Any],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> Any: ...
+def consume_z_transport_artifact(
+    artifact: bytes,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_z_transport_sensitivity_artifact(
+    artifact: bytes,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ZTransportSensitivityResult: ...
+def consume_z_transport_failure_snapshot(artifact: bytes) -> Any: ...
 def replay_z_transport_proposal(artifact: bytes) -> None: ...
 def consume_exact_transport(
     bytes: bytes,
@@ -3747,6 +3821,7 @@ def consume_statistical_transport(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
     seed: int = 1,
