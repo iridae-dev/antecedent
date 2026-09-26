@@ -45,6 +45,7 @@ mod stability;
 mod state_api;
 mod temporal_api;
 mod temporal_license;
+mod transport_common;
 mod transport_exact_api;
 mod transport_grid_api;
 mod transport_interference_api;
@@ -291,6 +292,27 @@ static UNSUPPORTED_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
 #[pyfunction]
 fn set_unsupported_error_class(py: Python<'_>, cls: Py<PyAny>) {
     let _ = UNSUPPORTED_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// The Python `CausalValueError` subclass, registered by `antecedent.errors`.
+static VALUE_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python `CausalValueError` invalid-input failures are raised as.
+#[pyfunction]
+fn set_value_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = VALUE_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// Invalid input at a native entry point, as the registered `CausalValueError`
+/// (a `CausalValidateError` that is also a `ValueError`).
+pub(crate) fn value_err(message: impl AsRef<str>) -> PyErr {
+    let message = message.as_ref();
+    Python::attach(|py| {
+        VALUE_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message,)).ok())
+            .map_or_else(|| CausalValidateError::new_err(message.to_string()), PyErr::from_value)
+    })
 }
 
 /// A refusal, as the registered Python class, carrying its `reason=<code>:` prefix.
@@ -2656,6 +2678,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(set_value_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_not_identified_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
     m.add_function(wrap_pyfunction!(default_user_threads, m)?)?;

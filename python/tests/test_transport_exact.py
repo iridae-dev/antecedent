@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent import Admg
+from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.transport import advanced as transport
 
 
@@ -49,9 +50,9 @@ def test_exact_invalid_law_and_budgets():
     bad = transport.ExactTransportData((replace(data.laws[0], probabilities=(0.0,) * 4),))
     with pytest.raises(ValueError, match="unnormalized_law"):
         transport.evaluate_exact(identified, catalog, bad, at={"x": 1.0})
-    with pytest.raises(ValueError, match="budget"):
+    with pytest.raises(CausalResourceError, match="budget"):
         transport.evaluate_exact(identified, catalog, data, at={"x": 1.0}, max_operations=1)
-    with pytest.raises(ValueError, match="memory[ _]budget"):
+    with pytest.raises(CausalResourceError, match="memory[ _]budget"):
         transport.evaluate_exact(identified, catalog, data, at={"x": 1.0}, memory_bytes=1)
 
 
@@ -284,9 +285,9 @@ def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     prepared.replace_snapshot(updated)
     assert prepared.inspect().program_id == before.program_id
     assert prepared.inspect().execution_id != before.execution_id
-    with pytest.raises(ValueError, match="no_execution_claim"):
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
         prepared.export()
-    with pytest.raises(ValueError, match="stale_request"):
+    with pytest.raises(CausalUnsupportedError, match="stale_request"):
         prepared._native.estimate(execution=before.execution_id)
     assert prepared.refresh(data) == result
 
@@ -324,7 +325,7 @@ def test_changed_evidence_contract_cannot_use_stale_preparation():
     assert prepared.inspect().execution_id == before.execution_id
     assert prepared.refresh(data) == result
     # The old identification does not bind under the changed contract either.
-    with pytest.raises(ValueError, match="missing_evidence"):
+    with pytest.raises(CausalUnsupportedError, match="missing_evidence"):
         prepare(world, query=transport.ExactTransportQuery(identified, experimental, {"x": 1.0}))
 
 
@@ -469,19 +470,19 @@ def test_cancelled_exact_click_and_prepare_publish_no_claim():
     artifact = prepared.export()
     identity = prepared.inspect().data_snapshot_id
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         retained.estimate()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         prepared.replace_snapshot(data, cancel=token)
     assert prepared.inspect().data_snapshot_id == identity
     assert prepared.export() == artifact
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         transport.consume_exact(artifact, cancel=token)
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         prepared.estimate(cancel=token)
-    with pytest.raises(ValueError, match="no_execution_claim"):
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
         prepared.export()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         prepare(
             data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}), cancel=token
         )

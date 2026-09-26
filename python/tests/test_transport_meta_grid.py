@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent import Admg, load, prepare
+from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.transport import advanced as transport
 
 
@@ -122,7 +123,7 @@ def test_partial_grid_retains_missing_first_point(statistical):
     restored = load(result.export())
     assert restored.points == result.points
     if statistical:
-        with pytest.raises(ValueError, match="samples_not_embedded"):
+        with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
             transport.consume_response_grid(result.export()).estimate()
     assert study.refresh(data).points == result.points
 
@@ -158,7 +159,7 @@ def test_grid_budgets_invalid_values_and_display_edits():
     _, identified, catalog, data = fixture()
     with pytest.raises(ValueError, match="finite domain"):
         transport.prepare_response_grid(identified, catalog, data, at=[{"x": 0.5}])
-    with pytest.raises(ValueError, match="budget"):
+    with pytest.raises(CausalResourceError, match="budget"):
         transport.prepare_response_grid(
             identified, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], max_operations=1
         )
@@ -214,7 +215,7 @@ def test_checked_meta_statistical_plan_survives_builder_and_independent_consume(
     assert direct_plan.estimate().mean("y") == pytest.approx(result.mean("y"))
     consumed = transport.consume_statistical(result.export())
     assert consumed.inspect().identification.available
-    with pytest.raises(ValueError, match="samples_not_embedded"):
+    with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
         consumed.estimate()
     assert consumed.refresh(data).mean("y") == pytest.approx(result.mean("y"))
 
@@ -233,7 +234,7 @@ def test_checked_meta_statistical_plan_survives_builder_and_independent_consume(
     assert family.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
     restored_family = transport.consume_response_grid(family.export())
     assert restored_family.inspect().identification.available
-    with pytest.raises(ValueError, match="samples_not_embedded"):
+    with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
         restored_family.estimate()
     assert restored_family.refresh(data).points == family.points
 
@@ -259,7 +260,7 @@ def test_grid_snapshot_refresh_and_scalar_loss_receipt():
     assert not scalar["equivalent_claim"]
     assert "accept_as_claim" in scalar["unavailable_operations"]
     study.replace_snapshot(data)
-    with pytest.raises(ValueError, match="no_execution_claim"):
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
         study.export()
     assert study.estimate().execution_id == original.execution_id
 
@@ -444,7 +445,7 @@ def test_joint_regimes_do_not_come_from_separate_experiments():
             ),
         ],
     )
-    with pytest.raises(ValueError, match="catalog"):
+    with pytest.raises(CausalUnsupportedError, match="catalog"):
         transport.prepare_response_grid(
             identified, separate, transport.ExactTransportData(()), at=grid
         )
@@ -486,7 +487,7 @@ def test_irrelevant_source_deterministic_alternative_and_wrong_selection():
             *catalog.environments[1:],
         ),
     )
-    with pytest.raises(ValueError, match="catalog mechanism selections disagree"):
+    with pytest.raises(CausalUnsupportedError, match="catalog mechanism selections disagree"):
         transport.prepare_response_grid(identified, conflicting, data, at=[{"x": 1.0}])
 
 
@@ -546,7 +547,7 @@ def test_grid_cancellation_preserves_previous_execution():
     result = study.estimate()
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         study.estimate(cancel=token)
     assert load(study.export()).execution_id == result.execution_id
 

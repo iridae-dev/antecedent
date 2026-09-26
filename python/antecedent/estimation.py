@@ -3332,13 +3332,16 @@ class PreparedAnalysis(Generic[ResultT]):
     def export(self, *, artifact_id: str = "analysis-result") -> bytes:
         """Export the last execution as a contracted ``analysis_result``, or refuse
         if no claim was produced."""
+        if self._transport is not None:
+            # A transport handle retains its previous claim through a cancelled
+            # click (every refresh is atomic) and refuses on its own when it
+            # holds none, so the native export decides.
+            return self._native.export()
         if getattr(self, "_cancelled", False):
             raise CausalUnsupportedError(
                 "Cancelled estimate produced no claim.",
                 reason_code="cancelled_no_claim",
             )
-        if self._transport is not None:
-            return self._native.export()
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
 
     @property

@@ -16,6 +16,7 @@ import math
 
 import pytest
 from antecedent import Admg, AverageEffect, analyze, identify, prepare, transport
+from antecedent.errors import CausalResourceError
 from antecedent.results import AnalysisResult
 from antecedent.transport import advanced
 from antecedent.transport._wrap import _RehydratedStudy, wrap_transport_result
@@ -238,7 +239,7 @@ def test_catalog_search_failure_is_reported_incomplete_not_identified():
     from antecedent.transport import _day1
 
     def _boom(*_args, **_kwargs):
-        raise ValueError("transport.identification_budget")
+        raise CausalResourceError("transport.identification_budget")
 
     original = _day1.inspect_catalog
     _day1.inspect_catalog = _boom

@@ -5,6 +5,7 @@ import dataclasses
 import antecedent as ac
 import pytest
 from antecedent import transport as tr
+from antecedent.errors import CausalUnsupportedError
 from antecedent.learners import Linear, Logistic
 from antecedent.transport import advanced
 
@@ -58,7 +59,7 @@ def test_trial_lifecycle_retains_paired_score_and_atomic_refresh(sampling):
         study.refresh(dataclasses.replace(data, randomization=[0.0] * 200))
     assert study.estimate().estimate == result.estimate
     assert study.plan.structure_source if hasattr(study.plan, "structure_source") else True
-    with pytest.raises(ValueError, match="Transport retains inference settings"):
+    with pytest.raises(CausalUnsupportedError, match="Transport retains inference settings"):
         study.estimate(seed=9)
 
 

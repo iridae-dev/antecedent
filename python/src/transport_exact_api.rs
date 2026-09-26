@@ -2,15 +2,11 @@
 use crate::graphs::Admg;
 use crate::transport_interference_api::parse_catalog;
 use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
-use antecedent_expr::{
-    Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
-    LawTolerance,
-};
+use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -40,16 +36,7 @@ impl ClassicalTransportStage {
         self.diagram.clone()
     }
 }
-fn error(e: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(e.to_string())
-}
-fn resolve(names: &[String], name: &str) -> PyResult<VariableId> {
-    let index = names
-        .iter()
-        .position(|v| v == name)
-        .ok_or_else(|| error(format!("unknown variable {name}")))?;
-    Ok(VariableId::from_raw(u32::try_from(index).map_err(error)?))
-}
+use crate::transport_common::{RegimeCheck, error, parse_laws, resolve};
 #[pymethods]
 impl ClassicalTransportStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
@@ -113,7 +100,7 @@ impl ClassicalTransportStage {
             "variables": factor.variables.iter().map(|v| &self.graph.names[v.raw() as usize]).collect::<Vec<_>>(),
             "conditioned_on": factor.conditioned_on.iter().map(|v| &self.graph.names[v.raw() as usize]).collect::<Vec<_>>(),
             "interventions": factor.interventions.iter().map(|v| &self.graph.names[v.raw() as usize]).collect::<Vec<_>>(),
-            "supplied_by": factor.supplied_by.map(|id| id.raw()),
+            "supplied_by": factor.supplied_by.map(RegimeId::raw),
             "snapshot_identity": factor.snapshot_identity,
             "binding_failure": factor.binding_failure,
         })).collect::<Vec<_>>();
@@ -284,17 +271,11 @@ impl ClassicalTransportStage {
                     .map_err(error)?
                 {
                     antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
-                    antecedent_identify::CatalogTransportResult::MissingEvidence {
-                        searched,
-                        obligations,
-                    }
-                    | antecedent_identify::CatalogTransportResult::NotCertified {
-                        searched,
-                        obligations,
-                    } => {
-                        return Err(error(format!(
-                            "bounded catalog search {searched:?}: {obligations:?}"
-                        )));
+                    other => {
+                        return Err(crate::transport_common::catalog_search_refusal(
+                            &other,
+                            &graph.names,
+                        ));
                     }
                 },
             };
@@ -517,62 +498,7 @@ pub(crate) fn parse_exact_data(
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<ExactTransportData> {
-    let mut tables = Vec::new();
-    for table in laws.try_iter()? {
-        let table = table?;
-        let population: String = table.getattr("population")?.extract()?;
-        let label: String = table.getattr("regime")?.extract()?;
-        let regime = catalog
-            .regimes
-            .iter()
-            .find(|r| {
-                r.label.as_deref() == Some(label.as_str()) && r.population.as_ref() == population
-            })
-            .ok_or_else(|| error("exact law names an unknown population/regime"))?;
-        let axes: Vec<(String, Vec<f64>)> = table.getattr("axes")?.extract()?;
-        let axes = axes
-            .into_iter()
-            .map(|(name, values)| {
-                Ok(DiscreteAxis {
-                    variable: resolve(&graph.names, &name)?,
-                    values: values.into_iter().map(Value::f64).collect(),
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let interventions: Vec<(String, f64)> = table.getattr("interventions")?.extract()?;
-        let interventions = interventions
-            .into_iter()
-            .map(|(name, value)| {
-                Ok(antecedent_expr::InterventionAssignment {
-                    variable: resolve(&graph.names, &name)?,
-                    value: Value::f64(value),
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        if interventions.len() != regime.interventions.len()
-            || !interventions.iter().all(|a| regime.interventions.contains(&a.variable))
-            || axes.iter().any(|a| !regime.measured.contains(&a.variable))
-        {
-            return Err(error("exact law disagrees with its evidence regime"));
-        }
-        let probabilities: Vec<f64> = table.getattr("probabilities")?.extract()?;
-        let snapshot: String = table.getattr("snapshot_identity")?.extract()?;
-        let absolute: f64 = table.getattr("absolute_tolerance")?.extract()?;
-        let relative: f64 = table.getattr("relative_tolerance")?.extract()?;
-        tables.push(
-            ExactDiscreteLaw::try_new(
-                population,
-                regime.id,
-                interventions,
-                axes,
-                probabilities,
-                snapshot,
-                LawTolerance { absolute, relative },
-            )
-            .map_err(error)?,
-        );
-    }
-    ExactTransportData::try_new(tables, max_support_rows).map_err(error)
+    parse_laws(laws, catalog, graph, max_support_rows, RegimeCheck::Strict)
 }
 
 #[pyclass(skip_from_py_object)]
