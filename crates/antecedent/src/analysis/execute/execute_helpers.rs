@@ -2202,7 +2202,7 @@ fn push_aipw_score_kind(
     }
 }
 
-fn push_grid_scalar_cleared(
+pub(crate) fn push_grid_scalar_cleared(
     diagnostics: &mut Vec<Diagnostic>,
     seen: &mut std::collections::HashSet<Arc<str>>,
     estimate: &EffectEstimate,
