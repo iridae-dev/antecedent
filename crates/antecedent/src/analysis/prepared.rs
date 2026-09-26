@@ -1176,6 +1176,54 @@ pub struct CheckedConditionalEffectInfo {
     pub source_rows: Arc<[u32]>,
 }
 
+/// Read-only checked target and procedure for a static CPDAG/PAG average effect.
+#[derive(Clone, Debug)]
+pub struct CheckedStaticClassEffectInfo {
+    /// Exact average-effect target sealed at preparation.
+    pub query: AverageEffectQuery,
+    /// Source graph class retained with the completion envelope.
+    pub graph_class: GraphClass,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference settings (including any Bayesian prior and backend) retained by preparation.
+    pub inference: InferenceMode,
+    /// Prepared refutation suite.
+    pub validation: RefuteSuite,
+    /// Number of class completions in the retained envelope.
+    pub completion_count: usize,
+    /// Identified completion mass in the retained envelope.
+    pub identified_mass: f64,
+    /// Unresolved completion mass in the retained envelope.
+    pub unresolved_mass: f64,
+}
+
+/// Read-only checked target and procedure for a Bayesian static class conditional effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianClassConditionalInfo {
+    /// Exact conditional query, including modifiers and arms.
+    pub query: antecedent_core::ConditionalEffectQuery,
+    /// Source graph class retained with the completion proof.
+    pub graph_class: GraphClass,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Bayesian prior and inference settings retained by preparation.
+    pub inference: InferenceMode,
+    /// Prepared refutation suite.
+    pub validation: RefuteSuite,
+    /// Invariant adjustment variables shared by every completion.
+    pub adjustment_set: Arc<[antecedent_core::VariableId]>,
+    /// Number of class completions checked.
+    pub completion_count: usize,
+    /// Identified completion mass for the class proof.
+    pub identified_mass: f64,
+    /// Unresolved completion mass for the class proof.
+    pub unresolved_mass: f64,
+}
+
 /// Read-only graph atoms, frozen weights and procedure retained for a
 /// frequentist DAG graph-posterior effect.
 #[derive(Clone, Debug, PartialEq)]
@@ -2224,7 +2272,7 @@ pub(crate) struct CachedCpdagIdentification {
 
 /// A class conditional effect is sealed only when every enumerated completion
 /// has full nonparametric identification with the same adjustment target.
-fn conditional_class_proof_is_complete<G>(envelope: &IdentificationEnvelope<G>) -> bool {
+pub(super) fn conditional_class_proof_is_complete<G>(envelope: &IdentificationEnvelope<G>) -> bool {
     let Some(invariant) = envelope.invariant.as_ref() else { return false };
     envelope.status == antecedent_identify::IdentificationStatus::NonparametricallyIdentified
         && envelope.truncated_completions == 0
@@ -3699,6 +3747,7 @@ pub(crate) enum PreparedExecution {
     FrontDoorLinear(CheckedFrontDoorOperation),
     Iv(CheckedIvOperation),
     UnknownTieredAverage(Box<CheckedUnknownTieredAverageOperation>),
+    BayesianClassConditional(super::CheckedBayesianClassConditional),
 }
 
 /// Exactly one checked product may supply a prepared result contract. This is
@@ -3781,7 +3830,8 @@ impl PreparedExecution {
             | Self::CheckedPropensity(_)
             | Self::CheckedConditional(_)
             | Self::UnknownTieredAverage(_)
-            | Self::AdmgGraphPosteriorResponse(_) => CheckedProgramBinding::None,
+            | Self::AdmgGraphPosteriorResponse(_)
+            | Self::BayesianClassConditional(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -3903,6 +3953,14 @@ impl PreparedExecution {
     }
     pub(crate) fn conditional(&self) -> Option<&CheckedConditionalOperation> {
         if let Self::CheckedConditional(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn bayesian_class_conditional(
+        &self,
+    ) -> Option<&super::CheckedBayesianClassConditional> {
+        if let Self::BayesianClassConditional(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn static_class_effect(&self) -> Option<&CheckedStaticClassEffect> {
+        if let Self::StaticClassEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn graph_posterior_effect(&self) -> Option<&CheckedGraphPosteriorEffect> {
         if let Self::GraphPosteriorEffect(value) = self { Some(value) } else { None }
@@ -4236,6 +4294,61 @@ impl PreparedStudy {
         matches!(self.execution, PreparedExecution::StaticClassEffect(_))
     }
 
+    /// Inspect the retained static CPDAG/PAG average-effect target, procedure,
+    /// inference settings, and completion envelope masses.
+    #[must_use]
+    pub fn checked_static_class_effect_info(&self) -> Option<CheckedStaticClassEffectInfo> {
+        let operation = self.execution.static_class_effect()?;
+        let (graph_class, completion_count, identified_mass, unresolved_mass) =
+            match operation.identification() {
+                StaticClassIdentification::Cpdag(cache) => (
+                    GraphClass::Cpdag,
+                    cache.envelope.cases.len(),
+                    cache.envelope.identified_weight.0,
+                    cache.envelope.unidentified_weight.0,
+                ),
+                StaticClassIdentification::Pag(cache) => (
+                    GraphClass::Pag,
+                    cache.envelope.cases.len(),
+                    cache.envelope.identified_weight.0,
+                    cache.envelope.unidentified_weight.0,
+                ),
+            };
+        Some(CheckedStaticClassEffectInfo {
+            query: operation.query().clone(),
+            graph_class,
+            identifier: IdentifierId::GeneralizedAdjustment,
+            estimator: operation.procedure().id(),
+            inference: operation.inference().clone(),
+            validation: operation.validation(),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
+        })
+    }
+
+    /// Inspect the retained Bayesian class conditional target, prior, and completion proof.
+    #[must_use]
+    pub fn checked_bayesian_class_conditional_info(
+        &self,
+    ) -> Option<CheckedBayesianClassConditionalInfo> {
+        let operation = self.execution.bayesian_class_conditional()?;
+        let (completion_count, identified_mass, unresolved_mass) =
+            operation.proof().completion_mass();
+        Some(CheckedBayesianClassConditionalInfo {
+            query: operation.query().clone(),
+            graph_class: operation.proof().graph_class(),
+            identifier: operation.identifier(),
+            estimator: EstimatorId::BayesianConditional,
+            inference: operation.inference().clone(),
+            validation: operation.validation(),
+            adjustment_set: Arc::clone(&operation.estimand().adjustment_set),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
+        })
+    }
+
     /// Whether preparation retained an ADMG graph-posterior response operation.
     #[must_use]
     pub fn has_checked_admg_graph_posterior_response_operation(&self) -> bool {
@@ -4357,19 +4470,11 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_conditional_effect_info(&self) -> Option<CheckedConditionalEffectInfo> {
         let operation = self.execution.conditional()?;
-        let (completion_count, identified_mass, unresolved_mass) = match &operation.class_proof {
-            Some(super::checked_conditional::ConditionalClassProof::Cpdag { cache, .. }) => (
-                Some(cache.envelope.cases.len()),
-                Some(cache.envelope.identified_weight.0),
-                Some(cache.envelope.unidentified_weight.0),
-            ),
-            Some(super::checked_conditional::ConditionalClassProof::Pag { cache, .. }) => (
-                Some(cache.envelope.cases.len()),
-                Some(cache.envelope.identified_weight.0),
-                Some(cache.envelope.unidentified_weight.0),
-            ),
-            None => (None, None, None),
-        };
+        let (completion_count, identified_mass, unresolved_mass) =
+            operation.class_proof.as_ref().map_or((None, None, None), |proof| {
+                let (count, identified, unresolved) = proof.completion_mass();
+                (Some(count), Some(identified), Some(unresolved))
+            });
         Some(CheckedConditionalEffectInfo {
             query: operation.query.clone(),
             graph_class: operation.graph_class(),
@@ -6172,11 +6277,13 @@ impl PreparedStudy {
             let mut click_analysis = self.analysis.clone();
             click_analysis.data = DataInput::Tabular(data.clone());
             click_analysis.query = CausalQuery::AverageEffect(operation.query().clone());
+            click_analysis.inference = operation.inference().clone();
+            click_analysis.estimator = Some(operation.procedure().id());
             click_analysis.estimator_spec = Some(operation.procedure().clone());
             click_analysis.refute = operation.validation();
             click_analysis.bootstrap_replicates = operation.bootstrap_replicates();
             click_analysis.overlap_policy = Some(operation.overlap());
-            let result = match (operation.graph(), operation.identification()) {
+            let mut result = match (operation.graph(), operation.identification()) {
                 (StaticClassGraph::Cpdag(graph), StaticClassIdentification::Cpdag(cache)) => {
                     click_analysis.cpdag_identification_cache = Some(Arc::new(cache.clone()));
                     click_analysis.execute_cpdag(
@@ -6205,12 +6312,21 @@ impl PreparedStudy {
                     });
                 }
             };
+            super::execute::push_gaussian_likelihood_disclosure(
+                &mut result,
+                operation.inference(),
+                &click_analysis.data,
+            );
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         if let PreparedExecution::AdmgGraphPosteriorResponse(operation) = &self.execution {
             let result = self
                 .analysis
                 .execute_checked_admg_graph_posterior_response(data, operation, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result);
+        }
+        if let PreparedExecution::BayesianClassConditional(operation) = &self.execution {
+            let result = operation.execute(&self.analysis, data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
         let mut click_analysis = self.analysis.clone();
@@ -6911,13 +7027,13 @@ impl Study {
         let CausalQuery::AverageEffect(query) = &analysis.query else {
             return Ok(None);
         };
+        let expected_estimator = CheckedStaticClassEffect::expected_estimator(&analysis.inference);
         if analysis.graph_posterior.is_some()
             || !matches!(
                 analysis.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(analysis.inference, InferenceMode::Frequentist)
             || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
             || query.target_population != TargetPopulation::AllObserved
             || !matches!(
@@ -6930,8 +7046,7 @@ impl Study {
             || !analysis.custom_validators.is_empty()
             || plan.logical.record.identifier.as_deref()
                 != Some(IdentifierId::GeneralizedAdjustment.as_str())
-            || plan.logical.record.estimator.as_deref()
-                != Some(EstimatorId::LinearAdjustmentAte.as_str())
+            || plan.logical.record.estimator.as_deref() != Some(expected_estimator.as_str())
         {
             return Ok(None);
         }
@@ -6963,13 +7078,14 @@ impl Study {
         let procedure = analysis
             .estimator_spec
             .clone()
-            .unwrap_or(crate::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte));
+            .unwrap_or(crate::EstimatorSpec::Default(expected_estimator));
         Ok(Some(CheckedStaticClassEffect::prepare(
             graph,
             query.clone(),
             identification,
             plan.clone(),
             procedure,
+            analysis.inference.clone(),
             analysis.bootstrap_replicates,
             analysis.overlap_policy.unwrap_or(OverlapPolicy::ExplicitOverride),
             analysis.refute,
@@ -9554,6 +9670,8 @@ impl Study {
             }
             _ => None,
         };
+        let checked_bayesian_class_conditional =
+            super::CheckedBayesianClassConditional::seal(&analysis, &plan)?;
         let execution = if let Some(operation) = checked_unknown_tiered_average {
             PreparedExecution::UnknownTieredAverage(operation)
         } else if let Some(operation) = checked_linear {
@@ -9630,6 +9748,8 @@ impl Study {
             PreparedExecution::BayesianConditional(operation)
         } else if let Some(operation) = checked_response_curve {
             PreparedExecution::StaticResponseCurve(operation)
+        } else if let Some(operation) = checked_bayesian_class_conditional {
+            PreparedExecution::BayesianClassConditional(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };

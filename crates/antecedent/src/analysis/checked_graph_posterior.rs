@@ -1,7 +1,9 @@
 //! Checked execution contract for graph-posterior average effects.
 //!
 //! Frequentist DAG atoms keep linear adjustment. ADMG atoms keep general ID
-//! and `functional.effect`, including the Bayesian evaluator.
+//! and `functional.effect`, including the Bayesian evaluator. Static CPDAG and
+//! PAG envelopes keep either linear adjustment or Bayesian g-computation
+//! together with the inference settings that selected the procedure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -16,9 +18,11 @@ use crate::{
     analysis::prepared::CachedGraphPosteriorIdentification,
 };
 
-/// Sealed frequentist effect over a static CPDAG or PAG completion envelope.
+/// Sealed average effect over a static CPDAG or PAG completion envelope.
 /// The graph and prepare-time completion cache are retained together so
 /// execution cannot silently select a different class member or identifier.
+/// Frequentist inference binds `linear.adjustment.ate`; Bayesian inference
+/// binds `bayesian.gcomp` together with its prior and backend configuration.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedStaticClassEffect {
     graph: StaticClassGraph,
@@ -26,6 +30,7 @@ pub(crate) struct CheckedStaticClassEffect {
     identification: StaticClassIdentification,
     physical: crate::planner::PhysicalExecutionPlan,
     procedure: EstimatorSpec,
+    inference: crate::InferenceMode,
     bootstrap_replicates: u32,
     overlap: OverlapPolicy,
     validation: RefuteSuite,
@@ -50,13 +55,15 @@ impl CheckedStaticClassEffect {
         identification: StaticClassIdentification,
         physical: crate::planner::PhysicalExecutionPlan,
         procedure: EstimatorSpec,
+        inference: crate::InferenceMode,
         bootstrap_replicates: u32,
         overlap: OverlapPolicy,
         validation: RefuteSuite,
     ) -> Result<Self, CausalError> {
-        if procedure.id() != EstimatorId::LinearAdjustmentAte {
+        let expected_estimator = Self::expected_estimator(&inference);
+        if procedure.id() != expected_estimator {
             return Err(CausalError::Unsupported {
-                message: "checked static class effects require linear.adjustment.ate",
+                message: "checked static class effects require linear.adjustment.ate under frequentist inference or bayesian.gcomp under Bayesian inference",
             });
         }
         let matching_class = matches!(
@@ -86,8 +93,7 @@ impl CheckedStaticClassEffect {
             )
             || physical.logical.record.identifier.as_deref()
                 != Some(crate::strategy_table::IdentifierId::GeneralizedAdjustment.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::LinearAdjustmentAte.as_str())
+            || physical.logical.record.estimator.as_deref() != Some(expected_estimator.as_str())
         {
             return Err(CausalError::Unsupported {
                 message: "checked static class effect has incompatible graph, query, procedure, or validation binding",
@@ -99,10 +105,19 @@ impl CheckedStaticClassEffect {
             identification,
             physical,
             procedure,
+            inference,
             bootstrap_replicates,
             overlap,
             validation,
         })
+    }
+
+    /// The single estimator each inference mode may bind on a class envelope.
+    pub(crate) const fn expected_estimator(inference: &crate::InferenceMode) -> EstimatorId {
+        match inference {
+            crate::InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+            crate::InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
+        }
     }
 
     pub(crate) fn graph(&self) -> &StaticClassGraph {
@@ -119,6 +134,9 @@ impl CheckedStaticClassEffect {
     }
     pub(crate) fn procedure(&self) -> &EstimatorSpec {
         &self.procedure
+    }
+    pub(crate) const fn inference(&self) -> &crate::InferenceMode {
+        &self.inference
     }
     pub(crate) const fn bootstrap_replicates(&self) -> u32 {
         self.bootstrap_replicates

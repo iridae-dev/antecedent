@@ -1120,7 +1120,7 @@ impl super::Study {
     }
 
     /// Cpdag/Pag ConditionalEffect via the same generalized-adjustment envelope as ATE.
-    pub(super) fn execute_class_conditional(
+    pub(in crate::analysis) fn execute_class_conditional(
         &self,
         data: &TabularData,
         query: &antecedent_core::ConditionalEffectQuery,

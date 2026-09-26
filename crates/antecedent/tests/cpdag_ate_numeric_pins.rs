@@ -170,7 +170,10 @@ fn assert_prepared_reuse(
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert_eq!(cached_count(fresh), 0);
+    // The Bayesian class route executes its retained envelope from the one-shot
+    // facade too; the frequentist one-shot still identifies inline.
+    let one_shot_sealed = fresh.logical_plan.estimator.as_deref() == Some("bayesian.gcomp");
+    assert_eq!(cached_count(fresh), usize::from(one_shot_sealed));
     assert_eq!(cached_count(click), 1);
     assert_eq!(cached_count(refreshed), 1, "same-schema refresh must reuse identification");
 }

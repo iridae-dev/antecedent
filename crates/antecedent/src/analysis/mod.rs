@@ -6,6 +6,7 @@
 
 mod batch;
 mod builder;
+mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
 mod checked_bayesian_temporal_effect;
 mod checked_class_graph_posterior_effect;
@@ -24,6 +25,7 @@ mod statistical;
 mod transport_grid;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
+pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
 pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
 pub(crate) use checked_bayesian_temporal_effect::CheckedBayesianTemporalEffectOperation;
 pub(crate) use checked_class_graph_posterior_effect::CheckedClassGraphPosteriorEffect;
@@ -74,10 +76,11 @@ pub use latency::{
 };
 pub use prepared::{
     CachedTemporalIdentification, CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo,
-    CheckedBayesianBasisAteInfo, CheckedBayesianGraphPosteriorAteInfo,
-    CheckedBayesianRobustAteInfo, CheckedBayesianTemporalDagEffectInfo,
-    CheckedCellAipwResponseInfo, CheckedClassGraphPosteriorEffectInfo,
-    CheckedConditionalEffectInfo, CheckedGraphPosteriorEffectInfo, CheckedInterferenceInfo,
+    CheckedBayesianBasisAteInfo, CheckedBayesianClassConditionalInfo,
+    CheckedBayesianGraphPosteriorAteInfo, CheckedBayesianRobustAteInfo,
+    CheckedBayesianTemporalDagEffectInfo, CheckedCellAipwResponseInfo,
+    CheckedClassGraphPosteriorEffectInfo, CheckedConditionalEffectInfo,
+    CheckedGraphPosteriorEffectInfo, CheckedInterferenceInfo, CheckedStaticClassEffectInfo,
     CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo, CheckedTemporalDagEffectInfo,
     CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo, CheckedUnknownTieredAverageInfo,
     PreparedStudy,

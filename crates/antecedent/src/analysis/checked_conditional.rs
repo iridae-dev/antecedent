@@ -32,6 +32,63 @@ pub(crate) enum ConditionalClassProof {
     },
 }
 
+impl ConditionalClassProof {
+    pub(crate) fn graph_class(&self) -> crate::GraphClass {
+        match self {
+            Self::Cpdag { .. } => crate::GraphClass::Cpdag,
+            Self::Pag { .. } => crate::GraphClass::Pag,
+        }
+    }
+
+    /// The identification result the retained envelope was folded into.
+    pub(crate) fn identification(&self) -> &IdentificationResult {
+        match self {
+            Self::Cpdag { cache, .. } => &cache.identification,
+            Self::Pag { cache, .. } => &cache.identification,
+        }
+    }
+
+    /// Completion count, identified mass, and unresolved mass of the envelope.
+    pub(crate) fn completion_mass(&self) -> (usize, f64, f64) {
+        match self {
+            Self::Cpdag { cache, .. } => (
+                cache.envelope.cases.len(),
+                cache.envelope.identified_weight.0,
+                cache.envelope.unidentified_weight.0,
+            ),
+            Self::Pag { cache, .. } => (
+                cache.envelope.cases.len(),
+                cache.envelope.identified_weight.0,
+                cache.envelope.unidentified_weight.0,
+            ),
+        }
+    }
+
+    /// Re-identify the retained graph and require the frozen envelope back.
+    pub(crate) fn verify(
+        &self,
+        identifier: IdentifierId,
+        query: &antecedent_core::AverageEffectQuery,
+    ) -> Result<(), CausalError> {
+        let matches = match self {
+            Self::Cpdag { graph, cache } => {
+                let fresh = crate::strategy_table::identify_cpdag(identifier, graph, query)?;
+                same_class_envelope(&fresh, &cache.envelope)
+            }
+            Self::Pag { graph, cache } => {
+                let fresh = crate::strategy_table::identify_pag(identifier, graph, query)?;
+                same_class_envelope(&fresh, &cache.envelope)
+            }
+        };
+        if !matches {
+            return Err(compile_error(
+                "retained conditional class graph no longer verifies its identification envelope",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// The actual point and uncertainty procedure is determined by the functional and arms.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ConditionalProcedure {
@@ -200,36 +257,14 @@ impl CheckedConditionalOperation {
     }
 
     pub(crate) fn graph_class(&self) -> crate::GraphClass {
-        match &self.class_proof {
-            Some(ConditionalClassProof::Cpdag { .. }) => crate::GraphClass::Cpdag,
-            Some(ConditionalClassProof::Pag { .. }) => crate::GraphClass::Pag,
-            None => crate::GraphClass::Dag,
-        }
+        self.class_proof.as_ref().map_or(crate::GraphClass::Dag, ConditionalClassProof::graph_class)
     }
 
     fn verify_class_proof(&self) -> Result<(), CausalError> {
-        let matches = match &self.class_proof {
-            Some(ConditionalClassProof::Cpdag { graph, cache }) => {
-                let fresh = crate::strategy_table::identify_cpdag(
-                    self.identifier,
-                    graph,
-                    &self.query.inner,
-                )?;
-                same_class_envelope(&fresh, &cache.envelope)
-            }
-            Some(ConditionalClassProof::Pag { graph, cache }) => {
-                let fresh =
-                    crate::strategy_table::identify_pag(self.identifier, graph, &self.query.inner)?;
-                same_class_envelope(&fresh, &cache.envelope)
-            }
-            None => true,
-        };
-        if !matches {
-            return Err(compile_error(
-                "retained conditional class graph no longer verifies its identification envelope",
-            ));
+        match &self.class_proof {
+            Some(proof) => proof.verify(self.identifier, &self.query.inner),
+            None => Ok(()),
         }
-        Ok(())
     }
 
     pub(crate) fn execute(
