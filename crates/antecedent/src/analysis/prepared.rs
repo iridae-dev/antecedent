@@ -45,6 +45,7 @@ use super::checked_propensity::{
     CheckedPropensityProcedure, CheckedPropensityUncertainty,
 };
 use super::execute::Study;
+use super::graph_posterior_target::inference_label;
 use super::helpers::{
     AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
     run_plugin_level_refuters, run_refuters,
@@ -4648,9 +4649,7 @@ impl PreparedStudy {
         Some(CheckedClassGraphPosteriorEffectInfo {
             query: operation.query().clone(),
             conditional: operation.target().is_conditional(),
-            inference: Arc::from(super::graph_posterior_target::inference_label(
-                operation.inference(),
-            )),
+            inference: Arc::from(inference_label(operation.inference())),
             estimator: operation.procedure().id(),
             validation: operation.validation(),
             graph_keys: Arc::from(graph_keys),
@@ -4669,7 +4668,7 @@ impl PreparedStudy {
         let PreparedExecution::BayesianGraphPosteriorAte(operation) = &self.execution else {
             return None;
         };
-        let inference = super::graph_posterior_target::inference_label(operation.inference());
+        let inference = inference_label(operation.inference());
         Some(CheckedBayesianGraphPosteriorAteInfo {
             query: operation.query().clone(),
             conditional: operation.target().is_conditional(),
@@ -7615,14 +7614,6 @@ fn multi_env_regularity(
     Ok(first)
 }
 
-/// Stable inspector label for a retained inference procedure.
-fn inference_label(inference: &InferenceMode) -> String {
-    match inference {
-        InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
-        InferenceMode::Frequentist => "frequentist".to_owned(),
-    }
-}
-
 impl Study {
     fn seal_static_class_effect(
         analysis: &Study,
@@ -10273,7 +10264,7 @@ impl Study {
                         || analysis.dbn_posterior_identification_cache.is_some()) =>
             {
                 Some(Box::new(super::execute::CheckedTemporalClassMediationOperation::checked(
-                    &analysis, data, &plan, ctx,
+                    &analysis, data, &plan,
                 )?))
             }
             _ => None,
@@ -11995,14 +11986,6 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
 
 fn is_supplied_static_graph(class: GraphClass) -> bool {
     matches!(class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg)
-}
-
-/// Inspector label for a retained inference mode.
-fn inference_label(inference: &InferenceMode) -> String {
-    match inference {
-        InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
-        InferenceMode::Frequentist => "frequentist".to_owned(),
-    }
 }
 
 impl PreparedStudy {

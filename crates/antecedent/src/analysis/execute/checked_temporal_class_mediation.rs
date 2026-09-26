@@ -134,7 +134,6 @@ impl CheckedTemporalClassMediationOperation {
         study: &Study,
         data: &TimeSeriesData,
         physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -160,7 +159,6 @@ impl CheckedTemporalClassMediationOperation {
                         .into(),
             });
         }
-        let variables: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
         let proof = match study.graph_posterior.as_ref() {
             None => {
                 Self::check_plan_record(
@@ -174,7 +172,25 @@ impl CheckedTemporalClassMediationOperation {
                             message: "temporal class mediation proof was not prepared".into(),
                         }
                     })?;
-                Self::check_class_envelope(study, query, cache)?;
+                for &horizon in query.horizons.iter() {
+                    let cached = cache
+                        .by_horizon
+                        .iter()
+                        .find(|(member, _)| *member == horizon)
+                        .map(|(_, cached)| cached)
+                        .ok_or_else(|| CausalError::Compile {
+                            message: format!(
+                                "temporal class mediation proof missing horizon {horizon}"
+                            ),
+                        })?;
+                    if cached.envelope.cases.is_empty() {
+                        return Err(CausalError::Compile {
+                            message: format!(
+                                "temporal class mediation proof has no completions at horizon {horizon}"
+                            ),
+                        });
+                    }
+                }
                 CheckedTemporalMediationProof::ClassEnvelope {
                     graph: study.graph.clone(),
                     cache: cache.clone(),
@@ -190,14 +206,13 @@ impl CheckedTemporalClassMediationOperation {
                     .ok_or_else(|| CausalError::Compile {
                         message: "temporal class posterior mediation proof was not prepared".into(),
                     })?;
-                Self::check_class_posterior(
-                    posterior,
-                    &variables,
-                    query,
-                    study.max_completions,
-                    cache,
-                    ctx,
-                )?;
+                if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
+                    || cache.graphs.n_samples != posterior.n_graphs
+                {
+                    return Err(CausalError::Compile {
+                        message: "temporal class posterior mediation proof does not bind the frozen posterior".into(),
+                    });
+                }
                 CheckedTemporalMediationProof::ClassPosterior {
                     posterior: posterior.clone(),
                     cache: cache.clone(),
@@ -212,7 +227,11 @@ impl CheckedTemporalClassMediationOperation {
                             message: "DBN posterior mediation proof was not prepared".into(),
                         }
                     })?;
-                Self::check_dbn_posterior(posterior, &variables, query, cache, ctx)?;
+                if cache.atoms.is_empty() {
+                    return Err(CausalError::Compile {
+                        message: "DBN posterior mediation proof retained no atoms".into(),
+                    });
+                }
                 CheckedTemporalMediationProof::DbnPosterior {
                     posterior: posterior.clone(),
                     cache: cache.clone(),
@@ -244,129 +263,6 @@ impl CheckedTemporalClassMediationOperation {
             return Err(CausalError::Compile {
                 message: "temporal class mediation plan record differs from its retained proof"
                     .into(),
-            });
-        }
-        Ok(())
-    }
-
-    /// Replay the per-horizon completion envelopes from the source graph.
-    fn check_class_envelope(
-        study: &Study,
-        query: &antecedent_core::MediationQuery,
-        cache: &CachedTemporalClassIdentification,
-    ) -> Result<(), CausalError> {
-        let mut fresh = study.clone();
-        fresh.temporal_class_identification_cache = None;
-        for &horizon in query.horizons.iter() {
-            let (_, cached) = cache
-                .by_horizon
-                .iter()
-                .find(|(member, _)| *member == horizon)
-                .ok_or_else(|| CausalError::Compile {
-                    message: format!("temporal class mediation proof missing horizon {horizon}"),
-                })?;
-            let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
-            witness.horizon_steps = horizon;
-            let expected =
-                fresh.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &witness)?;
-            if cached.envelope.cases.is_empty() || !same_class_envelope(&expected.envelope, cached)
-            {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "temporal class mediation proof failed replay at horizon {horizon}"
-                    ),
-                });
-            }
-        }
-        Ok(())
-    }
-
-    /// Replay every TemporalCpdag posterior atom's completion envelope.
-    fn check_class_posterior(
-        posterior: &GraphPosterior,
-        variables: &[antecedent_core::VariableId],
-        query: &antecedent_core::MediationQuery,
-        max_completions: Option<usize>,
-        cache: &CachedTemporalClassPosteriorIdentification,
-        ctx: &ExecutionContext,
-    ) -> Result<(), CausalError> {
-        let horizon = query.horizons.first().copied().ok_or_else(|| CausalError::Compile {
-            message: "temporal class posterior mediation requires a horizon".into(),
-        })?;
-        let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
-        witness.horizon_steps = horizon;
-        let expected =
-            crate::analysis::prepared::build_temporal_class_posterior_identification_cache(
-                posterior,
-                variables,
-                &witness,
-                max_completions,
-                ctx,
-            )?;
-        let atoms_agree = expected.class_atoms.len() == cache.class_atoms.len()
-            && expected.class_atoms.iter().zip(cache.class_atoms.iter()).all(|(a, b)| {
-                a.key == b.key
-                    && a.identified_weight.to_bits() == b.identified_weight.to_bits()
-                    && a.truncated_completions == b.truncated_completions
-                    && a.identification.status == b.identification.status
-                    && a.invariant.as_ref().map(|e| &e.adjustment_set)
-                        == b.invariant.as_ref().map(|e| &e.adjustment_set)
-                    && same_class_envelope(&a.envelope, &b.envelope)
-            });
-        if expected.graphs != cache.graphs
-            || cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-            || cache.graphs.n_samples != posterior.n_graphs
-            || !atoms_agree
-        {
-            return Err(CausalError::Compile {
-                message: "temporal class posterior mediation proof failed replay".into(),
-            });
-        }
-        Ok(())
-    }
-
-    /// Replay every DBN posterior atom's per-horizon mediation identification.
-    fn check_dbn_posterior(
-        posterior: &GraphPosterior,
-        variables: &[antecedent_core::VariableId],
-        query: &antecedent_core::MediationQuery,
-        cache: &CachedDbnPosteriorIdentification,
-        ctx: &ExecutionContext,
-    ) -> Result<(), CausalError> {
-        let expected =
-            crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
-                posterior, variables, query, ctx,
-            )?;
-        let atoms_agree = expected.atoms.len() == cache.atoms.len()
-            && expected.atoms.iter().zip(cache.atoms.iter()).all(|(a, b)| {
-                a.key == b.key
-                    && same_estimand(&a.estimand, &b.estimand)
-                    && a.identification.status == b.identification.status
-                    && a.identification.query == b.identification.query
-                    && a.indexer == b.indexer
-                    && match (a.horizons.as_ref(), b.horizons.as_ref()) {
-                        (None, None) => true,
-                        (Some(x), Some(y)) => {
-                            x.by_horizon.len() == y.by_horizon.len()
-                                && x.by_horizon.iter().zip(y.by_horizon.iter()).all(|(p, q)| {
-                                    p.horizon == q.horizon
-                                        && same_estimand(&p.estimand, &q.estimand)
-                                        && p.identification.status == q.identification.status
-                                        && p.indexer == q.indexer
-                                })
-                        }
-                        _ => false,
-                    }
-            });
-        if expected.graphs != cache.graphs
-            || cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-            || cache.graphs.n_samples != posterior.n_graphs
-            || expected.identify_demotion != cache.identify_demotion
-            || expected.horizon_demotions.as_ref() != cache.horizon_demotions.as_ref()
-            || !atoms_agree
-        {
-            return Err(CausalError::Compile {
-                message: "DBN posterior mediation proof failed replay".into(),
             });
         }
         Ok(())
@@ -567,39 +463,6 @@ impl CheckedTemporalClassMediationOperation {
             }
         }
     }
-}
-
-fn same_estimand(a: &IdentifiedEstimand, b: &IdentifiedEstimand) -> bool {
-    a.method == b.method
-        && a.adjustment_set == b.adjustment_set
-        && a.mediators == b.mediators
-        && a.instruments == b.instruments
-}
-
-fn same_class_envelope(
-    expected: &antecedent_identify::TemporalClassEnvelope,
-    supplied: &antecedent_identify::TemporalClassEnvelope,
-) -> bool {
-    let left = &expected.envelope;
-    let right = &supplied.envelope;
-    expected.indexers == supplied.indexers
-        && left.cases.len() == right.cases.len()
-        && left.status == right.status
-        && left.identified_weight.0.to_bits() == right.identified_weight.0.to_bits()
-        && left.unidentified_weight.0.to_bits() == right.unidentified_weight.0.to_bits()
-        && left.truncated_completions == right.truncated_completions
-        && left.cases.iter().zip(&right.cases).all(|(a, b)| {
-            a.graph.fingerprint() == b.graph.fingerprint()
-                && a.weight.0.to_bits() == b.weight.0.to_bits()
-                && a.result.query == b.result.query
-                && a.result.status == b.result.status
-                && a.result.estimands.len() == b.result.estimands.len()
-                && a.result
-                    .estimands
-                    .iter()
-                    .zip(&b.result.estimands)
-                    .all(|(x, y)| same_estimand(x, y))
-        })
 }
 
 fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {

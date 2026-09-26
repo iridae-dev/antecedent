@@ -17,8 +17,8 @@ mod checked_propensity;
 mod checked_temporal_class_effect;
 mod checked_temporal_class_response;
 mod checked_temporal_effect;
-mod checked_temporal_graph_posterior_response;
 mod checked_temporal_graph_posterior_effect;
+mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 mod contract;
 mod contract_identity;
@@ -42,11 +42,11 @@ pub(crate) use checked_graph_posterior::{
 pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
 pub(crate) use checked_temporal_class_response::CheckedTemporalClassResponseOperation;
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;
-pub(crate) use checked_temporal_graph_posterior_response::{
-    CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
-};
 pub(crate) use checked_temporal_graph_posterior_effect::{
     CheckedTemporalGraphPosteriorEffect, CheckedTemporalGraphPosteriorProof,
+};
+pub(crate) use checked_temporal_graph_posterior_response::{
+    CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
 };
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
@@ -90,30 +90,20 @@ pub use latency::{
 };
 pub use prepared::{
     CachedTemporalIdentification, CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo,
-    CheckedBayesianBasisAteInfo,
-    CheckedBayesianClassConditionalInfo,
-    CheckedBayesianGraphPosteriorAteInfo,
-    CheckedBayesianRobustAteInfo,
-    CheckedBayesianTemporalDagEffectInfo,
-    CheckedCellAipwResponseInfo,
-    CheckedClassGraphPosteriorEffectInfo,
-    CheckedConditionalEffectInfo,
-    CheckedGraphPosteriorEffectInfo, CheckedStaticClassResponseInfo, CheckedGraphPosteriorResponseInfo,
-    CheckedInterferenceInfo,
-    CheckedStaticClassEffectInfo,
-    CheckedStaticMediationInfo,
-    CheckedTemporalClassEffectInfo,
-    CheckedTemporalClassMediationInfo,
-    CheckedTemporalDagEffectInfo,
-    CheckedTemporalDagResponseInfo,
-    CheckedTemporalMediationInfo,
-    CheckedUnknownTieredAverageInfo,
-    PreparedStudy,
+    CheckedBayesianBasisAteInfo, CheckedBayesianClassConditionalInfo,
+    CheckedBayesianGraphPosteriorAteInfo, CheckedBayesianRobustAteInfo,
+    CheckedBayesianTemporalDagEffectInfo, CheckedCellAipwResponseInfo,
+    CheckedClassGraphPosteriorEffectInfo, CheckedConditionalEffectInfo,
+    CheckedGraphPosteriorEffectInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
+    CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
+    CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
+    CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
+    CheckedUnknownTieredAverageInfo, PreparedStudy,
 };
-pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
 pub use prepared::{
     CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
 };
+pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
 pub use stage::{StageEvent, StageResultSink};
 
 pub(crate) use checked_temporal_response::{

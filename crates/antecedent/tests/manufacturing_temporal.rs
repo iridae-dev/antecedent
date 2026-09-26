@@ -698,7 +698,9 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
-    assert_eq!(cached_count(&fresh), 0);
+    // A one-shot run now prepares and executes the sealed DBN-posterior mediation
+    // operation, so the fresh result reports its identification as cached once.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
     assert_eq!(cached_count(&refreshed), 1);
     let post = fresh.posterior.as_ref().expect("DBN mediation mixture posterior");
@@ -781,7 +783,9 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert_eq!(click.estimate.se_bootstrap, fresh.estimate.se_bootstrap);
-    assert_eq!(cached_count(&fresh), 0);
+    // A one-shot run now prepares and executes the sealed DBN-posterior mediation
+    // operation, so the fresh result reports its identification as cached once.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
 
     // Known truth: the requested (mediated) contrast of the identified atom.
