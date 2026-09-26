@@ -79,6 +79,9 @@ pub(crate) struct CheckedPropensityContext {
     pub(crate) refute: RefuteSuite,
     pub(crate) population_registry: Option<antecedent_core::PopulationRegistry>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
     pub(crate) custom_validator_names: Arc<[Arc<str>]>,
 }
 
@@ -487,6 +490,7 @@ mod tests {
             refute: RefuteSuite::None,
             population_registry: None,
             latency_mode: None,
+            latency_bootstrap_not_applied: None,
             custom_validator_names: Arc::from([]),
         };
         (data, context, selected_config)

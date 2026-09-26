@@ -130,6 +130,9 @@ pub(crate) struct CheckedConditionalOperation {
     pub(crate) structure_source: StructureSource,
     pub(crate) population_registry: Option<antecedent_core::PopulationRegistry>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
     pub(crate) class_proof: Option<ConditionalClassProof>,
 }
 
@@ -147,6 +150,7 @@ impl CheckedConditionalOperation {
         structure_source: StructureSource,
         population_registry: Option<antecedent_core::PopulationRegistry>,
         latency_mode: Option<super::latency::LatencyMode>,
+        latency_bootstrap_not_applied: Option<(u32, u32)>,
         class_proof: Option<ConditionalClassProof>,
     ) -> Result<Self, CausalError> {
         let source_query = CausalQuery::ConditionalEffect(query.clone());
@@ -245,6 +249,7 @@ impl CheckedConditionalOperation {
             structure_source,
             population_registry,
             latency_mode,
+            latency_bootstrap_not_applied,
             class_proof,
         })
     }
