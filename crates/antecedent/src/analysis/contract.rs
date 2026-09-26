@@ -972,9 +972,16 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = antecedent_io::calibration::calibration_slots(
-            &self.calibration_bases_with(contract, reasoning.identification.as_ref()),
-        );
+        let calibration = if self.policy_value.is_some() {
+            // Policy-value row-score SEs have an explicit independent-subject
+            // interpretation, but they are not part of the licensed effect
+            // interval calibration matrix.
+            antecedent_io::calibration::calibration_slots(&[])
+        } else {
+            antecedent_io::calibration::calibration_slots(
+                &self.calibration_bases_with(contract, reasoning.identification.as_ref()),
+            )
+        };
         let mut envelope = ClaimEnvelope::new(
             antecedent_core::SemanticDigest::from_bytes([0; 32]),
             contract.identities,
@@ -2128,6 +2135,7 @@ fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, C
         GraphClass::TemporalPag => {
             Ok(temporal_pag_identity(graph.as_temporal_pag().expect("TemporalPag class")))
         }
+        GraphClass::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
     }
 }
 
@@ -2367,12 +2375,11 @@ fn population_depends_on(
 }
 
 fn analysis_row_count(result: &StudyResult, contract: &CausalContract) -> u64 {
-    result
-        .estimate
+    result.estimate.as_effect().and_then(|estimate| estimate
         .n_obs
-        .or_else(|| result.estimate.influence.as_ref().map(|rows| rows.len() as u64))
-        .or_else(|| result.estimate.score_table.as_ref().map(|table| table.n_rows as u64))
-        .or_else(|| result.estimate.block_resampling.map(|block| block.rows as u64))
+        .or_else(|| estimate.influence.as_ref().map(|rows| rows.len() as u64))
+        .or_else(|| estimate.score_table.as_ref().map(|table| table.n_rows as u64))
+        .or_else(|| estimate.block_resampling.map(|block| block.rows as u64)))
         .unwrap_or(contract.row_count)
 }
 
@@ -3040,35 +3047,32 @@ fn result_reasoning(
 ) -> Result<ReasoningView, CausalError> {
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
-    let published = crate::PublishedScalarUncertainty::select(&result.estimate);
-    match published.method {
-        antecedent_core::IntervalMethod::AnalyticSe => {
-            components.push(UncertaintyComponent::new(
-                UncertaintySource::Sampling,
-                "analytic_se",
-                false,
-            ));
+    if let Some(effect) = result.estimate.as_effect() {
+        let published = crate::PublishedScalarUncertainty::select(effect);
+        match published.method {
+            antecedent_core::IntervalMethod::AnalyticSe => components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling, "analytic_se", false,
+            )),
+            antecedent_core::IntervalMethod::BootstrapSe => components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling, "bootstrap_se", false,
+            )),
+            antecedent_core::IntervalMethod::AndersonRubin => components.push(UncertaintyComponent::new(
+                UncertaintySource::Sampling, "anderson_rubin", false,
+            )),
+            _ => {}
         }
-        antecedent_core::IntervalMethod::BootstrapSe => {
-            components.push(UncertaintyComponent::new(
-                UncertaintySource::Sampling,
-                "bootstrap_se",
-                false,
-            ));
-        }
-        antecedent_core::IntervalMethod::AndersonRubin => {
-            components.push(UncertaintyComponent::new(
-                UncertaintySource::Sampling,
-                "anderson_rubin",
-                false,
-            ));
-        }
-        _ => {}
     }
     if result.posterior.is_some() {
         components.push(UncertaintyComponent::new(
             UncertaintySource::Parameter,
             "posterior",
+            false,
+        ));
+    }
+    if body.policy_value.is_some() {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            "policy_value_row_score_standard_error_independent_subjects",
             false,
         ));
     }
@@ -3168,7 +3172,7 @@ fn executed_scalar(result: &StudyResult) -> Option<f64> {
     if let Some(counterfactual) = &result.counterfactual {
         return counterfactual.mean_ite.is_finite().then_some(counterfactual.mean_ite);
     }
-    result.estimate.ate.is_finite().then_some(result.estimate.ate)
+    result.estimate.as_effect().and_then(|estimate| estimate.ate.is_finite().then_some(estimate.ate))
 }
 
 fn body_frame(
@@ -3205,13 +3209,38 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone());
     identification.query = frame.query.clone();
-    let published = crate::PublishedScalarUncertainty::select(&result.estimate);
+    let effect = result.estimate.as_effect();
+    let published = effect.map(crate::PublishedScalarUncertainty::select);
+    let policy_value = result.policy_value.as_ref().map(|policy| antecedent_io::PolicyValueWire {
+        policy_value: policy.policy_value,
+        reference_value: policy.reference_value,
+        incremental_value: policy.incremental_value,
+        relative_value_gap: policy.relative_value_gap,
+        treatment_rate: policy.treatment_rate,
+        total_cost: policy.total_cost,
+        policy_standard_error: policy.policy_standard_error,
+        reference_standard_error: policy.reference_standard_error,
+        incremental_standard_error: policy.incremental_standard_error,
+        prediction_ownership: policy.prediction_ownership.to_string(),
+        propensity_min: policy.propensity_min,
+        propensity_max: policy.propensity_max,
+        uncertainty: "row_score_standard_error_independent_subjects".into(),
+    });
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),
         identification,
         identification_variables,
         temporal_identification,
-        estimate: executed_scalar(result),
+        estimate: effect.and_then(|_| executed_scalar(result)),
+        policy_value,
+        panel_did: result.panel_did.as_ref().map(|did| antecedent_io::PanelDidWire {
+            effect: did.effect,
+            standard_error: did.standard_error,
+            treated_subjects: did.treated_subjects,
+            comparison_subjects: did.comparison_subjects,
+            clusters: did.clusters,
+            uncertainty: did.uncertainty.to_string(),
+        }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {
             antecedent_io::InterventionalDistributionWire {
                 atoms: distribution
@@ -3237,10 +3266,12 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                     .collect(),
             }
         }),
-        standard_error: published.standard_error,
-        interval_lower: published.lower,
-        interval_upper: published.upper,
-        assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
+        standard_error: published.as_ref().and_then(|p| p.standard_error),
+        interval_lower: published.as_ref().and_then(|p| p.lower),
+        interval_upper: published.as_ref().and_then(|p| p.upper),
+        assumptions: antecedent_io::assumptions_to_wire(
+            effect.map_or(&result.identification.required_assumptions, |e| &e.assumptions),
+        ),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
         response: None,
@@ -3248,18 +3279,15 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
-        cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
-        fitted_effect: result.estimate.fitted_effect.as_deref().cloned(),
-        cate_se: result.estimate.cate_se.as_ref().map(|v| v.to_vec()),
-        cate_leaf_dispersion: result.estimate.cate_leaf_dispersion.as_ref().map(|v| v.to_vec()),
-        outcome_oof_r2: result.estimate.outcome_oof_r2,
-        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
-        crossfit_folds: result.estimate.crossfit_folds,
-        crossfit_seed: result.estimate.crossfit_seed,
-        learner_provenance: result
-            .estimate
-            .learner_provenance
-            .iter()
+        cate: effect.and_then(|v| v.cate.as_ref().map(|v| v.to_vec())),
+        fitted_effect: effect.and_then(|v| v.fitted_effect.as_deref().cloned()),
+        cate_se: effect.and_then(|v| v.cate_se.as_ref().map(|v| v.to_vec())),
+        cate_leaf_dispersion: effect.and_then(|v| v.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
+        outcome_oof_r2: effect.and_then(|v| v.outcome_oof_r2),
+        treatment_oof_logloss: effect.and_then(|v| v.treatment_oof_logloss),
+        crossfit_folds: effect.and_then(|v| v.crossfit_folds),
+        crossfit_seed: effect.and_then(|v| v.crossfit_seed),
+        learner_provenance: effect.into_iter().flat_map(|v| v.learner_provenance.iter())
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
     };

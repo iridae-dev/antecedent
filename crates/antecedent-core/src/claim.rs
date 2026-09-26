@@ -25,6 +25,8 @@ pub enum ClaimKind {
     Mixture,
     /// Function-valued response.
     Response,
+    /// Structured held-out policy-value comparison (not a scalar treatment effect).
+    PolicyValue,
     /// Structured refusal.
     Refusal,
     /// Incomplete contract with explicit obligations.
@@ -40,6 +42,7 @@ impl ClaimKind {
             Self::Bounds => "bounds",
             Self::Mixture => "mixture",
             Self::Response => "response",
+            Self::PolicyValue => "policy_value",
             Self::Refusal => "refusal",
             Self::Incomplete => "incomplete",
         }
@@ -48,9 +51,17 @@ impl ClaimKind {
     /// Inverse of [`Self::as_str`].
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
-        [Self::Point, Self::Bounds, Self::Mixture, Self::Response, Self::Refusal, Self::Incomplete]
-            .into_iter()
-            .find(|kind| kind.as_str() == name)
+        [
+            Self::Point,
+            Self::Bounds,
+            Self::Mixture,
+            Self::Response,
+            Self::PolicyValue,
+            Self::Refusal,
+            Self::Incomplete,
+        ]
+        .into_iter()
+        .find(|kind| kind.as_str() == name)
     }
 }
 

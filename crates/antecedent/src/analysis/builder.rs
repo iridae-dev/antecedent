@@ -408,6 +408,7 @@ fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
         GraphClass::Cpdag => graph.as_cpdag().map(Cpdag::node_count),
         GraphClass::Pag => graph.as_pag().map(Pag::node_count),
         GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => None,
+        GraphClass::RandomizedTrial => None,
     }
 }
 
@@ -1353,6 +1354,19 @@ impl StudyBuilder {
                 let stub = stub_accepted_graph_for(&data, gp.n_vars, gp.atom_kind)?;
                 (stub, Some(gp))
             }
+            (None, None)
+                if matches!(
+                    self.query,
+                    Some(
+                        CausalQuery::RandomizedEffect(_)
+                            | CausalQuery::PolicyValue(_)
+                            | CausalQuery::PanelDid(_)
+                            | CausalQuery::Survival(_)
+                    )
+                ) =>
+            {
+                (AcceptedGraph::randomized_trial(data_schema(&data)), None)
+            }
             (None, None) => return Err(CausalError::Missing { field: "graph" }),
         };
         let mut refute = self.refute;
@@ -1412,6 +1426,88 @@ impl StudyBuilder {
         }
 
         let mut query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        if matches!(
+            query,
+            CausalQuery::RandomizedEffect(_)
+                | CausalQuery::PolicyValue(_)
+                | CausalQuery::PanelDid(_)
+                | CausalQuery::Survival(_)
+        ) {
+            if let CausalQuery::RandomizedEffect(randomized) = &query {
+                let expected = match &randomized.design {
+                    antecedent_core::RandomizationDesign::Bernoulli => EstimatorId::RandomizedHt,
+                    antecedent_core::RandomizationDesign::Complete { .. }
+                    | antecedent_core::RandomizationDesign::Stratified { .. } => {
+                        EstimatorId::RandomizedNeyman
+                    }
+                };
+                if self.estimator.is_some_and(|id| id != expected) {
+                    return Err(CausalError::Unsupported {
+                        message: "the selected randomized estimator does not match the assignment design",
+                    });
+                }
+            }
+            if matches!(query, CausalQuery::Survival(_))
+                && self
+                    .estimator
+                    .is_some_and(|id| id != EstimatorId::RandomizedSurvivalProductLimit)
+            {
+                return Err(CausalError::Unsupported {
+                    message: "randomized survival requires the product-limit estimator",
+                });
+            }
+            if graph.class() != GraphClass::RandomizedTrial {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries carry their own identification contract and must not be combined with graph= or discovery=",
+                });
+            }
+            if !matches!(inference, InferenceMode::Frequentist) {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries currently support Frequentist inference only",
+                });
+            }
+            if self.identifier.is_some_and(|id| id != IdentifierId::RandomizedDesign)
+                || self.estimator.is_some_and(|id| {
+                    !matches!(
+                        id,
+                        EstimatorId::RandomizedHt
+                            | EstimatorId::RandomizedNeyman
+                            | EstimatorId::RandomizedSurvivalProductLimit
+                    )
+                })
+                || self.estimator_spec.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "design-based query estimators are fixed; custom estimators are not accepted",
+                });
+            }
+            if (self.refute_explicit && refute != RefuteSuite::None)
+                || !self.custom_validators.is_empty()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries have no refutation suite or custom validator route",
+                });
+            }
+            if self.bootstrap_explicit && bootstrap_replicates != 0 {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries do not support bootstrap intervals",
+                });
+            }
+            refute = RefuteSuite::None;
+            bootstrap_replicates = 0;
+            if self.split.is_some()
+                || self.tiered.is_some()
+                || self.selection_targets.is_some()
+                || self.transport_trial.is_some()
+                || self.interference.is_some()
+                || self.rd.is_some()
+                || self.population_registry.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries do not accept discovery splits, graph, transport, interference, RD, or population options",
+                });
+            }
+        }
         // A sharp RD design identifies the effect for units at its cutoff and nothing
         // else. A study that selects it while leaving the population at the default is
         // retargeted to that population here, so the contract, the calibration key and
@@ -1477,6 +1573,8 @@ impl StudyBuilder {
         }
         let structure = if graph_posterior.is_some() {
             crate::support::StructureSource::GraphPosterior
+        } else if graph.class() == GraphClass::RandomizedTrial {
+            crate::support::StructureSource::RandomizedTrial
         } else {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };

@@ -3062,6 +3062,9 @@ pub fn claim_kind_name(
     body: &AnalysisResultWire,
     identification: Option<&IdentificationSlotWire>,
 ) -> &'static str {
+    if body.policy_value.is_some() {
+        return "policy_value";
+    }
     if body.response.is_some() {
         return "response";
     }
@@ -3721,6 +3724,8 @@ mod tests {
             identification_variables: None,
             temporal_identification: Vec::new(),
             estimate: Some(2.0),
+            policy_value: None,
+            panel_did: None,
             interventional_distribution: None,
             standard_error: Some(0.1),
             interval_lower: None,

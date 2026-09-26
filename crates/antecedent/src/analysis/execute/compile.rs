@@ -581,6 +581,88 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::RandomizedEffect), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::RandomizedEffect(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.realized_assignment.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "randomized assignment metadata must align with the table rows"
+                            .into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("randomized_trial_itt"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from(match &q.design {
+                            antecedent_core::RandomizationDesign::Bernoulli => "randomized.ht_itt",
+                            antecedent_core::RandomizationDesign::Complete { .. }
+                            | antecedent_core::RandomizationDesign::Stratified { .. } => {
+                                "randomized.neyman_itt"
+                            }
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::PolicyValue(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.assignment.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "policy inputs must align with the table rows".into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("randomized_policy_value_dr"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from("randomized.dr_policy")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::PanelDid(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.treated.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "panel DiD metadata must align with table rows".into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("quasi.panel_did"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("quasi.parallel_trends")),
+                        estimator: Some(Arc::from("quasi.panel_change_score")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 // Parametric SCM paths use a query- and inference-specific estimator identity.
@@ -797,6 +879,15 @@ impl super::Study {
             (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+            }
+            (Some(AnalysisRoute::RandomizedEffect), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
             }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");

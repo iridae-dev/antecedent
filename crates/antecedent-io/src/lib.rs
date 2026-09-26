@@ -55,12 +55,12 @@ pub mod z_transport_artifact;
 pub use analysis_result_artifact::{
     AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterventionalDistributionWire,
-    MediationPosteriorSummaryWire, StructuralResponseAtomWire, StructuralResponseMixtureWire,
-    StructuralWeightBasisWire, TemporalIdentificationWire, TemporalMediationGridWire,
-    TemporalMediationSliceWire, TemporalMediationUncertaintyWire, UnitEffectIntervalsWire,
-    UnitEffectsWire, decode_analysis_result_artifact, encode_analysis_result_artifact,
-    encode_analysis_result_artifact_with_contract, identified_set_interval_from_wire,
-    identified_set_interval_to_wire,
+    MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire, StructuralResponseAtomWire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
+    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
+    UnitEffectIntervalsWire, UnitEffectsWire, decode_analysis_result_artifact,
+    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
+    identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, HedgeCertificateWire, IdentificationResultWire,
@@ -189,10 +189,10 @@ pub use provenance_wire::{
 pub use query_wire::{
     AssignmentDesignWire, CausalQueryWire, ExposureLevelWire, ExposureMappingWire,
     InterferenceFunctionalWire, InterferenceQueryWire, InterventionWire,
-    InterventionalDistributionQueryWire, PathSpecificEffectQueryWire, SetInterventionWire,
-    TargetPopulationWire, TemporalPolicyWire, TransportQueryWire, ValueWire,
-    causal_query_from_wire, causal_query_to_wire, causal_query_to_wire_with_registry,
-    interference_query_from_wire, interference_query_to_wire,
+    InterventionalDistributionQueryWire, PathSpecificEffectQueryWire, RandomizationDesignWire,
+    RandomizedEffectQueryWire, SetInterventionWire, TargetPopulationWire, TemporalPolicyWire,
+    TransportQueryWire, ValueWire, causal_query_from_wire, causal_query_to_wire,
+    causal_query_to_wire_with_registry, interference_query_from_wire, interference_query_to_wire,
     interventional_distribution_from_wire, interventional_distribution_to_wire,
     path_specific_from_wire, path_specific_to_wire, transport_query_from_wire,
     transport_query_to_wire,

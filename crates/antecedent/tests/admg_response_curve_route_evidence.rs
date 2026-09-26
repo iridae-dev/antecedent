@@ -86,7 +86,9 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         .estimator(EstimatorId::FunctionalEffect)
         .inference(inference)
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(0);
+        // Frequentist general-ID curves publish a bootstrap-SE band; the Bayesian
+        // route keeps its posterior draws and takes no frequentist resample.
+        .bootstrap_replicates(if bayesian { 0 } else { 199 });
     let builder = if accepted {
         base.graph(AcceptedGraph::from(graph.clone()))
     } else {
@@ -202,6 +204,31 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         }
     } else {
         assert!(result.posterior.is_none(), "{coordinate} unexpected posterior");
+        // The frequentist general-ID curve now publishes a pointwise confidence
+        // band formed from the front-door plug-in bootstrap SE, reported as
+        // `bootstrap_se` (there is no exposed influence function on this route).
+        match &result.response.as_ref().expect("response").uncertainty {
+            antecedent_core::ResponseUncertainty::PointwiseBand {
+                lower,
+                upper,
+                interpretation,
+                ..
+            } => {
+                assert_eq!(lower.len(), 2, "{coordinate} band length");
+                assert_eq!(upper.len(), 2, "{coordinate} band length");
+                assert_eq!(
+                    *interpretation,
+                    antecedent_core::IntervalInterpretation::Confidence,
+                    "{coordinate} frequentist band is a confidence band"
+                );
+            }
+            other => panic!("{coordinate} expected a pointwise confidence band, got {other:?}"),
+        }
+        assert_eq!(
+            result.primary_interval_binding(false).method,
+            antecedent_core::IntervalMethod::BootstrapSe,
+            "{coordinate} interval method"
+        );
     }
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert_eq!(means(&refreshed), means(&result), "{coordinate} refresh");
@@ -328,7 +355,7 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
 }
 
 #[test]
-fn admg_response_curve_accepted_frequentist_none() {
+fn admg_response_curve_accepted_frequentist_publishes_bootstrap_band() {
     verify_coordinate("ResponseCurve:Admg:accepted:Frequentist:none", true, false);
 }
 
@@ -338,7 +365,7 @@ fn admg_response_curve_accepted_bayesian_none() {
 }
 
 #[test]
-fn admg_response_curve_explicit_frequentist_none() {
+fn admg_response_curve_explicit_frequentist_publishes_bootstrap_band() {
     verify_coordinate("ResponseCurve:Admg:explicit:Frequentist:none", false, false);
 }
 

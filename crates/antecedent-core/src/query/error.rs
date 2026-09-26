@@ -17,6 +17,15 @@ pub enum QueryError {
     /// Invalid randomization/interference configuration.
     #[error("invalid interference query: {0}")]
     InvalidInterference(String),
+    /// Invalid randomized experiment contract.
+    #[error("invalid randomized-effect query: {0}")]
+    InvalidRandomizedEffect(String),
+    /// Invalid held-out policy value contract.
+    #[error("invalid policy-value query: {0}")]
+    InvalidPolicyValue(String),
+    /// Invalid survival or competing-risk observation contract.
+    #[error("invalid survival query: {0}")]
+    InvalidSurvival(String),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {

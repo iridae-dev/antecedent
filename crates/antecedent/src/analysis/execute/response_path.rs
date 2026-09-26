@@ -1289,7 +1289,7 @@ impl super::Study {
             || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
         {
             let (response, _) =
-                estimate_general_id_response(data, query, &identification, &estimand, ctx)?;
+                estimate_general_id_response(data, query, &identification, &estimand, 0, ctx)?;
             let (scalar, standard_error) = response_scalar_summary(&response);
             let estimate = EffectEstimate::new(
                 scalar,
@@ -2106,7 +2106,7 @@ impl super::Study {
             if estimand.method_kind().ok() == Some(EstimandMethod::GeneralId)
                 || estimand.method_kind().ok() == Some(EstimandMethod::FrontDoor)
             {
-                match estimate_general_id_response(data, query, &case.result, &estimand, ctx) {
+                match estimate_general_id_response(data, query, &case.result, &estimand, 0, ctx) {
                     Ok((response, scores)) => {
                         if matches!(response.estimate, ResponseIdentification::Unidentified { .. })
                         {
@@ -2967,6 +2967,7 @@ pub(super) fn estimate_general_id_response(
     query: &ResponseQuery,
     identification: &antecedent_identify::IdentificationResult,
     estimand: &IdentifiedEstimand,
+    bootstrap_replicates: u32,
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, Option<antecedent_estimate::ResponseInfluence>), CausalError> {
     if !matches!(query.functional, ResponseFunctional::InterventionResponse { .. }) {
@@ -2993,7 +2994,7 @@ pub(super) fn estimate_general_id_response(
         outcome,
         &query.outcome_functional,
     )?;
-    let est = FunctionalEffect::new();
+    let est = FunctionalEffect { bootstrap_replicates, ..FunctionalEffect::new() };
     let prepared = est
         .prepare(
             &data_est,
@@ -3003,7 +3004,6 @@ pub(super) fn estimate_general_id_response(
             &[treatment, outcome],
         )
         .map_err(CausalError::from)?;
-    let _ = ctx;
     let eval = prepared.evaluate(&prepared.provider);
     let map_eval = |e: EvalError| {
         CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
@@ -3038,12 +3038,52 @@ pub(super) fn estimate_general_id_response(
             maxima: Arc::from(levels),
         };
     }
+    // The general-ID front-door functional exposes no closed-form influence on
+    // this route, so its frequentist interval is the normal interval formed from
+    // the plug-in bootstrap SE (the same 199-replicate front-door resample the
+    // sibling AverageEffect / InterventionalDistribution ADMG cells use). It is
+    // published only when a positive-finite SE returns; otherwise the route fails
+    // open to `None` rather than panicking.
+    let mut uncertainty = ResponseUncertainty::None;
+    if bootstrap_replicates > 0 {
+        if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(point)) = &estimate {
+            let point = *point;
+            let mut ws = FunctionalDistributionWorkspace::default();
+            if let Ok(effect) = est.estimate(&prepared, &mut ws, ctx) {
+                if let Some(se) = effect.se_bootstrap {
+                    if se.is_finite() && se > 0.0 && point.is_finite() {
+                        let z = crate::result::reported_se_interval_z();
+                        uncertainty = ResponseUncertainty::Scalar {
+                            standard_error: se,
+                            lower: point - z * se,
+                            upper: point + z * se,
+                            level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            draws: None,
+                        };
+                        support.diagnostics.push(antecedent_core::SupportDiagnostic {
+                            id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
+                            values: Arc::from([
+                                f64::from(bootstrap_replicates),
+                                f64::from(effect.bootstrap_replicates_ok.unwrap_or(0)),
+                            ]),
+                            detail: Arc::from(
+                                "general-ID functional.effect response interval is a normal \
+                                 interval from the front-door plug-in bootstrap SE \
+                                 [requested replicates, successful replicates]",
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
     Ok((
         CausalResponse {
             estimand: query.functional.clone(),
             identification_status: identification.status,
             estimate,
-            uncertainty: ResponseUncertainty::None,
+            uncertainty,
             support,
             assumptions: identification.required_assumptions.clone(),
             provenance_id: Arc::from("estimate.response.general_id"),

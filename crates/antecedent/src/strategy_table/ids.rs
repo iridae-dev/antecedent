@@ -96,6 +96,8 @@ pub enum IdentifierId {
     TransportSid,
     /// Design-based interference: assignment design identifies the exposure contrast.
     InterferenceDesign,
+    /// Randomized trial assignment directly identifies the ITT.
+    RandomizedDesign,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
 }
@@ -175,6 +177,11 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             name: "interference.design",
             is_dag_only: true,
             provenance: ("identify.interference.design", "identify.interference.design"),
+        },
+        IdentifierId::RandomizedDesign => IdentifierData {
+            name: "randomized.design",
+            is_dag_only: false,
+            provenance: ("identify.randomized.design", "identify.randomized.design"),
         },
         IdentifierId::ResponseBackdoor => IdentifierData {
             name: "response.backdoor",
@@ -311,6 +318,14 @@ pub enum EstimatorId {
     InterferenceHtHajek,
     /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
     InterferenceBayesianGaussian,
+    /// Horvitz--Thompson design-based Bernoulli ITT.
+    RandomizedHt,
+    /// Difference-in-means ITT for complete or stratified randomization.
+    RandomizedNeyman,
+    /// Doubly robust held-out policy value under known randomized propensities.
+    RandomizedDrPolicy,
+    /// Randomized product-limit survival/RMST or competing-risk incidence.
+    RandomizedSurvivalProductLimit,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
     /// Doubly robust CATE learner (DRLearner).
@@ -687,6 +702,33 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.interference.bayesian_gaussian",
             ),
         },
+        EstimatorId::RandomizedHt => EstimatorData {
+            name: "randomized.ht_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.ht_itt",
+            provenance: ("estimate.randomized.ht_itt", "estimate.randomized.ht_itt"),
+        },
+        EstimatorId::RandomizedNeyman => EstimatorData {
+            name: "randomized.neyman_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.neyman_itt",
+            provenance: ("estimate.randomized.neyman_itt", "estimate.randomized.neyman_itt"),
+        },
+        EstimatorId::RandomizedDrPolicy => EstimatorData {
+            name: "randomized.dr_policy",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.dr_policy",
+            provenance: (
+                "estimate.policy_value.doubly_robust",
+                "estimate.policy_value.doubly_robust",
+            ),
+        },
+        EstimatorId::RandomizedSurvivalProductLimit => EstimatorData {
+            name: "randomized.survival_product_limit",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.survival_product_limit",
+            provenance: ("estimate.survival.product_limit", "estimate.survival.product_limit"),
+        },
         EstimatorId::Dml => EstimatorData {
             name: "dml",
             parallel_task_dimension: "crossfit.fold",
@@ -920,6 +962,13 @@ pub fn validate_static_pair(
             IdentifierId::InterferenceDesign,
             EstimatorId::InterferenceHtHajek | EstimatorId::InterferenceBayesianGaussian,
         )
+        | (
+            IdentifierId::RandomizedDesign,
+            EstimatorId::RandomizedHt
+            | EstimatorId::RandomizedNeyman
+            | EstimatorId::RandomizedDrPolicy
+            | EstimatorId::RandomizedSurvivalProductLimit,
+        )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
             if backdoor_estimators
@@ -1084,6 +1133,11 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::TransportTrialBayesianBootstrap
         | EstimatorId::InterferenceHtHajek
         | EstimatorId::InterferenceBayesianGaussian => false,
+        EstimatorId::RandomizedHt | EstimatorId::RandomizedNeyman => {
+            matches!(method, EstimandMethod::RandomizedItt)
+        }
+        EstimatorId::RandomizedDrPolicy => matches!(method, EstimandMethod::RandomizedItt),
+        EstimatorId::RandomizedSurvivalProductLimit => false,
     }
 }
 

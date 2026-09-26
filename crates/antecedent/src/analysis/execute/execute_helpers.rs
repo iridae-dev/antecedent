@@ -49,6 +49,9 @@ pub(super) enum AnalysisRoute {
     MultiEnvTemporalEffect,
     Transport,
     Interference,
+    RandomizedEffect,
+    PolicyValue,
+    PanelDid,
 }
 
 #[derive(Clone, Copy)]
@@ -112,6 +115,11 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         }
         (DataModality::Tabular, CausalQuery::Transport(_)) => AnalysisRoute::Transport,
         (DataModality::Tabular, CausalQuery::Interference(_)) => AnalysisRoute::Interference,
+        (DataModality::Tabular, CausalQuery::RandomizedEffect(_)) => {
+            AnalysisRoute::RandomizedEffect
+        }
+        (DataModality::Tabular, CausalQuery::PolicyValue(_)) => AnalysisRoute::PolicyValue,
+        (DataModality::Tabular, CausalQuery::PanelDid(_)) => AnalysisRoute::PanelDid,
         _ => return None,
     })
 }
@@ -2490,9 +2498,9 @@ fn finish_identified_execute_with_context(
         });
     }
     if let Some((tier, configured)) = context.latency_bootstrap_not_applied {
-        result
-            .diagnostics
-            .push(crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured));
+        result.diagnostics.push(
+            crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured),
+        );
     }
     if let Some(requested) = context.refute_default_downgrade {
         let requested_id = requested.validation_suite_id().unwrap_or("none");

@@ -324,6 +324,9 @@ fn identify_with_source(
             audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
             Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
         }
+        GraphClass::RandomizedTrial => Err(CausalError::Unsupported {
+            message: "randomized trial queries are identified by the dedicated experiment route",
+        }),
     }
 }
 
@@ -416,6 +419,7 @@ fn default_strategy(class: GraphClass) -> IdentifierId {
         | GraphClass::Pag
         | GraphClass::TemporalCpdag
         | GraphClass::TemporalPag => DEFAULT_PAG_IDENTIFIER_ID,
+        GraphClass::RandomizedTrial => IdentifierId::RandomizedDesign,
     }
 }
 
