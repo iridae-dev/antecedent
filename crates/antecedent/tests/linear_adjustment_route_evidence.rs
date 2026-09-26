@@ -10,6 +10,7 @@ mod common;
 
 use common::fixtures::confounded_scm;
 
+#[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
 fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     let ctx = ExecutionContext::for_tests(73);
     let (data, dag, query) = confounded_scm(512, 73);

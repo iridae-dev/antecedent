@@ -285,11 +285,11 @@ fn class_aware_conditional_pins_z_conditional_effect() {
 #[test]
 fn checked_pag_conditional_certificate_retains_completion_masses() {
     let n = 80;
-    let t: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| f64::from(i) / f64::from(n)).collect();
     let y: Vec<f64> = t.iter().map(|value| 1.0 + 2.0 * value).collect();
-    let r: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
-    let s: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
-    let v: Vec<f64> = (0..n).map(|i| (i as f64).cos()).collect();
+    let r: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
+    let s: Vec<f64> = (0..n).map(|i| f64::from(i).sin()).collect();
+    let v: Vec<f64> = (0..n).map(|i| f64::from(i).cos()).collect();
     let data = TabularData::from_f64_columns([
         ("t", t.as_slice()),
         ("y", y.as_slice()),

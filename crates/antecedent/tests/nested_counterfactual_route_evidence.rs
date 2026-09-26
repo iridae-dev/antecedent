@@ -8,6 +8,7 @@ use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::{consume_analysis_result, verify_contract_against_body};
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "one test walks the whole retained-world lifecycle")]
 fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     let index: Vec<f64> = (0..300).map(f64::from).collect();
     let x: Vec<f64> = index.iter().map(|i| (i * 0.37).sin()).collect();

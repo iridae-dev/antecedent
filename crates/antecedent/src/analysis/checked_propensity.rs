@@ -437,7 +437,7 @@ mod tests {
         estimator: EstimatorId,
     ) -> (TabularData, CheckedPropensityContext, CheckedPropensityEstimator) {
         let n = 512;
-        let z: Vec<f64> = (0..n).map(|i| ((i * 37 % 101) as f64 - 50.0) / 50.0).collect();
+        let z: Vec<f64> = (0..n).map(|i| (f64::from(i * 37 % 101) - 50.0) / 50.0).collect();
         let treatment: Vec<f64> = (0..n).map(|i| f64::from((i * 17 % 31) < 15)).collect();
         let outcome: Vec<f64> = treatment
             .iter()

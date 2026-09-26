@@ -293,9 +293,9 @@ mod tests {
     fn fixture() -> (TabularData, Dag) {
         let (mut a, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());
         for i in 0..320 {
-            let treatment = ((i as f64) * 0.71).sin();
-            let mediator = 2.0 * treatment + ((i as f64) * 1.13).cos();
-            let outcome = 3.0 * treatment + 4.0 * mediator + 0.1 * ((i as f64) * 0.31).sin();
+            let treatment = (f64::from(i) * 0.71).sin();
+            let mediator = 2.0 * treatment + (f64::from(i) * 1.13).cos();
+            let outcome = 3.0 * treatment + 4.0 * mediator + 0.1 * (f64::from(i) * 0.31).sin();
             a.push(treatment);
             m.push(mediator);
             y.push(outcome);
@@ -373,6 +373,11 @@ mod tests {
                     let effect_col = posterior.effect_column().unwrap();
                     let mut draws = posterior.draws.column(effect_col).unwrap().to_vec();
                     draws.sort_by(f64::total_cmp);
+                    #[allow(
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss,
+                        reason = "a rounded fraction of a small draw count indexes the sorted draws"
+                    )]
                     let at = |q: f64| draws[((draws.len() - 1) as f64 * q).round() as usize];
                     assert!(at(0.05) <= truth && truth <= at(0.95));
                     assert_eq!(result.refutations.is_empty(), validation == RefuteSuite::None);

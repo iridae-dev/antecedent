@@ -16,7 +16,7 @@ fn fixture() -> serde_json::Value {
 
 fn synthetic() -> (TabularData, Dag) {
     let spec = fixture();
-    let n = spec["n"].as_u64().unwrap() as usize;
+    let n = usize::try_from(spec["n"].as_u64().unwrap()).expect("row count fits usize");
     let x: Vec<f64> = (0..n).map(|i| ((i * 7919 % n) as f64 / n as f64) * 2.0 - 1.0).collect();
     let treatment: Vec<f64> = {
         let mut rng = antecedent_core::ExecutionContext::for_tests(611)

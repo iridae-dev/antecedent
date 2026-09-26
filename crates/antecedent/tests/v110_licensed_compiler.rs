@@ -11,6 +11,7 @@
 )]
 #![allow(
     clippy::cast_possible_truncation,
+    clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
@@ -960,7 +961,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
 /// while supplying the data and identifier the named estimator expects.
 fn optional_estimator_setup(
     cell: &antecedent::SupportCell,
-    estimator: &EstimatorId,
+    estimator: EstimatorId,
 ) -> Result<CellSetup, String> {
     let name = estimator.as_str();
     let custom = match name {
@@ -973,7 +974,7 @@ fn optional_estimator_setup(
     };
     let Some(kind) = custom else {
         let mut setup = cell_setup(cell)?;
-        setup.builder = setup.builder.estimator(estimator.clone());
+        setup.builder = setup.builder.estimator(estimator);
         // The optional registry alternatives are routed through their named
         // identifier families; the default shared fixture otherwise infers
         // the primary compiler route and silently rewrites several choices.
@@ -1115,7 +1116,7 @@ fn optional_estimator_setup(
         .refute(refute_of(cell.validation))
         .bootstrap_replicates(0)
         .identifier(identifier)
-        .estimator(estimator.clone());
+        .estimator(estimator);
     builder =
         if accepted { builder.graph(AcceptedGraph::from(graph)) } else { builder.graph(graph) };
     if let Some((running, cutoff, bandwidth)) = rd {
@@ -1461,7 +1462,7 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
         }
 
         let probe = (|| -> Result<(), String> {
-            let CellSetup { builder, data, .. } = optional_estimator_setup(&cell, &estimator)?;
+            let CellSetup { builder, data, .. } = optional_estimator_setup(&cell, estimator)?;
             let ctx = ExecutionContext::for_tests(1);
             let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
             let mut prepared = study.prepare(&ctx).map_err(|e| format!("prepare: {e}"))?;

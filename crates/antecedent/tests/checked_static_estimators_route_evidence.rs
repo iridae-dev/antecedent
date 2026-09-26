@@ -1,6 +1,8 @@
 //! Checked GLM and sharp-RD high-level lifecycles against analytic truth.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
+
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, ExecutionContext, PopulationRegistry, PredicateExpr, TargetPopulation,

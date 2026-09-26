@@ -56,6 +56,7 @@ fn distribution_fixture() -> (TabularData, Dag, Admg, InterventionalDistribution
     (data, dag, admg, query)
 }
 
+#[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
 fn verify_distribution_coordinate(
     coordinate: &str,
     graph_kind: &str,

@@ -4183,7 +4183,7 @@ mod checked_iv_artifact_tests {
             data.schema().id_of("t").unwrap(),
             data.schema().id_of("y").unwrap(),
         );
-        for (estimator, expected) in [(0, "wald"), (1, "two_stage_least_squares")] {
+        for (estimator, expected) in [(0_u64, "wald"), (1, "two_stage_least_squares")] {
             let study = Study::tabular(data.clone())
                 .graph(graph.clone())
                 .query(query.clone())
@@ -4198,7 +4198,7 @@ mod checked_iv_artifact_tests {
                 .refute(RefuteSuite::None)
                 .build()
                 .unwrap();
-            let context = ExecutionContext::for_tests(903 + estimator as u64);
+            let context = ExecutionContext::for_tests(903 + estimator);
             let prepared = study.prepare(&context).unwrap();
             let result = prepared.estimate(&data, &context).unwrap();
             let bytes = prepared.encode_contracted_result(&result, "iv", &context).unwrap();

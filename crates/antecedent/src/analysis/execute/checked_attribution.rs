@@ -472,7 +472,7 @@ mod bayesian_checked_attribution_tests {
     }
 
     fn anomaly_fixture() -> (TabularData, Dag) {
-        let x: Vec<f64> = (0..20).map(|i| i as f64).collect();
+        let x: Vec<f64> = (0..20).map(f64::from).collect();
         let y: Vec<f64> =
             (0..20).map(|i| if i == 19 { 200.0 } else { 2.0 * f64::from(i) }).collect();
         let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())])
@@ -500,7 +500,7 @@ mod bayesian_checked_attribution_tests {
     fn checked_operation(
         data: &TabularData,
         graph: Dag,
-        query: CausalQuery,
+        query: &CausalQuery,
         estimator: EstimatorId,
     ) -> CheckedAttributionOperation {
         let ctx = context();
@@ -511,7 +511,7 @@ mod bayesian_checked_attribution_tests {
             .refute(RefuteSuite::None);
         let study = builder.build().expect("study build");
         let physical = study.plan(&ctx).expect("physical plan");
-        let outcome = match &query {
+        let outcome = match query {
             CausalQuery::AnomalyAttribution(query) => *query.targets.first().unwrap(),
             CausalQuery::ChangeAttribution(query) => query.outcome,
             _ => unreachable!(),
@@ -534,7 +534,7 @@ mod bayesian_checked_attribution_tests {
             [VariableId::from_raw(1)],
             100,
         ));
-        let operation = checked_operation(&data, graph, query, EstimatorId::GcmFitBayesian);
+        let operation = checked_operation(&data, graph, &query, EstimatorId::GcmFitBayesian);
         let result = operation.execute(&data, &context()).expect("retained execution");
         let posterior = result.posterior.as_ref().expect("shared-row posterior");
         assert_eq!(posterior.draws.n_draws, 24);
@@ -555,7 +555,8 @@ mod bayesian_checked_attribution_tests {
             PopulationSelector::TimeRange { start: 0, end: 40 },
             PopulationSelector::TimeRange { start: 40, end: 80 },
         ));
-        let operation = checked_operation(&data, graph, query, EstimatorId::GcmAttributionBayesian);
+        let operation =
+            checked_operation(&data, graph, &query, EstimatorId::GcmAttributionBayesian);
         let result = operation.execute(&data, &context()).expect("retained execution");
         let posterior = result.posterior.as_ref().expect("shared-population posterior");
         assert_eq!(posterior.draws.n_draws, 24);

@@ -5,6 +5,8 @@
 //! built-in validation suite.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
@@ -173,7 +175,7 @@ fn retained_plan(
             let info = prepared
                 .checked_graph_posterior_effect_info()
                 .expect("frequentist DAG graph-posterior operation retained");
-            assert!(!prepared.checked_bayesian_graph_posterior_ate_info().is_some());
+            assert!(prepared.checked_bayesian_graph_posterior_ate_info().is_none());
             RetainedPlan {
                 query: info.query,
                 conditional: info.conditional,
@@ -322,7 +324,7 @@ fn graph_posterior_conditional_effect_body() {
 
                 let result = prepared.estimate(&fixture.base, &ctx).unwrap();
                 assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
-                assert_eq!(result.support_status.map(|s| s.as_str()), Some("licensed"));
+                assert_eq!(result.support_status.map(CellStatus::as_str), Some("licensed"));
                 let mixture = result.structural_response.as_ref().expect("graph mixture");
                 assert!((mixture.unidentified_mass - 0.2).abs() < 1e-9, "{coordinate}");
                 assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{coordinate}");
