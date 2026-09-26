@@ -47,6 +47,7 @@ serde = { workspace = true }
 
 [dev-dependencies]
 criterion.workspace = true
+ciborium = { workspace = true }
 antecedent-identify = { version = "2.1.0", path = "../antecedent-identify", features = ["test-util"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }

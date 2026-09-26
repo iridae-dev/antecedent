@@ -5,16 +5,22 @@
 //! decision procedure.
 use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, TheoremScope};
+use antecedent_estimate::ReplicatePolicy;
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
     FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_graph::SelectionDiagram;
-use antecedent_identify::{BoundZTransportFunctional, verify_z_transport_derivation};
+use antecedent_identify::BoundZTransportFunctional;
 use antecedent_io::IoError;
+use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use std::sync::Arc;
 
-use super::transport_common::err;
+use super::transport_common::{err, estimate_err};
+
+/// The facade's licensing floor for a nominal-0.95 posterior interval.
+const PERCENTILE_FLOOR: ReplicatePolicy =
+    ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
 
 /// Prepared exact or empirical evaluation of the registered zTR graph.
 #[derive(Clone, Debug)]
@@ -49,10 +55,18 @@ impl ZTransportResult {
         &self.distribution
     }
 
-    /// Interval constructor, or the reason none was published.
+    /// Interval constructor, or the reason none was published. Callers that
+    /// need to tell the two apart read [`Self::interval_method`] and
+    /// [`Self::interval_reason`].
     #[must_use]
     pub fn interval_type(&self) -> &'static str {
         self.interval_method.unwrap_or(self.interval_reason)
+    }
+
+    /// Interval constructor when an interval is published.
+    #[must_use]
+    pub const fn interval_method(&self) -> Option<&'static str> {
+        self.interval_method
     }
 
     /// Why the interval is withheld, or why a published interval is uncalibrated.
@@ -101,12 +115,26 @@ pub fn consume_z_transport_artifact(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<(SelectionDiagram, ZTransportResult), IoError> {
-    let (diagram, distribution) =
-        antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume(bytes, ctx)?;
+    consume_z_transport_artifact_with_limits(bytes, ZTransportConsumeLimits::default(), ctx)
+}
+
+/// [`consume_z_transport_artifact`] under explicit consumer limits; nothing the
+/// artifact stores raises them.
+///
+/// # Errors
+///
+/// Returns an error if the artifact is malformed, exceeds the limits, or its
+/// checked result cannot be replayed.
+pub fn consume_z_transport_artifact_with_limits(
+    bytes: &[u8],
+    limits: ZTransportConsumeLimits,
+    ctx: &ExecutionContext,
+) -> Result<(SelectionDiagram, ZTransportResult), IoError> {
+    let consumed = ZTransportArtifactWire::consume_with_limits(bytes, limits, ctx)?;
     Ok((
-        diagram,
+        consumed.diagram,
         ZTransportResult {
-            distribution,
+            distribution: consumed.distribution,
             interval_method: None,
             interval_reason: "no_interval_reported",
             coverage_target: None,
@@ -157,80 +185,75 @@ impl PreparedZTransport {
         draws: u32,
         ctx: &ExecutionContext,
     ) -> Result<ZTransportResult, IoError> {
+        antecedent_estimate::refuse_cancelled(ctx, "z-transport estimate").map_err(estimate_err)?;
         verify_plan_program(&self.plan, &self.program)?;
-        let distribution = self.plan.evaluate(ctx).map_err(err)?;
+        let distribution = self
+            .plan
+            .evaluate(ctx)
+            .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))?;
+        let point_only = |reason: &'static str| ZTransportResult {
+            distribution: distribution.clone(),
+            interval_method: None,
+            interval_reason: reason,
+            coverage_target: None,
+            mean_intervals: Vec::new(),
+        };
         if !self.empirical {
-            return Ok(ZTransportResult {
-                distribution,
-                interval_method: None,
-                interval_reason: "no_interval_reported",
-                coverage_target: None,
-                mean_intervals: Vec::new(),
-            });
+            return Ok(point_only("no_interval_reported"));
         }
         let options = antecedent_estimate::EmpiricalTableOptions::default();
-        let interval = if let Some(provider) = provider {
-            antecedent_estimate::bayesian_z_transport_interval(
-                &self.functional,
-                &self.data,
-                &self.request,
-                self.limits,
-                antecedent_estimate::statistical_transport::BayesianZTransportIntervalOptions {
-                    provider,
-                    draws,
-                    coverage_level: options.coverage_level,
-                },
-                ctx,
+        let (method, interval) = if let Some(provider) = provider {
+            (
+                antecedent_estimate::POSTERIOR_EQUAL_TAIL,
+                antecedent_estimate::bayesian_z_transport_interval(
+                    &self.functional,
+                    &self.data,
+                    &self.request,
+                    self.limits,
+                    antecedent_estimate::statistical_transport::BayesianZTransportIntervalOptions {
+                        provider,
+                        draws,
+                        coverage_level: options.coverage_level,
+                    },
+                    ctx,
+                )
+                .map_err(estimate_err)?,
             )
-            .map_err(err)?
         } else {
-            antecedent_estimate::nominal_z_transport_interval(
-                &self.functional,
-                &self.data,
-                &self.request,
-                self.limits,
-                options.bootstrap_replicates,
-                options.coverage_level,
-                ctx,
+            (
+                antecedent_estimate::PERCENTILE_BOOTSTRAP,
+                antecedent_estimate::nominal_z_transport_interval(
+                    &self.functional,
+                    &self.data,
+                    &self.request,
+                    self.limits,
+                    options.bootstrap_replicates,
+                    options.coverage_level,
+                    ctx,
+                )
+                .map_err(estimate_err)?,
             )
-            .map_err(err)?
         };
-        match interval {
-            Ok(interval) => {
-                let below_floor = provider.is_some()
-                    && (interval.replicates_requested
-                        < crate::result::PERCENTILE_95_MIN_REPLICATES
-                        || interval.replicates_ok < crate::result::PERCENTILE_95_MIN_REPLICATES);
-                if below_floor {
-                    return Ok(ZTransportResult {
-                        distribution,
-                        interval_method: None,
-                        interval_reason: "insufficient_bootstrap_replicates",
-                        coverage_target: None,
-                        mean_intervals: Vec::new(),
-                    });
-                }
-                Ok(ZTransportResult {
-                    distribution,
-                    interval_method: Some(match interval.method.as_ref() {
-                        antecedent_estimate::POSTERIOR_EQUAL_TAIL => {
-                            antecedent_estimate::POSTERIOR_EQUAL_TAIL
-                        }
-                        _ => antecedent_estimate::PERCENTILE_BOOTSTRAP,
-                    }),
-                    interval_reason: antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED,
-                    coverage_target: Some(interval.coverage_target),
-                    mean_intervals: interval.mean_intervals.to_vec(),
-                })
+        let interval = match interval {
+            Ok(interval) => interval,
+            Err(reason) => return Ok(point_only(reason)),
+        };
+        if provider.is_some() {
+            if let Err(reason) = PERCENTILE_FLOOR.decide(
+                interval.replicates_requested,
+                interval.replicates_ok,
+                interval.replicates_failed,
+            ) {
+                return Ok(point_only(reason));
             }
-            Err(reason) => Ok(ZTransportResult {
-                distribution,
-                interval_method: None,
-                interval_reason: reason,
-                coverage_target: None,
-                mean_intervals: Vec::new(),
-            }),
         }
+        Ok(ZTransportResult {
+            distribution,
+            interval_method: Some(method),
+            interval_reason: antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+            coverage_target: Some(interval.coverage_target),
+            mean_intervals: interval.mean_intervals.to_vec(),
+        })
     }
 
     /// Replace providers after revalidating their catalog bindings and compile a
@@ -244,6 +267,7 @@ impl PreparedZTransport {
         data: ExactTransportData,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        antecedent_estimate::refuse_cancelled(ctx, "z-transport refresh").map_err(estimate_err)?;
         if self.empirical {
             require_empirical_counts(&data)?;
         }
@@ -254,7 +278,7 @@ impl PreparedZTransport {
             self.limits,
             ctx,
         )
-        .map_err(err)?;
+        .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))?;
         verify_plan_program(&plan, &self.program)?;
         Ok(Self {
             diagram: self.diagram.clone(),
@@ -291,10 +315,7 @@ fn verify_plan_program(
     plan: &ExactEvaluationPlan,
     program: &FunctionalProgram,
 ) -> Result<(), IoError> {
-    if plan.root() != program.mapping().executable
-        || antecedent_io::expr_arena_to_wire(plan.arena())?
-            != antecedent_io::expr_arena_to_wire(program.arena())?
-    {
+    if plan.root() != program.mapping().executable || plan.arena() != program.arena() {
         return Err(err("z_transport.physical_plan_program_mismatch"));
     }
     Ok(())
@@ -359,12 +380,9 @@ impl StudyBuilder {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedZTransport, IoError> {
-        verify_z_transport_derivation(
-            &diagram,
-            functional.derivation().query(),
-            functional.derivation(),
-        )
-        .map_err(err)?;
+        // The bound functional was verified when derived; only its input
+        // identity is rechecked here.
+        functional.derivation().check_inputs(&diagram, functional.derivation().query())?;
         let plan = antecedent_estimate::prepare_exact_z_transport(
             &functional,
             data.clone(),
@@ -372,7 +390,7 @@ impl StudyBuilder {
             limits,
             ctx,
         )
-        .map_err(err)?;
+        .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))?;
         let program = checked_program(&functional)?;
         Ok(PreparedZTransport {
             diagram,
@@ -418,8 +436,8 @@ mod tests {
     use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{
-        ZTransportQuery, ZTransportResult as Identified, bind_z_transport_catalog,
-        identify_z_transport_surrogate,
+        SidLimits, ZTransportQuery, ZTransportResult as Identified, bind_z_transport_catalog,
+        identify_z_transport,
     };
     use std::sync::Arc;
 
@@ -460,9 +478,13 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
-        let Identified::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let Identified::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("fixture proof")
         };
         let coordinates = [w, z, x, y].map(|variable| VariableCoordinate {
@@ -621,7 +643,7 @@ mod tests {
             );
             let mut forged_program: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
                 antecedent_io::from_cbor(&artifact).unwrap();
-            let program = forged_program.program.as_mut().unwrap();
+            let program = &mut forged_program.program;
             program.executable = program.executable.wrapping_add(1);
             assert!(
                 consume_z_transport_artifact(
@@ -632,7 +654,7 @@ mod tests {
             );
             let mut forged_schema: antecedent_io::z_transport_artifact::ZTransportArtifactWire =
                 antecedent_io::from_cbor(&artifact).unwrap();
-            forged_schema.program.as_mut().unwrap().variables[0].1 = "forged-coordinate".into();
+            forged_schema.program.variables[0].1 = "forged-coordinate".into();
             assert!(
                 consume_z_transport_artifact(
                     &forged_schema.export().unwrap(),
@@ -787,9 +809,13 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
-        let Identified::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let Identified::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("direct joint regime should be identified");
         };
         let environment = Environment::try_new(
@@ -908,6 +934,74 @@ mod tests {
         )]
         let count = (probability * 10_000.0).round() as u64;
         count
+    }
+
+    #[test]
+    fn artifact_consumer_refuses_other_versions_unknown_fields_tampered_laws_and_oversize() {
+        use antecedent_io::z_transport_artifact::ZTransportArtifactWire;
+        let (diagram, functional, data, assignment) = fixture(true);
+        let prepared = StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data,
+            assignment,
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(11),
+        )
+        .unwrap();
+        let bytes =
+            prepared.estimate(&ExecutionContext::for_tests(11)).unwrap().export(&prepared).unwrap();
+        let ctx = ExecutionContext::for_tests(12);
+        let wire: ZTransportArtifactWire = antecedent_io::from_cbor(&bytes).unwrap();
+        consume_z_transport_artifact(&bytes, &ctx).unwrap();
+
+        // Another format version is refused before anything else is decoded.
+        let mut other_version = wire.clone();
+        other_version.version += 1;
+        assert!(matches!(
+            consume_z_transport_artifact(&antecedent_io::to_cbor(&other_version).unwrap(), &ctx),
+            Err(IoError::UnsupportedVersion { .. })
+        ));
+
+        // An unknown top-level field is a schema violation, not an extension.
+        let mut map: std::collections::BTreeMap<String, ciborium::Value> =
+            ciborium::from_reader(bytes.as_slice()).unwrap();
+        map.insert("extra".into(), ciborium::Value::Integer(1.into()));
+        let mut extended = Vec::new();
+        ciborium::into_writer(&map, &mut extended).unwrap();
+        assert!(consume_z_transport_artifact(&extended, &ctx).is_err());
+
+        // A stored law whose probabilities were changed no longer replays.
+        let mut tampered = wire.clone();
+        let cells = &mut tampered.laws[0].probabilities;
+        cells[0] += 0.05;
+        cells[1] -= 0.05;
+        assert!(
+            consume_z_transport_artifact(&antecedent_io::to_cbor(&tampered).unwrap(), &ctx)
+                .is_err()
+        );
+
+        // A stored result that was edited is refused even though the laws replay.
+        let mut forged = wire.clone();
+        forged.result.probabilities[0] += 1e-9;
+        assert!(
+            consume_z_transport_artifact(&antecedent_io::to_cbor(&forged).unwrap(), &ctx).is_err()
+        );
+
+        // Consumer limits bind whatever the artifact declared for itself.
+        let tight =
+            ZTransportConsumeLimits { max_law_cells: 4, ..ZTransportConsumeLimits::default() };
+        assert!(consume_z_transport_artifact_with_limits(&bytes, tight, &ctx).is_err());
+        let no_laws = ZTransportConsumeLimits { max_laws: 0, ..ZTransportConsumeLimits::default() };
+        assert!(consume_z_transport_artifact_with_limits(&bytes, no_laws, &ctx).is_err());
+        let mut oversize = wire;
+        oversize.max_support_rows = usize::MAX;
+        assert!(matches!(
+            consume_z_transport_artifact(&antecedent_io::to_cbor(&oversize).unwrap(), &ctx),
+            Err(IoError::ZTransport(
+                antecedent_io::z_transport_artifact::ZTransportArtifactError::LimitsExceeded(_)
+            ))
+        ));
     }
 
     #[test]

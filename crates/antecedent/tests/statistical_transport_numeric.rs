@@ -333,7 +333,7 @@ fn trial_ipw_still_refuses_recursive_factorization() {
 }
 
 fn interval_width(values: &[f64]) -> f64 {
-    let (lo, hi) = percentile_interval(values, 0.95);
+    let (lo, hi) = percentile_interval(values, 0.95).unwrap();
     hi - lo
 }
 

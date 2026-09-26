@@ -251,6 +251,7 @@ pub struct CpdagWire {
 
 /// Wire ADMG: directed + bidirected edges.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct AdmgWire {
     /// Node count (static variables).
     pub node_count: u32,

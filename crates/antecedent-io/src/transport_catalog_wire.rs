@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 /// Durable catalog. Each regime remains separate across serialization.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EvidenceCatalogWire {
     /// Named environments and shared coordinates.
     pub environments: Vec<EnvironmentWire>,
@@ -95,6 +96,7 @@ mod delta_tests {
 
 /// Population coordinates.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EnvironmentWire {
     /// Stable population key.
     pub identity: String,
@@ -106,6 +108,7 @@ pub struct EnvironmentWire {
 
 /// One supplied evidence regime.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EvidenceRegimeWire {
     /// Stable regime id.
     pub id: u32,
@@ -133,6 +136,7 @@ pub struct EvidenceRegimeWire {
 
 /// Concrete table provenance.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct RegimeBindingWire {
     /// Optional stable identity shared by forwarded aliases.
     #[serde(default, skip_serializing_if = "Option::is_none")]

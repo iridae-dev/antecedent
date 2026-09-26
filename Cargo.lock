@@ -82,6 +82,7 @@ dependencies = [
  "antecedent-validate",
  "arrow-array",
  "arrow-schema",
+ "ciborium",
  "criterion",
  "serde",
  "serde_json",
