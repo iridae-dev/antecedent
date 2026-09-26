@@ -1277,6 +1277,26 @@ pub(crate) fn projection_diagnostic(full_cols: usize, projected_cols: usize) -> 
     ))
 }
 
+/// Diagnostic when a latency tier's replicate count was set aside for the
+/// count a configured estimator owns. `tier` is the tier's count and
+/// `configured` the count that ran.
+pub(crate) fn latency_bootstrap_not_applied_diagnostic(tier: u32, configured: u32) -> Diagnostic {
+    Diagnostic {
+        code: Arc::from("latency.bootstrap_not_applied"),
+        kind: DiagnosticKind::Scientific,
+        severity: DiagnosticSeverity::Info,
+        message: Arc::from(format!(
+            "the latency tier maps to {tier} bootstrap replicates, but the configured \
+             estimator owns its replicate count; {configured} replicates ran"
+        )),
+        artifact_id: None,
+        fields: Arc::from([
+            (Arc::from("tier_replicates"), Arc::from(tier.to_string())),
+            (Arc::from("configured_replicates"), Arc::from(configured.to_string())),
+        ]),
+    }
+}
+
 /// Full-suite prior sensitivity around the prior actually in force.
 ///
 /// - external prior-bank compose → α-multiplier grid on the post-conflict alphas;
