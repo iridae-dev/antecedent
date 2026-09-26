@@ -95,6 +95,9 @@ impl ExactLawWire {
         .map_err(|e| IoError::Convert(e.to_string()))?;
         match (origin, &self.empirical_counts) {
             (LawOrigin::LearnedPlugin, Some(counts)) => law
+                .with_learned_support(counts.clone())
+                .map_err(|e| IoError::Convert(e.to_string())),
+            (LawOrigin::EmpiricalPlugin, Some(counts)) => law
                 .with_empirical_counts(counts.clone())
                 .map_err(|e| IoError::Convert(e.to_string())),
             (LawOrigin::LearnedPlugin, None) => {
