@@ -336,6 +336,66 @@ impl EstimatorId {
             ResponseFunctional::InterventionResponse { .. } => Self::ResponseInterventionGcomp,
         }
     }
+
+    /// Pulse or sustained temporal effect procedure: sequential g-computation
+    /// for a multi-step sustained schedule, otherwise the single-step Bayesian
+    /// g-computation or frequentist linear adjustment.
+    #[must_use]
+    pub(crate) fn temporal_effect_procedure(
+        query: &antecedent_core::TemporalEffectQuery,
+        bayesian: bool,
+    ) -> Self {
+        if query.is_multi_step_sustained() {
+            Self::TemporalSequentialGcomp
+        } else if bayesian {
+            Self::BayesianTemporalGcomp
+        } else {
+            Self::TemporalLinearAdjustment
+        }
+    }
+
+    /// [`Self::temporal_effect_procedure`] for an inference mode.
+    #[must_use]
+    pub(crate) fn temporal_effect_for(
+        query: &antecedent_core::TemporalEffectQuery,
+        inference: &crate::InferenceMode,
+    ) -> Self {
+        Self::temporal_effect_procedure(
+            query,
+            matches!(inference, crate::InferenceMode::Bayesian(_)),
+        )
+    }
+
+    /// Temporal response estimator of an inference mode.
+    #[must_use]
+    pub(crate) const fn temporal_response_for(inference: &crate::InferenceMode) -> Self {
+        match inference {
+            crate::InferenceMode::Frequentist => Self::TemporalResponseGcomp,
+            crate::InferenceMode::Bayesian(_) => Self::TemporalResponseBayesian,
+        }
+    }
+
+    /// Static response estimator of an inference mode: the functional's
+    /// default under frequentist inference, the Bayesian response otherwise.
+    #[must_use]
+    pub(crate) const fn static_response_for(
+        functional: &antecedent_core::ResponseFunctional,
+        inference: &crate::InferenceMode,
+    ) -> Self {
+        match inference {
+            crate::InferenceMode::Frequentist => Self::default_for_response(functional),
+            crate::InferenceMode::Bayesian(_) => Self::ResponseBayesian,
+        }
+    }
+
+    /// Temporal mediation estimator of an inference mode.
+    #[must_use]
+    pub(crate) const fn temporal_mediation_for(inference: &crate::InferenceMode) -> Self {
+        match inference {
+            crate::InferenceMode::Frequentist => Self::TemporalMediation,
+            crate::InferenceMode::Bayesian(_) => Self::BayesianTemporalMediation,
+        }
+    }
 }
 
 /// Per-estimator data-only facts backing [`EstimatorId::as_str`],

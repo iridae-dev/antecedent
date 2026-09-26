@@ -4,9 +4,13 @@
 
 use antecedent_core::CausalQuery;
 
-use super::builder::RefuteSuite;
-use super::checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
+use super::builder::{DataInput, RefuteSuite};
+use super::checked_temporal_class_effect::{
+    CheckedTemporalClassEffectOperation, same_temporal_class_proof,
+};
+use super::execute::Study;
 use super::prepared::CachedTemporalClassIdentification;
+use crate::GraphClass;
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::EstimatorId;
@@ -40,6 +44,29 @@ impl std::fmt::Debug for CheckedBayesianTemporalClassEffectOperation {
 }
 
 impl CheckedBayesianTemporalClassEffectOperation {
+    /// Whether `study` is a coordinate this operation seals: a series pulse or
+    /// sustained effect on a fixed TemporalCpdag or TemporalPag under Bayesian
+    /// inference with the default point-estimate settings. The one-shot facade
+    /// and the prepared sealer share this predicate.
+    #[must_use]
+    pub(crate) fn admits(study: &Study) -> bool {
+        let CausalQuery::TemporalEffect(query) = &study.query else {
+            return false;
+        };
+        matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
+            && study.graph_posterior.is_none()
+            && study.tiered.is_none()
+            && matches!(study.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
+            && study.fixed_structure()
+            && matches!(study.inference, InferenceMode::Bayesian(_))
+            && study.custom_validators.is_empty()
+            && study.point_validation()
+            && query.policy.is_pulse_or_sustained()
+            && study
+                .estimator
+                .is_none_or(|id| id == EstimatorId::temporal_effect_procedure(query, true))
+    }
+
     pub(crate) fn checked(
         target: CheckedTemporalClassEffectOperation,
         inference: &InferenceMode,
@@ -71,11 +98,7 @@ impl CheckedBayesianTemporalClassEffectOperation {
     }
 
     fn estimator_for(target: &CheckedTemporalClassEffectOperation) -> EstimatorId {
-        if target.query().is_multi_step_sustained() {
-            EstimatorId::TemporalSequentialGcomp
-        } else {
-            EstimatorId::BayesianTemporalGcomp
-        }
+        EstimatorId::temporal_effect_procedure(target.query(), true)
     }
 
     #[must_use]
@@ -120,31 +143,7 @@ impl CheckedBayesianTemporalClassEffectOperation {
     /// the operation. Refresh re-checks the handle's envelope through this.
     #[must_use]
     pub(crate) fn matches_class_proof(&self, proof: &CachedTemporalClassIdentification) -> bool {
-        let expected = self.target.bundle();
-        let left = &expected.envelope.envelope;
-        let right = &proof.envelope.envelope;
-        expected.envelope.indexers == proof.envelope.indexers
-            && left.status == right.status
-            && left.identified_weight.0.to_bits() == right.identified_weight.0.to_bits()
-            && left.unidentified_weight.0.to_bits() == right.unidentified_weight.0.to_bits()
-            && left.truncated_completions == right.truncated_completions
-            && left.cases.len() == right.cases.len()
-            && left.cases.iter().zip(&right.cases).all(|(a, b)| {
-                a.graph.fingerprint() == b.graph.fingerprint()
-                    && a.weight.0.to_bits() == b.weight.0.to_bits()
-                    && a.result.query == b.result.query
-                    && a.result.status == b.result.status
-                    && a.result.estimands.len() == b.result.estimands.len()
-                    && a.result.estimands.iter().zip(&b.result.estimands).all(|(x, y)| {
-                        x.method == y.method
-                            && x.adjustment_set == y.adjustment_set
-                            && x.instruments == y.instruments
-                            && x.mediators == y.mediators
-                            && x.rd_design == y.rd_design
-                            && format!("{:?}", a.result.arena.node(x.functional))
-                                == format!("{:?}", b.result.arena.node(y.functional))
-                    })
-            })
+        same_temporal_class_proof(&self.target.bundle().envelope, &proof.envelope)
     }
 }
 
@@ -152,17 +151,12 @@ fn checked_settings(
     inference: &InferenceMode,
     validation: RefuteSuite,
 ) -> Result<BayesianConfig, CausalError> {
-    let InferenceMode::Bayesian(config) = inference else {
-        return Err(CausalError::Compile {
-            message: "checked Bayesian temporal class operation requires Bayesian inference".into(),
-        });
-    };
-    if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
-        return Err(CausalError::Unsupported {
-            message: "checked Bayesian temporal class operation supports none, cheap, or full validation",
-        });
-    }
-    Ok(config.clone())
+    super::checked_bayesian_temporal_effect::checked_bayesian_settings(
+        inference,
+        validation,
+        "checked Bayesian temporal class operation requires Bayesian inference",
+        "checked Bayesian temporal class operation supports none, cheap, or full validation",
+    )
 }
 
 #[cfg(test)]

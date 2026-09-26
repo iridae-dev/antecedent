@@ -15,6 +15,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 
 use super::builder::RefuteSuite;
 use super::prepared::CachedTemporalClassIdentification;
+use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope for a TemporalCpdag or TemporalPag
 /// pulse or sustained effect. The envelope and its aligned unfolding indexers
@@ -164,9 +165,7 @@ impl CheckedTemporalClassEffectOperation {
 
     #[must_use]
     pub(crate) fn matches_source_graph(&self, graph: &AcceptedGraph) -> bool {
-        self.source_graph.class() == graph.class()
-            && self.source_graph.version() == graph.version()
-            && format!("{:?}", self.source_graph) == format!("{graph:?}")
+        same_accepted_graph(&self.source_graph, graph)
     }
 
     #[must_use]
@@ -216,7 +215,7 @@ type TemporalClassProcedure<'a> = (
     &'a [Arc<dyn CustomEffectValidator>],
 );
 
-fn same_temporal_class_proof(
+pub(crate) fn same_temporal_class_proof(
     expected: &antecedent_identify::TemporalClassEnvelope,
     supplied: &antecedent_identify::TemporalClassEnvelope,
 ) -> bool {

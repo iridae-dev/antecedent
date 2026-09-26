@@ -13,6 +13,7 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 
+use crate::analysis::route_guards::{compile_error, envelope_summary};
 use crate::planner::PhysicalExecutionPlan;
 use crate::support::{CellStatus, StructureSource};
 use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
@@ -48,19 +49,32 @@ impl ConditionalClassProof {
         }
     }
 
+    /// Whether every enumerated completion identifies the same adjustment
+    /// target (see `conditional_class_proof_is_complete`).
+    pub(crate) fn is_complete(&self) -> bool {
+        match self {
+            Self::Cpdag { cache, .. } => {
+                crate::analysis::prepared::conditional_class_proof_is_complete(&cache.envelope)
+            }
+            Self::Pag { cache, .. } => {
+                crate::analysis::prepared::conditional_class_proof_is_complete(&cache.envelope)
+            }
+        }
+    }
+
+    /// The estimand shared by every identified completion, if any.
+    pub(crate) fn invariant(&self) -> Option<&IdentifiedEstimand> {
+        match self {
+            Self::Cpdag { cache, .. } => cache.envelope.invariant.as_ref(),
+            Self::Pag { cache, .. } => cache.envelope.invariant.as_ref(),
+        }
+    }
+
     /// Completion count, identified mass, and unresolved mass of the envelope.
     pub(crate) fn completion_mass(&self) -> (usize, f64, f64) {
         match self {
-            Self::Cpdag { cache, .. } => (
-                cache.envelope.cases.len(),
-                cache.envelope.identified_weight.0,
-                cache.envelope.unidentified_weight.0,
-            ),
-            Self::Pag { cache, .. } => (
-                cache.envelope.cases.len(),
-                cache.envelope.identified_weight.0,
-                cache.envelope.unidentified_weight.0,
-            ),
+            Self::Cpdag { cache, .. } => envelope_summary(&cache.envelope),
+            Self::Pag { cache, .. } => envelope_summary(&cache.envelope),
         }
     }
 
@@ -347,8 +361,4 @@ fn rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, CausalEr
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(kept.into())
-}
-
-fn compile_error(message: &str) -> CausalError {
-    CausalError::Compile { message: message.into() }
 }

@@ -52,6 +52,17 @@ pub(crate) enum StaticClassIdentification {
     Pag(crate::analysis::prepared::CachedPagIdentification),
 }
 
+impl StaticClassIdentification {
+    /// Completion count and identified / unidentified mass of the frozen envelope.
+    #[must_use]
+    pub(crate) fn envelope_summary(&self) -> (usize, f64, f64) {
+        match self {
+            Self::Cpdag(cache) => super::route_guards::envelope_summary(&cache.envelope),
+            Self::Pag(cache) => super::route_guards::envelope_summary(&cache.envelope),
+        }
+    }
+}
+
 impl CheckedStaticClassEffect {
     pub(crate) fn prepare(
         graph: StaticClassGraph,
