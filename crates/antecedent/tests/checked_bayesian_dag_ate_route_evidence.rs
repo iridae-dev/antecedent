@@ -1,6 +1,8 @@
 //! Builder-independent evidence for the Bayesian DAG mean ATE operation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
+
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };

@@ -22,7 +22,7 @@ fn anomaly_data(outlier: f64) -> TabularData {
 }
 
 fn change_data(second_shift: f64) -> TabularData {
-    let x: Vec<_> = (0..80).map(|i| (i % 40) as f64 * 0.1).collect();
+    let x: Vec<_> = (0..80).map(|i| f64::from(i % 40) * 0.1).collect();
     let y: Vec<_> = (0..80)
         .map(|i| if i < 40 { 1.0 + 2.0 * x[i] } else { 6.0 + second_shift + 2.0 * x[i] })
         .collect();

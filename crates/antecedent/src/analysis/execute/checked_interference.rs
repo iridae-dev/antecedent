@@ -534,8 +534,8 @@ mod checked_interference_tests {
             .unwrap()
             .iter()
             .map(|edge| NetworkEdge {
-                from: edge[0].as_u64().unwrap() as u32,
-                to: edge[1].as_u64().unwrap() as u32,
+                from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
+                to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
                 weight: 1.0,
             })
             .collect::<Vec<_>>();

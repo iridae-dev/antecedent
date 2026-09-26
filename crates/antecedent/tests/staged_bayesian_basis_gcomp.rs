@@ -1,5 +1,7 @@
 //! Bayesian quadratic-basis g-computation through the public prepared Study route.
 
+#![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
+
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
@@ -257,7 +259,7 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
         (
             "w",
             (0..data.row_count())
-                .map(|i| f64::from((i % 7) as u8) / 3.0)
+                .map(|i| f64::from(u8::try_from(i % 7).expect("i % 7 fits u8")) / 3.0)
                 .collect::<Vec<_>>()
                 .as_slice(),
         ),

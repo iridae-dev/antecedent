@@ -469,7 +469,7 @@ fn intervention_response_pag_frequentist_nominal_coverage() {
             tally.skip();
             continue;
         };
-        bind_all(&mut [&mut tally], &study, result);
+        bind_all(&mut [&mut tally], study, result);
         tally.record(*interval, 3.0);
     }
     gate(&[tally], &[None]);
@@ -809,7 +809,7 @@ fn covariate_mean(data: &TimeSeriesData) -> f64 {
 
 fn record_temporal_band(
     tally: &mut CoverageTally,
-    band: &Option<(Vec<f64>, Vec<f64>, f64)>,
+    band: Option<&(Vec<f64>, Vec<f64>, f64)>,
     index: usize,
     truth: f64,
 ) {
@@ -843,7 +843,7 @@ fn temporal_cpdag_intervention_frequentist_nominal_coverage() {
     });
     for (study, result) in &runs {
         bind_all(&mut [&mut tally], study, result);
-        record_temporal_band(&mut tally, &response_band(result), 0, 3.0);
+        record_temporal_band(&mut tally, response_band(result).as_ref(), 0, 3.0);
     }
     gate(&[tally], &[None]);
 }
@@ -875,7 +875,7 @@ fn temporal_cpdag_intervention_bayesian_nominal_coverage() {
     });
     for (study, result, truth) in &runs {
         bind_all(&mut [&mut tally], study, result);
-        record_temporal_band(&mut tally, &response_band(result), 0, *truth);
+        record_temporal_band(&mut tally, response_band(result).as_ref(), 0, *truth);
     }
     gate(&[tally], &[None]);
 }
@@ -914,7 +914,7 @@ fn temporal_cpdag_curve_frequentist_pointwise_nominal_coverage() {
         bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
         let band = response_band(result);
         for (index, tally) in tallies.iter_mut().enumerate() {
-            record_temporal_band(tally, &band, index, 1.0 + 2.0 * TEMPORAL_DOSES[index]);
+            record_temporal_band(tally, band.as_ref(), index, 1.0 + 2.0 * TEMPORAL_DOSES[index]);
         }
     }
     gate(&tallies, &[None, None]);
@@ -957,7 +957,7 @@ fn temporal_cpdag_curve_bayesian_pointwise_nominal_coverage() {
         for (index, tally) in tallies.iter_mut().enumerate() {
             record_temporal_band(
                 tally,
-                &band,
+                band.as_ref(),
                 index,
                 1.0 + 2.0 * TEMPORAL_DOSES[index] + 0.8 * z_bar,
             );

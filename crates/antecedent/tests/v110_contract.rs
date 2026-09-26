@@ -1229,7 +1229,7 @@ fn licensed_family_distribution_frequentist_consumes() {
     let mut forged = contract.clone();
     let retained = forged.program.as_mut().unwrap().functional_program.as_mut().unwrap();
     assert!(retained.arena.nodes.len() > 1);
-    let alternate = if retained.source == 0 { 1 } else { 0 };
+    let alternate = u32::from(retained.source == 0);
     retained.source = alternate;
     retained.executable = alternate;
     assert!(

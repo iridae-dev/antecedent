@@ -115,7 +115,7 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
         "../../../conformance/estimate/nested_counterfactual/expected.json"
     ))
     .unwrap();
-    let a: Vec<_> = (0..300).map(|i| (i as f64 * 0.37).sin()).collect();
+    let a: Vec<_> = (0..300).map(|i| (f64::from(i) * 0.37).sin()).collect();
     let m: Vec<_> = a.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
     let y: Vec<_> = a
         .iter()

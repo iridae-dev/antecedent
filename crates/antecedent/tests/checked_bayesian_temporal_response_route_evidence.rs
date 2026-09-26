@@ -1,4 +1,4 @@
-//! Builder-independent evidence for checked Bayesian TemporalDag responses:
+//! Builder-independent evidence for checked Bayesian `TemporalDag` responses:
 //! the dose × horizon mean curve and the single-step intervention response.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

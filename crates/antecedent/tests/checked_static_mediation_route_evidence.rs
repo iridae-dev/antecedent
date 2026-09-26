@@ -26,9 +26,9 @@ fn graph() -> Dag {
 fn bayesian_data() -> TabularData {
     let (mut treatment, mut mediator, mut outcome) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..320 {
-        let a = ((i as f64) * 0.71).sin();
-        let m = 2.0 * a + ((i as f64) * 1.13).cos();
-        let y = 3.0 * a + 4.0 * m + 0.1 * ((i as f64) * 0.31).sin();
+        let a = (f64::from(i) * 0.71).sin();
+        let m = 2.0 * a + (f64::from(i) * 1.13).cos();
+        let y = 3.0 * a + 4.0 * m + 0.1 * (f64::from(i) * 0.31).sin();
         treatment.push(a);
         mediator.push(m);
         outcome.push(y);
@@ -352,7 +352,7 @@ fn bayesian_static_mediation_prior_cannot_alias_mechanisms_with_equal_design_wid
     query.active = Intervention::set(v(1), Value::f64(1.0));
 
     let identical = BayesianConfig::conjugate().n_draws(64).prior_from_artifact(
-        bytes.to_vec(),
+        bytes.clone(),
         Some(antecedent_io::PriorMapping::IdenticalCoefficientSubspace),
     );
     let builder = Study::tabular(target_data.clone())
@@ -366,7 +366,7 @@ fn bayesian_static_mediation_prior_cannot_alias_mechanisms_with_equal_design_wid
     assert!(error.to_string().contains("identical coefficient-subspace mapping"), "{error}");
 
     let named = BayesianConfig::conjugate().n_draws(64).prior_from_artifact(
-        bytes.to_vec(),
+        bytes.clone(),
         Some(antecedent_io::PriorMapping::NamedParameters {
             pairs: vec![("coef_t".into(), "coef_t".into())],
         }),

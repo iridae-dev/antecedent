@@ -49,8 +49,8 @@ fn design_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::Va
         .unwrap()
         .iter()
         .map(|edge| NetworkEdge {
-            from: edge[0].as_u64().unwrap() as u32,
-            to: edge[1].as_u64().unwrap() as u32,
+            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
+            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
             weight: edge[2].as_f64().unwrap(),
         })
         .collect();
@@ -84,8 +84,8 @@ fn bayesian_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::
         .unwrap()
         .iter()
         .map(|edge| NetworkEdge {
-            from: edge[0].as_u64().unwrap() as u32,
-            to: edge[1].as_u64().unwrap() as u32,
+            from: u32::try_from(edge[0].as_u64().unwrap()).expect("node id fits u32"),
+            to: u32::try_from(edge[1].as_u64().unwrap()).expect("node id fits u32"),
             weight: 1.0,
         })
         .collect();

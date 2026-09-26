@@ -754,6 +754,7 @@ fn prepared_path_specific_reestimate_matches_fresh() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "one test walks the whole checked-program lifecycle")]
 fn test_interventional_distribution_dag_explicit_frequentist_none_executes_checked_program() {
     let (data, dag, query) = distribution_fixture();
     let ctx = ExecutionContext::for_tests(1);
@@ -1523,6 +1524,7 @@ fn bayesian_conditional_staged_known_truth() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "one test walks the whole identification-reuse lifecycle")]
 fn prepared_admg_distribution_reuses_identification() {
     let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
     let expected: serde_json::Value = serde_json::from_str(pin).unwrap();

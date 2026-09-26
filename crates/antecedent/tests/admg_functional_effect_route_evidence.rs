@@ -62,6 +62,7 @@ fn functional_admg_fixture() -> (TabularData, Admg, AverageEffectQuery) {
     (data, graph, AverageEffectQuery::binary_ate(vid(0), vid(1)))
 }
 
+#[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
 fn verify_functional_effect_coordinate(
     coordinate: &str,
     accepted: bool,

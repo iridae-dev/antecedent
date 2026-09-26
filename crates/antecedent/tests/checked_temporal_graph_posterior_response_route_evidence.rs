@@ -1,8 +1,10 @@
 //! Builder-independent evidence for checked temporal graph-posterior responses
-//! over TemporalDag, TemporalCpdag, and TemporalPag atoms (mean curve and
+//! over `TemporalDag`, `TemporalCpdag`, and `TemporalPag` atoms (mean curve and
 //! single-step intervention response, both inferences, all licensed suites).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
 
 use std::sync::Arc;
 
@@ -38,7 +40,7 @@ fn dbn_series(n: usize, seed: u64) -> TimeSeriesData {
     .unwrap()
 }
 
-/// Two TemporalDag atoms from the known-truth pin: the lag-one effect graph and
+/// Two `TemporalDag` atoms from the known-truth pin: the lag-one effect graph and
 /// an autoregressive atom whose finite-history certification fails, so its
 /// posterior weight stays unidentified.
 fn dbn_posterior(pin: &serde_json::Value) -> GraphPosterior {
@@ -97,7 +99,7 @@ fn lag_bit(n: usize, from: usize, to: usize) -> u64 {
     1u64 << (from * n + to)
 }
 
-/// One-atom TemporalCpdag (`t@1 -> y`, `z@1 -> y`) or TemporalPag
+/// One-atom `TemporalCpdag` (`t@1 -> y`, `z@1 -> y`) or `TemporalPag`
 /// (`z -> t`, `z -> y`, `t@1 -> y`) posterior with all mass on that atom.
 fn class_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     let n = 3;

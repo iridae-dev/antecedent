@@ -71,6 +71,7 @@ fn means(result: &antecedent::StudyResult) -> &[f64] {
     }
 }
 
+#[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
 fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
     let (data, graph, query) = fixture();
     let ctx = ExecutionContext::for_tests(42_771);
