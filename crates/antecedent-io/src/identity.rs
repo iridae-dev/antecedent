@@ -261,6 +261,46 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("query_kind".into(), "interference".into()),
             ("temporal_coordinates".into(), "none".into()),
         ],
+        CausalQueryWire::RandomizedEffect(query) => vec![
+            ("query_kind".into(), "randomized_effect".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            (
+                "randomization_design".into(),
+                match &query.design {
+                    crate::RandomizationDesignWire::Bernoulli => "bernoulli".into(),
+                    crate::RandomizationDesignWire::Complete { .. } => "complete".into(),
+                    crate::RandomizationDesignWire::Stratified => "stratified".into(),
+                },
+            ),
+            (
+                "treatment_arms".into(),
+                format!("{}->{}", query.treatment_arms.0, query.treatment_arms.1),
+            ),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::PanelDid(query) => vec![
+            ("query_kind".into(), "panel_did".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("design".into(), "balanced_two_period_panel".into()),
+            ("temporal_coordinates".into(), "pre_post".into()),
+        ],
+        CausalQueryWire::Survival(query) => vec![
+            ("query_kind".into(), "survival".into()),
+            ("duration".into(), query.duration.to_string()),
+            ("event".into(), query.event.to_string()),
+            ("treatment".into(), query.treatment.to_string()),
+            ("tau".into(), query.tau.to_string()),
+            (
+                "target_cause".into(),
+                query.target_cause.map_or_else(|| "none".into(), |cause| cause.to_string()),
+            ),
+            (
+                "delayed_entry".into(),
+                query.delayed_entry.map_or_else(|| "none".into(), |entry| entry.to_string()),
+            ),
+            ("observation".into(), "independent_marginal".into()),
+            ("temporal_coordinates".into(), "event_time".into()),
+        ],
         CausalQueryWire::AnomalyAttribution { targets, .. } => {
             named_outcomes("anomaly_attribution", targets)
         }
@@ -482,6 +522,8 @@ pub enum GraphIdentityWire {
     TemporalDag(TemporalGraphWire),
     /// Temporal class with lagged/context nodes and marked edges.
     TemporalClass(TemporalClassIdentityWire),
+    /// No causal graph was supplied; design metadata defines the experiment.
+    RandomizedTrial,
     /// Graph-posterior atoms: every atom's structure and weight.
     GraphPosterior {
         /// Declared graph class of the posterior atoms.
@@ -2298,8 +2340,8 @@ pub fn external_compose_identity(
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint,
-        SmallRoleSet, TargetPopulation, ValueType, VariableId,
+        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec,
+        RandomizedEffectQuery, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
     use antecedent_graph::{Dag, DenseNodeId};
 
@@ -2409,6 +2451,44 @@ mod tests {
             digest_wire(IdentityDomain::Target, &target_wire(&renamed, &query)).unwrap(),
             first
         );
+    }
+
+    #[test]
+    fn panel_did_target_identity_binds_timing_subject_and_cluster_vectors() {
+        let (schema, _, _) = schema_and_query();
+        let query = CausalQuery::PanelDid(antecedent_core::PanelDidQuery::new(
+            VariableId::from_raw(1),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "a", "b", "b"].map(std::sync::Arc::<str>::from),
+            ["x", "x", "y", "y"].map(std::sync::Arc::<str>::from),
+        ));
+        let first = digest_wire(IdentityDomain::Target, &target_wire(&schema, &query)).unwrap();
+        let CausalQuery::PanelDid(mut changed) = query.clone() else { unreachable!() };
+        changed.post = [false, false, false, true].into();
+        assert_ne!(
+            first,
+            digest_wire(
+                IdentityDomain::Target,
+                &target_wire(&schema, &CausalQuery::PanelDid(changed.clone()))
+            )
+            .unwrap()
+        );
+        changed.clusters = ["x", "x", "z", "z"].map(std::sync::Arc::<str>::from).into();
+        assert_ne!(
+            first,
+            digest_wire(
+                IdentityDomain::Target,
+                &target_wire(&schema, &CausalQuery::PanelDid(changed))
+            )
+            .unwrap()
+        );
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&causal_query_to_wire(&query).unwrap())
+                .into_iter()
+                .collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("panel_did"));
+        assert_eq!(labels.get("design").map(String::as_str), Some("balanced_two_period_panel"));
     }
 
     #[test]
@@ -2723,6 +2803,24 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("set:0=1"));
         assert_eq!(labels.get("population").map(String::as_str), Some("all_observed"));
         assert_eq!(labels.get("temporal_coordinates").map(String::as_str), Some("none"));
+    }
+
+    #[test]
+    fn randomized_itt_identity_labels_have_no_fabricated_treatment() {
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::bernoulli_itt(
+            VariableId::from_raw(1),
+            [true, false],
+            [0.5, 0.5],
+            ["u1", "u2"].map(std::sync::Arc::<str>::from),
+            ["y1", "y2"].map(std::sync::Arc::<str>::from),
+            ("control", "treated"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&wire).into_iter().collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("randomized_effect"));
+        assert_eq!(labels.get("outcome").map(String::as_str), Some("1"));
+        assert!(!labels.contains_key("treatment"));
     }
 
     #[test]

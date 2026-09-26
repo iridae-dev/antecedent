@@ -359,6 +359,56 @@ pub struct InterventionalDistributionWire {
     pub atoms: Vec<DistributionAtomWire>,
 }
 
+/// Held-out doubly robust policy answer retained separately from scalar effects.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyValueWire {
+    /// Net policy value.
+    pub policy_value: f64,
+    /// Net reference value.
+    pub reference_value: f64,
+    /// Paired incremental value.
+    pub incremental_value: f64,
+    /// Reference minus policy value.
+    pub relative_value_gap: f64,
+    /// Treatment rate.
+    pub treatment_rate: f64,
+    /// Total policy cost.
+    pub total_cost: f64,
+    /// Policy, reference, and paired incremental row-score SEs.
+    pub policy_standard_error: f64,
+    /// Reference value SE.
+    pub reference_standard_error: f64,
+    /// Paired incremental value SE.
+    pub incremental_standard_error: f64,
+    /// Prediction ownership declaration.
+    pub prediction_ownership: String,
+    /// Propensity support range.
+    pub propensity_min: f64,
+    /// Maximum propensity.
+    pub propensity_max: f64,
+    /// Explicit uncertainty semantics.
+    pub uncertainty: String,
+}
+
+/// Panel DiD result section; uncertainty is an SE only and carries no interval claim.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PanelDidWire {
+    /// Difference in mean subject-level changes.
+    pub effect: f64,
+    /// Cluster-robust standard error.
+    pub standard_error: f64,
+    /// Treated subject count.
+    pub treated_subjects: usize,
+    /// Comparison subject count.
+    pub comparison_subjects: usize,
+    /// Total distinct inference clusters.
+    pub clusters: usize,
+    /// Explicit uncertainty semantics tag.
+    pub uncertainty: String,
+}
+
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
@@ -374,6 +424,12 @@ pub struct AnalysisResultWire {
     pub temporal_identification: Vec<TemporalIdentificationWire>,
     /// Scalar estimate when one exists; function-valued results have no scalar placeholder.
     pub estimate: Option<f64>,
+    /// Policy-value answer, never encoded as an ATE.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_value: Option<PolicyValueWire>,
+    /// Balanced two-period panel DiD metadata and cluster uncertainty semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panel_did: Option<PanelDidWire>,
     /// Full atom result for an interventional-distribution query. Absent on older
     /// artifacts; such artifacts remain readable but cannot verify as a checked
     /// distribution execution.
@@ -597,6 +653,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     }
     validate_variable_names(variable_names)?;
     validate_query_ids(&result.query, variable_names.len())?;
+    if matches!(result.query, crate::CausalQueryWire::PanelDid(_)) && result.panel_did.is_none() {
+        return Err(IoError::Convert(
+            "panel DiD artifact is missing its design-specific result section".into(),
+        ));
+    }
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {
         Some(variables) => {
@@ -637,6 +698,83 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         return Err(IoError::Convert(
             "analysis scalar estimate must be finite when present".into(),
         ));
+    }
+    if let Some(policy) = &result.policy_value {
+        if result.estimate.is_some()
+            || ![
+                policy.policy_value,
+                policy.reference_value,
+                policy.incremental_value,
+                policy.relative_value_gap,
+                policy.treatment_rate,
+                policy.total_cost,
+                policy.policy_standard_error,
+                policy.reference_standard_error,
+                policy.incremental_standard_error,
+                policy.propensity_min,
+                policy.propensity_max,
+            ]
+            .iter()
+            .all(|value| value.is_finite())
+            || !(0.0..=1.0).contains(&policy.treatment_rate)
+            || policy.total_cost < 0.0
+            || policy.policy_standard_error < 0.0
+            || policy.reference_standard_error < 0.0
+            || policy.incremental_standard_error < 0.0
+            || !(0.0..=1.0).contains(&policy.propensity_min)
+            || !(0.0..=1.0).contains(&policy.propensity_max)
+            || policy.propensity_min > policy.propensity_max
+            || policy.prediction_ownership.is_empty()
+            || policy.uncertainty != "row_score_standard_error_independent_subjects"
+        {
+            return Err(IoError::Convert(
+                "invalid policy-value payload or fabricated scalar effect".into(),
+            ));
+        }
+    }
+    if let Some(did) = &result.panel_did {
+        let crate::CausalQueryWire::PanelDid(query) = &result.query else {
+            return Err(IoError::Convert(
+                "panel DiD result section is attached to a different query".into(),
+            ));
+        };
+        let mut subjects = std::collections::BTreeMap::<&str, (bool, &str)>::new();
+        let mut group_clusters: [std::collections::BTreeSet<&str>; 2] = Default::default();
+        for i in 0..query.treated.len() {
+            let subject = query.subjects[i].as_str();
+            let cluster = query.clusters[i].as_str();
+            match subjects.insert(subject, (query.treated[i], cluster)) {
+                Some((group, old_cluster))
+                    if group != query.treated[i] || old_cluster != cluster =>
+                {
+                    return Err(IoError::Convert(
+                        "panel DiD query changes treatment or cluster within a subject".into(),
+                    ));
+                }
+                _ => {}
+            }
+            group_clusters[usize::from(query.treated[i])].insert(cluster);
+        }
+        let treated_subjects = subjects.values().filter(|(treated, _)| *treated).count();
+        let comparison_subjects = subjects.len() - treated_subjects;
+        let clusters = query.clusters.iter().collect::<std::collections::BTreeSet<_>>().len();
+        if result.estimate != Some(did.effect)
+            || result.standard_error != Some(did.standard_error)
+            || !did.effect.is_finite()
+            || !did.standard_error.is_finite()
+            || did.standard_error < 0.0
+            || did.treated_subjects != treated_subjects
+            || did.comparison_subjects != comparison_subjects
+            || did.clusters != clusters
+            || group_clusters.iter().any(|members| members.len() < 2)
+            || did.uncertainty != "cluster_robust_standard_error_no_interval"
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
+        {
+            return Err(IoError::Convert(
+                "invalid panel DiD payload or fabricated interval".into(),
+            ));
+        }
     }
     if result.estimate.is_some() && !licenses_scalar_estimate(&result.identification.status) {
         return Err(IoError::Convert(
@@ -1089,6 +1227,42 @@ mod tests {
             ],
         });
         result
+    }
+
+    #[test]
+    fn panel_did_result_artifact_round_trips_design_uncertainty_semantics() {
+        let domain = antecedent_core::PanelDidQuery::new(
+            antecedent_core::VariableId::from_raw(1),
+            [true, true, true, true, false, false, false, false],
+            [false, true, false, true, false, true, false, true],
+            ["a", "a", "b", "b", "c", "c", "d", "d"].map(std::sync::Arc::<str>::from),
+            ["x", "x", "y", "y", "z", "z", "w", "w"].map(std::sync::Arc::<str>::from),
+        );
+        let query =
+            crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(domain)).unwrap();
+        let mut result = fixture();
+        result.query = query.clone();
+        result.identification.query = query;
+        result.estimate = Some(2.0);
+        result.standard_error = Some(0.4);
+        result.panel_did = Some(PanelDidWire {
+            effect: 2.0,
+            standard_error: 0.4,
+            treated_subjects: 2,
+            comparison_subjects: 2,
+            clusters: 4,
+            uncertainty: "cluster_robust_standard_error_no_interval".into(),
+        });
+        let encoded = encode_analysis_result_artifact(
+            &result,
+            vec!["treatment".into(), "outcome".into()],
+            "panel-did-result",
+        )
+        .unwrap();
+        let mut bytes = Vec::new();
+        encoded.write_to(&mut bytes).unwrap();
+        let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(decoded, result);
     }
 
     #[test]

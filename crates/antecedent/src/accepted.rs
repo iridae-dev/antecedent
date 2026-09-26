@@ -182,6 +182,8 @@ pub enum GraphClass {
     TemporalCpdag,
     /// Temporal partial ancestral graph (circle marks allowed).
     TemporalPag,
+    /// Schema-bound randomized trial contract; carries no causal graph.
+    RandomizedTrial,
 }
 
 impl GraphClass {
@@ -196,6 +198,7 @@ impl GraphClass {
             Self::TemporalDag => "TemporalDag",
             Self::TemporalCpdag => "TemporalCpdag",
             Self::TemporalPag => "TemporalPag",
+            Self::RandomizedTrial => "RandomizedTrial",
         }
     }
 
@@ -219,6 +222,7 @@ enum GraphKind {
     TemporalDag(TemporalDag),
     TemporalCpdag(TemporalCpdag),
     TemporalPag(TemporalPag),
+    RandomizedTrial,
 }
 
 /// Asserted-or-accepted causal structure.
@@ -283,6 +287,16 @@ impl AcceptedGraph {
     #[must_use]
     pub fn temporal_pag(g: TemporalPag) -> Self {
         Self::from_kind(GraphKind::TemporalPag(g), None)
+    }
+
+    /// Create a schema-bound randomized-trial source with no graph structure.
+    #[must_use]
+    pub(crate) fn randomized_trial(schema: &CausalSchema) -> Self {
+        let mut value = Self::from_kind(GraphKind::RandomizedTrial, None);
+        value.schema_names = Some(Arc::from(
+            schema.variables().iter().map(|v| Arc::clone(&v.name)).collect::<Vec<_>>(),
+        ));
+        value
     }
 
     /// Accept a static CPDAG.
@@ -358,6 +372,7 @@ impl AcceptedGraph {
             GraphKind::TemporalDag(_) => GraphClass::TemporalDag,
             GraphKind::TemporalCpdag(_) => GraphClass::TemporalCpdag,
             GraphKind::TemporalPag(_) => GraphClass::TemporalPag,
+            GraphKind::RandomizedTrial => GraphClass::RandomizedTrial,
         }
     }
 

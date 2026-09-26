@@ -105,9 +105,10 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
 pub use result::{
-    AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES,
-    PublishedScalarUncertainty, RowWeightsBinding, StructuralAggregationPolicy,
-    StructuralWeightBasis, StudyResult,
+    AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES, PanelDidEstimate,
+    PolicyValueEstimate, PrimaryEstimate, PublishedScalarUncertainty, RandomizedEffectEstimate,
+    SurvivalEstimate,
+    RowWeightsBinding, StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
 };
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,

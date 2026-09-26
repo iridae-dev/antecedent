@@ -96,7 +96,9 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     .estimator(EstimatorId::FunctionalEffect)
                     .inference(inference.clone())
                     .refute(RefuteSuite::None)
-                    .bootstrap_replicates(0);
+                    // Frequentist general-ID scalars publish a bootstrap-SE
+                    // interval; the Bayesian route takes no frequentist resample.
+                    .bootstrap_replicates(if bayesian { 0 } else { 199 });
                 let builder = if accepted {
                     base.graph(AcceptedGraph::from(graph.clone()))
                 } else {
@@ -165,6 +167,26 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     assert_eq!(result.posterior.as_ref().unwrap().draws.schema.n_quantities(), 1);
                 } else {
                     assert!(result.posterior.is_none());
+                    // The frequentist general-ID scalar now publishes a normal
+                    // interval from the front-door plug-in bootstrap SE, reported
+                    // as `bootstrap_se`.
+                    match &result.response.as_ref().expect("response").uncertainty {
+                        antecedent_core::ResponseUncertainty::Scalar { interpretation, .. } => {
+                            assert_eq!(
+                                *interpretation,
+                                antecedent_core::IntervalInterpretation::Confidence,
+                                "{coordinate} frequentist scalar is a confidence interval"
+                            );
+                        }
+                        other => {
+                            panic!("{coordinate} expected a confidence scalar, got {other:?}")
+                        }
+                    }
+                    assert_eq!(
+                        result.primary_interval_binding(false).method,
+                        antecedent_core::IntervalMethod::BootstrapSe,
+                        "{coordinate} interval method"
+                    );
                 }
                 let (refreshed_data, _) = fixture(0.4);
                 let refreshed = prepared.refresh(refreshed_data, &context).unwrap();

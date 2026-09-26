@@ -793,6 +793,9 @@ impl super::Study {
                     | GraphClass::TemporalPag => Err(CausalError::Unsupported {
                         message: "static ATE execute requires a static graph class",
                     }),
+                    GraphClass::RandomizedTrial => Err(CausalError::Unsupported {
+                        message: "randomized trial queries require the dedicated experiment execute route",
+                    }),
                 }
             }
             AnalysisRoute::Distribution => {
@@ -943,6 +946,9 @@ impl super::Study {
                 let CausalQuery::Interference(q) = &self.query else { unreachable!() };
                 self.execute_interference(data, q, physical, ctx)
             }
+            AnalysisRoute::RandomizedEffect => self.execute_randomized(data, physical, ctx),
+            AnalysisRoute::PolicyValue => self.execute_policy_value(data, physical, ctx),
+            AnalysisRoute::PanelDid => self.execute_panel_did(data, physical, ctx),
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
             | AnalysisRoute::TemporalResponse

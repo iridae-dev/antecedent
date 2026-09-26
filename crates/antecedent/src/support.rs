@@ -68,6 +68,8 @@ pub enum StructureSource {
     Accepted,
     /// Caller passed a graph posterior (mixture over structures).
     GraphPosterior,
+    /// Randomization itself supplies identification; no graph was supplied.
+    RandomizedTrial,
 }
 
 /// Convert a caller-supplied structure into a graph plus its matrix axis.
@@ -108,6 +110,7 @@ impl StructureSource {
             Self::Explicit => "explicit",
             Self::Accepted => "accepted",
             Self::GraphPosterior => "graph_posterior",
+            Self::RandomizedTrial => "randomized_trial",
         }
     }
 }
@@ -279,6 +282,7 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             GraphClass::Dag | GraphClass::Admg | GraphClass::Cpdag | GraphClass::Pag => {
                 Some("MediationEffect")
             }
+            GraphClass::RandomizedTrial => None,
         },
         CausalQuery::TemporalEffect(q) => match &q.policy {
             TemporalPolicy::Pulse { .. } => Some("PulseEffect"),
@@ -353,7 +357,14 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
 /// rather than silently defaulting to allowed.
 #[must_use]
 pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
-    matches!(query, CausalQuery::MechanismChange(_) | CausalQuery::UnitChange(_))
+    matches!(
+        query,
+        CausalQuery::MechanismChange(_)
+            | CausalQuery::UnitChange(_)
+            | CausalQuery::RandomizedEffect(_)
+            | CausalQuery::PolicyValue(_)
+            | CausalQuery::PanelDid(_)
+    )
 }
 
 /// Refuse a query the matrix does not know and that is not a declared off-axis kind.

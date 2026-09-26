@@ -163,6 +163,8 @@ fn receipt_body(
         identification_variables: None,
         temporal_identification: Vec::new(),
         estimate: attach.scalar_value,
+        policy_value: None,
+        panel_did: None,
         interventional_distribution: None,
         standard_error: None,
         interval_lower: None,

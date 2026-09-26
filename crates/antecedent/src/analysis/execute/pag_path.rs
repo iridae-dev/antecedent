@@ -192,6 +192,8 @@ impl super::Study {
         let mut extras_posterior = None;
         let mut n_draws = None;
         let mut curve_bounds: Vec<(f64, f64)> = Vec::new();
+        let mut freq_curve_bounds: Vec<(f64, f64)> = Vec::new();
+        let mut freq_scalar: Option<ResponseUncertainty> = None;
         let mut support = None;
         let mut extra_diagnostics = Vec::new();
         for (i, level_query) in level_queries.iter().enumerate() {
@@ -240,9 +242,17 @@ impl super::Study {
                     level_query,
                     &level_id,
                     &level_est,
+                    self.bootstrap_replicates,
                     ctx,
                 )?;
                 extra_diagnostics.extend(response.support.warnings.iter().cloned());
+                if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty {
+                    if curve {
+                        freq_curve_bounds.push((*lower, *upper));
+                    } else if freq_scalar.is_none() {
+                        freq_scalar = Some(response.uncertainty.clone());
+                    }
+                }
                 let (scalar, _) = super::response_path::response_scalar_summary(&response);
                 (scalar, None, response.support)
             };
@@ -323,12 +333,28 @@ impl super::Study {
                     interpretation: antecedent_core::IntervalInterpretation::Credible,
                     draws: None,
                 }
+            } else if curve
+                && freq_curve_bounds.len() == response_len
+                && !freq_curve_bounds.is_empty()
+            {
+                ResponseUncertainty::PointwiseBand {
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    lower: Arc::from(
+                        freq_curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>(),
+                    ),
+                    upper: Arc::from(
+                        freq_curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>(),
+                    ),
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    draws: None,
+                }
             } else if curve {
                 ResponseUncertainty::None
             } else {
                 extras_posterior
                     .as_ref()
                     .and_then(credible_scalar_uncertainty)
+                    .or(freq_scalar)
                     .unwrap_or(ResponseUncertainty::None)
             },
             support: response_support,

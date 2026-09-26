@@ -176,7 +176,8 @@ pub fn identify_static_query_with_rd(
         | IdentifierId::RdSharp
         | IdentifierId::TemporalBackdoorUnfolded
         | IdentifierId::TransportSid
-        | IdentifierId::InterferenceDesign => {
+        | IdentifierId::InterferenceDesign
+        | IdentifierId::RandomizedDesign => {
             return Err(CausalError::Unsupported {
                 message: static_identifier_refusal(identifier),
             });

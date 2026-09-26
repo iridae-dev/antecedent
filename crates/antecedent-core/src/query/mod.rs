@@ -7,14 +7,18 @@
 mod attribution;
 mod average;
 mod counterfactual;
+mod did;
 mod distribution;
 mod error;
 mod functional;
 mod interference;
 mod mediation;
 mod nested_counterfactual;
+mod policy_value;
 mod population;
+mod randomized;
 mod response;
+mod survival;
 mod target;
 mod temporal;
 mod transport;
@@ -31,6 +35,7 @@ pub use attribution::{
 };
 pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
+pub use did::PanelDidQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
@@ -40,13 +45,16 @@ pub use interference::{
 };
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
+pub use policy_value::PolicyValueQuery;
 pub use population::{PopulationRegistry, PopulationSelection};
+pub use randomized::{RandomizationDesign, RandomizedEffectQuery};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
+pub use survival::{SurvivalFunctional, SurvivalQuery};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
@@ -98,6 +106,14 @@ pub enum CausalQuery {
     Transport(TransportQuery),
     /// Randomization-based causal effect under interference.
     Interference(InterferenceQuery),
+    /// Bernoulli randomized two-arm intention-to-treat effect.
+    RandomizedEffect(RandomizedEffectQuery),
+    /// Held-out doubly robust binary policy value.
+    PolicyValue(PolicyValueQuery),
+    /// Balanced two-period panel difference in differences.
+    PanelDid(PanelDidQuery),
+    /// Randomized right-censored survival or competing-risk functional.
+    Survival(SurvivalQuery),
 }
 
 impl CausalQuery {
@@ -189,6 +205,30 @@ impl CausalQuery {
     #[must_use]
     pub fn interference(query: InterferenceQuery) -> Self {
         Self::Interference(query)
+    }
+
+    /// Construct a randomized ITT query.
+    #[must_use]
+    pub fn randomized_effect(query: RandomizedEffectQuery) -> Self {
+        Self::RandomizedEffect(query)
+    }
+
+    /// Construct a held-out policy value query.
+    #[must_use]
+    pub fn policy_value(query: PolicyValueQuery) -> Self {
+        Self::PolicyValue(query)
+    }
+
+    /// Construct a balanced-panel DiD query.
+    #[must_use]
+    pub fn panel_did(query: PanelDidQuery) -> Self {
+        Self::PanelDid(query)
+    }
+
+    /// Construct a randomized survival or competing-risk query.
+    #[must_use]
+    pub fn survival(query: SurvivalQuery) -> Self {
+        Self::Survival(query)
     }
 }
 
@@ -282,6 +322,24 @@ impl From<InterferenceQuery> for CausalQuery {
     }
 }
 
+impl From<RandomizedEffectQuery> for CausalQuery {
+    fn from(query: RandomizedEffectQuery) -> Self {
+        Self::RandomizedEffect(query)
+    }
+}
+
+impl From<PanelDidQuery> for CausalQuery {
+    fn from(query: PanelDidQuery) -> Self {
+        Self::PanelDid(query)
+    }
+}
+
+impl From<SurvivalQuery> for CausalQuery {
+    fn from(query: SurvivalQuery) -> Self {
+        Self::Survival(query)
+    }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -306,6 +364,10 @@ impl CausalQuery {
             | Self::UnitChange(_)
             | Self::Transport(_)
             | Self::Interference(_) => None,
+            Self::RandomizedEffect(_) => None,
+            Self::PolicyValue(_) => None,
+            Self::PanelDid(_) => None,
+            Self::Survival(_) => None,
         }
     }
 
@@ -327,6 +389,10 @@ impl CausalQuery {
             | Self::UnitChange(_)
             | Self::Transport(_)
             | Self::Interference(_) => None,
+            Self::RandomizedEffect(_)
+            | Self::PolicyValue(_)
+            | Self::PanelDid(_)
+            | Self::Survival(_) => None,
         }
     }
 
@@ -394,6 +460,10 @@ impl CausalQuery {
             Self::Response(q) => q.validate(),
             Self::Transport(q) => q.validate(),
             Self::Interference(q) => q.validate(),
+            Self::RandomizedEffect(q) => q.validate(),
+            Self::PolicyValue(q) => q.validate(),
+            Self::PanelDid(q) => q.validate(),
+            Self::Survival(q) => q.validate(),
         }
     }
 }

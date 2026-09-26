@@ -522,6 +522,121 @@ pub(crate) fn validate_query_ids(
                 &wire.functional;
             validate_id(*outcome, variable_count)
         }
+        Q::RandomizedEffect(wire) => {
+            validate_id(wire.outcome, variable_count)?;
+            let design = match &wire.design {
+                crate::RandomizationDesignWire::Bernoulli => {
+                    antecedent_core::RandomizationDesign::Bernoulli
+                }
+                crate::RandomizationDesignWire::Complete { treated_units } => {
+                    antecedent_core::RandomizationDesign::Complete { treated_units: *treated_units }
+                }
+                crate::RandomizationDesignWire::Stratified => {
+                    antecedent_core::RandomizationDesign::Stratified {
+                        blocks: wire
+                            .blocks
+                            .iter()
+                            .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        treated_per_row: wire.treated_per_row.clone().into(),
+                    }
+                }
+            };
+            antecedent_core::RandomizedEffectQuery::with_design(
+                design,
+                antecedent_core::VariableId::from_raw(wire.outcome),
+                wire.realized_assignment.clone(),
+                wire.assignment_probabilities.clone(),
+                wire.assignment_units
+                    .iter()
+                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>(),
+                wire.outcome_units
+                    .iter()
+                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>(),
+                (
+                    std::sync::Arc::<str>::from(wire.treatment_arms.0.as_str()),
+                    std::sync::Arc::<str>::from(wire.treatment_arms.1.as_str()),
+                ),
+            )
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
+        Q::PolicyValue(wire) => {
+            validate_id(wire.outcome, variable_count)?;
+            antecedent_core::PolicyValueQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                assignment: wire.assignment.clone().into(),
+                propensity: wire.propensity.clone().into(),
+                actions: wire.actions.clone().into(),
+                reference: wire.reference.clone().into(),
+                mu0: wire.mu0.clone().into(),
+                mu1: wire.mu1.clone().into(),
+                costs: wire.costs.clone().into(),
+                reference_costs: wire.reference_costs.clone().into(),
+                evaluation_subject_ids: wire
+                    .evaluation_subject_ids
+                    .iter()
+                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                disjoint_training_subjects: wire.disjoint_training_subjects,
+                crossfit_fold_ownership_valid: wire.crossfit_fold_ownership_valid,
+            }
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
+        Q::PanelDid(wire) => {
+            validate_id(wire.outcome, variable_count)?;
+            antecedent_core::PanelDidQuery::new(
+                antecedent_core::VariableId::from_raw(wire.outcome),
+                wire.treated.clone(),
+                wire.post.clone(),
+                wire.subjects
+                    .iter()
+                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>(),
+                wire.clusters
+                    .iter()
+                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>(),
+            )
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
+        Q::Survival(wire) => {
+            validate_id(wire.duration, variable_count)?;
+            validate_id(wire.event, variable_count)?;
+            validate_id(wire.treatment, variable_count)?;
+            if let Some(entry) = wire.delayed_entry {
+                validate_id(entry, variable_count)?;
+            }
+            if !wire.independent_observation {
+                return Err(IoError::Convert(
+                    "survival requires marginal independent observation declaration".into(),
+                ));
+            }
+            antecedent_core::SurvivalQuery {
+                duration: antecedent_core::VariableId::from_raw(wire.duration),
+                event: antecedent_core::VariableId::from_raw(wire.event),
+                treatment: antecedent_core::VariableId::from_raw(wire.treatment),
+                tau: wire.tau,
+                delayed_entry: wire.delayed_entry.map(antecedent_core::VariableId::from_raw),
+                observation_assumption: antecedent_core::ObservationAssumption::IndependentGiven(
+                    std::sync::Arc::from([]),
+                ),
+                functional: wire.target_cause.map_or(
+                    antecedent_core::SurvivalFunctional::SurvivalAndRmst,
+                    |target_cause| antecedent_core::SurvivalFunctional::CumulativeIncidence {
+                        target_cause,
+                    },
+                ),
+            }
+            .validate()
+            .map_err(|e| IoError::Convert(e.to_string()))
+        }
     }
 }
 
@@ -1340,6 +1455,22 @@ mod tests {
     #[test]
     fn current_query_survives_synthetic_0_1_container_pass_through() {
         container_pass_through_preserves_current_query(1);
+    }
+
+    #[test]
+    fn panel_did_query_round_trips_in_causal_payload_artifact() {
+        let query = CausalQueryWire::PanelDid(crate::query_wire::PanelDidQueryWire {
+            outcome: 0,
+            treated: vec![true, true, false, false],
+            post: vec![false, true, false, true],
+            subjects: vec!["a".into(), "a".into(), "b".into(), "b".into()],
+            clusters: vec!["x".into(), "x".into(), "y".into(), "y".into()],
+        });
+        let payload = CausalPayloadWire::Query(Box::new(query.clone()));
+        let artifact =
+            encode_causal_payload_artifact(&payload, vec!["outcome".into()], "panel-did-query")
+                .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 
     #[test]

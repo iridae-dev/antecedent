@@ -622,6 +622,13 @@ impl CheckedAdmgResponseCurveOperation {
         let mut member_posteriors = Vec::new();
         let mut support_status = antecedent_core::SupportStatus::Supported;
         let mut support_warnings = Vec::new();
+        // Frequentist general-ID responses publish a normal interval from the
+        // per-member front-door plug-in bootstrap SE (the sibling AverageEffect /
+        // InterventionalDistribution ADMG cells use the same resample). One
+        // `(lower, upper)` per member; the scalar case keeps its single SE.
+        let mut freq_bounds: Vec<(f64, f64)> = Vec::new();
+        let mut freq_scalar_se = f64::NAN;
+        let mut freq_replicates_ok: u32 = 0;
         for member in self.members.iter() {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled { stage: STAGE_ESTIMATE_POINT });
@@ -681,6 +688,22 @@ impl CheckedAdmgResponseCurveOperation {
                 }
             };
             means.push(value);
+            if matches!(self.inference, InferenceMode::Frequentist)
+                && value.is_finite()
+                && self.fitter.bootstrap_replicates > 0
+            {
+                let mut ws = antecedent_estimate::FunctionalDistributionWorkspace::default();
+                if let Ok(effect) = self.fitter.estimate(&member.prepared, &mut ws, ctx) {
+                    if let Some(se) = effect.se_bootstrap {
+                        if se.is_finite() && se > 0.0 {
+                            let z = crate::result::reported_se_interval_z();
+                            freq_bounds.push((value - z * se, value + z * se));
+                            freq_scalar_se = se;
+                            freq_replicates_ok = effect.bootstrap_replicates_ok.unwrap_or(0);
+                        }
+                    }
+                }
+            }
         }
         let n_draws = member_posteriors
             .first()
@@ -749,6 +772,46 @@ impl CheckedAdmgResponseCurveOperation {
             antecedent_core::ResponseFunctional::InterventionResponse { .. }
         );
         let scalar = if scalar_intervention { means[0] } else { f64::NAN };
+        // Publish the frequentist bootstrap interval only when every member
+        // returned a positive-finite SE; otherwise fail open to `None`. The
+        // support marker makes the facade report `bootstrap_se` for this band.
+        let freq_uncertainty = if matches!(self.inference, InferenceMode::Frequentist)
+            && !freq_bounds.is_empty()
+            && freq_bounds.len() == means.len()
+        {
+            support.diagnostics.push(antecedent_core::SupportDiagnostic {
+                id: Arc::from(crate::result::RESPONSE_BOOTSTRAP_SE),
+                values: Arc::from([
+                    f64::from(self.fitter.bootstrap_replicates),
+                    f64::from(freq_replicates_ok),
+                ]),
+                detail: Arc::from(
+                    "general-ID functional.effect response interval is a normal interval from the \
+                     front-door plug-in bootstrap SE [requested replicates, successful replicates]",
+                ),
+            });
+            if scalar_intervention {
+                let (lower, upper) = freq_bounds[0];
+                Some(antecedent_core::ResponseUncertainty::Scalar {
+                    standard_error: freq_scalar_se,
+                    lower,
+                    upper,
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    draws: None,
+                })
+            } else {
+                Some(antecedent_core::ResponseUncertainty::PointwiseBand {
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    lower: Arc::from(freq_bounds.iter().map(|(l, _)| *l).collect::<Vec<_>>()),
+                    upper: Arc::from(freq_bounds.iter().map(|(_, u)| *u).collect::<Vec<_>>()),
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    draws: None,
+                })
+            }
+        } else {
+            None
+        };
         let response = antecedent_core::CausalResponse {
             estimand: self.query.functional.clone(),
             identification_status: first.identification.status,
@@ -772,6 +835,7 @@ impl CheckedAdmgResponseCurveOperation {
                         super::helpers::credible_pointwise_uncertainty(posterior)
                     }
                 })
+                .or(freq_uncertainty)
                 .unwrap_or(antecedent_core::ResponseUncertainty::None),
             support,
             assumptions: first.identification.required_assumptions.clone(),
@@ -3963,6 +4027,9 @@ pub(crate) enum PreparedExecution {
     BayesianTemporalDagEffect(Box<super::CheckedBayesianTemporalEffectOperation>),
     TemporalMediation(super::execute::CheckedTemporalMediationOperation),
     Interference(super::execute::CheckedInterferenceOperation),
+    Randomized(super::execute::CheckedRandomizedOperation),
+    PolicyValue(super::execute::CheckedPolicyValueOperation),
+    PanelDid(super::execute::CheckedPanelDidOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
@@ -4049,6 +4116,9 @@ impl PreparedExecution {
             | Self::BayesianTemporalDagEffect(_)
             | Self::TemporalMediation(_)
             | Self::Interference(_)
+            | Self::Randomized(_)
+            | Self::PolicyValue(_)
+            | Self::PanelDid(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
             | Self::BayesianBasisAte(_)
@@ -6722,6 +6792,18 @@ impl PreparedStudy {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        if let PreparedExecution::Randomized(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
+        if let PreparedExecution::PolicyValue(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
+        if let PreparedExecution::PanelDid(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
         Ok(None)
     }
 
@@ -7000,7 +7082,7 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
         if let CausalQuery::Mediation(query) = &self.analysis.query {
-            if prior.treatment != query.treatment
+            if prior.treatment != Some(query.treatment)
                 || prior.outcome != query.outcome
                 || prior.identification.query != self.analysis.query
             {
@@ -7037,7 +7119,12 @@ impl PreparedStudy {
                     antecedent_core::ResponseFunctional::InterventionResponse { .. }
                 ) && prior.estimate.ate.is_finite() =>
             {
-                AverageEffectQuery::binary_ate(prior.treatment, prior.outcome)
+                AverageEffectQuery::binary_ate(
+                    prior.treatment.ok_or(CausalError::Unsupported {
+                        message: "scalar response result has no treatment id",
+                    })?,
+                    prior.outcome,
+                )
             }
             _ => {
                 return Err(CausalError::Support {
@@ -7047,7 +7134,7 @@ impl PreparedStudy {
                 });
             }
         };
-        if prior.treatment != query.treatment || prior.outcome != query.outcome {
+        if prior.treatment != Some(query.treatment) || prior.outcome != query.outcome {
             return Err(CausalError::Compile {
                 message: "refute prior result treatment/outcome does not match prepared query"
                     .into(),
@@ -8482,6 +8569,14 @@ impl Study {
                 analysis.transport_identification_cache =
                     Some(Arc::new(super::execute::live_transport_identification(diagram, query)?));
             }
+            (DataInput::Tabular(_), CausalQuery::RandomizedEffect(_), None) => {
+                // A randomized trial has design-based identification but no graph class to
+                // inspect. Preserve its typed identification cache without invoking the
+                // graph-only PAG/CPDAG cache builders below.
+                analysis.identification_cache =
+                    self.prepare_static_identification(&plan)?.map(Arc::new);
+            }
+            (DataInput::Tabular(_), CausalQuery::PolicyValue(_), None) => {}
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
@@ -10061,6 +10156,44 @@ impl Study {
             }
             _ => None,
         };
+        let checked_randomized = match (&self.data, &self.query, analysis.graph.class()) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::RandomizedEffect(_),
+                GraphClass::RandomizedTrial,
+            ) if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedRandomizedOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
+        let checked_policy_value = match (&self.data, &self.query, analysis.graph.class()) {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::PolicyValue(_),
+                GraphClass::RandomizedTrial,
+            ) if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedPolicyValueOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
+        let checked_panel_did = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::PanelDid(_), GraphClass::RandomizedTrial)
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedPanelDidOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let temporal_mediation_operation = match (
             &self.data,
             &self.query,
@@ -10627,6 +10760,12 @@ impl Study {
             PreparedExecution::TemporalDagResponse(operation)
         } else if let Some(operation) = checked_interference {
             PreparedExecution::Interference(operation)
+        } else if let Some(operation) = checked_randomized {
+            PreparedExecution::Randomized(operation)
+        } else if let Some(operation) = checked_policy_value {
+            PreparedExecution::PolicyValue(operation)
+        } else if let Some(operation) = checked_panel_did {
+            PreparedExecution::PanelDid(operation)
         } else if let Some(operation) = temporal_mediation_operation {
             PreparedExecution::TemporalMediation(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {
@@ -10711,6 +10850,14 @@ impl Study {
             DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
             identify_static_query_with_rd, select_claim, select_estimand,
         };
+        if let CausalQuery::RandomizedEffect(query) = &self.query {
+            let (identification, estimand) = super::execute::randomized_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::PanelDid(query) = &self.query {
+            let (identification, estimand) = super::execute::panel_did_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
         if matches!(self.query, CausalQuery::Counterfactual(_)) {
             let graph = self
                 .graph
@@ -11422,16 +11569,23 @@ fn overlay_prepared_score_functional(
     let (estimate, diagnostics) = if let Some(tau) = functional.quantile_level() {
         if let CausalQuery::Response(q) = query {
             super::helpers::attach_joint_quantile_from_table(
-                result.estimate.clone(),
+                result.estimate.as_effect().expect("effect query").clone(),
                 table.clone(),
                 q,
                 tau,
             )?
         } else {
-            super::helpers::attach_quantile_from_table(result.estimate.clone(), table.clone(), tau)?
+            super::helpers::attach_quantile_from_table(
+                result.estimate.as_effect().expect("effect query").clone(),
+                table.clone(),
+                tau,
+            )?
         }
     } else {
-        super::helpers::attach_score_functional_grid(result.estimate.clone(), table.clone())?
+        super::helpers::attach_score_functional_grid(
+            result.estimate.as_effect().expect("effect query").clone(),
+            table.clone(),
+        )?
     };
     if functional.quantile_level().is_some() {
         if let Some(response) = &mut result.response {
@@ -11450,7 +11604,7 @@ fn overlay_prepared_score_functional(
             };
         }
     }
-    result.estimate = estimate;
+    result.estimate = crate::PrimaryEstimate::Effect(estimate);
     result.rebind_interval(result.posterior.is_some());
     result.diagnostics.extend(diagnostics);
     Ok(())
@@ -11710,6 +11864,34 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported { message: "InterferenceQuery requires Dag" });
             }
         }
+        (DataInput::Tabular(_), CausalQuery::RandomizedEffect(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_licensed",
+                    "PreparedStudy supports randomized ITT only on a graphless Bernoulli trial"
+                ));
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::PolicyValue(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported {
+                    message: "PolicyValue requires a graphless randomized trial",
+                });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::PanelDid(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported {
+                    message: "PanelDid requires a graphless two-period panel design",
+                });
+            }
+        }
         (DataInput::Tabular(_), CausalQuery::Mediation(_)) => {
             if analysis.graph.class() != GraphClass::Dag {
                 return Err(CausalError::Unsupported { message: "static mediation requires Dag" });
@@ -11776,7 +11958,7 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                  PathSpecific, Distribution, temporal ResponseCurve, TemporalEffect (Pulse / \
                  single-step Sustained), TemporalMediationEffect, panel Pulse/Sustained, \
                  Counterfactual, AnomalyAttribution, ChangeAttribution, TransportQuery, or \
-                 InterferenceQuery"
+                 InterferenceQuery, or graphless randomized ITT"
             ));
         }
     }
