@@ -1118,6 +1118,178 @@ fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage(
 }
 
 // ---------------------------------------------------------------------------
+// Frequentist twins of the single-atom TemporalDag graph-posterior response
+// templates above. The same posterior (`single_atom_xy_dbn_posterior`, one
+// fully identified atom, weight [1.0]) and the same `noisy_xy` DGP, but under
+// `InferenceMode::Frequentist` with a circular-block bootstrap: a single
+// identified atom mixes to `StructuralAggregationPolicy::SameEstimandWeightedMean`
+// and publishes the shared `circular_block_se` interval rather than a posterior
+// quantile. The exact truth is the same structural value (`XY_TRUTH = 0.8`),
+// because the estimand is unchanged by the inference mode.
+// ---------------------------------------------------------------------------
+
+/// The reported Frequentist interval of a response surface's coordinate
+/// `index`, read from whichever uncertainty the facade publishes: a single
+/// identified point may surface as a scalar interval or as a one-cell pointwise
+/// band, and both carry the `circular_block_se` bounds at [`REPORTED_LEVEL`].
+fn freq_response_interval(result: &StudyResult, index: usize) -> Option<(f64, f64)> {
+    match &result.response.as_ref()?.uncertainty {
+        ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
+            (lower.len() > index && upper.len() > index).then(|| (lower[index], upper[index]))
+        }
+        ResponseUncertainty::Scalar { lower, upper, .. } if index == 0 => Some((*lower, *upper)),
+        _ => None,
+    }
+}
+
+/// Frequentist twin of
+/// [`bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage`].
+/// The scalar pulse intervention response at `do(X = 1)` under `noisy_xy`
+/// (`y[t] = 0.8·x[t-1] + noise`, no intercept, `X` set by the do-operator) has
+/// exact truth `E[Y | do(X=1)] = 0.8·1 = XY_TRUTH`. The posterior has one
+/// identified DBN atom, so this scores the shared circular-block interval
+/// conditional on the graph rather than graph spread.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage() {
+    const TEST: &str =
+        "frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage";
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: TEST,
+            dgp: "noisy_xy_single_atom_graph_posterior",
+            interval: "circular_block_se",
+        },
+        REPORTED_LEVEL,
+    );
+    let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let posterior = single_atom_xy_dbn_posterior();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = 0x19_4762_0000_u64 + rep * 7_919;
+        let study = Study::series(noisy_xy(grid_n(N), 19_000 + rep))
+            .graph_posterior(posterior.clone())
+            .query(CausalQuery::Response(response.clone()))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(BOOT)
+            .build()
+            .expect("one-atom temporal DAG posterior frequentist intervention response builds");
+        let result = study
+            .run(&ExecutionContext::for_tests(seed))
+            .expect("one-atom temporal DAG posterior frequentist intervention response runs");
+        (study, result)
+    });
+    for (rep, (study, result)) in runs.iter().enumerate() {
+        if rep == 0 {
+            assert_eq!(
+                result.logical_plan.estimator.as_deref(),
+                Some("temporal.response.gcomp"),
+                "single-atom TemporalDag graph-posterior response uses the g-computation estimator"
+            );
+            assert!(
+                freq_response_interval(result, 0).is_some(),
+                "the frequentist graph-posterior intervention response must publish a \
+                 circular-block interval; if it withholds the interval this coordinate is blocked"
+            );
+        }
+        bind_all(&mut [&mut tally], study, result);
+        // do(X = 1), no intercept: E[Y | do(X=1)] = 0.8·1 = XY_TRUTH.
+        match freq_response_interval(result, 0) {
+            Some(interval) => tally.record(Some(interval), XY_TRUTH),
+            None => tally.skip(),
+        }
+    }
+    tally.assert();
+}
+
+/// Frequentist twin of
+/// [`bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage`].
+/// `noisy_xy` has no intercept, so the mean curve of `y` on `x` at horizon 1 is
+/// `E[Y | do(X=a)] = 0.8·a`: truth `0.0` at `a = 0` and `XY_TRUTH = 0.8` at
+/// `a = 1`. Each grid point is scored against its own derived truth via the
+/// shared circular-block pointwise band.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
+    const TEST: &str =
+        "frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage";
+    // Grid {0.0, 1.0}; E[Y | do(X=a)] = 0.8·a under noisy_xy (no intercept).
+    const DOSES: [f64; 2] = [0.0, 1.0];
+    let mut tallies: Vec<CoverageTally> = DOSES
+        .iter()
+        .map(|dose| {
+            CoverageTally::for_record(
+                RecordKey {
+                    test: TEST,
+                    dgp: "noisy_xy_single_atom_graph_posterior",
+                    interval: "circular_block_se",
+                },
+                REPORTED_LEVEL,
+            )
+            .labelled(format!("x={dose}"))
+        })
+        .collect();
+    let query = CausalQuery::Response(
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from(DOSES.to_vec())),
+            ),
+        })
+        .with_temporal(
+            TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap(),
+        ),
+    );
+    let posterior = single_atom_xy_dbn_posterior();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = 0x19_4760_0000_u64 + rep * 7_919;
+        let study = Study::series(noisy_xy(grid_n(N), 18_000 + rep))
+            .graph_posterior(posterior.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(BOOT)
+            .build()
+            .expect("one-atom temporal DAG posterior frequentist response curve builds");
+        let result = study
+            .run(&ExecutionContext::for_tests(seed))
+            .expect("one-atom temporal DAG posterior frequentist response curve runs");
+        (study, result)
+    });
+    for (rep, (study, result)) in runs.iter().enumerate() {
+        if rep == 0 {
+            assert_eq!(
+                result.logical_plan.estimator.as_deref(),
+                Some("temporal.response.gcomp"),
+                "single-atom TemporalDag graph-posterior curve uses the g-computation estimator"
+            );
+            assert!(
+                freq_response_interval(result, 1).is_some(),
+                "the frequentist graph-posterior response curve must publish a pointwise \
+                 circular-block band; if it withholds the band this coordinate is blocked"
+            );
+        }
+        bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        for (index, tally) in tallies.iter_mut().enumerate() {
+            // E[Y | do(X=a)] = 0.8·a: 0.0 at x=0, XY_TRUTH at x=1.
+            let truth = XY_TRUTH * DOSES[index];
+            match freq_response_interval(result, index) {
+                Some(interval) => tally.record(Some(interval), truth),
+                None => tally.skip(),
+            }
+        }
+    }
+    for tally in &tallies {
+        tally.assert();
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Bayesian class-prior / DBN mixtures (BMA posterior, θ_G target)
 // ---------------------------------------------------------------------------
 
@@ -1497,6 +1669,88 @@ fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_n
     }
     mediated.assert();
     reported.emit();
+}
+
+/// Frequentist twin of
+/// [`bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage`].
+/// The same single-atom `TemporalDag` mediation posterior and `mediation_series`
+/// DGP, but under `InferenceMode::Frequentist` with a circular-block bootstrap.
+/// The one identified atom carries the mediated (natural indirect) effect, which
+/// mixes to a scalar `estimate.ate` with a shared `circular_block_se` interval
+/// (`estimate.se_bootstrap`), as `manufacturing_temporal.rs::
+/// manufacturing_dbn_posterior_frequentist_mediation_envelope` pins for this
+/// construction (estimator `temporal.mediation`, finite/positive bootstrap SE).
+/// The mediated-path truth is `MED_ALPHA·MED_DELTA = 0.6·0.5 = 0.30`
+/// (`fixtures::mediation_truth`), the path product `t[t-1] -> m -> y`, invariant
+/// to `kappa` because the mediation adjustment set blocks the `w` confounding
+/// path.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage()
+{
+    const TEST: &str =
+        "frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage";
+    // Bootstrap replicates for the shared circular block. The manufacturing
+    // envelope for this construction records replicates_ok in 20..=40 at 40.
+    const BOOT_MED: u32 = 40;
+    // MED_ALPHA·MED_DELTA = 0.6·0.5 = 0.30 (mediated path product t[t-1] -> m -> y).
+    let truth = fixtures::mediation_truth();
+    // Built inline (not via FreqTally) so the calibration-readiness classifier,
+    // which follows `.method(` calls but not `Type::assoc(` calls, sees the
+    // `CoverageTally::for_record` + `RecordKey { test }` emitter in this body —
+    // matching the two sibling TemporalDag graph-posterior response twins.
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test: TEST, dgp: MEDIATION_SERIES, interval: "circular_block_se" },
+        REPORTED_LEVEL,
+    );
+    let posterior = single_atom_mediation_dbn_posterior();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = 0x19_4763_0000_u64 + rep * 7_919;
+        let query = CausalQuery::Mediation(
+            MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                MediationContrast::Mediated,
+            )
+            .with_horizons(vec![1])
+            .unwrap(),
+        );
+        let study = Study::series(mediation_series(grid_n(N), fixtures::MED_KAPPA, 28_000 + rep))
+            .graph_posterior(posterior.clone())
+            .query(query)
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(BOOT_MED)
+            .build()
+            .expect("one-atom temporal mediation frequentist posterior builds");
+        let result = study
+            .run(&ExecutionContext::for_tests(seed))
+            .expect("one-atom temporal mediation frequentist posterior runs");
+        (study, result)
+    });
+    for (rep, (study, result)) in runs.iter().enumerate() {
+        if rep == 0 {
+            assert_eq!(
+                result.logical_plan.estimator.as_deref(),
+                Some("temporal.mediation"),
+                "single-atom TemporalDag graph-posterior mediation uses the temporal.mediation \
+                 estimator"
+            );
+            assert!(
+                freq_interval_at(result, REPORTED_LEVEL).is_some(),
+                "the frequentist graph-posterior mediation must publish a circular-block SE \
+                 interval; if it withholds the interval this coordinate is blocked"
+            );
+        }
+        bind_all(&mut [&mut tally], study, result);
+        // do(T@-1=1) mediated path product MED_ALPHA·MED_DELTA = 0.6·0.5 = 0.30.
+        match freq_interval_at(result, REPORTED_LEVEL) {
+            Some(interval) => tally.record(Some(interval), truth),
+            None => tally.skip(),
+        }
+    }
+    tally.assert();
 }
 
 // ---------------------------------------------------------------------------

@@ -582,6 +582,207 @@ fn intervention_response_pag_graph_posterior_bayesian_nominal_coverage() {
     graph_posterior_class_level_coverage(&case, tallies);
 }
 
+// ================================ Frequentist class graph-posterior responses
+
+/// Build and run a Frequentist single-atom class graph-posterior response,
+/// keeping the [`Study`] so the scored replicate can be bound to its record.
+///
+/// A single identified class atom routes through
+/// `class_posterior_response::execute_class_graph_posterior_response`, whose
+/// Frequentist branch scores each atom with the influence-function SE
+/// (`evaluate_class_atom_response_frequentist`); with one atom the reported
+/// uncertainty is that atom's own uncertainty — a Scalar `analytic_se`
+/// interval for an intervention level, a PointwiseBand `analytic_se` for a
+/// curve. (A multi-atom Frequentist curve withholds the band, so this stays
+/// single-atom.)
+fn run_freq_class_graph_posterior(
+    data: &TabularData,
+    posterior: &GraphPosterior,
+    query: ResponseQuery,
+    level: Option<f64>,
+    seed: u64,
+) -> Option<(Study, StudyResult)> {
+    let mut builder = Study::tabular(data.clone())
+        .graph_posterior(posterior.clone())
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist);
+    if let Some(level) = level {
+        builder = builder.response_options(ContinuousResponseOptions {
+            confidence_level: level,
+            ..ContinuousResponseOptions::default()
+        });
+    }
+    let study = builder.build().ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+const CPDAG_GP_FREQ_IR_CELL: Cell = Cell {
+    graph_class: "Cpdag",
+    estimator: "response.intervention_gcomp",
+    interval_method: "analytic_se",
+    dgp: "cpdag_data",
+    n: 500,
+};
+
+/// Frequentist single-atom CPDAG graph-posterior `E[Y | do(T = 1)]`.
+///
+/// Truth is the population marginal, not the sample-covariate level the
+/// Bayesian class response targets: the influence-function SE already accounts
+/// for standardizing over the sample (see the Ready PAG Frequentist tests).
+/// Under `cpdag_data` (`y = t + z + e`, `z ~ N(0,1)`, `t = 0.8 z + e`) the
+/// identified CPDAG completion adjusts `{z}`, so
+/// `E[Y | do(T = 1)] = 1 + E[z] = 1.0`.
+const CPDAG_GP_FREQ_IR_TRUTH: f64 = 1.0;
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage() {
+    let test = "intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage";
+    let mut tallies = keyed_pair(test, CPDAG_GP_FREQ_IR_CELL);
+    let posterior = single_class_graph_posterior(&Structure::Cpdag(agreeing_cpdag()));
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0F51, rep);
+        let data = cpdag_data(grid_n(CPDAG_GP_FREQ_IR_CELL.n as usize), seed);
+        let (study, result) =
+            run_freq_class_graph_posterior(&data, &posterior, level_query(1.0), None, seed)?;
+        let pair = response_normal_pair(&result);
+        if rep == 0 {
+            assert_eq!(
+                result.logical_plan.estimator.as_deref(),
+                Some(CPDAG_GP_FREQ_IR_CELL.estimator),
+                "the default class graph-posterior intervention estimator"
+            );
+            assert!(
+                response_scalar(&result).is_some(),
+                "a single identified class atom publishes its analytic-SE scalar interval"
+            );
+            assert!(pair[0].is_some() && pair[1].is_some(), "both levels derive from the SE");
+            let structural = result.structural_response.as_ref().expect("posterior atom evidence");
+            assert_eq!(structural.atoms.len(), 1, "the graph posterior is single-atom");
+        }
+        Some((study, result, pair))
+    });
+    for scored in &runs {
+        let Some((study, result, pair)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, *pair, CPDAG_GP_FREQ_IR_TRUTH);
+    }
+    gate(&tallies, &[None, None]);
+}
+
+const CPDAG_GP_FREQ_CURVE_CELL: Cell = Cell {
+    graph_class: "Cpdag",
+    estimator: "response.kennedy_dr",
+    interval_method: "analytic_se",
+    dgp: "cpdag_data",
+    n: 500,
+};
+
+/// Per grid point `a`, the population dose-response of `cpdag_data`
+/// (`y = t + z + e`, `z ~ N(0,1)`): the identified completion adjusts `{z}`,
+/// so `E[Y | do(T = a)] = a + E[z] = a`. Frequentist truth is the population
+/// marginal (the IF SE standardizes over the sample).
+fn cpdag_gp_freq_curve_truth(a: f64) -> f64 {
+    a
+}
+
+/// Frequentist single-atom CPDAG graph-posterior pointwise band of `m(a)` on
+/// [`GRID`]. The band's five coordinates move together, so this measures at
+/// [`PRECISION_N_SIM`] replicates. The reported 0.95 band and the facade's own
+/// 0.90 band come from two runs of the same data and seed.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage() {
+    let test = "response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage";
+    let cell = CPDAG_GP_FREQ_CURVE_CELL;
+    let mut tallies: Vec<CoverageTally> = GRID
+        .iter()
+        .flat_map(|&a| {
+            let label = band_label(a);
+            [
+                keyed(test, cell, REPORTED_LEVEL).labelled(label.clone()),
+                keyed(test, cell, GATE_LEVEL).labelled(label),
+            ]
+        })
+        .collect();
+    let posterior = single_class_graph_posterior(&Structure::Cpdag(agreeing_cpdag()));
+    let runs = map_replicates(n_sim_at_least(PRECISION_N_SIM), |rep| {
+        let seed = stream_seed(0x110_0F62, rep);
+        let data = cpdag_data(grid_n(cell.n as usize), seed);
+        let reported = run_freq_class_graph_posterior(&data, &posterior, curve_query(), None, seed);
+        let gate_run =
+            run_freq_class_graph_posterior(&data, &posterior, curve_query(), Some(GATE_LEVEL), seed);
+        let (Some((reported_study, reported)), Some((gate_study, gate_run))) = (reported, gate_run)
+        else {
+            return None;
+        };
+        let bands = [response_band(&reported), response_band(&gate_run)];
+        if rep == 0 {
+            assert_eq!(
+                reported.logical_plan.estimator.as_deref(),
+                Some(cell.estimator),
+                "the default class graph-posterior curve estimator"
+            );
+            let band = bands[0].as_ref().expect("single-atom class GP publishes its analytic band");
+            assert_eq!(band.0.len(), GRID.len(), "one band coordinate per grid point");
+            assert!(bands[1].is_some(), "the gate-level band is the facade's own construction");
+            let structural = reported.structural_response.as_ref().expect("posterior atom evidence");
+            assert_eq!(structural.atoms.len(), 1, "the graph posterior is single-atom");
+        }
+        Some(((reported_study, reported), (gate_study, gate_run), bands))
+    });
+    for scored in &runs {
+        let Some(((reported_study, reported), (gate_study, gate_run), bands)) = scored else {
+            for tally in &mut tallies {
+                tally.skip();
+            }
+            continue;
+        };
+        {
+            let (mut at_reported, mut at_gate) = (Vec::new(), Vec::new());
+            for (i, tally) in tallies.iter_mut().enumerate() {
+                if i % 2 == 0 {
+                    at_reported.push(tally);
+                } else {
+                    at_gate.push(tally);
+                }
+            }
+            bind_all(&mut at_reported, reported_study, reported);
+            bind_all(&mut at_gate, gate_study, gate_run);
+        }
+        for (j, &a) in GRID.iter().enumerate() {
+            let truth = cpdag_gp_freq_curve_truth(a);
+            for (k, level) in [REPORTED_LEVEL, GATE_LEVEL].into_iter().enumerate() {
+                let interval = bands[k].as_ref().map(|(lower, upper, published)| {
+                    assert!((published - level).abs() < 1e-12, "published level {published}");
+                    (lower[j], upper[j])
+                });
+                tallies[2 * j + k].record(interval, truth);
+            }
+        }
+    }
+    gate_at(&tallies, &CPDAG_GP_FREQ_CURVE_MEASURED);
+}
+
+/// No boundary cells: this coordinate has not been measured yet, so every grid
+/// point gates at nominal until a calibration run records its rates.
+const CPDAG_GP_FREQ_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+];
+
 /// Bayesian class-aware `E[Y | do(T = 1)]`: the 0.95 interval the study
 /// reports, and the facade's own 0.90 interval on the same data and seed.
 fn class_level_coverage(test: &'static str, case: &ClassCase) {
