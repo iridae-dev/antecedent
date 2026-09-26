@@ -266,22 +266,30 @@ impl TheoremScope {
 
     /// Single-source z-transportability within 12 observed and 4 controllable variables.
     ///
-    /// A positive result is a checked `TRz` formula executable from the joints it
-    /// cites. A line-11 obstruction is structural in the declared controllable
-    /// set and does not require the experiment power set. Two sources may be
-    /// searched separately; cross-source combination is refused by name. An
-    /// empirical interval is a nominal percentile bootstrap, not a coverage
-    /// claim. The guarantee stays sound and incomplete. Outcome-kernel
-    /// sensitivity applies only to the registered surrogate factorization.
+    /// The recursion is Bareinboim and Pearl's `TR^z` (AAAI 2013, Figure 4):
+    /// lines 1–4, 7 and 8 follow ID, line 10 exchanges the active controllables
+    /// for a source experiment, and line 11 is the terminal failure. The kernel
+    /// taken at a line-10 exchange is the source c-factor, identified from the
+    /// cited source law by the same recursion on the graph with the exchanged
+    /// coordinates removed; that step is Lee and Honavar's `sID^z` line 7
+    /// (arXiv:1309.6842, Lemma 5), which the registry cites as the shared
+    /// reference of the two algorithms. A positive result is a checked formula
+    /// executable from the joints it cites. A line-11 obstruction is structural
+    /// in one declared controllable set and does not require the experiment
+    /// power set. Two sources may be searched separately; cross-source
+    /// combination is refused by name. An empirical interval is a nominal
+    /// percentile bootstrap, not a coverage claim. The guarantee stays sound
+    /// and incomplete. Outcome-kernel sensitivity applies only to the
+    /// registered surrogate factorization.
     #[must_use]
     pub fn z_transportability() -> Self {
         Self {
             family: TheoremFamily::ZTransportability,
             reference: TheoremReference {
                 citation: Arc::from(
-                    "Bareinboim & Pearl, Causal Transportability with Limited Experiments, AAAI 2013",
+                    "Bareinboim & Pearl, Causal Transportability with Limited Experiments, AAAI 2013 (TR^z recursion); Lee & Honavar, Causal Transportability of Experiments on Controllable Subsets of Variables: z-Transportability, UAI 2013, arXiv:1309.6842 (line-10 c-factor identification, sID^z line 7)",
                 ),
-                version: Arc::from("bareinboim-pearl-trz-aaai2013-bounded-v1"),
+                version: Arc::from("bareinboim-pearl-trz-aaai2013-lee-honavar-c-factor-bounded-v2"),
             },
             graph_assumptions: GraphAssumptionSet::SemiMarkovianSelectionAdmg,
             observed: Arc::from([]),
