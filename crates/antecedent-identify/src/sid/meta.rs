@@ -1,9 +1,9 @@
 //! Classical meta-transportability (Bareinboim & Pearl 2013, Figure 5).
 use super::{
     Admg, Arc, CatalogTransportResult, ClassicalTransportDerivation, ClassicalTransportQuery,
-    ClassicalTransportResult, Engine, ExecutionContext, IdentificationError, SHedgeCertificate,
-    SelectionDiagram, SidLimits, VariableId, graph_signature, identify_catalog_transport,
-    verify_classical_transport, verify_s_hedge,
+    ClassicalTransportResult, Engine, ExecutionContext, IdentificationBudget, IdentificationError,
+    SHedgeCertificate, SelectionDiagram, SidLimits, VariableId, graph_signature,
+    identify_catalog_transport, verify_classical_transport, verify_s_hedge,
 };
 
 pub(super) const CLASSICAL_SETTING: &str = "classical_single_source_all_experiments_v1";
@@ -66,7 +66,7 @@ impl ClassicalTransportDerivation {
         self.check_catalog_binding_resources(catalog, limits, ctx)?;
         let bound = self.bind_catalog(catalog)?;
         if ctx.cancellation.is_cancelled() {
-            return Err(IdentificationError::msg("transport.cancelled"));
+            return Err(IdentificationError::Cancelled);
         }
         Ok(bound)
     }
@@ -86,28 +86,18 @@ impl ClassicalTransportDerivation {
                     .checked_add(r.conditioned_on.len())?
                     .checked_add(1)
             })
-            .ok_or_else(|| IdentificationError::msg("transport.binding_budget"))?;
+            .ok_or(IdentificationError::budget(IdentificationBudget::Binding))?;
         let work = width
             .checked_mul(self.arena.len().max(1))
-            .ok_or_else(|| IdentificationError::msg("transport.binding_budget"))?;
+            .ok_or(IdentificationError::budget(IdentificationBudget::Binding))?;
         let bytes = width
             .checked_mul(128)
             .and_then(|n| n.checked_add(catalog.bindings.len().checked_mul(256)?))
-            .ok_or_else(|| IdentificationError::msg("transport.memory_budget"))?;
-        if ctx.cancellation.is_cancelled() {
-            return Err(IdentificationError::msg("transport.cancelled"));
-        }
+            .ok_or(IdentificationError::budget(IdentificationBudget::BindingMemory))?;
         if work > limits.steps {
-            return Err(IdentificationError::msg("transport.binding_budget"));
+            return Err(IdentificationError::budget(IdentificationBudget::Binding));
         }
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .is_some_and(|limit| u64::try_from(bytes).map_or(true, |n| n > limit))
-        {
-            return Err(IdentificationError::msg("transport.memory_budget"));
-        }
-        Ok(())
+        super::refuse_over_budget(bytes, ctx, IdentificationBudget::BindingMemory)
     }
 
     /// Search finite-catalog alternatives under this proof's original scientific inputs.
@@ -150,7 +140,7 @@ pub(super) fn check_meta_resources(
     let work = sources
         .iter()
         .try_fold(0usize, |n, s| n.checked_add(s.selections.len().checked_add(1)?))
-        .ok_or_else(|| IdentificationError::msg("transport.identification_budget"))?;
+        .ok_or(IdentificationError::budget(IdentificationBudget::Steps))?;
     let bytes = sources
         .iter()
         .try_fold(0usize, |n, s| {
@@ -160,21 +150,11 @@ pub(super) fn check_meta_resources(
         })
         .and_then(|n| n.checked_add(graph.node_count().checked_mul(64)?))
         .and_then(|n| n.checked_mul(4))
-        .ok_or_else(|| IdentificationError::msg("transport.identification_budget"))?;
-    if ctx.cancellation.is_cancelled() {
-        return Err(IdentificationError::msg("transport.cancelled"));
-    }
+        .ok_or(IdentificationError::budget(IdentificationBudget::Steps))?;
     if work > steps {
-        return Err(IdentificationError::msg("transport.identification_budget"));
+        return Err(IdentificationError::budget(IdentificationBudget::Steps));
     }
-    if ctx
-        .memory
-        .hard_limit_bytes
-        .is_some_and(|limit| u64::try_from(bytes).map_or(true, |n| n > limit))
-    {
-        return Err(IdentificationError::msg("transport.memory_budget"));
-    }
-    Ok(())
+    super::refuse_over_budget(bytes, ctx, IdentificationBudget::BindingMemory)
 }
 pub(super) fn validate_meta_sources(
     graph: &Admg,
@@ -187,14 +167,18 @@ pub(super) fn validate_meta_sources(
     if sources[0].population != query.source.as_ref()
         || sources.windows(2).any(|s| s[0].population >= s[1].population)
     {
-        return Err(IdentificationError::msg("invalid canonical meta source identities"));
+        return Err(IdentificationError::invalid_input(
+            "transport.invalid_query: invalid canonical meta source identities",
+        ));
     }
     for source in sources {
         if source.population.trim().is_empty()
             || source.population == query.target.as_ref()
             || source.selections.windows(2).any(|v| v[0] >= v[1])
         {
-            return Err(IdentificationError::msg("invalid meta source/selection contract"));
+            return Err(IdentificationError::invalid_input(
+                "transport.invalid_query: invalid meta source/selection contract",
+            ));
         }
         SelectionDiagram::try_new(
             graph.clone(),
@@ -213,15 +197,16 @@ impl MetaTransportQuery {
         target: Arc<str>,
         catalog: &antecedent_core::EvidenceCatalog,
     ) -> Result<Self, IdentificationError> {
-        catalog.validate().map_err(|e| IdentificationError::msg(e.to_string()))?;
-        let target_environment = catalog
-            .environments
-            .iter()
-            .find(|e| e.identity == target)
-            .ok_or_else(|| IdentificationError::msg("missing target environment"))?;
+        catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
+        let target_environment =
+            catalog.environments.iter().find(|e| e.identity == target).ok_or_else(|| {
+                IdentificationError::invalid_catalog(
+                    "transport.invalid_input: missing target environment",
+                )
+            })?;
         if !target_environment.selection_targets.is_empty() {
-            return Err(IdentificationError::msg(
-                "target environment cannot declare selection differences from itself",
+            return Err(IdentificationError::invalid_catalog(
+                "transport.invalid_input: target environment cannot declare selection differences from itself",
             ));
         }
         let sources = catalog
@@ -245,9 +230,11 @@ impl MetaTransportQuery {
         for source in &mut sources {
             source.selections.sort_unstable();
         }
-        let first = sources
-            .first()
-            .ok_or_else(|| IdentificationError::msg("meta transport requires a source"))?;
+        let first = sources.first().ok_or_else(|| {
+            IdentificationError::invalid_input(
+                "transport.invalid_query: meta transport requires a source",
+            )
+        })?;
         let query = ClassicalTransportQuery {
             outcomes: self.outcomes.clone(),
             treatments: self.treatments.clone(),
@@ -282,13 +269,14 @@ pub fn identify_meta_transport(
         result = engine.solve(state, true, 0)?;
     }
     if let Some(root_step) = result {
+        let (steps, root_step) = super::reachable_proof(&engine.proof, root_step);
         let proof = ClassicalTransportDerivation {
             query: query.clone(),
             graph_signature: graph_signature(&diagram),
             selection_targets: diagram.selection_targets().into(),
-            root: engine.proof[root_step].output,
+            root: steps[root_step].output,
             arena: engine.arena,
-            proof: engine.proof,
+            proof: steps,
             root_step,
             sources,
         };
@@ -298,13 +286,19 @@ pub fn identify_meta_transport(
     if let Some(state) = engine.obstruction.clone() {
         if let Some(mut witness) = engine.negative_witness(&state)? {
             witness.sources = sources;
-            if verify_s_hedge(&diagram, &query, &witness, ctx).is_ok() {
-                return Ok(ClassicalTransportResult::ProvenNonTransportable(witness));
+            // Only a witness that is not a common s-hedge is inconclusive; a
+            // budget, cancellation or graph failure while checking it is an error.
+            match verify_s_hedge(&diagram, &query, &witness, ctx) {
+                Ok(()) => return Ok(ClassicalTransportResult::ProvenNonTransportable(witness)),
+                Err(IdentificationError::InvalidDerivation {
+                    code: "transport.invalid_s_hedge",
+                }) => {}
+                Err(error) => return Err(error),
             }
         }
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(IdentificationError::msg("transport.cancelled"));
+        return Err(IdentificationError::Cancelled);
     }
     Ok(ClassicalTransportResult::NotCertified)
 }
@@ -320,7 +314,7 @@ pub fn identify_meta_catalog(
 ) -> Result<CatalogTransportResult, IdentificationError> {
     check_meta_resources(graph, &query.sources, limits.steps, ctx)?;
     let (query, diagram, sources) = query.canonical(graph)?;
-    catalog.validate().map_err(|e| IdentificationError::msg(e.to_string()))?;
+    catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     let mut engine = Engine::new(&diagram, &query, limits, ctx)?;
     engine.sources.clone_from(&sources);
     let state = engine.initial()?;
@@ -333,19 +327,20 @@ pub fn identify_meta_catalog(
         }
         if let Some(root_step) = engine.solve(state.clone(), strategy != 0, 0)? {
             had_derivation = true;
+            let (steps, root_step) = super::reachable_proof(&engine.proof, root_step);
             let proof = ClassicalTransportDerivation {
                 query: query.clone(),
                 graph_signature: graph_signature(&diagram),
                 selection_targets: diagram.selection_targets().into(),
-                root: engine.proof[root_step].output,
+                root: steps[root_step].output,
                 arena: engine.arena.clone(),
-                proof: engine.proof.clone(),
+                proof: steps,
                 root_step,
                 sources: sources.clone(),
             };
             verify_classical_transport(&diagram, &query, &proof, limits, ctx)?;
             proof.check_catalog_binding_resources(catalog, limits, ctx)?;
-            match proof.bind_catalog(catalog) {
+            match proof.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {
                     bound.searched =
                         ["target_only_id", "canonical_meta_sid", "catalog_available_meta_sid"]
@@ -382,7 +377,9 @@ pub fn verify_meta_transport(
     check_meta_resources(graph, &query.sources, limits.steps, ctx)?;
     let (query, diagram, sources) = query.canonical(graph)?;
     if proof.sources != sources {
-        return Err(IdentificationError::msg("meta proof source collection mismatch"));
+        return Err(IdentificationError::invalid_derivation(
+            "transport.invalid_derivation: meta proof source collection mismatch",
+        ));
     }
     verify_classical_transport(&diagram, &query, proof, limits, ctx)
 }
@@ -398,7 +395,9 @@ pub fn verify_meta_s_hedge(
     check_meta_resources(graph, &query.sources, usize::MAX, ctx)?;
     let (query, diagram, sources) = query.canonical(graph)?;
     if witness.sources != sources {
-        return Err(IdentificationError::msg("meta witness source collection mismatch"));
+        return Err(IdentificationError::invalid_derivation(
+            "transport.invalid_s_hedge: meta witness source collection mismatch",
+        ));
     }
     verify_s_hedge(&diagram, &query, witness, ctx)
 }
@@ -497,8 +496,29 @@ mod tests {
         let mut record = witness.to_record();
         record.sources[1].selections.clear();
         assert!(SHedgeCertificate::from_record_checked(record, &diagram, &query, &ctx).is_err());
-        assert!(
-            identify_meta_transport(&graph(), &q, SidLimits { steps: 1, depth: 1 }, &ctx).is_err()
-        );
+        // The first source's selections are the diagram's; a record that
+        // relabels them describes another diagram and is refused.
+        let mut relabelled = witness.to_record();
+        relabelled.sources[0].selections = vec![1];
+        assert!(matches!(
+            SHedgeCertificate::from_record_checked(relabelled, &diagram, &query, &ctx),
+            Err(IdentificationError::InvalidDerivation { code: "transport.invalid_s_hedge" })
+        ));
+        assert!(matches!(
+            identify_meta_transport(&graph(), &q, SidLimits { steps: 1, depth: 1 }, &ctx),
+            Err(IdentificationError::Budget { .. })
+        ));
+    }
+
+    #[test]
+    fn a_cancelled_witness_check_is_a_cancellation_not_an_inconclusive_result() {
+        let mut q = query();
+        q.sources[1].selections = vec![2];
+        let cancelled = ExecutionContext::for_tests(0);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            identify_meta_transport(&graph(), &q, SidLimits::default(), &cancelled),
+            Err(IdentificationError::Cancelled)
+        ));
     }
 }

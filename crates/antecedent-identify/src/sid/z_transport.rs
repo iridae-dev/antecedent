@@ -6,7 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::IdentificationError;
+use super::{IdentificationBudget, IdentificationError};
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind,
     InterventionAssignment as CatalogInterventionAssignment, RegimeKind, VariableDomain,
@@ -211,13 +211,20 @@ pub struct ZTransportTerminalRecord {
     pub rules: Vec<String>,
 }
 
-/// A checked derivation for the registered four-variable surrogate experiment.
+/// A checked z-transport derivation: the registered four-variable surrogate
+/// factorization, a direct joint source exchange, or a recursive `TRz` formula.
+///
+/// Every constructor checks the derivation against its diagram and query, so a
+/// value of this type is verified; only an untrusted portable record is
+/// re-verified, by [`Self::from_record_checked`].
 #[derive(Clone, Debug)]
 pub struct ZTransportDerivation {
     query: ZTransportQuery,
     graph_signature: String,
-    surrogate: VariableId,
-    confounder: VariableId,
+    /// The exchanged source coordinate of a surrogate or direct-joint formula.
+    surrogate: Option<VariableId>,
+    /// The covariate the registered surrogate formula marginalizes.
+    confounder: Option<VariableId>,
     arena: CausalExprArena,
     root: ExprId,
     kind: ZFormulaKind,
@@ -238,10 +245,14 @@ enum ZFormulaKind {
 pub struct ZTransportDerivationRecord {
     /// Stable graph identity, including selection targets.
     pub graph_signature: String,
-    /// Surrogate intervention coordinate used by this derivation.
-    pub surrogate: u32,
-    /// Shared covariate eliminated by the formula.
-    pub confounder: u32,
+    /// Surrogate intervention coordinate of a surrogate or direct-joint
+    /// formula; absent on a recursive derivation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surrogate: Option<u32>,
+    /// Shared covariate the registered surrogate formula eliminates; absent
+    /// on the other kinds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confounder: Option<u32>,
     /// Root expression identifier in the accompanying arena.
     pub root: u32,
     /// Checked rule names, in derivation order.
@@ -249,7 +260,8 @@ pub struct ZTransportDerivationRecord {
 }
 
 /// One reachable operation in a compact, inspectable formula DAG.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ZProofOperation {
     /// Expression node ID.
     pub id: u32,
@@ -260,7 +272,8 @@ pub struct ZProofOperation {
 }
 
 /// A required joint-law factor and the actual catalog entries that can supply it.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ZFactorObligation {
     /// Expression leaf ID.
     pub leaf: u32,
@@ -279,7 +292,8 @@ pub struct ZFactorObligation {
 }
 
 /// Formula graph and evidence obligations for a checked z derivation.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ZTransportProofInspection {
     /// Root expression node.
     pub root: u32,
@@ -359,41 +373,69 @@ impl ZTransportDerivation {
     pub fn to_record(&self) -> ZTransportDerivationRecord {
         ZTransportDerivationRecord {
             graph_signature: self.graph_signature.clone(),
-            surrogate: self.surrogate.raw(),
-            confounder: self.confounder.raw(),
+            surrogate: self.surrogate.map(VariableId::raw),
+            confounder: self.confounder.map(VariableId::raw),
             root: self.root.raw(),
             rules: self.rules.clone(),
         }
     }
 
     /// Reconstruct authority only after the graph, query, and every expression
-    /// node have been checked against the registered derivation.
+    /// node have been checked against the registered derivation, under the
+    /// caller's search limits and execution context.
     ///
     /// # Errors
-    /// Returns an error if any recorded premise or expression differs.
+    /// Returns an error if any recorded premise or expression differs, or the
+    /// replay exhausts its budget or is cancelled.
     pub fn from_record_checked(
         diagram: &SelectionDiagram,
         query: &ZTransportQuery,
         record: &ZTransportDerivationRecord,
         arena: CausalExprArena,
+        limits: super::SidLimits,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, IdentificationError> {
         let candidate = Self {
             query: query.clone(),
             graph_signature: record.graph_signature.clone(),
-            surrogate: VariableId::from_raw(record.surrogate),
-            confounder: VariableId::from_raw(record.confounder),
+            surrogate: record.surrogate.map(VariableId::from_raw),
+            confounder: record.confounder.map(VariableId::from_raw),
             arena,
             root: ExprId::from_raw(record.root),
             kind: match record.rules.first().map(String::as_str) {
                 Some("ztr.surrogate_factorization") => ZFormulaKind::Surrogate,
                 Some("ztr.source_exchange_joint") => ZFormulaKind::DirectJoint,
                 Some("ztr.recursive_reduction") => ZFormulaKind::Recursive,
-                _ => return Err(IdentificationError::msg("z_transport.proof_rule_mismatch")),
+                _ => {
+                    return Err(IdentificationError::invalid_derivation(
+                        "z_transport.proof_rule_mismatch",
+                    ));
+                }
             },
             rules: record.rules.clone(),
         };
-        verify_z_transport_derivation(diagram, query, &candidate)?;
+        verify_z_transport_derivation(diagram, query, &candidate, limits, ctx)?;
         Ok(candidate)
+    }
+
+    /// Check that this derivation was derived for exactly `diagram` and
+    /// `query`. A derivation is verified when constructed, so binding needs no
+    /// second search; this is the input identity it still has to prove.
+    ///
+    /// # Errors
+    /// A different query or graph.
+    pub fn check_inputs(
+        &self,
+        diagram: &SelectionDiagram,
+        query: &ZTransportQuery,
+    ) -> Result<(), IdentificationError> {
+        validate_z_transport_query(diagram, query)?;
+        if self.query != *query || self.graph_signature != super::graph_signature(diagram) {
+            return Err(IdentificationError::invalid_derivation(
+                "z_transport.proof_input_mismatch",
+            ));
+        }
+        Ok(())
     }
     /// Original typed z-transport query.
     #[must_use]
@@ -401,9 +443,11 @@ impl ZTransportDerivation {
         &self.query
     }
 
-    /// Surrogate variable manipulated in the source experiment.
+    /// Surrogate variable manipulated in the source experiment of a surrogate
+    /// or direct-joint formula. A recursive derivation exchanges its
+    /// coordinates inside the formula and names none here.
     #[must_use]
-    pub const fn surrogate(&self) -> VariableId {
+    pub const fn surrogate(&self) -> Option<VariableId> {
         self.surrogate
     }
 
@@ -413,9 +457,10 @@ impl ZTransportDerivation {
         &self.query.experiment_assignment
     }
 
-    /// Shared confounder marginalized by the formula.
+    /// Shared confounder the registered surrogate formula marginalizes; the
+    /// other kinds have none.
     #[must_use]
-    pub const fn confounder(&self) -> VariableId {
+    pub const fn confounder(&self) -> Option<VariableId> {
         self.confounder
     }
 
@@ -459,10 +504,14 @@ pub fn validate_z_transport_query(
     query: &ZTransportQuery,
 ) -> Result<(), IdentificationError> {
     if diagram.causal_graph().node_count() > Z_TRANSPORT_MAX_OBSERVED {
-        return Err(IdentificationError::msg("z_transport.unsupported_observed_count"));
+        return Err(IdentificationError::UnsupportedInput {
+            code: "z_transport.unsupported_observed_count",
+        });
     }
     if query.controllable.is_empty() || query.controllable.len() > Z_TRANSPORT_MAX_CONTROLLABLE {
-        return Err(IdentificationError::msg("z_transport.unsupported_controllable_count"));
+        return Err(IdentificationError::UnsupportedInput {
+            code: "z_transport.unsupported_controllable_count",
+        });
     }
     if query.outcomes.is_empty()
         || query.treatments.is_empty()
@@ -470,22 +519,22 @@ pub fn validate_z_transport_query(
         || query.target.trim().is_empty()
         || query.source == query.target
     {
-        return Err(IdentificationError::msg("z_transport.invalid_query"));
+        return Err(IdentificationError::invalid_input("z_transport.invalid_query"));
     }
 
     for group in [&query.outcomes, &query.treatments, &query.controllable] {
         let mut seen = std::collections::BTreeSet::new();
         for variable in group.iter().copied() {
             if !diagram.causal_graph().nodes().contains(&NodeRef::Static(variable)) {
-                return Err(IdentificationError::msg("z_transport.unknown_variable"));
+                return Err(IdentificationError::invalid_input("z_transport.unknown_variable"));
             }
             if !seen.insert(variable.raw()) {
-                return Err(IdentificationError::msg("z_transport.duplicate_variable"));
+                return Err(IdentificationError::invalid_input("z_transport.duplicate_variable"));
             }
         }
     }
     if query.outcomes.iter().any(|v| query.treatments.contains(v)) {
-        return Err(IdentificationError::msg("z_transport.outcomes_overlap_treatments"));
+        return Err(IdentificationError::invalid_input("z_transport.outcomes_overlap_treatments"));
     }
     let mut assigned = std::collections::BTreeSet::new();
     for assignment in query.experiment_assignment.iter() {
@@ -493,7 +542,9 @@ pub fn validate_z_transport_query(
             || !assigned.insert(assignment.variable.raw())
             || assignment.value.validate_concrete_intervention_level().is_err()
         {
-            return Err(IdentificationError::msg("z_transport.invalid_experiment_assignment"));
+            return Err(IdentificationError::invalid_input(
+                "z_transport.invalid_experiment_assignment",
+            ));
         }
     }
     Ok(())
@@ -656,21 +707,21 @@ pub fn decide_z_transport_with_catalog(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportDecision, IdentificationError> {
-    catalog.validate().map_err(|_| IdentificationError::msg("z_transport.invalid_catalog"))?;
+    catalog.validate().map_err(|error| {
+        IdentificationError::invalid_catalog(format!("z_transport.invalid_catalog: {error}"))
+    })?;
     match derive_z_transport(diagram, query, limits, ctx)? {
         ZDerivation::Formula(derivation) => {
             match bind_z_transport_catalog(diagram, derivation.query(), &derivation, catalog) {
                 Ok(_) => Ok(ZTransportDecision::Identified(Box::new(derivation))),
-                Err(error) => {
-                    let detail = error.to_string();
-                    if detail.contains("z_transport.missing_evidence") {
-                        Ok(ZTransportDecision::MissingEvidence {
-                            missing: ZTransportMissingEvidence::CitedFactor { detail },
-                        })
-                    } else {
-                        Err(error)
-                    }
+                Err(error @ IdentificationError::MissingEvidence { .. }) => {
+                    Ok(ZTransportDecision::MissingEvidence {
+                        missing: ZTransportMissingEvidence::CitedFactor {
+                            detail: error.to_string(),
+                        },
+                    })
                 }
+                Err(error) => Err(error),
             }
         }
         ZDerivation::Unassigned { variable } => Ok(ZTransportDecision::MissingEvidence {
@@ -686,14 +737,16 @@ pub fn decide_z_transport_with_catalog(
 /// Search two sources separately on a shared causal graph.
 ///
 /// One identifying source is enough, and the other source's catalog is not
-/// required. Both line-11 terminals become one obstruction. A result that
-/// would mix a factor from each source is refused by name. This does not call
-/// classical meta-transport, which assumes every source can experiment on
-/// every variable.
+/// required: both sources are searched, and a failure of one source does not
+/// hide an identification by the other. Two line-11 terminals become one
+/// obstruction only for one experiment family. A result that would mix a
+/// factor from each source is refused by name. This does not call classical
+/// meta-transport, which assumes every source can experiment on every variable.
 ///
 /// # Errors
 /// A source population collides with the other source or the target, a
-/// selection diagram is invalid, or a single-source search fails.
+/// selection diagram is invalid, or neither source identifies and one search
+/// failed (the first failure is reported).
 pub fn decide_two_source_z_transport(
     graph: &antecedent_graph::Admg,
     query: &TwoSourceZTransportQuery,
@@ -704,13 +757,15 @@ pub fn decide_two_source_z_transport(
     if query.sources[0].population == query.sources[1].population
         || query.sources.iter().any(|source| source.population == query.target)
     {
-        return Err(IdentificationError::msg("z_transport.two_source_population_collision"));
+        return Err(IdentificationError::invalid_input(
+            "z_transport.two_source_population_collision",
+        ));
     }
     let mut decisions = Vec::with_capacity(2);
     for (source, catalog) in query.sources.iter().zip(catalogs) {
         let diagram =
             SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
-                .map_err(|error| IdentificationError::msg(error.to_string()))?;
+                .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
         let single = ZTransportQuery {
             outcomes: Arc::clone(&query.outcomes),
             treatments: Arc::clone(&query.treatments),
@@ -719,16 +774,17 @@ pub fn decide_two_source_z_transport(
             source: Arc::clone(&source.population),
             target: Arc::clone(&query.target),
         };
-        decisions.push(decide_z_transport_with_catalog(&diagram, &single, catalog, limits, ctx)?);
+        decisions.push(decide_z_transport_with_catalog(&diagram, &single, catalog, limits, ctx));
     }
     for (source, decision) in query.sources.iter().zip(&decisions) {
-        if let ZTransportDecision::Identified(derivation) = decision {
+        if let Ok(ZTransportDecision::Identified(derivation)) = decision {
             return Ok(TwoSourceZTransportDecision::Identified {
                 source: Arc::clone(&source.population),
                 derivation: derivation.clone(),
             });
         }
     }
+    let decisions = decisions.into_iter().collect::<Result<Vec<_>, _>>()?;
     // A line-11 terminal is an obstruction relative to one source's experiment
     // family. Two such terminals rule out the union of the families only when
     // the union is one of them: the sources declare the same controllable set
@@ -805,6 +861,9 @@ impl ZTransportObstruction {
 
     /// Reconstruct an obstruction only after line-11 replay.
     ///
+    /// The obstruction is structural: the search is replayed on the diagram
+    /// and query alone, and no catalog is consulted.
+    ///
     /// # Errors
     /// Changed graph, query, controllable set, or terminal search state.
     #[allow(clippy::needless_pass_by_value)] // Public checked-import API consumes the untrusted record.
@@ -812,21 +871,26 @@ impl ZTransportObstruction {
         record: ZTransportObstructionRecord,
         diagram: &SelectionDiagram,
         query: &ZTransportQuery,
-        catalog: &EvidenceCatalog,
         limits: super::SidLimits,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, IdentificationError> {
-        let checked = match decide_z_transport_with_catalog(diagram, query, catalog, limits, ctx)? {
-            ZTransportDecision::ProvenNonTransportable(obstruction) => *obstruction,
-            ZTransportDecision::MissingEvidence { .. } => {
-                return Err(IdentificationError::msg("z_transport.obstruction_missing_evidence"));
-            }
-            ZTransportDecision::Identified(_) | ZTransportDecision::NotCertified { .. } => {
-                return Err(IdentificationError::msg("z_transport.obstruction_not_reproduced"));
-            }
+        let ZDerivation::Line11(terminal) = derive_z_transport(diagram, query, limits, ctx)? else {
+            return Err(IdentificationError::invalid_derivation(
+                "z_transport.obstruction_not_reproduced",
+            ));
         };
+        let ZTransportDecision::ProvenNonTransportable(checked) =
+            certify_line11_obstruction(diagram, query, terminal, limits, ctx)?
+        else {
+            return Err(IdentificationError::invalid_derivation(
+                "z_transport.obstruction_not_reproduced",
+            ));
+        };
+        let checked = *checked;
         if checked.to_record() != record {
-            return Err(IdentificationError::msg("z_transport.obstruction_record_mismatch"));
+            return Err(IdentificationError::invalid_derivation(
+                "z_transport.obstruction_record_mismatch",
+            ));
         }
         Ok(checked)
     }
@@ -846,7 +910,9 @@ pub fn verify_z_transport_obstruction(
     validate_z_transport_query(diagram, query)?;
     if obstruction.query != *query || obstruction.graph_signature != super::graph_signature(diagram)
     {
-        return Err(IdentificationError::msg("z_transport.obstruction_input_mismatch"));
+        return Err(IdentificationError::invalid_derivation(
+            "z_transport.obstruction_input_mismatch",
+        ));
     }
     verify_trz_line11_terminal(diagram, query, &obstruction.terminal, ctx)?;
     let assignment = query
@@ -857,13 +923,17 @@ pub fn verify_z_transport_obstruction(
         })
         .collect::<Vec<_>>();
     if assignment != obstruction.selected_assignment {
-        return Err(IdentificationError::msg("z_transport.obstruction_assignment_mismatch"));
+        return Err(IdentificationError::invalid_derivation(
+            "z_transport.obstruction_assignment_mismatch",
+        ));
     }
-    let replay = search_trz_detailed(diagram, query, limits, ctx)?;
+    let replay = z_search(diagram, query, limits, ctx)?;
     if replay.identified.is_some()
         || replay.terminal_failure.as_ref() != Some(&obstruction.terminal)
     {
-        return Err(IdentificationError::msg("z_transport.obstruction_replay_mismatch"));
+        return Err(IdentificationError::invalid_derivation(
+            "z_transport.obstruction_replay_mismatch",
+        ));
     }
     Ok(())
 }
@@ -878,7 +948,7 @@ fn verify_trz_line11_terminal(
     terminal: &TrzTerminalFailure,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    let bad = || IdentificationError::msg("z_transport.invalid_line11_terminal");
+    let bad = || IdentificationError::invalid_derivation("z_transport.invalid_line11_terminal");
     let classical_query = super::ClassicalTransportQuery {
         outcomes: Arc::clone(&query.outcomes),
         treatments: Arc::clone(&query.treatments),
@@ -938,13 +1008,15 @@ fn verify_trz_line11_terminal(
     Ok(())
 }
 
-/// Identify a bounded single-source restricted-experiment query.
+/// Identify a bounded single-source restricted-experiment query under the
+/// caller's search limits and execution context.
 ///
 /// The registered surrogate formula and direct joint exchange have dedicated
 /// local checkers. Other in-bound graphs, including admissible selection
 /// diagrams, follow the recursive `TRz` reduction and are rederived on replay.
 /// Use [`decide_z_transport_with_catalog`] when a negative result must be
-/// distinguished from incomplete catalog evidence.
+/// distinguished from incomplete catalog evidence: a line-11 failure without a
+/// catalog is [`ZTransportResult::NotCertified`], not an obstruction.
 ///
 /// The registered factorization is the four-variable graph `W→Z→X→Y`, `W→Y`,
 /// bidirected `W↔Y`, `Z↔Y`, `Z↔X`, controllable `Z`, query `P(Y | do(X))`, and
@@ -952,29 +1024,8 @@ fn verify_trz_line11_terminal(
 /// variables publish the recursive derivation when search succeeds.
 ///
 /// # Errors
-/// Invalid query coordinates or declared bounds.
-pub fn identify_z_transport_surrogate(
-    diagram: &SelectionDiagram,
-    query: &ZTransportQuery,
-) -> Result<ZTransportResult, IdentificationError> {
-    identify_z_transport_with_limits(
-        diagram,
-        query,
-        super::SidLimits::default(),
-        &antecedent_core::ExecutionContext::for_tests(0),
-    )
-}
-
-/// Run bounded restricted-experiment identification with explicit resource limits.
-///
-/// The registered four-variable surrogate keeps its factorization. Every other
-/// in-bound graph, including a selection diagram whose line-10 separation
-/// holds, publishes the recursive `TRz` derivation. A line-11 failure without a
-/// catalog is [`ZTransportResult::NotCertified`], not an obstruction.
-///
-/// # Errors
 /// Invalid query coordinates, cancellation, or exhausted computation.
-pub fn identify_z_transport_with_limits(
+pub fn identify_z_transport(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
     limits: super::SidLimits,
@@ -1007,52 +1058,46 @@ fn derive_z_transport(
 ) -> Result<ZDerivation, IdentificationError> {
     validate_z_transport_query(diagram, query)?;
     if limits.steps == 0 || limits.depth == 0 {
-        return Err(IdentificationError::msg("z_transport.exhausted_computation"));
+        return Err(IdentificationError::budget(IdentificationBudget::ZTransport));
     }
     if ctx.cancellation.is_cancelled() {
-        return Err(IdentificationError::msg("z_transport.cancelled"));
+        return Err(IdentificationError::Cancelled);
     }
     if direct_joint_admissible(diagram, query)? {
         let (arena, root) = direct_joint_formula(query);
         let derivation = ZTransportDerivation {
             query: query.clone(),
             graph_signature: super::graph_signature(diagram),
-            surrogate: query.experiment_assignment[0].variable,
-            confounder: query.experiment_assignment[0].variable,
+            surrogate: Some(query.experiment_assignment[0].variable),
+            confounder: None,
             arena,
             root,
             kind: ZFormulaKind::DirectJoint,
             rules: vec!["ztr.source_exchange_joint".into()],
         };
-        verify_z_transport_derivation(diagram, query, &derivation)?;
+        verify_z_transport_derivation(diagram, query, &derivation, limits, ctx)?;
         return Ok(ZDerivation::Formula(derivation));
     }
-    if let Some(derivation) = registered_surrogate_derivation(diagram, query)? {
+    if let Some(derivation) = registered_surrogate_derivation(diagram, query, limits, ctx)? {
         return Ok(ZDerivation::Formula(derivation));
     }
-    let searched = search_trz_detailed(diagram, query, limits, ctx).map_err(|error| {
-        if error.to_string() == "transport.identification_budget" {
-            IdentificationError::msg("z_transport.exhausted_computation")
-        } else {
-            error
-        }
-    })?;
+    let searched = z_search(diagram, query, limits, ctx)?;
     if let Some(variable) = searched.unassigned {
         return Ok(ZDerivation::Unassigned { variable });
     }
     if let Some((arena, root, trace)) = searched.identified {
-        let derivation = ZTransportDerivation {
+        // The recursive formula is the search's own output: re-running the
+        // search would recheck nothing. Replay verifies untrusted records.
+        return Ok(ZDerivation::Formula(ZTransportDerivation {
             query: query.clone(),
             graph_signature: super::graph_signature(diagram),
-            surrogate: query.controllable[0],
-            confounder: query.outcomes[0],
+            surrogate: None,
+            confounder: None,
             arena,
             root,
             kind: ZFormulaKind::Recursive,
             rules: std::iter::once("ztr.recursive_reduction".to_owned()).chain(trace).collect(),
-        };
-        verify_z_transport_derivation(diagram, query, &derivation)?;
-        return Ok(ZDerivation::Formula(derivation));
+        }));
     }
     if let Some(terminal) = searched.terminal_failure {
         return Ok(ZDerivation::Line11(terminal));
@@ -1063,6 +1108,8 @@ fn derive_z_transport(
 fn registered_surrogate_derivation(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Option<ZTransportDerivation>, IdentificationError> {
     if diagram.causal_graph().node_count() != 4
         || !diagram.selection_targets().is_empty()
@@ -1092,58 +1139,19 @@ fn registered_surrogate_derivation(
     if !matches_registered_surrogate_graph(diagram, confounder, surrogate, treatment, outcome) {
         return Ok(None);
     }
-    let mut arena = CausalExprArena::new();
-    let y_set = arena.intern_var_set([outcome]);
-    let w_set = arena.intern_var_set([confounder]);
-    let wx_set = arena.intern_var_set([confounder, treatment]);
-    let z_do =
-        arena.intern_intervention_assignments(query.experiment_assignment.iter().map(|a| {
-            antecedent_expr::InterventionAssignment::concrete(a.variable, a.value.clone())
-        }));
-    let source = arena.intern_population(Arc::clone(&query.source));
-    let conditional = arena.intern(ExprNode::Distribution {
-        variables: y_set,
-        conditioned_on: wx_set,
-        intervention: z_do,
-        domain: DomainRef::Interventional,
-        population: source,
-        regime: None,
-    });
-    let empty = arena.empty_var_set();
-    let marginal = arena.intern(ExprNode::Distribution {
-        variables: w_set,
-        conditioned_on: empty,
-        intervention: z_do,
-        domain: DomainRef::Interventional,
-        population: source,
-        regime: None,
-    });
-    let factors = arena.intern_list([conditional, marginal]);
-    let product = arena.intern(ExprNode::Product(factors));
-    let root = arena.intern(ExprNode::SumOut { variables: w_set, expr: product });
+    let (arena, root) = surrogate_formula(query, confounder);
     let derivation = ZTransportDerivation {
         query: query.clone(),
         graph_signature: super::graph_signature(diagram),
-        surrogate,
-        confounder,
+        surrogate: Some(surrogate),
+        confounder: Some(confounder),
         arena,
         root,
         kind: ZFormulaKind::Surrogate,
         rules: vec!["ztr.surrogate_factorization".into()],
     };
-    verify_z_transport_derivation(diagram, query, &derivation)?;
+    verify_z_transport_derivation(diagram, query, &derivation, limits, ctx)?;
     Ok(Some(derivation))
-}
-
-/// Preferred entry point for the bounded restricted-experiment identifier.
-///
-/// # Errors
-/// Invalid query coordinates or exhausted computation.
-pub fn identify_z_transport(
-    diagram: &SelectionDiagram,
-    query: &ZTransportQuery,
-) -> Result<ZTransportResult, IdentificationError> {
-    identify_z_transport_surrogate(diagram, query)
 }
 
 // A direct `TRz` source exchange is legal when the requested intervention is a
@@ -1169,7 +1177,7 @@ fn direct_joint_admissible(
             .iter()
             .position(|node| *node == NodeRef::Static(v))
             .map(|i| DenseNodeId::from_raw(index_u32(i)))
-            .ok_or_else(|| IdentificationError::msg("z_transport.unknown_variable"))
+            .ok_or_else(|| IdentificationError::invalid_input("z_transport.unknown_variable"))
     };
     let mut all = BitSet::with_len(graph.node_count());
     for index in 0..graph.node_count() {
@@ -1210,112 +1218,108 @@ fn direct_joint_formula(query: &ZTransportQuery) -> (CausalExprArena, ExprId) {
     (arena, root)
 }
 
-/// Independently recheck the graph and formula premises of a zTR derivation.
+/// Independently recheck the graph and formula premises of a zTR derivation
+/// under the caller's search limits and execution context.
 ///
 /// # Errors
-/// A changed graph, query, or formula.
-#[allow(clippy::too_many_lines)]
+/// A changed graph, query, or formula; an exhausted replay budget; or
+/// cancellation.
 pub fn verify_z_transport_derivation(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
     derivation: &ZTransportDerivation,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    validate_z_transport_query(diagram, query)?;
-    if derivation.kind == ZFormulaKind::Recursive {
-        if derivation.query != *query
-            || derivation.graph_signature != super::graph_signature(diagram)
-            || derivation.surrogate != query.controllable[0]
-            || derivation.confounder != query.outcomes[0]
-        {
-            return Err(IdentificationError::msg("z_transport.proof_input_mismatch"));
+    derivation.check_inputs(diagram, query)?;
+    let input_mismatch =
+        || IdentificationError::invalid_derivation("z_transport.proof_input_mismatch");
+    let formula_mismatch =
+        || IdentificationError::invalid_derivation("z_transport.proof_formula_mismatch");
+    match derivation.kind {
+        ZFormulaKind::Recursive => {
+            if derivation.surrogate.is_some() || derivation.confounder.is_some() {
+                return Err(input_mismatch());
+            }
+            let Some((expected, root, trace)) = z_search(diagram, query, limits, ctx)?.identified
+            else {
+                return Err(IdentificationError::invalid_derivation(
+                    "z_transport.proof_rule_mismatch",
+                ));
+            };
+            let expected_rules = std::iter::once("ztr.recursive_reduction".to_owned())
+                .chain(trace)
+                .collect::<Vec<_>>();
+            if derivation.root != root
+                || derivation.arena != expected
+                || derivation.rules != expected_rules
+            {
+                return Err(formula_mismatch());
+            }
         }
-        let Some((expected, root, trace)) = search_trz(
-            diagram,
-            query,
-            super::SidLimits::default(),
-            &antecedent_core::ExecutionContext::for_tests(0),
-        )?
-        else {
-            return Err(IdentificationError::msg("z_transport.proof_rule_mismatch"));
-        };
-        let expected_rules =
-            std::iter::once("ztr.recursive_reduction".to_owned()).chain(trace).collect::<Vec<_>>();
-        if derivation.root != root
-            || !same_arena(&derivation.arena, &expected)
-            || derivation.rules != expected_rules
-        {
-            return Err(IdentificationError::msg("z_transport.proof_formula_mismatch"));
+        ZFormulaKind::DirectJoint => {
+            if !direct_joint_admissible(diagram, query)?
+                || derivation.surrogate != Some(query.experiment_assignment[0].variable)
+                || derivation.confounder.is_some()
+                || derivation.rules != ["ztr.source_exchange_joint"]
+            {
+                return Err(input_mismatch());
+            }
+            let (expected, root) = direct_joint_formula(query);
+            if derivation.root != root || derivation.arena != expected {
+                return Err(formula_mismatch());
+            }
         }
-        return Ok(());
-    }
-    if derivation.kind == ZFormulaKind::DirectJoint {
-        if derivation.query != *query
-            || derivation.graph_signature != super::graph_signature(diagram)
-            || !direct_joint_admissible(diagram, query)?
-            || derivation.surrogate != query.experiment_assignment[0].variable
-            || derivation.confounder != derivation.surrogate
-            || derivation.rules != ["ztr.source_exchange_joint"]
-        {
-            return Err(IdentificationError::msg("z_transport.proof_input_mismatch"));
+        ZFormulaKind::Surrogate => {
+            let (Some(surrogate), Some(confounder)) = (derivation.surrogate, derivation.confounder)
+            else {
+                return Err(input_mismatch());
+            };
+            if diagram.causal_graph().node_count() != 4
+                || !diagram.selection_targets().is_empty()
+                || query.outcomes.len() != 1
+                || query.treatments.len() != 1
+                || query.controllable.as_ref() != [surrogate]
+                || query.experiment_assignment.len() != 1
+                || query.experiment_assignment[0].variable != surrogate
+                || derivation.rules != ["ztr.surrogate_factorization"]
+            {
+                return Err(input_mismatch());
+            }
+            if !matches_registered_surrogate_graph(
+                diagram,
+                confounder,
+                surrogate,
+                query.treatments[0],
+                query.outcomes[0],
+            ) {
+                return Err(IdentificationError::invalid_derivation(
+                    "z_transport.proof_graph_mismatch",
+                ));
+            }
+            let (expected, root) = surrogate_formula(query, confounder);
+            if derivation.root != root || derivation.arena != expected {
+                return Err(formula_mismatch());
+            }
         }
-        let (expected, root) = direct_joint_formula(query);
-        if derivation.root != root || !same_arena(&derivation.arena, &expected) {
-            return Err(IdentificationError::msg("z_transport.proof_formula_mismatch"));
-        }
-        return Ok(());
-    }
-    if derivation.query != *query
-        || derivation.graph_signature != super::graph_signature(diagram)
-        || diagram.causal_graph().node_count() != 4
-        || !diagram.selection_targets().is_empty()
-        || query.outcomes.len() != 1
-        || query.treatments.len() != 1
-        || query.controllable.as_ref() != [derivation.surrogate]
-        || query.experiment_assignment.len() != 1
-        || query.experiment_assignment[0].variable != derivation.surrogate
-        || derivation.rules != ["ztr.surrogate_factorization"]
-    {
-        return Err(IdentificationError::msg("z_transport.proof_input_mismatch"));
-    }
-    if !matches_registered_surrogate_graph(
-        diagram,
-        derivation.confounder,
-        derivation.surrogate,
-        query.treatments[0],
-        query.outcomes[0],
-    ) {
-        return Err(IdentificationError::msg("z_transport.proof_graph_mismatch"));
-    }
-    let expected = identify_z_transport_surrogate_unchecked(query, derivation.confounder);
-    let same_nodes = derivation.arena.len() == expected.0.len()
-        && (0..derivation.arena.len()).all(|index| {
-            let id = ExprId::from_raw(index_u32(index));
-            derivation.arena.node(id) == expected.0.node(id)
-        })
-        && derivation.arena.var_set_count() == expected.0.var_set_count()
-        && (0..derivation.arena.var_set_count()).all(|index| {
-            let id = antecedent_expr::VarSetId::from_raw(index_u32(index));
-            derivation.arena.var_set(id) == expected.0.var_set(id)
-        })
-        && derivation.arena.intervention_set_count() == expected.0.intervention_set_count()
-        && (0..derivation.arena.intervention_set_count()).all(|index| {
-            let id = antecedent_expr::InterventionSetId::from_raw(index_u32(index));
-            derivation.arena.intervention_assignments(id) == expected.0.intervention_assignments(id)
-        })
-        && derivation.arena.population_count() == expected.0.population_count()
-        && (0..derivation.arena.population_count()).all(|index| {
-            let id = antecedent_expr::PopulationKeyId::from_raw(index_u32(index));
-            derivation.arena.population(id) == expected.0.population(id)
-        })
-        && derivation.arena.list_count() == expected.0.list_count()
-        && (0..derivation.arena.list_count()).all(|index| {
-            let id = antecedent_expr::ExprListId::from_raw(index_u32(index));
-            derivation.arena.list(id) == expected.0.list(id)
-        });
-    if derivation.root != expected.1 || !same_nodes {
-        return Err(IdentificationError::msg("z_transport.proof_formula_mismatch"));
     }
     Ok(())
+}
+
+/// Run the `TRz` search, reporting an exhausted engine budget as the
+/// z-transport budget. This is the one place that remap happens.
+fn z_search(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TrzSearchResult, IdentificationError> {
+    search_trz_detailed(diagram, query, limits, ctx).map_err(|error| match error {
+        IdentificationError::Budget { budget: IdentificationBudget::Steps } => {
+            IdentificationError::budget(IdentificationBudget::ZTransport)
+        }
+        other => other,
+    })
 }
 
 /// Bind the checked surrogate formula to a sufficient source joint margin.
@@ -1329,8 +1333,10 @@ pub fn bind_z_transport_catalog(
     derivation: &ZTransportDerivation,
     catalog: &EvidenceCatalog,
 ) -> Result<BoundZTransportFunctional, IdentificationError> {
-    verify_z_transport_derivation(diagram, query, derivation)?;
-    catalog.validate().map_err(|error| IdentificationError::msg(error.to_string()))?;
+    derivation.check_inputs(diagram, query)?;
+    catalog.validate().map_err(|error| {
+        IdentificationError::invalid_catalog(format!("z_transport.invalid_catalog: {error}"))
+    })?;
     if derivation.kind == ZFormulaKind::Recursive {
         let mut arena = derivation.arena.clone();
         let mut memo = std::collections::HashMap::new();
@@ -1344,7 +1350,9 @@ pub fn bind_z_transport_catalog(
             &mut cited,
         )?;
         if cited.is_empty() {
-            return Err(IdentificationError::msg("z_transport.recursive_formula_has_no_factor"));
+            return Err(IdentificationError::InvariantViolated {
+                message: "z_transport.recursive_formula_has_no_factor",
+            });
         }
         return Ok(BoundZTransportFunctional {
             derivation: derivation.clone(),
@@ -1381,10 +1389,13 @@ pub fn bind_z_transport_catalog(
                     && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
             })
             .ok_or_else(|| {
-                IdentificationError::msg(format!(
-                    "z_transport.missing_evidence: {} joint law under do({:?}) measuring {:?}",
-                    query.source, query.experiment_assignment, query.outcomes
-                ))
+                IdentificationError::missing_evidence(
+                    "z_transport.missing_evidence",
+                    format!(
+                        "{} joint law under do({:?}) measuring {:?}",
+                        query.source, query.experiment_assignment, query.outcomes
+                    ),
+                )
             })?;
         let mut arena = derivation.arena.clone();
         let ExprNode::Distribution {
@@ -1396,7 +1407,9 @@ pub fn bind_z_transport_catalog(
             ..
         } = arena.node(derivation.root).clone()
         else {
-            return Err(IdentificationError::msg("z_transport.invalid_formula_root"));
+            return Err(IdentificationError::InvariantViolated {
+                message: "z_transport.invalid_formula_root",
+            });
         };
         let root = arena.intern(ExprNode::Distribution {
             variables,
@@ -1421,7 +1434,12 @@ pub fn bind_z_transport_catalog(
     // {Y, W, X}. Requiring every observed coordinate (or the complete
     // experimental family) here would turn a sufficient positive certificate
     // into a spurious missing-evidence result.
-    let required_margin = [query.outcomes[0], derivation.confounder, query.treatments[0]];
+    let Some(confounder) = derivation.confounder else {
+        return Err(IdentificationError::InvariantViolated {
+            message: "z_transport.surrogate_formula_names_no_confounder",
+        });
+    };
+    let required_margin = [query.outcomes[0], confounder, query.treatments[0]];
     let selected = catalog
         .regimes
         .iter()
@@ -1446,19 +1464,26 @@ pub fn bind_z_transport_catalog(
                 && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
         })
         .ok_or_else(|| {
-            IdentificationError::msg(format!(
-                "z_transport.missing_evidence: {} joint law under do({:?}) measuring {:?}",
-                query.source, query.experiment_assignment, required_margin
-            ))
+            IdentificationError::missing_evidence(
+                "z_transport.missing_evidence",
+                format!(
+                    "{} joint law under do({:?}) measuring {:?}",
+                    query.source, query.experiment_assignment, required_margin
+                ),
+            )
         })?;
 
     let mut arena = derivation.arena.clone();
     let ExprNode::SumOut { variables, expr } = derivation.arena.node(derivation.root).clone()
     else {
-        return Err(IdentificationError::msg("z_transport.invalid_formula_root"));
+        return Err(IdentificationError::InvariantViolated {
+            message: "z_transport.invalid_formula_root",
+        });
     };
     let ExprNode::Product(factors) = derivation.arena.node(expr).clone() else {
-        return Err(IdentificationError::msg("z_transport.invalid_formula_product"));
+        return Err(IdentificationError::InvariantViolated {
+            message: "z_transport.invalid_formula_product",
+        });
     };
     let mut bound_factors = Vec::new();
     for factor in derivation.arena.list(factors) {
@@ -1471,7 +1496,9 @@ pub fn bind_z_transport_catalog(
             ..
         } = derivation.arena.node(*factor).clone()
         else {
-            return Err(IdentificationError::msg("z_transport.invalid_formula_leaf"));
+            return Err(IdentificationError::InvariantViolated {
+                message: "z_transport.invalid_formula_leaf",
+            });
         };
         bound_factors.push(arena.intern(ExprNode::Distribution {
             variables,
@@ -1598,9 +1625,10 @@ fn bind_leaf(
     request_bound: &[VariableId],
 ) -> Result<LeafBinding, IdentificationError> {
     let missing = || {
-        IdentificationError::msg(format!(
-            "z_transport.missing_evidence: {population} joint factor under {interventions:?}"
-        ))
+        IdentificationError::missing_evidence(
+            "z_transport.missing_evidence",
+            format!("{population} joint factor under {interventions:?}"),
+        )
     };
     let candidates = catalog
         .regimes
@@ -1648,10 +1676,10 @@ fn bind_leaf(
             supplied
         } else {
             declared_levels(catalog, population, assignment.variable).ok_or_else(|| {
-                IdentificationError::msg(format!(
-                    "z_transport.missing_evidence: {population} declares no finite domain for {:?}",
-                    assignment.variable
-                ))
+                IdentificationError::missing_evidence(
+                    "z_transport.missing_evidence",
+                    format!("{population} declares no finite domain for {:?}", assignment.variable),
+                )
             })?
         };
         worlds = worlds
@@ -1675,12 +1703,13 @@ fn bind_leaf(
             })
         });
         let Some(regime) = supplying.next() else {
-            return Err(IdentificationError::msg(format!(
-                "z_transport.missing_evidence: {population} joint factor under {interventions:?} at world {world:?}"
-            )));
+            return Err(IdentificationError::missing_evidence(
+                "z_transport.missing_evidence",
+                format!("{population} joint factor under {interventions:?} at world {world:?}"),
+            ));
         };
         if supplying.next().is_some() {
-            return Err(IdentificationError::msg(format!(
+            return Err(IdentificationError::invalid_catalog(format!(
                 "z_transport.ambiguous_evidence: {population} supplies world {world:?} under {interventions:?} more than once"
             )));
         }
@@ -1759,40 +1788,14 @@ fn bind_recursive_expression(
                 bind_recursive_expression(denominator, arena, catalog, treatments, memo, cited)?;
             arena.intern(ExprNode::Ratio { numerator, denominator })
         }
-        _ => return Err(IdentificationError::msg("z_transport.unsupported_recursive_node")),
+        _ => {
+            return Err(IdentificationError::InvariantViolated {
+                message: "z_transport.unsupported_recursive_node",
+            });
+        }
     };
     memo.insert(id, bound);
     Ok(bound)
-}
-
-fn same_arena(left: &CausalExprArena, right: &CausalExprArena) -> bool {
-    left.len() == right.len()
-        && (0..left.len()).all(|i| {
-            left.node(ExprId::from_raw(index_u32(i))) == right.node(ExprId::from_raw(index_u32(i)))
-        })
-        && left.var_set_count() == right.var_set_count()
-        && (0..left.var_set_count()).all(|i| {
-            left.var_set(antecedent_expr::VarSetId::from_raw(index_u32(i)))
-                == right.var_set(antecedent_expr::VarSetId::from_raw(index_u32(i)))
-        })
-        && left.intervention_set_count() == right.intervention_set_count()
-        && (0..left.intervention_set_count()).all(|i| {
-            left.intervention_assignments(antecedent_expr::InterventionSetId::from_raw(index_u32(
-                i,
-            ))) == right.intervention_assignments(antecedent_expr::InterventionSetId::from_raw(
-                index_u32(i),
-            ))
-        })
-        && left.population_count() == right.population_count()
-        && (0..left.population_count()).all(|i| {
-            left.population(antecedent_expr::PopulationKeyId::from_raw(index_u32(i)))
-                == right.population(antecedent_expr::PopulationKeyId::from_raw(index_u32(i)))
-        })
-        && left.list_count() == right.list_count()
-        && (0..left.list_count()).all(|i| {
-            left.list(antecedent_expr::ExprListId::from_raw(index_u32(i)))
-                == right.list(antecedent_expr::ExprListId::from_raw(index_u32(i)))
-        })
 }
 
 fn inspect_z_expression(
@@ -1879,10 +1882,8 @@ fn inspect_z_expression(
     });
 }
 
-fn identify_z_transport_surrogate_unchecked(
-    query: &ZTransportQuery,
-    confounder: VariableId,
-) -> (CausalExprArena, ExprId) {
+/// The registered surrogate formula `Σ_w P_s(y | w, x, do(z)) P_s(w | do(z))`.
+fn surrogate_formula(query: &ZTransportQuery, confounder: VariableId) -> (CausalExprArena, ExprId) {
     let mut arena = CausalExprArena::new();
     let y_set = arena.intern_var_set([query.outcomes[0]]);
     let w_set = arena.intern_var_set([confounder]);
@@ -1963,8 +1964,10 @@ fn matches_registered_surrogate_graph(
     directed == expected_directed && bidirected == expected_bidirected
 }
 
+/// Set equality of two coordinate lists: repeats and order do not matter.
 fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
-    left.len() == right.len() && left.iter().all(|variable| right.contains(variable))
+    left.iter().collect::<std::collections::BTreeSet<_>>()
+        == right.iter().collect::<std::collections::BTreeSet<_>>()
 }
 
 // Bareinboim–Pearl (AAAI 2013, Figure 4) rules 1–4 map to the marginal,
@@ -1972,7 +1975,7 @@ fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
 // C-component, factor, and subdistrict branches. Rule 10 exchanges the active
 // controllables in X and recurses on the reduced graph; rule 11 is recorded
 // only when that exchange's separation premise fails or Z∩X is empty.
-#[allow(dead_code)]
+#[cfg(test)]
 fn search_trz(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
@@ -2039,8 +2042,6 @@ fn search_trz_detailed(
     })
 }
 
-#[allow(dead_code)]
-#[allow(clippy::too_many_lines)]
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Mirrors the paper rule state explicitly.
 fn search_trz_state(
     engine: &mut super::Engine<'_>,
@@ -2157,8 +2158,9 @@ fn search_trz_state(
             &super::difference(&super::difference(&state.v, &state.x), &state.y),
         )?));
     }
-    let district =
-        districts.first().ok_or_else(|| IdentificationError::msg("z_transport.empty_district"))?;
+    let district = districts
+        .first()
+        .ok_or(IdentificationError::InvariantViolated { message: "z_transport.empty_district" })?;
     let containing = engine.prepared.c_components(&state.v);
     // `TRz` rules 5–6 establish C0 and whether D is a single c-component.
     if containing.len() > 1 {
@@ -2168,10 +2170,11 @@ fn search_trz_state(
             let kernel = engine.factor(&state, district)?;
             return Ok(Some(engine.marginal(kernel, &super::difference(district, &state.y))?));
         }
-        let larger = containing
-            .iter()
-            .find(|d| district.is_subset_of(d))
-            .ok_or_else(|| IdentificationError::msg("z_transport.missing_containing_district"))?;
+        let larger = containing.iter().find(|d| district.is_subset_of(d)).ok_or(
+            IdentificationError::InvariantViolated {
+                message: "z_transport.missing_containing_district",
+            },
+        )?;
         let next = super::State {
             y: state.y.clone(),
             x: super::intersection(&state.x, larger),
@@ -2590,13 +2593,17 @@ mod tests {
     #[test]
     fn registered_surrogate_query_has_checked_formula_and_rejects_substitution() {
         let (diagram, query) = surrogate_fixture();
-        let ZTransportResult::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("registered surrogate graph should be identified");
         };
-        assert_eq!(proof.surrogate(), VariableId::from_raw(1));
-        assert_eq!(proof.confounder(), VariableId::from_raw(0));
+        assert_eq!(proof.surrogate(), Some(VariableId::from_raw(1)));
+        assert_eq!(proof.confounder(), Some(VariableId::from_raw(0)));
         let ExprNode::SumOut { variables, expr } = proof.arena().node(proof.root()) else {
             panic!("formula root must sum out W");
         };
@@ -2605,10 +2612,26 @@ mod tests {
             panic!("formula must multiply two source factors");
         };
         assert_eq!(proof.arena().list(*factors).len(), 2);
-        verify_z_transport_derivation(&diagram, &query, &proof).unwrap();
+        verify_z_transport_derivation(
+            &diagram,
+            &query,
+            &proof,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap();
         let mut altered = query.clone();
         altered.controllable = Arc::from([VariableId::from_raw(0)]);
-        assert!(verify_z_transport_derivation(&diagram, &altered, &proof).is_err());
+        assert!(
+            verify_z_transport_derivation(
+                &diagram,
+                &altered,
+                &proof,
+                super::super::SidLimits::default(),
+                &antecedent_core::ExecutionContext::for_tests(0)
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2634,9 +2657,13 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
-        let ZTransportResult::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("direct joint source exchange must be identified")
         };
         assert_eq!(proof.to_record().rules, ["ztr.source_exchange_joint"]);
@@ -2646,9 +2673,18 @@ mod tests {
             &query,
             &proof.to_record(),
             proof.arena().clone(),
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
         )
         .unwrap();
-        verify_z_transport_derivation(&diagram, &query, &reconstructed).unwrap();
+        verify_z_transport_derivation(
+            &diagram,
+            &query,
+            &reconstructed,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap();
         let mut changed = query;
         changed.experiment_assignment = Arc::from([
             CatalogInterventionAssignment {
@@ -2660,7 +2696,16 @@ mod tests {
                 value: Value::Bool(false),
             },
         ]);
-        assert!(verify_z_transport_derivation(&diagram, &changed, &proof).is_err());
+        assert!(
+            verify_z_transport_derivation(
+                &diagram,
+                &changed,
+                &proof,
+                super::super::SidLimits::default(),
+                &antecedent_core::ExecutionContext::for_tests(0)
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2842,9 +2887,13 @@ mod tests {
         }
         let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
         let (_, query) = surrogate_fixture();
-        let ZTransportResult::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("recursive TRz should identify the graph with an isolated extra node")
         };
         assert_eq!(
@@ -2904,6 +2953,8 @@ mod tests {
             &query,
             &proof.to_record(),
             proof.arena().clone(),
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
         )
         .unwrap();
     }
@@ -2911,7 +2962,7 @@ mod tests {
     #[test]
     fn bounded_search_reports_exhaustion_separately_from_noncertification() {
         let (diagram, query) = surrogate_fixture();
-        let exhausted = identify_z_transport_with_limits(
+        let exhausted = identify_z_transport(
             &diagram,
             &query,
             super::super::SidLimits { steps: 0, depth: 1 },
@@ -3094,7 +3145,13 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
-        let result = identify_z_transport(&diagram, &query).unwrap();
+        let result = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap();
         let ZTransportResult::Identified(proof) = result else { panic!("{result:?}") };
         let coords = (0..4)
             .map(|raw| VariableCoordinate {
@@ -3212,6 +3269,48 @@ mod tests {
     }
 
     #[test]
+    fn a_starved_search_reports_the_z_transport_budget_never_the_sid_step_budget() {
+        // The five-node graph is not a registered surrogate, so every level
+        // goes through the recursion whose step budget is the SID engine's.
+        let mut graph = Admg::with_variables(5);
+        for (a, b) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        for (a, b) in [(0, 3), (1, 3), (1, 2)] {
+            graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (_, query) = surrogate_fixture();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        for steps in [1, 2, 3] {
+            let error = identify_z_transport(
+                &diagram,
+                &query,
+                super::super::SidLimits { steps, depth: 8 },
+                &ctx,
+            )
+            .expect_err("a starved search has no result");
+            assert!(
+                matches!(
+                    error,
+                    IdentificationError::Budget { budget: IdentificationBudget::ZTransport }
+                ),
+                "steps={steps}: {error}"
+            );
+            assert_eq!(error.to_string(), "z_transport.exhausted_computation");
+        }
+        assert!(matches!(
+            identify_z_transport(&diagram, &query, super::super::SidLimits::default(), &ctx)
+                .unwrap(),
+            ZTransportResult::Identified(_)
+        ));
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised under every family-validation failure"
+    )]
     fn family_validation_requires_each_joint_intervention_law() {
         let (diagram, query) = surrogate_fixture();
         let coords = (0..4)
@@ -3264,9 +3363,13 @@ mod tests {
         // The positive formula uses only the selected do(Z=0) margin on
         // (W,X,Y). The unselected level and the measured Z coordinate are not
         // premises of this certificate.
-        let ZTransportResult::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!()
         };
         let mut sufficient = catalog.clone();

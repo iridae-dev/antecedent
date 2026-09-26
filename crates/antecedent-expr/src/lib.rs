@@ -399,6 +399,19 @@ pub struct CausalExprArena {
     empty_population_id: Option<PopulationKeyId>,
 }
 
+/// Semantic table equality: the same nodes, variable sets, intervention sets,
+/// lists and populations at the same ids. Derivation metadata and the
+/// hash-cons indexes are not part of it.
+impl PartialEq for CausalExprArena {
+    fn eq(&self, other: &Self) -> bool {
+        self.nodes == other.nodes
+            && self.var_sets == other.var_sets
+            && self.interventions == other.interventions
+            && self.lists == other.lists
+            && self.populations == other.populations
+    }
+}
+
 impl CausalExprArena {
     /// Empty arena.
     #[must_use]

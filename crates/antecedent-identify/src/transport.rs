@@ -13,9 +13,15 @@ use crate::selection_separation::{
 use crate::{IdentificationError, PreparedAdmg};
 
 /// Most treatment-mutilated subsets the structural standardizer search will
-/// separation-test. Exhausting it is a typed inconclusive outcome, not a
-/// non-existence claim.
-const STANDARDIZER_SUBSET_BUDGET: usize = 1 << 20;
+/// separation-test: every subset of the declared candidate bound
+/// (`ComputationLimits::max_standardizer_candidates`). Exhausting it is a typed
+/// inconclusive outcome, not a non-existence claim.
+fn standardizer_subset_budget() -> usize {
+    let candidates = antecedent_core::TheoremScope::classical_sid()
+        .computation_limits
+        .max_standardizer_candidates;
+    1usize << candidates.min(usize::BITS - 1)
+}
 
 /// Population-labelled symbolic distribution required by a transport formula.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -168,10 +174,15 @@ impl TransportIdentifier {
         if matches!(bound, TransportIdentification::MissingEvidence(_))
             && diagram.causal_graph().district_count() == diagram.causal_graph().node_count()
         {
-            let mut target_query = query.clone();
-            target_query.source_experiments = Arc::from([]);
-            target_query.catalog = None;
-            return Ok(bind_catalog(Self::identify_structural(diagram, &target_query)?, query));
+            // The target-only fallback is the truncated factorization itself;
+            // it needs no second standardizer search.
+            let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
+            let (outcomes, treatments) = response_variables(query)?;
+            let ancestors = outcome_ancestors(diagram, &prepared, &outcomes, &treatments)?;
+            return Ok(bind_catalog(
+                target_g_formula(diagram, &prepared, query, &outcomes, &treatments, &ancestors)?,
+                query,
+            ));
         }
         Ok(bound)
     }
@@ -180,7 +191,7 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
     ) -> Result<TransportIdentification, IdentificationError> {
-        Self::identify_structural_within(diagram, query, STANDARDIZER_SUBSET_BUDGET)
+        Self::identify_structural_within(diagram, query, standardizer_subset_budget())
     }
 
     #[allow(clippy::too_many_lines)]
@@ -189,7 +200,7 @@ impl TransportIdentifier {
         query: &TransportQuery,
         subset_budget: usize,
     ) -> Result<TransportIdentification, IdentificationError> {
-        query.validate().map_err(|error| IdentificationError::msg(error.to_string()))?;
+        query.validate().map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
         let graph = diagram.causal_graph();
         // Every coordinate goes through the graph's own node table, so a graph
         // whose nodes are not numbered like their variable ids is read correctly.
@@ -218,16 +229,7 @@ impl TransportIdentifier {
         // One reachability workspace for every ancestry probe in this identify
         // call; `reaches()` would otherwise allocate a fresh workspace per pair.
         let mut reach_ws = antecedent_graph::GraphWorkspace::default();
-        let mut outcome_ancestors = std::collections::BTreeSet::new();
-        let mut pending = outcomes.to_vec();
-        while let Some(variable) = pending.pop() {
-            if treatments.contains(&variable) || !outcome_ancestors.insert(variable) {
-                continue;
-            }
-            for parent in graph.parents(prepared.var_to_dense(variable)?) {
-                pending.push(prepared.dense_to_var(*parent)?);
-            }
-        }
+        let outcome_ancestors = outcome_ancestors(diagram, &prepared, &outcomes, &treatments)?;
         let relevant_selection = diagram
             .selection_targets()
             .iter()
@@ -253,42 +255,14 @@ impl TransportIdentifier {
         if !source_experiments_cover(query, &treatments)
             && graph.district_count() == graph.node_count()
         {
-            let order = topological_variables(&prepared)?
-                .into_iter()
-                .filter(|v| outcome_ancestors.contains(v))
-                .collect::<Vec<_>>();
-            let mut factors = Vec::new();
-            for v in order.iter().copied().filter(|v| !treatments.contains(v)) {
-                let parents = graph
-                    .parents(prepared.var_to_dense(v)?)
-                    .iter()
-                    .map(|p| prepared.dense_to_var(*p))
-                    .collect::<Result<Vec<_>, _>>()?;
-                factors.push(response_factor(
-                    Arc::clone(&query.target_population),
-                    &[v],
-                    &parents,
-                    &[],
-                ));
-            }
-            let sum_out = order
-                .iter()
-                .copied()
-                .filter(|v| !outcomes.contains(v) && !treatments.contains(v))
-                .collect::<Vec<_>>();
-            return Ok(TransportIdentification::Transportable {
-                formula: TransportFormula::RecursiveFactorization {
-                    sum_out: sum_out.into(),
-                    factors: factors.into(),
-                },
-                certificate: TransportCertificate {
-                    rule: Arc::from("transport.sid.target_g_formula"),
-                    selection_targets: diagram.selection_targets().to_vec().into(),
-                    premises: Arc::from([Arc::from(
-                        "causal sufficiency licenses the target observational truncated factorization",
-                    )]),
-                },
-            });
+            return target_g_formula(
+                diagram,
+                &prepared,
+                query,
+                &outcomes,
+                &treatments,
+                &outcome_ancestors,
+            );
         }
         if !source_experiments_cover(query, &treatments) {
             return Ok(TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
@@ -442,6 +416,71 @@ impl TransportIdentifier {
     }
 }
 
+/// The outcomes' ancestors, stopping at treatments.
+fn outcome_ancestors(
+    diagram: &SelectionDiagram,
+    prepared: &PreparedAdmg,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+) -> Result<std::collections::BTreeSet<VariableId>, IdentificationError> {
+    let graph = diagram.causal_graph();
+    let mut ancestors = std::collections::BTreeSet::new();
+    let mut pending = outcomes.to_vec();
+    while let Some(variable) = pending.pop() {
+        if treatments.contains(&variable) || !ancestors.insert(variable) {
+            continue;
+        }
+        for parent in graph.parents(prepared.var_to_dense(variable)?) {
+            pending.push(prepared.dense_to_var(*parent)?);
+        }
+    }
+    Ok(ancestors)
+}
+
+/// The target observational truncated factorization of a causally sufficient
+/// graph: every outcome ancestor's factor is taken in the target population.
+fn target_g_formula(
+    diagram: &SelectionDiagram,
+    prepared: &PreparedAdmg,
+    query: &TransportQuery,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    outcome_ancestors: &std::collections::BTreeSet<VariableId>,
+) -> Result<TransportIdentification, IdentificationError> {
+    let graph = diagram.causal_graph();
+    let order = topological_variables(prepared)?
+        .into_iter()
+        .filter(|v| outcome_ancestors.contains(v))
+        .collect::<Vec<_>>();
+    let mut factors = Vec::new();
+    for v in order.iter().copied().filter(|v| !treatments.contains(v)) {
+        let parents = graph
+            .parents(prepared.var_to_dense(v)?)
+            .iter()
+            .map(|p| prepared.dense_to_var(*p))
+            .collect::<Result<Vec<_>, _>>()?;
+        factors.push(response_factor(Arc::clone(&query.target_population), &[v], &parents, &[]));
+    }
+    let sum_out = order
+        .iter()
+        .copied()
+        .filter(|v| !outcomes.contains(v) && !treatments.contains(v))
+        .collect::<Vec<_>>();
+    Ok(TransportIdentification::Transportable {
+        formula: TransportFormula::RecursiveFactorization {
+            sum_out: sum_out.into(),
+            factors: factors.into(),
+        },
+        certificate: TransportCertificate {
+            rule: Arc::from("transport.sid.target_g_formula"),
+            selection_targets: diagram.selection_targets().to_vec().into(),
+            premises: Arc::from([Arc::from(
+                "causal sufficiency licenses the target observational truncated factorization",
+            )]),
+        },
+    })
+}
+
 fn bind_catalog(
     mut result: TransportIdentification,
     query: &TransportQuery,
@@ -525,7 +564,7 @@ fn s_admissible_standardizers(
     let mut candidates = Vec::new();
     for i in 0..n {
         let node = DenseNodeId::from_raw(u32::try_from(i).map_err(|_| {
-            IdentificationError::msg("selection diagram exceeds u32 node capacity")
+            IdentificationError::UnsupportedInput { code: "transport.graph_exceeds_u32_nodes" }
         })?);
         if outcome_nodes.contains(&node)
             || treatment_nodes.contains(&node)

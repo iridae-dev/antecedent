@@ -8,7 +8,7 @@
 use crate::selection_separation::{
     MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
 };
-use crate::{IdentificationError, PreparedAdmg};
+use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{
@@ -32,8 +32,8 @@ pub use z_transport::{
     ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
     ZTransportResult, ZTransportSourceSpec, ZTransportTerminalRecord, bind_z_transport_catalog,
     decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport,
-    identify_z_transport_surrogate, identify_z_transport_with_limits, validate_z_experiment_family,
-    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
+    validate_z_experiment_family, validate_z_transport_query, verify_z_transport_derivation,
+    verify_z_transport_obstruction,
 };
 
 /// Theoretical query under the classical family of all source experiments.
@@ -222,7 +222,12 @@ impl ClassicalTransportDerivation {
             source: self.query.source.to_string(),
             target: self.query.target.to_string(),
             graph_signature: self.graph_signature.clone(),
-            selections: self.selection_targets.iter().map(|v| v.raw()).collect(),
+            selections: {
+                let mut selections =
+                    self.selection_targets.iter().map(|v| v.raw()).collect::<Vec<_>>();
+                selections.sort_unstable();
+                selections
+            },
             root: self.root.raw(),
             root_step: self.root_step,
             sources: self.sources.clone(),
@@ -256,7 +261,7 @@ impl ClassicalTransportDerivation {
         limits: SidLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IdentificationError> {
-        let bad = || IdentificationError::msg("transport.invalid_derivation_record");
+        let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation_record");
         if record.evidence_setting
             != if record.sources.is_empty() { CLASSICAL_SETTING } else { META_SETTING }
             || record.steps.len() > limits.steps
@@ -339,13 +344,14 @@ pub fn identify_classical_transport(
         }
         return Ok(ClassicalTransportResult::NotCertified);
     };
+    let (proof, root_step) = reachable_proof(&engine.proof, root_step);
     let derivation = ClassicalTransportDerivation {
         query: query.clone(),
         graph_signature: graph_signature(diagram),
         selection_targets: Arc::from(diagram.selection_targets()),
-        root: engine.proof[root_step].output,
+        root: proof[root_step].output,
         arena: engine.arena,
-        proof: engine.proof,
+        proof,
         root_step,
         sources: Vec::new(),
     };
@@ -353,10 +359,71 @@ pub fn identify_classical_transport(
     Ok(ClassicalTransportResult::Identified(Box::new(derivation)))
 }
 
+/// The proof steps reachable from `root_step`, in their original order, with
+/// child indexes remapped. Steps a cleared memo left behind are not exported.
+fn reachable_proof(proof: &[ProofStep], root_step: usize) -> (Vec<ProofStep>, usize) {
+    let mut used = vec![false; proof.len()];
+    let mut pending = vec![root_step];
+    while let Some(step) = pending.pop() {
+        if step >= used.len() || used[step] {
+            continue;
+        }
+        used[step] = true;
+        pending.extend(proof[step].children.iter().copied());
+    }
+    let mut remap = vec![usize::MAX; proof.len()];
+    let mut compact = Vec::new();
+    for (index, step) in proof.iter().enumerate() {
+        if used[index] {
+            remap[index] = compact.len();
+            let mut step = step.clone();
+            step.children = step.children.iter().map(|child| remap[*child]).collect();
+            compact.push(step);
+        }
+    }
+    (compact, remap[root_step])
+}
+
+/// Whether the two leaves of a standardization over `over` bind in `catalog`:
+/// the source conditional `P^s(y | over, do(x))` and the target law `P*(over)`.
+fn standardization_binds(
+    catalog: &antecedent_core::EvidenceCatalog,
+    query: &ClassicalTransportQuery,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    over: &[VariableId],
+) -> bool {
+    let source = antecedent_core::FactorNeed {
+        population: &query.source,
+        variables: outcomes,
+        conditioned_on: over,
+        interventions: treatments,
+    };
+    if catalog.satisfying_regime(&source).is_none() {
+        return false;
+    }
+    over.is_empty()
+        || (catalog
+            .target_sampling
+            .is_none_or(antecedent_core::TargetSampling::represents_target_law)
+            && catalog
+                .satisfying_regime(&antecedent_core::FactorNeed {
+                    population: &query.target,
+                    variables: over,
+                    conditioned_on: &[],
+                    interventions: &[],
+                })
+                .is_some())
+}
+
 struct Engine<'a> {
     diagram: &'a SelectionDiagram,
     query: &'a ClassicalTransportQuery,
     prepared: PreparedAdmg,
+    /// Topological order, shared so a factorization step borrows no table.
+    topo: Arc<[DenseNodeId]>,
+    /// Every node, for the meta-source relevance restriction.
+    all: BitSet,
     arena: CausalExprArena,
     proof: Vec<ProofStep>,
     memo: HashMap<(State, bool), Option<usize>>,
@@ -381,23 +448,36 @@ impl<'a> Engine<'a> {
             || query.target.is_empty()
             || query.source == query.target
         {
-            return Err(IdentificationError::msg("invalid classical transport query"));
+            return Err(IdentificationError::invalid_input(
+                "transport.invalid_query: invalid classical transport query",
+            ));
         }
         for variables in [&query.outcomes, &query.treatments] {
             for (i, v) in variables.iter().enumerate() {
                 prepared.var_to_dense(*v)?;
                 if variables[..i].contains(v) {
-                    return Err(IdentificationError::msg("duplicate classical query coordinate"));
+                    return Err(IdentificationError::invalid_input(
+                        "transport.invalid_query: duplicate classical query coordinate",
+                    ));
                 }
             }
         }
         if query.outcomes.iter().any(|v| query.treatments.contains(v)) {
-            return Err(IdentificationError::msg("outcomes overlap interventions"));
+            return Err(IdentificationError::invalid_input(
+                "transport.invalid_query: outcomes overlap interventions",
+            ));
+        }
+        let topo: Arc<[DenseNodeId]> = Arc::from(prepared.topo());
+        let mut all = BitSet::with_len(diagram.causal_graph().node_count());
+        for node in topo.iter() {
+            all.insert(*node);
         }
         Ok(Self {
             diagram,
             query,
             prepared,
+            topo,
+            all,
             arena: CausalExprArena::new(),
             proof: Vec::new(),
             memo: HashMap::new(),
@@ -412,10 +492,10 @@ impl<'a> Engine<'a> {
     fn charge(&mut self, depth: usize) -> Result<(), IdentificationError> {
         self.steps = self.steps.saturating_add(1);
         if self.ctx.cancellation.is_cancelled() {
-            return Err(IdentificationError::msg("transport.cancelled"));
+            return Err(IdentificationError::Cancelled);
         }
         if self.steps > self.limits.steps || depth >= self.limits.depth {
-            return Err(IdentificationError::msg("transport.identification_budget"));
+            return Err(IdentificationError::budget(IdentificationBudget::Steps));
         }
         check_sid_memory(self.diagram, self.steps, self.ctx)?;
         Ok(())
@@ -521,8 +601,8 @@ impl<'a> Engine<'a> {
     fn factor(&mut self, state: &State, district: &BitSet) -> Result<ExprId, IdentificationError> {
         let mut suffix = state.v.clone();
         let mut factors = Vec::new();
-        let topological_order = self.prepared.topo().to_vec();
-        for v in topological_order {
+        let topological_order = Arc::clone(&self.topo);
+        for v in topological_order.iter().copied() {
             if !state.v.contains(v) {
                 continue;
             }
@@ -580,12 +660,9 @@ impl<'a> Engine<'a> {
             }
         }
         if !self.sources.is_empty() {
-            let mut all = BitSet::with_len(self.diagram.causal_graph().node_count());
-            for node in self.prepared.topo() {
-                all.insert(*node);
-            }
             let mut ws = GraphWorkspace::default();
-            let relevant = self.prepared.ancestors_bar_x(&state.y, &all, &interventions, &mut ws);
+            let relevant =
+                self.prepared.ancestors_bar_x(&state.y, &self.all, &interventions, &mut ws);
             interventions.intersect_with(&relevant);
         }
         let variables = self.arena.intern_var_set(self.vars(&state.y)?);
@@ -651,27 +728,30 @@ impl<'a> Engine<'a> {
     fn dense_all(&self, variables: &[VariableId]) -> Result<Vec<DenseNodeId>, IdentificationError> {
         variables.iter().map(|v| self.prepared.var_to_dense(*v)).collect()
     }
+    /// The standardization formula over `over`, when `over` is a valid
+    /// pretreatment set. `admissible_known` skips the separation test a caller
+    /// has already run for exactly this subset.
     fn standardized(
         &mut self,
         state: &State,
         over: &[VariableId],
+        admissible_known: bool,
     ) -> Result<Option<ExprId>, IdentificationError> {
         let mut ws = GraphWorkspace::default();
+        let x_nodes = state.x.to_dense_ids();
         for (i, z) in over.iter().enumerate() {
             let dense = self.prepared.var_to_dense(*z)?;
             if over[..i].contains(z)
                 || state.y.contains(dense)
                 || state.x.contains(dense)
-                || state
-                    .x
-                    .to_dense_ids()
+                || x_nodes
                     .iter()
                     .any(|x| self.diagram.causal_graph().reaches_with(*x, dense, &mut ws))
             {
                 return Ok(None);
             }
         }
-        if !self.source_admissible_given(state, over)? {
+        if !admissible_known && !self.source_admissible_given(state, over)? {
             return Ok(None);
         }
         let variables = self.arena.intern_var_set(self.vars(&state.y)?);
@@ -830,9 +910,10 @@ impl<'a> Engine<'a> {
                     )?;
                     (Rule::Districts, children, output)
                 } else {
-                    let district = districts
-                        .first()
-                        .ok_or_else(|| IdentificationError::msg("empty sID district"))?;
+                    let district =
+                        districts.first().ok_or(IdentificationError::InvariantViolated {
+                            message: "empty sID district",
+                        })?;
                     if source && !self.sources.is_empty() {
                         if let Some(output) = self.available_source(state)? {
                             return Ok(Some(self.record(
@@ -860,10 +941,11 @@ impl<'a> Engine<'a> {
                             self.marginal(kernel, &difference(district, &state.y))?,
                         )
                     } else {
-                        let larger =
-                            containing.iter().find(|d| district.is_subset_of(d)).ok_or_else(
-                                || IdentificationError::msg("missing containing district"),
-                            )?;
+                        let larger = containing.iter().find(|d| district.is_subset_of(d)).ok_or(
+                            IdentificationError::InvariantViolated {
+                                message: "missing containing district",
+                            },
+                        )?;
                         let next = State {
                             y: state.y.clone(),
                             x: intersection(&state.x, larger),
@@ -904,7 +986,7 @@ pub fn verify_classical_transport(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    let bad = || IdentificationError::msg("transport.invalid_derivation");
+    let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
     let mut recorded_selections = derivation.selection_targets.to_vec();
     recorded_selections.sort_unstable();
     let mut input_selections = diagram.selection_targets().to_vec();
@@ -969,7 +1051,7 @@ pub fn verify_classical_transport(
                 if !checker.independently_admissible(state, &step.parameters, &selections)? {
                     return Err(bad());
                 }
-                checker.standardized(state, &step.parameters)?.ok_or_else(bad)?
+                checker.standardized(state, &step.parameters, false)?.ok_or_else(bad)?
             }
             Rule::Marginal => {
                 if state.x.any() || !children.is_empty() {
@@ -1203,24 +1285,50 @@ fn standardization_equal(arena: &CausalExprArena, a: ExprId, b: ExprId) -> bool 
     }
 }
 
-fn graph_signature(diagram: &SelectionDiagram) -> String {
+/// Durable identity of a selection diagram, stored in every portable proof.
+///
+/// The encoding is a fixed text grammar over raw ids, never a `Debug`
+/// rendering: `sig.v2;nodes=<raw ids in dense order>;directed=<from>-<to>,…;
+/// bidirected=<a>-<b>,…;selections=<sorted raw ids>`, with every edge list
+/// sorted. A proof recorded under the earlier `Debug`-based signature no
+/// longer verifies and must be re-derived.
+pub(crate) fn graph_signature(diagram: &SelectionDiagram) -> String {
     let graph = diagram.causal_graph();
-    let mut edges = Vec::new();
+    let nodes = graph
+        .nodes()
+        .iter()
+        .map(|node| match node {
+            antecedent_graph::NodeRef::Static(variable) => variable.raw().to_string(),
+            other => format!("{other:?}"),
+        })
+        .collect::<Vec<_>>();
+    let mut directed = Vec::new();
+    let mut bidirected = Vec::new();
     for i in 0..graph.node_count() {
         let from = DenseNodeId::from_raw(u32::try_from(i).expect("graph capacity"));
-        edges.extend(graph.children(from).iter().map(|to| (i, to.as_usize(), 0)));
-        edges.extend(
+        directed.extend(graph.children(from).iter().map(|to| (i, to.as_usize())));
+        bidirected.extend(
             graph
                 .bidirected_neighbors(from)
                 .iter()
                 .filter(|to| to.as_usize() > i)
-                .map(|to| (i, to.as_usize(), 1)),
+                .map(|to| (i, to.as_usize())),
         );
     }
-    edges.sort_unstable();
-    let mut selection = diagram.selection_targets().to_vec();
-    selection.sort_unstable();
-    format!("{:?}|{edges:?}|{selection:?}", graph.nodes())
+    directed.sort_unstable();
+    bidirected.sort_unstable();
+    let mut selections = diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>();
+    selections.sort_unstable();
+    let edges = |list: &[(usize, usize)]| {
+        list.iter().map(|(a, b)| format!("{a}-{b}")).collect::<Vec<_>>().join(",")
+    };
+    format!(
+        "sig.v2;nodes={};directed={};bidirected={};selections={}",
+        nodes.join(","),
+        edges(&directed),
+        edges(&bidirected),
+        selections.iter().map(ToString::to_string).collect::<Vec<_>>().join(","),
+    )
 }
 
 /// Certified functional with supplied-catalog leaf bindings. Original derivation
@@ -1259,6 +1367,17 @@ impl BoundTransportFunctional {
     pub const fn catalog(&self) -> &antecedent_core::EvidenceCatalog {
         &self.catalog
     }
+    /// The distinct distribution leaves of the bound formula, each with its
+    /// expression id and signature, in traversal order. Every consumer that
+    /// walks the formula for its factors reads this one view.
+    #[must_use]
+    pub fn leaf_factors(&self) -> Vec<(ExprId, antecedent_expr::LeafSignature)> {
+        self.arena
+            .distribution_leaves(self.root)
+            .into_iter()
+            .zip(self.arena.leaf_signatures(self.root))
+            .collect()
+    }
 }
 
 impl ClassicalTransportDerivation {
@@ -1266,41 +1385,45 @@ impl ClassicalTransportDerivation {
         &self,
         catalog: &antecedent_core::EvidenceCatalog,
     ) -> Result<(), IdentificationError> {
-        catalog.validate().map_err(|e| IdentificationError::msg(e.to_string()))?;
         for environment in catalog.environments.iter().filter(|e| e.identity == self.query.source) {
             let mut declared = environment.selection_targets.to_vec();
             declared.sort_unstable();
             let mut identified = self.selection_targets.to_vec();
             identified.sort_unstable();
             if declared != identified {
-                return Err(IdentificationError::msg(
+                return Err(IdentificationError::invalid_catalog(
                     "transport.invalid_input: catalog mechanism selections disagree with the checked diagram",
                 ));
             }
         }
         if !self.sources.is_empty() {
-            let target = catalog
-                .environments
-                .iter()
-                .find(|e| e.identity == self.query.target)
-                .ok_or_else(|| IdentificationError::msg("missing meta target environment"))?;
+            let target =
+                catalog.environments.iter().find(|e| e.identity == self.query.target).ok_or_else(
+                    || {
+                        IdentificationError::invalid_catalog(
+                            "transport.invalid_input: missing meta target environment",
+                        )
+                    },
+                )?;
             if !target.selection_targets.is_empty() {
-                return Err(IdentificationError::msg(
-                    "target environment cannot declare selection differences from itself",
+                return Err(IdentificationError::invalid_catalog(
+                    "transport.invalid_input: target environment cannot declare selection differences from itself",
                 ));
             }
             let ExprNode::Distribution { variables, .. } =
                 self.arena.node(self.proof[self.root_step].state.kernel)
             else {
-                return Err(IdentificationError::msg("invalid initial transport kernel"));
+                return Err(IdentificationError::InvariantViolated {
+                    message: "invalid initial transport kernel",
+                });
             };
             let coordinates = self.arena.var_set(*variables);
             if catalog.environments.iter().any(|e| {
                 e.variables.iter().any(|v| !coordinates.contains(&v.variable))
                     || e.selection_targets.iter().any(|v| !coordinates.contains(v))
             }) {
-                return Err(IdentificationError::msg(
-                    "catalog coordinate outside shared causal graph",
+                return Err(IdentificationError::invalid_catalog(
+                    "transport.invalid_input: catalog coordinate outside shared causal graph",
                 ));
             }
         }
@@ -1309,13 +1432,17 @@ impl ClassicalTransportDerivation {
                 .environments
                 .iter()
                 .find(|e| e.identity.as_ref() == source.population)
-                .ok_or_else(|| IdentificationError::msg("missing meta source environment"))?;
+                .ok_or_else(|| {
+                    IdentificationError::invalid_catalog(
+                        "transport.invalid_input: missing meta source environment",
+                    )
+                })?;
             let mut declared: Vec<_> =
                 environment.selection_targets.iter().map(|v| v.raw()).collect();
             declared.sort_unstable();
             if declared != source.selections {
-                return Err(IdentificationError::msg(
-                    "meta source selections disagree with checked proof",
+                return Err(IdentificationError::invalid_catalog(
+                    "transport.invalid_input: meta source selections disagree with checked proof",
                 ));
             }
         }
@@ -1329,6 +1456,16 @@ impl ClassicalTransportDerivation {
     /// # Errors
     /// Invalid catalog or an unavailable population/regime/measurement obligation.
     pub fn bind_catalog(
+        &self,
+        catalog: &antecedent_core::EvidenceCatalog,
+    ) -> Result<BoundTransportFunctional, IdentificationError> {
+        catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
+        self.bind_catalog_validated(catalog)
+    }
+
+    /// [`Self::bind_catalog`] for a catalog the caller has already validated,
+    /// so a search that binds many candidate derivations validates once.
+    pub(crate) fn bind_catalog_validated(
         &self,
         catalog: &antecedent_core::EvidenceCatalog,
     ) -> Result<BoundTransportFunctional, IdentificationError> {
@@ -1423,7 +1560,7 @@ pub struct SHedgeCertificate {
 }
 
 /// Untrusted portable forest edge subgraph, in original variable coordinates.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 #[allow(missing_docs)]
 pub struct SelectionForestRecord {
@@ -1458,7 +1595,7 @@ impl SelectionForestRecord {
 }
 /// Portable negative claim. Deserialization conveys no authority; its forest,
 /// query, graph and full-source-experimental evidence scope must all check.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 #[allow(missing_docs)]
 pub struct SHedgeRecord {
@@ -1507,7 +1644,9 @@ impl SHedgeCertificate {
         if record.evidence_setting
             != if record.sources.is_empty() { CLASSICAL_SETTING } else { META_SETTING }
         {
-            return Err(IdentificationError::msg("transport.invalid_s_hedge_evidence"));
+            return Err(IdentificationError::invalid_derivation(
+                "transport.invalid_s_hedge_evidence",
+            ));
         }
         check_sid_memory(diagram, 1, ctx)?;
         let witness = Self {
@@ -1556,7 +1695,7 @@ impl Engine<'_> {
         let mut bidirected = Vec::new();
         for node in state.v.to_dense_ids() {
             if self.ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::msg("transport.cancelled"));
+                return Err(IdentificationError::Cancelled);
             }
             let distance = if small.contains(node) { &small_distance } else { &large_distance };
             if distance[node.as_usize()] == usize::MAX {
@@ -1633,17 +1772,22 @@ pub fn verify_s_hedge(
     witness: &SHedgeCertificate,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    let bad = || IdentificationError::msg("transport.invalid_s_hedge");
+    let bad = || IdentificationError::invalid_derivation("transport.invalid_s_hedge");
     if ctx.cancellation.is_cancelled() {
-        return Err(IdentificationError::msg("transport.cancelled"));
+        return Err(IdentificationError::Cancelled);
     }
     if &witness.query != query || witness.graph_signature != graph_signature(diagram) {
         return Err(bad());
     }
     check_sid_memory(diagram, 1, ctx)?;
-    if !witness.sources.is_empty() {
+    if let Some(first) = witness.sources.first() {
         meta::check_meta_resources(diagram.causal_graph(), &witness.sources, usize::MAX, ctx)?;
         validate_meta_sources(diagram.causal_graph(), query, &witness.sources)?;
+        let mut selections: Vec<_> = diagram.selection_targets().iter().map(|v| v.raw()).collect();
+        selections.sort_unstable();
+        if first.selections != selections {
+            return Err(bad());
+        }
         for source in &witness.sources {
             let source_diagram = SelectionDiagram::try_new(
                 diagram.causal_graph().clone(),
@@ -1684,7 +1828,7 @@ pub fn verify_s_hedge(
         let mut has_child = vec![false; nodes.len()];
         for (a, b) in forest.directed.iter() {
             if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::msg("transport.cancelled"));
+                return Err(IdentificationError::Cancelled);
             }
             let (Some(&from), Some(_)) = (position.get(a), position.get(b)) else {
                 return Err(bad());
@@ -1722,7 +1866,7 @@ pub fn verify_s_hedge(
         let mut count = 1usize;
         while let Some(node) = pending.pop() {
             if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::msg("transport.cancelled"));
+                return Err(IdentificationError::Cancelled);
             }
             for &next in &adjacency[node] {
                 if !reached[next] {
@@ -1876,7 +2020,7 @@ pub fn identify_catalog_transport(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<CatalogTransportResult, IdentificationError> {
-    catalog.validate().map_err(|e| IdentificationError::msg(e.to_string()))?;
+    catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     let mut engine = Engine::new(diagram, query, limits, ctx)?;
     let state = engine.initial()?;
     let mut obligations = Vec::<Arc<str>>::new();
@@ -1888,18 +2032,19 @@ pub fn identify_catalog_transport(
     for strategy in 0..2 {
         if let Some(root_step) = result {
             had_derivation = true;
+            let (proof, root_step) = reachable_proof(&engine.proof, root_step);
             let derivation = ClassicalTransportDerivation {
                 query: query.clone(),
                 graph_signature: graph_signature(diagram),
                 selection_targets: Arc::from(diagram.selection_targets()),
                 arena: engine.arena.clone(),
-                root: engine.proof[root_step].output,
-                proof: engine.proof.clone(),
+                root: proof[root_step].output,
+                proof,
                 root_step,
                 sources: Vec::new(),
             };
             verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
-            match derivation.bind_catalog(catalog) {
+            match derivation.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {
                     bound.searched = searched_stages(if strategy == 0 { 1 } else { 3 });
                     return Ok(CatalogTransportResult::Identified(Box::new(bound)));
@@ -1918,6 +2063,8 @@ pub fn identify_catalog_transport(
             // and never a reason to skip the cheaper source-first strategy.
             let x_nodes = state.x.to_dense_ids();
             let candidates = pretreatment_candidates(diagram, &state, &x_nodes);
+            let state_outcomes = engine.vars(&state.y)?;
+            let state_treatments = engine.vars(&state.x)?;
             let targets = engine.dense_all(diagram.selection_targets())?;
             let selection =
                 MutilatedSelection::build(diagram.causal_graph(), &state.v, &state.x, &targets)?;
@@ -1930,7 +2077,7 @@ pub fn identify_catalog_transport(
                 limits.steps,
                 || {
                     if ctx.cancellation.is_cancelled() {
-                        Err(IdentificationError::msg("transport.cancelled"))
+                        Err(IdentificationError::Cancelled)
                     } else {
                         Ok(())
                     }
@@ -1940,7 +2087,19 @@ pub fn identify_catalog_transport(
                         .iter()
                         .map(|z| engine.prepared.dense_to_var(*z))
                         .collect::<Result<Vec<_>, _>>()?;
-                    let Some(output) = engine.standardized(&state, &over)? else {
+                    // The subset passed the separation test that produced it,
+                    // and its two leaves are probed against the catalog before
+                    // anything is interned or cloned.
+                    if !standardization_binds(
+                        catalog,
+                        query,
+                        &state_outcomes,
+                        &state_treatments,
+                        &over,
+                    ) {
+                        return Ok(false);
+                    }
+                    let Some(output) = engine.standardized(&state, &over, true)? else {
                         return Ok(false);
                     };
                     had_derivation = true;
@@ -1952,9 +2111,7 @@ pub fn identify_catalog_transport(
                         output,
                         over,
                     );
-                    let Ok(mut bound) = derivation.bind_catalog(catalog) else {
-                        return Ok(false);
-                    };
+                    let mut bound = derivation.bind_catalog_validated(catalog)?;
                     verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
                     bound.searched = searched_stages(2);
                     found = Some(bound);
@@ -1995,26 +2152,36 @@ fn bind_distribution(
         variables, conditioned_on, intervention, domain, population, ..
     } = source.node(id).clone()
     else {
-        return Err(IdentificationError::msg("expected a distribution leaf"));
+        return Err(IdentificationError::InvariantViolated {
+            message: "expected a distribution leaf",
+        });
     };
     let name = source.population(population);
     let vars = source.var_set(variables);
     let conditions = source.var_set(conditioned_on);
     let interventions = source.intervention_set(intervention);
     if name == target && catalog.target_sampling.is_some_and(|s| !s.represents_target_law()) {
-        return Err(IdentificationError::msg(
-            "transport.missing_evidence: target sampling does not represent target law",
+        return Err(IdentificationError::missing_evidence(
+            "transport.missing_evidence",
+            "target sampling does not represent target law",
         ));
     }
-    let regime = catalog.regimes.iter().filter(|r| {
-                        r.population.as_ref() == name && r.evidence_kind.can_satisfy_factor()
-                            && r.intervention_values.is_empty() && r.conditioned_on.is_empty()
-                            && matches!(r.distribution, antecedent_core::DistributionAvailability::Joint)
-                            && r.interventions.len() == interventions.len() && r.interventions.iter().all(|v| interventions.contains(v))
-                            && vars.iter().chain(conditions).all(|v| r.measured.contains(v))
-                    }).min_by_key(|r| r.id.raw()).ok_or_else(|| IdentificationError::msg(format!(
-                        "transport.missing_evidence: this derivation needs joint {name} law over {vars:?} given {conditions:?} under do({interventions:?}); alternative search not exhausted"
-                    )))?;
+    // One predicate decides regime satisfaction for every transport route:
+    // `EvidenceRegime::satisfies`, which the structural identifier also uses.
+    let need = antecedent_core::FactorNeed {
+        population: name,
+        variables: vars,
+        conditioned_on: conditions,
+        interventions: &interventions,
+    };
+    let regime = catalog.satisfying_regime(&need).ok_or_else(|| {
+        IdentificationError::missing_evidence(
+            "transport.missing_evidence",
+            format!(
+                "this derivation needs joint {name} law over {vars:?} given {conditions:?} under do({interventions:?}); alternative search not exhausted"
+            ),
+        )
+    })?;
     Ok(ExprNode::Distribution {
         variables,
         conditioned_on,
@@ -2030,19 +2197,29 @@ fn check_sid_memory(
     steps: usize,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    if ctx.cancellation.is_cancelled() {
-        return Err(IdentificationError::msg("transport.cancelled"));
-    }
     // Carried chain-rule kernels have quadratic coordinate storage; a linear
     // node-count charge would substantially understate recursive factorization.
     let n = diagram.causal_graph().node_count();
     let bytes = n.saturating_mul(n).saturating_mul(64).saturating_add(512).saturating_mul(steps);
+    refuse_over_budget(bytes, ctx, IdentificationBudget::Memory)
+}
+
+/// The one memory-budget check of the transport identifiers: cancellation
+/// first, then `bytes` against the context's hard limit, refusing with `budget`.
+pub(crate) fn refuse_over_budget(
+    bytes: usize,
+    ctx: &ExecutionContext,
+    budget: IdentificationBudget,
+) -> Result<(), IdentificationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
     if ctx
         .memory
         .hard_limit_bytes
         .is_some_and(|limit| u64::try_from(bytes).map_or(true, |bytes| bytes > limit))
     {
-        return Err(IdentificationError::msg("transport.identification_memory_budget"));
+        return Err(IdentificationError::budget(budget));
     }
     Ok(())
 }
