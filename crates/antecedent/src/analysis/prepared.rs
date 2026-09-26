@@ -6463,11 +6463,69 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
+        if let Some(result) = self.estimate_sealed_program_operation(data, ctx)? {
+            return Ok(result);
+        }
+        if let Some(result) = self.estimate_sealed_static_operation(data, ctx)? {
+            return Ok(result);
+        }
+        if let Some(result) = self.estimate_sealed_estimator_operation(data, ctx)? {
+            return Ok(result);
+        }
+        if let Some(result) = self.estimate_sealed_class_operation(data, ctx)? {
+            return Ok(result);
+        }
+        let mut click_analysis = self.analysis.clone();
+        click_analysis.data = DataInput::Tabular(data.clone());
+        click_analysis.interference =
+            click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
+        click_analysis.shared_batch_design = shared;
+        let execution = self.execution.rebind_for_dispatch(data)?;
+        let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
+        // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
+        // record which refutation reports are caller-attested. Without the names,
+        // the claim would drop custom-validator evidence from `attested` and from
+        // the claim identity.
+        result.custom_validator_names = click_analysis
+            .custom_validators
+            .iter()
+            .map(|validator| Arc::from(validator.name()))
+            .collect();
+        // Only a non-mean functional is read from the frozen scores; a mean click keeps
+        // the estimator's own value, so refitting the cross-fit table would be discarded.
+        let click_scores = if query_reads_score_table(&self.analysis.query) {
+            click_analysis.prepare_score_table(ctx)?
+        } else {
+            None
+        };
+        overlay_prepared_score_functional(
+            &self.analysis.query,
+            click_scores.as_ref(),
+            &mut result,
+        )?;
+        self.stamp(&click_analysis.data, result)
+    }
+
+    /// Sealed program routes: linear and AIPW adjustment, ADMG response
+    /// curves, path-specific and functional effects, distributions,
+    /// front-door, and IV.
+    ///
+    /// Each family of sealed routes executes from its own method so that a
+    /// debug build of [`Self::estimate_with_shared`] does not hold a result
+    /// slot for every route on one frame; that frame alone exceeded the
+    /// default thread stack.
+    fn estimate_sealed_program_operation(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<StudyResult>, CausalError> {
         if let Some(operation) = self.execution.linear_operation() {
             if operation.sealed_for_direct_execution() {
                 let rebound = operation.rebind(data)?;
                 let result = rebound.execute(data, ctx)?;
-                return self.stamp_linear(&DataInput::Tabular(data.clone()), &rebound, result);
+                return self
+                    .stamp_linear(&DataInput::Tabular(data.clone()), &rebound, result)
+                    .map(Some);
             }
         }
         if let Some(operation) = self.execution.admg_response_curve() {
@@ -6485,7 +6543,7 @@ impl PreparedStudy {
                     rebound.refute,
                     None,
                 )?);
-                return Ok(result);
+                return Ok(Some(result));
             }
         }
         if let Some(operation) = self.execution.path_specific_effect_operation() {
@@ -6503,7 +6561,7 @@ impl PreparedStudy {
                     rebound.refute,
                     None,
                 )?);
-                return Ok(result);
+                return Ok(Some(result));
             }
         }
         if let Some(operation) = self.execution.aipw_operation() {
@@ -6511,18 +6569,18 @@ impl PreparedStudy {
                 let rebound = operation.rebind(data)?;
                 let mut result = rebound.execute(data, ctx)?;
                 result.custom_validator_names = rebound.custom_validator_names.to_vec();
-                return self.stamp_aipw(&DataInput::Tabular(data.clone()), &rebound, result);
+                return self
+                    .stamp_aipw(&DataInput::Tabular(data.clone()), &rebound, result)
+                    .map(Some);
             }
         }
         if let Some(operation) = self.execution.distribution() {
             if operation.sealed_for_direct_execution() {
                 let mut result = operation.execute(data, ctx)?;
                 result.custom_validator_names = operation.custom_validator_names.to_vec();
-                return self.stamp_distribution(
-                    &DataInput::Tabular(data.clone()),
-                    operation,
-                    result,
-                );
+                return self
+                    .stamp_distribution(&DataInput::Tabular(data.clone()), operation, result)
+                    .map(Some);
             }
         }
         if let Some(operation) = self.execution.functional_effect_operation() {
@@ -6540,22 +6598,33 @@ impl PreparedStudy {
                     rebound.refute,
                     None,
                 )?);
-                return Ok(result);
+                return Ok(Some(result));
             }
         }
         if let Some(operation) = self.execution.frontdoor_linear() {
             let rebound = operation.rebind(data)?;
             let result = self.execute_checked_frontdoor(data, &rebound, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let Some(operation) = self.execution.iv() {
             let rebound = operation.rebind(data)?;
             let result = self.execute_checked_iv(data, &rebound, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        Ok(None)
+    }
+
+    /// Sealed static routes: counterfactual, tiered average, derivative and
+    /// DAG responses, joint cells, mediation, attribution, and interference.
+    /// See [`Self::estimate_sealed_program_operation`].
+    fn estimate_sealed_static_operation(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<StudyResult>, CausalError> {
         if let PreparedExecution::Counterfactual(plan) = &self.execution {
             let result = plan.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::UnknownTieredAverage(operation) = &self.execution {
             let result = self.analysis.execute_checked_unknown_tiered_average(
@@ -6568,19 +6637,19 @@ impl PreparedStudy {
                 operation.identifier,
                 operation.estimator,
             )?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::DerivativeResponse(operation) = &self.execution {
             let result = self
                 .analysis
                 .execute_checked_derivative_response(data, &self.plan, ctx, operation)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::StaticDagResponse(operation) = &self.execution {
             let result = self
                 .analysis
                 .execute_checked_static_dag_response(data, &self.plan, ctx, operation)?;
-            return self.stamp_with_likelihood(data, operation.inference(), result);
+            return self.stamp_with_likelihood(data, operation.inference(), result).map(Some);
         }
         if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
             let rebound =
@@ -6588,67 +6657,91 @@ impl PreparedStudy {
             let result = self
                 .analysis
                 .execute_checked_cell_aipw_response(data, &self.plan, ctx, &rebound)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::StaticMediation(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::BayesianStaticMediation(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::Attribution(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::Interference(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        Ok(None)
+    }
+
+    /// Sealed estimator routes: Bayesian g-computation, basis, robust, and
+    /// conditional effects, and GLM, RD, propensity, and conditional
+    /// adjustment. See [`Self::estimate_sealed_program_operation`].
+    fn estimate_sealed_estimator_operation(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<StudyResult>, CausalError> {
         if let PreparedExecution::BayesianGcomp(operation) = &self.execution {
             let mut result = operation.execute(data, ctx)?;
             result.custom_validator_names = operation.custom_validator_names();
-            return self.stamp_with_likelihood(data, operation.operation().inference(), result);
+            return self
+                .stamp_with_likelihood(data, operation.operation().inference(), result)
+                .map(Some);
         }
         if let PreparedExecution::BayesianBasisAte(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp_with_likelihood(data, &operation.inference(), result);
+            return self.stamp_with_likelihood(data, &operation.inference(), result).map(Some);
         }
         if let PreparedExecution::BayesianBasisCate(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::BayesianRobustAte(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::BayesianConditional(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
-            return self.stamp_with_likelihood(data, operation.inference(), result);
+            return self.stamp_with_likelihood(data, operation.inference(), result).map(Some);
         }
         if let PreparedExecution::CheckedGlmAdjustment(operation) = &self.execution {
             if operation.sealed_for_direct_execution() {
                 let rebound = operation.rebind(data)?;
                 let result = self.execute_checked_glm(data, &rebound, ctx)?;
-                return self.stamp(&DataInput::Tabular(data.clone()), result);
+                return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
             }
         }
         if let PreparedExecution::CheckedRd(operation) = &self.execution {
             let rebound = operation.rebind(data)?;
             let result = self.execute_checked_rd(data, &rebound, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::CheckedPropensity(operation) = &self.execution {
             let rebound = operation.rebind(data)?;
             let result = self.execute_checked_propensity(data, &rebound, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::CheckedConditional(operation) = &self.execution {
             let rebound = operation.rebind(data)?;
             let result = self.execute_checked_conditional(data, &rebound, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        Ok(None)
+    }
+
+    /// Sealed class routes: graph-posterior and class effects and responses,
+    /// Bayesian specialists, and trial transport.
+    /// See [`Self::estimate_sealed_program_operation`].
+    fn estimate_sealed_class_operation(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<StudyResult>, CausalError> {
         if let PreparedExecution::GraphPosteriorEffect(operation) = &self.execution {
             let mut click_analysis = self.analysis.clone();
             click_analysis.data = DataInput::Tabular(data.clone());
@@ -6662,18 +6755,18 @@ impl PreparedStudy {
                 click_analysis
                     .execute_checked_graph_posterior_frequentist(data, &self.plan, operation, ctx)?
             };
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::ClassGraphPosteriorEffect(operation) = &self.execution {
             let result = self
                 .analysis
                 .execute_checked_class_graph_posterior_effect(data, operation, &self.plan, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::BayesianGraphPosteriorAte(operation) = &self.execution {
             let result =
                 self.analysis.execute_checked_bayesian_graph_posterior_ate(data, operation, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::StaticClassEffect(operation) = &self.execution {
             let mut click_analysis = self.analysis.clone();
@@ -6714,63 +6807,35 @@ impl PreparedStudy {
                     });
                 }
             };
-            return self.stamp_with_likelihood(data, operation.inference(), result);
+            return self.stamp_with_likelihood(data, operation.inference(), result).map(Some);
         }
         if let PreparedExecution::AdmgGraphPosteriorResponse(operation) = &self.execution {
             let result = self
                 .analysis
                 .execute_checked_admg_graph_posterior_response(data, operation, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::BayesianClassConditional(operation) = &self.execution {
             let result = operation.execute(&self.analysis, data, ctx)?;
-            return self.stamp(&DataInput::Tabular(data.clone()), result);
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::StaticClassResponse(operation) = &self.execution {
             let result =
                 self.analysis.execute_checked_static_class_response(data, operation, ctx)?;
-            return self.stamp_with_likelihood(data, operation.inference(), result);
+            return self.stamp_with_likelihood(data, operation.inference(), result).map(Some);
         }
         if let PreparedExecution::GraphPosteriorResponse(operation) = &self.execution {
             let result =
                 self.analysis.execute_checked_graph_posterior_response(data, operation, ctx)?;
-            return self.stamp_with_likelihood(data, operation.inference(), result);
+            return self.stamp_with_likelihood(data, operation.inference(), result).map(Some);
         }
         if matches!(
             self.execution,
             PreparedExecution::BayesianSpecialist(_) | PreparedExecution::TransportTrial(_)
         ) {
-            return self.estimate_retained_single_operation(data, ctx);
+            return self.estimate_retained_single_operation(data, ctx).map(Some);
         }
-        let mut click_analysis = self.analysis.clone();
-        click_analysis.data = DataInput::Tabular(data.clone());
-        click_analysis.interference =
-            click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
-        click_analysis.shared_batch_design = shared;
-        let execution = self.execution.rebind_for_dispatch(data)?;
-        let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
-        // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
-        // record which refutation reports are caller-attested. Without the names,
-        // the claim would drop custom-validator evidence from `attested` and from
-        // the claim identity.
-        result.custom_validator_names = click_analysis
-            .custom_validators
-            .iter()
-            .map(|validator| Arc::from(validator.name()))
-            .collect();
-        // Only a non-mean functional is read from the frozen scores; a mean click keeps
-        // the estimator's own value, so refitting the cross-fit table would be discarded.
-        let click_scores = if query_reads_score_table(&self.analysis.query) {
-            click_analysis.prepare_score_table(ctx)?
-        } else {
-            None
-        };
-        overlay_prepared_score_functional(
-            &self.analysis.query,
-            click_scores.as_ref(),
-            &mut result,
-        )?;
-        self.stamp(&click_analysis.data, result)
+        Ok(None)
     }
 
     /// Execute a retained Bayesian specialist or transport trial operation.
