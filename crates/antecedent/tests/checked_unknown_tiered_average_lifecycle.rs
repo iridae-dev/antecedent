@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::float_cmp)]
+#![allow(clippy::float_cmp, reason = "lifecycle pins compare bitwise-identical replayed estimates")]
 
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext};

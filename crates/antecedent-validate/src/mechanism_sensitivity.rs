@@ -905,7 +905,7 @@ impl DiscreteKernelSensitivity {
 
 // A zero tipping fraction is exact only when the declared threshold is exactly
 // the computed baseline; applying a tolerance would change the reported quantity.
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, reason = "a threshold equal to the baseline is an exact user-supplied coincidence")]
 fn exact_threshold_matches_baseline(threshold: f64, baseline: f64) -> bool {
     threshold == baseline
 }
@@ -940,7 +940,7 @@ mod tests {
 
     // The zero-contamination contract requires the extrema to equal baseline
     // exactly; a tolerance could hide an unintended perturbation.
-    #[allow(clippy::float_cmp)]
+    #[allow(clippy::float_cmp, reason = "tests pin bitwise-identical replayed values")]
     fn assert_exact_float_eq(actual: f64, expected: f64) {
         assert_eq!(actual, expected);
     }

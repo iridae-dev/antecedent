@@ -2,7 +2,11 @@
 //!
 //! These tests enumerate exogenous states directly. They do not use the
 //! identifier or expression evaluator to calculate any probability.
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    reason = "fixture sizes and indices are small integers well inside f64 and usize range"
+)]
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,

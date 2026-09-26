@@ -237,7 +237,7 @@ fn validate_inputs(
 }
 
 // Exact equality is the declared binary-treatment domain, not a numeric tolerance test.
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, reason = "binary treatment levels are exact 0.0 and 1.0 codes")]
 fn is_binary_with_both_levels(treatment: &[f64]) -> bool {
     treatment.iter().all(|value| *value == 0.0 || *value == 1.0)
         && treatment.iter().any(|value| *value == 0.0)
