@@ -24,10 +24,12 @@ use antecedent_core::{
     TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg};
 use antecedent_graph::{
-    Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TieredBackground,
-    WithinTier,
+    Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalPag,
+    TieredBackground, WithinTier,
 };
+use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
     CoverageTally, RecordKey, SampleGrid, gaussian, grid_n, map_replicates, n_sim, stream_seed,
 };
@@ -168,12 +170,12 @@ where
     }
 }
 
-fn mediation_coverage(test: &'static str, kappa: f64, seed_base: u64) {
+fn mediation_coverage(test: &'static str, kappa: f64, seed_base: u64, accepted: bool) {
     let mut tallies = keyed_pair(test, "mediation_series");
     let runs = map_replicates(n_sim(), |rep| {
         let seed = seed_base + rep;
         let (study, result) =
-            run_mediation(kappa, grid_n(MEDIATION_N), false, RefuteSuite::None, seed)?;
+            run_mediation(kappa, grid_n(MEDIATION_N), accepted, RefuteSuite::None, seed)?;
         let intervals = posterior_intervals(&result);
         if rep == 0 {
             assert_eq!(
@@ -235,21 +237,39 @@ fn intervention_response_admg_bayesian_publishes_posterior_quantile() {
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_cpdag_mediation_bayesian_confounded_nominal_coverage() {
+fn temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage() {
     mediation_coverage(
-        "temporal_cpdag_mediation_bayesian_confounded_nominal_coverage",
+        "temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage",
         fixtures::MED_KAPPA,
         0x110_0411,
+        false,
     );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_cpdag_mediation_bayesian_unconfounded_nominal_coverage() {
+fn temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage() {
     mediation_coverage(
-        "temporal_cpdag_mediation_bayesian_unconfounded_nominal_coverage",
+        "temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage",
         0.0,
         0x110_0412 << 20,
+        false,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage() {
+    // Accepted twin of the confounded explicit test: `AcceptedGraph::temporal_cpdag`
+    // wraps the same agreeing `mediation_cpdag_two()`, whose completions all share
+    // one mediated contrast, so it publishes the same posterior interval the
+    // explicit graph does. Truth is the path-product mediated effect
+    // `fixtures::mediation_truth()` (derived from the mediation DGP, unchanged).
+    mediation_coverage(
+        "temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage",
+        fixtures::MED_KAPPA,
+        0x110_0490,
+        true,
     );
 }
 
@@ -507,6 +527,39 @@ fn intervention_response_pag_frequentist_nominal_coverage() {
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_pag_frequentist_accepted_nominal_coverage() {
+    // The accepted-graph structure of the same agreeing PAG: every completion
+    // adjusts `{z}`, so `AcceptedGraph::from(agreeing_pag())` publishes the same
+    // joint influence-function interval the explicit PAG does (checked at rep 0
+    // by `intervention_response_pag_frequentist_nominal_coverage`). Truth is the
+    // structural `do(t=1)` mean `1.0 + 2.0*1.0 + 0.8*E[z] = 3.0` (z ~ N(0,1)).
+    let mut tally = keyed_analytic(
+        "intervention_response_pag_frequentist_accepted_nominal_coverage",
+        "pag_data",
+        "a=1".into(),
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0420, rep);
+        let (study, result) = run_pag(pag_level_query(1.0), grid_n(500), true, seed)?;
+        let interval = response_scalar(&result).map(|(lo, hi, _, _)| (lo, hi));
+        if rep == 0 {
+            assert!(interval.is_some(), "the accepted PAG must publish the joint-IF interval");
+        }
+        Some((study, result, interval))
+    });
+    for scored in &runs {
+        let Some((study, result, interval)) = scored else {
+            tally.skip();
+            continue;
+        };
+        bind_all(&mut [&mut tally], study, result);
+        tally.record(*interval, 3.0);
+    }
+    gate(&[tally], &[None]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn response_curve_pag_frequentist_pointwise_nominal_coverage() {
     let mut tallies: Vec<CoverageTally> = PAG_GRID
         .iter()
@@ -530,6 +583,52 @@ fn response_curve_pag_frequentist_pointwise_nominal_coverage() {
         for (j, tally) in tallies.iter_mut().enumerate() {
             match &bands {
                 Some((lower, upper, _)) => {
+                    tally.record(Some((lower[j], upper[j])), 1.0 + 2.0 * PAG_GRID[j])
+                }
+                None => tally.skip(),
+            }
+        }
+    }
+    gate(&tallies, &[None; 5]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_pag_frequentist_accepted_pointwise_nominal_coverage() {
+    // Accepted twin of `response_curve_pag_frequentist_pointwise_nominal_coverage`:
+    // `AcceptedGraph::from(agreeing_pag())` publishes the same joint influence-function
+    // band as the explicit PAG (the explicit test checks the two agree). Truth per
+    // dose a: `pag_data` has `y = 1 + 2t + 0.8z + noise`, `E[z] = 0`, so the population
+    // level is `E[Y | do(t=a)] = 1 + 2a`.
+    let mut tallies: Vec<CoverageTally> = PAG_GRID
+        .iter()
+        .map(|a| {
+            keyed_analytic(
+                "response_curve_pag_frequentist_accepted_pointwise_nominal_coverage",
+                "pag_data",
+                format!("a={a}"),
+            )
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0480, rep);
+        let run = run_pag(pag_curve_query(), grid_n(500), true, seed);
+        if rep == 0 {
+            let (_, result) = run.as_ref().expect("accepted pag curve runs");
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("response.kennedy_dr"));
+            assert!(response_band(result).is_some(), "the accepted PAG must publish the band");
+        }
+        run
+    });
+    for run in &runs {
+        let bands = run.as_ref().and_then(|(_, result)| response_band(result));
+        if let (Some((study, result)), Some(_)) = (run, &bands) {
+            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        }
+        for (j, tally) in tallies.iter_mut().enumerate() {
+            match &bands {
+                Some((lower, upper, _)) => {
+                    // per dose a: 1 + 2a (pag_data, E[z] = 0)
                     tally.record(Some((lower[j], upper[j])), 1.0 + 2.0 * PAG_GRID[j])
                 }
                 None => tally.skip(),
@@ -615,6 +714,248 @@ fn response_curve_admg_bayesian_accepted_pointwise_nominal_coverage() {
     gate(&tallies, &[None; 2]);
 }
 
+// ---------------------------------------------------------------------------
+// Frequentist ADMG general-ID Response twins of the Bayesian ADMG tests above.
+// `.inference(Frequentist)` + `.bootstrap_replicates(199)` routes the general-ID
+// front-door Response through `FunctionalEffect::estimate`, publishing a normal
+// interval from the 199-replicate front-door plug-in bootstrap SE. The reported
+// interval method is `bootstrap_se` (estimator `functional.effect`), a third,
+// distinct interval method beside the Bayesian `posterior_quantile` and the PAG
+// `analytic_se` cells.
+//
+// Truth derivations (both from `frontdoor_data`, the binary front door
+// T -> M -> Y with the T <-> Y bidirected confounder; identical to the Bayesian
+// twins' constants). The front-door functional is
+//   E[Y | do(T=t)] = sum_m P(M=m | T=t) * sum_{t'} P(T=t') * E[Y | M=m, T=t'].
+// Evaluated on the population CPTs of `frontdoor_data` it is 0.33 at t=0 and 0.57
+// at t=1 (`ADMG_CURVE_TRUTH`); the scalar `InterventionResponse` at t=1 is
+// `P_Y1_DO_T1 = 0.57`. These are the same values `pag_admg_numeric_pins.rs`
+// pins the plug-in against and that the Bayesian coverage twins record.
+// ---------------------------------------------------------------------------
+
+fn keyed_bootstrap(test: &'static str, dgp: &'static str, label: String) -> CoverageTally {
+    CoverageTally::for_record(RecordKey { test, dgp, interval: "bootstrap_se" }, REPORTED_LEVEL)
+        .labelled(label)
+}
+
+fn run_intervention_freq(n: usize, accepted: bool, seed: u64) -> Option<(Study, StudyResult)> {
+    let data = frontdoor_data(n, seed);
+    let builder = Study::tabular(data);
+    let builder = if accepted {
+        builder.graph(AcceptedGraph::from(frontdoor_admg()))
+    } else {
+        builder.graph(frontdoor_admg())
+    };
+    let study = builder
+        .query(intervention_query())
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(199)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+/// One fully identified ADMG graph-posterior atom (weight `[1.0]`) over the
+/// front-door graph, so the single-atom mixture publishes the identified atom's
+/// own bootstrap band — a genuine `.graph_posterior` construction, not the
+/// classifier's name tolerance.
+fn frontdoor_admg_gp() -> GraphPosterior {
+    let graph = frontdoor_admg();
+    let n = graph.node_count();
+    let key = adjacency_mask_from_admg(&graph).unwrap();
+    GraphPosterior::new(
+        n,
+        vec![1.0],
+        vec![key],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        1.0,
+        InferenceDiagnostics::analytic("v110_admg_graph_posterior_response"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Admg)
+}
+
+fn run_intervention_gp_freq(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
+    let data = frontdoor_data(n, seed);
+    let study = Study::tabular(data)
+        .graph_posterior(frontdoor_admg_gp())
+        .query(intervention_query())
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(199)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+fn run_admg_curve_freq(n: usize, accepted: bool, seed: u64) -> Option<(Study, StudyResult)> {
+    let data = frontdoor_data(n, seed);
+    let builder = Study::tabular(data);
+    let builder = if accepted {
+        builder.graph(AcceptedGraph::from(frontdoor_admg()))
+    } else {
+        builder.graph(frontdoor_admg())
+    };
+    let study = builder
+        .query(CausalQuery::Response(admg_curve_query()))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(199)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+fn run_admg_curve_gp_freq(n: usize, seed: u64) -> Option<(Study, StudyResult)> {
+    let data = frontdoor_data(n, seed);
+    let study = Study::tabular(data)
+        .graph_posterior(frontdoor_admg_gp())
+        .query(CausalQuery::Response(admg_curve_query()))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(199)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+/// Coverage of the scalar `InterventionResponse` bootstrap interval the facade
+/// reports for a frequentist ADMG general-ID run. `run` builds the explicit,
+/// accepted, or graph-posterior structure. Truth is the front-door constant
+/// `P_Y1_DO_T1 = 0.57` (derived above).
+fn admg_ir_freq_coverage(
+    test: &'static str,
+    seed_base: u64,
+    run: impl Fn(usize, u64) -> Option<(Study, StudyResult)> + Sync,
+) {
+    let mut tally = keyed_bootstrap(test, "frontdoor_data", "a=1".into());
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(seed_base, rep);
+        let (study, result) = run(SampleGrid::HEAVY.n(FRONTDOOR_N), seed)?;
+        let interval = response_scalar(&result).map(|(lo, hi, _, _)| (lo, hi));
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
+            assert_interval_method(&study, &result, "bootstrap_se");
+            assert!(interval.is_some(), "the frequentist ADMG scalar must publish a bootstrap interval");
+        }
+        Some((study, result, interval))
+    });
+    for scored in &runs {
+        let Some((study, result, interval)) = scored else {
+            tally.skip();
+            continue;
+        };
+        bind_all(&mut [&mut tally], study, result);
+        tally.record(*interval, P_Y1_DO_T1);
+    }
+    gate(&[tally], &[None]);
+}
+
+/// Coverage of the pointwise `ResponseCurve` bootstrap band the facade reports
+/// for a frequentist ADMG general-ID run. Truth per dose is `ADMG_CURVE_TRUTH`
+/// (0.33 at t=0, 0.57 at t=1; derived above).
+fn admg_rc_freq_coverage(
+    test: &'static str,
+    seed_base: u64,
+    run: impl Fn(usize, u64) -> Option<(Study, StudyResult)> + Sync,
+) {
+    let mut tallies: Vec<CoverageTally> = ADMG_CURVE
+        .iter()
+        .map(|a| keyed_bootstrap(test, "frontdoor_data", format!("a={a}")))
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(seed_base, rep);
+        let run = run(SampleGrid::HEAVY.n(FRONTDOOR_N), seed);
+        if rep == 0 {
+            let (study, result) = run.as_ref().expect("frequentist ADMG curve runs");
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
+            assert_interval_method(study, result, "bootstrap_se");
+            assert!(response_band(result).is_some(), "the frequentist ADMG curve must publish the band");
+        }
+        run
+    });
+    for run in &runs {
+        let bands = run.as_ref().and_then(|(_, result)| response_band(result));
+        if let (Some((study, result)), Some(_)) = (run, &bands) {
+            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        }
+        for (j, tally) in tallies.iter_mut().enumerate() {
+            match &bands {
+                Some((lower, upper, _)) => tally.record(Some((lower[j], upper[j])), ADMG_CURVE_TRUTH[j]),
+                None => tally.skip(),
+            }
+        }
+    }
+    gate(&tallies, &[None; 2]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_admg_frequentist_nominal_coverage() {
+    admg_ir_freq_coverage(
+        "intervention_response_admg_frequentist_nominal_coverage",
+        0x110_0424,
+        |n, seed| run_intervention_freq(n, false, seed),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_admg_frequentist_accepted_nominal_coverage() {
+    admg_ir_freq_coverage(
+        "intervention_response_admg_frequentist_accepted_nominal_coverage",
+        0x110_0425,
+        |n, seed| run_intervention_freq(n, true, seed),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_admg_graph_posterior_frequentist_nominal_coverage() {
+    admg_ir_freq_coverage(
+        "intervention_response_admg_graph_posterior_frequentist_nominal_coverage",
+        0x110_0426,
+        run_intervention_gp_freq,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_admg_frequentist_pointwise_nominal_coverage() {
+    admg_rc_freq_coverage(
+        "response_curve_admg_frequentist_pointwise_nominal_coverage",
+        0x110_0427,
+        |n, seed| run_admg_curve_freq(n, false, seed),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_admg_frequentist_accepted_pointwise_nominal_coverage() {
+    admg_rc_freq_coverage(
+        "response_curve_admg_frequentist_accepted_pointwise_nominal_coverage",
+        0x110_0428,
+        |n, seed| run_admg_curve_freq(n, true, seed),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage() {
+    admg_rc_freq_coverage(
+        "response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage",
+        0x110_0429,
+        run_admg_curve_gp_freq,
+    );
+}
+
 const UNKNOWN_TRUTH: [f64; 2] = [1.0, -1.0];
 
 fn unknown_data(n: usize, seed: u64) -> TabularData {
@@ -680,10 +1021,10 @@ fn average_effect_unknown_publishes_simultaneous_band() {
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn average_effect_unknown_joint_band_nominal_coverage() {
+fn average_effect_unknown_frequentist_joint_band_nominal_coverage() {
     let mut tally = CoverageTally::for_record(
         RecordKey {
-            test: "average_effect_unknown_joint_band_nominal_coverage",
+            test: "average_effect_unknown_frequentist_joint_band_nominal_coverage",
             dgp: "unknown_data",
             interval: "simultaneous_band",
         },
@@ -797,6 +1138,187 @@ fn temporal_bayes() -> InferenceMode {
     InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400).prior_scale(8.0))
 }
 
+/// `Z@-1 o-> T@-1`, `Z@-1 -> Y@0`, `T@-1 -> Y@0`, `W@-1 o-o Z@-1`. The
+/// analog of the static `agreeing_pag`: the definite `T@-1 -> Y@0` edge is
+/// visible, and every completion of the circle marks still adjusts `{Z@-1}`
+/// (`Z@-1 -> T@-1` or `Z@-1 <-> T@-1` both leave `Z@-1` a non-collider on the
+/// only backdoor path), so the identified set collapses to one shared band the
+/// way `agreeing_temporal_cpdag` does.
+fn agreeing_temporal_pag() -> TemporalPag {
+    let mut graph = TemporalPag::empty();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    let w1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_circle_arrow(z1, t1).unwrap();
+    graph.insert_circle_circle_with_middle(w1, z1, MiddleMark::Unknown).unwrap();
+    graph
+}
+
+/// Bit for the lagged edge `from@-1 -> to@0` over the four-variable
+/// (`t`, `y`, `z`, `w`) DBN packing of `agreeing_temporal_series`.
+fn lag_bit4(from: usize, to: usize) -> u64 {
+    1u64 << (from * 4 + to)
+}
+
+/// One fully identified single-atom temporal class posterior (weight `[1.0]`)
+/// over the four variables of `agreeing_temporal_series`. The atom carries the
+/// two directed lagged edges `T@-1 -> Y@0` and `Z@-1 -> Y@0` (no contemporaneous
+/// edges, no circle marks), so the g-computation adjusts `{Z@-1}` and identifies
+/// `E[Y@0 | do(T@-1 = a)]` to the same level the explicit graph does. This is a
+/// genuine `.graph_posterior` construction (atom kind decides the reported
+/// TemporalCpdag / TemporalPag class), not the classifier's name tolerance.
+fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
+    let n = 4;
+    let lag_mask = lag_bit4(0, 1) | lag_bit4(2, 1);
+    GraphPosterior::new(
+        n,
+        vec![1.0],
+        vec![0u64],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        1.0,
+        InferenceDiagnostics::analytic("v110_temporal_class_posterior_response"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(kind)
+    .with_lagged_marginals(1, vec![0.0; n * n])
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
+}
+
+fn run_temporal_gp(
+    data: TimeSeriesData,
+    gp: GraphPosterior,
+    query: ResponseQuery,
+    inference: InferenceMode,
+    replicates: u32,
+    seed: u64,
+) -> (Study, StudyResult) {
+    let study = Study::series(data)
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(query))
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(replicates)
+        .build()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
+    (study, result)
+}
+
+/// Coverage of the single-cell temporal `InterventionResponse` band the facade
+/// reports, for whatever graph/posterior `run` builds. Truth is derived from the
+/// `agreeing_temporal_series` structural equation `y[s] = 1 + 2*t[s-1] +
+/// 0.8*z[s-1] + eps`: under `do(T@-1 = 1)`, `E[Y@0 | do(1)] = 1 + 2*1 +
+/// 0.8*E[Z@-1]`. Frequentist truth is the population level `3.0` (`E[z] = 0`);
+/// the Bayesian posterior conditions on the observed covariate path, so its
+/// truth is `3.0 + 0.8*z_bar`.
+fn temporal_ir_coverage(
+    test: &'static str,
+    interval: &'static str,
+    estimator: &'static str,
+    bayes: bool,
+    run: impl Fn(TimeSeriesData, u32, u64) -> (Study, StudyResult) + Sync,
+    replicates: u32,
+    seed_base: u64,
+) {
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp: "agreeing_temporal_series", interval },
+        REPORTED_LEVEL,
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(seed_base, rep);
+        let data = agreeing_temporal_series(grid_n(160), seed);
+        // do(T@-1=1): 1 + 2*1 + 0.8*E[Z@-1] = 3.0 (population, E[z]=0);
+        // Bayesian conditions on the sample covariate path -> 3.0 + 0.8*z_bar.
+        let truth = if bayes { 3.0 + 0.8 * covariate_mean(&data) } else { 3.0 };
+        let (study, result) = run(data, replicates, seed);
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
+            assert!(response_band(&result).is_some(), "the coordinate must publish the band");
+        }
+        (study, result, truth)
+    });
+    for (study, result, truth) in &runs {
+        bind_all(&mut [&mut tally], study, result);
+        record_temporal_band(&mut tally, response_band(result).as_ref(), 0, *truth);
+    }
+    gate(&[tally], &[None]);
+}
+
+/// Coverage of the pointwise temporal `MeanCurve` band over doses `{0, 1}`, for
+/// whatever graph/posterior `run` builds. Per dose `a`, the structural level of
+/// `agreeing_temporal_series` is `1 + 2a + 0.8*E[Z@-1]`: frequentist truth
+/// `1 + 2a` (`E[z] = 0`), Bayesian truth `1 + 2a + 0.8*z_bar`.
+fn temporal_rc_coverage(
+    test: &'static str,
+    interval: &'static str,
+    estimator: &'static str,
+    bayes: bool,
+    run: impl Fn(TimeSeriesData, u32, u64) -> (Study, StudyResult) + Sync,
+    replicates: u32,
+    seed_base: u64,
+) {
+    let mut tallies: Vec<CoverageTally> = TEMPORAL_DOSES
+        .iter()
+        .map(|dose| {
+            CoverageTally::for_record(
+                RecordKey { test, dgp: "agreeing_temporal_series", interval },
+                REPORTED_LEVEL,
+            )
+            .labelled(format!("a={dose}"))
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(seed_base, rep);
+        let data = agreeing_temporal_series(grid_n(160), seed);
+        let z_bar = covariate_mean(&data);
+        let (study, result) = run(data, replicates, seed);
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
+            assert!(response_band(&result).is_some(), "the coordinate must publish the band");
+        }
+        (study, result, z_bar)
+    });
+    for (study, result, z_bar) in &runs {
+        bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        let band = response_band(result);
+        for (index, tally) in tallies.iter_mut().enumerate() {
+            // per dose a: 1 + 2a (+ 0.8*z_bar for the finite-sample Bayesian posterior)
+            let truth = 1.0 + 2.0 * TEMPORAL_DOSES[index] + if bayes { 0.8 * z_bar } else { 0.0 };
+            record_temporal_band(tally, band.as_ref(), index, truth);
+        }
+    }
+    gate(&tallies, &[None, None]);
+}
+
+/// Frequentist temporal response run over an explicit graph / accepted graph.
+fn run_temporal_freq(
+    data: TimeSeriesData,
+    graph: impl antecedent::IntoGraphInput,
+    query: ResponseQuery,
+    replicates: u32,
+    seed: u64,
+) -> (Study, StudyResult) {
+    run_temporal_class(data, graph, query, InferenceMode::Frequentist, replicates, seed)
+}
+
+/// Bayesian temporal response run over an explicit graph / accepted graph.
+fn run_temporal_bayes(
+    data: TimeSeriesData,
+    graph: impl antecedent::IntoGraphInput,
+    query: ResponseQuery,
+    replicates: u32,
+    seed: u64,
+) -> (Study, StudyResult) {
+    run_temporal_class(data, graph, query, temporal_bayes(), replicates, seed)
+}
+
 #[test]
 fn agreeing_temporal_cpdag_publishes_shared_band() {
     let data = agreeing_temporal_series(80, 0x110_0440);
@@ -889,147 +1411,470 @@ fn record_temporal_band(
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_cpdag_intervention_frequentist_nominal_coverage() {
-    let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test: "temporal_cpdag_intervention_frequentist_nominal_coverage",
-            dgp: "agreeing_temporal_series",
-            interval: "circular_block_se",
+fn temporal_cpdag_intervention_response_frequentist_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_cpdag_intervention_response_frequentist_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, agreeing_temporal_cpdag(), temporal_intervention(), replicates, seed)
         },
-        REPORTED_LEVEL,
+        199,
+        0x110_0450,
     );
-    let runs = map_replicates(n_sim(), |rep| {
-        let seed = stream_seed(0x110_0450, rep);
-        run_temporal_class(
-            agreeing_temporal_series(grid_n(160), seed),
-            agreeing_temporal_cpdag(),
-            temporal_intervention(),
-            InferenceMode::Frequentist,
-            199,
-            seed,
-        )
-    });
-    for (study, result) in &runs {
-        bind_all(&mut [&mut tally], study, result);
-        record_temporal_band(&mut tally, response_band(result).as_ref(), 0, 3.0);
-    }
-    gate(&[tally], &[None]);
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_cpdag_intervention_bayesian_nominal_coverage() {
-    let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test: "temporal_cpdag_intervention_bayesian_nominal_coverage",
-            dgp: "agreeing_temporal_series",
-            interval: "posterior_quantile",
+fn temporal_cpdag_intervention_response_bayesian_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_cpdag_intervention_response_bayesian_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, agreeing_temporal_cpdag(), temporal_intervention(), replicates, seed)
         },
-        REPORTED_LEVEL,
+        0,
+        0x110_0451,
     );
-    let runs = map_replicates(n_sim(), |rep| {
-        let seed = stream_seed(0x110_0451, rep);
-        let data = agreeing_temporal_series(grid_n(160), seed);
-        let truth = 3.0 + 0.8 * covariate_mean(&data);
-        let (study, result) = run_temporal_class(
-            data,
-            agreeing_temporal_cpdag(),
-            temporal_intervention(),
-            temporal_bayes(),
-            0,
-            seed,
-        );
-        (study, result, truth)
-    });
-    for (study, result, truth) in &runs {
-        bind_all(&mut [&mut tally], study, result);
-        record_temporal_band(&mut tally, response_band(result).as_ref(), 0, *truth);
-    }
-    gate(&[tally], &[None]);
 }
 
 const TEMPORAL_DOSES: [f64; 2] = [0.0, 1.0];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_cpdag_curve_frequentist_pointwise_nominal_coverage() {
-    let mut tallies: Vec<CoverageTally> = TEMPORAL_DOSES
-        .iter()
-        .map(|dose| {
-            CoverageTally::for_record(
-                RecordKey {
-                    test: "temporal_cpdag_curve_frequentist_pointwise_nominal_coverage",
-                    dgp: "agreeing_temporal_series",
-                    interval: "circular_block_se",
-                },
-                REPORTED_LEVEL,
-            )
-            .labelled(format!("a={dose}"))
-        })
-        .collect();
-    let runs = map_replicates(n_sim(), |rep| {
-        let seed = stream_seed(0x110_0452, rep);
-        run_temporal_class(
-            agreeing_temporal_series(grid_n(160), seed),
-            agreeing_temporal_cpdag(),
-            temporal_curve(),
-            InferenceMode::Frequentist,
-            199,
-            seed,
-        )
-    });
-    for (study, result) in &runs {
-        bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
-        let band = response_band(result);
-        for (index, tally) in tallies.iter_mut().enumerate() {
-            record_temporal_band(tally, band.as_ref(), index, 1.0 + 2.0 * TEMPORAL_DOSES[index]);
-        }
-    }
-    gate(&tallies, &[None, None]);
+fn temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, agreeing_temporal_cpdag(), temporal_curve(), replicates, seed)
+        },
+        199,
+        0x110_0452,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_cpdag_curve_bayesian_pointwise_nominal_coverage() {
-    let mut tallies: Vec<CoverageTally> = TEMPORAL_DOSES
-        .iter()
-        .map(|dose| {
-            CoverageTally::for_record(
-                RecordKey {
-                    test: "temporal_cpdag_curve_bayesian_pointwise_nominal_coverage",
-                    dgp: "agreeing_temporal_series",
-                    interval: "posterior_quantile",
-                },
-                REPORTED_LEVEL,
+fn temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, agreeing_temporal_cpdag(), temporal_curve(), replicates, seed)
+        },
+        0,
+        0x110_0453,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// TemporalCpdag accepted twins (runtime structure is "fixed", as for explicit;
+// the accepted graph wraps the same agreeing completion set).
+// ---------------------------------------------------------------------------
+
+fn accepted_temporal_cpdag() -> AcceptedGraph {
+    AcceptedGraph::temporal_cpdag(agreeing_temporal_cpdag()).unwrap()
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, accepted_temporal_cpdag(), temporal_intervention(), replicates, seed)
+        },
+        199,
+        0x110_0460,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, accepted_temporal_cpdag(), temporal_intervention(), replicates, seed)
+        },
+        0,
+        0x110_0461,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, accepted_temporal_cpdag(), temporal_curve(), replicates, seed)
+        },
+        199,
+        0x110_0462,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, accepted_temporal_cpdag(), temporal_curve(), replicates, seed)
+        },
+        0,
+        0x110_0463,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// TemporalPag explicit + accepted twins (agreeing_temporal_pag collapses the
+// completion set to one shared band, the analog of agreeing_temporal_cpdag).
+// ---------------------------------------------------------------------------
+
+fn accepted_temporal_pag() -> AcceptedGraph {
+    AcceptedGraph::temporal_pag(agreeing_temporal_pag())
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_intervention_response_frequentist_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_pag_intervention_response_frequentist_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, agreeing_temporal_pag(), temporal_intervention(), replicates, seed)
+        },
+        199,
+        0x110_0464,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_intervention_response_bayesian_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_pag_intervention_response_bayesian_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, agreeing_temporal_pag(), temporal_intervention(), replicates, seed)
+        },
+        0,
+        0x110_0465,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_response_curve_frequentist_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_pag_response_curve_frequentist_pointwise_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, agreeing_temporal_pag(), temporal_curve(), replicates, seed)
+        },
+        199,
+        0x110_0466,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_response_curve_bayesian_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_pag_response_curve_bayesian_pointwise_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, agreeing_temporal_pag(), temporal_curve(), replicates, seed)
+        },
+        0,
+        0x110_0467,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_intervention_response_frequentist_accepted_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_pag_intervention_response_frequentist_accepted_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, accepted_temporal_pag(), temporal_intervention(), replicates, seed)
+        },
+        199,
+        0x110_0468,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_intervention_response_bayesian_accepted_nominal_coverage() {
+    temporal_ir_coverage(
+        "temporal_pag_intervention_response_bayesian_accepted_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, accepted_temporal_pag(), temporal_intervention(), replicates, seed)
+        },
+        0,
+        0x110_0469,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_freq(data, accepted_temporal_pag(), temporal_curve(), replicates, seed)
+        },
+        199,
+        0x110_046A,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_bayes(data, accepted_temporal_pag(), temporal_curve(), replicates, seed)
+        },
+        0,
+        0x110_046B,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Genuine single-atom (weight [1.0]) temporal class graph-posterior response.
+// The `.graph_posterior` construction makes the facade report structure
+// "graph_posterior"; the single fully-identified atom publishes the atom's own
+// band (temporal_class_posterior_response.rs: uncertainty = first.uncertainty
+// when weighted.len() == 1). Atom kind decides the reported TemporalCpdag /
+// TemporalPag class. Truth is the same adjusted-{Z@-1} level as the explicit
+// graphs.
+// ---------------------------------------------------------------------------
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage() {
+    temporal_ir_coverage(
+        "intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Cpdag),
+                temporal_intervention(),
+                InferenceMode::Frequentist,
+                replicates,
+                seed,
             )
-            .labelled(format!("a={dose}"))
-        })
-        .collect();
-    let runs = map_replicates(n_sim(), |rep| {
-        let seed = stream_seed(0x110_0453, rep);
-        let data = agreeing_temporal_series(grid_n(160), seed);
-        let z_bar = covariate_mean(&data);
-        let (study, result) = run_temporal_class(
-            data,
-            agreeing_temporal_cpdag(),
-            temporal_curve(),
-            temporal_bayes(),
-            0,
-            seed,
-        );
-        (study, result, z_bar)
-    });
-    for (study, result, z_bar) in &runs {
-        bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
-        let band = response_band(result);
-        for (index, tally) in tallies.iter_mut().enumerate() {
-            record_temporal_band(
-                tally,
-                band.as_ref(),
-                index,
-                1.0 + 2.0 * TEMPORAL_DOSES[index] + 0.8 * z_bar,
-            );
-        }
-    }
-    gate(&tallies, &[None, None]);
+        },
+        199,
+        0x110_0470,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
+    temporal_ir_coverage(
+        "intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Cpdag),
+                temporal_intervention(),
+                temporal_bayes(),
+                replicates,
+                seed,
+            )
+        },
+        0,
+        0x110_0471,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage() {
+    temporal_ir_coverage(
+        "intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Pag),
+                temporal_intervention(),
+                InferenceMode::Frequentist,
+                replicates,
+                seed,
+            )
+        },
+        199,
+        0x110_0472,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
+    temporal_ir_coverage(
+        "intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Pag),
+                temporal_intervention(),
+                temporal_bayes(),
+                replicates,
+                seed,
+            )
+        },
+        0,
+        0x110_0473,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Cpdag),
+                temporal_curve(),
+                InferenceMode::Frequentist,
+                replicates,
+                seed,
+            )
+        },
+        199,
+        0x110_0474,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Cpdag),
+                temporal_curve(),
+                temporal_bayes(),
+                replicates,
+                seed,
+            )
+        },
+        0,
+        0x110_0475,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage",
+        "circular_block_se",
+        "temporal.response.gcomp",
+        false,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Pag),
+                temporal_curve(),
+                InferenceMode::Frequentist,
+                replicates,
+                seed,
+            )
+        },
+        199,
+        0x110_0476,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage() {
+    temporal_rc_coverage(
+        "response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage",
+        "posterior_quantile",
+        "response.temporal.bayesian",
+        true,
+        |data, replicates, seed| {
+            run_temporal_gp(
+                data,
+                temporal_class_gp(GraphPosteriorAtomKind::Pag),
+                temporal_curve(),
+                temporal_bayes(),
+                replicates,
+                seed,
+            )
+        },
+        0,
+        0x110_0477,
+    );
 }

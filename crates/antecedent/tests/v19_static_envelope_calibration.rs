@@ -302,6 +302,34 @@ fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
     );
 }
 
+/// Frequentist PAG ATE envelope keyed under the `average_effect` query slug so
+/// the readiness classifier credits the `AverageEffect / Pag / graph_posterior
+/// / Frequentist` coordinate (the classifier tolerates crediting graph_posterior
+/// with an explicit-structure test, matching the Bayesian
+/// `average_effect_pag_bayesian_default_nominal_coverage` twin). Same
+/// construction as `static_pag_ate_envelope_frequentist_nominal_90_coverage`:
+/// the frozen-weight mixture over identified completions of `pag_data`, scored
+/// against [`PAG_TRUTH`] `= (4·B + 2·(B + 0.9·KAPPA))/6 = 1.14634`
+/// (four completions adjust `{z}` at slope `B = 1`, two adjust nothing at slope
+/// `B + 0.9·KAPPA`, one unidentified completion excluded), with the analytic-SE
+/// interval (`bootstrap_replicates(0)`).
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_pag_frequentist_envelope_nominal_coverage() {
+    run_ate_coverage(
+        "average_effect_pag_frequentist_envelope_nominal_coverage",
+        "pag_data",
+        &Structure::Pag(pag()),
+        pag_data,
+        400,
+        || InferenceMode::Frequentist,
+        false,
+        PAG_TRUTH,
+        20_400,
+        [None, None, None],
+    );
+}
+
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_pag_ate_envelope_bayesian_nominal_90_coverage() {
