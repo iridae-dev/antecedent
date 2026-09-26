@@ -1,6 +1,5 @@
 """Exact-law stages have native authority and make no sampling-coverage claim."""
 
-import json
 from dataclasses import replace
 
 import pytest
@@ -48,7 +47,16 @@ def test_prepared_fixed_graph_root_mechanism_sensitivity_smoke():
                 "trial", "source", kind="experimental", interventions=["x"], measured=["u", "y"]
             ),
             transport.EvidenceRegime("population", "target", measured=["u"]),
-        ]
+        ],
+        bindings=[
+            transport.RegimeBinding(
+                "trial", "source-snapshot", schema_names=["u", "y"], sampling="independent"
+            ),
+            transport.RegimeBinding(
+                "population", "target-snapshot", schema_names=["u"], sampling="independent"
+            ),
+        ],
+        target_sampling="supplied_population_law",
     )
     source = transport.ExactDiscreteLaw(
         "source",
@@ -64,32 +72,30 @@ def test_prepared_fixed_graph_root_mechanism_sensitivity_smoke():
     prepared = transport.prepare_exact(
         identified, catalog, transport.ExactTransportData((source, target)), at={"x": 1.0}
     )
-    report = json.loads(
-        prepared.mechanism_sensitivity(
-            outcome_values=[0.0, 1.0],
-            parent_cardinalities=[2, 2],
-            treatment_levels=(0, 1),
-            max_fraction=0.2,
-            source_kernel_regime=1,
-            source_kernel_snapshot="source-snapshot",
-            target_parent_regime=2,
-            target_parent_snapshot="target-snapshot",
-            source_kernel=[
-                ([0, 0], [0.8, 0.2]),
-                ([0, 1], [0.2, 0.8]),
-                ([1, 0], [0.7, 0.3]),
-                ([1, 1], [0.3, 0.7]),
-            ],
-            source_parent_law=[([0], 0.75), ([1], 0.25)],
-            target_parent_law=[
-                (0, [0], 0.75),
-                (0, [1], 0.25),
-                (1, [0], 0.75),
-                (1, [1], 0.25),
-            ],
-            decision_threshold=0.53,
-            perturbed_conditional_mechanism="u",
-        )
+    report = prepared.mechanism_sensitivity(
+        outcome_values=[0.0, 1.0],
+        parent_cardinalities=[2, 2],
+        treatment_levels=(0, 1),
+        max_fraction=0.2,
+        source_kernel_regime=1,
+        source_kernel_snapshot="source-snapshot",
+        target_parent_regime=0,
+        target_parent_snapshot="target-snapshot",
+        source_kernel=[
+            ([0, 0], [0.8, 0.2]),
+            ([0, 1], [0.2, 0.8]),
+            ([1, 0], [0.7, 0.3]),
+            ([1, 1], [0.3, 0.7]),
+        ],
+        source_parent_law=[([0], 0.75), ([1], 0.25)],
+        target_parent_law=[
+            (0, [0], 0.75),
+            (0, [1], 0.25),
+            (1, [0], 0.75),
+            (1, [1], 0.25),
+        ],
+        decision_threshold=0.53,
+        perturbed_conditional_mechanism="u",
     )
     assert report["perturbed_conditional_mechanism"] == "u"
     assert report["baseline"] == pytest.approx(0.55)
