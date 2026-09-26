@@ -192,27 +192,36 @@ mechanism crates/antecedent-counterfactual/src/
 mechanism crates/antecedent-attribution/src/
 mechanism crates/antecedent/src/gcm.rs
 mechanism crates/antecedent/src/analysis/execute/attribution_path.rs
+mechanism crates/antecedent/src/analysis/execute/checked_attribution.rs
 mechanism crates/antecedent-io/src/mechanism_wire.rs
 mechanism crates/antecedent-io/src/model_bundle.rs
 key mechanism query Counterfactual AnomalyAttribution ChangeAttribution MechanismChange UnitChange
 key mechanism estimator gcm.*
-# The five dispatch arms of AnalysisRoute::{Counterfactual, Anomaly,
-# ChangeAttribution, MechanismChange, UnitChange}: exactly the `key` queries.
-allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution execute_anomaly execute_change_attribution execute_counterfactual execute_mechanism_change execute_unit_change nested_direct_effect
-# Sibling re-exports of the gcm entry points; every caller is checked by name.
-allow mechanism crates/antecedent/src/analysis/execute/mod.rs anomaly_attribution_with attribute_distribution_change attribute_unit_change attribution_path counterfactual_ite fit_gcm fit_gcm_counterfactual gcm map_mechanism_fit mechanism_change_detection nested_direct_effect
+# The dispatch arm of AnalysisRoute::ChangeAttribution, and the NestedCounterfactual
+# arm, which executes the prepared gcm::NestedCounterfactualOperation (or compiles
+# one for an unprepared query): exactly the `key` queries.
+allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution NestedCounterfactualOperation compile gcm nested_counterfactual
+# Sibling re-exports of the gcm entry points and the checked counterfactual /
+# attribution operation types; every caller is checked by name.
+allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure anomaly_attribution_with attribute_distribution_change attribute_unit_change attribution_path checked_attribution counterfactual_ite fit_gcm gcm map_mechanism_fit mechanism_change_detection
+# CausalQuery::ChangeAttribution: the query enum variant named when a compiled
+# plan is labelled with its gcm identifier.
+allow mechanism crates/antecedent/src/analysis/execute/compile.rs ChangeAttribution
+# The contract's nested counterfactual fit snapshot, built only when the prepared
+# analysis retains a gcm::NestedCounterfactualOperation (the NestedCounterfactual
+# `key` query); every other contract leaves the slot empty.
+allow mechanism crates/antecedent/src/analysis/contract.rs NestedCounterfactualOperation gcm
 # Result slots and payload enum variants holding the facet's outputs (types only).
 allow mechanism crates/antecedent/src/analysis/execute/execute_helpers.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
 allow mechanism crates/antecedent/src/analysis/helpers.rs AnomalyScores ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
 allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
 # CausalQuery::ChangeAttribution / a `unit_change` field: core names the facet shares.
-allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution unit_change
+# Preparation also compiles and retains the checked counterfactual, nested
+# counterfactual and attribution operations for the Counterfactual,
+# NestedCounterfactual, AnomalyAttribution and ChangeAttribution `key` queries;
+# a plan for any other query never constructs them.
+allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution CheckedAttributionOperation CheckedCounterfactualOperation CheckedCounterfactualPlan CounterfactualProcedure NestedCounterfactualOperation compile gcm nested_counterfactual unit_change
 allow mechanism crates/antecedent/src/support.rs ChangeAttribution
-# Reviewed transport-only name collision: these private `assignments` helpers
-# encode antecedent_expr::Assignment values into (u32, ValueWire) records. They
-# neither import nor call mechanism fitting; both paths remain in the core facet.
-allow mechanism crates/antecedent/src/analysis/exact.rs assignments
-allow mechanism crates/antecedent/src/analysis/transport_grid.rs assignments
 # `From` conversions of the facet crates' error types.
 allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualError ModelError antecedent_attribution antecedent_counterfactual antecedent_model
 # `pub mod gcm;`.
@@ -270,6 +279,7 @@ suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_
 suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
 suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
 suite.v20_transport_statistical_calibration crates/antecedent/tests/v20_transport_statistical_calibration.rs
+suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
 
 # Learner adapters and their dependency choices can move nuisance predictions.
 core crates/antecedent-learn/
