@@ -1477,6 +1477,45 @@ impl super::Study {
                 return prepared.estimate(data, ctx);
             }
         }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(self.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.identifier.is_none_or(|id| id == IdentifierId::GeneralizedAdjustment)
+            && self.estimator.is_none_or(|id| id == EstimatorId::BayesianGcomp)
+            && matches!(
+                &self.estimator_spec,
+                None | Some(crate::estimator_spec::EstimatorSpec::Default(
+                    EstimatorId::BayesianGcomp
+                ))
+            )
+            && matches!(
+                self.refute,
+                RefuteSuite::None
+                    | RefuteSuite::Cheap
+                    | RefuteSuite::PlaceboAndRcc
+                    | RefuteSuite::Full
+            )
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::AverageEffect(query)
+                if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                    && query.target_population == antecedent_core::TargetPopulation::AllObserved)
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_static_class_effect_operation() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot Bayesian static class effect did not retain its checked operation".into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.

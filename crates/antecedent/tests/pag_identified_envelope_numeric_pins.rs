@@ -154,7 +154,11 @@ fn run_prepared(
         }));
         assert!(!consumed.acceptance.accepts_as_verified_program());
     }
-    assert_eq!(cached_count(&fresh), 0);
+    // The Bayesian average-effect class route executes its retained envelope
+    // from the one-shot facade too; every other one-shot still identifies inline.
+    let one_shot_sealed = matches!(prepared.query(), CausalQuery::AverageEffect(_))
+        && prepared.plan().logical.record.estimator.as_deref() == Some("bayesian.gcomp");
+    assert_eq!(cached_count(&fresh), usize::from(one_shot_sealed));
     assert_eq!(cached_count(&click), 1);
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     let mut out = vec![fresh, click];
