@@ -17,6 +17,7 @@ use antecedent_identify::IdentificationStatus;
 use super::builder::DataInput;
 use super::checked_conditional::ConditionalClassProof;
 use super::execute::Study;
+use super::route_guards::compile_error;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
 use crate::{CausalError, EstimatorId, IdentifierId, InferenceMode, RefuteSuite};
@@ -67,16 +68,8 @@ impl CheckedBayesianClassConditional {
                 "checked Bayesian class conditional target, identifier, or procedure changed after identification",
             ));
         }
-        let complete = match &proof {
-            ConditionalClassProof::Cpdag { cache, .. } => {
-                super::prepared::conditional_class_proof_is_complete(&cache.envelope)
-            }
-            ConditionalClassProof::Pag { cache, .. } => {
-                super::prepared::conditional_class_proof_is_complete(&cache.envelope)
-            }
-        };
         let identification = proof.identification();
-        if !complete
+        if !proof.is_complete()
             || identification.query != CausalQuery::ConditionalEffect(query.clone())
             || identification.status != IdentificationStatus::NonparametricallyIdentified
         {
@@ -84,11 +77,8 @@ impl CheckedBayesianClassConditional {
                 "checked Bayesian class conditional effect requires every completion to identify the same adjustment target",
             ));
         }
-        let invariant = match &proof {
-            ConditionalClassProof::Cpdag { cache, .. } => cache.envelope.invariant.clone(),
-            ConditionalClassProof::Pag { cache, .. } => cache.envelope.invariant.clone(),
-        };
-        let estimand = invariant
+        let estimand = proof
+            .invariant()
             .and_then(|invariant| {
                 identification
                     .estimands
@@ -168,15 +158,7 @@ impl CheckedBayesianClassConditional {
             }
             _ => return Ok(None),
         };
-        let complete = match &proof {
-            ConditionalClassProof::Cpdag { cache, .. } => {
-                super::prepared::conditional_class_proof_is_complete(&cache.envelope)
-            }
-            ConditionalClassProof::Pag { cache, .. } => {
-                super::prepared::conditional_class_proof_is_complete(&cache.envelope)
-            }
-        };
-        if !complete {
+        if !proof.is_complete() {
             return Ok(None);
         }
         Self::prepare(
@@ -248,8 +230,4 @@ impl CheckedBayesianClassConditional {
         );
         Ok(result)
     }
-}
-
-fn compile_error(message: &str) -> CausalError {
-    CausalError::Compile { message: message.into() }
 }

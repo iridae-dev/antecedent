@@ -1,6 +1,7 @@
 //! Per-horizon DBN mediation eligibility and prepared numerical reuse.
 
 use super::*;
+use crate::analysis::execute::CheckedTemporalClassMediationOperation;
 use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalSchemaBuilder, IdentificationStatus, MeasurementSpec, MediationContrast, RoleHint,
@@ -79,13 +80,17 @@ fn mediation_series(rows: usize) -> (TimeSeriesData, MediationQuery) {
 }
 
 fn graph_posterior() -> GraphPosterior {
+    graph_posterior_with_weights([0.7, 0.3])
+}
+
+fn graph_posterior_with_weights(weights: [f64; 2]) -> GraphPosterior {
     GraphPosterior::new(
         3,
-        vec![0.7, 0.3],
+        weights.to_vec(),
         vec![8, 8],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / (0.7 * 0.7 + 0.3 * 0.3),
+        1.0 / (weights[0] * weights[0] + weights[1] * weights[1]),
         InferenceDiagnostics::analytic("horizon-cache-test"),
         0,
     )
@@ -232,4 +237,55 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         slices[1].uncertainty,
         antecedent_estimate::TemporalMediationUncertainty::Unavailable
     ));
+}
+
+#[test]
+fn dbn_posterior_mediation_refuses_a_proof_over_other_posterior_weights() {
+    let (series, mut query) = mediation_series(320);
+    query.horizons = Arc::from([1]);
+    let ctx = ExecutionContext::for_tests(7);
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let study = Study::series(series.clone())
+        .graph_posterior(graph_posterior())
+        .query(CausalQuery::Mediation(query.clone()))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    // Preparation replays the posterior's own proof into the sealed study.
+    let prepared = study.prepare(&ctx).unwrap();
+    let (sealed, plan) = (&prepared.analysis, &prepared.plan);
+    assert!(
+        CheckedTemporalClassMediationOperation::checked(sealed, &series, plan).is_ok(),
+        "the study's own posterior proof seals"
+    );
+    // A proof enumerated over the same atoms under different posterior
+    // weights describes another frozen posterior and must not seal.
+    let foreign = build_dbn_mediation_cache_with_identifier(
+        &graph_posterior_with_weights([0.4, 0.6]),
+        &variables,
+        &query,
+        &ctx,
+        |_, _, graph, horizon_query| {
+            identify_temporal_mediation_horizons(
+                graph,
+                horizon_query,
+                crate::strategy_table::EstimatorId::BayesianTemporalMediation,
+            )
+        },
+    )
+    .unwrap();
+    let mut injected = sealed.clone();
+    injected.dbn_posterior_identification_cache = Some(Arc::new(foreign));
+    let error = CheckedTemporalClassMediationOperation::checked(&injected, &series, plan)
+        .expect_err("a proof over other posterior weights must not seal");
+    assert!(
+        error
+            .to_string()
+            .contains("DBN posterior mediation proof does not bind the frozen posterior"),
+        "{error}"
+    );
 }

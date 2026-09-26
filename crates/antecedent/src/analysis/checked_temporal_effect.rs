@@ -52,11 +52,7 @@ impl CheckedTemporalEffectOperation {
                 message: "temporal effect requires the retained unfolded backdoor proof".into(),
             });
         }
-        let expected = if query.is_multi_step_sustained() {
-            EstimatorId::TemporalSequentialGcomp
-        } else {
-            EstimatorId::TemporalLinearAdjustment
-        };
+        let expected = EstimatorId::temporal_effect_procedure(query, false);
         if estimator != expected {
             return Err(CausalError::Compile {
                 message: "temporal effect estimator does not match its policy window".into(),

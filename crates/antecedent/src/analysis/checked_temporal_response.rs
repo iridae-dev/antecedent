@@ -240,10 +240,7 @@ impl CheckedTemporalResponseOperation {
                 message: "temporal response dose-by-horizon grid exceeds its materialization limit",
             });
         }
-        let expected_estimator = match inference {
-            InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
-            InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
-        };
+        let expected_estimator = EstimatorId::temporal_response_for(inference);
         if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {
             return Err(CausalError::Compile {
                 message: "checked temporal response requires temporal backdoor and the temporal response estimator of its inference mode".into(),

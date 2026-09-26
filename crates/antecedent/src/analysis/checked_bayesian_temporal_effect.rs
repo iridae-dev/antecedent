@@ -65,15 +65,28 @@ fn checked_settings(
     inference: &InferenceMode,
     validation: RefuteSuite,
 ) -> Result<BayesianConfig, CausalError> {
+    checked_bayesian_settings(
+        inference,
+        validation,
+        "checked Bayesian temporal operation requires Bayesian inference",
+        "checked Bayesian temporal operation supports none, cheap, or full validation",
+    )
+}
+
+/// Model settings of a checked Bayesian temporal operation: Bayesian
+/// inference and a `none`, `cheap`, or `full` validation suite. The two
+/// messages name the refusing family.
+pub(super) fn checked_bayesian_settings(
+    inference: &InferenceMode,
+    validation: RefuteSuite,
+    requires_bayesian: &str,
+    validation_support: &'static str,
+) -> Result<BayesianConfig, CausalError> {
     let InferenceMode::Bayesian(config) = inference else {
-        return Err(CausalError::Compile {
-            message: "checked Bayesian temporal operation requires Bayesian inference".into(),
-        });
+        return Err(CausalError::Compile { message: requires_bayesian.into() });
     };
     if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
-        return Err(CausalError::Unsupported {
-            message: "checked Bayesian temporal operation supports none, cheap, or full validation",
-        });
+        return Err(CausalError::Unsupported { message: validation_support });
     }
     Ok(config.clone())
 }

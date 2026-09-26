@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use crate::analysis::route_guards::series_input;
 use crate::analysis::{CheckedTemporalGraphPosteriorEffect, CheckedTemporalGraphPosteriorProof};
 
 impl super::Study {
@@ -31,10 +32,7 @@ impl super::Study {
         }
         let query = operation.query();
         let mut click = self.clone();
-        click.data = match &self.data {
-            DataInput::Event(_) => DataInput::Event(data.clone()),
-            _ => DataInput::Temporal(data.clone()),
-        };
+        click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(query.clone());
         click.graph_posterior = Some(operation.posterior().clone());
         click.inference = operation.inference().clone();

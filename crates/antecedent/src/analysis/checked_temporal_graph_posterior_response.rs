@@ -17,11 +17,13 @@ use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::{ClassPrior, InferenceMode};
 
-use super::builder::RefuteSuite;
+use super::builder::{DataInput, RefuteSuite};
 use super::checked_temporal_response::temporal_response_is_direct;
+use super::execute::Study;
 use super::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassPosteriorIdentification,
 };
+use super::route_guards::complete_mean_response;
 
 /// Per-atom identification retained for a temporal graph posterior.
 #[derive(Clone, Debug)]
@@ -63,6 +65,48 @@ pub(crate) struct CheckedTemporalGraphPosteriorResponse {
 }
 
 impl CheckedTemporalGraphPosteriorResponse {
+    /// Whether `study` is a coordinate this operation seals: a series
+    /// complete-observation mean temporal response over TemporalDag,
+    /// TemporalCpdag, or TemporalPag posterior atoms with the default
+    /// point-estimate settings. The one-shot facade and the prepared sealer
+    /// share this predicate.
+    #[must_use]
+    pub(crate) fn admits(study: &Study) -> bool {
+        let (Some(posterior), CausalQuery::Response(query)) =
+            (study.graph_posterior.as_ref(), &study.query)
+        else {
+            return false;
+        };
+        matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
+            && matches!(
+                posterior.atom_kind,
+                GraphPosteriorAtomKind::Dag
+                    | GraphPosteriorAtomKind::Cpdag
+                    | GraphPosteriorAtomKind::Pag
+            )
+            && study.tiered.is_none()
+            && study.custom_validators.is_empty()
+            && study.observation_delayed_entry.is_none()
+            && query.is_temporal()
+            && complete_mean_response(query)
+            && temporal_response_is_direct(query)
+            && matches!(
+                (&query.functional, study.refute),
+                (_, RefuteSuite::None)
+                    | (
+                        ResponseFunctional::InterventionResponse { .. },
+                        RefuteSuite::Cheap | RefuteSuite::Full
+                    )
+            )
+            && study.identifier.is_none_or(|id| match posterior.atom_kind {
+                GraphPosteriorAtomKind::Dag => id == IdentifierId::TemporalBackdoorUnfolded,
+                _ => id == IdentifierId::GeneralizedAdjustment,
+            })
+            && study
+                .estimator
+                .is_none_or(|id| id == EstimatorId::temporal_response_for(&study.inference))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
@@ -110,10 +154,7 @@ impl CheckedTemporalGraphPosteriorResponse {
                 message: "checked temporal graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });
         }
-        let estimator = match inference {
-            InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
-            InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
-        };
+        let estimator = EstimatorId::temporal_response_for(&inference);
         if physical.logical.query != CausalQuery::Response(query.clone())
             || physical
                 .logical

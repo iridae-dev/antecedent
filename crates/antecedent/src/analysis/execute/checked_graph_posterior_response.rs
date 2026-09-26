@@ -78,10 +78,7 @@ impl CheckedGraphPosteriorResponse {
                 message: "checked graph-posterior response supports no refuters for curves and none/cheap/full for intervention responses",
             });
         }
-        let expected_estimator = match &inference {
-            InferenceMode::Frequentist => EstimatorId::default_for_response(&query.functional),
-            InferenceMode::Bayesian(_) => EstimatorId::ResponseBayesian,
-        };
+        let expected_estimator = EstimatorId::static_response_for(&query.functional, &inference);
         let expected_identifier =
             if class_atoms { DEFAULT_PAG_IDENTIFIER_ID } else { DEFAULT_RESPONSE_IDENTIFIER_ID };
         if estimator != expected_estimator

@@ -6,6 +6,7 @@ use crate::analysis::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassIdentification,
     CachedTemporalClassPosteriorIdentification,
 };
+use crate::analysis::route_guards::same_accepted_graph;
 use antecedent_discovery::GraphPosteriorAtomKind;
 
 /// Structural proof retained for a checked class or posterior mediation route.
@@ -148,10 +149,7 @@ impl CheckedTemporalClassMediationOperation {
                 message: "temporal class mediation structure, target, validation, or plan changed after preparation".into(),
             });
         }
-        let expected_estimator = match &study.inference {
-            InferenceMode::Frequentist => EstimatorId::TemporalMediation,
-            InferenceMode::Bayesian(_) => EstimatorId::BayesianTemporalMediation,
-        };
+        let expected_estimator = EstimatorId::temporal_mediation_for(&study.inference);
         if physical.logical.record.estimator.as_deref() != Some(expected_estimator.as_str()) {
             return Err(CausalError::Compile {
                 message:
@@ -232,6 +230,14 @@ impl CheckedTemporalClassMediationOperation {
                         message: "DBN posterior mediation proof retained no atoms".into(),
                     });
                 }
+                if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
+                    || cache.graphs.n_samples != posterior.n_graphs
+                {
+                    return Err(CausalError::Compile {
+                        message: "DBN posterior mediation proof does not bind the frozen posterior"
+                            .into(),
+                    });
+                }
                 CheckedTemporalMediationProof::DbnPosterior {
                     posterior: posterior.clone(),
                     cache: cache.clone(),
@@ -269,10 +275,7 @@ impl CheckedTemporalClassMediationOperation {
     }
 
     pub(crate) fn estimator(&self) -> EstimatorId {
-        match &self.inference {
-            InferenceMode::Frequentist => EstimatorId::TemporalMediation,
-            InferenceMode::Bayesian(_) => EstimatorId::BayesianTemporalMediation,
-        }
+        EstimatorId::temporal_mediation_for(&self.inference)
     }
 
     pub(crate) fn query(&self) -> &antecedent_core::MediationQuery {
@@ -364,7 +367,7 @@ impl CheckedTemporalClassMediationOperation {
         }
         let agrees = match (&self.proof, study.graph_posterior.as_ref()) {
             (CheckedTemporalMediationProof::ClassEnvelope { graph, .. }, None) => {
-                format!("{graph:?}") == format!("{:?}", study.graph)
+                same_accepted_graph(graph, &study.graph)
             }
             (
                 CheckedTemporalMediationProof::ClassPosterior { posterior, .. }

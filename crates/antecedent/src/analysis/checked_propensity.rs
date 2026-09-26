@@ -22,6 +22,7 @@ use antecedent_identify::{IdentificationResult, IdentificationStatus};
 
 use crate::accepted::GraphClass;
 use crate::analysis::builder::RefuteSuite;
+use crate::analysis::route_guards::compile_error;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
@@ -415,10 +416,6 @@ fn set_value(
             "checked propensity query arms must intervene on the declared treatment",
         )),
     }
-}
-
-fn compile_error(message: &str) -> CausalError {
-    CausalError::Compile { message: message.into() }
 }
 
 #[cfg(test)]

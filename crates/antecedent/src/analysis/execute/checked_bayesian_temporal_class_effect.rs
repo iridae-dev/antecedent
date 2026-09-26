@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::analysis::CheckedBayesianTemporalClassEffectOperation;
+use crate::analysis::route_guards::series_input;
 
 impl super::Study {
     /// Execute a sealed Bayesian TemporalCpdag/TemporalPag pulse or sustained
@@ -28,10 +29,7 @@ impl super::Study {
         }
         let (_, _, bootstrap_replicates, split, _, custom_validators) = target.procedure();
         let mut click = self.clone();
-        click.data = match &self.data {
-            DataInput::Event(_) => DataInput::Event(data.clone()),
-            _ => DataInput::Temporal(data.clone()),
-        };
+        click.data = series_input(&self.data, data.clone());
         click.query = CausalQuery::TemporalEffect(target.query().clone());
         click.graph_posterior = None;
         click.temporal_class_identification_cache = Some(Arc::new(target.bundle().clone()));

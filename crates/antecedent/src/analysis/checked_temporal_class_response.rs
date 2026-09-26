@@ -5,7 +5,7 @@
 
 use antecedent_core::{
     CausalQuery, ObservationSpec, OutcomeFunctional, ResponseQuery, TargetPopulation,
-    TemporalEffectQuery, TemporalNodeKey, TemporalPolicy,
+    TemporalEffectQuery, TemporalNodeKey,
 };
 
 use crate::error::CausalError;
@@ -16,6 +16,7 @@ use crate::{AcceptedGraph, ClassPrior, GraphClass, InferenceMode};
 use super::builder::RefuteSuite;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::prepared::CachedTemporalClassIdentification;
+use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope per requested horizon for a
 /// TemporalCpdag or TemporalPag response. The per-horizon envelopes and their
@@ -90,11 +91,7 @@ impl CheckedTemporalClassResponseOperation {
                 message: "checked temporal class response requires complete observation, the all-observed population, and the mean outcome functional",
             });
         }
-        if !match &spec.policy {
-            TemporalPolicy::Pulse { .. } => true,
-            TemporalPolicy::Sustained { from, until } => from == until,
-            _ => false,
-        } {
+        if !spec.policy.is_single_step() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal class response supports Pulse or single-step Sustained policies",
             });
@@ -109,10 +106,7 @@ impl CheckedTemporalClassResponseOperation {
                 message: "temporal class response has no treatment/outcome pair".into(),
             })?;
         let identifier = IdentifierId::GeneralizedAdjustment;
-        let estimator = match inference {
-            InferenceMode::Frequentist => EstimatorId::TemporalResponseGcomp,
-            InferenceMode::Bayesian(_) => EstimatorId::TemporalResponseBayesian,
-        };
+        let estimator = EstimatorId::temporal_response_for(inference);
         if physical.logical.query != CausalQuery::Response(query.clone())
             || physical
                 .logical
@@ -218,9 +212,7 @@ impl CheckedTemporalClassResponseOperation {
     /// was enumerated from.
     #[must_use]
     pub(crate) fn matches_source_graph(&self, graph: &AcceptedGraph) -> bool {
-        self.source_graph.class() == graph.class()
-            && self.source_graph.version() == graph.version()
-            && format!("{:?}", self.source_graph) == format!("{graph:?}")
+        same_accepted_graph(&self.source_graph, graph)
     }
 
     #[must_use]

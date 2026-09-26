@@ -11,6 +11,7 @@
 
 use super::response_path::class_aware_response_supported;
 use super::*;
+use crate::analysis::route_guards::mean_all_observed;
 use crate::analysis::{StaticClassGraph, StaticClassIdentification};
 
 /// Frozen class response route over a supplied CPDAG or PAG.
@@ -27,6 +28,28 @@ pub(crate) struct CheckedStaticClassResponse {
 }
 
 impl CheckedStaticClassResponse {
+    /// Whether `study` is a coordinate this operation seals: a tabular
+    /// complete-observation mean class response on a fixed CPDAG or PAG with
+    /// validation `none`. The one-shot facade and the prepared sealer share
+    /// this predicate.
+    #[must_use]
+    pub(crate) fn admits(study: &Study) -> bool {
+        let CausalQuery::Response(query) = &study.query else {
+            return false;
+        };
+        study.graph_posterior.is_none()
+            && study.tiered.is_none()
+            && matches!(study.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
+            && study.fixed_structure()
+            && study.custom_validators.is_empty()
+            && study.refute == RefuteSuite::None
+            && class_aware_response_supported(query)
+            && mean_all_observed(&query.outcome_functional, &query.target_population)
+            && study.estimator.is_none_or(|id| {
+                id == EstimatorId::static_response_for(&query.functional, &study.inference)
+            })
+    }
+
     /// Seal a class response over its prepare-time completion envelope.
     ///
     /// # Errors
@@ -57,10 +80,7 @@ impl CheckedStaticClassResponse {
                 message: "checked class response supports validation none only",
             });
         }
-        let expected_estimator = match &inference {
-            InferenceMode::Frequentist => EstimatorId::default_for_response(&query.functional),
-            InferenceMode::Bayesian(_) => EstimatorId::ResponseBayesian,
-        };
+        let expected_estimator = EstimatorId::static_response_for(&query.functional, &inference);
         if estimator != expected_estimator
             || identifier != DEFAULT_PAG_IDENTIFIER_ID
             || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
@@ -128,18 +148,7 @@ impl CheckedStaticClassResponse {
 
     /// Completion count and identified mass of the frozen envelope.
     pub(crate) fn envelope_summary(&self) -> (usize, f64, f64) {
-        match &self.identification {
-            StaticClassIdentification::Cpdag(cache) => (
-                cache.envelope.cases.len(),
-                cache.envelope.identified_weight.0,
-                cache.envelope.unidentified_weight.0,
-            ),
-            StaticClassIdentification::Pag(cache) => (
-                cache.envelope.cases.len(),
-                cache.envelope.identified_weight.0,
-                cache.envelope.unidentified_weight.0,
-            ),
-        }
+        self.identification.envelope_summary()
     }
 }
 

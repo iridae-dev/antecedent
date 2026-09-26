@@ -9,7 +9,8 @@ use antecedent_data::DiscoveryEstimationSplit;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_prob::GraphIdentFlag;
 
-use super::builder::RefuteSuite;
+use super::builder::{DataInput, RefuteSuite};
+use super::execute::Study;
 use super::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassPosteriorIdentification,
 };
@@ -48,6 +49,33 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
 }
 
 impl CheckedTemporalGraphPosteriorEffect {
+    /// Whether `study` is a coordinate this operation seals: a series pulse or
+    /// sustained effect over TemporalDag, TemporalCpdag, or TemporalPag
+    /// posterior atoms with the default point-estimate settings. The one-shot
+    /// facade and the prepared sealer share this predicate.
+    #[must_use]
+    pub(crate) fn admits(study: &Study) -> bool {
+        let (Some(posterior), CausalQuery::TemporalEffect(query)) =
+            (study.graph_posterior.as_ref(), &study.query)
+        else {
+            return false;
+        };
+        matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
+            && matches!(
+                posterior.atom_kind,
+                GraphPosteriorAtomKind::Dag
+                    | GraphPosteriorAtomKind::Cpdag
+                    | GraphPosteriorAtomKind::Pag
+            )
+            && study.tiered.is_none()
+            && study.custom_validators.is_empty()
+            && study.point_validation()
+            && query.policy.is_pulse_or_sustained()
+            && study
+                .estimator
+                .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
@@ -62,11 +90,7 @@ impl CheckedTemporalGraphPosteriorEffect {
         physical: PhysicalExecutionPlan,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
-        if !matches!(
-            query.policy,
-            antecedent_core::TemporalPolicy::Pulse { .. }
-                | antecedent_core::TemporalPolicy::Sustained { .. }
-        ) {
+        if !query.policy.is_pulse_or_sustained() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect supports pulse and sustained schedules",
             });
@@ -94,7 +118,7 @@ impl CheckedTemporalGraphPosteriorEffect {
             });
         }
         let identifier = IdentifierId::TemporalBackdoorUnfolded;
-        let estimator = expected_estimator(&query, &inference);
+        let estimator = EstimatorId::temporal_effect_for(&query, &inference);
         if estimator_spec.is_some_and(|spec| spec.id() != estimator) {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect procedure does not match the sealed schedule",
@@ -236,16 +260,6 @@ impl CheckedTemporalGraphPosteriorEffect {
     }
 }
 
-fn expected_estimator(query: &TemporalEffectQuery, inference: &InferenceMode) -> EstimatorId {
-    if query.is_multi_step_sustained() {
-        EstimatorId::TemporalSequentialGcomp
-    } else if matches!(inference, InferenceMode::Bayesian(_)) {
-        EstimatorId::BayesianTemporalGcomp
-    } else {
-        EstimatorId::TemporalLinearAdjustment
-    }
-}
-
 fn validate_proof_binding(
     posterior: &GraphPosterior,
     query: &CausalQuery,
@@ -330,14 +344,20 @@ mod tests {
             .with_policy(TemporalPolicy::sustained(-2, -1));
         let bayesian = InferenceMode::Bayesian(crate::BayesianConfig::conjugate());
         assert_eq!(
-            expected_estimator(&pulse, &InferenceMode::Frequentist),
+            EstimatorId::temporal_effect_for(&pulse, &InferenceMode::Frequentist),
             EstimatorId::TemporalLinearAdjustment
         );
-        assert_eq!(expected_estimator(&pulse, &bayesian), EstimatorId::BayesianTemporalGcomp);
         assert_eq!(
-            expected_estimator(&multi, &InferenceMode::Frequentist),
+            EstimatorId::temporal_effect_for(&pulse, &bayesian),
+            EstimatorId::BayesianTemporalGcomp
+        );
+        assert_eq!(
+            EstimatorId::temporal_effect_for(&multi, &InferenceMode::Frequentist),
             EstimatorId::TemporalSequentialGcomp
         );
-        assert_eq!(expected_estimator(&multi, &bayesian), EstimatorId::TemporalSequentialGcomp);
+        assert_eq!(
+            EstimatorId::temporal_effect_for(&multi, &bayesian),
+            EstimatorId::TemporalSequentialGcomp
+        );
     }
 }

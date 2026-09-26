@@ -9,16 +9,7 @@
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, ConditionalEffectQuery};
 
-use crate::{EstimatorId, InferenceMode};
-
-/// Stable inspector label for a frozen inference mode.
-#[must_use]
-pub(crate) fn inference_label(inference: &InferenceMode) -> String {
-    match inference {
-        InferenceMode::Bayesian(config) => format!("bayesian:{:?}", config.backend),
-        InferenceMode::Frequentist => "frequentist".to_owned(),
-    }
-}
+use crate::EstimatorId;
 
 /// Query kind a graph-posterior effect operation was sealed for.
 #[derive(Clone, Debug, PartialEq)]
