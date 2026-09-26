@@ -32,6 +32,24 @@ drops those pins.
 
 Do not add stage routes as fake analyze cells.
 
+## Decision inspection on the z route
+
+Every bounded single-source decision (`ZTransportStage.decide`) exposes
+structured inspection, not only a reason string. `identified` and
+`combined_identified` carry the checked proof graph and its per-factor binding
+obligations; `missing_evidence` names the unbound cited factor as a typed
+object; `proven_non_transportable` carries the reduced line-11 terminal record.
+`not_certified` carries a typed reason kind and the recursive rules the search
+explored — the search built no expression, so its `proof_graph` is null and the
+explored region is reported instead of a fabricated graph. A budget or
+cancellation is surfaced as `outcome = "exhausted"` with a limits receipt: the
+step and depth limits in force, which budget tripped, and the steps consumed and
+depth reached when the search stopped (both absent when the budget tripped
+before the search was entered). `ZTransportStage.not_certified_inspection`
+exposes the same explored-region record for a stage the bounded identifier did
+not certify, and `failure_snapshot` carries the limits receipt on its
+`exhausted_computation` status.
+
 ## Mechanism sensitivity on the z route
 
 `PreparedZTransportStage.mechanism_sensitivity` and `export_sensitivity`

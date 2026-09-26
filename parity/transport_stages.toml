@@ -166,7 +166,7 @@ functional = "target_interventional_outcome_distribution"
 observation = "exact_law_or_empirical_plugin_joint_table"
 guarantee = "sound_incomplete"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
-limits = "Single-source TRz identification within 12 observed and 4 controllable variables, sound and incomplete. The registered surrogate factorization is retained. Other in-bound graphs, including an admissible selection diagram, publish the recursive derivation. A catalog decision identifies from cited joints. A line-11 obstruction is structural in the declared controllable set."
+limits = "Single-source TRz identification within 12 observed and 4 controllable variables, sound and incomplete. The registered surrogate factorization is retained. Other in-bound graphs, including an admissible selection diagram, publish the recursive derivation. A catalog decision identifies from cited joints. A line-11 obstruction is structural in the declared controllable set. Every decision outcome exposes structured inspection, not only a reason string: an identified proof carries its factor obligations, missing evidence names the unbound cited factor, a not-certified outcome carries a typed reason and the recursive rules the search explored (no proof graph is fabricated when the search built no expression), a line-11 obstruction carries its terminal record, and a budget or cancellation is a limits receipt naming the limits in force, which budget tripped, and what the search consumed rather than an opaque exhausted status."
 evidence_test = "python/tests/test_transport_z.py"
 evidence_assertion = "test_z_transport_identification_proof_and_binding_survive_query_disposal"
 
