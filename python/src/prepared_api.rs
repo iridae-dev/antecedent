@@ -1157,6 +1157,7 @@ impl PyPreparedAnalysis {
         };
         let descriptor = PyDict::new(py);
         descriptor.set_item("query", format!("{:?}", info.query))?;
+        descriptor.set_item("conditional", info.conditional)?;
         descriptor.set_item("estimator", info.estimator.as_str())?;
         descriptor
             .set_item("validation", info.validation.validation_suite_id().unwrap_or("none"))?;

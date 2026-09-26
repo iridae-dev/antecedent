@@ -51,11 +51,13 @@ pub use transport_grid::{
 };
 pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_artifact};
 pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
+mod graph_posterior_target;
 mod helpers;
 mod latency;
 mod prepared;
 mod stage;
 mod transport_common;
+pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
 
 pub use antecedent_core::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,

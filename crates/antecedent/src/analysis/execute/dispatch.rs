@@ -1516,6 +1516,58 @@ impl super::Study {
                 return prepared.estimate(data, ctx);
             }
         }
+        // Graph-posterior conditional effects on DAG and class atoms, and
+        // Bayesian class-posterior effects, execute from their retained
+        // checked operations. Frequentist average effects are guarded above.
+        if let (Some(posterior), Some(target), DataInput::Tabular(data)) = (
+            self.graph_posterior.as_ref(),
+            crate::analysis::GraphPosteriorEffectTarget::from_query(&self.query),
+            &self.data,
+        ) {
+            let class_atoms = matches!(
+                posterior.atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
+            );
+            let dag_atoms =
+                posterior.atom_kind == antecedent_discovery::GraphPosteriorAtomKind::Dag;
+            let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
+            let expected =
+                if bayesian { target.bayesian_estimator() } else { target.frequentist_estimator() };
+            let identifier = if class_atoms {
+                IdentifierId::GeneralizedAdjustment
+            } else {
+                IdentifierId::BackdoorAdjustment
+            };
+            let query = target.inner();
+            if ((class_atoms && (bayesian || target.is_conditional()))
+                || (dag_atoms && target.is_conditional()))
+                && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && query.target_population == antecedent_core::TargetPopulation::AllObserved
+                && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+                && self.custom_validators.is_empty()
+                && self.estimator.is_none_or(|id| id == expected)
+                && self.estimator_spec.as_ref().is_none_or(|spec| spec.id() == expected)
+                && self.identifier.is_none_or(|id| id == identifier)
+            {
+                let prepared = self.prepare(ctx)?;
+                let retained = if class_atoms {
+                    prepared.has_checked_class_graph_posterior_effect_operation()
+                } else if bayesian {
+                    prepared.checked_bayesian_graph_posterior_ate_info().is_some()
+                } else {
+                    prepared.has_checked_graph_posterior_effect_operation()
+                };
+                if !retained {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot graph-posterior effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.

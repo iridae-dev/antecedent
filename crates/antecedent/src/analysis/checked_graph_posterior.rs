@@ -1,9 +1,11 @@
 //! Checked execution contract for graph-posterior average effects.
 //!
-//! Frequentist DAG atoms keep linear adjustment. ADMG atoms keep general ID
-//! and `functional.effect`, including the Bayesian evaluator. Static CPDAG and
-//! PAG envelopes keep either linear adjustment or Bayesian g-computation
-//! together with the inference settings that selected the procedure.
+//! Frequentist DAG atoms keep linear adjustment for average effects and
+//! conditional linear adjustment for conditional effects. ADMG atoms keep
+//! general ID and `functional.effect`, including the Bayesian evaluator. Static
+//! CPDAG and PAG envelopes keep either linear adjustment or Bayesian
+//! g-computation together with the inference settings that selected the
+//! procedure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -17,6 +19,8 @@ use crate::{
     CausalError, EstimatorId, EstimatorSpec, RefuteSuite,
     analysis::prepared::CachedGraphPosteriorIdentification,
 };
+
+use super::GraphPosteriorEffectTarget;
 
 /// Sealed average effect over a static CPDAG or PAG completion envelope.
 /// The graph and prepare-time completion cache are retained together so
@@ -154,10 +158,12 @@ impl CheckedStaticClassEffect {
 /// This retains the original graph atoms and posterior weights together with
 /// prepare-time atom identifications. Execution can therefore aggregate the
 /// same atom set and preserve unidentified mass without consulting a builder.
+/// The target records whether the click estimates the average or a
+/// conditional effect over those atoms.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedGraphPosteriorEffect {
     posterior: Arc<GraphPosterior>,
-    query: AverageEffectQuery,
+    target: GraphPosteriorEffectTarget,
     identification: Arc<CachedGraphPosteriorIdentification>,
     procedure: EstimatorSpec,
     bootstrap_replicates: u32,
@@ -276,7 +282,7 @@ impl CheckedGraphPosteriorEffect {
     /// bindings, and identification caches from another atom/weight ensemble.
     pub(crate) fn prepare(
         posterior: GraphPosterior,
-        query: AverageEffectQuery,
+        target: GraphPosteriorEffectTarget,
         identification: CachedGraphPosteriorIdentification,
         procedure: EstimatorSpec,
         bootstrap_replicates: u32,
@@ -285,16 +291,19 @@ impl CheckedGraphPosteriorEffect {
         latency_mode: Option<super::latency::LatencyMode>,
         validation: RefuteSuite,
     ) -> Result<Self, CausalError> {
-        let licensed = matches!(
-            (posterior.atom_kind, procedure.id()),
-            (GraphPosteriorAtomKind::Dag, EstimatorId::LinearAdjustmentAte)
-                | (GraphPosteriorAtomKind::Admg, EstimatorId::FunctionalEffect)
-        );
+        let licensed = match posterior.atom_kind {
+            GraphPosteriorAtomKind::Dag => procedure.id() == target.frequentist_estimator(),
+            GraphPosteriorAtomKind::Admg => {
+                !target.is_conditional() && procedure.id() == EstimatorId::FunctionalEffect
+            }
+            _ => false,
+        };
         if !licensed {
             return Err(CausalError::Unsupported {
-                message: "checked graph-posterior effect supports frequentist DAG linear adjustment or ADMG functional.effect",
+                message: "checked graph-posterior effect supports frequentist DAG (conditional) linear adjustment or ADMG average functional.effect",
             });
         }
+        let query = target.inner();
         if query.treatment == query.outcome
             || usize::try_from(query.treatment.raw()).map_or(true, |v| v >= posterior.n_vars)
             || usize::try_from(query.outcome.raw()).map_or(true, |v| v >= posterior.n_vars)
@@ -323,7 +332,7 @@ impl CheckedGraphPosteriorEffect {
         }
         Ok(Self {
             posterior: Arc::new(posterior),
-            query,
+            target,
             identification: Arc::new(identification),
             procedure,
             bootstrap_replicates,
@@ -338,8 +347,14 @@ impl CheckedGraphPosteriorEffect {
         &self.posterior
     }
 
-    pub(crate) fn query(&self) -> &AverageEffectQuery {
-        &self.query
+    /// The average-effect query every posterior atom was identified for.
+    pub(crate) const fn query(&self) -> &AverageEffectQuery {
+        self.target.inner()
+    }
+
+    /// The sealed query kind, including conditional modifiers.
+    pub(crate) const fn target(&self) -> &GraphPosteriorEffectTarget {
+        &self.target
     }
 
     pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
@@ -425,7 +440,7 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let plan = CheckedGraphPosteriorEffect::prepare(
             graphs.clone(),
-            query.clone(),
+            GraphPosteriorEffectTarget::Average(query.clone()),
             cache(&graphs),
             EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
             0,
@@ -450,7 +465,7 @@ mod tests {
         assert!(
             CheckedGraphPosteriorEffect::prepare(
                 graphs.clone(),
-                query.clone(),
+                GraphPosteriorEffectTarget::Average(query.clone()),
                 cache(&graphs),
                 EstimatorSpec::Default(EstimatorId::Aipw),
                 0,
@@ -467,7 +482,7 @@ mod tests {
         assert!(
             CheckedGraphPosteriorEffect::prepare(
                 graphs,
-                query,
+                GraphPosteriorEffectTarget::Average(query),
                 wrong_cache,
                 EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
                 0,
@@ -478,5 +493,35 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn conditional_target_requires_conditional_linear_adjustment() {
+        let graphs = posterior();
+        let conditional = GraphPosteriorEffectTarget::Conditional(
+            antecedent_core::ConditionalEffectQuery::try_new(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                    .with_effect_modifiers([VariableId::from_raw(2)]),
+            )
+            .unwrap(),
+        );
+        let prepare = |procedure: EstimatorId| {
+            CheckedGraphPosteriorEffect::prepare(
+                graphs.clone(),
+                conditional.clone(),
+                cache(&graphs),
+                EstimatorSpec::Default(procedure),
+                0,
+                OverlapPolicy::ExplicitOverride,
+                None,
+                Some(crate::analysis::LatencyMode::Standard),
+                RefuteSuite::Cheap,
+            )
+        };
+        let plan = prepare(EstimatorId::ConditionalLinearAdjustment).unwrap();
+        assert!(plan.target().is_conditional());
+        assert_eq!(plan.query(), conditional.inner());
+        assert_eq!(plan.estimator(), EstimatorId::ConditionalLinearAdjustment);
+        assert!(prepare(EstimatorId::LinearAdjustmentAte).is_err());
     }
 }

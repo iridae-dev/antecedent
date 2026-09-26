@@ -1,4 +1,8 @@
-//! Checked frequentist ATE operation for CPDAG/PAG graph-posterior atoms.
+//! Checked effect operation for CPDAG/PAG graph-posterior atoms.
+//!
+//! Frequentist and Bayesian average and conditional effects retain the same
+//! frozen samples and completion envelopes; only the per-completion procedure
+//! differs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -9,20 +13,24 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_estimate::OverlapPolicy;
 use antecedent_prob::GraphIdentFlag;
 
-use crate::{CausalError, EstimatorId, EstimatorSpec, RefuteSuite};
+use crate::{CausalError, EstimatorSpec, InferenceMode, RefuteSuite};
+
+use super::GraphPosteriorEffectTarget;
 
 use super::latency::LatencyMode;
 use super::prepared::CachedGraphPosteriorIdentification;
 
-/// A fixed frequentist effect procedure over posterior-weighted CPDAG/PAG
-/// atoms. Each outer posterior sample, including unidentified samples, remains
-/// in `identification.graphs`; each identified atom retains its full
-/// completion envelope and failed completion cases in `class_atoms`.
+/// A fixed effect procedure over posterior-weighted CPDAG/PAG atoms. Each
+/// outer posterior sample, including unidentified samples, remains in
+/// `identification.graphs`; each identified atom retains its full completion
+/// envelope and failed completion cases in `class_atoms`. The target records
+/// whether the sealed click estimates the average or a conditional effect.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedClassGraphPosteriorEffect {
     posterior: Arc<GraphPosterior>,
-    query: AverageEffectQuery,
+    target: GraphPosteriorEffectTarget,
     identification: Arc<CachedGraphPosteriorIdentification>,
+    inference: InferenceMode,
     procedure: EstimatorSpec,
     bootstrap_replicates: u32,
     overlap: OverlapPolicy,
@@ -35,8 +43,9 @@ impl CheckedClassGraphPosteriorEffect {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         posterior: GraphPosterior,
-        query: AverageEffectQuery,
+        target: GraphPosteriorEffectTarget,
         identification: CachedGraphPosteriorIdentification,
+        inference: InferenceMode,
         procedure: EstimatorSpec,
         bootstrap_replicates: u32,
         overlap: OverlapPolicy,
@@ -52,11 +61,16 @@ impl CheckedClassGraphPosteriorEffect {
                 message: "checked class graph-posterior effect requires CPDAG or PAG atoms",
             });
         }
-        if procedure.id() != EstimatorId::LinearAdjustmentAte {
+        let licensed = match inference {
+            InferenceMode::Frequentist => target.frequentist_estimator(),
+            InferenceMode::Bayesian(_) => target.bayesian_estimator(),
+        };
+        if procedure.id() != licensed {
             return Err(CausalError::Unsupported {
-                message: "checked class graph-posterior effect requires linear.adjustment.ate",
+                message: "checked class graph-posterior effect procedure does not match its inference and query kind",
             });
         }
+        let query = target.inner();
         if query.treatment == query.outcome
             || usize::try_from(query.treatment.raw()).map_or(true, |i| i >= posterior.n_vars)
             || usize::try_from(query.outcome.raw()).map_or(true, |i| i >= posterior.n_vars)
@@ -73,11 +87,12 @@ impl CheckedClassGraphPosteriorEffect {
                 message: "class graph-posterior effect has an unsupported validation suite",
             });
         }
-        validate_identification_binding(&posterior, &query, &identification)?;
+        validate_identification_binding(&posterior, &target, &identification)?;
         Ok(Self {
             posterior: Arc::new(posterior),
-            query,
+            target,
             identification: Arc::new(identification),
+            inference,
             procedure,
             bootstrap_replicates,
             overlap,
@@ -92,9 +107,21 @@ impl CheckedClassGraphPosteriorEffect {
         &self.posterior
     }
 
+    /// The average-effect query every posterior atom was identified for.
     #[must_use]
-    pub(crate) fn query(&self) -> &AverageEffectQuery {
-        &self.query
+    pub(crate) const fn query(&self) -> &AverageEffectQuery {
+        self.target.inner()
+    }
+
+    /// The sealed query kind, including conditional modifiers.
+    #[must_use]
+    pub(crate) const fn target(&self) -> &GraphPosteriorEffectTarget {
+        &self.target
+    }
+
+    #[must_use]
+    pub(crate) const fn inference(&self) -> &InferenceMode {
+        &self.inference
     }
 
     #[must_use]
@@ -155,7 +182,7 @@ impl CheckedClassGraphPosteriorEffect {
 
 fn validate_identification_binding(
     posterior: &GraphPosterior,
-    query: &AverageEffectQuery,
+    target: &GraphPosteriorEffectTarget,
     identification: &CachedGraphPosteriorIdentification,
 ) -> Result<(), CausalError> {
     if identification.graphs.weights.as_ref() != posterior.weights.as_ref()
@@ -168,9 +195,8 @@ fn validate_identification_binding(
             message: "class graph-posterior cache does not match frozen samples or contains DAG atoms",
         });
     }
-    if identification.class_atoms.iter().any(|atom| {
-        atom.identification.query != antecedent_core::CausalQuery::AverageEffect(query.clone())
-    }) {
+    let atom_query = target.atom_identification_query();
+    if identification.class_atoms.iter().any(|atom| atom.identification.query != atom_query) {
         return Err(CausalError::Unsupported {
             message: "class graph-posterior cache identifies a different ATE query",
         });
@@ -237,6 +263,7 @@ fn identified_case_status(status: antecedent_core::IdentificationStatus) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EstimatorId;
     use antecedent_core::VariableId;
     use antecedent_prob::{InferenceDiagnostics, WeightedGraphSamples};
 
@@ -247,7 +274,7 @@ mod tests {
             vec![0, 0],
             vec![0.0; 4],
             vec![0.0; 4],
-            1.9230769230769231,
+            1.923_076_923_076_923_1,
             InferenceDiagnostics::analytic("checked_class_posterior_test"),
             0,
         )
@@ -315,10 +342,26 @@ mod tests {
         cache: CachedGraphPosteriorIdentification,
         procedure: EstimatorSpec,
     ) -> Result<CheckedClassGraphPosteriorEffect, CausalError> {
+        prepare_with(graphs, GraphPosteriorEffectTarget::Average(query()), cache, procedure)
+    }
+
+    fn prepare_with(
+        graphs: GraphPosterior,
+        target: GraphPosteriorEffectTarget,
+        cache: CachedGraphPosteriorIdentification,
+        procedure: EstimatorSpec,
+    ) -> Result<CheckedClassGraphPosteriorEffect, CausalError> {
+        let inference = match procedure.id() {
+            EstimatorId::BayesianGcomp | EstimatorId::BayesianConditional => {
+                InferenceMode::Bayesian(crate::BayesianConfig::conjugate())
+            }
+            _ => InferenceMode::Frequentist,
+        };
         CheckedClassGraphPosteriorEffect::prepare(
             graphs,
-            query(),
+            target,
             cache,
+            inference,
             procedure,
             0,
             OverlapPolicy::ExplicitOverride,
@@ -358,7 +401,7 @@ mod tests {
         let atom = &operation.class_atoms()[0];
         assert_eq!(atom.key, 0);
         assert!(!atom.cases.is_empty());
-        assert_eq!(atom.cases.iter().map(|case| case.weight).sum::<f64>(), 1.0);
+        assert!((atom.cases.iter().map(|case| case.weight).sum::<f64>() - 1.0).abs() < 1e-12);
         assert!(atom.identified_weight > 0.0);
         assert_eq!(operation.sample_mass().2, &[GraphIdentFlag::Identified; 2]);
     }
@@ -380,6 +423,82 @@ mod tests {
             operation.class_atoms()[0].cases.iter().map(|case| case.weight).sum::<f64>();
         assert!((completion_mass - 2.0).abs() < 1e-12);
         assert!((operation.class_atoms()[0].identified_weight - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn retains_conditional_and_bayesian_targets_with_matching_procedures() {
+        let graphs = posterior(GraphPosteriorAtomKind::Cpdag);
+        let conditional = GraphPosteriorEffectTarget::Conditional(
+            antecedent_core::ConditionalEffectQuery::try_new(
+                query().with_effect_modifiers([VariableId::from_raw(2)]),
+            )
+            .unwrap(),
+        );
+        let operation = prepare_with(
+            graphs.clone(),
+            conditional.clone(),
+            unidentified_cache(&graphs),
+            EstimatorSpec::Default(EstimatorId::ConditionalLinearAdjustment),
+        )
+        .unwrap();
+        assert!(
+            prepare_with(
+                graphs.clone(),
+                conditional.clone(),
+                identified_cpdag_cache(&graphs),
+                EstimatorSpec::Default(EstimatorId::ConditionalLinearAdjustment),
+            )
+            .is_err(),
+            "a cache identified for the modifier-free ATE must not bind a conditional target"
+        );
+        assert!(operation.target().is_conditional());
+        assert_eq!(operation.query(), conditional.inner());
+        assert!(matches!(operation.inference(), InferenceMode::Frequentist));
+
+        let bayesian = prepare_with(
+            graphs.clone(),
+            GraphPosteriorEffectTarget::Average(query()),
+            unidentified_cache(&graphs),
+            EstimatorSpec::Default(EstimatorId::BayesianGcomp),
+        )
+        .unwrap();
+        assert!(matches!(bayesian.inference(), InferenceMode::Bayesian(_)));
+        assert!(
+            prepare_with(
+                graphs.clone(),
+                conditional.clone(),
+                unidentified_cache(&graphs),
+                EstimatorSpec::Default(EstimatorId::BayesianConditional),
+            )
+            .is_ok()
+        );
+
+        assert!(
+            prepare_with(
+                graphs.clone(),
+                conditional,
+                unidentified_cache(&graphs),
+                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+            )
+            .is_err(),
+            "a conditional target must not retain the average-effect procedure"
+        );
+        assert!(
+            CheckedClassGraphPosteriorEffect::prepare(
+                graphs.clone(),
+                GraphPosteriorEffectTarget::Average(query()),
+                unidentified_cache(&graphs),
+                InferenceMode::Frequentist,
+                EstimatorSpec::Default(EstimatorId::BayesianGcomp),
+                0,
+                OverlapPolicy::ExplicitOverride,
+                None,
+                Some(LatencyMode::Standard),
+                RefuteSuite::None,
+            )
+            .is_err(),
+            "frequentist inference must not retain a Bayesian procedure"
+        );
     }
 
     #[test]
