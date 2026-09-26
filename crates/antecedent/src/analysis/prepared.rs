@@ -5731,24 +5731,16 @@ impl PreparedStudy {
         result
             .diagnostics
             .extend(super::helpers::conditional_score_estimator_diagnostic(&operation.query));
-        if result.estimate.score_inference.is_some() {
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                "estimate.functional.cdf_inference",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "per-arm F_a(c) simultaneous bands describe raw CDF coordinates; rearranged exceedance_cdf values are not mixed with those intervals",
-            ));
-        }
-        if result.estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
-            && !result.estimate.ate.is_finite()
-        {
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                "estimate.functional.grid_scalar_cleared",
-                antecedent_core::DiagnosticKind::Scientific,
-                antecedent_core::DiagnosticSeverity::Info,
-                "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
-            ));
-        }
+        // The exceedance-grid diagnostics (CDF band semantics, unsupported
+        // threshold tails, cleared first-threshold scalar) are the ones the
+        // shared finisher publishes for the same estimate.
+        let mut seen: std::collections::HashSet<Arc<str>> =
+            result.diagnostics.iter().map(|diagnostic| Arc::clone(&diagnostic.code)).collect();
+        super::execute::push_grid_scalar_cleared(
+            &mut result.diagnostics,
+            &mut seen,
+            &result.estimate,
+        );
         Ok(result)
     }
 
