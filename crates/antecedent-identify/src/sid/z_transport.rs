@@ -106,7 +106,106 @@ pub enum ZTransportDecision {
     NotCertified {
         /// Stable scope note.
         reason: &'static str,
+        /// Structured record of what the bounded search explored and why it
+        /// stopped short of a formula or a checked obstruction. The search
+        /// produced no expression, so there is no proof graph to expose; this
+        /// carries the explored region instead of a fabricated one.
+        inspection: ZTransportNotCertifiedInspection,
     },
+}
+
+/// Why the bounded `TRz` search stopped without an identifying formula or a
+/// checked line-11 obstruction. Neither variant is an impossibility claim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZTransportNotCertifiedKind {
+    /// Search reached a `TRz` line-10 exchange but the source c-factor could not
+    /// be identified from the cited source law, so no formula was produced.
+    SourceCFactorUnidentified,
+    /// The bounded recursive search exhausted its licensed rules without reaching
+    /// an identifying formula or a checked line-11 terminal.
+    NoRecursiveFormula,
+    /// Search reached a checked `TRz` line-11 terminal. Deciding the same query
+    /// against a catalog certifies this terminal as a structural obstruction;
+    /// without a catalog the bounded identifier reports it as not certified.
+    CheckedLine11Terminal,
+    /// A `TRz` line-10 exchange would activate a controllable the query named no
+    /// experiment level for. Supplying that level, or the cited joint law,
+    /// resolves the exchange.
+    ExperimentAssignmentRequired,
+}
+
+/// What the bounded search actually visited on a not-certified outcome.
+///
+/// The search built no expression, so no proof-graph prefix exists; the honest
+/// record is the region it explored: the recursive rules it applied (in order),
+/// the recursive subproblems it charged, and the deepest level it reached.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZTransportNotCertifiedInspection {
+    /// Typed classification of the dead end the search reached.
+    pub kind: ZTransportNotCertifiedKind,
+    /// Recursive-rule applications explored before the search stopped, in the
+    /// order they fired. Empty when the search stopped before any rule applied.
+    pub explored_rules: Vec<String>,
+    /// Recursive subproblems the search charged.
+    pub steps_explored: usize,
+    /// Deepest `TRz` recursion level the search reached.
+    pub depth_reached: usize,
+}
+
+/// Which budget stopped a bounded z-transport search. Exhaustion is a resource
+/// outcome, never an impossibility or not-certified claim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZTransportBudgetKind {
+    /// The recursive-step limit was exceeded.
+    Steps,
+    /// The recursion-depth limit was reached.
+    Depth,
+    /// The execution memory budget was exceeded.
+    Memory,
+    /// Cooperative cancellation was observed.
+    Cancelled,
+}
+
+/// What a bounded z-transport search consumed against the limits it ran under,
+/// captured when a budget or cancellation stopped it. Every count is the
+/// engine's own accounting at the point it stopped, never a scientific claim.
+///
+/// `steps_consumed` and `depth_reached` are `None` when the budget tripped
+/// before the recursive search was entered (for example a zero limit, or a
+/// memory or cancellation check at engine construction), so no search
+/// accounting was taken; they are never fabricated.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZTransportLimitsReceipt {
+    /// Which budget stopped the search.
+    pub budget: ZTransportBudgetKind,
+    /// Recursive-step limit in force.
+    pub steps_limit: usize,
+    /// Recursion-depth limit in force.
+    pub depth_limit: usize,
+    /// Recursive subproblems charged when the search stopped, if measured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steps_consumed: Option<usize>,
+    /// Deepest recursion level reached when the search stopped, if measured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth_reached: Option<usize>,
+    /// Recursive-rule applications explored before the search stopped, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub explored_rules: Vec<String>,
+}
+
+/// A bounded single-source decision, or a limits receipt when a budget or
+/// cancellation stopped the search before it could decide.
+#[derive(Clone, Debug)]
+pub enum ZTransportOutcome {
+    /// The search reached a decision.
+    Decided(ZTransportDecision),
+    /// A budget or cancellation stopped the search; the receipt records the
+    /// limits in force and what was consumed, rather than an opaque error.
+    Exhausted(ZTransportLimitsReceipt),
 }
 
 /// One source in a two-source z-transport query.
@@ -529,6 +628,12 @@ pub enum ZTransportResult {
     NotCertified {
         /// Stable scope note.
         reason: &'static str,
+        /// Structured record of the region the bounded search explored and the
+        /// typed reason it stopped short of a formula. When the search reached a
+        /// checked line-11 terminal, `decide` against a catalog certifies that
+        /// terminal as a structural obstruction; here it is reported as not
+        /// certified because no catalog was consulted.
+        inspection: ZTransportNotCertifiedInspection,
     },
 }
 
@@ -749,10 +854,56 @@ pub fn decide_z_transport_with_catalog(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportDecision, IdentificationError> {
+    decide_z_transport_reporting(diagram, query, catalog, limits, ctx, &mut None)
+}
+
+/// Decide a bounded single-source z-transport query, and on a budget or
+/// cancellation return the limits receipt rather than an opaque exhaustion
+/// error, so callers can inspect the limits in force and what was consumed.
+///
+/// Every non-exhaustion outcome is a [`ZTransportOutcome::Decided`]; only a
+/// budget or cooperative cancellation becomes [`ZTransportOutcome::Exhausted`].
+/// Malformed inputs and invalid catalogs are still returned as errors.
+///
+/// # Errors
+/// Invalid or unsupported query, or an invalid catalog.
+pub fn decide_z_transport_inspecting(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    catalog: &EvidenceCatalog,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ZTransportOutcome, IdentificationError> {
+    let mut receipt = None;
+    match decide_z_transport_reporting(diagram, query, catalog, limits, ctx, &mut receipt) {
+        Ok(decision) => Ok(ZTransportOutcome::Decided(decision)),
+        Err(error) if error.is_budget_or_cancel() => {
+            let receipt = receipt.unwrap_or_else(|| ZTransportLimitsReceipt {
+                budget: pre_search_budget_kind(&error),
+                steps_limit: limits.steps,
+                depth_limit: limits.depth,
+                steps_consumed: None,
+                depth_reached: None,
+                explored_rules: Vec::new(),
+            });
+            Ok(ZTransportOutcome::Exhausted(receipt))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn decide_z_transport_reporting(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    catalog: &EvidenceCatalog,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+    receipt: &mut Option<ZTransportLimitsReceipt>,
+) -> Result<ZTransportDecision, IdentificationError> {
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("z_transport.invalid_catalog: {error}"))
     })?;
-    match derive_z_transport(diagram, query, limits, ctx)? {
+    match derive_z_transport(diagram, query, limits, ctx, receipt)? {
         ZDerivation::Formula(derivation) => {
             match bind_z_transport_catalog(diagram, derivation.query(), &derivation, catalog) {
                 Ok(_) => Ok(ZTransportDecision::Identified(Box::new(derivation))),
@@ -766,13 +917,15 @@ pub fn decide_z_transport_with_catalog(
                 Err(error) => Err(error),
             }
         }
-        ZDerivation::Unassigned { variable } => Ok(ZTransportDecision::MissingEvidence {
+        ZDerivation::Unassigned { variable, .. } => Ok(ZTransportDecision::MissingEvidence {
             missing: ZTransportMissingEvidence::UnassignedControllable { variable },
         }),
-        ZDerivation::Line11(terminal) => {
+        ZDerivation::Line11 { terminal, .. } => {
             certify_line11_obstruction(diagram, query, terminal, limits, ctx)
         }
-        ZDerivation::NotCertified { reason } => Ok(ZTransportDecision::NotCertified { reason }),
+        ZDerivation::NotCertified { reason, inspection } => {
+            Ok(ZTransportDecision::NotCertified { reason, inspection })
+        }
     }
 }
 
@@ -1322,7 +1475,9 @@ impl ZTransportObstruction {
         limits: super::SidLimits,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, IdentificationError> {
-        let ZDerivation::Line11(terminal) = derive_z_transport(diagram, query, limits, ctx)? else {
+        let ZDerivation::Line11 { terminal, .. } =
+            derive_z_transport(diagram, query, limits, ctx, &mut None)?
+        else {
             return Err(IdentificationError::invalid_derivation(
                 "z_transport.obstruction_not_reproduced",
             ));
@@ -1375,7 +1530,7 @@ pub fn verify_z_transport_obstruction(
             "z_transport.obstruction_assignment_mismatch",
         ));
     }
-    let replay = z_search(diagram, query, limits, ctx)?;
+    let replay = z_search(diagram, query, limits, ctx, &mut None)?;
     if replay.identified.is_some()
         || replay.terminal_failure.as_ref() != Some(&obstruction.terminal)
     {
@@ -1479,13 +1634,34 @@ pub fn identify_z_transport(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportResult, IdentificationError> {
-    Ok(match derive_z_transport(diagram, query, limits, ctx)? {
+    identify_z_transport_reporting(diagram, query, limits, ctx, &mut None)
+}
+
+/// Identify a bounded z-transport formula, and on a budget or cancellation fill
+/// `receipt` with the limits in force and what the search consumed before
+/// returning the exhaustion error, so callers that snapshot a failure can
+/// expose a limits receipt instead of an opaque status.
+///
+/// # Errors
+/// Invalid query coordinates, cancellation, or exhausted computation.
+pub fn identify_z_transport_reporting(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+    receipt: &mut Option<ZTransportLimitsReceipt>,
+) -> Result<ZTransportResult, IdentificationError> {
+    Ok(match derive_z_transport(diagram, query, limits, ctx, receipt)? {
         ZDerivation::Formula(derivation) => ZTransportResult::Identified(Box::new(derivation)),
-        ZDerivation::Unassigned { .. } => {
-            ZTransportResult::NotCertified { reason: "z_transport.experiment_assignment_required" }
-        }
-        ZDerivation::Line11(_) | ZDerivation::NotCertified { .. } => {
-            ZTransportResult::NotCertified { reason: "z_transport.no_checked_recursive_formula" }
+        ZDerivation::Unassigned { inspection, .. } => ZTransportResult::NotCertified {
+            reason: "z_transport.experiment_assignment_required",
+            inspection,
+        },
+        ZDerivation::Line11 { inspection, .. } | ZDerivation::NotCertified { inspection, .. } => {
+            ZTransportResult::NotCertified {
+                reason: "z_transport.no_checked_recursive_formula",
+                inspection,
+            }
         }
     })
 }
@@ -1493,9 +1669,9 @@ pub fn identify_z_transport(
 #[allow(clippy::large_enum_variant)] // Private short-lived state; boxing would add allocation to recursive search.
 enum ZDerivation {
     Formula(ZTransportDerivation),
-    Line11(TrzTerminalFailure),
-    Unassigned { variable: VariableId },
-    NotCertified { reason: &'static str },
+    Line11 { terminal: TrzTerminalFailure, inspection: ZTransportNotCertifiedInspection },
+    Unassigned { variable: VariableId, inspection: ZTransportNotCertifiedInspection },
+    NotCertified { reason: &'static str, inspection: ZTransportNotCertifiedInspection },
 }
 
 fn derive_z_transport(
@@ -1503,12 +1679,33 @@ fn derive_z_transport(
     query: &ZTransportQuery,
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
+    receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<ZDerivation, IdentificationError> {
     validate_z_transport_query(diagram, query)?;
     if limits.steps == 0 || limits.depth == 0 {
+        *receipt = Some(ZTransportLimitsReceipt {
+            budget: if limits.depth == 0 {
+                ZTransportBudgetKind::Depth
+            } else {
+                ZTransportBudgetKind::Steps
+            },
+            steps_limit: limits.steps,
+            depth_limit: limits.depth,
+            steps_consumed: Some(0),
+            depth_reached: Some(0),
+            explored_rules: Vec::new(),
+        });
         return Err(IdentificationError::budget(IdentificationBudget::ZTransport));
     }
     if ctx.cancellation.is_cancelled() {
+        *receipt = Some(ZTransportLimitsReceipt {
+            budget: ZTransportBudgetKind::Cancelled,
+            steps_limit: limits.steps,
+            depth_limit: limits.depth,
+            steps_consumed: Some(0),
+            depth_reached: Some(0),
+            explored_rules: Vec::new(),
+        });
         return Err(IdentificationError::Cancelled);
     }
     if direct_joint_admissible(diagram, query)? {
@@ -1529,9 +1726,21 @@ fn derive_z_transport(
     if let Some(derivation) = registered_surrogate_derivation(diagram, query, limits, ctx)? {
         return Ok(ZDerivation::Formula(derivation));
     }
-    let searched = z_search(diagram, query, limits, ctx)?;
+    let searched = z_search(diagram, query, limits, ctx, receipt)?;
+    let explored_rules = searched.explored_rules.clone();
+    let steps_explored = searched.steps_explored;
+    let depth_reached = searched.depth_reached;
+    let inspection = |kind: ZTransportNotCertifiedKind| ZTransportNotCertifiedInspection {
+        kind,
+        explored_rules: explored_rules.clone(),
+        steps_explored,
+        depth_reached,
+    };
     if let Some(variable) = searched.unassigned {
-        return Ok(ZDerivation::Unassigned { variable });
+        return Ok(ZDerivation::Unassigned {
+            variable,
+            inspection: inspection(ZTransportNotCertifiedKind::ExperimentAssignmentRequired),
+        });
     }
     if let Some((arena, root, trace)) = searched.identified {
         // The recursive formula is the search's own output: re-running the
@@ -1548,9 +1757,20 @@ fn derive_z_transport(
         }));
     }
     if let Some(terminal) = searched.terminal_failure {
-        return Ok(ZDerivation::Line11(terminal));
+        return Ok(ZDerivation::Line11 {
+            terminal,
+            inspection: inspection(ZTransportNotCertifiedKind::CheckedLine11Terminal),
+        });
     }
-    Ok(ZDerivation::NotCertified { reason: "z_transport.no_checked_recursive_formula" })
+    let kind = if explored_rules.iter().any(|rule| rule == "ztr.line10.c_factor_not_identified") {
+        ZTransportNotCertifiedKind::SourceCFactorUnidentified
+    } else {
+        ZTransportNotCertifiedKind::NoRecursiveFormula
+    };
+    Ok(ZDerivation::NotCertified {
+        reason: "z_transport.no_checked_recursive_formula",
+        inspection: inspection(kind),
+    })
 }
 
 fn registered_surrogate_derivation(
@@ -1689,7 +1909,8 @@ pub fn verify_z_transport_derivation(
             if derivation.surrogate.is_some() || derivation.confounder.is_some() {
                 return Err(input_mismatch());
             }
-            let Some((expected, root, trace)) = z_search(diagram, query, limits, ctx)?.identified
+            let Some((expected, root, trace)) =
+                z_search(diagram, query, limits, ctx, &mut None)?.identified
             else {
                 return Err(IdentificationError::invalid_derivation(
                     "z_transport.proof_rule_mismatch",
@@ -1761,8 +1982,9 @@ fn z_search(
     query: &ZTransportQuery,
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
+    receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<TrzSearchResult, IdentificationError> {
-    search_trz_detailed(diagram, query, limits, ctx).map_err(|error| match error {
+    search_trz_detailed(diagram, query, limits, ctx, receipt).map_err(|error| match error {
         IdentificationError::Budget { budget: IdentificationBudget::Steps } => {
             IdentificationError::budget(IdentificationBudget::ZTransport)
         }
@@ -2430,7 +2652,7 @@ fn search_trz(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Option<(CausalExprArena, ExprId, Vec<String>)>, IdentificationError> {
-    Ok(search_trz_detailed(diagram, query, limits, ctx)?.identified)
+    Ok(search_trz_detailed(diagram, query, limits, ctx, &mut None)?.identified)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2451,6 +2673,12 @@ struct TrzSearchResult {
     identified: Option<(CausalExprArena, ExprId, Vec<String>)>,
     terminal_failure: Option<TrzTerminalFailure>,
     unassigned: Option<VariableId>,
+    /// Every recursive rule the search applied, in order, whatever the outcome.
+    explored_rules: Vec<String>,
+    /// Recursive subproblems the search charged.
+    steps_explored: usize,
+    /// Deepest recursion level the search reached.
+    depth_reached: usize,
 }
 
 fn search_trz_detailed(
@@ -2458,6 +2686,7 @@ fn search_trz_detailed(
     query: &ZTransportQuery,
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
+    receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<TrzSearchResult, IdentificationError> {
     let classical = super::ClassicalTransportQuery {
         outcomes: Arc::clone(&query.outcomes),
@@ -2465,13 +2694,37 @@ fn search_trz_detailed(
         source: Arc::clone(&query.source),
         target: Arc::clone(&query.target),
     };
-    let mut engine = super::Engine::new(diagram, &classical, limits, ctx)?;
-    let initial = engine.initial()?;
+    // A budget or cancellation observed at engine construction stops the search
+    // before any recursive accounting is taken, so the receipt reports the
+    // limits in force with no consumed counts rather than fabricating them.
+    let mut engine = match super::Engine::new(diagram, &classical, limits, ctx) {
+        Ok(engine) => engine,
+        Err(error) if error.is_budget_or_cancel() => {
+            *receipt = Some(ZTransportLimitsReceipt {
+                budget: pre_search_budget_kind(&error),
+                steps_limit: limits.steps,
+                depth_limit: limits.depth,
+                steps_consumed: None,
+                depth_reached: None,
+                explored_rules: Vec::new(),
+            });
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
+    let initial = match engine.initial() {
+        Ok(initial) => initial,
+        Err(error) if error.is_budget_or_cancel() => {
+            *receipt = Some(search_limits_receipt(&error, &engine, limits, Vec::new()));
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
     let mut trace = Vec::new();
     let mut terminal_failure = None;
     let mut unassigned = None;
     let irrelevant = BitSet::with_len(diagram.causal_graph().node_count());
-    let result = search_trz_state(
+    let outcome = search_trz_state(
         &mut engine,
         initial,
         query,
@@ -2482,12 +2735,64 @@ fn search_trz_detailed(
         &mut trace,
         &mut terminal_failure,
         &mut unassigned,
-    )?;
-    Ok(TrzSearchResult {
-        identified: result.map(|root| (engine.arena, root, trace)),
-        terminal_failure,
-        unassigned,
-    })
+    );
+    match outcome {
+        Ok(result) => {
+            let steps_explored = engine.steps;
+            let depth_reached = engine.max_depth;
+            Ok(TrzSearchResult {
+                identified: result.map(|root| (engine.arena, root, trace.clone())),
+                terminal_failure,
+                unassigned,
+                explored_rules: trace,
+                steps_explored,
+                depth_reached,
+            })
+        }
+        Err(error) if error.is_budget_or_cancel() => {
+            *receipt = Some(search_limits_receipt(&error, &engine, limits, trace));
+            Err(error)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// Classify a budget or cancellation observed before the recursive search runs.
+fn pre_search_budget_kind(error: &IdentificationError) -> ZTransportBudgetKind {
+    match error {
+        IdentificationError::Cancelled => ZTransportBudgetKind::Cancelled,
+        IdentificationError::Budget { budget: IdentificationBudget::Memory } => {
+            ZTransportBudgetKind::Memory
+        }
+        _ => ZTransportBudgetKind::Steps,
+    }
+}
+
+/// Build a receipt from the engine's own accounting when a budget or
+/// cancellation stopped the recursive search. The step-versus-depth
+/// distinction is read from the accounting, never guessed.
+fn search_limits_receipt(
+    error: &IdentificationError,
+    engine: &super::Engine<'_>,
+    limits: super::SidLimits,
+    explored_rules: Vec<String>,
+) -> ZTransportLimitsReceipt {
+    let budget = match error {
+        IdentificationError::Cancelled => ZTransportBudgetKind::Cancelled,
+        IdentificationError::Budget { budget: IdentificationBudget::Memory } => {
+            ZTransportBudgetKind::Memory
+        }
+        _ if engine.max_depth >= limits.depth => ZTransportBudgetKind::Depth,
+        _ => ZTransportBudgetKind::Steps,
+    };
+    ZTransportLimitsReceipt {
+        budget,
+        steps_limit: limits.steps,
+        depth_limit: limits.depth,
+        steps_consumed: Some(engine.steps),
+        depth_reached: Some(engine.max_depth),
+        explored_rules,
+    }
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Mirrors the paper rule state explicitly.

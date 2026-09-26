@@ -28,13 +28,15 @@ pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
     TwoSourceZTransportDecision, TwoSourceZTransportQuery, Z_TRANSPORT_MAX_CONTROLLABLE,
     Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError,
-    ZFactorObligation, ZProofOperation, ZTransportDecision, ZTransportDerivation,
-    ZTransportDerivationRecord, ZTransportMissingEvidence, ZTransportObstruction,
-    ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery, ZTransportResult,
-    ZTransportSourceSpec, ZTransportTerminalRecord, bind_z_transport_catalog,
-    decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport,
-    validate_z_experiment_family, validate_z_transport_query, verify_z_transport_derivation,
-    verify_z_transport_obstruction,
+    ZFactorObligation, ZProofOperation, ZTransportBudgetKind, ZTransportDecision,
+    ZTransportDerivation, ZTransportDerivationRecord, ZTransportLimitsReceipt,
+    ZTransportMissingEvidence, ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind,
+    ZTransportObstruction, ZTransportObstructionRecord, ZTransportOutcome,
+    ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportSourceSpec,
+    ZTransportTerminalRecord, bind_z_transport_catalog, decide_two_source_z_transport,
+    decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_z_transport,
+    identify_z_transport_reporting, validate_z_experiment_family, validate_z_transport_query,
+    verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 
 /// Theoretical query under the classical family of all source experiments.
@@ -445,6 +447,9 @@ struct Engine<'a> {
     limits: SidLimits,
     ctx: &'a ExecutionContext,
     steps: usize,
+    /// Deepest recursion level `charge` has observed, for a limits receipt when
+    /// a bounded search stops. It is the engine's own accounting, never a claim.
+    max_depth: usize,
     obstruction: Option<State>,
     source_catalog: Option<&'a antecedent_core::EvidenceCatalog>,
     sources: Vec<MetaSource>,
@@ -499,6 +504,7 @@ impl<'a> Engine<'a> {
             limits,
             ctx,
             steps: 0,
+            max_depth: 0,
             obstruction: None,
             source_catalog: None,
             sources: Vec::new(),
@@ -506,6 +512,7 @@ impl<'a> Engine<'a> {
     }
     fn charge(&mut self, depth: usize) -> Result<(), IdentificationError> {
         self.steps = self.steps.saturating_add(1);
+        self.max_depth = self.max_depth.max(depth);
         if self.ctx.cancellation.is_cancelled() {
             return Err(IdentificationError::Cancelled);
         }
