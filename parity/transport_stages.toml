@@ -358,7 +358,7 @@ functional = "structural_transport_claim"
 guarantee = "independently_verified_positive_or_negative_claim"
 limits = "NotCertified is never upgraded to a proven obstruction; no estimator execution or external provider fetching."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_frozen_rust_not_certified_consumes_without_upgrade"
+evidence_assertion = "test_consume_identification_executes_from_the_consumed_proof_after_builder_disposal"
 
 [[routes]]
 route = "transport.multi_source_calibrated_coverage"
