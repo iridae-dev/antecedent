@@ -292,9 +292,55 @@ def scaffolding_view(rel: str, text: str) -> str:
 _PUB_USE = re.compile(r"^[ \t]*pub(?:\([^)]*\))?[ \t]+use\b([^;]*);", re.M)
 
 
+_IMPL_OR_TRAIT = re.compile(
+    r"^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?(?:unsafe[ \t]+)?(?:impl|trait)\b", re.M
+)
+
+
+def strip_impl_bodies(code: str) -> str:
+    """`code` with the bodies of `impl` and `trait` blocks blanked.
+
+    A method, associated function, associated type or associated const lives
+    inside one of these blocks and is reached only through the type or trait
+    that owns it, never by its bare name, so a `new`, `fmt` or `query` defined
+    there is not an item another file could name."""
+    out: list[str] = []
+    i, n = 0, len(code)
+    while i < n:
+        m = _IMPL_OR_TRAIT.search(code, i)
+        if m is None:
+            out.append(code[i:])
+            break
+        # The block opens at the first `{` outside the header's generics and
+        # bounds (`impl<T: Fn() -> X> Y for Z {`); a `trait T;`-like header
+        # without a body (`impl Trait for T;` is not Rust, but stay safe) ends at `;`.
+        j, depth = m.end(), 0
+        while j < n and not (code[j] == "{" and depth == 0) and code[j] != ";":
+            if code.startswith("->", j):
+                j += 2
+                continue
+            depth += {"<": 1, ">": -1}.get(code[j], 0)
+            j += 1
+        if j >= n or code[j] == ";":
+            out.append(code[i : j + 1])
+            i = j + 1
+            continue
+        k, depth = j + 1, 1
+        while k < n and depth:
+            depth += {"{": 1, "}": -1}.get(code[k], 0)
+            k += 1
+        out.append(code[i : j + 1] + re.sub(r"[^\n]", " ", code[j + 1 : k - 1]) + code[k - 1 : k])
+        i = k
+    return "".join(out)
+
+
 def definitions(code: str) -> set[str]:
-    """Items a file defines, plus every name it re-exports with `pub use`."""
-    names = {a or b for a, b in _DEF.findall(code)}
+    """Items a file defines, plus every name it re-exports with `pub use`.
+
+    Methods and other associated items are not items (see `strip_impl_bodies`), and
+    neither is the scaffolding of an inline `#[cfg(test)] mod`, which no other file
+    can name."""
+    names = {a or b for a, b in _DEF.findall(strip_impl_bodies(strip_test_modules(code)))}
     for m in _PUB_USE.finditer(code):
         names |= set(_IDENT.findall(m.group(1))) - {"self", "super", "crate", "as"}
     return names
@@ -2176,6 +2222,18 @@ def self_test() -> int:
     expect(
         _test_only_module("crates/antecedent-estimate/src/calibration_coverage.rs"),
         "#[cfg(test)] plus lint allows still marks a test-only module",
+    )
+    defs = definitions(
+        "pub struct Op;\n"
+        "impl Op {\n    pub const fn query(&self) -> u8 { 0 }\n    fn new() -> Self { Op }\n}\n"
+        "impl<T: Fn() -> u8> Tr for Op {\n    type Out = T;\n    fn fmt(&self) {}\n}\n"
+        "pub trait Tr {\n    type Out;\n    fn fmt(&self);\n}\n"
+        "pub fn compile() {}\n"
+        "#[cfg(test)]\nmod tests {\n    fn context() {}\n}\n"
+    )
+    expect(
+        defs == {"Op", "Tr", "compile"},
+        "methods, associated items and inline test scaffolding are not bare-name definitions",
     )
     expect(check(base) == [], "the committed list passes")
 
