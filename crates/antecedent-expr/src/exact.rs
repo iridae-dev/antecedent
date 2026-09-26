@@ -362,7 +362,7 @@ impl ExactDiscreteLaw {
     }
     fn covers(&self, spec: &FactorSpec<'_>) -> bool {
         self.population.as_ref() == spec.population
-            && spec.regime == Some(self.regime)
+            && spec.regime.is_none_or(|regime| regime == self.regime)
             && self.interventions.len() == spec.intervention.len()
             && spec.intervention.iter().all(|a| {
                 self.interventions
@@ -534,6 +534,8 @@ pub struct ExactTransportData {
     domains: Arc<BTreeMap<VariableId, Arc<[Value]>>>,
     max_support_rows: usize,
     factor_cache: Option<Arc<SharedFactorCache>>,
+    /// Whether a leaf that names no regime may select its law by intervention world.
+    world_bound_leaves: bool,
 }
 
 impl ExactTransportData {
@@ -599,7 +601,22 @@ impl ExactTransportData {
             domains: Arc::new(domains),
             max_support_rows,
             factor_cache: None,
+            world_bound_leaves: false,
         })
+    }
+    /// Let a leaf that names no regime select its law by intervention world.
+    ///
+    /// A z-transport factor whose exchanged coordinate is bound at evaluation
+    /// (`do(x = 0, z)` with `z` the enclosing summation variable) cites one
+    /// regime per world rather than one regime for the whole family, so the
+    /// bound leaf carries no regime and the concrete world selects the law.
+    /// The selection must be unambiguous: two laws of one population for the
+    /// same world refuse with `ambiguous_exact_provider`. Every other provider
+    /// keeps requiring an explicit regime.
+    #[must_use]
+    pub const fn with_world_bound_leaves(mut self) -> Self {
+        self.world_bound_leaves = true;
+        self
     }
     /// Share a bounded factor-value cache across plans bound to this immutable provider.
     /// Replacing data creates a new cache; cached values never cross snapshots.
@@ -639,20 +656,36 @@ impl ExactTransportData {
         &self,
         spec: &FactorSpec<'_>,
     ) -> Result<&ExactDiscreteLaw, ExactLawError> {
-        self.index
-            .get(spec.population)
-            .and_then(|regimes| spec.regime.and_then(|regime| regimes.get(&regime)))
-            .and_then(|worlds| worlds.get(lookup_world_key(spec.intervention).as_ref()))
+        let missing = |kind: &'static str| ExactLawError {
+            kind,
+            population: Arc::from(spec.population),
+            regime: spec.regime,
+            variables: Arc::from(spec.variables),
+            conditioning: Arc::from([]),
+            interventions: Arc::from(spec.intervention),
+        };
+        let regimes =
+            self.index.get(spec.population).ok_or_else(|| missing("missing_exact_provider"))?;
+        let world = lookup_world_key(spec.intervention);
+        let index = match spec.regime {
+            Some(regime) => regimes.get(&regime).and_then(|worlds| worlds.get(world.as_ref())),
+            None if self.world_bound_leaves => {
+                let mut matches = regimes
+                    .iter()
+                    .filter_map(|(_, worlds)| worlds.get(world.as_ref()))
+                    .filter(|index| self.laws[**index].covers(spec));
+                let first = matches.next();
+                if matches.next().is_some() {
+                    return Err(missing("ambiguous_exact_provider"));
+                }
+                first
+            }
+            None => None,
+        };
+        index
             .map(|index| &self.laws[*index])
             .filter(|law| law.covers(spec))
-            .ok_or_else(|| ExactLawError {
-                kind: "missing_exact_provider",
-                population: Arc::from(spec.population),
-                regime: spec.regime,
-                variables: Arc::from(spec.variables),
-                conditioning: Arc::from([]),
-                interventions: Arc::from(spec.intervention),
-            })
+            .ok_or_else(|| missing("missing_exact_provider"))
     }
 
     /// Evaluate a marginal or conditional from the selected joint law.

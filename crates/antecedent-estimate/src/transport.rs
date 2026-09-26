@@ -555,7 +555,7 @@ pub fn prepare_exact_z_transport(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
-    use antecedent_core::{DistributionAvailability, VariableDomain};
+    use antecedent_core::{DistributionAvailability, VariableDomain, same_intervention_level};
     use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
 
     let query = functional.derivation().query();
@@ -566,28 +566,28 @@ pub fn prepare_exact_z_transport(
             "exact zTR request must bind precisely the certified treatment coordinates",
         ));
     }
-    // A direct source-exchange formula is the joint experimental law at the
-    // concrete values recorded in the proof. It only answers the corresponding
-    // target intervention; surrogate formulas keep their treatment request
-    // independent of the source-side do(Z) assignment.
-    if matches!(
-        functional.arena().node(functional.root()),
-        antecedent_expr::ExprNode::Distribution { .. }
-    ) {
-        let source_assignment = &query.experiment_assignment;
-        if query.treatments.iter().any(|treatment| {
-            let Some(source_value) = source_assignment
-                .iter()
-                .find(|assignment| assignment.variable == *treatment)
-                .map(|assignment| &assignment.value)
-            else {
-                return true;
-            };
-            request.get(*treatment) != Some(source_value)
-        }) {
-            return Err(EvalError::ProviderKind(
-                "exact zTR direct-exchange request must match its concrete source intervention",
-            ));
+    // A source factor that exchanged a treatment cites the experiment at the
+    // concrete level recorded in the proof, whatever the root shape (a bare
+    // direct-exchange distribution, or a summed product on the recursive
+    // route). Such a factor answers only the target intervention at that
+    // level; a request at another level would silently be answered with the
+    // proof's level, so it is refused here rather than evaluated.
+    for (treatment, cited) in cited_treatment_levels(functional) {
+        let requested = request.get(treatment);
+        match cited {
+            Some(level)
+                if requested.is_none_or(|value| !same_intervention_level(value, &level)) =>
+            {
+                return Err(EvalError::ProviderKind(
+                    "exact zTR request must match the concrete source intervention its formula cites",
+                ));
+            }
+            None if !request_level_is_cited(functional, treatment, requested) => {
+                return Err(EvalError::ProviderKind(
+                    "exact zTR request names a treatment level no cited source experiment supplies",
+                ));
+            }
+            _ => {}
         }
     }
     let catalog = functional.catalog();
@@ -663,16 +663,82 @@ pub fn prepare_exact_z_transport(
             }
         }
     }
+    // A factor whose exchanged coordinate is bound by an enclosing summation
+    // names no single regime; the concrete world selects its law.
     ExactEvaluationPlan::compile(
         functional.arena(),
         functional.root(),
-        data,
+        data.with_world_bound_leaves(),
         query.outcomes.clone(),
         request,
         limits,
         LawTolerance::default(),
         ctx,
     )
+}
+
+/// Whether a cited source regime supplies the requested level of `treatment`.
+fn request_level_is_cited(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    treatment: antecedent_core::VariableId,
+    requested: Option<&antecedent_core::Value>,
+) -> bool {
+    use antecedent_core::same_intervention_level;
+    let Some(requested) = requested else { return false };
+    functional
+        .cited_regimes()
+        .iter()
+        .filter_map(|id| functional.catalog().regimes.iter().find(|regime| regime.id == *id))
+        .filter(|regime| regime.interventions.contains(&treatment))
+        .any(|regime| {
+            regime.intervention_values.is_empty()
+                || regime.intervention_values.iter().any(|actual| {
+                    actual.variable == treatment
+                        && same_intervention_level(&actual.value, requested)
+                })
+        })
+}
+
+/// Every treatment coordinate a reachable source factor intervenes on, with its
+/// concrete level, or `None` when the factor leaves it symbolic for the request
+/// to bind.
+fn cited_treatment_levels(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+) -> Vec<(antecedent_core::VariableId, Option<antecedent_core::Value>)> {
+    use antecedent_expr::ExprNode;
+    let arena = functional.arena();
+    let treatments = &functional.derivation().query().treatments;
+    let mut pending = vec![functional.root()];
+    let mut seen = std::collections::BTreeSet::new();
+    let mut cited = Vec::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id.raw()) {
+            continue;
+        }
+        match arena.node(id) {
+            ExprNode::Distribution { intervention, .. } => {
+                for assignment in arena.intervention_assignments(*intervention) {
+                    if treatments.contains(&assignment.variable)
+                        && !cited.iter().any(|(v, _)| *v == assignment.variable)
+                    {
+                        let level = (!assignment.is_symbolic()).then(|| assignment.value.clone());
+                        cited.push((assignment.variable, level));
+                    }
+                }
+            }
+            ExprNode::Kernel { body, .. } => pending.push(*body),
+            ExprNode::Product(list) => pending.extend(arena.list(*list)),
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+                pending.push(*expr);
+            }
+            ExprNode::Ratio { numerator, denominator } => {
+                pending.extend([*numerator, *denominator]);
+            }
+            ExprNode::Expectation { distribution, .. } => pending.push(*distribution),
+            ExprNode::Contrast { left, right, .. } => pending.extend([*left, *right]),
+        }
+    }
+    cited
 }
 
 /// Validate exact providers and compile without evaluating any probabilities.
