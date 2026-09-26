@@ -241,6 +241,8 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "PreparedAnalysis": {
         "replace_snapshot",
+        # One-factor mechanism sensitivity on the retained fixed-graph plan
+        "mechanism_sensitivity",
         # Compile, execute, and the two views
         "prepare",
         "estimate",
