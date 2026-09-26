@@ -1054,9 +1054,10 @@ fn bayesian_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage() {
         assert!(lower.len() > 1 && upper.len() > 1);
         let tally =
             tally.get_or_insert_with(|| CoverageTally::for_record(key, *level).labelled("x=1"));
-        if (*level - REPORTED_LEVEL).abs() > 1e-12 {
-            panic!("unexpected posterior interval level {level}");
-        }
+        assert!(
+            (*level - REPORTED_LEVEL).abs() <= 1e-12,
+            "unexpected posterior interval level {level}"
+        );
         bind(tally, study, result);
         tally.record(Some((lower[1], upper[1])), XY_TRUTH);
     }
@@ -1446,7 +1447,7 @@ fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
     .with_algorithm("known_truth_temporal_mediation_dag_atom")
 }
 
-/// Single-atom TemporalDag posterior calibration for the mediated path product.
+/// Single-atom `TemporalDag` posterior calibration for the mediated path product.
 /// The DGP graph and posterior atom are the same fixed graph, so the interval
 /// targets `fixtures::mediation_truth()` without graph or identified-set spread.
 #[test]

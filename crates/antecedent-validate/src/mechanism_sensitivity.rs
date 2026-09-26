@@ -588,6 +588,10 @@ pub fn fixed_graph_treatment_level_sensitivity(
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "single contamination-extremal evaluation over the outcome kernel; the shared stratum bookkeeping does not factor cleanly"
+)]
 fn fixed_graph_mechanism_sensitivity_inner(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -838,6 +842,10 @@ fn fixed_graph_mechanism_sensitivity_inner(
 /// outcome parent, and to factor independently from those parents in the
 /// supplied joint law. Under those conditions its marginal is the complete
 /// conditional mechanism, so replacing it preserves the checked SCM factorization.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one cohesive root-mechanism contamination routine over its simplex vertices"
+)]
 pub fn fixed_graph_root_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -1002,6 +1010,11 @@ pub fn fixed_graph_root_mechanism_sensitivity(
 /// mechanism. The route checks their factorization against the fixed DAG and
 /// perturbs one factor with row-wise bounded simplex contamination, propagating
 /// the changed joint law through downstream parent mechanisms.
+#[allow(
+    clippy::too_many_lines,
+    clippy::float_cmp,
+    reason = "one cohesive per-stratum simplex-contamination routine; the exact == locates the vertex achieving the extremal slope just computed by fold(f64::max/min)"
+)]
 pub fn fixed_graph_conditional_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -1869,6 +1882,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines, reason = "one cohesive known-truth stratum-weight assertion")]
     fn fixed_graph_route_derives_stratum_weights_and_matches_known_truth() {
         let (diagram, query, functional) = checked_transport_fixture();
         let mut spec = FixedGraphMechanismSensitivitySpec {
