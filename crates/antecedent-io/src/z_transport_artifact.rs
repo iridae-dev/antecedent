@@ -286,6 +286,13 @@ impl ZTransportArtifactWire {
     }
 }
 
+/// The schema name of a z-transport program variable: one name per graph
+/// coordinate, shared by every environment that declares it.
+#[must_use]
+pub fn program_variable_name(variable: VariableId) -> String {
+    format!("v{}", variable.raw())
+}
+
 fn validate_functional_program(
     program: &FunctionalProgram,
     functional: &antecedent_identify::BoundZTransportFunctional,
@@ -307,7 +314,7 @@ fn validate_functional_program(
         .environments
         .iter()
         .flat_map(|environment| environment.variables.iter())
-        .map(|coordinate| (coordinate.variable.raw(), format!("v{}", coordinate.variable.raw())))
+        .map(|coordinate| (coordinate.variable.raw(), program_variable_name(coordinate.variable)))
         .collect::<std::collections::BTreeMap<_, _>>();
     let supplied = program
         .schema()

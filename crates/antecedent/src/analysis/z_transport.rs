@@ -26,6 +26,9 @@ pub struct PreparedZTransport {
     request: Assignment,
     limits: ExactEvaluationLimits,
     plan: ExactEvaluationPlan,
+    /// Prepared as an empirical plug-in: every retained law carries counts, and
+    /// a refresh keeps that contract.
+    empirical: bool,
 }
 
 /// Executed point distribution. An empirical cited table may also carry a
@@ -156,9 +159,7 @@ impl PreparedZTransport {
     ) -> Result<ZTransportResult, IoError> {
         verify_plan_program(&self.plan, &self.program)?;
         let distribution = self.plan.evaluate(ctx).map_err(err)?;
-        let empirical = self.data.laws().iter().all(|law| law.empirical_counts().is_some())
-            && !self.data.laws().is_empty();
-        if !empirical {
+        if !self.empirical {
             return Ok(ZTransportResult {
                 distribution,
                 interval_method: None,
@@ -243,6 +244,9 @@ impl PreparedZTransport {
         data: ExactTransportData,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        if self.empirical {
+            require_empirical_counts(&data)?;
+        }
         let plan = antecedent_estimate::prepare_exact_z_transport(
             &self.functional,
             data.clone(),
@@ -260,6 +264,7 @@ impl PreparedZTransport {
             request: self.request.clone(),
             limits: self.limits,
             plan,
+            empirical: self.empirical,
         })
     }
 
@@ -295,7 +300,17 @@ fn verify_plan_program(
     Ok(())
 }
 
+/// Refuse a law set that is not an empirical plug-in table.
+fn require_empirical_counts(data: &ExactTransportData) -> Result<(), IoError> {
+    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
+        return Err(err("z_transport.empirical_counts_required"));
+    }
+    Ok(())
+}
+
 fn checked_program(functional: &BoundZTransportFunctional) -> Result<FunctionalProgram, IoError> {
+    // Every environment declares the coordinates it shares with the graph; one
+    // schema variable per coordinate, however many populations declare it.
     let variables = functional
         .catalog()
         .environments
@@ -304,10 +319,14 @@ fn checked_program(functional: &BoundZTransportFunctional) -> Result<FunctionalP
         .map(|coordinate| {
             (
                 coordinate.variable,
-                ProgramVariable { name: Arc::from(format!("v{}", coordinate.variable.raw())) },
+                ProgramVariable {
+                    name: Arc::from(antecedent_io::z_transport_artifact::program_variable_name(
+                        coordinate.variable,
+                    )),
+                },
             )
         })
-        .collect::<Vec<_>>();
+        .collect::<std::collections::BTreeMap<_, _>>();
     let program = FunctionalProgram::new(
         functional.arena().clone(),
         ProgramSchema::new(variables),
@@ -355,7 +374,16 @@ impl StudyBuilder {
         )
         .map_err(err)?;
         let program = checked_program(&functional)?;
-        Ok(PreparedZTransport { diagram, functional, program, data, request, limits, plan })
+        Ok(PreparedZTransport {
+            diagram,
+            functional,
+            program,
+            data,
+            request,
+            limits,
+            plan,
+            empirical: false,
+        })
     }
 
     /// Prepare an empirical plugin evaluation, requiring every retained law to
@@ -372,10 +400,10 @@ impl StudyBuilder {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedZTransport, IoError> {
-        if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-            return Err(err("z_transport.empirical_counts_required"));
-        }
-        Self::z_transport(diagram, functional, data, request, limits, ctx)
+        require_empirical_counts(&data)?;
+        let mut prepared = Self::z_transport(diagram, functional, data, request, limits, ctx)?;
+        prepared.empirical = true;
+        Ok(prepared)
     }
 }
 
@@ -397,6 +425,15 @@ mod tests {
 
     fn fixture(
         empirical: bool,
+    ) -> (SelectionDiagram, BoundZTransportFunctional, ExactTransportData, Assignment) {
+        fixture_with_environments(empirical, false)
+    }
+
+    /// `dual_environments` declares the same coordinates for the target
+    /// population too, the natural catalog shape.
+    fn fixture_with_environments(
+        empirical: bool,
+        dual_environments: bool,
     ) -> (SelectionDiagram, BoundZTransportFunctional, ExactTransportData, Assignment) {
         let mut graph = Admg::with_variables(4);
         for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
@@ -428,16 +465,20 @@ mod tests {
         else {
             panic!("fixture proof")
         };
-        let environment = Environment::try_new(
-            "source",
-            [w, z, x, y].map(|variable| VariableCoordinate {
-                variable,
-                domain: VariableDomain::Binary,
-                unit: None,
-            }),
-            Arc::<[VariableId]>::from([]),
-        )
-        .unwrap();
+        let coordinates = [w, z, x, y].map(|variable| VariableCoordinate {
+            variable,
+            domain: VariableDomain::Binary,
+            unit: None,
+        });
+        let mut environments = vec![
+            Environment::try_new("source", coordinates.clone(), Arc::<[VariableId]>::from([]))
+                .unwrap(),
+        ];
+        if dual_environments {
+            environments.push(
+                Environment::try_new("target", coordinates, Arc::<[VariableId]>::from([])).unwrap(),
+            );
+        }
         let measured: Arc<[VariableId]> = Arc::from([w, z, x, y]);
         let regimes = [false, true].map(|level| {
             antecedent_core::EvidenceRegime::try_new(
@@ -464,7 +505,7 @@ mod tests {
             weights: None,
             dependence: DependenceGroup::IndependentStudies,
         });
-        let catalog = EvidenceCatalog::try_new([environment], regimes, bindings, None).unwrap();
+        let catalog = EvidenceCatalog::try_new(environments, regimes, bindings, None).unwrap();
         let functional = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
         let mut probabilities = Vec::with_capacity(8);
         let mut counts = Vec::with_capacity(8);
@@ -604,6 +645,57 @@ mod tests {
                 antecedent_core::query::OutcomeGuarantee::SoundIncomplete
             );
         }
+    }
+
+    #[test]
+    fn both_populations_may_declare_the_same_coordinates() {
+        let (diagram, functional, data, assignment) = fixture_with_environments(false, true);
+        let ctx = ExecutionContext::for_tests(7);
+        let prepared = StudyBuilder::z_transport(
+            diagram,
+            functional,
+            data,
+            assignment,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(prepared.program().schema().variables().count(), 4);
+        let result = prepared.estimate(&ctx).unwrap();
+        let true_mass = result
+            .distribution()
+            .atoms
+            .iter()
+            .zip(result.distribution().probabilities.iter())
+            .filter(|(atom, _)| atom[0] == Value::Bool(true))
+            .map(|(_, p)| p)
+            .sum::<f64>();
+        assert!((true_mass - 0.20).abs() < 1e-12);
+        let artifact = result.export(&prepared).unwrap();
+        consume_z_transport_artifact(&artifact, &ExecutionContext::for_tests(8)).unwrap();
+    }
+
+    #[test]
+    fn an_empirical_handle_refuses_a_refresh_with_count_free_laws() {
+        let (diagram, functional, counted, assignment) = fixture(true);
+        let (_, _, exact, _) = fixture(false);
+        let ctx = ExecutionContext::for_tests(7);
+        let prepared = StudyBuilder::z_transport_empirical(
+            diagram,
+            functional,
+            counted.clone(),
+            assignment,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        let error = prepared.refresh(exact, &ctx).unwrap_err();
+        assert!(error.to_string().contains("z_transport.empirical_counts_required"), "{error}");
+        let refreshed = prepared.refresh(counted, &ctx).unwrap();
+        assert_eq!(
+            refreshed.estimate(&ctx).unwrap().interval_type(),
+            antecedent_estimate::PERCENTILE_BOOTSTRAP
+        );
     }
 
     #[test]
