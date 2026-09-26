@@ -49,6 +49,9 @@ pub struct CateProfile {
 }
 
 /// Pointwise inferential result for one prespecified, exactly supported profile.
+/// The estimand is the best linear projection of the CATE onto the adjustment
+/// variables at this profile; it equals the true CATE only under a correctly
+/// specified linear or saturated final stage.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PointwiseCateEstimate {
     /// Profile values in adjustment-set order.
