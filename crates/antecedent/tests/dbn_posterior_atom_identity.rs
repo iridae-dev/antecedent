@@ -256,7 +256,9 @@ fn lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effect
         for result in [&fresh, &click, &refreshed] {
             assert!(result.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
         }
-        assert_eq!(cached_count(&fresh), 0);
+        // The one-shot facade prepares the checked plan and estimates from its
+        // retained atom proofs, so the fresh run reports the cached identification.
+        assert_eq!(cached_count(&fresh), 1);
         assert_eq!(cached_count(&click), 1);
         assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse identification");
     }
@@ -315,7 +317,9 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
                 demotion.message
             );
         }
-        assert_eq!(cached_count(&fresh), 0);
+        // The one-shot facade prepares the checked plan and estimates from its
+        // retained atom proofs, so the fresh run reports the cached identification.
+        assert_eq!(cached_count(&fresh), 1);
         assert_eq!(cached_count(&click), 1);
         assert_eq!(cached_count(&refreshed), 1);
     }

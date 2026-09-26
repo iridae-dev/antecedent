@@ -854,6 +854,9 @@ fn consume_licensed_family(
                 | "dependencies.checked_temporal_class_effect_operation"
                 | "dependencies.checked_temporal_class_response_operation"
                 | "dependencies.checked_temporal_graph_posterior_response_operation"
+                | "dependencies.checked_bayesian_temporal_dag_effect_operation"
+                | "dependencies.checked_bayesian_temporal_class_effect_operation"
+                | "dependencies.checked_temporal_graph_posterior_effect_operation"
                 | "dependencies.fitted_counterfactual_mechanisms"
                 // The portable result is readable and preserves the posterior
                 // claim, but does not carry joint factor draws for replay.
@@ -3176,7 +3179,15 @@ fn consume_gp_series(
         .encode_contracted_result(&result, artifact_id, &ctx)
         .expect("GP temporal encode must consume lagged-node products through the DBN namespace");
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    // The artifact is readable, but an independent consumer cannot replay the
+    // sealed temporal graph-posterior operation without its retained atom proofs.
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from(
+            "dependencies.checked_temporal_graph_posterior_effect_operation"
+        )]
+    );
+    assert!(!consumed.acceptance.accepts_as_verified_program());
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalDag");
     result
 }

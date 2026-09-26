@@ -184,15 +184,26 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
 fn checked_bayesian_temporal_dag_route_does_not_claim_class_plans() {
     let data = series(1.0);
     let ctx = ExecutionContext::for_tests(88_402);
-    let class = antecedent_graph::TemporalCpdag::empty();
+    let mut class = antecedent_graph::TemporalCpdag::empty();
+    let treatment_lag = class.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let outcome_now = class.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    class.insert_directed(treatment_lag, outcome_now).unwrap();
     let accepted = AcceptedGraph::temporal_cpdag(class).unwrap();
     let pulse = query(false);
     let class_builder = Study::series(data)
         .graph(accepted)
-        .query(CausalQuery::TemporalEffect(pulse))
+        .query(CausalQuery::TemporalEffect(pulse.clone()))
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
         .build()
         .unwrap();
     let class_prepared = class_builder.prepare(&ctx).unwrap();
+    // The class plan is sealed by its own route, never by the fixed-DAG kernel.
     assert!(class_prepared.checked_bayesian_temporal_dag_effect_info().is_none());
+    let class_plan = class_prepared
+        .checked_bayesian_temporal_class_effect_info()
+        .expect("class route retains the Bayesian class plan");
+    assert_eq!(class_plan.query, pulse);
+    assert_eq!(class_plan.graph_class, antecedent::GraphClass::TemporalCpdag);
+    assert_eq!(class_plan.estimator.as_str(), "bayesian.temporal.gcomp");
 }

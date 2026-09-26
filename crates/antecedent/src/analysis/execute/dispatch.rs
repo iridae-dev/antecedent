@@ -1672,6 +1672,76 @@ impl super::Study {
                 return prepared.estimate_series(data, ctx);
             }
         }
+        if self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.custom_validators.is_empty()
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && matches!(&self.query, CausalQuery::TemporalEffect(query)
+                if matches!(&query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { .. }
+                    | antecedent_core::TemporalPolicy::Sustained { .. }))
+            && self.estimator.is_none_or(|id| match &self.query {
+                CausalQuery::TemporalEffect(query) if query.is_multi_step_sustained() => {
+                    id == EstimatorId::TemporalSequentialGcomp
+                }
+                _ => id == EstimatorId::BayesianTemporalGcomp,
+            })
+        {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_bayesian_temporal_class_effect_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot Bayesian temporal class effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
+            }
+        }
+        if self.graph_posterior.as_ref().is_some_and(|posterior| {
+            matches!(
+                posterior.atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Dag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Pag
+            )
+        }) && self.tiered.is_none()
+            && self.custom_validators.is_empty()
+            && matches!(self.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            && matches!(&self.query, CausalQuery::TemporalEffect(query)
+                if matches!(&query.policy,
+                    antecedent_core::TemporalPolicy::Pulse { .. }
+                    | antecedent_core::TemporalPolicy::Sustained { .. }))
+            && self.estimator.is_none_or(|id| match &self.query {
+                CausalQuery::TemporalEffect(query) if query.is_multi_step_sustained() => {
+                    id == EstimatorId::TemporalSequentialGcomp
+                }
+                _ if matches!(self.inference, InferenceMode::Bayesian(_)) => {
+                    id == EstimatorId::BayesianTemporalGcomp
+                }
+                _ => id == EstimatorId::TemporalLinearAdjustment,
+            })
+        {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_temporal_graph_posterior_effect_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot temporal graph-posterior effect did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.

@@ -329,6 +329,8 @@ pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponse
 mod checked_temporal_class_response;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_class_mediation;
+mod checked_bayesian_temporal_class_effect;
+mod checked_temporal_graph_posterior_effect;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
