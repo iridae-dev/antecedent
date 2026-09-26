@@ -243,6 +243,42 @@ impl PreparedZTransport {
         ZTransportResult::combine_independent_components(&left_result, &right_result, max_atoms)
     }
 
+    /// Evaluate two separately prepared connected factors and combine them when
+    /// their outcomes m-separate given the union of their treatments on the
+    /// shared graph, so `P*_x(y)` is their product. Unlike
+    /// [`Self::estimate_independent_components`], the outcomes need not lie in
+    /// disconnected graph components; a single connected graph whose intervened
+    /// outcomes factorize is combined here. Each factor is still one source's
+    /// checked point law.
+    ///
+    /// # Errors
+    /// Refuses graph mismatches, a shared source, outcomes that do not factorize
+    /// under the intervention, empirical interval results, cancellation, or a
+    /// product larger than `max_atoms`.
+    pub fn estimate_intervention_factorized_components(
+        left: &Self,
+        right: &Self,
+        max_atoms: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<ZTransportResult, IoError> {
+        if !same_causal_graph(&left.diagram, &right.diagram)
+            || left.functional.derivation().query().target
+                != right.functional.derivation().query().target
+            || left.functional.derivation().query().source
+                == right.functional.derivation().query().source
+            || !queries_factorize_under_intervention(
+                &left.diagram,
+                left.functional.derivation().query(),
+                right.functional.derivation().query(),
+            )
+        {
+            return Err(err("z_transport.components_not_independent"));
+        }
+        let left_result = left.estimate(ctx)?;
+        let right_result = right.estimate(ctx)?;
+        ZTransportResult::combine_independent_components(&left_result, &right_result, max_atoms)
+    }
+
     /// The explicitly limited graph and theorem scope for this prepared route.
     #[must_use]
     pub fn theorem_scope(&self) -> TheoremScope {
@@ -470,6 +506,72 @@ fn queries_are_disconnected_components(
         found
     };
     component(left).zip(component(right)).is_some_and(|(a, b)| a != b)
+}
+
+/// Whether `P*_x(y_left, y_right) = P*_x(y_left)·P*_x(y_right)` on the shared
+/// graph: the two components' outcomes are m-separated given the union of their
+/// treatments in the `do`-mutilated ADMG. This licenses combining one connected
+/// factor per source without the outcomes being in disconnected graph
+/// components.
+fn queries_factorize_under_intervention(
+    diagram: &SelectionDiagram,
+    left: &antecedent_identify::ZTransportQuery,
+    right: &antecedent_identify::ZTransportQuery,
+) -> bool {
+    use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef};
+    let graph = diagram.causal_graph();
+    if graph.nodes().iter().any(|node| !matches!(node, NodeRef::Static(_))) {
+        return false;
+    }
+    let n = graph.node_count();
+    let dense = |variable: antecedent_core::VariableId| {
+        graph
+            .nodes()
+            .iter()
+            .position(|node| matches!(node, NodeRef::Static(v) if *v == variable))
+            .map(|index| DenseNodeId::from_raw(u32::try_from(index).expect("graph bound")))
+    };
+    let mut treated = vec![false; n];
+    let mut treated_ids = Vec::new();
+    for treatment in left.treatments.iter().chain(right.treatments.iter()).copied() {
+        let Some(id) = dense(treatment) else { return false };
+        if !treated[id.as_usize()] {
+            treated[id.as_usize()] = true;
+            treated_ids.push(id);
+        }
+    }
+    // do(X)-mutilated ADMG: drop directed edges into treatments and bidirected
+    // edges incident to any treatment, so the treatments are exogenous roots.
+    let mut mutilated = Admg::with_variables(u32::try_from(n).expect("graph bound"));
+    for from_index in 0..n {
+        let from = DenseNodeId::from_raw(u32::try_from(from_index).expect("graph bound"));
+        for to in graph.children(from) {
+            if !treated[to.as_usize()] && mutilated.insert_directed(from, *to).is_err() {
+                return false;
+            }
+        }
+        for other in graph.bidirected_neighbors(from) {
+            if other.as_usize() > from_index
+                && !treated[from_index]
+                && !treated[other.as_usize()]
+                && mutilated.insert_bidirected(from, *other).is_err()
+            {
+                return false;
+            }
+        }
+    }
+    let mut ws = DSeparationWorkspace::default();
+    for left_outcome in left.outcomes.iter().copied() {
+        let Some(left_id) = dense(left_outcome) else { return false };
+        for right_outcome in right.outcomes.iter().copied() {
+            let Some(right_id) = dense(right_outcome) else { return false };
+            match mutilated.is_m_separated(left_id, right_id, &treated_ids, &mut ws) {
+                Ok(true) => {}
+                _ => return false,
+            }
+        }
+    }
+    true
 }
 
 fn verify_plan_program(
@@ -912,7 +1014,7 @@ mod tests {
             };
             let alpha = make_catalog("alpha", w, z);
             let beta = make_catalog("beta", x, y);
-            let TwoSourceZTransportDecision::CombinedIdentified { components } =
+            let TwoSourceZTransportDecision::CombinedIdentified { components, .. } =
                 decide_two_source_z_transport(
                     diagram.causal_graph(),
                     &query,
@@ -1014,6 +1116,224 @@ mod tests {
                 &ExecutionContext::for_tests(0),
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn connected_complementary_sources_execute_the_enumerated_joint_target_effect() {
+        // One connected graph W→Z, X→Y, W↔X (a single component). The arc W↔X is
+        // a shared latent that confounds W and X observationally but is cut by
+        // do(W, X), so P*_{w,x}(z, y) = P*_w(z)·P*_x(y). Alpha (controls W)
+        // supplies the Z factor; beta (controls X) supplies the Y factor.
+        //
+        // Structural model, enumerated exactly below (no closed form assumed):
+        //   U_wx~Bern(0.30), U_z~Bern(0.20), U_y~Bern(0.65) independent,
+        //   Z = W xor U_z, Y = X xor U_y (W, X set by the intervention).
+        let mut graph = Admg::with_variables(4);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // W→Z
+        graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap(); // X→Y
+        graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap(); // W↔X
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (w, z, x, y) = (
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        );
+        // Enumerate the SCM under do(W=w, X=x): joint P*(z, y) and each source's
+        // cited margin P^alpha_{do W}(z), P^beta_{do X}(y).
+        let enumerate = |wv: usize, xv: usize| -> ([[f64; 2]; 2], f64, f64) {
+            let (p_wx, p_z, p_y) = (0.30_f64, 0.20_f64, 0.65_f64);
+            let mut joint = [[0.0_f64; 2]; 2];
+            let (mut alpha_z1, mut beta_y1) = (0.0_f64, 0.0_f64);
+            for u_wx in 0..=1usize {
+                for u_z in 0..=1usize {
+                    for u_y in 0..=1usize {
+                        let mass = (if u_wx == 1 { p_wx } else { 1.0 - p_wx })
+                            * (if u_z == 1 { p_z } else { 1.0 - p_z })
+                            * (if u_y == 1 { p_y } else { 1.0 - p_y });
+                        let zv = wv ^ u_z;
+                        let yv = xv ^ u_y;
+                        joint[zv][yv] += mass;
+                        alpha_z1 += mass * (zv as f64);
+                        beta_y1 += mass * (yv as f64);
+                    }
+                }
+            }
+            (joint, alpha_z1, beta_y1)
+        };
+        // Drive the connected two-source decision for one intervention level and
+        // return the checked component proofs (alpha→Z, beta→Y).
+        let component_proofs = |level: bool| {
+            let make_catalog = |population: &str, treatment: VariableId, outcome: VariableId| {
+                let coordinates = [0, 1, 2, 3].map(|variable| VariableCoordinate {
+                    variable: VariableId::from_raw(variable),
+                    domain: VariableDomain::Binary,
+                    unit: None,
+                });
+                let regime = antecedent_core::EvidenceRegime::try_new(
+                    RegimeId::from_raw(u32::from(level)),
+                    RegimeKind::Experimental,
+                    EvidenceKind::Available,
+                    [treatment],
+                    [antecedent_core::InterventionAssignment {
+                        variable: treatment,
+                        value: Value::Bool(level),
+                    }],
+                    [outcome],
+                    population,
+                    DistributionAvailability::Joint,
+                )
+                .unwrap();
+                EvidenceCatalog::try_new(
+                    [
+                        Environment::try_new("alpha", coordinates.to_vec(), []).unwrap(),
+                        Environment::try_new("beta", coordinates.to_vec(), []).unwrap(),
+                        Environment::try_new("target", coordinates.to_vec(), []).unwrap(),
+                    ],
+                    [regime],
+                    [RegimeBinding {
+                        dataset_identity: None,
+                        regime: RegimeId::from_raw(u32::from(level)),
+                        snapshot_identity: Arc::from(format!("{population}-{level}")),
+                        schema_names: Arc::from([]),
+                        sampling: SamplingDesign::Independent,
+                        weights: None,
+                        dependence: DependenceGroup::IndependentStudies,
+                    }],
+                    None,
+                )
+                .unwrap()
+            };
+            let source = |population: &str, treatment| ZTransportSourceSpec {
+                population: Arc::from(population),
+                controllable: Arc::from([treatment]),
+                experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                    variable: treatment,
+                    value: Value::Bool(level),
+                }]),
+                selection_targets: Arc::from([]),
+            };
+            let query = TwoSourceZTransportQuery {
+                outcomes: Arc::from([z, y]),
+                treatments: Arc::from([w, x]),
+                target: Arc::from("target"),
+                sources: [source("alpha", w), source("beta", x)],
+            };
+            let alpha = make_catalog("alpha", w, z);
+            let beta = make_catalog("beta", x, y);
+            let decision = decide_two_source_z_transport(
+                diagram.causal_graph(),
+                &query,
+                [&alpha, &beta],
+                SidLimits::default(),
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap();
+            let TwoSourceZTransportDecision::CombinedIdentified { components, factorization } =
+                decision
+            else {
+                panic!("the connected complementary target must combine two sources at {level}");
+            };
+            assert_eq!(
+                factorization,
+                antecedent_identify::ComponentFactorization::InterventionSeparatedGroups
+            );
+            components
+        };
+        let combine_level = |level: bool| {
+            let proofs = component_proofs(level);
+            let (_, alpha_z1, beta_y1) = enumerate(usize::from(level), usize::from(level));
+            let alpha = independent_component(
+                &diagram,
+                "alpha",
+                w,
+                z,
+                level,
+                alpha_z1,
+                Some(&proofs[0].derivation),
+            );
+            let beta = independent_component(
+                &diagram,
+                "beta",
+                x,
+                y,
+                level,
+                beta_y1,
+                Some(&proofs[1].derivation),
+            );
+            PreparedZTransport::estimate_intervention_factorized_components(
+                &alpha,
+                &beta,
+                4,
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap()
+        };
+        // Control arm do(W=0, X=0): the combined joint reproduces the enumerated
+        // SCM joint to a tight tolerance.
+        let control = combine_level(false);
+        assert_eq!(control.distribution().outcomes.as_ref(), [z, y]);
+        let (truth, _, _) = enumerate(0, 0);
+        let expected = [truth[0][0], truth[0][1], truth[1][0], truth[1][1]];
+        for (actual, want) in control.distribution().probabilities.iter().zip(expected) {
+            assert!((actual - want).abs() < 1e-12, "control joint mismatch: {actual} vs {want}");
+        }
+        // Active arm do(W=1, X=1) and the joint E[Z+Y] contrast, also from the SCM.
+        let active = combine_level(true);
+        let (active_truth, _, _) = enumerate(1, 1);
+        let active_expected =
+            [active_truth[0][0], active_truth[0][1], active_truth[1][0], active_truth[1][1]];
+        for (actual, want) in active.distribution().probabilities.iter().zip(active_expected) {
+            assert!((actual - want).abs() < 1e-12, "active joint mismatch: {actual} vs {want}");
+        }
+        let sum_outcomes = |result: &ZTransportResult| {
+            result
+                .distribution()
+                .atoms
+                .iter()
+                .zip(result.distribution().probabilities.iter())
+                .map(|(atom, probability)| {
+                    (atom[0].as_f64().unwrap() + atom[1].as_f64().unwrap()) * probability
+                })
+                .sum::<f64>()
+        };
+        let truth_sum = |joint: [[f64; 2]; 2]| {
+            let mut total = 0.0;
+            for (zv, row) in joint.iter().enumerate() {
+                for (yv, mass) in row.iter().enumerate() {
+                    total += (zv as f64 + yv as f64) * mass;
+                }
+            }
+            total
+        };
+        let effect = sum_outcomes(&active) - sum_outcomes(&control);
+        let truth_effect = truth_sum(active_truth) - truth_sum(truth);
+        assert!((effect - truth_effect).abs() < 1e-12, "effect {effect} vs truth {truth_effect}");
+        // A connected factor that shares no independence structure cannot be
+        // combined by the disconnected-component path.
+        let proofs = component_proofs(false);
+        let alpha = independent_component(
+            &diagram,
+            "alpha",
+            w,
+            z,
+            false,
+            0.20,
+            Some(&proofs[0].derivation),
+        );
+        let beta =
+            independent_component(&diagram, "beta", x, y, false, 0.65, Some(&proofs[1].derivation));
+        assert!(
+            PreparedZTransport::estimate_independent_components(
+                &alpha,
+                &beta,
+                4,
+                &ExecutionContext::for_tests(0),
+            )
+            .is_err(),
+            "connected components are not disconnected graph components"
         );
     }
 
