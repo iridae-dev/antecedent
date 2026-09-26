@@ -556,7 +556,7 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     edited["snapshot"]["catalog"] = json.loads(
         json.dumps(edited["snapshot"]["catalog"]).replace("snapshot_z1", "snapshot_z1_edited")
     )
-    with pytest.raises(CausalSerializationError, match="failure snapshot digest mismatch"):
+    with pytest.raises(CausalSerializationError, match="z-transport planning digest mismatch"):
         transport.replay_z_transport_proposal(json.dumps(edited).encode())
 
     low_available = transport.EvidenceRegime(
@@ -690,7 +690,7 @@ def test_z_transport_artifact_tamper_is_refused_by_the_consumer():
     assert consumed["proof"]["rules"] == ["ztr.surrogate_factorization"]
     # An edited point result no longer matches the recomputed one.
     moved = _rewrite_f64(artifact, result["probabilities"][1], result["probabilities"][1] + 0.05)
-    with pytest.raises(CausalSerializationError, match="point result mismatch"):
+    with pytest.raises(CausalSerializationError, match="point result does not replay"):
         transport.consume_z_transport_artifact(moved)
     # An edited embedded law changes the recomputed point (or fails law validation).
     edited_law = _rewrite_f64(artifact, laws[0].probabilities[0], laws[0].probabilities[0] + 0.01)
@@ -720,7 +720,7 @@ def test_z_transport_consumer_rechecks_the_embedded_point_after_builder_disposal
     assert consumed["interval"] == {"available": False, "reason": "no_interval_reported"}
     # An edited point result no longer matches the point recomputed from the embedded law.
     moved = _rewrite_f64(artifact, result["probabilities"][1], result["probabilities"][1] + 0.05)
-    with pytest.raises(CausalSerializationError, match="point result mismatch"):
+    with pytest.raises(CausalSerializationError, match="point result does not replay"):
         transport.consume_z_transport_artifact(moved)
     # An edited embedded law changes the recomputed point or fails law validation.
     edited_law = _rewrite_f64(artifact, laws[0].probabilities[0], laws[0].probabilities[0] + 0.01)
@@ -860,3 +860,363 @@ def test_z_transport_estimate_reports_its_seed_and_limits_are_inherited():
     # The stage's limits are inherited by every preparation made from it.
     with pytest.raises(CausalResourceError, match="memory|budget"):
         bounded.prepare_exact(catalog, laws, {"x": 0.0})
+
+
+def _rewrite_version(blob: bytes, current: int, replacement: int) -> bytes:
+    """Re-encode the first top-level CBOR ``version`` field of a wire, whether
+    the wire is bare or embedded as a byte vector inside the Python frame."""
+    assert 0 <= current < 24 and 0 <= replacement < 24
+    for encode in (bytes, _cbor_byte_array):
+        pattern = encode(b"\x67version" + bytes([current]))
+        if pattern in blob:
+            index = blob.find(pattern)
+            return (
+                blob[:index]
+                + encode(b"\x67version" + bytes([replacement]))
+                + blob[index + len(pattern) :]
+            )
+    raise AssertionError("the wire does not carry a small-integer version field")
+
+
+def test_z_transport_version_one_artifacts_are_refused_by_the_consumers():
+    """Every z-transport wire is version 2; version 1 bytes are refused by their
+    typed version check before any embedded field is trusted."""
+    from antecedent import _native
+
+    _, stage, catalog, prepared, _ = fixture(False)
+    prepared.estimate()
+    point = prepared.export()
+    assert _rewrite_version(point, 2, 2) == point
+    with pytest.raises(CausalSerializationError, match="unsupported container version 1"):
+        transport.consume_z_transport_artifact(_rewrite_version(point, 2, 1))
+    sensitivity = prepared.export_sensitivity(0.2, 0.4)
+    with pytest.raises(CausalSerializationError, match="unsupported container version 1"):
+        transport.consume_z_transport_sensitivity_artifact(_rewrite_version(sensitivity, 2, 1))
+    missing_low = transport.EvidenceCatalog(
+        environments=catalog.environments,
+        regimes=catalog.regimes[1:],
+        bindings=catalog.bindings[1:],
+    )
+    snapshot = json.loads(stage.failure_snapshot(missing_low))
+    snapshot["version"] = 7
+    with pytest.raises(CausalSerializationError, match="unsupported z-transport planning wire"):
+        _native.consume_z_transport_failure_snapshot(json.dumps(snapshot).encode())
+
+
+def test_z_transport_consumer_limits_below_the_artifact_declared_limits_refuse():
+    """Consumer limits are the consumer's own: an artifact that recorded a larger
+    evaluation budget, or stores more laws than allowed, is refused as a resource
+    refusal rather than replayed under its own limits."""
+    _, _, _, prepared, _ = fixture(False)
+    prepared.estimate()
+    artifact = prepared.export()
+    consumed = json.loads(transport.consume_z_transport_artifact(artifact, max_laws=1))
+    assert consumed["premises_digest"]
+    with pytest.raises(CausalResourceError, match="consumer limit exceeded"):
+        transport.consume_z_transport_artifact(artifact, max_operations=1)
+    with pytest.raises(CausalResourceError, match="consumer limit exceeded"):
+        transport.consume_z_transport_artifact(artifact, max_laws=0)
+    with pytest.raises(CausalResourceError, match="consumer limit exceeded"):
+        transport.consume_z_transport_artifact(artifact, max_law_cells=1)
+    sensitivity = prepared.export_sensitivity(0.2, 0.4)
+    replayed = transport.consume_z_transport_sensitivity_artifact(sensitivity)
+    assert replayed["baseline_binding"]["premises_digest"] == consumed["premises_digest"]
+    with pytest.raises(CausalResourceError, match="consumer limit exceeded"):
+        transport.consume_z_transport_sensitivity_artifact(sensitivity, max_operations=1)
+    with pytest.raises(CausalValueError, match="max_laws"):
+        transport.consume_z_transport_artifact(artifact, max_laws=-1)
+
+
+def test_z_transport_estimate_reports_interval_method_and_reason_separately():
+    _, _, _, prepared, _ = fixture(True)
+    assert prepared.interval_method is None
+    assert prepared.interval_reason == "no_interval_reported"
+    result = json.loads(prepared.estimate())
+    assert result["interval"]["method"] == "percentile_bootstrap"
+    assert result["interval"]["reason"] == "estimator_grid_not_measured"
+    assert prepared.interval_method == "percentile_bootstrap"
+    assert prepared.interval_reason == "estimator_grid_not_measured"
+    assert prepared.interval_type == "percentile_bootstrap"
+
+
+def test_z_transport_refresh_on_an_empirical_handle_requires_counts():
+    """An empirical plug-in handle keeps its contract through refresh: laws
+    without counts are refused with the typed missing-provider code."""
+    _, _, _, prepared, laws = fixture(True)
+    law = laws[0]
+    count_free = transport.ExactDiscreteLaw(
+        law.population,
+        law.regime,
+        law.axes,
+        law.probabilities,
+        law.snapshot_identity,
+        interventions=law.interventions,
+    )
+    before = json.loads(prepared.estimate())
+    with pytest.raises(CausalUnsupportedError, match="empirical_counts_required") as refused:
+        prepared.refresh((count_free,))
+    assert refused.value.reason_code == "transport_missing_provider"
+    # The previous prepared state survives the refused refresh.
+    assert json.loads(prepared.estimate())["probabilities"] == pytest.approx(
+        before["probabilities"]
+    )
+
+
+def test_z_transport_unreconciled_empirical_counts_are_refused():
+    """Counts whose frequencies disagree with the table are refused as invalid
+    input (the exact-law error class), never accepted as an empirical table."""
+    _, stage, catalog, _, laws = fixture(True)
+    law = laws[0]
+    assert law.empirical_counts is not None
+    reversed_counts = tuple(reversed(law.empirical_counts))
+    assert reversed_counts != law.empirical_counts
+    unreconciled = transport.ExactDiscreteLaw(
+        law.population,
+        law.regime,
+        law.axes,
+        law.probabilities,
+        law.snapshot_identity,
+        interventions=law.interventions,
+        empirical_counts=reversed_counts,
+    )
+    with pytest.raises(CausalValueError, match="unreconciled_empirical_counts"):
+        stage.prepare_empirical(catalog, (unreconciled,), {"x": 0.0})
+    with pytest.raises(CausalValueError, match="unreconciled_empirical_counts"):
+        stage.prepare_exact(catalog, (unreconciled,), {"x": 0.0})
+
+
+class _BinaryScm:
+    """Binary structural causal model enumerated exactly from its equations.
+
+    ``mechanisms[i](values, exogenous)`` gives node ``i`` from earlier nodes and
+    the independent exogenous bits; ``exogenous_p`` is the chance each bit is one.
+    """
+
+    def __init__(self, exogenous_p, mechanisms):
+        self.exogenous_p = tuple(exogenous_p)
+        self.mechanisms = tuple(mechanisms)
+
+    def law(self, do, measured):
+        """Exact joint law over ``measured`` (first variable most significant)."""
+        out = [0.0] * (1 << len(measured))
+        m = len(self.exogenous_p)
+        for mask in range(1 << m):
+            exogenous = [(mask >> bit) & 1 for bit in range(m)]
+            weight = 1.0
+            for bit, p in enumerate(self.exogenous_p):
+                weight *= p if exogenous[bit] else 1.0 - p
+            values = [0] * len(self.mechanisms)
+            for i, mechanism in enumerate(self.mechanisms):
+                values[i] = do[i] if i in do else mechanism(values, exogenous)
+            index = 0
+            for v in measured:
+                index = (index << 1) | values[v]
+            out[index] += weight
+        return out
+
+    def risk(self, do, outcome):
+        return self.law(do, [outcome])[1]
+
+
+def _two_exchange_fixture():
+    """The asymmetric two-exchange model of the Rust known-truth test: X→Z→Y with
+    X↔Z, X↔Y, Z↔V and an isolated R, whose P(Y=1 | do(x, z)) varies with z."""
+    names = ["x", "z", "v", "y", "r"]
+    scm = _BinaryScm(
+        [0.3, 0.6, 0.5, 0.5, 0.4, 0.7, 0.25],
+        [
+            lambda _v, e: int(e[0] == 1) ^ int(e[1] == 1 and e[4] == 1),
+            lambda v, e: int(v[0] == 1 and e[5] == 1) ^ int(e[0] == 1),
+            lambda v, e: int(v[1] == 1) ^ int(e[2] == 1),
+            lambda v, e: int((v[1] == 1 and e[1] == 1) or e[6] == 1),
+            lambda _v, e: e[3],
+        ],
+    )
+    graph = Admg.from_edges(names, [("x", "z"), ("z", "y")], [("x", "z"), ("x", "y"), ("z", "v")])
+    # The full source experiment family over {x, z} plus both observational laws.
+    specs = [("target", {}), ("source", {})]
+    for variables in ([0], [1], [0, 1]):
+        for levels in range(1 << len(variables)):
+            specs.append(("source", {v: (levels >> bit) & 1 for bit, v in enumerate(variables)}))
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    regimes, bindings, laws = [], [], []
+    for k, (population, assignments) in enumerate(specs):
+        regime_id = f"{population}-{k}"
+        measured = [names[i] for i in range(len(names)) if i not in assignments]
+        regimes.append(
+            transport.EvidenceRegime(
+                regime_id,
+                population,
+                kind="experimental" if assignments else "observational",
+                interventions=[names[i] for i in assignments],
+                intervention_values={names[i]: float(level) for i, level in assignments.items()},
+                measured=measured,
+            )
+        )
+        bindings.append(
+            transport.RegimeBinding(
+                regime_id,
+                f"snapshot_{regime_id}",
+                schema_names=measured,
+                sampling="independent",
+                dependence="independent_studies",
+            )
+        )
+        laws.append(
+            transport.ExactDiscreteLaw(
+                population,
+                regime_id,
+                tuple((name, (0.0, 1.0)) for name in measured),
+                tuple(scm.law(assignments, [names.index(name) for name in measured])),
+                f"snapshot_{regime_id}",
+                interventions=tuple((names[i], float(level)) for i, level in assignments.items()),
+            )
+        )
+    catalog = transport.EvidenceCatalog(
+        environments=(
+            transport.Environment("source", coordinates),
+            transport.Environment("target", coordinates),
+        ),
+        regimes=tuple(regimes),
+        bindings=tuple(bindings),
+    )
+    query = transport.ZTransportQuery(
+        transport.SelectionDiagram("source", "target", []),
+        outcomes=["y"],
+        treatments=["x"],
+        controllable=["x", "z"],
+        experiment_assignment={"x": 0.0, "z": 0.0},
+    )
+    return scm, graph, query, catalog, tuple(laws)
+
+
+def _y_risk(result):
+    return sum(
+        p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
+    )
+
+
+def test_z_transport_exchanged_treatment_binds_symbolically_to_the_request():
+    """The recursive derivation exchanges two source factors; the treatment is
+    bound by the request and the summed exchange coordinate by its summation,
+    so requesting x=1 answers from the do(x=1) experiments, never from the
+    declared x=0 level."""
+    scm, graph, query, catalog, laws = _two_exchange_fixture()
+    truth = [scm.risk({0: 0}, 3), scm.risk({0: 1}, 3)]
+    assert truth[0] == pytest.approx(0.385, abs=5e-4)
+    assert truth[1] == pytest.approx(0.511, abs=5e-4)
+    stage = transport.identify_z_transport(graph=graph, query=query)
+    assert stage.outcome == "identified"
+    decision = stage.decide(catalog)
+    assert decision["outcome"] == "identified"
+    proof = decision["proof"]
+    assert proof.get("surrogate") is None and proof.get("confounder") is None
+    exchanges = [rule for rule in proof["rules"] if "line10.source_exchange" in rule]
+    assert len(exchanges) == 2
+    # Symbolic exchange coordinates are spelled as unbound (`None`) levels.
+    assert any("(0, None)" in rule for rule in proof["rules"]), proof["rules"]
+    risks = []
+    for level, expected in ((0.0, truth[0]), (1.0, truth[1])):
+        prepared = stage.prepare_exact(catalog, laws, {"x": level})
+        result = json.loads(prepared.estimate())
+        risk = _y_risk(result)
+        assert risk == pytest.approx(expected, abs=1e-12)
+        consumed = json.loads(transport.consume_z_transport_artifact(prepared.export()))
+        assert consumed["proof"].get("surrogate") is None
+        assert _y_risk(consumed) == pytest.approx(risk, abs=1e-12)
+        risks.append(risk)
+    assert abs(risks[0] - risks[1]) > 0.05
+
+
+def test_z_transport_treatment_request_outside_the_cited_regimes_is_refused():
+    """A treatment level no cited source experiment supplies is a typed
+    refusal, never a number computed from another level's law."""
+    _scm, graph, query, catalog, laws = _two_exchange_fixture()
+    stage = transport.identify_z_transport(graph=graph, query=query)
+    assert stage.outcome == "identified"
+    with pytest.raises(CausalUnsupportedError, match="no cited source experiment") as refused:
+        stage.prepare_exact(catalog, laws, {"x": 7.0}).estimate()
+    assert refused.value.reason_code == "transport_missing_provider"
+
+
+def test_two_single_family_line11_terminals_are_not_certified_across_sources():
+    """Two sources whose obstructions come from different experiment families
+    are never combined into one impossibility claim: the decision is the named
+    refusal to search the multi-source combination, not proven_non_transportable."""
+    from antecedent import _native
+
+    names = ["a", "b", "c", "d"]
+    graph = Admg.from_edges(names, [("a", "b"), ("c", "d")], [("a", "b"), ("c", "d")])
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    empty = transport.EvidenceCatalog(
+        environments=tuple(
+            transport.Environment(population, coordinates)
+            for population in ("alpha", "beta", "target")
+        ),
+        regimes=(),
+        bindings=(),
+    )
+    decision = _native.decide_two_source_z_transport_stage(
+        graph,
+        "target",
+        ["b", "d"],
+        ["a", "c"],
+        [("alpha", ["a"], {"a": 0.0}, []), ("beta", ["c"], {"c": 0.0}, [])],
+        [empty, empty],
+    )
+    assert decision["outcome"] == "not_certified"
+    assert decision["reason"] == "z_transport.multi_source_combination_not_searched"
+
+
+def test_z_transport_plan_report_carries_the_evaluation_budget_receipt():
+    """Planning under ``max_evaluated`` evaluates the first candidates only and
+    names the rest as unevaluated; the receipt says the search was truncated."""
+    names = ["w", "z", "x", "y"]
+    graph, stage, catalog, _prepared, _laws = fixture(False)
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    base = transport.EvidenceCatalog(
+        environments=(transport.Environment("source", coordinates),),
+        regimes=catalog.regimes[1:],
+        bindings=catalog.bindings[1:],
+    )
+    proposed = transport.EvidenceRegime(
+        "do_z_0",
+        "source",
+        kind="experimental",
+        evidence_kind="proposed",
+        interventions=["z"],
+        intervention_values={"z": 0.0},
+        measured=names,
+    )
+    hypothetical = transport.EvidenceCatalog(
+        environments=base.environments,
+        regimes=(*base.regimes, proposed),
+        bindings=base.bindings,
+    )
+    candidates = [
+        transport.ZTransportCandidate(
+            candidate_id,
+            hypothetical,
+            "intervene",
+            targets=["z"],
+            cost=cost,
+            sample_budget=100,
+        )
+        for candidate_id, cost in (("cheap", 1.0), ("costly", 5.0))
+    ]
+    full, proposals = transport.plan_z_transport_evidence(stage, base, candidates)
+    assert full["ranked_sufficient"] == ["cheap", "costly"]
+    assert full["candidate_universe_size"] == 2 and full["search_limit"] == 2
+    assert full["evaluated"] == ["cheap", "costly"] and full["unevaluated"] == []
+    assert full["truncated"] is False and len(proposals) == 2
+    truncated, proposals = transport.plan_z_transport_evidence(
+        stage, base, candidates, max_evaluated=1
+    )
+    assert truncated["ranked_sufficient"] == ["cheap"]
+    assert [item["id"] for item in truncated["assessments"]] == ["cheap"]
+    assert truncated["candidate_universe_size"] == 2 and truncated["search_limit"] == 1
+    assert truncated["evaluated"] == ["cheap"] and truncated["unevaluated"] == ["costly"]
+    assert truncated["truncated"] is True and len(proposals) == 1
+    with pytest.raises(CausalValueError, match="max_evaluated"):
+        transport.plan_z_transport_evidence(stage, base, candidates, max_evaluated=0)
+    del graph

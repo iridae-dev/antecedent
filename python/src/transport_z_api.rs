@@ -8,7 +8,7 @@ use antecedent_core::{EvidenceCatalogDelta, ExecutionContext, Value, VariableId}
 use antecedent_design::{
     CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, TransportEvidenceCandidate,
     ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
-    plan_z_transport_evidence, snapshot_z_transport_failure,
+    ZTransportPlanSpec, plan_z_transport_evidence, snapshot_z_transport_failure,
 };
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
@@ -16,8 +16,9 @@ use antecedent_identify::{
     SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZTransportDecision,
     ZTransportDerivation, ZTransportMissingEvidence, ZTransportObstruction, ZTransportQuery,
     ZTransportResult, ZTransportSourceSpec, bind_z_transport_catalog,
-    decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport_surrogate,
+    decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport,
 };
+use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -33,6 +34,59 @@ struct StageLimits {
     max_depth: usize,
     max_support_rows: usize,
     memory_bytes: Option<u64>,
+}
+
+impl StageLimits {
+    /// The identification search limits every decision, snapshot and replay
+    /// made from the stage verifies under.
+    const fn sid(self) -> SidLimits {
+        SidLimits { steps: self.max_steps, depth: self.max_depth }
+    }
+
+    /// A production context under the stage's memory limit.
+    fn context(self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
+        execution_context(0, self.memory_bytes, cancel)
+    }
+}
+
+/// Consumer-side limits for replaying a portable artifact. Nothing the
+/// artifact stores raises them; `None` keeps the io crate's defaults.
+fn consume_limits(
+    max_operations: usize,
+    max_depth: usize,
+    max_support_rows: Option<usize>,
+    max_laws: Option<usize>,
+    max_law_cells: Option<usize>,
+) -> ZTransportConsumeLimits {
+    let defaults = ZTransportConsumeLimits::default();
+    ZTransportConsumeLimits {
+        evaluation: ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+        max_support_rows: max_support_rows.unwrap_or(defaults.max_support_rows),
+        max_laws: max_laws.unwrap_or(defaults.max_laws),
+        max_law_cells: max_law_cells.unwrap_or(defaults.max_law_cells),
+    }
+}
+
+/// The stage's checked derivation, or a not-certified refusal.
+fn certified(result: ZTransportResult) -> PyResult<Box<ZTransportDerivation>> {
+    match result {
+        ZTransportResult::Identified(proof) => Ok(proof),
+        ZTransportResult::NotCertified { reason } => Err(crate::refusal(
+            antecedent_core::reason_code!("transport_not_certified"),
+            format!("zTR refused: {reason}"),
+        )),
+    }
+}
+
+/// Refuse a law set that is not an empirical plug-in table.
+fn require_empirical_counts(data: &antecedent_expr::ExactTransportData) -> PyResult<()> {
+    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
+        return Err(crate::refusal(
+            antecedent_core::reason_code!("transport_missing_provider"),
+            "z_transport.empirical_counts_required",
+        ));
+    }
+    Ok(())
 }
 
 /// Keep externally named regime handles stable when a catalog adds a row.
@@ -155,12 +209,7 @@ struct ZTransportStage {
 impl ZTransportStage {
     /// The checked derivation, or the stage's own refusal.
     fn identified(&self) -> PyResult<ZTransportDerivation> {
-        match &self.result {
-            ZTransportResult::Identified(proof) => Ok(proof.as_ref().clone()),
-            ZTransportResult::NotCertified { reason } => {
-                Err(error(format!("zTR refused: {reason}")))
-            }
-        }
+        certified(self.result.clone()).map(|proof| proof.as_ref().clone())
     }
 
     /// Prepare the exact or empirical plugin point route on the checked proof.
@@ -184,8 +233,8 @@ impl ZTransportStage {
         let max_support_rows = max_support_rows.unwrap_or(self.limits.max_support_rows);
         let memory_bytes = memory_bytes.or(self.limits.memory_bytes);
         let data = parse_laws(laws, &catalog, &self.graph, max_support_rows, RegimeCheck::Strict)?;
-        if empirical && data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-            return Err(error("z_transport.empirical_counts_required"));
+        if empirical {
+            require_empirical_counts(&data)?;
         }
         let request = assignment_from_pairs(&self.graph.names, assignments)?;
         let diagram = self.diagram.clone();
@@ -262,16 +311,26 @@ impl ZTransportStage {
     }
 
     /// Export the exact failure state used when assessing candidate studies.
+    /// The snapshot is taken under the stage's identification limits.
+    #[pyo3(signature=(catalog, *, cancel=None))]
     fn failure_snapshot(
         &self,
         py: Python<'_>,
         catalog: &Bound<'_, PyAny>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Py<pyo3::types::PyBytes>> {
         let catalog = parse_catalog(catalog, &self.graph)?;
-        let snapshot =
-            snapshot_z_transport_failure(&self.diagram, &self.query, &catalog).map_err(error)?;
-        let wire = snapshot.to_wire().map_err(error)?;
-        let bytes = serde_json::to_vec(&wire).map_err(serialization_error)?;
+        let diagram = self.diagram.clone();
+        let query = self.query.clone();
+        let limits = self.limits;
+        let bytes = crate::detach_catch(py, move || {
+            let ctx = limits.context(cancel);
+            let snapshot =
+                snapshot_z_transport_failure(&diagram, &query, &catalog, limits.sid(), &ctx)
+                    .map_err(error)?;
+            let wire = snapshot.to_wire().map_err(error)?;
+            serde_json::to_vec(&wire).map_err(serialization_error)
+        })?;
         Ok(py_bytes(py, &bytes))
     }
 
@@ -349,21 +408,33 @@ impl ZTransportStage {
     /// Each candidate has `id`, proposed-only `catalog`, `design_kind`, `targets`,
     /// `measured`, `cost`, `sample_budget`, `tag`, `recruitment_sampling`, and
     /// `feasibility_constraints` attributes. Proposals inherit this stage's limits.
-    #[pyo3(signature=(catalog, candidates, failure_snapshot=None))]
+    /// At most `max_evaluated` candidates are assessed (every candidate by
+    /// default); the report's budget receipt names the rest as unevaluated.
+    #[pyo3(signature=(catalog, candidates, failure_snapshot=None, *, max_evaluated=None, cancel=None))]
     fn plan_evidence(
         &self,
         py: Python<'_>,
         catalog: &Bound<'_, PyAny>,
         candidates: Vec<Py<PyAny>>,
         failure_snapshot: Option<Vec<u8>>,
+        max_evaluated: Option<usize>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(String, Vec<Py<ZTransportProposalStage>>)> {
         let base = parse_catalog(catalog, &self.graph)?;
-        let expected_snapshot =
-            snapshot_z_transport_failure(&self.diagram, &self.query, &base).map_err(error)?;
+        let ctx = self.limits.context(cancel);
+        let expected_snapshot = snapshot_z_transport_failure(
+            &self.diagram,
+            &self.query,
+            &base,
+            self.limits.sid(),
+            &ctx,
+        )
+        .map_err(error)?;
         let snapshot = if let Some(bytes) = failure_snapshot {
             let wire: ZTransportFailureSnapshotWire =
                 serde_json::from_slice(&bytes).map_err(serialization_error)?;
-            let supplied = ZTransportFailureSnapshot::from_wire(&wire).map_err(error)?;
+            let supplied = ZTransportFailureSnapshot::from_wire(&wire, self.limits.sid(), &ctx)
+                .map_err(error)?;
             let expected_wire = expected_snapshot.to_wire().map_err(error)?;
             let supplied_json = serde_json::to_vec(&wire).map_err(serialization_error)?;
             let expected_json = serde_json::to_vec(&expected_wire).map_err(serialization_error)?;
@@ -376,6 +447,7 @@ impl ZTransportStage {
         } else {
             expected_snapshot
         };
+        let snapshot = Arc::new(snapshot);
         let mut parsed = Vec::with_capacity(candidates.len());
         for item in candidates {
             let item = item.bind(py);
@@ -442,7 +514,19 @@ impl ZTransportStage {
                 cost,
             });
         }
-        let plan = plan_z_transport_evidence(&snapshot, &parsed);
+        let spec = ZTransportPlanSpec {
+            max_evaluated: max_evaluated.unwrap_or_else(|| parsed.len().max(1)),
+            candidates: parsed,
+            identification_limits: self.limits.sid(),
+        };
+        let planned_snapshot = Arc::clone(&snapshot);
+        let plan = crate::detach_catch(py, move || {
+            plan_z_transport_evidence(&planned_snapshot, &spec, &ctx).map_err(error)
+        })?;
+        let truncated = plan.truncated();
+        let ids = |ids: Vec<Arc<str>>| ids.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let (ranked_sufficient, evaluated, unevaluated) =
+            (ids(plan.ranked_sufficient), ids(plan.evaluated), ids(plan.unevaluated));
         let mut proposals = Vec::new();
         let mut assessments = Vec::new();
         for assessment in plan.assessments {
@@ -469,8 +553,15 @@ impl ZTransportStage {
                 "sample_budget":assessment.cost.sample_budget,"outcome":outcome,"reason":reason}),
             );
         }
-        let report = serde_json::json!({"assessments":assessments,
-            "ranked_sufficient":plan.ranked_sufficient.iter().map(AsRef::as_ref).collect::<Vec<_>>()})
+        let report = serde_json::json!({
+            "assessments": assessments,
+            "ranked_sufficient": ranked_sufficient,
+            "candidate_universe_size": plan.candidate_universe_size,
+            "search_limit": plan.search_limit,
+            "evaluated": evaluated,
+            "unevaluated": unevaluated,
+            "truncated": truncated,
+        })
         .to_string();
         Ok((report, proposals))
     }
@@ -538,19 +629,18 @@ impl ZTransportProposalStage {
         let max_support_rows = max_support_rows.unwrap_or(self.limits.max_support_rows);
         let memory_bytes = memory_bytes.or(self.limits.memory_bytes);
         let data = parse_laws(laws, &catalog, &self.graph, max_support_rows, RegimeCheck::Strict)?;
-        if empirical && data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-            return Err(error("z_transport.empirical_counts_required"));
+        if empirical {
+            require_empirical_counts(&data)?;
         }
         let request = assignment_from_pairs(&self.graph.names, assignments)?;
         let diagram = self.diagram.clone();
         let query = self.query.clone();
         let named_graph = self.graph.clone();
+        let sid = self.limits.sid();
         crate::detach_catch(py, move || {
             let ctx = execution_context(seed, memory_bytes, cancel);
-            let proof = match identify_z_transport_surrogate(&diagram, &query).map_err(error)? {
-                ZTransportResult::Identified(proof) => proof,
-                ZTransportResult::NotCertified { reason } => return Err(error(reason)),
-            };
+            let proof =
+                certified(identify_z_transport(&diagram, &query, sid, &ctx).map_err(error)?)?;
             let functional =
                 bind_z_transport_catalog(&diagram, &query, &proof, &catalog).map_err(error)?;
             PreparedZTransportStage::build(
@@ -618,7 +708,12 @@ impl PreparedZTransportStage {
     }
 
     fn last_result(&self, what: &str) -> PyResult<&antecedent::ZTransportResult> {
-        self.last.as_ref().ok_or_else(|| error(format!("transport.no_execution_claim: {what}")))
+        self.last.as_ref().ok_or_else(|| {
+            crate::refusal(
+                antecedent_core::reason_code!("not_executed"),
+                format!("transport.no_execution_claim: {what}"),
+            )
+        })
     }
 
     /// The raw io-crate artifact of the last execution.
@@ -627,7 +722,8 @@ impl PreparedZTransportStage {
     }
 
     /// Interval JSON for one execution: availability is the presence of mean
-    /// intervals, never a string test on the method name.
+    /// intervals, never a string test on the method name. `method` is the
+    /// interval constructor and `reason` why it is withheld or uncalibrated.
     fn interval_json(&self, result: &antecedent::ZTransportResult) -> serde_json::Value {
         let names = &self.graph.names;
         if result.mean_intervals().is_empty() {
@@ -635,7 +731,7 @@ impl PreparedZTransportStage {
         }
         serde_json::json!({
             "available": true,
-            "method": result.interval_type(),
+            "method": result.interval_method(),
             "reason": result.interval_reason(),
             "coverage_target": result.coverage_target(),
             "seed": self.seed,
@@ -816,9 +912,22 @@ impl PreparedZTransportStage {
         Ok(py_bytes(py, &bytes))
     }
 
+    /// The interval constructor, or the reason none was published.
     #[getter]
     fn interval_type(&self) -> &'static str {
         self.last.as_ref().map_or("no_interval_reported", |result| result.interval_type())
+    }
+
+    /// The interval constructor of the last execution, when one was published.
+    #[getter]
+    fn interval_method(&self) -> Option<&'static str> {
+        self.last.as_ref().and_then(antecedent::ZTransportResult::interval_method)
+    }
+
+    /// Why the last execution's interval is withheld or uncalibrated.
+    #[getter]
+    fn interval_reason(&self) -> &'static str {
+        self.last.as_ref().map_or("no_interval_reported", |result| result.interval_reason())
     }
 
     #[getter]
@@ -840,62 +949,82 @@ fn digest_hex(domain: &str, bytes: &[u8]) -> String {
     )
 }
 
-/// Independently recheck a framed point artifact and recompute its point.
-/// The io crate decides which artifact versions it accepts.
+/// Independently recheck a framed point artifact and recompute its point under
+/// the consumer's limits; nothing the artifact stores raises them. The io
+/// crate decides which artifact versions it accepts.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(artifact, *, max_operations=10_000_000, max_depth=256, max_support_rows=None, max_laws=None, max_law_cells=None, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments)]
 fn consume_z_transport_artifact(
     py: Python<'_>,
     artifact: &[u8],
+    max_operations: usize,
+    max_depth: usize,
+    max_support_rows: Option<usize>,
+    max_laws: Option<usize>,
+    max_law_cells: Option<usize>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let (names, bytes) = unframe_named_artifact(Z_TRANSPORT_PREFIX, artifact, "z-transport")?;
+    let limits =
+        consume_limits(max_operations, max_depth, max_support_rows, max_laws, max_law_cells);
     crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        let (diagram, result) =
-            antecedent::consume_z_transport_artifact(&bytes, &ctx).map_err(error)?;
-        crate::transport_exact_api::validate_artifact_names(&names, diagram.causal_graph())?;
-        // The rechecked derivation travels with the artifact; report its rules so a
-        // loaded result names the same theorem steps as the live one.
-        let (_diagram, functional, _data, _request, _limits, _wire) =
-            antecedent_io::z_transport_artifact::ZTransportArtifactWire::reconstruct(&bytes)
-                .map_err(error)?;
-        let distribution = result.distribution();
+        let consumed =
+            ZTransportArtifactWire::consume_with_limits(&bytes, limits, &ctx).map_err(error)?;
+        crate::transport_exact_api::validate_artifact_names(
+            &names,
+            consumed.diagram.causal_graph(),
+        )?;
+        let distribution = &consumed.distribution;
         let name = |v: &VariableId| names[v.as_usize()].as_str();
+        // The rechecked derivation travels with the artifact; report its rules so a
+        // loaded result names the same theorem steps as the live one. A consumed
+        // artifact is point-only: no interval is replayed.
         Ok(serde_json::json!({
             "status":"available",
             "scope":"single_source_z_transport_cited_joints_sound_incomplete",
-            "proof": functional.derivation().to_record(),
+            "proof": consumed.functional.derivation().to_record(),
+            "premises_digest": consumed.wire.premises_digest,
             "outcomes":distribution.outcomes.iter().map(name).collect::<Vec<_>>(),
             "atoms":distribution.atoms.iter().map(|a|a.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
             "probabilities":distribution.probabilities.to_vec(),
-            "interval":{"available":false,"reason":result.interval_reason()}
+            "interval":{"available":false,"reason":"no_interval_reported"}
         }).to_string())
     })
 }
 
-/// Independently recheck a portable sensitivity artifact. The typed result's
-/// query binding and provider snapshot are recomputed from the embedded
-/// baseline, so the consumed dictionary carries every field `estimate` does.
+/// Independently recheck a portable sensitivity artifact under the consumer's
+/// limits. The typed result's query binding and provider snapshot are
+/// recomputed from the embedded baseline, so the consumed dictionary carries
+/// every field `estimate` does.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(artifact, *, max_operations=10_000_000, max_depth=256, max_support_rows=None, max_laws=None, max_law_cells=None, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments)]
 fn consume_z_transport_sensitivity_artifact(
     py: Python<'_>,
     artifact: &[u8],
+    max_operations: usize,
+    max_depth: usize,
+    max_support_rows: Option<usize>,
+    max_laws: Option<usize>,
+    max_law_cells: Option<usize>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Py<PyAny>> {
     let bytes = artifact.to_vec();
+    let limits =
+        consume_limits(max_operations, max_depth, max_support_rows, max_laws, max_law_cells);
     let (wire, typed) = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        let wire =
-            antecedent::ZTransportSensitivityArtifactWire::consume(&bytes, &ctx).map_err(error)?;
+        let wire = antecedent::ZTransportSensitivityArtifactWire::consume_with_limits(
+            &bytes, limits, &ctx,
+        )
+        .map_err(error)?;
         let (diagram, functional, data, _request, _limits, _point) =
-            antecedent_io::z_transport_artifact::ZTransportArtifactWire::reconstruct(
-                &wire.baseline_artifact,
-            )
-            .map_err(error)?;
+            ZTransportArtifactWire::reconstruct(&wire.baseline_artifact, limits, &ctx)
+                .map_err(error)?;
         let typed = antecedent_validate::z_transport_mechanism_sensitivity(
             &diagram,
             &functional,
@@ -919,26 +1048,65 @@ fn consume_z_transport_sensitivity_artifact(
         "maximizing_outcome_by_stratum":wire.maximizing_outcome_by_stratum,
         "interval_interpretation":wire.interval_interpretation,
         "method":wire.method,
-        "baseline_binding":{"artifact_digest":wire.baseline_artifact_digest,"query":typed.query_binding,"source_regime":wire.source_regime,"provider_snapshot":typed.provider_snapshot,"provider_snapshots":wire.provider_snapshots}
+        "baseline_binding":{
+            "artifact_digest":wire.baseline_artifact_digest,
+            "premises_digest":wire.baseline_premises_digest,
+            "query":typed.query_binding,
+            "source_regime":wire.source_regime,
+            "provider_snapshot":typed.provider_snapshot,
+            "provider_snapshots":wire.provider_snapshots
+        }
     });
     to_py_json(py, &value)
 }
 
+/// Independently replay a portable proposal: the frozen failure is re-derived
+/// under the caller's identification limits and the hypothetical proof rebound.
 #[pyfunction]
-fn replay_z_transport_proposal(artifact: &[u8]) -> PyResult<()> {
+#[pyo3(signature=(artifact, *, max_steps=100_000, max_depth=256, memory_bytes=None, cancel=None))]
+fn replay_z_transport_proposal(
+    py: Python<'_>,
+    artifact: &[u8],
+    max_steps: usize,
+    max_depth: usize,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<()> {
     let wire: antecedent_design::ZTransportProposalWire =
         serde_json::from_slice(artifact).map_err(serialization_error)?;
-    wire.replay().map_err(error)?;
-    Ok(())
+    crate::detach_catch(py, move || {
+        let ctx = execution_context(0, memory_bytes, cancel);
+        wire.replay(SidLimits { steps: max_steps, depth: max_depth }, &ctx).map_err(error)?;
+        Ok(())
+    })
 }
 
 /// Recheck a portable failure snapshot: the status is re-derived from the
-/// embedded graph, query and catalog, so an edited status never survives.
+/// embedded graph, query and catalog under the caller's identification
+/// limits, so an edited status never survives.
 #[pyfunction]
-fn consume_z_transport_failure_snapshot(py: Python<'_>, artifact: &[u8]) -> PyResult<Py<PyAny>> {
+#[pyo3(signature=(artifact, *, max_steps=100_000, max_depth=256, memory_bytes=None, cancel=None))]
+fn consume_z_transport_failure_snapshot(
+    py: Python<'_>,
+    artifact: &[u8],
+    max_steps: usize,
+    max_depth: usize,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Py<PyAny>> {
     let wire: ZTransportFailureSnapshotWire =
         serde_json::from_slice(artifact).map_err(serialization_error)?;
-    ZTransportFailureSnapshot::from_wire(&wire).map_err(error)?;
+    let checked = wire.clone();
+    crate::detach_catch(py, move || {
+        let ctx = execution_context(0, memory_bytes, cancel);
+        ZTransportFailureSnapshot::from_wire(
+            &checked,
+            SidLimits { steps: max_steps, depth: max_depth },
+            &ctx,
+        )
+        .map_err(error)?;
+        Ok(())
+    })?;
     let value = serde_json::json!({
         "version": wire.version,
         "status": serde_json::to_value(&wire.status).map_err(serialization_error)?,
@@ -987,12 +1155,12 @@ fn identify_z_transport_stage(
             .map_err(error)?;
     let named_graph = Admg { admg: graph.admg.clone(), names: graph.names.clone() };
     let limits = StageLimits { max_steps, max_depth, max_support_rows, memory_bytes };
-    // The surrogate search is bounded by construction (12 observed, 4 controllable
-    // variables) and takes no context; the limits are retained for every catalog
-    // decision, preparation and proposal made from this stage.
+    // The bounded search runs under the stage's limits; the same limits are
+    // retained for every catalog decision, snapshot, preparation and proposal
+    // made from this stage.
     let result = crate::detach_catch(py, move || {
-        let _ctx = execution_context(0, memory_bytes, cancel);
-        identify_z_transport_surrogate(&diagram, &query)
+        let ctx = limits.context(cancel);
+        identify_z_transport(&diagram, &query, limits.sid(), &ctx)
             .map(|result| (result, diagram, query))
             .map_err(error)
     })?;

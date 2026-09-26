@@ -94,9 +94,15 @@ def test_reloaded_functional_program_executes_and_replays_checked_wire() -> None
     assert replayed.source_root == program.source_root
     assert replayed.executable_root == program.executable_root
     assert replayed.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
-    tampered = wire.replace('"executable":', '"executable": 999, "ignored":')
+    import json
+
+    payload = json.loads(wire)
+    payload["executable"] = 999
     with pytest.raises(ValueError, match="checked functional program"):
-        transport.restore_lowered_program(identification, tampered)
+        transport.restore_lowered_program(identification, json.dumps(payload))
+    # The wire denies unknown fields before any root is checked.
+    with pytest.raises(ValueError, match="unknown field `ignored`"):
+        transport.restore_lowered_program(identification, json.dumps({**payload, "ignored": 1}))
     del identification
     assert program.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
     assert replayed.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
