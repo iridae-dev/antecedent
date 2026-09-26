@@ -290,18 +290,52 @@ impl ExactDiscreteLaw {
         law.origin = LawOrigin::BayesianPosterior;
         Ok(law)
     }
-    /// Mark a fitted law as model-based and retain its observed support.
+    /// Attach the observed cell counts that this frequency table was computed
+    /// from. Every probability must equal its count's share of the total within
+    /// the law's tolerance, so a point published from the table and an
+    /// interval resampled from the counts describe one law. A supplied exact
+    /// law becomes an empirical plug-in; any other origin is kept.
+    /// # Errors
+    /// Counts with wrong shape, no observations, overflow, or a cell whose
+    /// probability is not its count's share (`unreconciled_empirical_counts`).
+    pub fn with_empirical_counts(self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
+        let total = self.checked_count_total(&counts)?;
+        let tolerance = self.tolerance;
+        let reconciled = self.probabilities.iter().zip(&counts).all(|(p, count)| {
+            let share = *count as f64 / total;
+            (p - share).abs() <= tolerance.absolute + tolerance.relative * p.max(share)
+        });
+        if !reconciled {
+            return Err(self.error("unreconciled_empirical_counts"));
+        }
+        let origin = match self.origin {
+            LawOrigin::SuppliedExact => LawOrigin::EmpiricalPlugin,
+            other => other,
+        };
+        Ok(self.with_counts(counts, origin))
+    }
+    /// Mark a fitted law as model-based and retain its observed support. The
+    /// model's cell probabilities are not frequencies and are not reconciled
+    /// with the counts; the counts only decide which conditioners were observed.
     /// # Errors
     /// Counts with wrong shape, no observations, or overflow.
-    pub fn with_empirical_counts(mut self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
-        if counts.len() != self.probabilities.len()
-            || counts.iter().try_fold(0u64, |n, k| n.checked_add(*k)).is_none_or(|n| n == 0)
-        {
-            return Err(self.error("invalid_empirical_support"));
+    pub fn with_learned_support(self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
+        self.checked_count_total(&counts)?;
+        Ok(self.with_counts(counts, LawOrigin::LearnedPlugin))
+    }
+    fn checked_count_total(&self, counts: &[u64]) -> Result<f64, ExactLawError> {
+        let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
+        match total {
+            Some(total) if counts.len() == self.probabilities.len() && total > 0 => {
+                Ok(total as f64)
+            }
+            _ => Err(self.error("invalid_empirical_support")),
         }
-        self.origin = LawOrigin::LearnedPlugin;
+    }
+    fn with_counts(mut self, counts: Vec<u64>, origin: LawOrigin) -> Self {
+        self.origin = origin;
         self.empirical_counts = Some(counts.into());
-        Ok(self)
+        self
     }
     /// Observed cell counts for a model-based law; fitted mass never certifies support.
     #[must_use]
@@ -806,6 +840,36 @@ impl DistributionProvider for ExactTransportData {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn empirical_counts_must_reconcile_with_the_table() {
+        use super::*;
+        let law = |probabilities: &[f64]| {
+            ExactDiscreteLaw::try_new(
+                "target",
+                RegimeId::from_raw(0),
+                [],
+                [DiscreteAxis {
+                    variable: VariableId::from_raw(0),
+                    values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                }],
+                probabilities.to_vec(),
+                "s",
+                LawTolerance::default(),
+            )
+            .unwrap()
+        };
+        let counted = law(&[0.3, 0.7]).with_empirical_counts(vec![3, 7]).unwrap();
+        assert_eq!(counted.origin(), LawOrigin::EmpiricalPlugin);
+        let reversed = law(&[0.3, 0.7]).with_empirical_counts(vec![7, 3]).unwrap_err();
+        assert_eq!(reversed.kind, "unreconciled_empirical_counts");
+        let model = law(&[0.3, 0.7]).with_learned_support(vec![7, 3]).unwrap();
+        assert_eq!(model.origin(), LawOrigin::LearnedPlugin);
+        assert_eq!(
+            law(&[0.3, 0.7]).with_empirical_counts(vec![0, 0]).unwrap_err().kind,
+            "invalid_empirical_support"
+        );
+    }
+
     use super::*;
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)
@@ -895,7 +959,7 @@ mod tests {
     fn positive_learned_probabilities_do_not_authorize_empty_empirical_conditioners() {
         let predicted = law("target", &[0.25, 0.25, 0.25, 0.25])
             .unwrap()
-            .with_empirical_counts(vec![0, 0, 3, 7])
+            .with_learned_support(vec![0, 0, 3, 7])
             .unwrap();
         let data = ExactTransportData::try_new([predicted], 16).unwrap();
         let outcomes = [v(1)];
@@ -963,7 +1027,7 @@ mod tests {
     fn ratio_form_positive_learned_probabilities_do_not_authorize_empty_empirical_conditioners() {
         let predicted = law("target", &[0.25, 0.25, 0.25, 0.25])
             .unwrap()
-            .with_empirical_counts(vec![0, 0, 3, 7])
+            .with_learned_support(vec![0, 0, 3, 7])
             .unwrap();
         let data = ExactTransportData::try_new([predicted], 16).unwrap();
         let mut arena = crate::CausalExprArena::new();

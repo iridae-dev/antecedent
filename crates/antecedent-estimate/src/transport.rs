@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::CausalRng;
+use antecedent_core::{CausalRng, TransportOutcomeKind};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 
 use crate::EstimationError;
@@ -21,9 +21,13 @@ fn require_dahabreh_compatible_formula(
         TransportIdentification::NotCertified(certificate) => {
             Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
         }
-        TransportIdentification::MissingEvidence(certificate) => {
-            Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
-        }
+        TransportIdentification::MissingEvidence(certificate) => Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_missing_evidence"),
+            format!(
+                "{stage} refused: required transport evidence is absent ({}): {}",
+                certificate.reason, certificate.message
+            ),
+        )),
         TransportIdentification::Transportable {
             formula: TransportFormula::Direct(_) | TransportFormula::Standardize { .. },
             ..
@@ -480,6 +484,76 @@ pub fn trial_to_target_ipw_se(
     Ok(sum_sq.sqrt() / target_n as f64)
 }
 
+/// The stable transport outcome kind of an exact-evaluation failure. Callers
+/// match the kind; they never parse the message.
+#[must_use]
+pub const fn transport_outcome_kind(error: &antecedent_expr::EvalError) -> TransportOutcomeKind {
+    use antecedent_expr::EvalError;
+    match error {
+        EvalError::ExactLaw(_)
+        | EvalError::ExactRatioSupport { .. }
+        | EvalError::DivisionByZero
+        | EvalError::EmptySupport(_)
+        | EvalError::MissingTableEntry => TransportOutcomeKind::SupportFailure,
+        EvalError::ProviderKind(_)
+        | EvalError::UnsupportedConditioning(_)
+        | EvalError::InvalidParameter(_)
+        | EvalError::SupportShape { .. }
+        | EvalError::DrawOutOfRange { .. } => TransportOutcomeKind::MissingProvider,
+        EvalError::UnsupportedIntegralOut => TransportOutcomeKind::UnsupportedEvaluator,
+        EvalError::MissingBinding(_) => TransportOutcomeKind::InvalidInput,
+        // A non-finite ratio and any evaluator failure not classified above.
+        _ => TransportOutcomeKind::NumericalFailure,
+    }
+}
+
+/// Whether an exact-evaluation failure is a support failure of one replicate
+/// or draw, which a bootstrap counts and skips rather than propagates.
+#[must_use]
+pub const fn is_support_failure(error: &antecedent_expr::EvalError) -> bool {
+    matches!(transport_outcome_kind(error), TransportOutcomeKind::SupportFailure)
+}
+
+/// The registered refusal for an exact-evaluation failure.
+#[must_use]
+pub fn refuse_eval(error: &antecedent_expr::EvalError) -> EstimationError {
+    let code = match transport_outcome_kind(error) {
+        TransportOutcomeKind::SupportFailure => {
+            antecedent_core::reason_code!("transport_support_failure")
+        }
+        TransportOutcomeKind::MissingProvider => {
+            antecedent_core::reason_code!("transport_missing_provider")
+        }
+        TransportOutcomeKind::UnsupportedEvaluator => {
+            antecedent_core::reason_code!("transport_unsupported_evaluator")
+        }
+        TransportOutcomeKind::InvalidInput => antecedent_core::reason_code!("invalid_argument"),
+        _ => antecedent_core::reason_code!("transport_numerical_failure"),
+    };
+    EstimationError::refused(code, error.to_string())
+}
+
+/// The registered refusal when a transport budget is exhausted.
+#[must_use]
+pub fn refuse_budget(message: impl Into<String>) -> EstimationError {
+    EstimationError::refused(antecedent_core::reason_code!("transport_budget_cancel"), message)
+}
+
+/// The registered refusal when the context is cancelled.
+///
+/// # Errors
+/// `transport_budget_cancel` once the cancellation token has fired.
+pub fn refuse_cancelled(
+    ctx: &antecedent_core::ExecutionContext,
+    stage: &str,
+) -> Result<(), EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        Err(refuse_budget(format!("{stage} cancelled")))
+    } else {
+        Ok(())
+    }
+}
+
 /// Weight magnitude above which [`TransportOverlapDiagnostic::extreme_weight_count`] flags a
 /// row. This is a diagnostic threshold meant to draw a reviewer's eye to poor overlap; it is not
 /// an inferential cutoff and does not itself clip, trim, or otherwise change any estimate.
@@ -852,9 +926,9 @@ mod tests {
     };
     use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
     use antecedent_identify::{
-        NotCertifiedCertificate, PopulationFactor, TransportCertificate, TransportFormula,
-        ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
-        identify_z_transport_surrogate,
+        NotCertifiedCertificate, PopulationFactor, SidLimits, TransportCertificate,
+        TransportFormula, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+        identify_z_transport,
     };
 
     use super::*;
@@ -888,9 +962,13 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
-        let ZTransportResult::Identified(derivation) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let ZTransportResult::Identified(derivation) = identify_z_transport(
+            &diagram,
+            &query,
+            SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("fixture should be identified");
         };
         let coords = [w, z, x, y].map(|variable| VariableCoordinate {

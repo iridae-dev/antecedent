@@ -901,7 +901,7 @@ mod tests {
         }
         .unwrap();
         if let Some(counts) = counts {
-            law = law.with_empirical_counts(counts).unwrap();
+            law = law.with_learned_support(counts).unwrap();
         }
         ExactTransportData::try_new([law], 100).unwrap()
     }
@@ -992,7 +992,7 @@ mod tests {
             LawTolerance::default(),
         )
         .unwrap()
-        .with_empirical_counts(vec![0, 0, 0, 0, 1, 2, 3, 4])
+        .with_learned_support(vec![0, 0, 0, 0, 1, 2, 3, 4])
         .unwrap();
         let data = ExactTransportData::try_new([learned], 100).unwrap();
         let EvalError::ExactLaw(error) = evaluate_three_axis(&arena, root, data).unwrap_err()

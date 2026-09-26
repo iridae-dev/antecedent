@@ -79,7 +79,7 @@ pub use adjustment::{
 pub mod learned_trial;
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
-    validate_trial_aipw, validate_trial_query,
+    learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,
 };
 mod fitted_effect;
 pub use fitted_effect::FittedEffect;
@@ -116,13 +116,13 @@ pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
 pub use dr::DrLearner;
 pub use empirical_table::{
-    BayesianTransportLawDraw, BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP,
-    EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN, EmpiricalTableEstimator,
-    EmpiricalTableOptions, RegimeSample, STATE_SPACE_DIRICHLET, StatisticalTransportInput,
-    assemble_point_laws, assemble_statistical_laws, catalog_axes, dependence_refusal,
-    draw_bayesian_transport_laws, draw_empirical_support_transport_law,
-    draw_state_space_dirichlet_transport_law, fit_empirical_joint, licensed_iid_dependence,
-    licensed_iid_regimes,
+    BayesianLawDrawer, BayesianTransportLawDraw, BayesianTransportLawProvider,
+    EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN,
+    EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, STATE_SPACE_DIRICHLET,
+    StatisticalTransportInput, assemble_point_laws, assemble_statistical_laws, catalog_axes,
+    dependence_refusal, dirichlet_posterior_probabilities, draw_bayesian_transport_laws,
+    draw_empirical_support_transport_law, draw_state_space_dirichlet_transport_law,
+    fit_empirical_joint, licensed_iid_dependence, licensed_iid_regimes,
 };
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
@@ -193,9 +193,9 @@ pub use serial_dependence::{
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use statistical_transport::{
-    BayesianStatisticalTransportEstimate, NominalZTransportInterval, PERCENTILE_BOOTSTRAP,
-    POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate, TransportUncertaintyRow,
-    Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
+    BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, NominalZTransportInterval,
+    PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate,
+    TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
     evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
     evaluate_statistical_transport, nominal_z_transport_interval, percentile_interval,
 };
@@ -241,10 +241,11 @@ pub use temporal_sequential_tuples::{
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
     TransportResponseGridEstimate, evaluate_exact_transport, evaluate_exact_z_transport,
-    prepare_exact_transport, prepare_exact_z_transport, transport_augmented_response_grid,
+    is_support_failure, prepare_exact_transport, prepare_exact_z_transport, refuse_budget,
+    refuse_cancelled, refuse_eval, transport_augmented_response_grid, transport_outcome_kind,
     trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
 };
-pub use util::BootstrapSeResult;
+pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 
 mod static_mediation;
 pub use static_mediation::{

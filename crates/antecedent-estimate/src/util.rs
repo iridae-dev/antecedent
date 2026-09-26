@@ -124,8 +124,72 @@ impl BootstrapSeResult {
     }
 }
 
-/// Maximum allowed soft-failure fraction before refusing to report an SE.
-pub(crate) const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
+/// Maximum allowed soft-failure fraction before refusing to report a bootstrap
+/// summary: more than half the attempted replicates failing means the survivors
+/// are not a resample of the estimator.
+pub const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
+
+/// When a set of bootstrap replicates or posterior draws may be summarized.
+///
+/// One rule owns the decision for every transport interval: the estimator's
+/// own failure-fraction refusal, the learned-trial refusal of any failed
+/// replicate, and the facade's licensing floor are the same struct with
+/// different thresholds, so no path re-derives the arithmetic.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReplicatePolicy {
+    /// Fewest requested replicates that can earn the summary's label.
+    pub min_requested: u32,
+    /// Fewest successful replicates a summary may be computed from.
+    pub min_ok: u32,
+    /// Largest failed share of the attempted replicates.
+    pub max_failure_frac: f64,
+    /// Stable reason published when the summary is withheld.
+    pub reason: &'static str,
+}
+
+impl ReplicatePolicy {
+    /// The estimator's own rule: at least two survivors and no more than
+    /// [`BOOTSTRAP_MAX_FAILURE_FRAC`] failures.
+    pub const BOOTSTRAP: Self = Self {
+        min_requested: 0,
+        min_ok: 2,
+        max_failure_frac: BOOTSTRAP_MAX_FAILURE_FRAC,
+        reason: "bootstrap_failure_fraction",
+    };
+    /// The learned-trial rule: any failed replicate withholds the interval.
+    pub const STRICT: Self = Self {
+        min_requested: 2,
+        min_ok: 2,
+        max_failure_frac: 0.0,
+        reason: "bootstrap_replicate_failure",
+    };
+
+    /// A nominal-coverage licensing floor on requested and successful replicates.
+    #[must_use]
+    pub const fn percentile_floor(min_replicates: u32) -> Self {
+        Self {
+            min_requested: min_replicates,
+            min_ok: min_replicates,
+            max_failure_frac: 1.0,
+            reason: "insufficient_bootstrap_replicates",
+        }
+    }
+
+    /// `Ok` when `ok` successful replicates out of `ok + failed` attempted, from
+    /// `requested`, may be summarized; otherwise the withholding reason.
+    ///
+    /// # Errors
+    /// The policy's `reason` when the summary must be withheld.
+    pub fn decide(self, requested: u32, ok: u32, failed: u32) -> Result<(), &'static str> {
+        let attempted = ok.saturating_add(failed);
+        let fail_frac = if attempted == 0 { 1.0 } else { f64::from(failed) / f64::from(attempted) };
+        if requested < self.min_requested || ok < self.min_ok || fail_frac > self.max_failure_frac {
+            Err(self.reason)
+        } else {
+            Ok(())
+        }
+    }
+}
 
 /// Finalize a bootstrap SE from successful replicate ATEs.
 #[cfg(test)]
