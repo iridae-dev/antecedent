@@ -49,7 +49,7 @@ pub mod transport;
 pub use sid::{
     BoundTransportFunctional, BoundZTransportFunctional, CatalogTransportResult,
     CheckedTransportDerivation, ClassicalTransportDerivation, ClassicalTransportQuery,
-    ClassicalTransportResult, MetaSource, MetaTransportQuery, SidLimits,
+    ClassicalTransportResult, ComponentFactorization, MetaSource, MetaTransportQuery, SidLimits,
     TwoSourceZTransportComponent, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
     Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED,
     ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportDecision,

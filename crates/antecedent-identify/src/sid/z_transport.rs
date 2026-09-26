@@ -138,17 +138,35 @@ pub struct TwoSourceZTransportQuery {
     pub sources: [ZTransportSourceSpec; 2],
 }
 
-/// One checked proof for a disconnected outcome component supplied by one source.
+/// One checked proof for a target outcome factor supplied by one source.
 #[derive(Clone, Debug)]
 pub struct TwoSourceZTransportComponent {
     /// Source population that supplies this component's joint outcome law.
     pub source: Arc<str>,
-    /// Outcomes in this graph component.
+    /// Outcomes in this factor.
     pub outcomes: Arc<[VariableId]>,
-    /// Treatments in this graph component.
+    /// Treatments whose intervention this factor's marginal effect retains.
     pub treatments: Arc<[VariableId]>,
     /// Checked derivation, bound only to this source's catalog.
     pub derivation: Box<ZTransportDerivation>,
+}
+
+/// Why a combined two-source result is a sound product of one factor per source.
+///
+/// Both variants keep the joint-regime rule: each component's cited factors bind
+/// to exactly one source's regimes, and no factor is a fabricated joint over both
+/// sources' interventions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ComponentFactorization {
+    /// The queried outcomes and treatments split into two disconnected static
+    /// graph components; the joint target law is the product of the components.
+    DisconnectedGraphComponents,
+    /// A single connected graph whose intervened outcomes m-separate into two
+    /// groups given the treatments, so `P*_x(y)` factorizes into one marginal
+    /// interventional effect per group and each group is transported from one
+    /// source. A single connected c-factor spanning both sources is never
+    /// fabricated.
+    InterventionSeparatedGroups,
 }
 
 /// Result of searching two sources separately, then the bounded disconnected case.
@@ -162,12 +180,16 @@ pub enum TwoSourceZTransportDecision {
         /// Checked derivation for that source alone.
         derivation: Box<ZTransportDerivation>,
     },
-    /// Two disconnected graph components are identified by complementary sources.
-    /// The joint result is the product of the component laws; no factor is shared
-    /// across sources and this variant is limited to one outcome component/source.
+    /// Complementary sources each identify one factor of the target law, which
+    /// is their product. The factors are either two disconnected graph
+    /// components or two intervention-separated outcome groups of one connected
+    /// graph; `factorization` says which, and each factor still binds to exactly
+    /// one source's regimes.
     CombinedIdentified {
-        /// Component proofs in graph order.
+        /// Component proofs in factor order.
         components: [TwoSourceZTransportComponent; 2],
+        /// Why the product of the two component laws equals the target law.
+        factorization: ComponentFactorization,
     },
     /// Both sources reach a checked line-11 terminal.
     ProvenNonTransportable {
@@ -767,6 +789,7 @@ pub fn decide_z_transport_with_catalog(
 /// A source population collides with the other source or the target, a
 /// selection diagram is invalid, or neither source identifies and one search
 /// failed (the first failure is reported).
+#[allow(clippy::too_many_lines)] // Mirrors the single-source, disconnected, and connected branches explicitly.
 pub fn decide_two_source_z_transport(
     graph: &antecedent_graph::Admg,
     query: &TwoSourceZTransportQuery,
@@ -853,34 +876,40 @@ pub fn decide_two_source_z_transport(
                 let diagram =
                     SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
                         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
-                match decide_z_transport_with_catalog(
+                let ZTransportDecision::Identified(derivation) = decide_z_transport_with_catalog(
                     &diagram,
                     &component_query,
                     catalogs[source_index],
                     limits,
                     ctx,
-                )? {
-                    ZTransportDecision::Identified(derivation) => {
-                        component_proofs.push(TwoSourceZTransportComponent {
-                            source: Arc::clone(&source.population),
-                            outcomes: outcomes.into(),
-                            treatments: treatments.into(),
-                            derivation,
-                        });
-                    }
-                    _ => {
-                        complete = false;
-                        break;
-                    }
-                }
+                )?
+                else {
+                    complete = false;
+                    break;
+                };
+                component_proofs.push(TwoSourceZTransportComponent {
+                    source: Arc::clone(&source.population),
+                    outcomes: outcomes.into(),
+                    treatments: treatments.into(),
+                    derivation,
+                });
             }
             if complete {
                 let [first, second] = component_proofs.try_into().expect("two source components");
                 return Ok(TwoSourceZTransportDecision::CombinedIdentified {
                     components: [first, second],
+                    factorization: ComponentFactorization::DisconnectedGraphComponents,
                 });
             }
         }
+    }
+    // Connected complementary case: one connected graph whose intervened
+    // outcomes m-separate into two groups given the treatments. Each group's
+    // marginal interventional effect is transported from one source, and the
+    // target law is their product. A single connected c-factor that would need
+    // a fabricated joint over both sources' interventions is never combined.
+    if let Some(decision) = connected_complementary_decision(graph, query, catalogs, limits, ctx)? {
+        return Ok(decision);
     }
     let decisions = decisions.into_iter().collect::<Result<Vec<_>, _>>()?;
     // A line-11 terminal is an obstruction relative to one source's experiment
@@ -960,6 +989,272 @@ fn two_disconnected_query_components(
     }
     let [first, second] = components.try_into().ok()?;
     Some([first, second])
+}
+
+/// Dense id of `variable` in `graph`'s node order, or `None` if absent.
+fn dense_of(graph: &antecedent_graph::Admg, variable: VariableId) -> Option<DenseNodeId> {
+    graph
+        .nodes()
+        .iter()
+        .position(|node| matches!(node, NodeRef::Static(candidate) if *candidate == variable))
+        .map(|index| DenseNodeId::from_raw(index_u32(index)))
+}
+
+/// Whether the shared static graph is one connected component under directed,
+/// bidirected, and parent adjacency. The disconnected case is decided
+/// separately, so the connected route only fires on a single component.
+fn graph_is_connected(graph: &antecedent_graph::Admg) -> bool {
+    if graph.node_count() == 0
+        || graph.nodes().iter().any(|node| !matches!(node, NodeRef::Static(_)))
+    {
+        return false;
+    }
+    let mut seen = vec![false; graph.node_count()];
+    let mut stack = vec![DenseNodeId::from_raw(0)];
+    seen[0] = true;
+    let mut count = 1usize;
+    while let Some(node) = stack.pop() {
+        for neighbor in graph
+            .children(node)
+            .iter()
+            .chain(graph.parents(node))
+            .chain(graph.bidirected_neighbors(node))
+        {
+            if !seen[neighbor.as_usize()] {
+                seen[neighbor.as_usize()] = true;
+                count += 1;
+                stack.push(*neighbor);
+            }
+        }
+    }
+    count == graph.node_count()
+}
+
+/// The `do(treatments)`-mutilated ADMG on the same dense node layout: every
+/// directed edge into a treatment and every bidirected edge incident to a
+/// treatment is dropped, so the treatments are exogenous roots. m-separation on
+/// this graph is m-separation in the intervened law `P*_x(v)`.
+fn mutilated_admg(
+    graph: &antecedent_graph::Admg,
+    treatments: &BitSet,
+) -> Result<antecedent_graph::Admg, IdentificationError> {
+    let n = graph.node_count();
+    let mut mutilated = antecedent_graph::Admg::with_variables(index_u32(n));
+    let build = || IdentificationError::invalid_input("z_transport.mutilated_graph");
+    for from_index in 0..n {
+        let from = DenseNodeId::from_raw(index_u32(from_index));
+        for to in graph.children(from) {
+            if !treatments.contains(*to) {
+                mutilated.insert_directed(from, *to).map_err(|_| build())?;
+            }
+        }
+        for other in graph.bidirected_neighbors(from) {
+            if other.as_usize() > from_index
+                && !treatments.contains(from)
+                && !treatments.contains(*other)
+            {
+                mutilated.insert_bidirected(from, *other).map_err(|_| build())?;
+            }
+        }
+    }
+    Ok(mutilated)
+}
+
+/// Directed-ancestor closure of `seeds` in `graph` (seeds included).
+fn directed_ancestors(graph: &antecedent_graph::Admg, seeds: &[DenseNodeId]) -> BitSet {
+    let mut closure = BitSet::with_len(graph.node_count());
+    let mut stack = seeds.to_vec();
+    for seed in seeds {
+        closure.insert(*seed);
+    }
+    while let Some(node) = stack.pop() {
+        for parent in graph.parents(node) {
+            if !closure.contains(*parent) {
+                closure.insert(*parent);
+                stack.push(*parent);
+            }
+        }
+    }
+    closure
+}
+
+/// Partition the queried outcomes into exactly two groups that are m-separated
+/// from each other given the treatments in the `do(X)`-mutilated graph, so
+/// `P*_x(y)` factorizes as the product of the two groups' marginal effects.
+/// `None` when the graph is not all-static, the outcomes stay m-connected (one
+/// group, whose single c-factor would need a fabricated cross-source joint), or
+/// they split into more than two groups (outside the two-source contract).
+fn intervention_separated_outcome_groups(
+    graph: &antecedent_graph::Admg,
+    query: &TwoSourceZTransportQuery,
+) -> Result<Option<[Vec<VariableId>; 2]>, IdentificationError> {
+    if graph.nodes().iter().any(|node| !matches!(node, NodeRef::Static(_))) {
+        return Ok(None);
+    }
+    let mut treatments = BitSet::with_len(graph.node_count());
+    for treatment in query.treatments.iter().copied() {
+        let Some(dense) = dense_of(graph, treatment) else { return Ok(None) };
+        treatments.insert(dense);
+    }
+    let mutilated = mutilated_admg(graph, &treatments)?;
+    let treatment_ids = treatments.to_dense_ids();
+    let outcomes = query.outcomes.to_vec();
+    let outcome_dense = outcomes
+        .iter()
+        .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
+        .collect::<Result<Vec<_>, _>>()?;
+    // Connect two outcomes that are m-connected given the treatments; the groups
+    // are the connected components of that relation. Cross-group pairs are all
+    // m-separated, so the groups are jointly independent given the intervention.
+    let mut ws = antecedent_graph::DSeparationWorkspace::default();
+    let mut labels = vec![usize::MAX; outcomes.len()];
+    let mut group_count = 0usize;
+    for start in 0..outcomes.len() {
+        if labels[start] != usize::MAX {
+            continue;
+        }
+        let label = group_count;
+        group_count += 1;
+        let mut stack = vec![start];
+        labels[start] = label;
+        while let Some(current) = stack.pop() {
+            for other in 0..outcomes.len() {
+                if labels[other] != usize::MAX {
+                    continue;
+                }
+                let connected = !mutilated
+                    .is_m_separated(
+                        outcome_dense[current],
+                        outcome_dense[other],
+                        &treatment_ids,
+                        &mut ws,
+                    )
+                    .map_err(|_| build_unknown())?;
+                if connected {
+                    labels[other] = label;
+                    stack.push(other);
+                }
+            }
+        }
+    }
+    if group_count != 2 {
+        return Ok(None);
+    }
+    let mut groups: [Vec<VariableId>; 2] = [Vec::new(), Vec::new()];
+    for (index, variable) in outcomes.into_iter().enumerate() {
+        groups[labels[index]].push(variable);
+    }
+    Ok(Some(groups))
+}
+
+fn build_unknown() -> IdentificationError {
+    IdentificationError::invalid_input("z_transport.unknown_variable")
+}
+
+/// Decide the connected complementary case: one connected graph whose intervened
+/// outcomes factorize into two groups, each transported from one distinct
+/// source. Each factor binds only to its own source's regimes (the joint-regime
+/// rule); a c-factor that would span both sources is never fabricated.
+fn connected_complementary_decision(
+    graph: &antecedent_graph::Admg,
+    query: &TwoSourceZTransportQuery,
+    catalogs: [&EvidenceCatalog; 2],
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Option<TwoSourceZTransportDecision>, IdentificationError> {
+    if !graph_is_connected(graph) {
+        return Ok(None);
+    }
+    let Some(groups) = intervention_separated_outcome_groups(graph, query)? else {
+        return Ok(None);
+    };
+    let mut treatments = BitSet::with_len(graph.node_count());
+    for treatment in query.treatments.iter().copied() {
+        let Some(dense) = dense_of(graph, treatment) else { return Ok(None) };
+        treatments.insert(dense);
+    }
+    let mutilated = mutilated_admg(graph, &treatments)?;
+    // Each group's marginal effect P*_x(y_g) equals P*_{x_g}(y_g), where x_g are
+    // the treatments that remain ancestors of the group after intervention; the
+    // other treatments do not change the group's law.
+    let relevant_treatments =
+        |group: &[VariableId]| -> Result<Vec<VariableId>, IdentificationError> {
+            let seeds = group
+                .iter()
+                .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
+                .collect::<Result<Vec<_>, _>>()?;
+            let ancestors = directed_ancestors(&mutilated, &seeds);
+            let mut retained = query
+                .treatments
+                .iter()
+                .copied()
+                .filter(|treatment| {
+                    dense_of(graph, *treatment).is_some_and(|dense| ancestors.contains(dense))
+                })
+                .collect::<Vec<_>>();
+            retained.sort_unstable_by_key(|variable| variable.raw());
+            Ok(retained)
+        };
+    for order in [[0usize, 1usize], [1usize, 0usize]] {
+        let mut proofs = Vec::with_capacity(2);
+        let mut complete = true;
+        for (group_index, source_index) in order.into_iter().enumerate() {
+            let outcomes = &groups[group_index];
+            let source = &query.sources[source_index];
+            let group_treatments = relevant_treatments(outcomes)?;
+            let assignment = source
+                .experiment_assignment
+                .iter()
+                .filter(|assignment| group_treatments.contains(&assignment.variable))
+                .cloned()
+                .collect::<Vec<_>>();
+            if group_treatments.is_empty()
+                || group_treatments.iter().any(|variable| !source.controllable.contains(variable))
+                || !group_treatments.iter().all(|variable| {
+                    assignment.iter().any(|assignment| assignment.variable == *variable)
+                })
+            {
+                complete = false;
+                break;
+            }
+            let component_query = ZTransportQuery {
+                outcomes: outcomes.clone().into(),
+                treatments: group_treatments.clone().into(),
+                controllable: Arc::clone(&source.controllable),
+                experiment_assignment: assignment.into(),
+                source: Arc::clone(&source.population),
+                target: Arc::clone(&query.target),
+            };
+            let diagram =
+                SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
+                    .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
+            let ZTransportDecision::Identified(derivation) = decide_z_transport_with_catalog(
+                &diagram,
+                &component_query,
+                catalogs[source_index],
+                limits,
+                ctx,
+            )?
+            else {
+                complete = false;
+                break;
+            };
+            proofs.push(TwoSourceZTransportComponent {
+                source: Arc::clone(&source.population),
+                outcomes: outcomes.clone().into(),
+                treatments: group_treatments.into(),
+                derivation,
+            });
+        }
+        if complete {
+            let [first, second] = proofs.try_into().expect("two connected components");
+            return Ok(Some(TwoSourceZTransportDecision::CombinedIdentified {
+                components: [first, second],
+                factorization: ComponentFactorization::InterventionSeparatedGroups,
+            }));
+        }
+    }
+    Ok(None)
 }
 
 fn certify_line11_obstruction(
