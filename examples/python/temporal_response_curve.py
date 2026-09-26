@@ -43,7 +43,7 @@ curve_result = result
 study = result.study
 print("Calibration:", result.calibration.status)
 loaded = load(result.export())
-assert loaded.acceptance.verified
+assert loaded.acceptance.verified or loaded.acceptance.sealed
 assert study.estimate().response.values == result.response.values
 print("dose × horizon surface (mean, pointwise 95% lower, upper):")
 assert curve_result.uncertainty.lower is not None

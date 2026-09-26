@@ -19,6 +19,8 @@ import pytest
 from antecedent import population as P
 from antecedent.errors import CausalUnsupportedError
 
+from _sealed_loads import assert_answer_kept
+
 
 def _static(n: int = 1200, seed: int = 3) -> dict[str, np.ndarray]:
     """Binary treatment confounded by ``z`` whose effect grows with ``z``."""
@@ -240,7 +242,7 @@ def test_the_all_observed_population_is_the_default_and_survives_export(
     assert declared.program_id == default.program_id
     assert declared.inspect().target_id == default.inspect().target_id
     loaded = ant.load(declared.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.inspect().target_id == declared.inspect().target_id
     assert loaded.answer == declared.answer
 
@@ -263,7 +265,7 @@ def test_average_effect_population_changes_the_answer_and_the_target() -> None:
     assert att.inspect().target_id != ate.inspect().target_id
     assert att.program_id != ate.program_id
     loaded = ant.load(att.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.inspect().target_id == att.inspect().target_id
     assert loaded.inspect().to_dict()["target"]["query"]["target_population"] == "treated"
 

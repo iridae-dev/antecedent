@@ -16,6 +16,8 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
 
+from _sealed_loads import assert_answer_kept
+
 STATIC_DAG = [("z", "t"), ("z", "y"), ("t", "y")]
 DISCLOSURE = "estimate.bayesian.gaussian_likelihood_discrete_outcome"
 
@@ -92,7 +94,7 @@ def test_likelihood_reaches_rust_and_is_bound_into_the_inference_identity(likeli
 
     loaded = ant.load(chosen_result.export())
     loaded_report = loaded.inspect().to_dict()
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded_report["inference_binding_id"] == chosen["inference_binding_id"]
     assert loaded.answer == chosen_result.answer
     assert rust_name[likelihood] in str(loaded_report["contract"])

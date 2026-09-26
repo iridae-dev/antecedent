@@ -28,6 +28,8 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian, Frequentist
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
 
+from _sealed_loads import assert_answer_kept
+
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCTS = tomllib.loads((ROOT / "parity" / "python_products.toml").read_text(encoding="utf-8"))
 ROWS = {row["name"]: row for row in PRODUCTS.get("parameter", [])}
@@ -56,7 +58,7 @@ def _analyze(**kwargs: Any):
 
 def _contract(result: Any) -> dict[str, Any]:
     loaded = ant.load(result.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     return loaded.artifact.contract
 
 

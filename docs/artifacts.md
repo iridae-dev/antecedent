@@ -169,7 +169,8 @@ import antecedent as ant
 result = ant.analyze(data, graph=graph, query=query)
 encoded = result.export()
 loaded = ant.load(encoded)
-assert loaded.acceptance.verified
+assert loaded.acceptance.verified or loaded.acceptance.sealed
+assert loaded.answer == result.answer
 report = loaded.inspect().to_dict()
 assert loaded.export() == encoded
 
@@ -184,6 +185,22 @@ payloads, including posterior draws, response functions and structural mixtures.
 Loading verifies semantic consistency; it does not verify causal assumptions or
 reconstruct a live study. Every reported interval states its calibration on the
 claim. See the [workflow guide](python-workflow.md) for retention boundaries.
+
+`loaded.acceptance` reports one of three outcomes:
+
+- `verified`: the consumer replayed a verified program from the bytes alone.
+  The recorded answer is available and `acceptance.replayable` is `True`.
+- `sealed`: every licensed route executes through a sealed checked operation
+  whose proof stays with the live study. Loading its export recognizes the
+  artifact, verifies its contract and identities, keeps the recorded answer,
+  and names the operation it cannot replay in `acceptance.unresolved` (for
+  example `dependencies.checked_conditional_effect_operation`).
+  `acceptance.verified` and `acceptance.replayable` are `False`.
+- `unavailable`: the contract is missing, unrecognized, or unresolved for any
+  other reason. `loaded.answer` is explicitly unavailable and the bytes can
+  still be forwarded unchanged.
+
+`acceptance.status` names the outcome and `repr(loaded)` shows it.
 
 ### Posterior and query payloads for stage consumers
 

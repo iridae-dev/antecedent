@@ -24,6 +24,7 @@ from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 
 from _repo_text import read_text
+from _sealed_loads import assert_answer_kept
 
 ROOT = Path(__file__).resolve().parents[2]
 PIN = json.loads(
@@ -92,7 +93,7 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.artifact.payload_kind == "analysis_result"
     assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id

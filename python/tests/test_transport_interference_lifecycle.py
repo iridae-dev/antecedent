@@ -36,6 +36,7 @@ from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
 from _repo_text import read_text
+from _sealed_loads import assert_answer_kept
 
 ROOT = Path(__file__).resolve().parents[2]
 TRANSPORT_PIN = json.loads(
@@ -150,12 +151,13 @@ def _assert_lifecycle(
 
     # export -> load recognizes the artifact and round-trips its identities, but an
     # independent consumer cannot replay the sealed checked operation without the
-    # retained proof, so it reports that dependency instead of a verified program.
-    assert loaded.acceptance.recognized
+    # retained proof, so it keeps the recorded answer and names that dependency
+    # instead of reporting a verified program.
+    assert_answer_kept(loaded)
     assert not loaded.acceptance.verified
-    assert dependency in loaded.acceptance.details["unresolved"]
+    assert dependency in loaded.acceptance.unresolved
     assert loaded.artifact.payload_kind == "analysis_result"
-    assert loaded.answer.kind == "unavailable"
+    assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
@@ -499,10 +501,10 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
     assert restored_catalog["target_sampling"] == "representative_sample"
     assert restored_catalog["regimes"][0]["interventions"] == [0]
-    # The sealed transport trial operation is not replayable from bytes alone.
+    # The sealed transport trial operation is not replayable from bytes alone,
+    # but the recorded answer is kept.
+    assert_answer_kept(loaded)
     assert not loaded.acceptance.verified
-    assert (
-        "dependencies.checked_transport_trial_operation" in loaded.acceptance.details["unresolved"]
-    )
-    assert loaded.answer.kind == "unavailable"
+    assert "dependencies.checked_transport_trial_operation" in loaded.acceptance.unresolved
+    assert loaded.answer == result.answer
     assert result.as_point() == pytest.approx(result.estimate.ate)

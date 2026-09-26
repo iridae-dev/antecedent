@@ -4,6 +4,8 @@ import antecedent as ant
 import numpy as np
 import pytest
 
+from _sealed_loads import assert_answer_kept
+
 
 def data():
     rng = np.random.default_rng(19019)
@@ -80,7 +82,7 @@ def test_bayesian_response_band_has_portable_uncertainty_source(query):
             "target": "posterior_pointwise_band",
             "omitted": False,
         } in uncertainty.payload["components"]
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
 
 
 @pytest.mark.parametrize(
