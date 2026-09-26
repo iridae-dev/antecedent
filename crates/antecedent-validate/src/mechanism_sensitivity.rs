@@ -1,10 +1,11 @@
-//! Exact sensitivity ranges for a finite discrete outcome mechanism.
+//! Exact sensitivity ranges for finite discrete outcome mechanisms.
 //!
-//! The declared source kernel is contaminated once, with a single replacement
-//! distribution per parent stratum shared across all response arms:
-//! `K_delta(y|s) = (1-delta) K_source(y|s) + delta R(y|s)`. The reported range
-//! is an assumption range over every such `R`, not a sampling interval or a
-//! sharp causal bound without the declared graph and kernel assumptions.
+//! The declared source kernel is contaminated with a single replacement
+//! distribution per parent stratum. The fixed-graph route can apply this
+//! across both response arms or restrict it to one treatment-level slice while
+//! holding the other arm fixed. The reported range is an assumption range, not
+//! a sampling interval or a sharp causal bound without the declared graph and
+//! kernel assumptions.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -489,6 +490,40 @@ pub fn fixed_graph_mechanism_sensitivity(
     spec: &FixedGraphMechanismSensitivitySpec,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<FixedGraphMechanismSensitivityResult, FixedGraphSensitivityError> {
+    fixed_graph_mechanism_sensitivity_inner(diagram, query, functional, spec, None, ctx)
+}
+
+/// Evaluate one-factor contamination restricted to a single treatment-level
+/// slice of the checked outcome mechanism; the other arm remains fixed.
+///
+/// This additive entry point preserves the original sensitivity spec and
+/// function contract for callers that use shared-across-arms contamination.
+pub fn fixed_graph_treatment_level_sensitivity(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    functional: &BoundTransportFunctional,
+    spec: &FixedGraphMechanismSensitivitySpec,
+    perturbed_treatment_level: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<FixedGraphMechanismSensitivityResult, FixedGraphSensitivityError> {
+    fixed_graph_mechanism_sensitivity_inner(
+        diagram,
+        query,
+        functional,
+        spec,
+        Some(perturbed_treatment_level),
+        ctx,
+    )
+}
+
+fn fixed_graph_mechanism_sensitivity_inner(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    functional: &BoundTransportFunctional,
+    spec: &FixedGraphMechanismSensitivitySpec,
+    perturbed_treatment_level: Option<usize>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<FixedGraphMechanismSensitivityResult, FixedGraphSensitivityError> {
     if query.outcomes.len() != 1 || query.treatments.len() != 1 {
         return Err(FixedGraphSensitivityError::InvalidQuery);
     }
@@ -665,18 +700,42 @@ pub fn fixed_graph_mechanism_sensitivity(
     {
         return Err(FixedGraphSensitivityError::UnboundOutcomeFactor);
     }
-    let response = DiscreteKernelSensitivity {
+    let mut sensitivity_weights = weights.clone();
+    let mut fixed_contribution = 0.0;
+    if let Some(perturbed_level) = perturbed_treatment_level {
+        if !spec.treatment_levels.contains(&perturbed_level) {
+            return Err(FixedGraphSensitivityError::InvalidQuery);
+        }
+        for (stratum, weight) in all_strata.iter().zip(&mut sensitivity_weights) {
+            if stratum[treatment_position] != perturbed_level {
+                *weight = 0.0;
+                let mean = kernels[stratum]
+                    .iter()
+                    .zip(&spec.outcome_values)
+                    .map(|(probability, value)| probability * value)
+                    .sum::<f64>();
+                fixed_contribution += weights[indices[stratum]] * mean;
+            }
+        }
+    }
+    let mut response = DiscreteKernelSensitivity {
         source_kernel: all_strata.iter().map(|s| kernels[s].clone()).collect(),
         outcome_values: spec.outcome_values.clone(),
-        stratum_contrast_weights: weights,
+        stratum_contrast_weights: sensitivity_weights,
         max_fraction: spec.max_fraction,
-        decision_threshold: spec.decision_threshold,
+        decision_threshold: spec.decision_threshold.map(|threshold| threshold - fixed_contribution),
     }
     .evaluate()
     .map_err(FixedGraphSensitivityError::Kernel)?;
+    response.baseline += fixed_contribution;
+    response.minimum += fixed_contribution;
+    response.maximum += fixed_contribution;
     Ok(FixedGraphMechanismSensitivityResult {
         estimand: format!(
-            "target active-minus-control mean response for {outcome} under source-to-target kernel contamination"
+            "target active-minus-control mean response for {outcome} under source-to-target kernel contamination{}",
+            perturbed_treatment_level
+                .map(|level| format!(" at treatment level {level}"))
+                .unwrap_or_default()
         ),
         outcome,
         parents,
@@ -686,7 +745,11 @@ pub fn fixed_graph_mechanism_sensitivity(
         target_parent_binding: (spec.target_parent_regime, spec.target_parent_snapshot.clone()),
         assumptions: vec![
             "fixed fully observed DAG; no latent bidirected edges".into(),
-            "only the discrete outcome mechanism is contaminated".into(),
+            if perturbed_treatment_level.is_some() {
+                "only one declared treatment-level slice of the discrete outcome mechanism is contaminated; the other response arm is fixed".into()
+            } else {
+                "only the discrete outcome mechanism is contaminated".into()
+            },
             "all other outcome-parent mechanisms are invariant across populations".into(),
             "source and target non-treatment outcome-parent laws agree under both interventions"
                 .into(),
@@ -1210,7 +1273,7 @@ mod tests {
     #[test]
     fn fixed_graph_route_derives_stratum_weights_and_matches_known_truth() {
         let (diagram, query, functional) = checked_transport_fixture();
-        let spec = FixedGraphMechanismSensitivitySpec {
+        let mut spec = FixedGraphMechanismSensitivitySpec {
             outcome_values: vec![0.0, 1.0],
             parent_cardinalities: vec![2, 2],
             treatment_levels: [0, 1],
@@ -1278,6 +1341,49 @@ mod tests {
         assert!((result.response.minimum - 0.24).abs() < 1e-12);
         assert!((result.response.maximum - 0.64).abs() < 1e-12);
         assert!((result.response.tipping_fraction.unwrap() - (0.25 / 1.55)).abs() < 1e-12);
+
+        // A one-factor intervention on the active treatment slice leaves the
+        // control mechanism exactly fixed while preserving the full contrast.
+        spec.decision_threshold = Some(0.5);
+        let active_only = fixed_graph_treatment_level_sensitivity(
+            &diagram,
+            &query,
+            &functional,
+            &spec,
+            1,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!((active_only.response.baseline - 0.55).abs() < 1e-12);
+        assert!((active_only.response.minimum - 0.395).abs() < 1e-12);
+        assert!((active_only.response.maximum - 0.595).abs() < 1e-12);
+        assert!((active_only.response.tipping_fraction.unwrap() - (0.05 / 0.775)).abs() < 1e-12);
+
+        spec.max_fraction = 0.0;
+        let zero = fixed_graph_treatment_level_sensitivity(
+            &diagram,
+            &query,
+            &functional,
+            &spec,
+            1,
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!((zero.response.minimum - result.response.baseline).abs() < 1e-12);
+        assert!((zero.response.maximum - result.response.baseline).abs() < 1e-12);
+
+        assert_eq!(
+            fixed_graph_treatment_level_sensitivity(
+                &diagram,
+                &query,
+                &functional,
+                &spec,
+                2,
+                &antecedent_core::ExecutionContext::for_tests(1),
+            )
+            .unwrap_err(),
+            FixedGraphSensitivityError::InvalidQuery
+        );
     }
 
     #[test]

@@ -13,12 +13,7 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     let index: Vec<f64> = (0..300).map(f64::from).collect();
     let x: Vec<f64> = index.iter().map(|i| (i * 0.37).sin()).collect();
     let m: Vec<f64> = index.iter().zip(&x).map(|(i, x)| 0.8 * x + (i * 0.91).cos()).collect();
-    let y: Vec<f64> = index
-        .iter()
-        .zip(&x)
-        .zip(&m)
-        .map(|((i, x), m)| 1.7 * x + 4.0 * m + 0.01 * (i * 0.23).sin())
-        .collect();
+    let y: Vec<f64> = index.iter().zip(&x).zip(&m).map(|((_i, x), m)| 1.7 * x + 4.0 * m).collect();
     let data = TabularData::from_f64_columns([
         ("x", x.as_slice()),
         ("m", m.as_slice()),
@@ -53,6 +48,8 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     assert_eq!(retained.query(), &query);
     assert_eq!(retained.graph().node_count(), 3);
     let first = prepared.estimate(&data, &ctx).unwrap();
+    // Known SCM truth: Y(x,m)=1.7x+4m+epsilon, so the natural direct
+    // effect is 1.7*(2-(-1))=5.1 with the mediator frozen at M(-1).
     assert!((first.estimate.ate - 5.1).abs() < 0.001, "{}", first.estimate.ate);
     assert_eq!(one_shot.estimate.ate.to_bits(), first.estimate.ate.to_bits());
     assert_eq!(
@@ -93,6 +90,8 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
         unresolved.iter().any(|reason| reason.as_ref() == "body.nested_counterfactual_estimate"),
         "{unresolved:?}"
     );
+    // Adversarial artifact inconsistency: change the published estimate while
+    // preserving the checked operation and fitted SCM snapshot.
     let mut changed_contract = contract.clone();
     changed_contract
         .data_snapshot

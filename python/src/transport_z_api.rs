@@ -1184,11 +1184,13 @@ fn intervention_assignments(
         .map(Arc::from)
 }
 
-/// Search two restricted sources separately on one shared graph.
+/// Search two restricted sources separately on one shared graph. Also accepts
+/// the bounded case of two disconnected static outcome components, where each
+/// source supplies one checked component factor.
 ///
 /// `sources` are `(population, controllable, experiment_assignment, selections)`
-/// in the order of `catalogs`. The result names the identifying source, both
-/// line-11 obstructions, or the refusal to combine factors across sources.
+/// in the order of `catalogs`. The result names a single identifying source,
+/// two checked component proofs, both line-11 obstructions, or a typed refusal.
 #[pyfunction]
 #[pyo3(signature=(graph, target, outcomes, treatments, sources, catalogs, *, max_steps=100_000, max_depth=256, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -1256,6 +1258,22 @@ fn decide_two_source_z_transport_stage(
                     "source": source.as_ref(),
                     "proof": derivation.to_record(),
                     "inspection": derivation.inspect_proof(&parsed[index]),
+                })
+            }
+            TwoSourceZTransportDecision::CombinedIdentified { components } => {
+                serde_json::json!({
+                    "outcome": "combined_identified",
+                    "components": components.iter().map(|component| {
+                        let source_index = usize::from(query.sources[1].population == component.source);
+                        serde_json::json!({
+                            "source": component.source.as_ref(),
+                            "outcomes": component.outcomes.iter().map(|v| v.raw()).collect::<Vec<_>>(),
+                            "treatments": component.treatments.iter().map(|v| v.raw()).collect::<Vec<_>>(),
+                            "proof": component.derivation.to_record(),
+                            "inspection": component.derivation.inspect_proof(&parsed[source_index]),
+                        })
+                    }).collect::<Vec<_>>(),
+                    "combination": "independent_disconnected_components",
                 })
             }
             TwoSourceZTransportDecision::ProvenNonTransportable { obstructions } => {

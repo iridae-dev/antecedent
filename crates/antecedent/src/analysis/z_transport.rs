@@ -87,6 +87,74 @@ impl ZTransportResult {
         &self.mean_intervals
     }
 
+    /// Combine two exact component laws whose checked graph components are independent.
+    ///
+    /// The caller supplies results from separate prepared component proofs. The
+    /// output remains point-only; empirical component intervals are refused because
+    /// their joint resampling contract is not part of this bounded route.
+    ///
+    /// # Errors
+    /// Returns an error for interval-bearing inputs, overlapping outcomes, malformed
+    /// distributions, or a Cartesian product larger than `max_atoms`.
+    fn combine_independent_components(
+        left: &Self,
+        right: &Self,
+        max_atoms: usize,
+    ) -> Result<Self, IoError> {
+        if left.interval_method.is_some() || right.interval_method.is_some() {
+            return Err(err("z_transport.cross_source_interval_not_supported"));
+        }
+        let first = &left.distribution;
+        let second = &right.distribution;
+        if max_atoms == 0
+            || first.outcomes.iter().any(|outcome| second.outcomes.contains(outcome))
+            || first.atoms.len() != first.probabilities.len()
+            || second.atoms.len() != second.probabilities.len()
+            || first.atoms.iter().any(|atom| atom.len() != first.outcomes.len())
+            || second.atoms.iter().any(|atom| atom.len() != second.outcomes.len())
+            || first.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
+            || second.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
+            || (first.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-10
+            || (second.probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-10
+        {
+            return Err(err("z_transport.invalid_independent_component_law"));
+        }
+        let atom_count = first
+            .atoms
+            .len()
+            .checked_mul(second.atoms.len())
+            .filter(|count| *count <= max_atoms)
+            .ok_or_else(|| err("z_transport.combination_atom_limit"))?;
+        let mut outcomes = first.outcomes.to_vec();
+        outcomes.extend(second.outcomes.iter().copied());
+        let mut atoms = Vec::with_capacity(atom_count);
+        let mut probabilities = Vec::with_capacity(atom_count);
+        for (left_atom, left_probability) in first.atoms.iter().zip(first.probabilities.iter()) {
+            for (right_atom, right_probability) in
+                second.atoms.iter().zip(second.probabilities.iter())
+            {
+                let mut atom = left_atom.to_vec();
+                atom.extend(right_atom.iter().cloned());
+                atoms.push(Arc::from(atom));
+                probabilities.push(left_probability * right_probability);
+            }
+        }
+        let mut support = first.support.to_vec();
+        support.extend(second.support.iter().cloned());
+        Ok(Self {
+            distribution: ExactDistribution {
+                outcomes: outcomes.into(),
+                atoms: atoms.into(),
+                probabilities: probabilities.into(),
+                support: support.into(),
+            },
+            interval_method: None,
+            interval_reason: "no_interval_reported",
+            coverage_target: None,
+            mean_intervals: Vec::new(),
+        })
+    }
+
     /// Export this point result with its checked proof, catalog, and source laws.
     ///
     /// # Errors
@@ -144,6 +212,37 @@ pub fn consume_z_transport_artifact_with_limits(
 }
 
 impl PreparedZTransport {
+    /// Evaluate two separately prepared formulas and combine them when the
+    /// checked graph places their outcome/treatment sets in disconnected
+    /// components. Exact laws produce a point-only product distribution.
+    ///
+    /// # Errors
+    /// Refuses graph mismatches, connected/overlapping components, empirical
+    /// interval results, cancellation, or a product larger than `max_atoms`.
+    pub fn estimate_independent_components(
+        left: &Self,
+        right: &Self,
+        max_atoms: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<ZTransportResult, IoError> {
+        if !same_causal_graph(&left.diagram, &right.diagram)
+            || left.functional.derivation().query().target
+                != right.functional.derivation().query().target
+            || left.functional.derivation().query().source
+                == right.functional.derivation().query().source
+            || !queries_are_disconnected_components(
+                &left.diagram,
+                left.functional.derivation().query(),
+                right.functional.derivation().query(),
+            )
+        {
+            return Err(err("z_transport.components_not_independent"));
+        }
+        let left_result = left.estimate(ctx)?;
+        let right_result = right.estimate(ctx)?;
+        ZTransportResult::combine_independent_components(&left_result, &right_result, max_atoms)
+    }
+
     /// The explicitly limited graph and theorem scope for this prepared route.
     #[must_use]
     pub fn theorem_scope(&self) -> TheoremScope {
@@ -311,6 +410,68 @@ impl PreparedZTransport {
     }
 }
 
+fn same_causal_graph(left: &SelectionDiagram, right: &SelectionDiagram) -> bool {
+    let left_graph = left.causal_graph();
+    let right_graph = right.causal_graph();
+    left_graph.nodes() == right_graph.nodes()
+        && (0..left_graph.node_count()).all(|raw| {
+            let id =
+                antecedent_graph::DenseNodeId::from_raw(u32::try_from(raw).expect("graph bound"));
+            left_graph.children(id) == right_graph.children(id)
+                && left_graph.parents(id) == right_graph.parents(id)
+                && left_graph.bidirected_neighbors(id) == right_graph.bidirected_neighbors(id)
+        })
+}
+
+fn queries_are_disconnected_components(
+    diagram: &SelectionDiagram,
+    left: &antecedent_identify::ZTransportQuery,
+    right: &antecedent_identify::ZTransportQuery,
+) -> bool {
+    let graph = diagram.causal_graph();
+    let mut labels = vec![usize::MAX; graph.node_count()];
+    let mut label = 0usize;
+    for root in 0..graph.node_count() {
+        if labels[root] != usize::MAX {
+            continue;
+        }
+        let root_id =
+            antecedent_graph::DenseNodeId::from_raw(u32::try_from(root).expect("graph bound"));
+        labels[root] = label;
+        let mut stack = vec![root_id];
+        while let Some(node) = stack.pop() {
+            for neighbor in graph
+                .children(node)
+                .iter()
+                .chain(graph.parents(node))
+                .chain(graph.bidirected_neighbors(node))
+            {
+                if labels[neighbor.as_usize()] == usize::MAX {
+                    labels[neighbor.as_usize()] = label;
+                    stack.push(*neighbor);
+                }
+            }
+        }
+        label += 1;
+    }
+    let component = |query: &antecedent_identify::ZTransportQuery| -> Option<usize> {
+        let variables = query.outcomes.iter().chain(query.treatments.iter()).copied();
+        let mut found = None;
+        for variable in variables {
+            let index = graph.nodes().iter().position(|node| {
+                matches!(node, antecedent_graph::NodeRef::Static(candidate) if *candidate == variable)
+            })?;
+            let current = labels[index];
+            if found.is_some_and(|previous| previous != current) {
+                return None;
+            }
+            found = Some(current);
+        }
+        found
+    };
+    component(left).zip(component(right)).is_some_and(|(a, b)| a != b)
+}
+
 fn verify_plan_program(
     plan: &ExactEvaluationPlan,
     program: &FunctionalProgram,
@@ -437,7 +598,7 @@ mod tests {
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{
         SidLimits, ZTransportQuery, ZTransportResult as Identified, bind_z_transport_catalog,
-        identify_z_transport,
+        decide_z_transport_with_catalog, identify_z_transport,
     };
     use std::sync::Arc;
 
@@ -565,6 +726,204 @@ mod tests {
         let data = ExactTransportData::try_new([law], 128).unwrap();
         let assignment = Assignment::from_pairs([(x, Value::Bool(false))]);
         (diagram, functional, data, assignment)
+    }
+
+    fn independent_component(
+        graph: &SelectionDiagram,
+        population: &str,
+        treatment: VariableId,
+        outcome: VariableId,
+        treatment_level: bool,
+        probability_true: f64,
+    ) -> PreparedZTransport {
+        let coordinates = graph
+            .causal_graph()
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                antecedent_graph::NodeRef::Static(variable) => Some(*variable),
+                _ => None,
+            })
+            .map(|variable| VariableCoordinate {
+                variable,
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect::<Vec<_>>();
+        let regime = antecedent_core::EvidenceRegime::try_new(
+            RegimeId::from_raw(u32::from(treatment_level)),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [treatment],
+            [antecedent_core::InterventionAssignment {
+                variable: treatment,
+                value: Value::Bool(treatment_level),
+            }],
+            [outcome],
+            population,
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let catalog = EvidenceCatalog::try_new(
+            [
+                Environment::try_new("alpha", coordinates.clone(), []).unwrap(),
+                Environment::try_new("beta", coordinates.clone(), []).unwrap(),
+                Environment::try_new("target", coordinates, []).unwrap(),
+            ],
+            [regime],
+            [RegimeBinding {
+                dataset_identity: None,
+                regime: RegimeId::from_raw(u32::from(treatment_level)),
+                snapshot_identity: Arc::from(format!("{population}-joint-{treatment_level}")),
+                schema_names: Arc::from([]),
+                sampling: SamplingDesign::Independent,
+                weights: None,
+                dependence: DependenceGroup::IndependentStudies,
+            }],
+            None,
+        )
+        .unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([outcome]),
+            treatments: Arc::from([treatment]),
+            controllable: Arc::from([treatment]),
+            experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                variable: treatment,
+                value: Value::Bool(treatment_level),
+            }]),
+            source: Arc::from(population),
+            target: Arc::from("target"),
+        };
+        let antecedent_identify::ZTransportDecision::Identified(proof) =
+            decide_z_transport_with_catalog(
+                graph,
+                &query,
+                &catalog,
+                SidLimits::default(),
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap()
+        else {
+            panic!("component joint intervention must identify");
+        };
+        let functional = bind_z_transport_catalog(graph, &query, &proof, &catalog).unwrap();
+        let law = ExactDiscreteLaw::try_new(
+            population,
+            RegimeId::from_raw(u32::from(treatment_level)),
+            [InterventionAssignment::concrete(treatment, Value::Bool(treatment_level))],
+            [DiscreteAxis {
+                variable: outcome,
+                values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+            }],
+            [1.0 - probability_true, probability_true],
+            format!("{population}-joint-{treatment_level}"),
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([law], 8).unwrap();
+        StudyBuilder::z_transport(
+            graph.clone(),
+            functional,
+            data,
+            Assignment::from_pairs([(treatment, Value::Bool(treatment_level))]),
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn complementary_source_components_execute_the_exact_joint_target_effect() {
+        // Exact disconnected SCM: U1,U2 are independent Uniform(0,1),
+        // Z=1[U1 < 0.25 + 0.45 W], Y=1[U2 < 0.60 - 0.20 X].
+        // Under the joint 0→1 contrast, E[Z+Y] changes by 0.45-0.20=0.25.
+        let mut graph = Admg::with_variables(4);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let alpha_control = independent_component(
+            &diagram,
+            "alpha",
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            false,
+            0.25,
+        );
+        let beta_control = independent_component(
+            &diagram,
+            "beta",
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+            false,
+            0.60,
+        );
+        let alpha_active = independent_component(
+            &diagram,
+            "alpha",
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            true,
+            0.70,
+        );
+        let beta_active = independent_component(
+            &diagram,
+            "beta",
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+            true,
+            0.40,
+        );
+        let control = PreparedZTransport::estimate_independent_components(
+            &alpha_control,
+            &beta_control,
+            4,
+            &ExecutionContext::for_tests(0),
+        )
+        .unwrap();
+        let active = PreparedZTransport::estimate_independent_components(
+            &alpha_active,
+            &beta_active,
+            4,
+            &ExecutionContext::for_tests(0),
+        )
+        .unwrap();
+        assert_eq!(
+            control.distribution().outcomes.as_ref(),
+            [VariableId::from_raw(1), VariableId::from_raw(3)]
+        );
+        assert_eq!(control.distribution().atoms.len(), 4);
+        let expected = [0.75 * 0.40, 0.75 * 0.60, 0.25 * 0.40, 0.25 * 0.60];
+        for (actual, expected) in control.distribution().probabilities.iter().zip(expected) {
+            assert!((actual - expected).abs() < 1e-12);
+        }
+        let active_expected = [0.30 * 0.60, 0.30 * 0.40, 0.70 * 0.60, 0.70 * 0.40];
+        for (actual, expected) in active.distribution().probabilities.iter().zip(active_expected) {
+            assert!((actual - expected).abs() < 1e-12);
+        }
+        let sum_outcomes = |result: &ZTransportResult| {
+            result
+                .distribution()
+                .atoms
+                .iter()
+                .zip(result.distribution().probabilities.iter())
+                .map(|(atom, probability)| {
+                    (atom[0].as_f64().unwrap() + atom[1].as_f64().unwrap()) * probability
+                })
+                .sum::<f64>()
+        };
+        let target_effect = sum_outcomes(&active) - sum_outcomes(&control);
+        assert!((target_effect - 0.25).abs() < 1e-12, "target effect={target_effect}");
+        assert_eq!(control.interval_reason(), "no_interval_reported");
+        assert_eq!(control.coverage_target(), None);
+        assert!(
+            PreparedZTransport::estimate_independent_components(
+                &alpha_control,
+                &beta_control,
+                3,
+                &ExecutionContext::for_tests(0),
+            )
+            .is_err()
+        );
     }
 
     #[test]

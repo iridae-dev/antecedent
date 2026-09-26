@@ -478,6 +478,27 @@ impl PreparedStudy<ExactPreparedState> {
         )
     }
 
+    /// Evaluate one-factor outcome-kernel sensitivity restricted to a single
+    /// treatment-level slice while holding the other arm fixed.
+    pub fn mechanism_sensitivity_at_treatment_level(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        treatment_level: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_treatment_level_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            treatment_level,
+            ctx,
+        )
+    }
+
     fn reasoning(evaluated: bool) -> ReasoningView {
         ReasoningView::new(
             SlotAvailability::Available(IdentificationSlot::identified_singleton(

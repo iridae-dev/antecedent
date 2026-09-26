@@ -524,6 +524,7 @@ impl PreparedExactStage {
         outcome_values: Vec<f64>,
         parent_cardinalities: Vec<usize>,
         treatment_levels: [usize; 2],
+        perturbed_treatment_level: Option<usize>,
         max_fraction: f64,
         source_kernel_regime: u32,
         source_kernel_snapshot: String,
@@ -575,7 +576,11 @@ impl PreparedExactStage {
         let ctx = self.ctx(cancel);
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || {
-            inner.mechanism_sensitivity(&spec, &ctx).map_err(error)
+            if let Some(level) = perturbed_treatment_level {
+                inner.mechanism_sensitivity_at_treatment_level(&spec, level, &ctx).map_err(error)
+            } else {
+                inner.mechanism_sensitivity(&spec, &ctx).map_err(error)
+            }
         })?;
         serde_json::to_string(&serde_json::json!({
             "estimand": result.estimand,
@@ -590,6 +595,7 @@ impl PreparedExactStage {
             "assumption_range": {"minimum": result.response.minimum, "maximum": result.response.maximum},
             "interval_interpretation": result.response.interval_interpretation,
             "decision_threshold": decision_threshold,
+            "perturbed_treatment_level": perturbed_treatment_level,
             "tipping_fraction": result.response.tipping_fraction,
             "optimization_receipt": {
                 "minimizing_outcome_by_stratum": result.response.receipt.minimizing_outcome_by_stratum,
@@ -619,7 +625,7 @@ impl PreparedExactStage {
 }
 #[pymethods]
 impl PreparedExactStage {
-    #[pyo3(signature=(outcome_values, parent_cardinalities, treatment_levels, max_fraction, source_kernel_regime, source_kernel_snapshot, target_parent_regime, target_parent_snapshot, source_kernel, source_parent_law, target_parent_law, decision_threshold=None, cancel=None))]
+    #[pyo3(signature=(outcome_values, parent_cardinalities, treatment_levels, max_fraction, source_kernel_regime, source_kernel_snapshot, target_parent_regime, target_parent_snapshot, source_kernel, source_parent_law, target_parent_law, decision_threshold=None, perturbed_treatment_level=None, cancel=None))]
     fn mechanism_sensitivity(
         &self,
         py: Python<'_>,
@@ -635,6 +641,7 @@ impl PreparedExactStage {
         source_parent_law: Vec<(Vec<usize>, f64)>,
         target_parent_law: Vec<(usize, Vec<usize>, f64)>,
         decision_threshold: Option<f64>,
+        perturbed_treatment_level: Option<usize>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         self.run_mechanism_sensitivity(
@@ -642,6 +649,7 @@ impl PreparedExactStage {
             outcome_values,
             parent_cardinalities,
             treatment_levels,
+            perturbed_treatment_level,
             max_fraction,
             source_kernel_regime,
             source_kernel_snapshot,

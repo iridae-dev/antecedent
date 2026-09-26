@@ -138,7 +138,20 @@ pub struct TwoSourceZTransportQuery {
     pub sources: [ZTransportSourceSpec; 2],
 }
 
-/// Result of searching two sources separately.
+/// One checked proof for a disconnected outcome component supplied by one source.
+#[derive(Clone, Debug)]
+pub struct TwoSourceZTransportComponent {
+    /// Source population that supplies this component's joint outcome law.
+    pub source: Arc<str>,
+    /// Outcomes in this graph component.
+    pub outcomes: Arc<[VariableId]>,
+    /// Treatments in this graph component.
+    pub treatments: Arc<[VariableId]>,
+    /// Checked derivation, bound only to this source's catalog.
+    pub derivation: Box<ZTransportDerivation>,
+}
+
+/// Result of searching two sources separately, then the bounded disconnected case.
 #[allow(clippy::large_enum_variant)] // Public result keeps both source certificates directly inspectable.
 #[derive(Clone, Debug)]
 pub enum TwoSourceZTransportDecision {
@@ -148,6 +161,13 @@ pub enum TwoSourceZTransportDecision {
         source: Arc<str>,
         /// Checked derivation for that source alone.
         derivation: Box<ZTransportDerivation>,
+    },
+    /// Two disconnected graph components are identified by complementary sources.
+    /// The joint result is the product of the component laws; no factor is shared
+    /// across sources and this variant is limited to one outcome component/source.
+    CombinedIdentified {
+        /// Component proofs in graph order.
+        components: [TwoSourceZTransportComponent; 2],
     },
     /// Both sources reach a checked line-11 terminal.
     ProvenNonTransportable {
@@ -784,6 +804,84 @@ pub fn decide_two_source_z_transport(
             });
         }
     }
+    if let Some(graph_components) = two_disconnected_query_components(graph, query) {
+        for source_order in [[0usize, 1usize], [1usize, 0usize]] {
+            let mut component_proofs = Vec::with_capacity(2);
+            let mut complete = true;
+            for (component_index, source_index) in source_order.into_iter().enumerate() {
+                let nodes = &graph_components[component_index];
+                let source = &query.sources[source_index];
+                let outcomes = query
+                    .outcomes
+                    .iter()
+                    .copied()
+                    .filter(|variable| nodes.contains(variable))
+                    .collect::<Vec<_>>();
+                let treatments = query
+                    .treatments
+                    .iter()
+                    .copied()
+                    .filter(|variable| nodes.contains(variable))
+                    .collect::<Vec<_>>();
+                let assignment = source
+                    .experiment_assignment
+                    .iter()
+                    .filter(|assignment| nodes.contains(&assignment.variable))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if outcomes.is_empty()
+                    || treatments.is_empty()
+                    || treatments.iter().any(|variable| !source.controllable.contains(variable))
+                    || !assignment.iter().all(|a| treatments.contains(&a.variable))
+                    || !treatments.iter().all(|variable| {
+                        assignment.iter().any(|assignment| assignment.variable == *variable)
+                    })
+                    || source.selection_targets.iter().any(|variable| !nodes.contains(variable))
+                    || source.controllable.iter().any(|variable| !nodes.contains(variable))
+                {
+                    complete = false;
+                    break;
+                }
+                let component_query = ZTransportQuery {
+                    outcomes: outcomes.clone().into(),
+                    treatments: treatments.clone().into(),
+                    controllable: source.controllable.clone(),
+                    experiment_assignment: assignment.into(),
+                    source: Arc::clone(&source.population),
+                    target: Arc::clone(&query.target),
+                };
+                let diagram =
+                    SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
+                        .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
+                match decide_z_transport_with_catalog(
+                    &diagram,
+                    &component_query,
+                    catalogs[source_index],
+                    limits,
+                    ctx,
+                )? {
+                    ZTransportDecision::Identified(derivation) => {
+                        component_proofs.push(TwoSourceZTransportComponent {
+                            source: Arc::clone(&source.population),
+                            outcomes: outcomes.into(),
+                            treatments: treatments.into(),
+                            derivation,
+                        });
+                    }
+                    _ => {
+                        complete = false;
+                        break;
+                    }
+                }
+            }
+            if complete {
+                let [first, second] = component_proofs.try_into().expect("two source components");
+                return Ok(TwoSourceZTransportDecision::CombinedIdentified {
+                    components: [first, second],
+                });
+            }
+        }
+    }
     let decisions = decisions.into_iter().collect::<Result<Vec<_>, _>>()?;
     // A line-11 terminal is an obstruction relative to one source's experiment
     // family. Two such terminals rule out the union of the families only when
@@ -807,6 +905,61 @@ pub fn decide_two_source_z_transport(
     Ok(TwoSourceZTransportDecision::NotCertified {
         reason: "z_transport.multi_source_combination_not_searched",
     })
+}
+
+/// Return the two graph components only for a query whose outcomes and
+/// treatments partition into exactly two disconnected static components.
+fn two_disconnected_query_components(
+    graph: &antecedent_graph::Admg,
+    query: &TwoSourceZTransportQuery,
+) -> Option<[Vec<VariableId>; 2]> {
+    if graph.nodes().iter().any(|node| !matches!(node, NodeRef::Static(_))) {
+        return None;
+    }
+    let mut labels = vec![usize::MAX; graph.node_count()];
+    let mut components = Vec::<Vec<VariableId>>::new();
+    for root in 0..graph.node_count() {
+        if labels[root] != usize::MAX {
+            continue;
+        }
+        let label = components.len();
+        let mut stack = vec![DenseNodeId::from_raw(u32::try_from(root).ok()?)];
+        labels[root] = label;
+        let mut variables = Vec::new();
+        while let Some(node) = stack.pop() {
+            let NodeRef::Static(variable) = graph.nodes()[node.as_usize()] else {
+                return None;
+            };
+            variables.push(variable);
+            for neighbor in graph
+                .children(node)
+                .iter()
+                .chain(graph.parents(node))
+                .chain(graph.bidirected_neighbors(node))
+            {
+                if labels[neighbor.as_usize()] == usize::MAX {
+                    labels[neighbor.as_usize()] = label;
+                    stack.push(*neighbor);
+                }
+            }
+        }
+        components.push(variables);
+    }
+    if components.len() != 2
+        || query.outcomes.iter().any(|v| !components.iter().any(|component| component.contains(v)))
+        || query
+            .treatments
+            .iter()
+            .any(|v| !components.iter().any(|component| component.contains(v)))
+        || components.iter().any(|component| {
+            !query.outcomes.iter().any(|v| component.contains(v))
+                || !query.treatments.iter().any(|v| component.contains(v))
+        })
+    {
+        return None;
+    }
+    let [first, second] = components.try_into().ok()?;
+    Some([first, second])
 }
 
 fn certify_line11_obstruction(

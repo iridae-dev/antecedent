@@ -417,6 +417,37 @@ mod tests {
     }
 
     #[test]
+    fn pointwise_cate_inference_tracks_known_linear_truth_and_is_separate_from_point() {
+        // The target is tau(z)=1+z. Check the pointwise estimate and its inferential
+        // standard error at prespecified support profiles; leaf dispersion is not used.
+        let (data, estimand, z) = interaction_scm(8_000, 35);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let learner = DrLearner::new();
+        let prepared = learner.prepare(&data, &estimand, &query).unwrap();
+        let effect =
+            learner.fit(&prepared, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
+        let cate = effect.cate.as_ref().expect("pointwise CATE estimates");
+        let se = effect.cate_se.as_ref().expect("linear final-stage CATE inference");
+        for profile in [-1.0, 0.0, 1.0] {
+            let row = z
+                .iter()
+                .enumerate()
+                .min_by(|(_, a), (_, b)| (*a - profile).abs().total_cmp(&(*b - profile).abs()))
+                .map(|(row, _)| row)
+                .unwrap();
+            let truth = 1.0 + z[row];
+            assert!(
+                (cate[row] - truth).abs() < 0.18,
+                "profile {profile}: estimate {} vs truth {truth}",
+                cate[row]
+            );
+            assert!(se[row].is_finite() && se[row] > 0.0, "profile {profile}: {}", se[row]);
+            assert_ne!(cate[row].to_bits(), se[row].to_bits());
+        }
+    }
+
+    #[test]
     fn penalized_final_stage_withholds_cate_se() {
         let (data, estimand, _) = interaction_scm(200, 5);
         let query =
