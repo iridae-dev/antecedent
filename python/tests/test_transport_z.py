@@ -369,6 +369,16 @@ def test_z_transport_stage_refuses_unregistered_selection_graph():
     stage = transport.identify_z_transport(graph=graph, query=query)
     assert stage.outcome == "not_certified"
     assert stage.reason == "z_transport.no_checked_recursive_formula"
+    # The not-certified outcome exposes a structured explored-region record, not
+    # only a reason string. The search built no expression, so no proof graph is
+    # fabricated; the explored rules and typed reason are reported instead.
+    inspection = stage.not_certified_inspection
+    assert inspection is not None
+    assert inspection["kind"] == "checked_line11_terminal"
+    assert inspection["proof_graph"] is None
+    assert inspection["steps_explored"] >= 1
+    assert inspection["explored_rules"]
+    assert "ztr.line11.fail" in inspection["explored_rules"]
 
 
 def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
@@ -693,6 +703,53 @@ def test_z_transport_decide_accepts_cited_margin_without_the_experiment_family()
         p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
     )
     assert true_mass == pytest.approx(0.2)
+
+
+def test_z_transport_decide_budget_exhaustion_reports_a_limits_receipt():
+    """A budget that stops the search surfaces through `decide` as an inspectable
+    limits receipt, not an opaque exhausted-computation error."""
+    names = ["w", "z", "x", "y"]
+    graph = Admg.from_edges(
+        names,
+        [("w", "z"), ("z", "x"), ("x", "y"), ("w", "y")],
+        [("w", "y"), ("z", "y"), ("z", "x")],
+    )
+    stage = transport.identify_z_transport(
+        graph=graph,
+        query=transport.ZTransportQuery(
+            transport.SelectionDiagram("source", "target", ["y"]),
+            outcomes=["y"],
+            treatments=["x"],
+            controllable=["z"],
+            experiment_assignment={"z": 0.0},
+        ),
+    )
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    catalog = transport.EvidenceCatalog(
+        environments=(
+            transport.Environment("source", coordinates),
+            transport.Environment("target", coordinates),
+        ),
+        regimes=(),
+        bindings=(),
+    )
+    # A one-step budget stops the recursive search before it can decide.
+    decision = stage.decide(catalog, max_steps=1, max_depth=256)
+    assert decision["outcome"] == "exhausted"
+    receipt = decision["limits_receipt"]
+    assert receipt["budget"] == "steps"
+    assert receipt["steps_limit"] == 1
+    assert receipt["depth_limit"] == 256
+    assert receipt["steps_consumed"] >= 1
+    assert receipt["depth_reached"] is not None
+
+    # A zero-step budget trips before the search is entered: the receipt reports
+    # the limits honestly with no search accounting rather than fabricating one.
+    zero = stage.decide(catalog, max_steps=0, max_depth=256)
+    assert zero["outcome"] == "exhausted"
+    assert zero["limits_receipt"]["budget"] == "steps"
+    assert zero["limits_receipt"]["steps_consumed"] == 0
+    assert zero["limits_receipt"]["explored_rules"] == []
 
 
 def test_z_transport_artifact_tamper_is_refused_by_the_consumer():
