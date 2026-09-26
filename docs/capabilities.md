@@ -69,6 +69,12 @@ mediation, partial-graph derivatives, graph-posterior / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
 
+The two-arm randomized survival utilities cover Kaplan–Meier curves/RMST,
+Aalen–Johansen cumulative incidence, delayed entry under the marginal
+observation contract, and a separate caller-supplied IPCW curve/RMST route.
+They are point-only and unlicensed; supplied censoring probabilities are not
+fit or independently verified. See [Survival outcomes](survival-outcomes.md).
+
 ## Graph primitives
 
 Implemented graph representations:
@@ -580,11 +586,189 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   are fixed and supplied by the caller on `InterferenceQuery`.
   `interference.estimate` remains an unlicensed utility over every design and
   exposure mapping; it returns bare numbers.
+* **Randomized experiment ITT** (`antecedent.experiment`): `ExperimentDesign`
+  carries assignment/outcome unit IDs and known assignment for a binary
+  intention-to-treat contrast into graphless `analyze` / `prepare`. The native
+  Rust route retains the original `RandomizedEffect` query and experiment
+  identity rather than treating it as an interference query. Bernoulli,
+  complete, and stratified assignment are retained. Bernoulli uses
+  a Horvitz–Thompson contrast and its assignment-design variance; complete
+  randomization uses difference in means with a Neyman conservative variance;
+  stratified assignment uses block-weighted differences and blockwise Neyman
+  variance. The result retains design type, arm counts, block labels and unit
+  IDs, and labels uncertainty without claiming a confidence interval. These
+  design queries are off the support-matrix axis and do not imply a license;
+  results report `evidence_status="off_axis"`. Cluster assignment, multi-arm,
+  factorial, switchback, and noncompliance remain explicit refusals on this
+  retained query route.
+  `experiment.estimate_complier_effect` provides randomized
+  noncompliance ITT and a Wald CACE/LATE point estimate with an
+  influence-function standard error under exclusion and monotonicity;
+  `experiment.estimate_cuped_effect` provides one-covariate CUPED precision
+  adjustment with a standard error. They are direct utilities without new
+  support-matrix licenses or calibrated interval claims. The native
+  `factorial.estimate` utility handles independent-Bernoulli 2×2 factors and
+  returns cell means, main effects, interaction, and variance upper bounds;
+  block and multi-arm factorial designs remain gaps. The direct
+  `experiment.SwitchbackEffect` utility estimates unit-period ITT with a
+  sequence-clustered standard error, requires at least two independent
+  sequences with both arms observed in each, and assumes no carryover. It is
+  point-only and unlicensed. This is an API wrapper over the existing
+  `InterferenceQuery` support-matrix row, not a new licensed coordinate.
+
+```python
+design = ant.ExperimentDesign(
+    assignment=ant.interference.BernoulliAssignment(0.5),
+    realized_assignment=assigned,
+    assignment_units=account_ids,
+    outcome_units=account_ids,
+)
+result = ant.analyze(
+    {"outcome": outcome},
+    query=ant.RandomizedEffect("outcome", design),
+)
+```
 
 Multi-source meta-transport, cyclic/equilibrium models, and observational
 network interference remain outside the current contract.
 
+## Treatment policy evaluation
+
+`antecedent.policy.BinaryPolicy` represents fixed binary recommendations or a
+deterministic top-k ranking. `evaluate_policy` uses known randomized assignment
+propensities to estimate value and value relative to a reference, while applying
+declared treatment costs, availability, capacity, and budget limits. The caller
+must supply evaluation rows held out from policy selection; the API cannot
+verify that separation. It publishes point estimates only, so policy intervals,
+learned-policy guarantees, and regret are not claimed. `uplift_by_score` also
+reports held-out HT contrasts and standard errors over caller-supplied ranked
+score bins; it does not fit or verify cross-fitted CATE scores. These are
+point utilities and do not add licensed support-matrix cells. The same module
+provides fixed multi-action recommendations with randomized
+Horvitz–Thompson evaluation, per-action capacity, availability, cost, and
+budget checks. It requires known positive action probabilities and still does
+not fit CATEs or validate the held-out split.
+
+## Quasi-experimental point utilities
+
+`antecedent.quasi.DifferenceInDifferences` estimates a repeated-cross-section
+2×2 difference in differences with a native Rust kernel. The
+`PanelDifferenceInDifferences` utility accepts a balanced two-period panel,
+requires one pre and one post observation per subject and stable treatment,
+then computes the treated-control mean difference in subject-level changes.
+Both results assume parallel untreated trends, no anticipation, and no
+interference; the panel utility additionally requires stable treatment within
+subject. The repeated-cross-section estimator publishes a point only. The panel
+estimator reports a point and cluster-robust standard error, with an optional
+higher-level cluster column; it reports no p-value or interval. It is available
+through both the native retained `prepare` / `analyze` route and the standalone
+utility. Both are marked `unlicensed_point_utility` and add no support-matrix
+license.
+Staggered adoption, event studies, synthetic-control, and regression-discontinuity
+extensions are separate utilities.
+
+`antecedent.quasi.StaggeredAdoption` adds a balanced-panel group-time ATT
+utility. Cohort 0 is explicitly never treated; for each adoption cohort and
+post period, the native estimator compares outcome changes from that cohort's
+immediately prior period with changes among never-treated units. It reports
+treated/control counts for every comparison. These counts are descriptive
+support diagnostics, not overlap tests. Parallel untreated trends by cohort,
+no anticipation, absorbing treatment, valid never-treated controls, independent
+clusters, and no interference are assumptions; pretrends are not tested. Both
+group-time ATT and the separate event-study utility report pointwise
+cluster-robust standard errors by default, using subjects as clusters or an
+optional higher-level cluster column. The CR1-style multiplier is `G/(G - 1)`;
+at least two distinct clusters must contribute to each cohort/control
+comparison. Event-study pre-adoption contrasts are descriptive only. Neither
+utility reports p-values or intervals, validates assumptions, or adds a
+support-matrix license; both remain `unlicensed_point_utility`.
+
+`RandomizedEffect.estimate` also exposes native direct utilities for other
+assignment kernels. Those direct results are unlicensed and publish no
+interval. The retained `analyze` route supports Bernoulli, complete, and
+stratified designs; other design families still refuse there.
+
+## Longitudinal regime value (point utility)
+
+`antecedent.regimes.evaluate_regime_value` evaluates a prespecified static or
+history-adaptive binary regime from subject-level treatment histories. It uses
+caller-supplied sequential probabilities for treatment and remaining observed
+through each period, applying a trajectory-level inverse-probability score in
+native Rust. Dynamic callbacks see the subject's past treatments and
+covariates through the current pre-treatment period. The result reports a
+point value, matched observed fraction, effective sample size, and maximum
+weight, but no standard error or interval. The caller must justify consistency,
+sequential exchangeability, and treatment/censoring positivity; probability
+floors only refuse near-zero supplied support and do not diagnose a causal
+design. This utility has no support-matrix license, does not fit nuisance
+models or cross-fit. `evaluate_sequential_gformula` adds a plug-in value path
+from caller-supplied period-specific conditional reward predictions. It checks
+probability positivity and preserves one fold ID per subject in result
+provenance, but does not fit models or verify that predictions are out of fold.
+`evaluate_sequential_doubly_robust` adds backward-recursive augmentation from
+caller-supplied Q predictions, treatment/censoring probabilities, and aligned
+subject/prediction fold IDs. It checks dropout monotonicity and ownership
+alignment but cannot verify actual out-of-fold fitting. These three paths remain
+unlicensed point utilities without standard errors or intervals.
+`fit_marginal_structural_model` estimates
+an additive terminal-outcome MSM with one treatment coefficient per period.
+Callers must provide conditional treatment probabilities and per-period
+stabilizing numerator probabilities; numerator probabilities are never fitted
+from the evaluation sample. Optional conditional censoring survival enters as
+an unstabilized inverse probability. The native fit refuses positivity-floor
+violations, overflow, insufficient observed subjects, or a rank-deficient
+weighted design. Its CR1 subject-clustered sandwich standard errors are
+pointwise only; it makes no confidence-interval, simultaneous-coverage, or
+calibration claim. Fold IDs are preserved as subject ownership metadata when
+provided, but propensity fitting and out-of-fold status are not verified. This
+MSM utility also has no support-matrix license. Each row is one subject, so
+repeated periods cannot be split across analysis units.
+
+```python
+summary = ant.regimes.evaluate_regime_value(
+    outcomes=terminal_outcome,
+    treatment_history=treatment_by_subject_and_period,
+    regime=[False, True, True],
+    treatment_probabilities=conditional_probability_of_treatment,
+    outcome_observed=terminal_outcome_observed,
+    censoring_survival=conditional_probability_of_remaining_observed,
+)
+```
+
+```python
+msm = ant.regimes.fit_marginal_structural_model(
+    terminal_outcome,
+    treatment_by_subject_and_period,
+    conditional_treatment_probability,
+    stabilizing_numerator_probabilities=[0.4, 0.3, 0.25],
+    subject_ids=subject_ids,
+    fold_ids=subject_fold_ids,
+    outcome_observed=terminal_outcome_observed,
+    censoring_survival=conditional_remaining_observed_probability,
+)
+```
+
+## External estimator handoff and provider contracts
+
+`antecedent.extensibility.CausalProviderSpec` declares identification,
+distributions, nuisance functions, support, inference, fold ownership, output,
+artifact codec, and provenance for integrations. It is descriptive and does
+not execute provider code. The EconML-compatible handoff is the implemented
+adapter: Antecedent emits certified `Y`, `T`, `W`, optional `X`, and aligned
+weights; for temporal estimands it trims boundaries and reports row origins.
+The handoff does not assign or verify cross-fitting folds—the external learner
+owns them, and this is recorded as unknown to the receipt.
+
+`EconMLSpec.attach` accepts a caller-fitted estimate and creates an artifact
+binding its payload digest to the declared learner/configuration and available
+identification and data-snapshot identities. It does not rerun the learner or
+verify its provenance, fold ownership, or uncertainty calibration. Loaded
+external results remain externally attested with calibration unavailable;
+they are not promoted to native or verified-extension support.
+
 ## Interventions and counterfactuals
+
+Antecedent includes a structural causal model layer.
 
 Antecedent includes a structural causal model layer.
 

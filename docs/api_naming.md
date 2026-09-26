@@ -18,12 +18,24 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 57 names as of 2.1**.
+The root namespace (`import antecedent`) is **frozen at 78 names as of 2.1**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
 them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
-and the design query `InterferenceQuery`. The licensed trial-IPW cell is
+and the design query `InterferenceQuery`. 2.1 adds `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
+modules, plus point-only randomized experiment, factorial, held-out policy,
+DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesign` and
+`SwitchbackEffect` describe unit-period assignments with known marginal
+probabilities. Their native ITT estimator allows arbitrary dependence within
+each sequence and uses an independent-sequence cluster sandwich standard
+error; it requires at least two sequences and both arms observed per sequence,
+and assumes no carryover from earlier assignments. The estimate is point-only
+and does not add a licensed support cell. `estimate_ancova_effect` complements
+one-covariate CUPED with multiple pre-treatment covariates for independent
+Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
+coefficients, support counts, and an HC0 standard error without an interval.
+The licensed trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the 2.0 compiler is
 `antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](python-workflow.md) for lifetime and report semantics.
@@ -41,7 +53,7 @@ above; the accepted-structure and result types (`AcceptedGraph`, `Identification
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
-error names most callers catch (`CausalError`, `ReviewRequired`); the twelve stage
+error names most callers catch (`CausalError`, `ReviewRequired`); the seventeen stage
 modules themselves; and `__version__`.
 
 **The rule for where a name lives**: if it's part of the day-1 workflow — run an
@@ -50,15 +62,17 @@ more specialized lives in the stage module that owns it, and you reach it by wal
 the module path rather than importing it flat:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
-``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
-``antecedent.extensibility``, ``antecedent.gcm``, ``antecedent.graph``,
-``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
+``antecedent.discovery``, ``antecedent.errors``, ``antecedent.experiment``,
+``antecedent.estimation``, ``antecedent.extensibility``, ``antecedent.factorial``,
+``antecedent.gcm``, ``antecedent.graph``, ``antecedent.policy``,
+``antecedent.priors``, ``antecedent.quasi``, ``antecedent.state``, ``antecedent.survival``, and
+``antecedent.validation``.
 
-Each of those twelve modules has an explicit, separately frozen `__all__`
-surface. The 56-name count is only the package-root contract; it does not add
+Each of those seventeen modules has an explicit, separately frozen `__all__`
+surface. The 78-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**17** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**18** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -72,10 +86,12 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other twelve are left off because they're a narrower surface than the twelve stage
+The other thirteen are left off because they're a narrower surface than the stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
+- ``antecedent.regimes`` — point-only evaluation of caller-specified
+  longitudinal treatment regimes, outside the licensed support matrix.
 - ``antecedent.artifacts`` — durable format-0.5 artifact encode/decode, an advanced
   serialization surface, not part of the day-1 workflow.
 - ``antecedent.counterfactual`` — GCM counterfactual helpers (`fit_gcm`,
@@ -87,6 +103,10 @@ directly:
   the adapter refuses front-door, IV, general ID, partial ID, and
   graph-posterior results rather than inventing a set. Temporal results export
   certified offsets and trim boundaries.
+- ``antecedent.extensibility.ProviderQuery`` — execute a previously registered
+  Python provider through ``analyze(data, query=ProviderQuery(...))``. Its
+  family-shaped output remains externally attested and is not translated into
+  a native point or interval claim.
 - ``antecedent.learners`` — typed nuisance learners shared by estimators and
   transport providers.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
