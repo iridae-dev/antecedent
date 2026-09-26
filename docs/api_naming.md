@@ -106,7 +106,9 @@ directly:
 - ``antecedent.extensibility.ProviderQuery`` — execute a previously registered
   Python provider through ``analyze(data, query=ProviderQuery(...))``. Its
   family-shaped output remains externally attested and is not translated into
-  a native point or interval claim.
+  a native point or interval claim. ``providers.load_entry_point(name)``
+  explicitly loads a separately installed ``antecedent.providers`` factory;
+  package import does not scan or execute plugins.
 - ``antecedent.learners`` — typed nuisance learners shared by estimators and
   transport providers.
 - ``antecedent.interference`` — randomization designs and exposure mappings for

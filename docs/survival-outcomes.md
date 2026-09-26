@@ -21,6 +21,31 @@ summary.rmst_difference
 summary.times, summary.control_survival, summary.treated_survival
 ```
 
+The same unadjusted survival and competing-risk queries can use the retained
+`prepare` / `analyze` flow when the caller explicitly supplies the marginal
+observation assumption. The result exposes `result.survival`, a structured
+point-only answer, and a portable study artifact:
+
+```python
+from antecedent.observation import IndependentGiven
+
+query = antecedent.SurvivalOutcome(
+    duration="follow_up_days",
+    event_observed="event",
+    treatment="treated",
+    tau=180,
+    randomized=True,
+    observation_assumption=IndependentGiven(()),
+)
+result = antecedent.analyze(data, query=query)
+result.survival.rmst_difference
+```
+
+The retained route requires `randomized=True` and `IndependentGiven(())` for
+marginally independent censoring, including when there is no delayed entry.
+Conditional independent censoring requires an adjusted route and is refused
+here. It publishes no scalar ATE or interval.
+
 Rows with `event_observed=False` are treated as right-censored: they remain in
 the risk set through their recorded duration and do not count as events. The
 implementation requires both arms to have observed follow-up at least through

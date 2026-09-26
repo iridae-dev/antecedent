@@ -72,8 +72,11 @@ a license. The [support matrix](support-matrix.md) is the public license.
 The two-arm randomized survival utilities cover Kaplan–Meier curves/RMST,
 Aalen–Johansen cumulative incidence, delayed entry under the marginal
 observation contract, and a separate caller-supplied IPCW curve/RMST route.
-They are point-only and unlicensed; supplied censoring probabilities are not
-fit or independently verified. See [Survival outcomes](survival-outcomes.md).
+The unadjusted randomized survival and competing-risk curves now run through
+retained `prepare` / `analyze` as well as the direct utilities, with an explicit
+marginal `IndependentGiven(())` censoring and entry assumption. They remain
+point-only and unlicensed; supplied censoring probabilities on the separate
+IPCW route are not fit or independently verified. See [Survival outcomes](survival-outcomes.md).
 
 ## Graph primitives
 
@@ -649,6 +652,15 @@ Horvitz–Thompson evaluation, per-action capacity, availability, cost, and
 budget checks. It requires known positive action probabilities and still does
 not fit CATEs or validate the held-out split.
 
+`antecedent.policy.PolicyValue` runs a fixed binary policy through retained
+`prepare` / `analyze` using randomized doubly robust row scores. Its
+recommendations, costs, capacity, budget, action availability, nuisance
+predictions, and subject ownership are checked on the prepared evaluation
+rows. A new evaluation sample requires a new prepare; `refresh(new_data)` is
+refused because those row-bound inputs cannot be verified against replacement
+rows. The result reports paired row-score standard errors under independent
+evaluation subjects but no interval or licensed support-matrix cell.
+
 ## Quasi-experimental point utilities
 
 `antecedent.quasi.DifferenceInDifferences` estimates a repeated-cross-section
@@ -658,12 +670,13 @@ requires one pre and one post observation per subject and stable treatment,
 then computes the treated-control mean difference in subject-level changes.
 Both results assume parallel untreated trends, no anticipation, and no
 interference; the panel utility additionally requires stable treatment within
-subject. The repeated-cross-section estimator publishes a point only. The panel
-estimator reports a point and cluster-robust standard error, with an optional
-higher-level cluster column; it reports no p-value or interval. It is available
-through both the native retained `prepare` / `analyze` route and the standalone
-utility. Both are marked `unlicensed_point_utility` and add no support-matrix
-license.
+subject. The original repeated-cross-section utility publishes a point only;
+`PanelDifferenceInDifferences.repeated_cross_section(...)` also runs through
+retained `prepare` / `analyze` and reports a cluster-robust standard error.
+The balanced-panel route reports the same pointwise uncertainty with an
+optional higher-level cluster column. Neither retained design reports a
+p-value or interval. Both are marked `unlicensed_point_utility` and add no
+support-matrix license.
 Staggered adoption, event studies, synthetic-control, and regression-discontinuity
 extensions are separate utilities.
 
@@ -753,11 +766,32 @@ msm = ant.regimes.fit_marginal_structural_model(
 `antecedent.extensibility.CausalProviderSpec` declares identification,
 distributions, nuisance functions, support, inference, fold ownership, output,
 artifact codec, and provenance for integrations. It is descriptive and does
-not execute provider code. The EconML-compatible handoff is the implemented
+not execute provider code. A separately installed Python package can expose a
+zero-argument provider factory under the `antecedent.providers` entry-point
+group. The caller explicitly loads it with
+`providers.load_entry_point("package_provider_name")`, then passes
+`ProviderQuery("package_provider_name", {...})` to `analyze`. Importing
+Antecedent never discovers or executes installed providers. Loaded providers
+use the same externally attested result validation as direct registration;
+entry-point provenance is retained in the result. No Antecedent or Rust rebuild
+is needed to install the external package. The EconML-compatible handoff is the implemented
 adapter: Antecedent emits certified `Y`, `T`, `W`, optional `X`, and aligned
 weights; for temporal estimands it trims boundaries and reports row origins.
 The handoff does not assign or verify cross-fitting folds—the external learner
 owns them, and this is recorded as unknown to the receipt.
+
+The separately distributed package declares its factory in `pyproject.toml`:
+
+```toml
+[project.entry-points."antecedent.providers"]
+my_provider = "my_package.provider:create_provider"
+```
+
+`create_provider()` returns an object with a `CausalProviderSpec` at `.spec`
+and an `execute(request)` method returning `ProviderExecution`. The provider
+package can be installed or upgraded independently. The caller loads it by
+name before submitting its `ProviderQuery`; an absent or ambiguous entry point
+is refused, and no plugin can declare itself native licensed through this path.
 
 `EconMLSpec.attach` accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
