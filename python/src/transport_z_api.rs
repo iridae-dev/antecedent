@@ -14,9 +14,10 @@ use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ComponentFactorization, SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
-    ZTransportDecision, ZTransportDerivation, ZTransportMissingEvidence, ZTransportObstruction,
-    ZTransportQuery, ZTransportResult, ZTransportSourceSpec, bind_z_transport_catalog,
-    decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport,
+    ZTransportDecision, ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence,
+    ZTransportObstruction, ZTransportOutcome, ZTransportQuery, ZTransportResult,
+    ZTransportSourceSpec, bind_z_transport_catalog, decide_two_source_z_transport,
+    decide_z_transport_inspecting, identify_z_transport,
 };
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use pyo3::prelude::*;
@@ -71,7 +72,7 @@ fn consume_limits(
 fn certified(result: ZTransportResult) -> PyResult<Box<ZTransportDerivation>> {
     match result {
         ZTransportResult::Identified(proof) => Ok(proof),
-        ZTransportResult::NotCertified { reason } => Err(crate::refusal(
+        ZTransportResult::NotCertified { reason, .. } => Err(crate::refusal(
             antecedent_core::reason_code!("transport_not_certified"),
             format!("zTR refused: {reason}"),
         )),
@@ -182,11 +183,40 @@ fn decision_json(
                 "missing": structured,
             })
         }
-        ZTransportDecision::NotCertified { reason } => serde_json::json!({
+        ZTransportDecision::NotCertified { reason, inspection } => serde_json::json!({
             "outcome": "not_certified",
             "reason": reason,
+            "inspection": {
+                "kind": inspection.kind,
+                // The bounded search built no expression, so no proof graph
+                // exists; the explored rule trace is the honest region record.
+                "explored_rules": inspection.explored_rules,
+                "steps_explored": inspection.steps_explored,
+                "depth_reached": inspection.depth_reached,
+                "proof_graph": serde_json::Value::Null,
+            },
         }),
     }
+}
+
+/// JSON for a limits receipt, plus the memory limit the stage ran under (the
+/// core receipt tracks only step and depth limits).
+fn limits_receipt_json(
+    receipt: &ZTransportLimitsReceipt,
+    memory_bytes: Option<u64>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "outcome": "exhausted",
+        "limits_receipt": {
+            "budget": receipt.budget,
+            "steps_limit": receipt.steps_limit,
+            "depth_limit": receipt.depth_limit,
+            "memory_limit_bytes": memory_bytes,
+            "steps_consumed": receipt.steps_consumed,
+            "depth_reached": receipt.depth_reached,
+            "explored_rules": receipt.explored_rules,
+        },
+    })
 }
 
 fn to_py_json(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
@@ -287,10 +317,18 @@ impl ZTransportStage {
         let names = self.graph.names.clone();
         let value = crate::detach_catch(py, move || {
             let ctx = execution_context(0, memory_bytes, cancel);
-            let decision =
-                decide_z_transport_with_catalog(&diagram, &query, &catalog, limits, &ctx)
-                    .map_err(error)?;
-            Ok(decision_json(&decision, &catalog, &names))
+            match decide_z_transport_inspecting(&diagram, &query, &catalog, limits, &ctx)
+                .map_err(error)?
+            {
+                ZTransportOutcome::Decided(decision) => {
+                    Ok(decision_json(&decision, &catalog, &names))
+                }
+                // A budget or cancellation is surfaced as an inspectable limits
+                // receipt rather than an opaque exhaustion error.
+                ZTransportOutcome::Exhausted(receipt) => {
+                    Ok(limits_receipt_json(&receipt, memory_bytes))
+                }
+            }
         })?;
         to_py_json(py, &value)
     }
@@ -306,7 +344,28 @@ impl ZTransportStage {
     fn reason(&self) -> Option<&'static str> {
         match &self.result {
             ZTransportResult::Identified(_) => None,
-            ZTransportResult::NotCertified { reason } => Some(reason),
+            ZTransportResult::NotCertified { reason, .. } => Some(reason),
+        }
+    }
+
+    /// Structured inspection of a not-certified identification: the typed reason
+    /// the bounded search stopped, the recursive rules it explored, and how far
+    /// it reached. `None` when the stage identified. The search produced no
+    /// expression, so this is the explored region, not a proof graph.
+    #[getter]
+    fn not_certified_inspection(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        match &self.result {
+            ZTransportResult::Identified(_) => Ok(None),
+            ZTransportResult::NotCertified { inspection, .. } => {
+                let value = serde_json::json!({
+                    "kind": inspection.kind,
+                    "explored_rules": inspection.explored_rules,
+                    "steps_explored": inspection.steps_explored,
+                    "depth_reached": inspection.depth_reached,
+                    "proof_graph": serde_json::Value::Null,
+                });
+                Ok(Some(to_py_json(py, &value)?))
+            }
         }
     }
 
