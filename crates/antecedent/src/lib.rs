@@ -83,15 +83,16 @@ pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
-    CheckedInterferenceInfo, CheckedTemporalMediationInfo, CheckedUnknownTieredAverageInfo,
-    ComputeBudget, ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities,
-    ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode, LearnedTrialResult,
-    LearnedTrialState, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig,
-    RefuteSuite, SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent,
-    StageResultSink, StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
-    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
-    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
+    CheckedInterferenceInfo, CheckedTemporalClassMediationInfo, CheckedTemporalMediationInfo,
+    CheckedUnknownTieredAverageInfo, ComputeBudget, ExactFactorRequirement, ExactPreparedState,
+    ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode,
+    LearnedTrialResult, LearnedTrialState, LicensedNeighbor, NextAction, OperationKind,
+    OperationReadiness, OperationReport, PremiseChange, PreparedBatch, PreparedStudy,
+    PreparedZTransport, RdConfig, RefuteSuite, SemanticApplicability, SharedBatchDesign,
+    SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
+    StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
+    StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec, ZTransportResult,
+    ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};

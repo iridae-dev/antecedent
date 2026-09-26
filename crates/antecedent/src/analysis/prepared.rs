@@ -1141,6 +1141,37 @@ pub struct CheckedTemporalMediationInfo {
     pub adjustment_sets: Arc<[(u32, Arc<[antecedent_core::TemporalNodeKey]>)]>,
 }
 
+/// Read-only target, structural proof, and procedure for a checked
+/// TemporalCpdag class-envelope or temporal graph-posterior mediation family.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassMediationInfo {
+    /// Exact mediation target and requested horizon family.
+    pub query: MediationQuery,
+    /// Class of the fixed source graph or of the posterior's atoms.
+    pub graph_class: GraphClass,
+    /// How the structure was supplied: explicit, accepted, or a graph posterior.
+    pub structure_source: crate::support::StructureSource,
+    /// Identifier recorded by the checked physical plan.
+    pub identifier: Arc<str>,
+    /// Estimator family fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite selected at preparation.
+    pub validation: RefuteSuite,
+    /// Circular-block bootstrap budget fixed at preparation.
+    pub bootstrap_replicates: u32,
+    /// Horizon members retained in order.
+    pub horizons: Arc<[u32]>,
+    /// Completion atoms (fixed class) or posterior atoms (graph posterior)
+    /// retained by the proof.
+    pub atom_count: usize,
+    /// Enumeration or posterior mass that identified.
+    pub identified_mass: f64,
+    /// Enumeration or posterior mass that stays unidentified.
+    pub unidentified_mass: f64,
+    /// Signature of the retained source graph or frozen posterior.
+    pub proof_signature: Arc<str>,
+}
+
 /// Read-only target and fixed design for checked interference execution.
 #[derive(Clone, Debug)]
 pub struct CheckedInterferenceInfo {
@@ -3814,6 +3845,7 @@ pub(crate) enum PreparedExecution {
     BayesianClassConditional(super::CheckedBayesianClassConditional),
     TemporalClassResponse(Box<super::CheckedTemporalClassResponseOperation>),
     TemporalGraphPosteriorResponse(Box<super::CheckedTemporalGraphPosteriorResponse>),
+    TemporalClassMediation(Box<super::execute::CheckedTemporalClassMediationOperation>),
 }
 
 /// Exactly one checked product may supply a prepared result contract. This is
@@ -3897,9 +3929,10 @@ impl PreparedExecution {
             | Self::CheckedConditional(_)
             | Self::UnknownTieredAverage(_)
             | Self::AdmgGraphPosteriorResponse(_)
-            | Self::BayesianClassConditional(_) => CheckedProgramBinding::None,
+            | Self::BayesianClassConditional(_)
             | Self::TemporalClassResponse(_)
-            | Self::TemporalGraphPosteriorResponse(_) => CheckedProgramBinding::None,
+            | Self::TemporalGraphPosteriorResponse(_)
+            | Self::TemporalClassMediation(_) => CheckedProgramBinding::None,
         }
     }
 
@@ -4017,6 +4050,11 @@ impl PreparedExecution {
         &self,
     ) -> Option<&super::execute::CheckedTemporalMediationOperation> {
         if let Self::TemporalMediation(value) = self { Some(value) } else { None }
+    }
+    pub(crate) fn temporal_class_mediation(
+        &self,
+    ) -> Option<&super::execute::CheckedTemporalClassMediationOperation> {
+        if let Self::TemporalClassMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn interference(&self) -> Option<&super::execute::CheckedInterferenceOperation> {
         if let Self::Interference(value) = self { Some(value) } else { None }
@@ -4684,6 +4722,34 @@ impl PreparedStudy {
                     .collect::<Vec<_>>(),
             ),
         })
+    }
+
+    /// Inspect the retained checked class-envelope or graph-posterior temporal
+    /// mediation target, proof mass, and procedure before execution.
+    #[must_use]
+    pub fn checked_temporal_class_mediation_info(
+        &self,
+    ) -> Option<CheckedTemporalClassMediationInfo> {
+        let operation = self.execution.temporal_class_mediation()?;
+        let (atom_count, identified_mass, unidentified_mass) = operation.proof_mass();
+        Some(CheckedTemporalClassMediationInfo {
+            query: operation.query().clone(),
+            graph_class: operation.graph_class(),
+            structure_source: operation.structure_source(),
+            identifier: operation.identifier(),
+            estimator: operation.estimator(),
+            validation: operation.validation(),
+            bootstrap_replicates: operation.bootstrap_replicates(),
+            horizons: Arc::clone(&operation.query().horizons),
+            atom_count,
+            identified_mass,
+            unidentified_mass,
+            proof_signature: operation.proof_signature(),
+        })
+    }
+
+    pub(crate) fn has_checked_temporal_class_mediation_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::TemporalClassMediation(_))
     }
 
     /// Inspect the retained fixed-network interference target and procedure.
@@ -6824,6 +6890,10 @@ impl PreparedStudy {
             };
             return self.stamp(&input, operation.execute(series, ctx)?);
         }
+        if let PreparedExecution::TemporalClassMediation(operation) = &self.execution {
+            let result = operation.execute(&self.analysis, &input, ctx)?;
+            return self.stamp(&input, result);
+        }
         if let PreparedExecution::BayesianTemporalDagEffect(operation) = &self.execution {
             if !operation.matches_query(&self.analysis.query) {
                 return Err(CausalError::Compile {
@@ -7076,6 +7146,8 @@ impl PreparedStudy {
                 unreachable!("refresh_series constructs temporal data")
             };
             operation.execute(series, ctx)?
+        } else if let PreparedExecution::TemporalClassMediation(operation) = &self.execution {
+            operation.execute(&refreshed, &refreshed.data, ctx)?
         } else if let PreparedExecution::BayesianTemporalDagEffect(operation) = &self.execution {
             if !operation.matches_query(&refreshed.query) {
                 return Err(CausalError::Compile {
@@ -9459,6 +9531,19 @@ impl Study {
             }
             _ => None,
         };
+        let temporal_class_mediation_operation = match &self.data {
+            DataInput::Temporal(data) | DataInput::Event(data)
+                if super::execute::CheckedTemporalClassMediationOperation::admits(&analysis)
+                    && (analysis.temporal_class_identification_cache.is_some()
+                        || analysis.temporal_class_posterior_identification_cache.is_some()
+                        || analysis.dbn_posterior_identification_cache.is_some()) =>
+            {
+                Some(Box::new(super::execute::CheckedTemporalClassMediationOperation::checked(
+                    &analysis, data, &plan, ctx,
+                )?))
+            }
+            _ => None,
+        };
         let temporal_dag_effect_operation = match (
             &self.data,
             &self.query,
@@ -10048,6 +10133,8 @@ impl Study {
             PreparedExecution::TemporalClassResponse(operation)
         } else if let Some(operation) = checked_temporal_graph_posterior_response {
             PreparedExecution::TemporalGraphPosteriorResponse(operation)
+        } else if let Some(operation) = temporal_class_mediation_operation {
+            PreparedExecution::TemporalClassMediation(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };
@@ -11485,7 +11572,7 @@ mod checked_static_operation_tests {
         let PreparedExecution::CheckedRd(operation) = &prepared.execution else {
             panic!("expected checked RD operation")
         };
-        assert_eq!(operation.preparation.lowering().bandwidth, 0.8);
+        assert!((operation.preparation.lowering().bandwidth - 0.8).abs() < 1e-12);
         let first = prepared.estimate(&data, &context).unwrap();
         assert!((first.effect() - 2.0).abs() < 1e-10);
         assert_eq!(
@@ -11546,7 +11633,7 @@ mod checked_response_curve_tests {
             .map(|(i, values)| {
                 OwnedColumn::Float64(
                     Float64Column::new(
-                        VariableId::from_raw(i as u32),
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
                         Arc::from(values),
                         ValidityBitmap::all_valid(n),
                     )
@@ -11824,7 +11911,7 @@ mod checked_frontdoor_prepared_tests {
             .map(|(index, values)| {
                 OwnedColumn::Float64(
                     Float64Column::new(
-                        VariableId::from_raw(index as u32),
+                        VariableId::from_raw(u32::try_from(index).unwrap()),
                         Arc::from(values),
                         ValidityBitmap::all_valid(n),
                     )

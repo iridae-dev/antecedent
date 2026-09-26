@@ -874,7 +874,7 @@ mod tests {
         let (query, program, laws) = scalar_fixture();
         let mut too_large = laws.clone();
         too_large.domains[0].1 = (0..=MAX_REPLAY_CELLS)
-            .map(|value| ValueWire::Int64(i64::try_from(value).unwrap()))
+            .map(|value| ValueWire::Int64(i64::try_from(value).expect("replay cell fits i64")))
             .collect();
         assert_eq!(
             replay_functional_scalar(&query, Some(0.75), &program, &too_large),

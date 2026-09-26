@@ -152,7 +152,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         .build()
         .unwrap();
     let fresh = study.clone().run(&ctx).unwrap();
-    let mut prepared = study.prepare(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
     let baseline_click = prepared.estimate_series(&series, &ctx).unwrap();
     let fresh_grid = fresh.mediation_grid.as_ref().unwrap();
     let baseline_grid = baseline_click.mediation_grid.as_ref().unwrap();
@@ -160,9 +160,14 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         assert!((fresh.estimate.effect.ate - cached.estimate.effect.ate).abs() < 1e-12);
     }
     assert!((fresh_grid.slices[0].estimate.effect.ate - 0.44).abs() < 0.04);
-    prepared.study_mut().dbn_posterior_identification_cache = Some(Arc::new(cache));
-    let mixed = prepared.estimate_series(&series, &ctx).unwrap();
-    let repeated = prepared.refresh_series(series.clone(), &ctx).unwrap();
+    // The prepared handle seals the proof it replayed from the posterior, so a
+    // synthetic certificate failure is exercised through the executor the
+    // sealed operation composes over, with the injected cache in force.
+    let mut injected = study.clone();
+    injected.dbn_posterior_identification_cache = Some(Arc::new(cache));
+    let injected_plan = injected.compile(&ctx).unwrap();
+    let mixed = injected.execute(&injected_plan, &ctx).unwrap();
+    let repeated = injected.execute(&injected_plan, &ctx).unwrap();
     let grid = mixed.mediation_grid.as_ref().unwrap();
     assert!(
         (grid.slices[0].estimate.effect.ate - fresh_grid.slices[0].estimate.effect.ate).abs()
@@ -214,8 +219,8 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         },
     )
     .unwrap();
-    prepared.study_mut().dbn_posterior_identification_cache = Some(Arc::new(all_missing));
-    let partial_grid = prepared.estimate_series(&series, &ctx).unwrap();
+    injected.dbn_posterior_identification_cache = Some(Arc::new(all_missing));
+    let partial_grid = injected.execute(&injected_plan, &ctx).unwrap();
     let slices = &partial_grid.mediation_grid.as_ref().unwrap().slices;
     assert!(
         (slices[0].estimate.effect.ate - fresh_grid.slices[0].estimate.effect.ate).abs() < 1e-12
