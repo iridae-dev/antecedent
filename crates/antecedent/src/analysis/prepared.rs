@@ -3898,9 +3898,7 @@ pub struct PreparedStudy<S = SampledPreparedState> {
     pub(crate) state: S,
 }
 
-/// One sealed execution choice for a prepared tabular click. `LegacyStudyDispatch`
-/// names routes that still use the ordinary dispatcher; the checked variants
-/// carry the complete operation retained by preparation.
+/// Sealed unknown-tier average effect retained by preparation.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedUnknownTieredAverageOperation {
     query: AverageEffectQuery,
@@ -3928,9 +3926,15 @@ pub struct CheckedUnknownTieredAverageInfo {
     pub plan_id: Arc<str>,
 }
 
+/// One sealed execution choice for a prepared click. The checked variants carry
+/// the complete operation retained by preparation; `OrdinaryDispatch` names a
+/// configuration no sealed operation admits, which executes through the
+/// ordinary dispatcher.
 #[derive(Clone, Debug)]
 pub(crate) enum PreparedExecution {
-    LegacyStudyDispatch,
+    /// No sealed operation admits this configuration; execute through the
+    /// ordinary dispatcher.
+    OrdinaryDispatch,
     FunctionalEffect(CheckedFunctionalEffectOperation),
     PathSpecificEffect(CheckedPathSpecificEffectOperation),
     AdmgResponseCurve(CheckedAdmgResponseCurveOperation),
@@ -4032,7 +4036,7 @@ impl PreparedExecution {
             Self::NestedCounterfactual(operation) => {
                 CheckedProgramBinding::NestedCounterfactual(operation)
             }
-            Self::LegacyStudyDispatch
+            Self::OrdinaryDispatch
             | Self::Counterfactual(_)
             | Self::DerivativeResponse(_)
             | Self::CellAipwResponse(_)
@@ -4283,7 +4287,8 @@ pub struct SampledPreparedState {
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
     /// Checked causal-to-linear lowering retained independently of the builder.
-    /// Sealed route selection and its checked operation, or explicitly named legacy dispatch.
+    /// Sealed route selection and its checked operation, or the ordinary dispatcher
+    /// for a configuration no sealed operation admits.
     execution: PreparedExecution,
 }
 
@@ -4425,7 +4430,7 @@ impl PreparedStudy {
     }
     /// Checked linear adjustment lowering retained by this prepared handle.
     ///
-    /// `None` means this route has not migrated to the checked adjustment path;
+    /// `None` means this route carries no checked adjustment lowering;
     /// it does not imply that another estimator is unsupported.
     #[must_use]
     pub fn checked_linear_adjustment(
@@ -5316,7 +5321,7 @@ impl PreparedStudy {
     pub(crate) fn study_mut(&mut self) -> &mut Study {
         self.program_cache = std::sync::OnceLock::new();
         if matches!(self.execution, PreparedExecution::CheckedLinear(_)) {
-            self.execution = PreparedExecution::LegacyStudyDispatch;
+            self.execution = PreparedExecution::OrdinaryDispatch;
         }
         &mut self.analysis
     }
@@ -6920,7 +6925,7 @@ impl PreparedStudy {
         // The checked static lowering belongs to the prepared handle. Execute
         // through it before replacing the retained data snapshot; otherwise the
         // generic Study refresh route would rederive an unchecked preparation.
-        let checked_result = (!matches!(self.execution, PreparedExecution::LegacyStudyDispatch))
+        let checked_result = (!matches!(self.execution, PreparedExecution::OrdinaryDispatch))
             .then(|| self.estimate(&data, ctx))
             .transpose()?;
         let mut refreshed = self.analysis.clone();
@@ -10676,7 +10681,7 @@ impl Study {
         {
             PreparedExecution::TransportTrial(operation)
         } else {
-            PreparedExecution::LegacyStudyDispatch
+            PreparedExecution::OrdinaryDispatch
         };
         Ok(PreparedStudy {
             state: SampledPreparedState {

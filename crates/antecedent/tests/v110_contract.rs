@@ -5906,8 +5906,8 @@ fn nonconstant_retarget_exports_with_target_weights_identity() {
     let binding = retargeted.row_weights.clone().expect("row-weight binding");
     let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    // The row-weight retarget is still a separate composition whose checked
-    // lowering has not migrated. The artifact remains readable and its weight
+    // The row-weight retarget is a separate composition without a checked
+    // lowering. The artifact remains readable and its weight
     // identity is verifiable, but consumption must not upgrade the AIPW program.
     assert!(!consumed.acceptance.accepts_as_verified_program());
     assert!(

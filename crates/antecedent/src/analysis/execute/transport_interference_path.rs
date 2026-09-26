@@ -20,7 +20,7 @@ use crate::strategy_table::{EstimatorId, IdentifierId};
 
 /// Everything a trial-to-target execution reads besides the data: the
 /// certified sID proof, the design columns, and the inference procedure. The
-/// checked route supplies these from its retained plan; the legacy route
+/// checked route supplies these from its retained plan; the ordinary route
 /// derives them from the study.
 #[derive(Clone, Copy)]
 pub(super) struct TransportTrialInputs<'a> {

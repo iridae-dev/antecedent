@@ -439,7 +439,7 @@ impl CheckedStaticDagResponseOperation {
     }
 
     /// Posterior g-computation over the retained adjustment target. Prior
-    /// transfer resolves against the same linear response problem the legacy
+    /// transfer resolves against the same linear response problem the ordinary
     /// route prepares, and an artifact or catalog without a response-specific
     /// mapping is refused rather than replaced by an isotropic prior.
     fn execute_bayesian(
