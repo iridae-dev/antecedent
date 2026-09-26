@@ -53,7 +53,9 @@ fn frontdoor_data(y_shift: f64) -> TabularData {
         .map(|(i, values)| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(i as u32),
+                    VariableId::from_raw(
+                        u32::try_from(i).expect("fixture variable index fits u32"),
+                    ),
                     Arc::from(values),
                     ValidityBitmap::all_valid(n),
                 )
