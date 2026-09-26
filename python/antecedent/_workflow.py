@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
@@ -91,18 +92,103 @@ def prepare(
     )
 
 
+_SEALED_OPERATION_KEY = re.compile(r"^dependencies\.checked_[a-z0-9_]+_operation$")
+# Retained data a sealed checked operation carries and the consumer cannot
+# re-derive from the exported bytes: the checked AIPW lowering and its row
+# binding, the linear-adjustment fit's sufficient statistics, fitted
+# counterfactual mechanisms, and functional-effect replay draws and grids.
+_SEALED_REPLAY_KEYS = frozenset(
+    {
+        "checked_aipw.row_binding",
+        "dependencies.fitted_counterfactual_mechanisms",
+        "dependencies.functional_effect_posterior_draws",
+        "dependencies.functional_effect_response_posterior_draws",
+        "dependencies.linear_fit_sufficient_statistics",
+        "program.checked_aipw_lowering",
+        "program.functional_effect_response_grid",
+    }
+)
+
+
+def is_sealed_dependency(key: str) -> bool:
+    """Whether an unresolved receipt key names a sealed checked operation or its replay data."""
+    return key in _SEALED_REPLAY_KEYS or _SEALED_OPERATION_KEY.fullmatch(key) is not None
+
+
+def sealed_dependencies_only(
+    *, recognized: bool, contract_present: bool, unresolved: Iterable[str]
+) -> bool:
+    """The consumer recognized the artifact and its contract, and every unresolved
+    reason is a sealed checked operation (or the replay data one carries) that an
+    independent consumer cannot re-execute from bytes alone."""
+    keys = tuple(unresolved)
+    return bool(recognized and contract_present and keys and all(map(is_sealed_dependency, keys)))
+
+
+def _split_unresolved(receipt: Mapping[str, str]) -> tuple[str, ...]:
+    return tuple(key for key in receipt.get("unresolved", "").split(",") if key)
+
+
 @dataclass(frozen=True, slots=True)
 class Acceptance:
-    """What the consumer verified; does not certify assumptions or execution readiness."""
+    """What the consumer verified; does not certify assumptions or execution readiness.
+
+    ``verified`` means the consumer replayed a verified program. ``sealed`` means it
+    recognized the artifact, verified its contract and identities, and could not
+    replay only because every unresolved reason is a sealed checked operation;
+    ``unresolved`` names those reasons. Only a verified load is ``replayable``.
+    """
 
     verified: bool
     recognized: bool
     details: dict[str, str]
+    unresolved: tuple[str, ...] = ()
+
+    @classmethod
+    def from_receipt(cls, receipt: Mapping[str, str]) -> Acceptance:
+        return cls(
+            verified=receipt.get("accepts_as_verified_program") == "true",
+            recognized=receipt.get("recognized") == "true",
+            details=dict(receipt),
+            unresolved=_split_unresolved(receipt),
+        )
+
+    @property
+    def replayable(self) -> bool:
+        """True only when the consumer replayed a verified program."""
+        return self.verified
+
+    @property
+    def sealed(self) -> bool:
+        """Recognized, contract present, and unresolved only by sealed checked operations."""
+        return not self.verified and sealed_dependencies_only(
+            recognized=self.recognized,
+            contract_present="program" in self.details,
+            unresolved=self.unresolved,
+        )
+
+    @property
+    def answer_available(self) -> bool:
+        """Whether the recorded answer is kept on load (verified or sealed)."""
+        return self.verified or self.sealed
+
+    @property
+    def status(self) -> Literal["verified", "sealed", "unavailable"]:
+        if self.verified:
+            return "verified"
+        if self.sealed:
+            return "sealed"
+        return "unavailable"
 
 
 @dataclass(frozen=True)
 class LoadedResult(ResultAPI):
-    """Verified or explicitly unavailable semantic view of a portable execution."""
+    """Semantic view of a portable execution: verified, sealed, or explicitly unavailable.
+
+    A verified load replayed the program. A sealed load recognized the artifact,
+    verified its contract and identities, kept the recorded answer, and names the
+    checked operation it cannot replay in ``acceptance.unresolved``.
+    """
 
     artifact: Any
     acceptance: Acceptance
@@ -124,12 +210,13 @@ class LoadedResult(ResultAPI):
 
     @property
     def answer(self) -> Answer:
-        if not self.acceptance.verified:
+        """The recorded answer for a verified or sealed load; otherwise unavailable."""
+        if not self.acceptance.answer_available:
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
         return answer_from_artifact(self.artifact.contract, self.artifact.payload)
 
     def inspect(self) -> InspectionReport:
-        if not self.acceptance.verified and not (
+        if not self.acceptance.answer_available and not (
             self.acceptance.recognized and isinstance(self.artifact.contract, Mapping)
         ):
             return as_inspection(
@@ -156,7 +243,7 @@ class LoadedResult(ResultAPI):
         return self._bytes
 
     def __repr__(self) -> str:
-        return f"<LoadedResult {self.answer.kind} acceptance={'verified' if self.acceptance.verified else 'unavailable'}>"
+        return f"<LoadedResult {self.answer.kind} acceptance={self.acceptance.status}>"
 
 
 @describe_refusal
@@ -212,12 +299,4 @@ def load(
         return consume_identification(encoded)
     receipt = artifacts.accept(encoded)
     artifact = artifacts.loads(encoded)
-    return LoadedResult(
-        artifact,
-        Acceptance(
-            verified=receipt["accepts_as_verified_program"] == "true",
-            recognized=receipt["recognized"] == "true",
-            details=receipt,
-        ),
-        encoded,
-    )
+    return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded)

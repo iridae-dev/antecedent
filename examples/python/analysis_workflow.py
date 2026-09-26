@@ -35,8 +35,10 @@ print(result)
 print("Calibration:", result.calibration.status, result.calibration.reason)
 json.dumps(report, allow_nan=False)
 
-# The loaded execution is verified and gives the same answer as the live one.
-assert loaded.acceptance.verified
+# The loaded execution keeps the recorded answer. A verified load replayed the
+# program; a sealed load verified the contract and identities and names the
+# checked operation it cannot replay from bytes alone.
+assert loaded.acceptance.verified or loaded.acceptance.sealed
 assert loaded.answer == result.answer
 assert loaded.export() == result.export()
 

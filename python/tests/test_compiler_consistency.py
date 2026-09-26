@@ -26,6 +26,8 @@ import pytest
 from antecedent import _native
 from antecedent.ids import Estimator
 
+from _sealed_loads import assert_answer_kept
+
 REGISTERED = frozenset(_native.runtime_refusal_codes())
 GRAPH = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
 
@@ -458,9 +460,9 @@ def test_a_failed_validation_survives_export_and_load() -> None:
     loaded_result = ant.load(result.export())
     loaded = loaded_result.inspect().to_dict()
     assert live["support"]["payload"]["validation"]["passed"] is False
-    assert loaded_result.acceptance.recognized is True
+    assert_answer_kept(loaded_result)
     assert loaded_result.acceptance.verified is False
-    assert loaded_result.answer.kind == "unavailable"
+    assert loaded_result.answer == result.answer
     assert loaded["support"]["payload"]["validation"]["passed"] is False
     assert loaded["support"]["payload"]["validation"]["count"] == 1
     assert _evidence(live) == _evidence(loaded)
@@ -495,9 +497,9 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
     loaded_result = ant.load(result.export())
     loaded = loaded_result.inspect().to_dict()
     json.dumps(live, allow_nan=False)
-    assert loaded_result.acceptance.recognized is True
+    assert_answer_kept(loaded_result)
     assert loaded_result.acceptance.verified is False
-    assert loaded_result.answer.kind == "unavailable"
+    assert loaded_result.answer == result.answer
     assert isinstance(live["contract"], dict) and isinstance(loaded["contract"], dict)
     assert live["contract"] == loaded["contract"]
     assert live["inference_binding"] == loaded["inference_binding"]

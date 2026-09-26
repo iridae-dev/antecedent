@@ -18,6 +18,8 @@ from antecedent._verdict import describe_status
 from antecedent.results import Answer, CalibrationInfo
 from antecedent.results._execution import ANSWER_KINDS, CLAIM_KIND_ANSWERS
 
+from _sealed_loads import assert_answer_kept
+
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 # z - t undirected: both completions identify the effect with different adjustment sets.
 PARTIAL = ant.Cpdag.from_directed_undirected(
@@ -216,7 +218,7 @@ def test_answer_kind_is_closed():
 def test_live_and_loaded_answers_agree(fixture, kind, detail, request):
     result = request.getfixturevalue(fixture)
     loaded = ant.load(result.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert result.answer.kind == kind
     assert loaded.answer.kind == kind
     assert loaded.answer.detail == result.answer.detail == detail

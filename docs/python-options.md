@@ -173,7 +173,8 @@ matrix cell does not establish empirical support or validate its assumptions.
 ```python
 encoded = result.export()
 loaded = ant.load(encoded)
-loaded.acceptance.verified
+loaded.acceptance.status  # "verified", "sealed", or "unavailable"
+loaded.acceptance.unresolved  # sealed checked operations the consumer cannot replay
 loaded.answer
 loaded.inspect().to_dict()
 assert loaded.export() == encoded
@@ -181,7 +182,11 @@ assert loaded.export() == encoded
 
 `load` runs the Rust semantic consumer. Malformed contracts fail closed;
 missing or unrecognized contracts yield explicitly unavailable semantic views
-that can still be forwarded. Acceptance verifies the artifact's semantic
+that can still be forwarded. A `verified` load replayed a verified program. A
+`sealed` load recognized the artifact, verified its contract and identities,
+kept the recorded answer, and names the sealed checked operation it cannot
+replay from bytes alone; `acceptance.verified` and `acceptance.replayable`
+stay `False` for it. Acceptance verifies the artifact's semantic
 contract, not the truth of causal assumptions. Loading does not reconstruct a
 live study or recover the source dataset. The original decoded body is available
 as `loaded.artifact.payload`.
