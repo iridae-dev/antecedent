@@ -1,0 +1,41 @@
+feature_id = "estimate.transport.trial_bayesian_bootstrap"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.transport.trial_bayesian_bootstrap
+# (EstimatorId::TransportTrialBayesianBootstrap, public name
+# transport.trial_bayesian_bootstrap).
+#
+# Trial-to-target Bayesian bootstrap. The frequentist cell
+# (estimate.trial_to_target) evaluates Dahabreh et al.'s inverse-odds-weighted
+# contrast for the nonparticipant target from caller-supplied selection and
+# treatment probabilities. This route keeps that identified functional and the
+# supplied probabilities fixed, and for each draw puts a shared Dirichlet(1,...,1)
+# law on the observed trial rows, re-averaging the per-row inverse-odds scores
+# under those weights. Dahabreh supplies the functional and Rubin the row-weight
+# law; applying the Bayesian bootstrap to the trial rows only, conditional on the
+# supplied probabilities, is the repository's own construction.
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 4.2: identification for a target population of nonparticipants", "Section 5.2, equation (2): inverse-odds weighting"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
+]
+
+implementation_deviations = [
+ "Only the empirical trial outcome law is resampled: the trial and target sample sizes, target rows, supplied selection odds, and supplied treatment probabilities are held fixed, so uncertainty from fitting either probability model or from sampling the target is not propagated.",
+ "The inverse-odds (IOW) estimator only; the paper's doubly robust DR1 estimator is not resampled on this route.",
+ "Requires the Dahabreh-compatible identification certificate anew, at least two draws, and observed trial units in both treatment arms; binary treatment contrasts only.",
+ "Draws are Horvitz-style, normalized by the fixed target count rather than by the weighted sum of target rows, matching the frequentist cell.",
+ "The interval is a model-conditional pushforward; the two-row fixture checks exact moments and there is no coverage record under arbitrary target shift.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/transport.rs (in-module test: bayesian_trial_transport_matches_two_row_dirichlet_law)",
+ "crates/antecedent/tests/bayesian_trial_transport.rs (bayesian_trial_transport_matches_two_source_row_dirichlet_moments)",
+ "conformance/estimate/bayesian_trial_transport (closed-form fixture: with two equal-probability trial rows the normalized Dirichlet(1,1) mass is Uniform(0,1) and the draw is 8U-2, mean 2 and variance 16/3)",
+ "conformance/response/trial_transport (independent paper-equation fixture for the underlying inverse-odds functional)",
+]

@@ -1,0 +1,43 @@
+feature_id = "estimate.interference.bayesian_gaussian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.interference.bayesian_gaussian
+# (EstimatorId::InterferenceBayesianGaussian, public name
+# interference.bayesian_gaussian).
+#
+# Gaussian interference model on a fixed finite network. Exposures are computed
+# with the neighbor-count mapping shared with the design-based cell
+# (stats.randomized_interference, antecedent_stats::exposures): own treatment and
+# treated-neighbor count under Bernoulli assignment. Outcomes are modelled as
+# Y_i(z,g) = alpha + beta*z + gamma*g + epsilon_i with residual variance fixed to
+# one and independent N(0, prior_sd^2) priors on the three coefficients; the
+# posterior of the exposure contrast is the closed-form Gaussian obtained from the
+# prior-plus-Gram precision, and draws are sampled from that marginal. Aronow and
+# Samii supply the exposure-mapping definitions the design reuses; the additive
+# Gaussian potential-outcome model and its conjugate posterior are the
+# repository's own construction and inherit none of that paper's design-based
+# Horvitz-Thompson guarantees.
+papers = [
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings (neighbor-count exposure reused from the design-based cell)"] },
+]
+
+implementation_deviations = [
+ "Model-based, not design-based: the estimand is the finite-network mean potential-outcome contrast under the declared additive Gaussian model, and the interval is model-conditional with no repeated-sampling coverage record.",
+ "Residual variance is fixed to one and is neither estimated nor given a prior; the same unit disturbance is assumed shared across that unit's exposures.",
+ "Licensed only for Bernoulli assignment with the NeighborCount exposure mapping on a caller-supplied fixed network; complete or cluster randomization and other mappings are refused.",
+ "Both requested exposure levels must appear in the realized assignment, and the observed [1, own, neighbors] design must be full rank; otherwise the fit is refused rather than extrapolated.",
+ "Every posterior draw retains the network and realized assignment frozen at prepare; a refresh refits changed outcomes under that frozen design.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/interference.rs (in-module tests: bayesian_fixed_network_matches_independent_gaussian_calculation, bayesian_interference_refuses_absent_exposure_support, bayesian_interference_refuses_rank_deficient_observed_design)",
+ "crates/antecedent/tests/staged_attribution_transport_interference.rs (bayesian_interference_fixed_network_posterior_matches_known_truth, interference_click_executes_on_the_clicked_outcomes)",
+ "conformance/estimate/bayesian_interference (four-unit fixed-network fixture with outcomes y = 2 + 3*own + 4*treated_neighbors and expected contrast -1.0)",
+ "conformance/response/randomized_interference (exact-enumeration fixture for the shared exposure mapping)",
+]

@@ -1,0 +1,43 @@
+feature_id = "estimate.bayesian_basis_gcomp"
+implementation_crate = "antecedent-learn"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_basis_gcomp
+# (EstimatorId::BayesianBasisGcomp, public name bayesian.basis.gcomp, kernel
+# bayesian_basis_gcomp.quadratic_tz_z2).
+#
+# Quadratic-basis g-computation: a Gaussian identity-link outcome regression on
+# the basis [1, t, z_j, t*z_j, z_j^2] with an isotropic N(0, prior_sd^2)
+# coefficient prior and a weakly informative inverse-gamma residual prior, fit by
+# the in-repository conjugate backend (prob.conjugate_gaussian). Each joint
+# coefficient draw is pushed through the fitted surface at T=0 and T=1 for every
+# complete observed row, giving row-level CATE draws and their AllObserved
+# average as the ATE. The textbook cited is the source of the conjugate
+# normal-linear-regression posterior; the basis choice, the shrinkage scale, and
+# the g-computation pushforward are the repository's own construction, and the
+# main-effects-only counterpart is estimate.bayesian_gcomp.
+papers = [
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Chapter 14 (normal linear regression; posterior of the coefficients under a Gaussian coefficient prior and inverse-gamma residual variance prior)"] },
+]
+
+implementation_deviations = [
+ "The outcome basis is fixed: intercept, treatment, each covariate, each treatment-by-covariate interaction, and each squared covariate; there are no covariate cross products, higher-order terms, or learned basis expansions.",
+ "Binary treatment with both levels present only; nonbinary treatment, non-mean outcome functionals, and non-Gaussian likelihoods are refused.",
+ "AllObserved only: the empirical covariate distribution over complete observed rows is treated as fixed, so superpopulation covariate uncertainty is not propagated and any other target population is refused.",
+ "Every coefficient including the intercept shares one isotropic shrinkage scale (prior_sd, default 2.0); transferred, composed, or custom priors and non-conjugate backends are refused on the staged route.",
+ "The CATE operation conditions on the complete adjustment set, so declared effect modifiers must equal that set; other modifier projections are refused.",
+ "A 100-replicate synthetic Gaussian AllObserved ATE check covered 95/100 nominal 90% intervals; no calibration registry record exists for this estimator.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-learn/tests/bayesian_basis.rs (basis_gcomp_matches_independent_quadratic_ate_and_cate_reference, basis_gcomp_refuses_unlicensed_population_and_non_binary_or_degenerate_treatment, posterior_prediction_preserves_joint_draw_row_and_fold_identity, basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage)",
+ "crates/antecedent/tests/staged_bayesian_basis_gcomp.rs (staged ATE and CATE share draws, artifact round trip, retained-plan execution and refresh)",
+ "crates/antecedent/src/analysis/execute/bayesian_basis_path.rs (staged scope refusals)",
+ "conformance/bayesian/shared_functional_ate (known-truth ATE fixture shared with the Bayesian g-computation family)",
+ "python/tests/test_bayesian_estimator_lifecycle.py",
+]
