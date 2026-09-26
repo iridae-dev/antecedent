@@ -13,9 +13,9 @@ use antecedent_design::{
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZTransportDecision,
-    ZTransportDerivation, ZTransportMissingEvidence, ZTransportObstruction, ZTransportQuery,
-    ZTransportResult, ZTransportSourceSpec, bind_z_transport_catalog,
+    ComponentFactorization, SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
+    ZTransportDecision, ZTransportDerivation, ZTransportMissingEvidence, ZTransportObstruction,
+    ZTransportQuery, ZTransportResult, ZTransportSourceSpec, bind_z_transport_catalog,
     decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport,
 };
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
@@ -1260,7 +1260,15 @@ fn decide_two_source_z_transport_stage(
                     "inspection": derivation.inspect_proof(&parsed[index]),
                 })
             }
-            TwoSourceZTransportDecision::CombinedIdentified { components } => {
+            TwoSourceZTransportDecision::CombinedIdentified { components, factorization } => {
+                let combination = match factorization {
+                    ComponentFactorization::DisconnectedGraphComponents => {
+                        "independent_disconnected_components"
+                    }
+                    ComponentFactorization::InterventionSeparatedGroups => {
+                        "intervention_separated_groups"
+                    }
+                };
                 serde_json::json!({
                     "outcome": "combined_identified",
                     "components": components.iter().map(|component| {
@@ -1273,7 +1281,7 @@ fn decide_two_source_z_transport_stage(
                             "inspection": component.derivation.inspect_proof(&parsed[source_index]),
                         })
                     }).collect::<Vec<_>>(),
-                    "combination": "independent_disconnected_components",
+                    "combination": combination,
                 })
             }
             TwoSourceZTransportDecision::ProvenNonTransportable { obstructions } => {

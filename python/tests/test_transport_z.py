@@ -1184,6 +1184,84 @@ def test_two_single_family_line11_terminals_are_not_certified_across_sources():
     assert decision["reason"] == "z_transport.multi_source_combination_not_searched"
 
 
+def _component_catalog(population, intervention, outcome):
+    """One-source catalog: a joint do(intervention=0) experiment measuring the
+    group outcome, on the shared four-variable domain."""
+    names = ["w", "z", "x", "y"]
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    return transport.EvidenceCatalog(
+        environments=tuple(
+            transport.Environment(pop, coordinates) for pop in ("alpha", "beta", "target")
+        ),
+        regimes=(
+            transport.EvidenceRegime(
+                f"do_{intervention}_0",
+                population,
+                kind="experimental",
+                interventions=[intervention],
+                intervention_values={intervention: 0.0},
+                measured=[outcome],
+            ),
+        ),
+        bindings=(
+            transport.RegimeBinding(
+                f"do_{intervention}_0",
+                f"{population}-{intervention}-0",
+                schema_names=[outcome],
+                sampling="independent",
+                dependence="independent_studies",
+            ),
+        ),
+    )
+
+
+def test_connected_complementary_two_sources_combine_identified():
+    """A single connected graph W→Z, X→Y, W↔X: the confounding arc is cut by
+    do(W, X), so P*_{w,x}(z, y) = P*_w(z)·P*_x(y). Alpha (controls W) supplies the
+    Z factor, beta (controls X) the Y factor. The native decider combines them and
+    each factor binds only to its own source's regimes."""
+    from antecedent import _native
+
+    names = ["w", "z", "x", "y"]
+    graph = Admg.from_edges(names, [("w", "z"), ("x", "y")], [("w", "x")])
+    decision = _native.decide_two_source_z_transport_stage(
+        graph,
+        "target",
+        ["z", "y"],
+        ["w", "x"],
+        [("alpha", ["w"], {"w": 0.0}, []), ("beta", ["x"], {"x": 0.0}, [])],
+        [_component_catalog("alpha", "w", "z"), _component_catalog("beta", "x", "y")],
+    )
+    assert decision["outcome"] == "combined_identified"
+    assert decision["combination"] == "intervention_separated_groups"
+    by_source = {component["source"]: component for component in decision["components"]}
+    assert set(by_source) == {"alpha", "beta"}
+    for component in decision["components"]:
+        assert all(factor["failure"] is None for factor in component["inspection"]["factors"])
+
+
+def test_connected_confounded_outcomes_refuse_a_fabricated_cross_source_joint():
+    """The same connected graph plus a bidirected Z↔Y between the outcomes. That
+    arc is not cut by do(W, X), so Z and Y stay m-connected given the treatments
+    and the single connected c-factor would need a joint law over do(W, X)
+    measuring {Z, Y} that no source supplies. Both catalogs hold binding do
+    experiments, so the refusal is structural, not missing evidence."""
+    from antecedent import _native
+
+    names = ["w", "z", "x", "y"]
+    graph = Admg.from_edges(names, [("w", "z"), ("x", "y")], [("w", "x"), ("z", "y")])
+    decision = _native.decide_two_source_z_transport_stage(
+        graph,
+        "target",
+        ["z", "y"],
+        ["w", "x"],
+        [("alpha", ["w"], {"w": 0.0}, []), ("beta", ["x"], {"x": 0.0}, [])],
+        [_component_catalog("alpha", "w", "z"), _component_catalog("beta", "x", "y")],
+    )
+    assert decision["outcome"] == "not_certified"
+    assert decision["reason"] == "z_transport.multi_source_combination_not_searched"
+
+
 def test_z_transport_plan_report_carries_the_evaluation_budget_receipt():
     """Planning under ``max_evaluated`` evaluates the first candidates only and
     names the rest as unevaluated; the receipt says the search was truncated."""
