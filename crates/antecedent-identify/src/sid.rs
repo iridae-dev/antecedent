@@ -454,6 +454,55 @@ impl<'a> Engine<'a> {
             kernel,
         })
     }
+    /// Initial state whose kernel is a source law under the concrete or
+    /// symbolic interventions `assignments`, over every node of the diagram.
+    /// The z-transport exchange identifies a source c-factor from it.
+    pub(super) fn initial_source_kernel(
+        &mut self,
+        population: &Arc<str>,
+        assignments: &[antecedent_expr::InterventionAssignment],
+    ) -> Result<State, IdentificationError> {
+        let mut v = BitSet::with_len(self.diagram.causal_graph().node_count());
+        for d in self.prepared.topo() {
+            v.insert(*d);
+        }
+        let variables = self.arena.intern_var_set(self.vars(&v)?);
+        let conditioned_on = self.arena.empty_var_set();
+        let intervention = self.arena.intern_intervention_assignments(assignments.iter().cloned());
+        let population = self.arena.intern_population(Arc::clone(population));
+        let kernel = self.arena.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain: DomainRef::Interventional,
+            population,
+            regime: None,
+        });
+        Ok(State {
+            y: self.set(&self.query.outcomes)?,
+            x: self.set(&self.query.treatments)?,
+            v,
+            kernel,
+        })
+    }
+    /// Rule names of the proof steps reachable from `root_step`, in step order.
+    pub(super) fn reachable_rules(&self, root_step: usize) -> Vec<&'static str> {
+        let mut used = vec![false; self.proof.len()];
+        let mut pending = vec![root_step];
+        while let Some(step) = pending.pop() {
+            if step >= used.len() || used[step] {
+                continue;
+            }
+            used[step] = true;
+            pending.extend(self.proof[step].children.iter().copied());
+        }
+        self.proof
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| used[*index])
+            .map(|(_, step)| step.rule.name())
+            .collect()
+    }
     fn marginal(
         &mut self,
         expression: ExprId,
