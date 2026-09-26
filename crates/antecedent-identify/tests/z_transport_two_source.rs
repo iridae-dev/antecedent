@@ -10,8 +10,8 @@ use antecedent_core::{
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
-    SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZTransportSourceSpec,
-    decide_two_source_z_transport,
+    ComponentFactorization, SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
+    ZTransportSourceSpec, decide_two_source_z_transport,
 };
 
 const W: VariableId = VariableId::from_raw(0);
@@ -259,11 +259,13 @@ fn complementary_joint_regimes_identify_disconnected_outcome_components() {
         &ExecutionContext::for_tests(75),
     )
     .unwrap();
-    let TwoSourceZTransportDecision::CombinedIdentified { components } = decision else {
+    let TwoSourceZTransportDecision::CombinedIdentified { components, factorization } = decision
+    else {
         panic!(
             "complementary joint factors should identify both disconnected components: {decision:?}"
         );
     };
+    assert_eq!(factorization, ComponentFactorization::DisconnectedGraphComponents);
     assert_eq!(components[0].source.as_ref(), "alpha");
     assert_eq!(components[0].derivation.to_record().rules, ["ztr.source_exchange_joint"]);
     assert_eq!(components[1].source.as_ref(), "beta");
@@ -321,6 +323,126 @@ fn complementary_joint_regimes_identify_disconnected_outcome_components() {
     )
     .unwrap();
     assert!(matches!(refused, TwoSourceZTransportDecision::NotCertified { .. }));
+}
+
+/// One connected graph W→Z, X→Y, W↔X. It is a single component (the disconnected
+/// route does not apply), yet under do(W, X) the confounding arc W↔X is cut, so Z
+/// and Y are m-separated given {W, X} and P*_{w,x}(z, y) = P*_w(z)·P*_x(y). Alpha
+/// controls W and supplies the Z factor; beta controls X and supplies the Y
+/// factor. Neither source alone measures the joint {Z, Y}.
+fn connected_confounded_graph() -> Admg {
+    let mut graph = Admg::with_variables(4);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // W→Z
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap(); // X→Y
+    graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap(); // W↔X
+    graph
+}
+
+fn connected_complementary_query() -> TwoSourceZTransportQuery {
+    TwoSourceZTransportQuery {
+        outcomes: Arc::from([Z, Y]),
+        treatments: Arc::from([W, X]),
+        target: Arc::from("target"),
+        sources: [
+            ZTransportSourceSpec {
+                population: Arc::from("alpha"),
+                controllable: Arc::from([W]),
+                experiment_assignment: Arc::from([InterventionAssignment {
+                    variable: W,
+                    value: Value::Bool(false),
+                }]),
+                selection_targets: Arc::from([]),
+            },
+            ZTransportSourceSpec {
+                population: Arc::from("beta"),
+                controllable: Arc::from([X]),
+                experiment_assignment: Arc::from([InterventionAssignment {
+                    variable: X,
+                    value: Value::Bool(false),
+                }]),
+                selection_targets: Arc::from([]),
+            },
+        ],
+    }
+}
+
+#[test]
+fn connected_complementary_factors_identify_across_two_sources() {
+    let graph = connected_confounded_graph();
+    let query = connected_complementary_query();
+    let alpha = component_catalog("alpha", W, Z);
+    let beta = component_catalog("beta", X, Y);
+    let decision = decide_two_source_z_transport(
+        &graph,
+        &query,
+        [&alpha, &beta],
+        SidLimits::default(),
+        &ExecutionContext::for_tests(80),
+    )
+    .unwrap();
+    let TwoSourceZTransportDecision::CombinedIdentified { components, factorization } = decision
+    else {
+        panic!("a connected intervention-separated target must combine two sources: {decision:?}");
+    };
+    assert_eq!(factorization, ComponentFactorization::InterventionSeparatedGroups);
+    // The Z factor is transported from alpha under do(W); the Y factor from beta
+    // under do(X). Each derivation binds only to its own source's regimes.
+    assert_eq!(components[0].source.as_ref(), "alpha");
+    assert_eq!(components[0].outcomes.as_ref(), [Z]);
+    assert_eq!(components[0].treatments.as_ref(), [W]);
+    assert_eq!(components[1].source.as_ref(), "beta");
+    assert_eq!(components[1].outcomes.as_ref(), [Y]);
+    assert_eq!(components[1].treatments.as_ref(), [X]);
+    assert!(
+        components[0]
+            .derivation
+            .inspect_proof(&alpha)
+            .factors
+            .iter()
+            .all(|factor| factor.failure.is_none())
+    );
+    assert!(
+        components[1]
+            .derivation
+            .inspect_proof(&beta)
+            .factors
+            .iter()
+            .all(|factor| factor.failure.is_none())
+    );
+}
+
+/// The same connected graph plus a bidirected Z↔Y between the two outcomes. That
+/// arc is not cut by do(W, X), so Z and Y stay m-connected given the treatments
+/// and P*_{w,x}(z, y) has one connected c-factor. Identifying it would require a
+/// single joint law over do(W, X) measuring {Z, Y}, which no single source
+/// supplies and which the joint-regime rule forbids fabricating. Both sources
+/// hold binding do experiments, so this is a structural refusal, not missing
+/// evidence.
+#[test]
+fn connected_confounded_outcomes_refuse_a_fabricated_cross_source_joint() {
+    let mut graph = connected_confounded_graph();
+    graph.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap(); // Z↔Y
+    let query = connected_complementary_query();
+    let alpha = component_catalog("alpha", W, Z);
+    let beta = component_catalog("beta", X, Y);
+    let decision = decide_two_source_z_transport(
+        &graph,
+        &query,
+        [&alpha, &beta],
+        SidLimits::default(),
+        &ExecutionContext::for_tests(81),
+    )
+    .unwrap();
+    assert!(
+        matches!(
+            decision,
+            TwoSourceZTransportDecision::NotCertified {
+                reason: "z_transport.multi_source_combination_not_searched",
+            }
+        ),
+        "a connected c-factor spanning both sources must be a typed refusal, not missing \
+         evidence: {decision:?}"
+    );
 }
 
 /// Two disjoint bows X1→Y1, X1↔Y1 and X2→Y2, X2↔Y2 with outcomes {Y1, Y2} and
