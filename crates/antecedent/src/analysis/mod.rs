@@ -109,4 +109,5 @@ pub use stage::{StageEvent, StageResultSink};
 pub(crate) use checked_temporal_response::{
     CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence, temporal_response_is_direct,
 };
+pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};

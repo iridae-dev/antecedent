@@ -905,7 +905,10 @@ impl DiscreteKernelSensitivity {
 
 // A zero tipping fraction is exact only when the declared threshold is exactly
 // the computed baseline; applying a tolerance would change the reported quantity.
-#[allow(clippy::float_cmp, reason = "a threshold equal to the baseline is an exact user-supplied coincidence")]
+#[allow(
+    clippy::float_cmp,
+    reason = "a threshold equal to the baseline is an exact user-supplied coincidence"
+)]
 fn exact_threshold_matches_baseline(threshold: f64, baseline: f64) -> bool {
     threshold == baseline
 }

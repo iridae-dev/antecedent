@@ -745,6 +745,21 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_interference_operation"));
         }
+        Some("iv.bayesian_joint_linear")
+            if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_bayesian_iv_operation"));
+        }
+        Some("rd.bayesian_local_linear")
+            if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_bayesian_rd_operation"));
+        }
+        Some("transport.trial_ipw" | "transport.trial_bayesian_bootstrap")
+            if matches!(contract.target.query, CausalQueryWire::Transport(_)) =>
+        {
+            unresolved.push(Arc::from("dependencies.checked_transport_trial_operation"));
+        }
         Some("gcm.fit" | "gcm.fit.bayesian")
             if matches!(contract.target.query, CausalQueryWire::Counterfactual { .. }) =>
         {
@@ -1408,6 +1423,9 @@ fn producer_encoding_unresolved(
                 | "dependencies.checked_temporal_graph_posterior_effect_operation"
                 | "dependencies.checked_static_class_response_operation"
                 | "dependencies.checked_graph_posterior_response_operation"
+                | "dependencies.checked_bayesian_iv_operation"
+                | "dependencies.checked_bayesian_rd_operation"
+                | "dependencies.checked_transport_trial_operation"
         )
     });
     // Preserve portable structural artifacts while making the missing replay

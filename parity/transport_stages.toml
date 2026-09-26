@@ -15,7 +15,7 @@ guarantee = "sound_incomplete"
 reference = "https://arxiv.org/abs/1312.7485v1"
 limits = "Direct, pretreatment S-admissible standardization, and singleton districts; target-only DAG g-formula; at most 20 standardizer candidates; no complete finite-catalog search or multi-node recursion."
 evidence_test = "python/tests/test_transport_catalog.py"
-evidence_assertion = "test_identifier_preserves_measured_regime_and_sampling_constraints"
+evidence_assertion = "test_identify_proof_executes_through_retained_checked_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.reload_lowered_expression"
@@ -85,7 +85,7 @@ coverage = [
   "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary",
 ]
 evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_joint_grid_and_contrasts_preserve_shared_replicates"
+evidence_assertion = "test_iid_bootstrap_interval_executes_from_retained_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.consume_statistical"
@@ -221,7 +221,7 @@ guarantee = "independently_rechecked_proof_binding_and_point"
 reference = "https://arxiv.org/abs/1309.6842"
 limits = "The consumer rechecks the proof, catalog binding, laws, and recomputed point. It does not replay a bootstrap interval; loaded artifacts stay point-only."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_z_transport_prepared_native_route_matches_independent_truth"
+evidence_assertion = "test_z_transport_estimate_refresh_executes_retained_program_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.inspect_catalog"
@@ -372,7 +372,7 @@ guarantee = "cross_fitted_augmented_inverse_odds_score"
 limits = "Known randomized treatment probabilities; nested-cohort nonparticipants or separately sampled representative target. Joint outer refit intervals remain nominal and uncalibrated: the transport.trial_ipw coverage records measure the analyze-cell estimator, not this three-fold cross-fitted augmented inverse-odds score, so none is cited. No recursive-factor or dependent-sampling license."
 calibration_reason = "estimator_grid_not_measured"
 evidence_test = "python/tests/test_learned_transport.py"
-evidence_assertion = "test_trial_lifecycle_retains_paired_score_and_atomic_refresh"
+evidence_assertion = "test_prepare_trial_executes_retained_checked_score_after_builder_disposal"
 
 [[routes]]
 route = "transport.learned_categorical_plugin"

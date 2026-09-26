@@ -1859,6 +1859,71 @@ impl super::Study {
                 return prepared.estimate_series(data, ctx);
             }
         }
+        // Bayesian IV and sharp-RD specialists execute from their retained
+        // conjugate model; the one-shot facade must not rebuild one.
+        let specialist_estimator = matches!(
+            selected_estimator,
+            Some(EstimatorId::BayesianIvJointLinear | EstimatorId::BayesianRdLocalLinear)
+        );
+        if specialist_estimator
+            && self.graph.class() == GraphClass::Dag
+            && self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.split.is_none()
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && matches!(self.inference, InferenceMode::Bayesian(_))
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+            && matches!(&self.query, CausalQuery::AverageEffect(query)
+            if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+                && matches!(
+                    query.target_population,
+                    antecedent_core::TargetPopulation::AllObserved
+                        | antecedent_core::TargetPopulation::LocalAtCutoff { .. }
+                ))
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_bayesian_specialist_operation() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot Bayesian specialist route did not retain its checked operation".into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
+        // Certified trial-to-target transport executes from its retained sID
+        // proof and design columns even for the one-shot facade.
+        if matches!(&self.query, CausalQuery::Transport(_))
+            && self.graph.class() == GraphClass::Admg
+            && self.selection_diagram.is_some()
+            && self.transport_trial.is_some()
+            && self.graph_posterior.is_none()
+            && self.tiered.is_none()
+            && self.split.is_none()
+            && matches!(
+                self.structure_source,
+                crate::support::StructureSource::Explicit
+                    | crate::support::StructureSource::Accepted
+            )
+            && self.refute == RefuteSuite::None
+            && self.custom_validators.is_empty()
+        {
+            if let DataInput::Tabular(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_transport_trial_operation() {
+                    return Err(CausalError::Compile {
+                        message: "one-shot transport route did not retain its checked operation"
+                            .into(),
+                    });
+                }
+                return prepared.estimate(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.

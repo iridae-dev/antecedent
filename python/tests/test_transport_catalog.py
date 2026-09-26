@@ -266,3 +266,49 @@ def test_target_only_confounded_effect_is_never_identified_without_an_experiment
     result = transport.identify(graph=graph, query=query)
     assert result.outcome != "identified"
     assert result.formula is None
+
+
+def test_identify_proof_executes_through_retained_checked_plan_after_builder_disposal() -> None:
+    """The identify stage's certified proof is the program the retained study executes."""
+    names = ["a", "y", "trial", "s", "e"]
+    graph_builder = antecedent.Admg.from_edges(names, [("a", "y")])
+    query_builder = transport.TransportQuery(
+        _mean_curve(),
+        transport.SelectionDiagram("trial", "target", []),
+        source_experiments=["a"],
+        trial="trial",
+        selection_probability="s",
+        treatment_probability="e",
+    )
+    identification = transport.identify(graph=graph_builder, query=query_builder)
+    assert identification.outcome == "identified"
+    assert identification.transportable
+    program = transport.reload_lowered_program(identification)
+    assert program.source_root == program.executable_root
+    # conformance/estimate/staged_transport: two trial rows (A,Y)=(1,3),(0,1) with
+    # s=e=0.5 give ipw_sum = 2*3 - 2*1 = 4 over two target rows, so the contrast is 2.
+    data = {
+        "a": [1.0, 0.0, 0.0, 0.0],
+        "y": [3.0, 1.0, 0.0, 0.0],
+        "trial": [1.0, 1.0, 0.0, 0.0],
+        "s": [0.5] * 4,
+        "e": [0.5] * 4,
+    }
+    study = antecedent.prepare(data, graph=graph_builder, query=query_builder)
+    del graph_builder, query_builder
+    plan = study.plan
+    assert plan.plan_id
+    result = study.estimate()
+    assert result.estimate.ate == pytest.approx(2.0, abs=1e-12)
+    assert result.identification.method == "transport.sid.direct"
+    assert result.estimate.estimator_id == "transport.trial_ipw"
+    refreshed = study.refresh(data)
+    assert refreshed.estimate.ate == pytest.approx(result.estimate.ate, abs=1e-12)
+    assert refreshed.program_id == result.program_id
+    # Independent consumption names the retained operation it cannot replay
+    # instead of accepting a program-less replay as verified.
+    loaded = antecedent.load(result.export())
+    assert not loaded.acceptance.verified
+    assert (
+        "dependencies.checked_transport_trial_operation" in loaded.acceptance.details["unresolved"]
+    )

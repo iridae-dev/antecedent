@@ -401,3 +401,37 @@ def test_transport_query_defaults_are_read_from_the_native_table():
     fields = {f.name: f.default for f in dataclasses.fields(StatisticalTransportQuery)}
     assert fields["bootstrap"] == OMITTED["transport_bootstrap"] == 199
     assert fields["coverage_level"] == OMITTED["transport_coverage_level"] == 0.95
+
+
+def test_iid_bootstrap_interval_executes_from_retained_plan_after_builder_disposal():
+    """The outer IID bootstrap replays the retained checked derivation on every replicate."""
+    identified, catalog, data = fixture()
+    builder = identified
+    program = builder.formula
+    assert program
+    del builder
+    prepared = transport.prepare_statistical(
+        identified, catalog, data, at={"x": 1.0}, bootstrap=40, seed=7
+    )
+    plan = prepared.inspect()
+    assert plan.identification.available
+    assert plan.uncertainty.available
+    result = prepared.estimate()
+    assert result.mean("y") == pytest.approx(0.8)
+    assert result.uncertainty["available"]
+    row = result.uncertainty["row"]
+    assert row["method"] == "percentile_bootstrap"
+    assert row["interval_scope"] == "pointwise"
+    assert row["replicates_ok"] == 40
+    assert row["replicates_failed"] == 0
+    consumer = transport.consume_statistical(result.export())
+    assert consumer.inspect().program_id == plan.program_id
+    with pytest.raises(ValueError, match="transport.samples_not_embedded"):
+        consumer.estimate()
+    replay = consumer.refresh(data)
+    assert replay.mean("y") == pytest.approx(0.8)
+    assert replay.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    assert replay.uncertainty["row"]["replicates_ok"] == 40
+    again = prepared.refresh(data)
+    assert again.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    assert again.probabilities == pytest.approx(result.probabilities)
