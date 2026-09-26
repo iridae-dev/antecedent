@@ -1022,55 +1022,32 @@ pub fn nominal_z_transport_interval(
     coverage_level: f64,
     ctx: &ExecutionContext,
 ) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
-    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-        return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
-    }
-    if replicates < 2 || !coverage_level.is_finite() || !(0.0..1.0).contains(&coverage_level) {
-        return Err(EstimationError::data_msg(
-            "z-transport percentile interval requires at least two replicates and coverage strictly between zero and one",
-        ));
-    }
-    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
-    if !licensed_iid_regimes(functional.catalog(), regimes) {
-        return Ok(Err("transport.unsupported_dependence"));
-    }
-    let tables = CitedTables::new(functional, data)?;
-    let outcomes = functional.derivation().query().outcomes.clone();
-    let mut columns = ReplicateColumns::new(&outcomes);
-    let mut failed = 0u32;
-    let mut resampled: Vec<Vec<u64>> = tables.counts.iter().map(|c| vec![0; c.len()]).collect();
-    let mut probabilities: Vec<Vec<f64>> =
-        tables.counts.iter().map(|c| vec![0.0; c.len()]).collect();
+    let spec = ZDrawSpec {
+        method: PERCENTILE_BOOTSTRAP,
+        stream: TransportStream::Bootstrap,
+        stage: "z-transport bootstrap",
+        replicates,
+        coverage_level,
+        keep_counts: true,
+    };
     let mut indexes = Vec::new();
-    for replicate in 0..replicates {
-        crate::transport::refuse_cancelled(ctx, "z-transport bootstrap")?;
-        let mut draw_failed = false;
-        for (dataset, counts) in tables.counts.iter().enumerate() {
-            let mut rng = ctx.rng.stream_for(
-                StreamDomain::Transport,
-                TransportStream::Bootstrap.index(dataset, replicate)?,
-            );
-            if !resample_cited_counts(counts, &mut rng, &mut indexes, &mut resampled[dataset]) {
-                draw_failed = true;
-                break;
+    z_interval_over_draws(
+        functional,
+        data,
+        request,
+        limits,
+        &spec,
+        ctx,
+        |counts, rng, probabilities, resampled| {
+            if !resample_cited_counts(counts, rng, &mut indexes, resampled) {
+                return false;
             }
-            let total = resampled[dataset].iter().sum::<u64>() as f64;
-            for (probability, count) in probabilities[dataset].iter_mut().zip(&resampled[dataset]) {
-                *probability = *count as f64 / total;
-            }
-        }
-        if draw_failed {
-            failed += 1;
-            continue;
-        }
-        let laws = tables.rebuild(&probabilities, Some(&resampled))?;
-        let draw = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
-            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-        if !evaluate_z_draw(functional, draw, request, limits, ctx, &mut columns)? {
-            failed += 1;
-        }
-    }
-    Ok(finish_z_interval(PERCENTILE_BOOTSTRAP, &columns, replicates, failed, coverage_level))
+            let total = resampled.iter().sum::<u64>() as f64;
+            probabilities.clear();
+            probabilities.extend(resampled.iter().map(|count| *count as f64 / total));
+            true
+        },
+    )
 }
 
 /// Equal-tail posterior interval for an empirical z-transport functional.
@@ -1091,63 +1068,104 @@ pub fn bayesian_z_transport_interval(
     options: BayesianZTransportIntervalOptions,
     ctx: &ExecutionContext,
 ) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
+    let prior = match options.provider {
+        BayesianTransportLawProvider::EmpiricalSupport => 0.0,
+        BayesianTransportLawProvider::DeclaredStateSpaceDirichlet => 1.0,
+    };
+    let spec = ZDrawSpec {
+        method: POSTERIOR_EQUAL_TAIL,
+        stream: TransportStream::ZPosterior,
+        stage: "z-transport posterior",
+        replicates: options.draws,
+        coverage_level: options.coverage_level,
+        keep_counts: false,
+    };
+    z_interval_over_draws(functional, data, request, limits, &spec, ctx, |counts, rng, out, _| {
+        match dirichlet_posterior_probabilities(counts, prior, rng) {
+            Some(drawn) => {
+                *out = drawn;
+                true
+            }
+            None => false,
+        }
+    })
+}
+
+/// What one z-transport interval route draws: its method label, RNG stream
+/// tag, cancellation stage, replicate count and coverage, and whether the drawn
+/// tables carry counts (a bootstrap) or probabilities only (a posterior).
+struct ZDrawSpec {
+    method: &'static str,
+    stream: TransportStream,
+    stage: &'static str,
+    replicates: u32,
+    coverage_level: f64,
+    keep_counts: bool,
+}
+
+/// The one draw loop of both z-transport interval routes.
+///
+/// The cited count tables are validated against the catalog once; every draw
+/// then rebuilds them with `draw(counts, rng, probabilities, resampled)` per
+/// dataset (returning `false` for a draw that cannot be taken), compiles the
+/// checked formula against the rebuilt laws without revalidating providers,
+/// and records the replicate. Each dataset reads its own RNG stream.
+fn z_interval_over_draws(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: &antecedent_expr::ExactTransportData,
+    request: &Assignment,
+    limits: ExactEvaluationLimits,
+    spec: &ZDrawSpec,
+    ctx: &ExecutionContext,
+    mut draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
+) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
     }
-    if options.draws < 2
-        || !options.coverage_level.is_finite()
-        || !(0.0..1.0).contains(&options.coverage_level)
+    if spec.replicates < 2
+        || !spec.coverage_level.is_finite()
+        || !(0.0..1.0).contains(&spec.coverage_level)
     {
         return Err(EstimationError::data_msg(
-            "z-transport posterior interval requires at least two draws and coverage strictly between zero and one",
+            "z-transport interval requires at least two replicates and coverage strictly between zero and one",
         ));
     }
     let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
     if !licensed_iid_regimes(functional.catalog(), regimes) {
         return Ok(Err("transport.unsupported_dependence"));
     }
-    let prior = match options.provider {
-        BayesianTransportLawProvider::EmpiricalSupport => 0.0,
-        BayesianTransportLawProvider::DeclaredStateSpaceDirichlet => 1.0,
-    };
+    crate::transport::validate_exact_laws(functional.catalog(), data)
+        .map_err(|error| refuse_eval(&error))?;
     let tables = CitedTables::new(functional, data)?;
     let outcomes = functional.derivation().query().outcomes.clone();
     let mut columns = ReplicateColumns::new(&outcomes);
     let mut failed = 0u32;
-    let mut probabilities = Vec::with_capacity(tables.counts.len());
-    for draw_id in 0..options.draws {
-        crate::transport::refuse_cancelled(ctx, "z-transport posterior")?;
-        probabilities.clear();
+    let mut resampled: Vec<Vec<u64>> = tables.counts.iter().map(|c| vec![0; c.len()]).collect();
+    let mut probabilities: Vec<Vec<f64>> =
+        tables.counts.iter().map(|c| vec![0.0; c.len()]).collect();
+    for replicate in 0..spec.replicates {
+        crate::transport::refuse_cancelled(ctx, spec.stage)?;
         let mut draw_failed = false;
         for (dataset, counts) in tables.counts.iter().enumerate() {
-            let mut rng = ctx.rng.stream_for(
-                StreamDomain::Transport,
-                TransportStream::ZPosterior.index(dataset, draw_id)?,
-            );
-            let Some(drawn) = dirichlet_posterior_probabilities(counts, prior, &mut rng) else {
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Transport, spec.stream.index(dataset, replicate)?);
+            if !draw(counts, &mut rng, &mut probabilities[dataset], &mut resampled[dataset]) {
                 draw_failed = true;
                 break;
-            };
-            probabilities.push(drawn);
+            }
         }
         if draw_failed {
             failed += 1;
             continue;
         }
-        let laws = tables.rebuild(&probabilities, None)?;
-        let draw = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
+        let laws = tables.rebuild(&probabilities, spec.keep_counts.then_some(&resampled))?;
+        let drawn = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
             .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-        if !evaluate_z_draw(functional, draw, request, limits, ctx, &mut columns)? {
+        if !evaluate_z_draw(functional, drawn, request, limits, ctx, &mut columns)? {
             failed += 1;
         }
     }
-    Ok(finish_z_interval(
-        POSTERIOR_EQUAL_TAIL,
-        &columns,
-        options.draws,
-        failed,
-        options.coverage_level,
-    ))
+    Ok(finish_z_interval(spec.method, &columns, spec.replicates, failed, spec.coverage_level))
 }
 
 /// Evaluate one resampled or drawn law set; `false` is a counted support failure.
@@ -1159,13 +1177,10 @@ fn evaluate_z_draw(
     ctx: &ExecutionContext,
     columns: &mut ReplicateColumns,
 ) -> Result<bool, EstimationError> {
-    match crate::transport::evaluate_exact_z_transport(
-        functional,
-        draw,
-        request.clone(),
-        limits,
-        ctx,
-    ) {
+    let evaluated =
+        crate::transport::compile_exact_z_transport(functional, draw, request.clone(), limits, ctx)
+            .and_then(|plan| plan.evaluate(ctx));
+    match evaluated {
         Ok(distribution) => {
             columns.record(&distribution)?;
             Ok(true)
