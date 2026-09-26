@@ -38,15 +38,16 @@ fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
 }
 
 #[test]
-fn one_shot_aipw_fails_closed_when_preparation_has_no_checked_operation() {
+fn one_shot_trimmed_aipw_keeps_its_configured_procedure_beside_the_sealed_route() {
     let ctx = ExecutionContext::for_tests(31);
     let (data, dag, query) = confounded_scm(512, 73);
     let mut fitter = antecedent_estimate::AipwAte::new();
+    fitter.bootstrap_replicates = 0;
     fitter.overlap = antecedent_estimate::OverlapPolicy::RequireDiagnostics {
         clip: Some(0.01),
         trim: Some(0.02),
     };
-    let study = Study::tabular(data)
+    let study = Study::tabular(data.clone())
         .graph(dag)
         .query(query)
         .estimator(EstimatorSpec::Aipw(Box::new(fitter)))
@@ -54,6 +55,23 @@ fn one_shot_aipw_fails_closed_when_preparation_has_no_checked_operation() {
         .build()
         .unwrap();
 
-    let error = study.run(&ctx).unwrap_err();
-    assert!(error.to_string().contains("did not retain its complete checked operation"));
+    // The checked procedure lowers only the untrimmed cross-fitted ATE, so
+    // preparation retains no sealed AIPW operation for a trimming policy ...
+    let prepared = study.prepare(&ctx).unwrap();
+    assert!(prepared.checked_aipw_ate().is_none());
+    // ... and the one-shot run still executes the configured trimmed
+    // estimator, agreeing with the prepared click instead of failing closed.
+    let one_shot = study.run(&ctx).unwrap();
+    let clicked = prepared.estimate(&data, &ctx).unwrap();
+    assert!((one_shot.effect() - clicked.effect()).abs() < 1e-10);
+    assert!((one_shot.effect() - 2.0).abs() < 0.2, "ate={}", one_shot.effect());
+    for result in [&one_shot, &clicked] {
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.overlap.require_diagnostics"),
+            "the trimmed policy must be the one that ran"
+        );
+    }
 }

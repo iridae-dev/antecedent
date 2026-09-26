@@ -1325,13 +1325,19 @@ impl super::Study {
             }
         }
         // AIPW's licensed checked operation is complete for the binary,
-        // all-observed mean ATE on a supplied DAG. Route only that exact
-        // selection through preparation; nearby estimators keep legacy dispatch.
+        // all-observed mean ATE on a supplied DAG under the untrimmed
+        // cross-fitted procedure. Route only that exact selection through
+        // preparation; nearby estimators, and a trimming overlap policy the
+        // checked procedure does not lower, keep legacy dispatch.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.custom_validators.is_empty()
+            && matches!(
+                super::super::prepared::checked_aipw_fitter(self).overlap,
+                OverlapPolicy::RequireDiagnostics { trim: None, .. }
+            )
             && (self.estimator == Some(EstimatorId::Aipw)
                 || (self.estimator.is_none()
                     && matches!(
