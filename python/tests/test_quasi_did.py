@@ -1,0 +1,277 @@
+from __future__ import annotations
+
+import numpy as np
+import pytest
+from antecedent.errors import CausalValueError
+from antecedent.quasi import (
+    DifferenceInDifferences,
+    PanelDifferenceInDifferences,
+    StaggeredAdoption,
+    estimate_did,
+    estimate_group_time_att,
+    estimate_panel_did,
+    estimate_staggered_event_study,
+)
+
+
+def test_native_2x2_did_recovers_known_treatment_effect_and_discloses_scope():
+    treated = np.array([False, False, True, True] * 4)
+    post = np.array([False, True, False, True] * 4)
+    outcome = 10.0 + 3.0 * post + 4.0 * (treated & post)
+    result = estimate_did(
+        {"y": outcome, "group": treated, "after": post},
+        DifferenceInDifferences("y", "group", "after"),
+    )
+    assert result.estimate == pytest.approx(4.0)
+    assert result.uncertainty == "point_only"
+    assert result.support_status == "unlicensed_point_utility"
+    assert "parallel_untreated_trends" in result.assumptions
+
+
+def test_did_refuses_empty_cells_and_nonbinary_design_columns():
+    query = DifferenceInDifferences("y", "group", "after")
+    with pytest.raises(CausalValueError, match="all four"):
+        estimate_did(
+            {"y": [1.0, 3.0, 2.0], "group": [False, False, True], "after": [False, True, True]},
+            query,
+        )
+    with pytest.raises(CausalValueError, match="bool or encoded as 0/1"):
+        estimate_did(
+            {"y": [1.0, 2.0, 3.0, 4.0], "group": [0, 0, 2, 2], "after": [0, 1, 0, 1]},
+            query,
+        )
+
+
+def test_native_balanced_panel_did_recovers_known_treatment_effect():
+    subjects = [f"s{i}" for i in range(8) for _ in range(2)]
+    treated = [i < 4 for i in range(8) for _ in range(2)]
+    post = [period for _ in range(8) for period in (False, True)]
+    # Stable subject effects cancel in the within-subject change.
+    outcome = [float(10 + int(subject[1:]) + (3 if is_post else 0) + (4 if is_treated and is_post else 0))
+               for subject, is_treated, is_post in zip(subjects, treated, post, strict=True)]
+    result = estimate_panel_did(
+        {"y": outcome, "id": subjects, "group": treated, "after": post},
+        PanelDifferenceInDifferences("y", "id", "group", "after"),
+    )
+    assert result.estimate == pytest.approx(4.0)
+    assert result.standard_error == pytest.approx(0.0)
+    assert result.treated_subjects == 4
+    assert result.control_subjects == 4
+    assert result.clusters == 8
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert result.support_status == "unlicensed_point_utility"
+    assert "complete_pre_post_panel" in result.assumptions
+
+
+def test_panel_did_clustered_standard_error_matches_known_influence_variance():
+    changes = [2., 4., 6., 8., 0., 2., 4., 6.]
+    subjects = [f"s{i}" for i in range(8) for _ in range(2)]
+    treated = [i < 4 for i in range(8) for _ in range(2)]
+    post = [p for _ in range(8) for p in (False, True)]
+    outcome = [float(i * 10 + (changes[i] if p else 0.)) for i in range(8) for p in (False, True)]
+    result = estimate_panel_did(
+        {"y": outcome, "id": subjects, "group": treated, "after": post},
+        PanelDifferenceInDifferences("y", "id", "group", "after"),
+    )
+    # CR1 factor 8/7 times sum of squared cluster influence contributions.
+    assert result.estimate == pytest.approx(2.0)
+    assert result.standard_error == pytest.approx((20.0 / 7.0) ** 0.5)
+
+
+def test_panel_did_refuses_too_few_clusters_or_cluster_changes_within_subject():
+    ids = [f"s{i}" for i in range(4) for _ in range(2)]
+    treated = [i < 2 for i in range(4) for _ in range(2)]
+    post = [p for _ in range(4) for p in (False, True)]
+    outcome = [float(i + p) for i in range(4) for p in (0, 1)]
+    query = PanelDifferenceInDifferences("y", "id", "group", "after")
+    with pytest.raises(CausalValueError, match="at least two clusters in each treatment group"):
+        estimate_panel_did(
+            {"y": outcome, "id": ids, "group": treated, "after": post,
+             "cluster": ["a", "a", "a", "a", "b", "b", "b", "b"]},
+            query, cluster="cluster",
+        )
+    bad_clusters = ["a", "x", "b", "b", "c", "c", "d", "d"]
+    with pytest.raises(CausalValueError, match="constant within each subject"):
+        estimate_panel_did(
+            {"y": outcome, "id": ids, "group": treated, "after": post,
+             "cluster": bad_clusters}, query, cluster="cluster",
+        )
+
+
+def test_panel_did_runs_through_retained_public_prepare_and_analyze_routes():
+    import antecedent
+
+    ids = [f"s{i}" for i in range(8) for _ in range(2)]
+    treated = [i < 4 for i in range(8) for _ in range(2)]
+    post = [period for _ in range(8) for period in (False, True)]
+    outcome = [float(10 + int(subject[1:]) + 3 * int(after) + 4 * int(group and after))
+               for subject, group, after in zip(ids, treated, post, strict=True)]
+    data = {"y": outcome, "id": ids, "group": treated, "after": post}
+    query = PanelDifferenceInDifferences("y", "id", "group", "after")
+    prepared = antecedent.prepare(data, query=query)
+    estimate = prepared.estimate()
+    assert estimate.panel_did is not None
+    assert estimate.panel_did.estimate == pytest.approx(4.0)
+    assert estimate.panel_did.standard_error == pytest.approx(0.0)
+    assert estimate.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
+    assert estimate.plan.estimator == "quasi.panel_change_score"
+    assert "parallel_trends" in " ".join(estimate.assumptions or [])
+
+    direct = antecedent.analyze(data, query=query)
+    assert direct.panel_did == estimate.panel_did
+
+
+def test_prepared_panel_did_refuses_too_few_rows():
+    import antecedent
+    from antecedent.errors import CausalError
+
+    data = {"y": [1., 2., 3.], "id": ["a", "a", "b"],
+            "group": [True, True, False], "after": [False, True, False]}
+    with pytest.raises(CausalError, match="at least four aligned rows"):
+        antecedent.analyze(data, query=PanelDifferenceInDifferences("y", "id", "group", "after"))
+
+
+@pytest.mark.parametrize(
+    "subjects,treated,post,match",
+    [
+        (["a", "a", "b"], [0, 0, 1], [0, 1, 1], "exactly one pre and one post"),
+        (["a", "a", "a", "b", "b"], [0, 0, 0, 1, 1], [0, 1, 1, 0, 1], "exactly one pre and one post"),
+        (["a", "a", "b", "b"], [0, 1, 1, 1], [0, 1, 0, 1], "stable within each subject"),
+    ],
+)
+def test_panel_did_refuses_unbalanced_or_changing_assignment(subjects, treated, post, match):
+    query = PanelDifferenceInDifferences("y", "id", "group", "after")
+    with pytest.raises(CausalValueError, match=match):
+        estimate_panel_did(
+            {"y": list(range(len(subjects))), "id": subjects, "group": treated, "after": post},
+            query,
+        )
+def test_native_group_time_att_recovers_staggered_known_effects_and_reports_support():
+    subjects: list[str] = []
+    periods: list[int] = []
+    cohorts: list[int] = []
+    outcome: list[float] = []
+    cohort_by_subject = [0] * 4 + [2] * 3 + [3] * 3
+    for unit, cohort in enumerate(cohort_by_subject):
+        for period in (1, 2, 3, 4):
+            subjects.append(f"s{unit}")
+            periods.append(period)
+            cohorts.append(cohort)
+            outcome.append(float(100 + unit + 2 * period + (5 if cohort and period >= cohort else 0)))
+    result = estimate_group_time_att(
+        {"y": outcome, "id": subjects, "period": periods, "cohort": cohorts},
+        StaggeredAdoption("y", "id", "period", "cohort"),
+    )
+    assert [(e.cohort, e.period) for e in result.effects] == [
+        (2, 2), (2, 3), (2, 4), (3, 3), (3, 4)
+    ]
+    assert [effect.estimate for effect in result.effects] == pytest.approx([5.0] * 5)
+    assert {(e.treated_subjects, e.control_subjects) for e in result.effects} == {(3, 4)}
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert all(effect.standard_error >= 0.0 and effect.clusters >= 4 for effect in result.effects)
+    assert result.support_status == "unlicensed_point_utility"
+    assert result.control_group == "never_treated_cohort_0"
+    assert "cohort_specific_parallel_untreated_trends" in result.assumptions
+    assert "pretrend_not_tested" in result.diagnostics
+
+
+def test_group_time_att_refuses_missing_never_treated_or_unbalanced_panel():
+    query = StaggeredAdoption("y", "id", "period", "cohort")
+    rows = {
+        "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        "id": ["a", "a", "b", "b", "c", "c"],
+        "period": [1, 2, 1, 2, 1, 2],
+        "cohort": [0, 0, 2, 2, 2, 2],
+    }
+    with pytest.raises(CausalValueError, match="never-treated controls"):
+        estimate_group_time_att(
+            {**rows, "cohort": [2, 2, 2, 2, 2, 2]},
+            query,
+        )
+    supported = {**rows, "cohort": [0, 0, 2, 2, 0, 0]}
+    with pytest.raises(CausalValueError, match="balanced panel"):
+        estimate_group_time_att(
+            {key: value[:-1] for key, value in supported.items()},
+            query,
+        )
+
+
+def test_group_time_att_clustered_se_matches_known_variance_and_refuses_sparse_clusters():
+    ids, periods, cohorts, outcomes = [], [], [], []
+    changes = [0., 2., 4., 6., 7., 9., 11., 13.]
+    for unit, change in enumerate(changes):
+        cohort = 0 if unit < 4 else 2
+        for period in (1, 2, 3):
+            ids.append(f"s{unit}")
+            periods.append(period)
+            cohorts.append(cohort)
+            outcomes.append(float(unit + (change if period >= 2 else 0.)))
+    data = {"y": outcomes, "id": ids, "period": periods, "cohort": cohorts}
+    query = StaggeredAdoption("y", "id", "period", "cohort")
+    result = estimate_group_time_att(data, query)
+    adoption = next(effect for effect in result.effects if effect.period == 2)
+    assert adoption.estimate == pytest.approx(7.)
+    assert adoption.standard_error == pytest.approx((20.0 / 7.0) ** 0.5)
+    assert adoption.clusters == 8
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    with pytest.raises(CausalValueError, match="at least two clusters in each cohort/control group"):
+        estimate_group_time_att(
+            {**data, "cluster": [f"t{i}" if i >= 4 else "all-control" for i in range(8) for _ in (1, 2, 3)]},
+            query,
+            cluster="cluster",
+        )
+
+
+def test_staggered_event_study_reports_cohort_event_time_and_descriptive_preperiods():
+    ids, ts, gs, ys = [], [], [], []
+    for unit, g in enumerate([0, 0, 2, 2, 3, 3]):
+        for t in range(1, 5):
+            ids.append(f"u{unit}")
+            ts.append(t)
+            gs.append(g)
+            rel = t - g
+            effect = (2.0 if rel == 0 else 4.0 if rel == 1 else 4.0) if g == 2 else (3.0 if rel == 0 else 6.0 if rel == 1 else 0.0)
+            ys.append(10.0 + unit + 2.0 * t + (effect if g and t >= g else 0.0))
+    result = estimate_staggered_event_study(
+        {"y": ys, "id": ids, "period": ts, "cohort": gs},
+        StaggeredAdoption("y", "id", "period", "cohort"),
+    )
+    observed = {(e.cohort, e.event_time): e.estimate for e in result.effects}
+    assert observed == pytest.approx({
+        (2, 0): 2.0, (2, 1): 4.0, (2, 2): 4.0,
+        (3, -2): 0.0, (3, 0): 3.0, (3, 1): 6.0,
+    })
+    assert (2, -1) not in observed and (3, -1) not in observed
+    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert all(effect.standard_error >= 0.0 and effect.clusters >= 4 for effect in result.effects)
+    assert result.support_status == "unlicensed_point_utility"
+    assert "no_anticipation" in result.assumptions
+    assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.diagnostics
+
+
+def test_staggered_event_study_refuses_no_never_treated_comparison_group():
+    with pytest.raises(CausalValueError, match="never-treated controls"):
+        estimate_staggered_event_study(
+            {"y": [1., 2., 3., 4.], "id": ["a", "a", "b", "b"],
+             "period": [1, 2, 1, 2], "cohort": [2, 2, 2, 2]},
+            StaggeredAdoption("y", "id", "period", "cohort"),
+        )
+
+
+def test_event_study_clustered_se_matches_known_cohort_event_variance():
+    ids, periods, cohorts, outcomes = [], [], [], []
+    changes = [0., 2., 4., 6., 7., 9., 11., 13.]
+    for unit, change in enumerate(changes):
+        cohort = 0 if unit < 4 else 3
+        for period in (1, 2, 3, 4):
+            ids.append(f"s{unit}")
+            periods.append(period)
+            cohorts.append(cohort)
+            outcomes.append(float(unit + (change if period >= 3 else 0.)))
+    result = estimate_staggered_event_study(
+        {"y": outcomes, "id": ids, "period": periods, "cohort": cohorts},
+        StaggeredAdoption("y", "id", "period", "cohort"),
+    )
+    adoption = next(e for e in result.effects if (e.cohort, e.period) == (3, 3))
+    assert adoption.estimate == pytest.approx(7.)
+    assert adoption.standard_error == pytest.approx((20.0 / 7.0) ** 0.5)

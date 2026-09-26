@@ -2165,6 +2165,7 @@ pub(crate) fn ate_result_from_analysis(
     result: antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
+    let effect = result.estimate.as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let posterior_artifact = if include_posterior_artifact {
@@ -2223,17 +2224,19 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_set_interval_method: identified_set.method,
         structural_identified_set_interval_truncated: identified_set.truncated,
         certificate_json,
-        ate: result.estimate.ate,
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
-        bootstrap_replicates_failed: result.estimate.bootstrap_replicates_failed,
+        ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
+        se_analytic: effect.map_or(f64::NAN, |estimate| estimate.se_analytic),
+        se_bootstrap: effect.and_then(|estimate| estimate.se_bootstrap),
+        bootstrap_replicates_failed: effect
+            .and_then(|estimate| estimate.bootstrap_replicates_failed),
         adjustment_set,
         identification_status,
         refutation_passed: validation.passed,
         refutation_ran: validation.ran,
         refutation_count: validation.count,
         refutations,
-        assumption_count: result.estimate.assumptions.len(),
+        policy_value: result.policy_value.as_ref().map(Into::into),
+        assumption_count: result.identification.required_assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
         method,
         estimator_id,
@@ -2395,6 +2398,8 @@ pub(crate) fn ate_result_from_analysis(
             .interference
             .as_ref()
             .map(crate::transport_interference_api::InterferenceSection::from_estimate),
+        randomized_effect: result.randomized_effect.as_ref().map(Into::into),
+        panel_did: result.panel_did.as_ref().map(Into::into),
         anomaly: result
             .anomaly
             .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores, names)),

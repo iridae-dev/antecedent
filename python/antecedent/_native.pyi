@@ -209,6 +209,9 @@ class AteAnalysisResult:
     mediation_joint_posterior: bool | None
     transport: TransportSection | None
     interference: InterferenceSection | None
+    randomized_effect: RandomizedEffectSection | None
+    panel_did: PanelDidSection | None
+    policy_value: PolicyValueSection | None
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
@@ -339,6 +342,42 @@ class InterferenceSection:
     from_probability_method: str
     to_probability_method: str
     minimum_exposure_probability: float
+
+class RandomizedEffectSection:
+    effect: float
+    variance_upper_bound: float
+    minimum_assignment_probability: float
+    assignment_design: str
+    blocks: list[str]
+    control_units: int
+    treatment_units: int
+    uncertainty: str
+    assignment_units: list[str]
+    outcome_units: list[str]
+    control_arm: str
+    treatment_arm: str
+
+class PanelDidSection:
+    effect: float
+    standard_error: float
+    treated_subjects: int
+    comparison_subjects: int
+    clusters: int
+    uncertainty: str
+
+class PolicyValueSection:
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    relative_value_gap: float
+    treatment_rate: float
+    total_cost: float
+    policy_standard_error: float
+    reference_standard_error: float
+    incremental_standard_error: float
+    prediction_ownership: str
+    propensity_min: float
+    propensity_max: float
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
@@ -1104,6 +1143,54 @@ class PreparedAnalysis:
         to_level: tuple[float, float],
         *,
         probability_draws: int = 10_000,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_randomized_effect(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        realized_assignment: list[bool],
+        assignment_probabilities: list[float],
+        assignment_units: list[str],
+        outcome_units: list[str],
+        treatment_arms: tuple[str, str],
+        design_kind: str,
+        treated_units: int | None = None,
+        blocks: list[str] | None = None,
+        treated_per_row: list[int] | None = None,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_panel_did(
+        names: list[str], columns: Sequence[Any], outcome: str, treated: list[bool],
+        post: list[bool], subjects: list[str], clusters: list[str], *, accepted: bool = False, seed: int = 1,
+        threads: int | None = None, options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_policy_value(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        assignment: list[bool],
+        propensity: list[float],
+        actions: list[bool],
+        reference: list[bool],
+        mu0: list[float],
+        mu1: list[float],
+        costs: list[float],
+        reference_costs: list[float],
+        evaluation_subject_ids: list[str],
+        disjoint_training_subjects: bool,
+        crossfit_fold_ownership_valid: bool,
+        *,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2908,6 +2995,285 @@ def evaluate_decision_py(
     outcomes: list[float],
     utility: Callable[..., Any],
 ) -> DecisionEvaluation: ...
+def evaluate_binary_policy(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    actions: list[bool],
+    propensity: NDArray[np.float64],
+    *,
+    reference: list[bool] | None = None,
+    costs: list[float] = ...,
+    reference_costs: list[float] | None = None,
+    available: list[bool] | None = None,
+    capacity: int | None = None,
+    budget: float | None = None,
+    reference_capacity: int | None = None,
+    reference_budget: float | None = None,
+) -> tuple[float, float, float, float, float, float]: ...
+def evaluate_binary_policy_doubly_robust(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    actions: list[bool],
+    propensity: NDArray[np.float64],
+    mu0: NDArray[np.float64],
+    mu1: NDArray[np.float64],
+    *,
+    reference: list[bool] | None = None,
+    costs: list[float] = ...,
+    reference_costs: list[float] | None = None,
+) -> tuple[float, float, float, float, float, float, float, float, float, float, float]: ...
+def evaluate_longitudinal_regime_value(
+    outcome: NDArray[np.float64],
+    treatment: NDArray[np.bool_],
+    regime: NDArray[np.bool_],
+    treatment_probability: NDArray[np.float64],
+    outcome_observed: NDArray[np.bool_],
+    censoring_survival: NDArray[np.float64],
+) -> tuple[float, float, float, float]: ...
+def fit_binary_msm(
+    outcome: NDArray[np.float64],
+    treatment: NDArray[np.bool_],
+    treatment_probability: NDArray[np.float64],
+    numerator_probability: NDArray[np.float64],
+    outcome_observed: NDArray[np.bool_],
+    censoring_survival: NDArray[np.float64],
+    minimum_probability: float,
+) -> tuple[float, list[float], list[float], float, float, int]: ...
+def evaluate_sequential_gformula(
+    period_outcome_predictions: NDArray[np.float64],
+    regime_actions: NDArray[np.bool_],
+    treatment_probability: NDArray[np.float64],
+    censoring_survival: NDArray[np.float64],
+    subject_ids: list[str],
+    fold_ids: list[int],
+    minimum_probability: float,
+) -> tuple[float, int, float, float]: ...
+def evaluate_sequential_doubly_robust(
+    outcome: NDArray[np.float64],
+    outcome_observed: NDArray[np.bool_],
+    observation_history: NDArray[np.bool_],
+    treatment: NDArray[np.bool_],
+    regime: NDArray[np.bool_],
+    q_prediction: NDArray[np.float64],
+    treatment_probability: NDArray[np.float64],
+    censoring_probability: NDArray[np.float64],
+    subject_ids: list[str],
+    fold_ids: list[int],
+    prediction_fold_ids: list[int],
+    minimum_probability: float,
+) -> tuple[float, int, float, float]: ...
+def evaluate_multi_action_policy(
+    outcome: NDArray[np.float64],
+    assigned: list[int],
+    actions: list[int],
+    probabilities: NDArray[np.float64],
+    *,
+    reference: list[int] | None = None,
+    costs: list[float] | None = None,
+    reference_costs: list[float] | None = None,
+    available: list[list[bool]] | None = None,
+    capacities: list[int] | None = None,
+    reference_capacities: list[int] | None = None,
+    budget: float | None = None,
+    reference_budget: float | None = None,
+) -> tuple[float, float, float, float, float]: ...
+def uplift_by_score(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    score_bin: list[int],
+    propensity: NDArray[np.float64],
+    bin_count: int,
+) -> list[tuple[int, float, float, int]]: ...
+class FactorialNativeResult:
+    cell_means: list[float]
+    cell_support: list[int]
+    factor_a_effect: float
+    factor_b_effect: float
+    interaction_effect: float
+    factor_a_variance_bound: float
+    factor_b_variance_bound: float
+    interaction_variance_bound: float
+def estimate_factorial_2x2(
+    outcome: NDArray[np.float64],
+    factor_a: list[bool],
+    factor_b: list[bool],
+    probability_a: NDArray[np.float64],
+    probability_b: NDArray[np.float64],
+) -> FactorialNativeResult: ...
+def difference_in_differences(
+    outcome: NDArray[np.float64], treated: list[bool], post: list[bool]
+) -> float: ...
+def estimate_complier_effect(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    received: list[bool],
+    propensity: NDArray[np.float64],
+) -> tuple[float, float, float, float]: ...
+def estimate_cuped_effect(
+    outcome: NDArray[np.float64],
+    covariate: NDArray[np.float64],
+    assignment: list[bool],
+    propensity: NDArray[np.float64],
+) -> tuple[float, float, float]: ...
+def estimate_stratified_effect(
+    outcome: NDArray[np.float64], assignment: list[bool], blocks: list[str]
+) -> tuple[float, float, float, int]: ...
+def exact_randomization_test(
+    outcome: NDArray[np.float64], assignment: list[bool], propensity: NDArray[np.float64]
+) -> tuple[float, float, int]: ...
+def estimate_multi_arm_effects(
+    outcome: NDArray[np.float64],
+    assignment: list[int],
+    probabilities: NDArray[np.float64],
+) -> list[tuple[float, float, int]]: ...
+def estimate_switchback_effect(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    sequences: list[str],
+    propensity: NDArray[np.float64],
+) -> tuple[float, float, float, int]: ...
+def estimate_ancova_effect(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    covariates: NDArray[np.float64],
+) -> tuple[float, float, list[float], int, int]: ...
+def estimate_saturation_interference(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    edges: list[tuple[int, int, float]],
+    clusters: list[int],
+    realized_saturation: list[float],
+    low_saturation: float,
+    high_saturation: float,
+    high_clusters: int,
+    exposure: str,
+    reference_neighbors: float,
+    low_neighbors: float,
+    high_neighbors: float,
+) -> tuple[
+    tuple[float, float, float, int, int, int, int, float],
+    tuple[float, float, float, int, int, int, int, float],
+    tuple[float, float, float, int, int, int, int, float],
+]: ...
+def estimate_observational_network_exposure(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    edges: list[tuple[int, int, float]],
+    clusters: list[int],
+    exposure: str,
+    from_level: tuple[float, float],
+    to_level: tuple[float, float],
+    propensity_from: NDArray[np.float64],
+    propensity_to: NDArray[np.float64],
+    propensity_provenance: str,
+) -> tuple[float, float, float, int, int, int, int, float, float, int]: ...
+def randomized_survival(
+    duration: NDArray[np.float64],
+    event_observed: list[bool],
+    treated: list[bool],
+    tau: float,
+) -> tuple[list[float], list[float], list[float], float, float]: ...
+def randomized_survival_ipcw(
+    duration: NDArray[np.float64],
+    event_observed: list[bool],
+    treated: list[bool],
+    times: list[float],
+    censoring_survival: NDArray[np.float64],
+    tau: float,
+    minimum_probability: float,
+) -> tuple[list[float], list[float], list[float], float, float, int | None, int | None, float]: ...
+def randomized_survival_delayed_entry(
+    duration: NDArray[np.float64],
+    delayed_entry: NDArray[np.float64],
+    event_observed: list[bool],
+    treated: list[bool],
+    tau: float,
+) -> tuple[list[float], list[float], list[float], float, float]: ...
+def randomized_cumulative_incidence(
+    duration: NDArray[np.float64],
+    event_cause: list[int],
+    treated: list[bool],
+    tau: float,
+    target_cause: int,
+) -> tuple[list[float], list[float], list[float]]: ...
+def randomized_cumulative_incidence_ipcw(
+    duration: NDArray[np.float64],
+    event_cause: list[int],
+    treated: list[bool],
+    times: list[float],
+    censoring_survival: NDArray[np.float64],
+    tau: float,
+    target_cause: int,
+    minimum_probability: float,
+) -> tuple[list[float], list[float], list[float], int | None, int | None, float]: ...
+def randomized_cumulative_incidence_delayed_entry(
+    duration: NDArray[np.float64],
+    delayed_entry: NDArray[np.float64],
+    event_cause: list[int],
+    treated: list[bool],
+    tau: float,
+    target_cause: int,
+) -> tuple[list[float], list[float], list[float]]: ...
+def panel_difference_in_differences(
+    outcome: NDArray[np.float64],
+    subjects: list[str],
+    treated: list[bool],
+    post: list[bool],
+    clusters: list[str],
+) -> tuple[float, float, int, int, int]: ...
+def group_time_att(
+    outcome: NDArray[np.float64],
+    subjects: list[str],
+    periods: list[int],
+    cohorts: list[int],
+    clusters: list[str],
+) -> list[tuple[int, int, float, int, int, float, int]]: ...
+def staggered_event_study(
+    outcome: NDArray[np.float64],
+    subjects: list[str],
+    periods: list[int],
+    cohorts: list[int],
+    clusters: list[str],
+) -> list[tuple[int, int, int, float, int, int, float, int]]: ...
+def synthetic_control(
+    outcome: NDArray[np.float64],
+    units: list[str],
+    periods: list[int],
+    treated_unit: str,
+    intervention_period: int,
+) -> tuple[
+    float,
+    float,
+    list[tuple[str, float]],
+    list[float],
+    float,
+    int,
+    int,
+]: ...
+def local_polynomial_fuzzy_discontinuity(
+    running: NDArray[np.float64],
+    outcome: NDArray[np.float64],
+    treatment: NDArray[np.float64],
+    cutoff: float,
+    bandwidth: float,
+    kink: bool,
+) -> tuple[float, float, float, int, int, float, float, float, float, float]: ...
+def synthetic_difference_in_differences(
+    outcome: NDArray[np.float64],
+    units: list[str],
+    periods: list[int],
+    treated_unit: str,
+    intervention_period: int,
+) -> tuple[
+    float, float, list[tuple[str, float]], list[tuple[int, float]], int, int, int
+]: ...
+def augmented_panel_difference_in_differences(
+    outcome_pre: NDArray[np.float64],
+    outcome_post: NDArray[np.float64],
+    treated: list[bool],
+    propensity: NDArray[np.float64],
+    untreated_change_prediction: NDArray[np.float64],
+) -> tuple[float, int, int, float, float, float]: ...
 def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ...
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
 
@@ -3960,3 +4326,13 @@ def prepare_learned_trial(
     cancel: CancellationToken | None = None,
 ) -> PreparedLearnedTrial: ...
 def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...
+def conditional_dose_response(
+    outcome: NDArray[np.float64],
+    dose: NDArray[np.float64],
+    groups: list[str],
+    dose_density: NDArray[np.float64],
+    target_doses: list[float],
+    bandwidth: float,
+    *,
+    min_local_support: int = 3,
+) -> list[tuple[str, float, float, int, float, float, float, float]]: ...

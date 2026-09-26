@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr
 
+from ..policy import DoublyRobustPolicyEvaluation
+
 if TYPE_CHECKING:
     from .._native import (
         AnomalyScores,
@@ -687,6 +689,9 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
     #: variance and exposure-probability methods (HT is ``estimate.ate``).
     interference: InterferenceEstimate | None = None
+    randomized_effect: Any | None = None
+    panel_did: Any | None = None
+    policy_value: DoublyRobustPolicyEvaluation | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: list[AnomalyScores] | None = None

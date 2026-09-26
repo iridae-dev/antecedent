@@ -6,10 +6,14 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal, Protocol
 
 from ._api import describe_refusal
+from .experiment import RandomizedEffect
+from .extensibility import ProviderQuery
+from .extensibility import providers as _providers
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
+from .policy import PolicyValue
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -32,7 +36,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results import Analysis
+from .results import Analysis, ProviderAnalysisResult
 from .transport import Transport, TransportControls, TransportInference
 from .transport.advanced import TransportQuery
 
@@ -52,6 +56,9 @@ def analyze(
     *,
     query: (
         AverageEffect
+        | ProviderQuery
+        | RandomizedEffect
+        | PolicyValue
         | PulseEffect
         | SustainedEffect
         | InterventionalDistribution
@@ -136,12 +143,17 @@ def analyze(
         ``MediationEffect``, ``NestedCounterfactual``, ``Counterfactual``, ``TemporalMediationEffect``,
         ``transport.Transport`` (T5–T9 compiler on an ``Admg``, with
         ``provider=`` / ``TransportInference`` / ``controls=``),
+        ``experiment.RandomizedEffect`` (a design-carrying two-arm ITT query),
         ``transport.advanced.TransportQuery`` (the licensed trial-IPW cell on
         an ``Admg`` selection diagram, with its trial columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
         network and realized assignment), ``AnomalyAttribution`` /
         ``ChangeAttribution`` (on a ``Dag`` or edge list; GCM parametric /
         ``gcm.fit``), or a response-family query.
-        Both families return :data:`antecedent.Analysis`: consume
+        ``extensibility.ProviderQuery`` explicitly dispatches ``data`` and its
+        request mapping to a registered Python provider. Its family-shaped
+        output remains externally attested and is not translated into a native
+        point or interval claim.
+        ``analyze`` returns :data:`antecedent.Analysis`: consume
         ``result.answer`` / ``result.claim()``. ``as_point()`` / ``as_response()``
         narrow when the kind must be exact.
     graph:
@@ -202,6 +214,59 @@ def analyze(
         identified completions has no single estimand to hydrate and refuses.
     """
     from .estimation import PreparedAnalysis
+
+    if isinstance(query, ProviderQuery):
+        if any(
+            value is not None
+            for value in (
+                graph,
+                discovery,
+                inference,
+                identifier,
+                estimator,
+                refute,
+                validators,
+                bootstrap,
+                threads,
+                regimes,
+                running_variable,
+                cutoff,
+                bandwidth,
+                population_registry,
+                estimator_config,
+                latency,
+                cancel,
+                on_progress,
+                on_stage,
+                provider,
+                controls,
+                class_prior,
+                max_completions,
+            )
+        ) or seed != 1 or not accept_discovered or return_posterior_artifact:
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "ProviderQuery owns its request and execution; native graph, estimator, "
+                "inference, validation, transport, and execution controls do not apply",
+                reason_code="option_not_applicable",
+            )
+        if "data" in query.request:
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "ProviderQuery.request must not contain data; pass it as analyze(data, ...)",
+                reason_code="invalid_argument",
+            )
+        registered = _providers.get(query.provider)
+        request = {"data": data, **query.request}
+        result = _providers.execute(query.provider, request)
+        return ProviderAnalysisResult(
+            provider_name=query.provider,
+            query_family=registered.spec.query_family,
+            provider_result=result,
+            query=query,
+        )
 
     if return_posterior_artifact:
         from .discovery import DbnPosterior, GraphPosterior

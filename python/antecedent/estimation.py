@@ -49,6 +49,12 @@ from .errors import (
     CausalUnsupportedError,
     CausalValueError,
 )
+from .experiment import (
+    BernoulliAssignment,
+    RandomizedEffect,
+    RandomizedExperimentEstimate,
+    StratifiedRandomization,
+)
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import (
@@ -58,8 +64,16 @@ from .inference import (
     _class_prior_kwargs,
     _max_completions_kwargs,
 )
-from .interference import InterferenceEstimate, InterferenceQuery, RandomizationContrast
+from .interference import (
+    ClusterRandomization,
+    CompleteRandomization,
+    InterferenceEstimate,
+    InterferenceQuery,
+    RandomizationContrast,
+)
+from .policy import BinaryPolicy, DoublyRobustPolicyEvaluation, PolicyValue
 from .population import coerce_target_population
+from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -247,6 +261,58 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
         section.from_probability_method,
         section.to_probability_method,
         section.minimum_exposure_probability,
+    )
+
+
+def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None:
+    section = getattr(raw, "randomized_effect", None)
+    if section is None:
+        return None
+    return RandomizedExperimentEstimate(
+        effect=section.effect,
+        variance_upper_bound=section.variance_upper_bound,
+        assignment_design=section.assignment_design,
+        assignment_units=tuple(section.assignment_units),
+        outcome_units=tuple(section.outcome_units),
+        blocks=tuple(section.blocks) or None,
+        treatment_arms=(section.control_arm, section.treatment_arm),
+        control_units=section.control_units,
+        treatment_units=section.treatment_units,
+        minimum_assignment_probability=section.minimum_assignment_probability,
+        uncertainty=section.uncertainty,
+        support_status="unlicensed_off_matrix",
+    )
+
+
+def _panel_did_from_raw(raw: Any) -> PanelDifferenceInDifferencesEstimate | None:
+    section = getattr(raw, "panel_did", None)
+    if section is None:
+        return None
+    return PanelDifferenceInDifferencesEstimate(
+        estimate=section.effect, standard_error=section.standard_error,
+        treated_subjects=section.treated_subjects, control_subjects=section.comparison_subjects,
+        clusters=section.clusters, uncertainty=section.uncertainty,
+        support_status="unlicensed_point_utility",
+    )
+
+
+def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
+    section = getattr(raw, "policy_value", None)
+    if section is None:
+        return None
+    return DoublyRobustPolicyEvaluation(
+        policy_value=section.policy_value,
+        reference_value=section.reference_value,
+        incremental_value=section.incremental_value,
+        relative_value_gap=section.relative_value_gap,
+        treatment_rate=section.treatment_rate,
+        total_treatment_cost=section.total_cost,
+        policy_value_standard_error=section.policy_standard_error,
+        reference_value_standard_error=section.reference_standard_error,
+        incremental_value_standard_error=section.incremental_standard_error,
+        prediction_ownership=section.prediction_ownership,
+        propensity_min=section.propensity_min,
+        propensity_max=section.propensity_max,
     )
 
 
@@ -566,6 +632,9 @@ def _wrap_ate(
         ),
         transport_overlap=_transport_overlap_from_raw(raw),
         interference=_interference_from_raw(raw),
+        randomized_effect=_randomized_effect_from_raw(raw),
+        panel_did=_panel_did_from_raw(raw),
+        policy_value=_policy_value_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,
@@ -1387,8 +1456,11 @@ _PreparedQuery = (
     | StatisticalTransportQuery
     | TransportResponseGridQuery
     | InterferenceQuery
+    | RandomizedEffect
+    | PolicyValue
     | AnomalyAttribution
     | ChangeAttribution
+    | PanelDifferenceInDifferences
 )
 
 
@@ -1479,6 +1551,34 @@ def _frame_payload(data: Any) -> tuple[list[str], list[Any], dict[str, Any] | No
         return names, [], {"kind": "multi_env", "env_columns": env_columns}
     names, columns = ingest_columns(data)
     return names, columns, None
+
+
+def _panel_did_payload(
+    data: Any, query: PanelDifferenceInDifferences
+) -> tuple[list[str], list[Any], dict[str, tuple[Any, ...]]]:
+    """Keep panel IDs as query metadata and send only numeric outcomes to Rust."""
+    from .quasi import _binary, _raw_columns
+
+    raw_names, raw_columns = _raw_columns(data)
+    raw = dict(zip(raw_names, raw_columns, strict=True))
+    required = (query.outcome, query.subject, query.treated, query.post)
+    if query.cluster is not None:
+        required += (query.cluster,)
+    missing = [name for name in required if name not in raw]
+    if missing:
+        raise CausalValueError(f"required panel DiD columns are missing: {missing}")
+    subjects = tuple(str(value) for value in raw[query.subject])
+    clusters = subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    if any(not value.strip() for value in (*subjects, *clusters)):
+        raise CausalValueError("subject and cluster IDs must be non-empty")
+    design = {
+        "subjects": subjects,
+        "clusters": clusters,
+        "treated": tuple(_binary(raw[query.treated], query.treated)),
+        "post": tuple(_binary(raw[query.post], query.post)),
+    }
+    names, columns = ingest_columns({query.outcome: raw[query.outcome]})
+    return names, columns, design
 
 
 def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
@@ -1613,6 +1713,7 @@ class _PrepareRoute:
     rd_args: tuple[str | None, float | None, float | None]
     accepted: bool
     options: dict[str, Any]
+    design_columns: dict[str, tuple[Any, ...]] | None = None
     #: Suite a route defers to the estimate's second click (see `_response`).
     deferred_suite: str | None = None
 
@@ -1643,6 +1744,12 @@ class _PrepareRoute:
 
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
+        if isinstance(query, PolicyValue):
+            return self._policy_value()
+        if isinstance(query, RandomizedEffect):
+            return self._randomized_effect()
+        if isinstance(query, PanelDifferenceInDifferences):
+            return self._panel_did()
         if self.discovery is not None:
             return self._graph_posterior()
         if self.graph is None:
@@ -2114,6 +2221,123 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _policy_value(self) -> tuple[Any, Literal["average"]]:
+        query = cast(PolicyValue, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                "PolicyValue carries its randomized design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        self._refuse_ids("PolicyValue")
+        self._refuse_estimator_config("PolicyValue")
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                "PolicyValue does not accept refutation or bootstrap options",
+                reason_code="option_not_applicable",
+            )
+        from .inference import Frequentist
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise CausalUnsupportedError(
+                "PolicyValue supports row-score frequentist uncertainty only",
+                reason_code="option_not_applicable",
+            )
+        propensity = [float(query.propensity)] if isinstance(query.propensity, (int, float)) else list(query.propensity)
+        costs = [float(query.policy.costs)] if isinstance(query.policy.costs, (int, float)) else list(query.policy.costs)
+        reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
+        reference_costs = [float(reference.costs)] if isinstance(reference.costs, (int, float)) else list(reference.costs)
+        native = _NativePreparedAnalysis.prepare_policy_value(
+            self.names, self.columns, query.outcome, list(query.assignment), propensity,
+            list(query.policy.actions), list(reference.actions), list(query.mu0), list(query.mu1),
+            costs, reference_costs, list(query.evaluation_subject_ids),
+            query._ownership == "declared_disjoint_training_subject_ids",
+            query._ownership == "caller_declared_cross_fitted_excluded_fold_ids",
+            accepted=self.accepted, **self._common(),
+        )
+        return native, "average"
+
+    def _randomized_effect(self) -> tuple[Any, Literal["average"]]:
+        query = cast(RandomizedEffect, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                "RandomizedEffect carries its randomization design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        assignment = query.design.assignment
+        if isinstance(assignment, (ClusterRandomization,)):
+            raise CausalUnsupportedError(
+                "analyze supports Bernoulli, complete, and stratified randomized ITT; cluster, multi-arm, factorial, and switchback designs remain explicit refusals",
+                reason_code="route_not_supported",
+            )
+        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization)):
+            raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")
+        self._refuse_ids("RandomizedEffect")
+        self._refuse_estimator_config("RandomizedEffect")
+        if self._explicit_refute():
+            raise CausalUnsupportedError("RandomizedEffect has no refutation route", reason_code="option_not_applicable")
+        n = len(query.design.realized_assignment)
+        blocks: list[str] = []
+        treated_per_row: list[int] = []
+        treated_units: int | None = None
+        if isinstance(assignment, BernoulliAssignment):
+            design_kind = "bernoulli"
+            probabilities = assignment.probabilities
+            if isinstance(probabilities, (float, int)):
+                probabilities = [float(probabilities)] * n
+            else:
+                probabilities = list(probabilities)
+                if len(probabilities) == 1:
+                    probabilities *= n
+        elif isinstance(assignment, CompleteRandomization):
+            design_kind = "complete"
+            treated_units = assignment.treated
+            probabilities = [treated_units / n] * n
+            if query.design.blocks is not None:
+                raise CausalUnsupportedError("complete design does not use block metadata; choose StratifiedRandomization", reason_code="route_not_supported")
+        else:
+            design_kind = "stratified"
+            assert isinstance(assignment, StratifiedRandomization)
+            blocks = list(query.design.blocks or ())
+            treated_per_row = [assignment.treated_per_block[block] for block in blocks]
+            block_sizes = {block: blocks.count(block) for block in set(blocks)}
+            probabilities = [assignment.treated_per_block[block] / block_sizes[block] for block in blocks]
+        native = _NativePreparedAnalysis.prepare_randomized_effect(
+            self.names,
+            self.columns,
+            query.outcome,
+            list(query.design.realized_assignment),
+            [float(value) for value in probabilities],
+            list(query.design.assignment_units),
+            list(query.design.outcome_units),
+            tuple(query.design.treatment_arms),
+            design_kind,
+            treated_units,
+            blocks,
+            treated_per_row,
+            accepted=False,
+            **self._common(),
+        )
+        return native, "average"
+
+    def _panel_did(self) -> tuple[Any, Literal["average"]]:
+        query = cast(PanelDifferenceInDifferences, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError("PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=", reason_code="option_not_applicable")
+        self._refuse_ids("PanelDifferenceInDifferences")
+        self._refuse_estimator_config("PanelDifferenceInDifferences")
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError("PanelDifferenceInDifferences has no refutation or bootstrap route", reason_code="option_not_applicable")
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise CausalUnsupportedError("PanelDifferenceInDifferences supports a cluster standard error only", reason_code="option_not_applicable")
+        names, columns = self.names, self.columns
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("panel DiD design columns were not bound at prepare")
+        native = _NativePreparedAnalysis.prepare_panel_did(
+            names, columns, query.outcome, list(design["treated"]), list(design["post"]),
+            list(design["subjects"]), list(design["clusters"]), accepted=False, **self._common()
+        )
+        return native, "average"
+
     def _conditional(self) -> tuple[Any, Any]:
         from .query import coerce_outcome_functional
 
@@ -2266,6 +2490,11 @@ class _PrepareRoute:
         from .interference import _assignment_args, _edge_values, _exposure_name
 
         query = cast(InterferenceQuery, self.query)
+        if query.partial_interference is not None:
+            raise CausalUnsupportedError(
+                "partial-interference diagnostics are available only in interference.estimate; "
+                "the licensed analyze contract does not include this assumption"
+            )
         self._refuse_design_options(
             "InterferenceQuery", "interference.design", "interference.ht_hajek"
         )
@@ -2806,11 +3035,13 @@ class PreparedAnalysis(Generic[ResultT]):
             "z_transport",
         ] = "average",
         query: _PreparedQuery | None = None,
+        display_query: Any = None,
         seed: int = 1,
         threads: int | None = None,
         controls: _Controls | None = None,
         deferred_suite: str | None = None,
         snapshot_data: Any = None,
+        design_columns: dict[str, tuple[Any, ...]] | None = None,
     ) -> None:
         self._native = native
         self._kind = kind
@@ -2818,11 +3049,13 @@ class PreparedAnalysis(Generic[ResultT]):
 
         self._transport = transport_lifecycle(kind)
         self._query = query
+        self._display_query = query if display_query is None else display_query
         # A scalar Dag InterventionResponse runs its refuter suite as the
         # second click of every estimate, so `refute=` is honoured on the
         # prepared route exactly as it is on a one-shot analyze.
         self._deferred_suite = deferred_suite
         self._snapshot_data = snapshot_data
+        self._design_columns = design_columns
         self._seed = seed
         self._threads = threads
         self._controls = controls or _Controls()
@@ -2839,9 +3072,11 @@ class PreparedAnalysis(Generic[ResultT]):
             execution,
             kind=self._kind,
             query=self._query,
+            display_query=self._display_query,
             seed=self._seed,
             threads=self._threads,
             controls=self._controls,
+            design_columns=self._design_columns,
         )
 
     @property
@@ -3170,7 +3405,8 @@ class PreparedAnalysis(Generic[ResultT]):
 
         from .population import registry_wire
 
-        coerce_query(query)
+        display_query = query
+        query = coerce_query(query)
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
@@ -3247,7 +3483,12 @@ class PreparedAnalysis(Generic[ResultT]):
             raise _not_applicable("max_completions", "a structure without class completions")
         rd_args = (running_variable, cutoff, bandwidth)
 
-        names, columns, frame = _frame_payload(data)
+        design_columns = None
+        if isinstance(query, PanelDifferenceInDifferences):
+            names, columns, design_columns = _panel_did_payload(data, query)
+            frame = None
+        else:
+            names, columns, frame = _frame_payload(data)
         predicates, distributions = registry_wire(population_registry)
         population = coerce_target_population(getattr(query, "target_population", None))
         options: dict[str, Any] = {
@@ -3283,17 +3524,20 @@ class PreparedAnalysis(Generic[ResultT]):
             rd_args=rd_args,
             accepted=structure_accepted,
             options=options,
+            design_columns=design_columns,
         )
         native, kind = route.compile()
         prepared = cls(
             native,
             kind=kind,
             query=query,
+            display_query=display_query,
             seed=seed,
             threads=threads,
             controls=execution_controls,
             deferred_suite=route.deferred_suite,
             snapshot_data=data if route.deferred_suite else None,
+            design_columns=design_columns,
         )
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
@@ -3534,6 +3778,14 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         query = self._query
+        if isinstance(query, PanelDifferenceInDifferences):
+            names, columns, design = _panel_did_payload(data, query)
+            if design != self._design_columns:
+                raise CausalUnsupportedError(
+                    "panel DiD refresh requires the prepared subject, cluster, treatment, and period row order",
+                    reason_code="invalid_argument",
+                )
+            return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column
 
@@ -3554,7 +3806,7 @@ class PreparedAnalysis(Generic[ResultT]):
         if self._kind in ("response_curve", "intervention_response"):
             query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None
             return _wrap_prepared_response(raw, query=cast(Any, query), prepared=self)
-        return _wrap_ate(raw, prepared=self)
+        return _wrap_ate(raw, query=self._display_query, prepared=self)
 
     def _click(
         self,

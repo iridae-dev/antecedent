@@ -37,6 +37,39 @@ def test_backdoor_ate_emits_adjustment_set() -> None:
     np.testing.assert_array_equal(cols["W"][:, 0], _backdoor_data()["z"])
 
 
+def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact() -> None:
+    from antecedent.extensibility import ProviderRegistry, ProviderTrust
+
+    data = _backdoor_data()
+    identified = antecedent.identify(
+        graph=_backdoor_graph(),
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+    )
+    spec = antecedent.handoff.econml(identified)
+    seen = {}
+
+    def caller_fit(columns, request):
+        seen["columns"] = columns
+        seen["request"] = request
+        return {
+            "learner": "econml.dml.CausalForestDML",
+            "learner_config": {"n_estimators": 5},
+            "effect": 2.0,
+            "interval": [1.5, 2.5],
+            "label": "ate",
+        }
+
+    registry = ProviderRegistry()
+    registry.register("econml", spec.as_provider(caller_fit))
+    executed = registry.execute("econml", {"data": data})
+    loaded = antecedent.load(executed.artifact)
+    assert seen["columns"]["W"].shape == (len(data["t"]), 1)
+    assert loaded.calibration.status == "unavailable"
+    assert loaded.calibration.reason == "attested_not_reverifiable"
+    assert executed.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert executed.provenance["adapter"] == "antecedent.handoff.EconMLProviderAdapter"
+
+
 def test_analyze_result_handoff_matches_identify() -> None:
     data = _backdoor_data()
     query = antecedent.AverageEffect(treatment="t", outcome="y")
@@ -258,12 +291,20 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
         data=data,
     )
     loaded = antecedent.load(attached.export())
+    forwarded = antecedent.load(loaded.export())
     attested = loaded.artifact.contract["claim"]["attested"]
     assert attested
     assert attested[0]["kind"] == "external_estimate"
     assert attested[0]["reverifiable"] is False
     assert attested[0]["name"] == "econml.dml.CausalForestDML"
     assert attested[0]["payload_digest"]
+    assert attested[0]["name"] == "econml.dml.CausalForestDML"
+    identities = loaded.artifact.contract["identities"]
+    assert identities["identification"]
+    assert identities["data_snapshot"]
+    assert forwarded.artifact.contract["identities"] == identities
+    assert forwarded.artifact.contract["claim"]["claim_id"] == loaded.artifact.contract["claim"]["claim_id"]
+    assert forwarded.artifact.contract["claim"]["attested"] == attested
     assert loaded.calibration.status == "unavailable"
     assert loaded.calibration.reason == "attested_not_reverifiable"
     inspect = loaded.inspect()
