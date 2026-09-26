@@ -83,7 +83,8 @@ pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
-    CheckedInterferenceInfo, CheckedTemporalClassMediationInfo, CheckedTemporalMediationInfo,
+    CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo, CheckedStaticClassResponseInfo,
+    CheckedTemporalClassMediationInfo, CheckedTemporalMediationInfo,
     CheckedUnknownTieredAverageInfo, ComputeBudget, ExactFactorRequirement, ExactPreparedState,
     ExactStudyIdentities, ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode,
     LearnedTrialResult, LearnedTrialState, LicensedNeighbor, NextAction, OperationKind,
