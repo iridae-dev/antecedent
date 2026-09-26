@@ -191,9 +191,16 @@ impl CheckedTemporalEffectExecution {
                 dependence.effective_rows,
                 dependence.replicates_attempted > 0,
                 &format!(
-                    "circular-block lag-aligned refit ({}/{} replicates)",
+                    "se_bootstrap refits the lag-aligned design on circular blocks of \
+                     consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
+                     ignores serial dependence and no HAC SE is calibrated for this cell{}",
                     estimate.bootstrap_replicates_ok.unwrap_or(0),
                     dependence.replicates_attempted,
+                    if dependence.replicates_attempted == 0 {
+                        "; request bootstrap_replicates > 0 for an interval"
+                    } else {
+                        ""
+                    },
                 ),
             ));
             let ok = estimate.bootstrap_replicates_ok;
