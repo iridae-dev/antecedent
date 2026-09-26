@@ -57,6 +57,7 @@ bash scripts/gate_transport.sh     # transport stage contracts; every fixture fa
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
+bash scripts/gate_checked_execution.sh   # every licensed estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny

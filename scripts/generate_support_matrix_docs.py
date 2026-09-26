@@ -289,6 +289,13 @@ Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
+Every licensed cell also executes each of its licensed estimators from a
+retained checked operation with no builder alive: its `checked_execution`
+entries in `parity/support_licensed.toml` cite, per estimator, the executing
+test that drops its builder, executes the retained plan, and inspects it.
+`scripts/gate_support_matrix.sh` resolves those citations and
+`scripts/gate_checked_execution.sh` runs them.
+
 {calibration_md}
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`

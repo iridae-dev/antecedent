@@ -4,7 +4,12 @@ import sys
 from pathlib import Path
 
 import tomllib
-from test_evidence import resolve_python_test, resolve_rust_test
+from test_evidence import (
+    checked_execution_body_problems,
+    closure,
+    resolve_python_test,
+    resolve_rust_test,
+)
 
 root = Path(__file__).resolve().parents[1]
 # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
@@ -42,13 +47,21 @@ for route in registry.get("routes", []):
         path, assertion = route.get("evidence_test"), route.get("evidence_assertion")
         if path and assertion:
             evidence_path = root / path
+            problems: list[str] = []
             if evidence_path.suffix == ".rs":
                 _, problems = resolve_rust_test(evidence_path, assertion)
-                errors.extend(problems)
             elif evidence_path.suffix == ".py":
-                errors.extend(resolve_python_test(evidence_path, assertion))
+                problems = resolve_python_test(evidence_path, assertion)
             else:
-                errors.append(f"{name}: evidence must be a collected Rust or Python test")
+                problems = [f"{name}: evidence must be a collected Rust or Python test"]
+            errors.extend(problems)
+            # A public stage route executes through its retained checked plan:
+            # the cited test drops its builder, executes, and inspects the plan.
+            if not problems and name.startswith("antecedent.transport."):
+                errors.extend(
+                    f"{name}: {problem}"
+                    for problem in checked_execution_body_problems(closure(evidence_path, assertion), assertion)
+                )
         if (
             route.get("stage") == "identify"
             and route.get("guarantee") != "sound_incomplete"

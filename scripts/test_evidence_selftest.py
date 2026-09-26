@@ -6,7 +6,9 @@ that hide a cited test in every way a text scan fails open on: `#[ignore]`
 before `#[test]`, a `#[cfg(...)]` that compiles it out, a block comment, a raw
 string, a file no `mod` declares, a Python helper that is not a collected test,
 a skipped pytest, a test that never consumes the fixture another test consumes,
-and a test that never builds the row's axis values. Each broken row, alone, must
+a test that never builds the row's axis values, and checked_execution rows whose
+cited test keeps its builder alive, is not a test, or does not cover every
+licensed estimator. Each broken row, alone, must
 be rejected with its expected reason; the positive control must pass, so a
 checker that rejects everything cannot satisfy the self-test.
 """
@@ -79,6 +81,25 @@ fn never_builds_the_axes() {
     let expected = load_expected("truth");
     assert!(expected.contains("2.0"));
 }
+
+fn execute(plan: &str) -> String {
+    plan.to_string()
+}
+
+#[test]
+fn checked_execution_drops_builder() {
+    let builder = axes();
+    let plan = load_expected("truth");
+    drop(builder);
+    assert!(execute(&plan).contains("2.0"), "{}", axes());
+}
+
+#[test]
+fn checked_execution_keeps_builder() {
+    let builder = axes();
+    let plan = load_expected("truth");
+    assert!(execute(&plan).contains("2.0"), "{}", builder);
+}
 """
 
 ORPHAN_RS = r"""
@@ -126,6 +147,17 @@ def test_skipped_in_body():
 @pytest.mark.parametrize("case", [])
 def test_empty_parametrisation(case):
     assert load()["true_effect"] == 2.0, AXES
+
+
+def run(plan):
+    return plan
+
+
+def test_checked_execution_discards_builder():
+    builder = load
+    plan = builder()
+    builder = None
+    assert run(plan)["true_effect"] == 2.0, AXES
 """
 
 BASE_ROW = {
@@ -160,8 +192,16 @@ def build(tmp: Path) -> None:
     (tmp / "python" / "tests" / "test_demo.py").write_text(PY)
 
 
+def toml_value(value) -> str:
+    if isinstance(value, str):
+        return f'"{value}"'
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{k} = {toml_value(v)}" for k, v in value.items()) + " }"
+    return "[" + ", ".join(toml_value(v) for v in value) + "]"
+
+
 def toml_row(row: dict) -> str:
-    return "[[cell]]\n" + "".join(f'{k} = "{v}"\n' for k, v in row.items())
+    return "[[cell]]\n" + "".join(f"{k} = {toml_value(v)}\n" for k, v in row.items())
 
 
 def check(tmp: Path, name: str, row: dict, expected: str | None) -> bool:
@@ -202,6 +242,17 @@ def main() -> int:
             "evidence_test": "python/tests/test_demo.py",
             "evidence_assertion": assertion,
         }
+
+        def checked_entry(estimator: str, assertion: str) -> dict:
+            return {"estimator": estimator, "test": "crates/selftest/tests/it.rs", "assertion": assertion}
+
+        def checked(assertions: list[str]) -> dict:
+            estimators = [f"e{i}" for i in range(len(assertions))]
+            return {
+                "estimators": estimators,
+                "checked_execution": [checked_entry(e, a) for e, a in zip(estimators, assertions)],
+            }
+
         cases = [
             ("control", rs("good_consumes_fixture"), None),
             ("ignore_before_test", rs("ignored_before_test"), "is #[ignore]d"),
@@ -242,6 +293,64 @@ def main() -> int:
                 "never exercises inference 'Bayesian'",
             ),
             ("missing_test", rs("no_such_test"), "no fn no_such_test"),
+            # checked_execution: one entry per licensed estimator, each citing an
+            # executing test that discards its builder, executes, and inspects the plan.
+            (
+                "checked_execution_control",
+                rs("good_consumes_fixture", **checked(["checked_execution_drops_builder"])),
+                None,
+            ),
+            (
+                "checked_execution_python_control",
+                rs(
+                    "good_consumes_fixture",
+                    estimators=["a"],
+                    checked_execution=[
+                        {
+                            "estimator": "a",
+                            "test": "python/tests/test_demo.py",
+                            "assertion": "test_checked_execution_discards_builder",
+                        }
+                    ],
+                ),
+                None,
+            ),
+            (
+                "checked_execution_keeps_builder",
+                rs("good_consumes_fixture", **checked(["checked_execution_keeps_builder"])),
+                "does not explicitly discard its builder",
+            ),
+            (
+                "checked_execution_not_a_test",
+                rs("good_consumes_fixture", **checked(["execute"])),
+                "is not an executing test",
+            ),
+            (
+                "checked_execution_missing_estimator",
+                rs(
+                    "good_consumes_fixture",
+                    estimators=["a", "b"],
+                    checked_execution=[checked_entry("a", "checked_execution_drops_builder")],
+                ),
+                "!= licensed estimators",
+            ),
+            (
+                "checked_execution_duplicate_estimator",
+                rs(
+                    "good_consumes_fixture",
+                    estimators=["a"],
+                    checked_execution=[
+                        checked_entry("a", "checked_execution_drops_builder"),
+                        checked_entry("a", "checked_execution_drops_builder"),
+                    ],
+                ),
+                "names an estimator twice",
+            ),
+            (
+                "checked_execution_absent",
+                rs("good_consumes_fixture", estimators=["a"], checked_execution=[]),
+                "checked_execution is required",
+            ),
         ]
         results = [check(tmp, name, row, expected) for name, row, expected in cases]
     if not all(results):
