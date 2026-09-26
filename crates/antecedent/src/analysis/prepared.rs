@@ -1862,6 +1862,9 @@ pub(crate) struct CheckedLinearOperation {
     structure_source: crate::support::StructureSource,
     population_registry: Option<antecedent_core::PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    latency_bootstrap_not_applied: Option<(u32, u32)>,
     stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
     custom_validator_names: Arc<[Arc<str>]>,
 }
@@ -2072,15 +2075,21 @@ impl CheckedLinearOperation {
         } else {
             clock.begin(ctx, STAGE_VALIDATE, 0.8)?;
         }
-        let (refutations, mut extra_diagnostics) = if cancelled || self.refute == RefuteSuite::None
-        {
+        // The checked design was prepared against the original semantic
+        // columns; validation runs on the table narrowed to the columns the
+        // identified target names, as every adjustment route does.
+        let full_cols = data.schema().len();
+        let (data_est, query_est, estimand_est) =
+            project_for_ate_estimate(data, &self.query, &self.estimand)?;
+        let projected_cols = data_est.schema().len();
+        let (refutations, refute_diagnostics) = if cancelled || self.refute == RefuteSuite::None {
             (Vec::new(), Vec::new())
         } else {
             let mut propensity = antecedent_stats::PropensityWorkspace::default();
             let (reports, diagnostics) = run_refuters(
-                data,
-                &self.estimand,
-                &self.query,
+                &data_est,
+                &estimand_est,
+                &query_est,
                 &estimate,
                 &mut workspace,
                 Some(&mut propensity),
@@ -2092,6 +2101,13 @@ impl CheckedLinearOperation {
             )?;
             (reports, diagnostics)
         };
+        let mut extra_diagnostics: Vec<antecedent_core::Diagnostic> =
+            super::helpers::projection_diagnostic(full_cols, projected_cols).into_iter().collect();
+        extra_diagnostics.extend(refute_diagnostics);
+        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
+            extra_diagnostics
+                .push(super::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured));
+        }
         if !cancelled {
             clock.finish(STAGE_VALIDATE);
         }
@@ -8556,6 +8572,7 @@ impl Study {
                     structure_source: analysis.structure_source,
                     population_registry: analysis.population_registry.clone(),
                     latency_mode: analysis.latency_mode,
+                    latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
                     stage_sink: analysis.stage_sink.clone(),
                     custom_validator_names: Arc::from(
                         analysis

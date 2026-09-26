@@ -2490,20 +2490,9 @@ fn finish_identified_execute_with_context(
         });
     }
     if let Some((tier, configured)) = context.latency_bootstrap_not_applied {
-        result.diagnostics.push(Diagnostic {
-            code: Arc::from("latency.bootstrap_not_applied"),
-            kind: DiagnosticKind::Scientific,
-            severity: DiagnosticSeverity::Info,
-            message: Arc::from(format!(
-                "the latency tier maps to {tier} bootstrap replicates, but the configured \
-                     estimator owns its replicate count; {configured} replicates ran"
-            )),
-            artifact_id: None,
-            fields: Arc::from([
-                (Arc::from("tier_replicates"), Arc::from(tier.to_string())),
-                (Arc::from("configured_replicates"), Arc::from(configured.to_string())),
-            ]),
-        });
+        result
+            .diagnostics
+            .push(crate::analysis::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured));
     }
     if let Some(requested) = context.refute_default_downgrade {
         let requested_id = requested.validation_suite_id().unwrap_or("none");
