@@ -2100,7 +2100,18 @@ fn search_trz_state(
         else {
             return Ok(None);
         };
-        return Ok(Some(engine.enlarge_output(&state, &enlarged, child)?));
+        // Rule 3 is the identity: P_x(y) = P_{x,w}(y). The child names a
+        // coordinate of `w` only where a later exchange fixed it at its
+        // declared level, so it is returned unchanged; a child that still
+        // reads `w` is averaged over the kernel's own law of `w` given `x`,
+        // which is zero exactly where the child conditions on a null event.
+        let enlarged_vars = engine.vars(&enlarged)?;
+        let free = engine.arena.free_variables(child);
+        if enlarged_vars.iter().any(|variable| free.contains(variable)) {
+            trace.push("ztr.line3.kernel_weighted".into());
+            return Ok(Some(engine.enlarge_output(&state, &enlarged, child)?));
+        }
+        return Ok(Some(child));
     }
     let districts = engine.prepared.c_components(&super::difference(&state.v, &state.x));
     // `TRz` rule 4: factor over multiple districts in D \ X.
