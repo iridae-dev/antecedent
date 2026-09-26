@@ -180,7 +180,11 @@ impl super::Study {
         };
         let checked_frontdoor_functional =
             if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::FrontDoorFunctional)) {
-                let fitter = antecedent_estimate::FrontDoorFunctional::new();
+                // Point stage only: the uncertainty stage below attaches the
+                // study's replicate count, so the estimator's own default must
+                // not bootstrap here.
+                let fitter =
+                    antecedent_estimate::FrontDoorFunctional::new().with_bootstrap_replicates(0);
                 Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
             } else {
                 None
