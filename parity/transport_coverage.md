@@ -29,5 +29,9 @@ unsupported input, and exhausted search never become nonidentification proofs.
 The scoped route has a separate versioned artifact whose consumer rechecks the
 proof, catalog, laws, provider snapshots, and point result. An empirical
 interval is a nominal percentile bootstrap with reason
-`estimator_grid_not_measured`. Calibrated coverage and cross-source combination
-remain closed. Bayesian execution remains refused.
+`estimator_grid_not_measured`. A Bayesian posterior interval
+(`estimator="empirical_support_bayesian_bootstrap"` or `"state_space_dirichlet"`)
+is licensed on the same cited empirical tables as an equal-tail posterior
+interval around the plug-in point, also with reason `estimator_grid_not_measured`
+and no coverage record. Calibrated coverage and cross-source combination remain
+closed.
