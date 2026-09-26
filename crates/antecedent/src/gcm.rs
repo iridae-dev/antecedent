@@ -24,7 +24,7 @@ use antecedent_core::{
     NestedCounterfactualQuery, PathSpecificEffectQuery, TargetPopulation, UnitChangeQuery, Value,
     VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
 use antecedent_model::ValueBatch;
 
@@ -196,8 +196,30 @@ impl CheckedCounterfactualOperation {
     }
 }
 
+/// Outcome mechanism the nested natural-direct-effect route fits before
+/// abducting and replaying both worlds.
+///
+/// The choice is what makes the shared abduced exogenous draw either invisible
+/// or observable. Under a separable outcome the frozen mediator's disturbance
+/// cancels out of the direct effect; under a non-separable outcome it does not.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NestedOutcomeMechanism {
+    /// Separable linear-Gaussian additive-noise outcome (the licensed
+    /// point-only cell). The natural direct effect is `a·(active − control)`,
+    /// which does not read the abducted disturbance, so a shared and an
+    /// independent exogenous draw yield the identical value.
+    LinearGaussian,
+    /// Non-separable outcome basis (cross-parent products and per-parent smooth
+    /// terms, [`MechanismFamily::LinearSpline`]). The outcome is a non-additive
+    /// function of its parents, so a treatment-interacted mediator term carries
+    /// the frozen mediator's abducted disturbance into the direct effect. The
+    /// disturbance is additive, so abduction still inverts it exactly and the
+    /// counterfactual replay round-trips.
+    NonSeparableBasis,
+}
+
 /// Evaluate a natural direct effect with one abducted exogenous table shared by
-/// both linear-Gaussian worlds.
+/// both worlds.
 /// Complete checked operation for the licensed natural direct effect route.
 ///
 /// The operation fixes the graph, cross-world target roles, treatment levels,
@@ -211,6 +233,7 @@ pub struct NestedCounterfactualOperation {
     active_inner_world: Intervention,
     control_inner_world: Intervention,
     frozen: Arc<[VariableId]>,
+    outcome_mechanism: NestedOutcomeMechanism,
 }
 
 impl NestedCounterfactualOperation {
@@ -259,7 +282,29 @@ impl NestedCounterfactualOperation {
                 Value::f64(query.control_value()),
             ),
             frozen: Arc::from([query.mediator]),
+            outcome_mechanism: NestedOutcomeMechanism::LinearGaussian,
         })
+    }
+
+    /// Re-target this operation to fit a non-separable outcome basis instead of
+    /// the separable linear-Gaussian outcome.
+    ///
+    /// The graph, cross-world roles, and treatment levels are unchanged; only
+    /// the fitted outcome mechanism differs. This is the variant under which the
+    /// shared abduced exogenous draw is observable: the direct effect reads the
+    /// frozen mediator's disturbance because the outcome is non-additive in its
+    /// parents. The licensed linear-Gaussian path (used by the staged Study
+    /// route) is untouched.
+    #[must_use]
+    pub fn with_non_separable_outcome(mut self) -> Self {
+        self.outcome_mechanism = NestedOutcomeMechanism::NonSeparableBasis;
+        self
+    }
+
+    /// The outcome mechanism this operation fits.
+    #[must_use]
+    pub const fn outcome_mechanism(&self) -> NestedOutcomeMechanism {
+        self.outcome_mechanism
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &NestedCounterfactualQuery) -> bool {
@@ -287,13 +332,21 @@ impl NestedCounterfactualOperation {
         ctx: &ExecutionContext,
     ) -> Result<f64, CausalError> {
         let compiled = CompiledCausalModel::compile(self.graph.clone()).map_err(map_model)?;
-        let (store, _) = MechanismRegistry::standard()
-            .assign_and_fit(
-                &compiled,
-                data,
-                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
-            )
-            .map_err(map_model)?;
+        let store = match self.outcome_mechanism {
+            NestedOutcomeMechanism::LinearGaussian => {
+                MechanismRegistry::standard()
+                    .assign_and_fit(
+                        &compiled,
+                        data,
+                        SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+                    )
+                    .map_err(map_model)?
+                    .0
+            }
+            NestedOutcomeMechanism::NonSeparableBasis => {
+                fit_non_separable_nested_outcome(&compiled, data, self.query.outcome)?
+            }
+        };
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
         let exo = engine
             .abduct(data, AbductionMissingPolicy::Error, ctx)
@@ -326,6 +379,45 @@ impl NestedCounterfactualOperation {
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         Ok(active - control)
     }
+}
+
+/// Fit the nested route's mechanisms with a non-separable outcome basis.
+///
+/// Every parent-free and single-parent node keeps the linear-Gaussian family
+/// (a cross-parent product needs two parents), so the mediator equation stays
+/// separable and its abducted disturbance is exact. The two-parent outcome is
+/// refit as a [`MechanismFamily::LinearSpline`] basis, whose smooth per-parent
+/// expansion and cross-parent products make the outcome a non-additive function
+/// of treatment and mediator. The disturbance stays additive, so abduction
+/// inverts it and the counterfactual replay round-trips.
+fn fit_non_separable_nested_outcome(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    outcome: VariableId,
+) -> Result<CompiledMechanismStore, CausalError> {
+    let registry = MechanismRegistry::standard();
+    let (_, mut assignments) = registry
+        .assign_and_fit(
+            compiled,
+            data,
+            SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+        )
+        .map_err(map_model)?;
+    let mut retargeted = false;
+    for assignment in &mut assignments {
+        if assignment.variable == outcome {
+            assignment.selected = MechanismFamily::LinearSpline;
+            retargeted = true;
+        }
+    }
+    if !retargeted {
+        return Err(CausalError::Compile {
+            message: "nested outcome variable is absent from the fitted mechanism assignments"
+                .into(),
+        });
+    }
+    let weights = vec![1.0_f64; data.row_count()];
+    registry.refit_weighted(compiled, data, &assignments, &weights).map_err(map_mechanism_fit)
 }
 
 /// Map a mechanism-fit failure, turning non-convergence into a reason-coded
@@ -812,6 +904,254 @@ mod tests {
         let mut g = Dag::with_variables(2);
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         (fit_gcm(g, &data).unwrap().model, data)
+    }
+
+    /// Deterministic conditional mean of a fitted slot at explicit parent
+    /// columns (noise held at zero). This forward-evaluates the fitted SCM
+    /// independently of the counterfactual engine.
+    fn conditional_mean(slot: &MechanismSlot, columns: &[&[f64]]) -> Vec<f64> {
+        use antecedent_model::{ParentBatch, evaluate_column};
+        let rows = columns[0].len();
+        let mut flat = Vec::with_capacity(columns.len() * rows);
+        for column in columns {
+            assert_eq!(column.len(), rows);
+            flat.extend_from_slice(column);
+        }
+        let batch = ParentBatch { n_rows: rows, n_parents: columns.len(), values: &flat };
+        let zeros = vec![0.0_f64; rows];
+        let mut out = vec![0.0_f64; rows];
+        let mut ws = MechanismWorkspace::default();
+        evaluate_column(slot, batch, &zeros, &mut out, &mut ws).unwrap();
+        out
+    }
+
+    /// The natural-direct-effect route shares one abduced exogenous draw across
+    /// both worlds, and under a non-separable outcome that sharing is
+    /// observable: the direct effect reads the frozen mediator's disturbance, so
+    /// the route's value matches the shared-abduction truth and is decisively
+    /// separated from the disturbance-free (independent) value.
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one test walks the whole shared-vs-independent proof"
+    )]
+    fn nested_route_shares_abduced_exogenous_draw_under_nonseparable_outcome() {
+        // Non-separable structural model with an analytic natural direct effect:
+        //   M = 0.8*X + U_M
+        //   Y = 1.7*X + 0.5*M + 0.9*X*M^2      (+ an additive U_Y that cancels
+        //                                        from the direct effect)
+        // The X*M^2 term makes Y convex in the mediator, so the direct effect
+        //   NDE_u = (active-control)*(1.7 + 0.9*M0_u^2)
+        // depends on the frozen mediator M0_u = 0.8*control + U_M,u through its
+        // square. Averaging keeps E[M0^2] = mean(M0)^2 + Var(U_M): the abduced
+        // disturbance's variance survives. Both levels sit inside the observed X
+        // range so the fitted spline interpolates.
+        let n = 600usize;
+        let x: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin() * 3.0).collect();
+        let m: Vec<f64> =
+            x.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
+        let y: Vec<f64> =
+            x.iter().zip(&m).map(|(x, m)| 1.7 * x + 0.5 * m + 0.9 * x * m * m).collect();
+        let data = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (s, t) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+        }
+        let treatment = VariableId::from_raw(0);
+        let mediator = VariableId::from_raw(1);
+        let outcome = VariableId::from_raw(2);
+        let (control, active) = (-1.0, 2.0);
+        let query =
+            NestedCounterfactualQuery::with_levels(treatment, mediator, outcome, control, active)
+                .unwrap();
+        let ctx = ExecutionContext::for_tests(41);
+
+        // The route, retargeted to fit the non-separable outcome mechanism.
+        let operation = NestedCounterfactualOperation::compile(graph.clone(), query)
+            .unwrap()
+            .with_non_separable_outcome();
+        assert_eq!(operation.outcome_mechanism(), NestedOutcomeMechanism::NonSeparableBasis);
+        let route = operation.execute(&data, &ctx).unwrap();
+
+        // Reconstruct the identical fitted mechanism to (a) confirm the outcome
+        // is a genuine non-additive basis and (b) simulate the SCM forward,
+        // independently of the counterfactual engine the route drives.
+        let compiled = CompiledCausalModel::compile(graph.clone()).unwrap();
+        let store = fit_non_separable_nested_outcome(&compiled, &data, outcome).unwrap();
+        let outcome_slot = store.get(DenseNodeId::from_raw(2));
+        let MechanismSlot::LinearBasis { basis, .. } = outcome_slot else {
+            panic!("expected a non-separable LinearBasis outcome, got {outcome_slot:?}");
+        };
+        assert!(basis.has_cross_parent_product(), "outcome basis is separable: {basis:?}");
+
+        // Parent gather order the fitted basis expects for its two columns.
+        let outcome_parents: Vec<usize> = compiled
+            .parent_gathers
+            .iter()
+            .find(|gather| gather.child == DenseNodeId::from_raw(2))
+            .unwrap()
+            .parents
+            .iter()
+            .map(|p| p.as_usize())
+            .collect();
+        assert_eq!(outcome_parents, vec![0, 1], "expected parent order [X, M]");
+
+        // Abduct the mediator disturbance by hand: U_M,u = m_u - ĝ_M(x_u); the
+        // control-world mediator realisation is M0_u = ĝ_M(control) + U_M,u.
+        let mediator_slot = store.get(DenseNodeId::from_raw(1));
+        let mhat_obs = conditional_mean(mediator_slot, &[&x]);
+        let mhat_control = conditional_mean(mediator_slot, &[&vec![control; n]]);
+        let m0: Vec<f64> = (0..n).map(|u| mhat_control[u] + (m[u] - mhat_obs[u])).collect();
+        let mbar0 = m0.iter().sum::<f64>() / n as f64;
+
+        // SHARED truth: each world evaluates the outcome at the unit's own
+        // abduced mediator realisation M0_u.
+        let y_active_shared = conditional_mean(outcome_slot, &[&vec![active; n], &m0]);
+        let y_control_shared = conditional_mean(outcome_slot, &[&vec![control; n], &m0]);
+        let shared_truth =
+            (0..n).map(|u| y_active_shared[u] - y_control_shared[u]).sum::<f64>() / n as f64;
+
+        // INDEPENDENT value: the mediator is frozen at its disturbance-free
+        // counterfactual mean m̄0 instead of the unit's abduced draw, so the two
+        // worlds no longer share the abduced exogenous term.
+        let y_active_free = conditional_mean(outcome_slot, &[&vec![active; n], &vec![mbar0; n]]);
+        let y_control_free = conditional_mean(outcome_slot, &[&vec![control; n], &vec![mbar0; n]]);
+        let independent_value =
+            (0..n).map(|u| y_active_free[u] - y_control_free[u]).sum::<f64>() / n as f64;
+
+        // The route reproduces the shared-abduction forward simulation exactly.
+        assert!(
+            (route - shared_truth).abs() < 1e-9,
+            "route {route} != shared truth {shared_truth}"
+        );
+        // Shared and independent draws give genuinely different answers, and the
+        // route matches the shared one, not the independent one.
+        assert!(
+            (shared_truth - independent_value).abs() > 1.0,
+            "shared {shared_truth} and independent {independent_value} do not differ"
+        );
+        assert!(
+            (route - independent_value).abs() > 1.0,
+            "route {route} coincides with the independent value {independent_value}"
+        );
+        assert!(
+            (route - shared_truth).abs() < (route - independent_value).abs(),
+            "route is closer to the independent value than to the shared truth"
+        );
+
+        // Fidelity to the known analytic SCM: shared ≈ 3*(1.7 + 0.9*E[M0^2]),
+        // independent ≈ 3*(1.7 + 0.9*m̄0^2); their gap is 3*0.9*Var(U_M) > 0.
+        let em2 = m0.iter().map(|v| v * v).sum::<f64>() / n as f64;
+        let analytic_shared = (active - control) * (1.7 + 0.9 * em2);
+        let analytic_independent = (active - control) * (1.7 + 0.9 * mbar0 * mbar0);
+        assert!(
+            (route - analytic_shared).abs() < 0.25,
+            "route {route} vs analytic {analytic_shared}"
+        );
+        assert!(
+            (analytic_shared - analytic_independent).abs() > 1.0,
+            "analytic shared and independent must differ"
+        );
+    }
+
+    /// Negative control: under the licensed *separable* linear-Gaussian outcome
+    /// the direct effect is `a·(active − control)` and never reads the frozen
+    /// mediator, so the shared and disturbance-free values coincide even though
+    /// the mediator carries a real abduced disturbance. This is why the linear
+    /// cell alone cannot exhibit the shared-exogenous property, and why the
+    /// non-separable outcome above is needed to make it observable.
+    #[test]
+    fn nested_shared_equals_independent_under_separable_outcome() {
+        let n = 600usize;
+        let x: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin() * 3.0).collect();
+        let m: Vec<f64> =
+            x.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
+        // Separable additive outcome: no treatment×mediator interaction.
+        let y: Vec<f64> = x.iter().zip(&m).map(|(x, m)| 1.7 * x + 4.0 * m).collect();
+        let data = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (s, t) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+        }
+        let compiled = CompiledCausalModel::compile(graph.clone()).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(
+                &compiled,
+                &data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+            )
+            .unwrap();
+        let outcome_slot = store.get(DenseNodeId::from_raw(2));
+        let mediator_slot = store.get(DenseNodeId::from_raw(1));
+        let (control, active) = (-1.0, 2.0);
+        let mhat_obs = conditional_mean(mediator_slot, &[&x]);
+        let mhat_control = conditional_mean(mediator_slot, &[&vec![control; n]]);
+        let m0: Vec<f64> = (0..n).map(|u| mhat_control[u] + (m[u] - mhat_obs[u])).collect();
+        let mbar0 = m0.iter().sum::<f64>() / n as f64;
+        // Variance is genuinely present in the abduced mediator draw.
+        let var_m0 = m0.iter().map(|v| (v - mbar0).powi(2)).sum::<f64>() / n as f64;
+        assert!(var_m0 > 0.1, "mediator draw should carry real variance: {var_m0}");
+        let y_active_shared = conditional_mean(outcome_slot, &[&vec![active; n], &m0]);
+        let y_control_shared = conditional_mean(outcome_slot, &[&vec![control; n], &m0]);
+        let shared =
+            (0..n).map(|u| y_active_shared[u] - y_control_shared[u]).sum::<f64>() / n as f64;
+        let independent = conditional_mean(outcome_slot, &[&vec![active; n], &vec![mbar0; n]])[0]
+            - conditional_mean(outcome_slot, &[&vec![control; n], &vec![mbar0; n]])[0];
+        assert!(
+            (shared - independent).abs() < 1e-9,
+            "separable outcome, yet shared {shared} != independent {independent}"
+        );
+    }
+
+    /// Adversarial mechanism-underdetermination: the non-separable outcome basis
+    /// cannot be fit from too few rows, and the route refuses with a typed error
+    /// rather than fabricating a direct effect. This is distinct from the
+    /// graph-shape scope refusal (the graph here is the licensed nested DAG).
+    #[test]
+    fn nested_non_separable_outcome_refuses_when_basis_underdetermined() {
+        let n = 8usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64 * 0.5 - 2.0).collect();
+        let m: Vec<f64> = x.iter().map(|x| 0.8 * x).collect();
+        let y: Vec<f64> =
+            x.iter().zip(&m).map(|(x, m)| 1.7 * x + 0.5 * m + 0.9 * x * m * m).collect();
+        let data = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (s, t) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+        }
+        let query = NestedCounterfactualQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            -1.0,
+            2.0,
+        )
+        .unwrap();
+        let operation = NestedCounterfactualOperation::compile(graph, query)
+            .unwrap()
+            .with_non_separable_outcome();
+        let err = operation.execute(&data, &ExecutionContext::for_tests(7)).unwrap_err();
+        // The linear-Gaussian licensed path fits the same tiny sample fine, so
+        // the refusal is specific to the non-separable outcome basis.
+        assert!(
+            matches!(err, CausalError::Unsupported { .. } | CausalError::Model(_)),
+            "expected a typed mechanism refusal, got {err:?}"
+        );
     }
 
     /// Facade must surface a typed out-of-range `unit_rows` error (row == n), not panic.
