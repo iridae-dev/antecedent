@@ -1190,8 +1190,10 @@ impl super::Study {
                 message: "execute_graph_posterior_frequentist requires inference=Frequentist",
             });
         }
-        let conditional =
-            checked.is_none() && matches!(self.query, CausalQuery::ConditionalEffect(_));
+        let conditional = checked.map_or_else(
+            || matches!(self.query, CausalQuery::ConditionalEffect(_)),
+            |operation| operation.target().is_conditional(),
+        );
         let estimator_id = if let Some(operation) = checked {
             operation.estimator()
         } else if conditional {

@@ -755,7 +755,7 @@ pub fn verify_contract_against_body(
         }));
     }
     if contract.structure_source == "graph_posterior"
-        && contract.graph_class == "Dag"
+        && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
         && resolved_estimator == Some("bayesian.gcomp")
         && contract
@@ -763,7 +763,40 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_graph_posterior_ate_operation"));
+        unresolved.push(Arc::from(if contract.graph_class == "Dag" {
+            "dependencies.checked_bayesian_graph_posterior_ate_operation"
+        } else {
+            "dependencies.checked_class_graph_posterior_effect_operation"
+        }));
+    }
+    if contract.structure_source == "graph_posterior"
+        && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
+        && matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. })
+        && resolved_estimator == Some("conditional.linear.adjustment")
+        && contract.program.as_ref().is_some_and(|program| {
+            program.commitments.inference.eq_ignore_ascii_case("frequentist")
+        })
+    {
+        unresolved.push(Arc::from(if contract.graph_class == "Dag" {
+            "dependencies.checked_graph_posterior_effect_operation"
+        } else {
+            "dependencies.checked_class_graph_posterior_effect_operation"
+        }));
+    }
+    if contract.structure_source == "graph_posterior"
+        && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
+        && matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. })
+        && resolved_estimator == Some("conditional.bayesian")
+        && contract
+            .program
+            .as_ref()
+            .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
+    {
+        unresolved.push(Arc::from(if contract.graph_class == "Dag" {
+            "dependencies.checked_bayesian_graph_posterior_ate_operation"
+        } else {
+            "dependencies.checked_class_graph_posterior_effect_operation"
+        }));
     }
     if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
