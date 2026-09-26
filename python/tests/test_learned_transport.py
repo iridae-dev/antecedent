@@ -148,3 +148,31 @@ def test_trial_transformation_preview_uses_common_contract():
     report = study.preview_transform("compatible_data_replace")
     assert report
     assert study.preview_transform("change_graph") != report
+
+
+def test_prepare_trial_executes_retained_checked_score_after_builder_disposal():
+    """The prepared trial handle retains its certificate, snapshot, and seed."""
+    query_builder, data = trial_fixture("independent_samples")
+    study = advanced.prepare_trial(
+        query_builder,
+        data,
+        provider=tr.TrialAipw(outcome=Linear(), folds=3),
+        inference=tr.TransportInference(bootstrap=5, seed=8),
+    )
+    del query_builder
+    plan = study.inspect()
+    assert plan.identification.available
+    assert not plan.uncertainty.available
+    result = study.estimate()
+    assert result.estimate == pytest.approx(2.0)
+    assert result.interval == pytest.approx((2.0, 2.0))
+    assert len(result.replicates) == 5
+    loaded = ac.load(result.export())
+    assert loaded.estimate == result.estimate
+    assert loaded.replicates == result.replicates
+    refreshed = study.refresh(data)
+    assert refreshed.estimate == result.estimate
+    assert refreshed.replicates == result.replicates
+    with pytest.raises(ValueError, match="reprepare_required"):
+        study.refresh(dataclasses.replace(data, sampling="nested_cohort"))
+    assert study.estimate().estimate == result.estimate

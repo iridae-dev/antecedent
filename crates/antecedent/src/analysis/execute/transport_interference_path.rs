@@ -18,6 +18,20 @@ use super::*;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
+/// Everything a trial-to-target execution reads besides the data: the
+/// certified sID proof, the design columns, and the inference procedure. The
+/// checked route supplies these from its retained plan; the legacy route
+/// derives them from the study.
+#[derive(Clone, Copy)]
+pub(super) struct TransportTrialInputs<'a> {
+    pub(super) trial: &'a super::super::builder::TransportTrialSpec,
+    pub(super) transport: &'a TransportIdentification,
+    pub(super) identification: &'a IdentificationResult,
+    pub(super) estimand: &'a IdentifiedEstimand,
+    pub(super) inference: &'a InferenceMode,
+    pub(super) identify_cached: bool,
+}
+
 impl super::Study {
     pub(super) fn execute_transport(
         &self,
@@ -26,7 +40,6 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires a selection diagram",
@@ -34,10 +47,7 @@ impl super::Study {
         let trial_spec = self.transport_trial.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires transport_trial columns",
         })?;
-        let (treatment, outcome) =
-            query.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                message: "TransportQuery inner response has no treatment/outcome".into(),
-            })?;
+        let (treatment, outcome) = transport_primary_pair(query)?;
         let (transport_id, identify_cached) =
             if let Some(cached) = self.transport_identification_cache.as_deref() {
                 (cached.clone(), true)
@@ -52,6 +62,42 @@ impl super::Study {
             outcome,
             &transport_id,
         );
+        self.execute_transport_identified(
+            data,
+            query,
+            physical,
+            TransportTrialInputs {
+                trial: trial_spec,
+                transport: &transport_id,
+                identification: &identification,
+                estimand: &estimand,
+                inference: &self.inference,
+                identify_cached,
+            },
+            ctx,
+        )
+    }
+
+    /// Binary trial-to-target IPW (or its Bayesian bootstrap) from an
+    /// already-certified transport formula and frozen design columns.
+    pub(super) fn execute_transport_identified(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::TransportQuery,
+        physical: &PhysicalExecutionPlan,
+        inputs: TransportTrialInputs<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let TransportTrialInputs {
+            trial: trial_spec,
+            transport: transport_id,
+            identification,
+            estimand,
+            inference,
+            identify_cached,
+        } = inputs;
+        let (treatment, outcome) = transport_primary_pair(query)?;
         let outcomes = data
             .float64_values(outcome)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -70,7 +116,7 @@ impl super::Study {
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
         let mut transported = trial_to_target_effect(
-            &transport_id,
+            transport_id,
             &outcomes,
             &treatment_bool,
             &trial_bool,
@@ -95,18 +141,11 @@ impl super::Study {
             scope: antecedent_core::AssumptionScope::Estimation,
             status: antecedent_core::AssumptionStatus::Declared,
         });
-        let (estimate, posterior, estimator_id, diagnostic) = match &self.inference {
+        let (estimate, posterior, estimator_id, diagnostic) = match inference {
             InferenceMode::Bayesian(cfg) => {
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian trial transport uses an empirical-support row-law prior and does not accept coefficient or transferred priors",
-                    });
-                }
+                refuse_transport_bayesian_priors(cfg)?;
                 let draws = trial_to_target_bayesian_bootstrap(
-                    &transport_id,
+                    transport_id,
                     &outcomes,
                     &treatment_bool,
                     &trial_bool,
@@ -201,8 +240,8 @@ impl super::Study {
         };
         let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
-            identification,
-            estimand,
+            identification: identification.clone(),
+            estimand: estimand.clone(),
             estimate,
             identifier_id: IdentifierId::TransportSid,
             estimator_id,
@@ -425,6 +464,26 @@ fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::Assumpti
     assumptions
 }
 
+/// Treatment and outcome named by the inner transport response.
+pub(super) fn transport_primary_pair(
+    query: &antecedent_core::TransportQuery,
+) -> Result<(VariableId, VariableId), CausalError> {
+    query.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+        message: "TransportQuery inner response has no treatment/outcome".into(),
+    })
+}
+
+/// The Bayesian trial route owns its row-law prior; coefficient and transferred
+/// priors have no meaning for it.
+pub(super) fn refuse_transport_bayesian_priors(cfg: &BayesianConfig) -> Result<(), CausalError> {
+    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian trial transport uses an empirical-support row-law prior and does not accept coefficient or transferred priors",
+        });
+    }
+    Ok(())
+}
+
 pub(crate) fn live_transport_identification(
     diagram: &antecedent_graph::SelectionDiagram,
     query: &antecedent_core::TransportQuery,
@@ -463,7 +522,7 @@ fn inspectable_do_expectation(
     (arena, estimand)
 }
 
-fn transport_sid_identification(
+pub(super) fn transport_sid_identification(
     query: CausalQuery,
     treatment: VariableId,
     outcome: VariableId,
@@ -559,7 +618,9 @@ fn interference_design_identification(
     (identification, estimand)
 }
 
-fn refuse_unestimable_transport(identified: &TransportIdentification) -> Result<(), CausalError> {
+pub(super) fn refuse_unestimable_transport(
+    identified: &TransportIdentification,
+) -> Result<(), CausalError> {
     match identified {
         TransportIdentification::NotCertified(certificate) => Err(CausalError::Compile {
             message: format!(

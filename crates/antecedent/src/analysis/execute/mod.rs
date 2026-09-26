@@ -326,6 +326,7 @@ pub(crate) use response_path::{
     CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
 };
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
+mod checked_bayesian_specialist;
 mod checked_bayesian_temporal_class_effect;
 mod checked_graph_posterior_response;
 mod checked_static_class_response;
@@ -333,6 +334,7 @@ mod checked_temporal_class_mediation;
 mod checked_temporal_class_response;
 mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
+mod checked_transport_trial;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
@@ -368,6 +370,10 @@ pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
 pub(crate) use static_path::DistributionGraph;
 pub(crate) use transport_interference_path::live_transport_identification;
 
+pub use checked_bayesian_specialist::CheckedBayesianSpecialistInfo;
+pub(crate) use checked_bayesian_specialist::CheckedBayesianSpecialistOperation;
+pub use checked_transport_trial::CheckedTransportTrialInfo;
+pub(crate) use checked_transport_trial::CheckedTransportTrialOperation;
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
 };

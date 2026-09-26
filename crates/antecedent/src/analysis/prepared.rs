@@ -3964,6 +3964,8 @@ pub(crate) enum PreparedExecution {
     TemporalGraphPosteriorEffect(Box<super::CheckedTemporalGraphPosteriorEffect>),
     StaticClassResponse(Box<super::execute::CheckedStaticClassResponse>),
     GraphPosteriorResponse(Box<super::execute::CheckedGraphPosteriorResponse>),
+    BayesianSpecialist(Box<super::execute::CheckedBayesianSpecialistOperation>),
+    TransportTrial(Box<super::execute::CheckedTransportTrialOperation>),
 }
 
 /// Exactly one checked product may supply a prepared result contract. This is
@@ -4048,6 +4050,8 @@ impl PreparedExecution {
             | Self::CheckedPropensity(_)
             | Self::CheckedConditional(_)
             | Self::UnknownTieredAverage(_)
+            | Self::BayesianSpecialist(_)
+            | Self::TransportTrial(_)
             | Self::AdmgGraphPosteriorResponse(_)
             | Self::BayesianClassConditional(_)
             | Self::TemporalClassResponse(_)
@@ -4975,6 +4979,40 @@ impl PreparedStudy {
             estimator: operation.estimator,
             plan_id: Arc::clone(&operation.physical.record.plan_id),
         })
+    }
+
+    /// Inspect the retained Bayesian IV or sharp-RD model before execution.
+    #[must_use]
+    pub fn checked_bayesian_specialist_info(
+        &self,
+    ) -> Option<super::execute::CheckedBayesianSpecialistInfo> {
+        match &self.execution {
+            PreparedExecution::BayesianSpecialist(operation) => Some(operation.info()),
+            _ => None,
+        }
+    }
+
+    /// Whether preparation retained the complete Bayesian IV or sharp-RD operation.
+    #[must_use]
+    pub fn has_checked_bayesian_specialist_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::BayesianSpecialist(_))
+    }
+
+    /// Inspect the retained certified trial-to-target transport operation.
+    #[must_use]
+    pub fn checked_transport_trial_info(
+        &self,
+    ) -> Option<super::execute::CheckedTransportTrialInfo> {
+        match &self.execution {
+            PreparedExecution::TransportTrial(operation) => Some(operation.info()),
+            _ => None,
+        }
+    }
+
+    /// Whether preparation retained the complete trial-to-target transport operation.
+    #[must_use]
+    pub fn has_checked_transport_trial_operation(&self) -> bool {
+        matches!(self.execution, PreparedExecution::TransportTrial(_))
     }
 
     /// Inspect the retained checked temporal effect before execution.
@@ -6805,6 +6843,12 @@ impl PreparedStudy {
             );
             return self.stamp(&DataInput::Tabular(data.clone()), result);
         }
+        if matches!(
+            self.execution,
+            PreparedExecution::BayesianSpecialist(_) | PreparedExecution::TransportTrial(_)
+        ) {
+            return self.estimate_retained_single_operation(data, ctx);
+        }
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.interference =
@@ -6834,6 +6878,31 @@ impl PreparedStudy {
             &mut result,
         )?;
         self.stamp(&click_analysis.data, result)
+    }
+
+    /// Execute a retained Bayesian specialist or transport trial operation.
+    /// Kept out of line so the shared tabular dispatcher's frame does not grow
+    /// with every sealed single-operation family.
+    #[inline(never)]
+    fn estimate_retained_single_operation(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let result = match &self.execution {
+            PreparedExecution::BayesianSpecialist(operation) => {
+                operation.execute(&self.analysis, data, ctx)?
+            }
+            PreparedExecution::TransportTrial(operation) => {
+                operation.execute(&self.analysis, data, ctx)?
+            }
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "prepared handle holds no retained single operation".into(),
+                });
+            }
+        };
+        self.stamp(&DataInput::Tabular(data.clone()), result)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -10875,6 +10944,14 @@ impl Study {
             PreparedExecution::StaticClassResponse(operation)
         } else if let Some(operation) = checked_graph_posterior_response {
             PreparedExecution::GraphPosteriorResponse(operation)
+        } else if let Some(operation) =
+            super::execute::CheckedBayesianSpecialistOperation::checked(&analysis, &plan)?
+        {
+            PreparedExecution::BayesianSpecialist(operation)
+        } else if let Some(operation) =
+            super::execute::CheckedTransportTrialOperation::checked(&analysis, &plan)?
+        {
+            PreparedExecution::TransportTrial(operation)
         } else {
             PreparedExecution::LegacyStudyDispatch
         };

@@ -7,6 +7,54 @@ use antecedent_estimate::bayesian_iv::fit_bayesian_iv_joint_fixed_loading;
 use antecedent_estimate::bayesian_rd::fit_bayesian_sharp_rd;
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
+/// Model-scope checks shared by the legacy and checked Bayesian IV routes.
+pub(super) fn check_bayesian_iv_scope(
+    estimand: &IdentifiedEstimand,
+    config: &BayesianConfig,
+) -> Result<(), CausalError> {
+    if estimand.instruments.len() != 1 || !estimand.adjustment_set.is_empty() {
+        return Err(CausalError::Compile{message:"iv.bayesian_joint_linear currently supports exactly one instrument and no exogenous adjustment covariates".into()});
+    }
+    if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+        || config.prior.is_some()
+        || config.prior_artifact.is_some()
+        || config.external_compose.is_some()
+    {
+        return Err(CausalError::Compile{message:"iv.bayesian_joint_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
+    }
+    Ok(())
+}
+
+/// Model-scope checks shared by the legacy and checked Bayesian sharp-RD routes.
+pub(super) fn check_bayesian_rd_scope(
+    query: &AverageEffectQuery,
+    config: &BayesianConfig,
+) -> Result<(), CausalError> {
+    if !query.effect_modifiers.is_empty() || !query.outcome_functional.is_mean() {
+        return Err(CausalError::Compile {
+            message: "rd.bayesian_local_linear supports only an unmodified mean outcome".into(),
+        });
+    }
+    if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+        || config.prior.is_some()
+        || config.prior_artifact.is_some()
+        || config.external_compose.is_some()
+    {
+        return Err(CausalError::Compile{message:"rd.bayesian_local_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
+    }
+    Ok(())
+}
+
+/// Identification products and model configuration a Bayesian specialist
+/// execution reads; the checked route supplies these from its retained plan.
+#[derive(Clone, Copy)]
+pub(super) struct BayesianSpecialistInputs<'a> {
+    pub(super) identification: &'a IdentificationResult,
+    pub(super) estimand: &'a IdentifiedEstimand,
+    pub(super) config: &'a BayesianConfig,
+    pub(super) identify_cached: bool,
+}
+
 impl Study {
     pub(super) fn execute_bayesian_iv(
         &self,
@@ -16,34 +64,49 @@ impl Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
         let identification = identify_static_query(
             IdentifierId::Iv,
             graph,
             &CausalQuery::AverageEffect(query.clone()),
         )?;
         require_identified(&identification)?;
-        let estimator_id = EstimatorId::BayesianIvJointLinear;
-        let estimand = select_estimand(&identification, estimator_id)?;
-        if estimand.instruments.len() != 1 || !estimand.adjustment_set.is_empty() {
-            return Err(CausalError::Compile{message:"iv.bayesian_joint_linear currently supports exactly one instrument and no exogenous adjustment covariates".into()});
-        }
-        let frequentist = antecedent_estimate::TwoStageLeastSquares::new();
-        let prep = frequentist.prepare(data, &estimand, query).map_err(CausalError::from)?;
-        let n = prep.nrows;
-        let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
+        let estimand = select_estimand(&identification, EstimatorId::BayesianIvJointLinear)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
             return Err(CausalError::Compile {
                 message: "iv.bayesian_joint_linear requires Bayesian inference".into(),
             });
         };
-        if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-            || config.prior.is_some()
-            || config.prior_artifact.is_some()
-            || config.external_compose.is_some()
-        {
-            return Err(CausalError::Compile{message:"iv.bayesian_joint_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
-        }
+        self.execute_bayesian_iv_identified(
+            data,
+            query,
+            physical,
+            BayesianSpecialistInputs {
+                identification: &identification,
+                estimand: &estimand,
+                config,
+                identify_cached: false,
+            },
+            ctx,
+        )
+    }
+
+    /// Joint linear Gaussian IV posterior from already-identified products.
+    pub(super) fn execute_bayesian_iv_identified(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        inputs: BayesianSpecialistInputs<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let BayesianSpecialistInputs { identification, estimand, config, identify_cached } = inputs;
+        let estimator_id = EstimatorId::BayesianIvJointLinear;
+        check_bayesian_iv_scope(estimand, config)?;
+        let frequentist = antecedent_estimate::TwoStageLeastSquares::new();
+        let prep = frequentist.prepare(data, estimand, query).map_err(CausalError::from)?;
+        let n = prep.nrows;
+        let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
         let result = fit_bayesian_iv_joint_fixed_loading(
             &z,
             &prep.treatment,
@@ -83,14 +146,14 @@ impl Study {
         )];
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
-            identification,
-            estimand,
+            identification: identification.clone(),
+            estimand: estimand.clone(),
             estimate,
             identifier_id: IdentifierId::Iv,
             estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: diagnostics,
             refutations: Vec::new(),
             distribution: None,
@@ -115,7 +178,6 @@ impl Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
         let rd=self.rd.ok_or_else(||CausalError::Compile{message:"rd.bayesian_local_linear requires builder.rd_config(running_variable, cutoff, bandwidth)".into()})?;
         let identification = SharpRdIdentifier::new(SharpRdConfig::new(
             rd.running_variable,
@@ -125,30 +187,46 @@ impl Study {
         .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
         .map_err(CausalError::from)?;
         require_identified(&identification)?;
-        let estimator_id = EstimatorId::BayesianRdLocalLinear;
-        let estimand = select_estimand(&identification, estimator_id)?;
-        if !query.effect_modifiers.is_empty() || !query.outcome_functional.is_mean() {
-            return Err(CausalError::Compile {
-                message: "rd.bayesian_local_linear supports only an unmodified mean outcome".into(),
-            });
-        }
-        let ids = [query.treatment, query.outcome, rd.running_variable];
-        let mask = data.complete_case_mask(&ids).map_err(CausalError::from)?;
-        let t = data.float64_masked(query.treatment, &mask).map_err(CausalError::from)?;
-        let y = data.float64_masked(query.outcome, &mask).map_err(CausalError::from)?;
-        let r = data.float64_masked(rd.running_variable, &mask).map_err(CausalError::from)?;
+        let estimand = select_estimand(&identification, EstimatorId::BayesianRdLocalLinear)?;
         let InferenceMode::Bayesian(config) = &self.inference else {
             return Err(CausalError::Compile {
                 message: "rd.bayesian_local_linear requires Bayesian inference".into(),
             });
         };
-        if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-            || config.prior.is_some()
-            || config.prior_artifact.is_some()
-            || config.external_compose.is_some()
-        {
-            return Err(CausalError::Compile{message:"rd.bayesian_local_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
-        }
+        self.execute_bayesian_rd_identified(
+            data,
+            query,
+            physical,
+            rd,
+            BayesianSpecialistInputs {
+                identification: &identification,
+                estimand: &estimand,
+                config,
+                identify_cached: false,
+            },
+            ctx,
+        )
+    }
+
+    /// Fixed-bandwidth local-linear sharp-RD posterior from already-identified products.
+    pub(super) fn execute_bayesian_rd_identified(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        rd: crate::RdConfig,
+        inputs: BayesianSpecialistInputs<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let BayesianSpecialistInputs { identification, estimand, config, identify_cached } = inputs;
+        let estimator_id = EstimatorId::BayesianRdLocalLinear;
+        check_bayesian_rd_scope(query, config)?;
+        let ids = [query.treatment, query.outcome, rd.running_variable];
+        let mask = data.complete_case_mask(&ids).map_err(CausalError::from)?;
+        let t = data.float64_masked(query.treatment, &mask).map_err(CausalError::from)?;
+        let y = data.float64_masked(query.outcome, &mask).map_err(CausalError::from)?;
+        let r = data.float64_masked(rd.running_variable, &mask).map_err(CausalError::from)?;
         let result = fit_bayesian_sharp_rd(
             &r,
             &t,
@@ -189,14 +267,14 @@ impl Study {
         )];
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
-            identification,
-            estimand,
+            identification: identification.clone(),
+            estimand: estimand.clone(),
             estimate,
             identifier_id: IdentifierId::RdSharp,
             estimator_id,
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: diagnostics,
             refutations: Vec::new(),
             distribution: None,
