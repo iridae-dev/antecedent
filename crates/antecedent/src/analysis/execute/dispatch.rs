@@ -949,6 +949,7 @@ impl super::Study {
             AnalysisRoute::RandomizedEffect => self.execute_randomized(data, physical, ctx),
             AnalysisRoute::PolicyValue => self.execute_policy_value(data, physical, ctx),
             AnalysisRoute::PanelDid => self.execute_panel_did(data, physical, ctx),
+            AnalysisRoute::Survival => self.execute_survival(data, physical, ctx),
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
             | AnalysisRoute::TemporalResponse

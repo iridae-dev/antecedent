@@ -409,6 +409,30 @@ pub struct PanelDidWire {
     pub uncertainty: String,
 }
 
+/// Randomized arm event-time curves with an explicit point-only uncertainty contract.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SurvivalWire {
+    /// Shared time grid, including zero and the restriction horizon.
+    pub times: Vec<f64>,
+    /// Control-arm survival or target-cause cumulative incidence.
+    pub control: Vec<f64>,
+    /// Treated-arm survival or target-cause cumulative incidence.
+    pub treated: Vec<f64>,
+    /// Control restricted mean for a survival query.
+    pub rmst_control: Option<f64>,
+    /// Treated restricted mean for a survival query.
+    pub rmst_treated: Option<f64>,
+    /// Positive target cause for cumulative incidence.
+    pub target_cause: Option<i64>,
+    /// Shared restriction horizon.
+    pub tau: f64,
+    /// Smallest event risk set in either arm.
+    pub minimum_event_risk_set: Option<usize>,
+    /// Explicit uncertainty semantics; no interval is licensed.
+    pub uncertainty: String,
+}
+
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
@@ -430,6 +454,9 @@ pub struct AnalysisResultWire {
     /// Balanced two-period panel DiD metadata and cluster uncertainty semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panel_did: Option<PanelDidWire>,
+    /// Randomized survival or competing-risk curve.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub survival: Option<SurvivalWire>,
     /// Full atom result for an interventional-distribution query. Absent on older
     /// artifacts; such artifacts remain readable but cannot verify as a checked
     /// distribution execution.
@@ -658,6 +685,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             "panel DiD artifact is missing its design-specific result section".into(),
         ));
     }
+    if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
+        return Err(IoError::Convert(
+            "survival artifact is missing its curve result section".into(),
+        ));
+    }
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {
         Some(variables) => {
@@ -740,6 +772,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         };
         let mut subjects = std::collections::BTreeMap::<&str, (bool, &str)>::new();
         let mut group_clusters: [std::collections::BTreeSet<&str>; 2] = Default::default();
+        let mut cell_clusters: [[std::collections::BTreeSet<&str>; 2]; 2] = Default::default();
+        let mut duplicate_subject = false;
         for i in 0..query.treated.len() {
             let subject = query.subjects[i].as_str();
             let cluster = query.clusters[i].as_str();
@@ -751,9 +785,12 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                         "panel DiD query changes treatment or cluster within a subject".into(),
                     ));
                 }
-                _ => {}
+                Some(_) => duplicate_subject = true,
+                None => {}
             }
             group_clusters[usize::from(query.treated[i])].insert(cluster);
+            cell_clusters[usize::from(query.treated[i])][usize::from(query.post[i])]
+                .insert(cluster);
         }
         let treated_subjects = subjects.values().filter(|(treated, _)| *treated).count();
         let comparison_subjects = subjects.len() - treated_subjects;
@@ -766,13 +803,65 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || did.treated_subjects != treated_subjects
             || did.comparison_subjects != comparison_subjects
             || did.clusters != clusters
-            || group_clusters.iter().any(|members| members.len() < 2)
+            || (query.repeated_cross_section
+                && (duplicate_subject
+                    || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
+            || (!query.repeated_cross_section
+                && group_clusters.iter().any(|members| members.len() < 2))
             || did.uncertainty != "cluster_robust_standard_error_no_interval"
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
         {
             return Err(IoError::Convert(
                 "invalid panel DiD payload or fabricated interval".into(),
+            ));
+        }
+    }
+    if let Some(curve) = &result.survival {
+        let crate::CausalQueryWire::Survival(query) = &result.query else {
+            return Err(IoError::Convert(
+                "survival result section is attached to a different query".into(),
+            ));
+        };
+        if result.estimate.is_some()
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
+            || curve.uncertainty != "point_only_no_interval"
+            || curve.tau != query.tau
+            || curve.target_cause != query.target_cause
+            || curve.times.len() < 2
+            || curve.control.len() != curve.times.len()
+            || curve.treated.len() != curve.times.len()
+            || curve.times[0] != 0.0
+            || curve.times.last() != Some(&curve.tau)
+            || curve.times.windows(2).any(|w| !w[0].is_finite() || w[0] >= w[1])
+            || !curve.tau.is_finite()
+            || curve
+                .control
+                .iter()
+                .chain(curve.treated.iter())
+                .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+            || curve.minimum_event_risk_set == Some(0)
+            || (query.target_cause.is_some()
+                && (curve.rmst_control.is_some()
+                    || curve.rmst_treated.is_some()
+                    || curve.control[0] != 0.0
+                    || curve.treated[0] != 0.0))
+            || (query.target_cause.is_none()
+                && (curve.rmst_control.is_none()
+                    || curve.rmst_treated.is_none()
+                    || curve.control[0] != 1.0
+                    || curve.treated[0] != 1.0))
+            || [curve.control.as_slice(), curve.treated.as_slice()].into_iter().any(|arm| {
+                arm.windows(2)
+                    .any(|w| if query.target_cause.is_some() { w[0] > w[1] } else { w[0] < w[1] })
+            })
+            || curve.rmst_control.is_some_and(|v| !v.is_finite() || !(0.0..=curve.tau).contains(&v))
+            || curve.rmst_treated.is_some_and(|v| !v.is_finite() || !(0.0..=curve.tau).contains(&v))
+        {
+            return Err(IoError::Convert(
+                "invalid survival payload or fabricated uncertainty".into(),
             ));
         }
     }
@@ -1263,6 +1352,51 @@ mod tests {
         encoded.write_to(&mut bytes).unwrap();
         let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
         assert_eq!(decoded, result);
+    }
+
+    #[test]
+    fn repeated_cross_section_did_result_round_trips_without_interval() {
+        let domain = antecedent_core::PanelDidQuery::repeated_cross_section(
+            antecedent_core::VariableId::from_raw(1),
+            [false, false, false, false, true, true, true, true],
+            [false, false, true, true, false, false, true, true],
+            (0..8).map(|i| std::sync::Arc::<str>::from(format!("s{i}"))).collect::<Vec<_>>(),
+            (0..8).map(|i| std::sync::Arc::<str>::from(format!("c{i}"))).collect::<Vec<_>>(),
+        );
+        let query =
+            crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(domain)).unwrap();
+        let mut result = fixture();
+        result.query = query.clone();
+        result.identification.query = query;
+        result.estimate = Some(2.0);
+        result.standard_error = Some((16.0_f64 / 7.0).sqrt());
+        result.panel_did = Some(PanelDidWire {
+            effect: 2.0,
+            standard_error: (16.0_f64 / 7.0).sqrt(),
+            treated_subjects: 4,
+            comparison_subjects: 4,
+            clusters: 8,
+            uncertainty: "cluster_robust_standard_error_no_interval".into(),
+        });
+        let encoded = encode_analysis_result_artifact(
+            &result,
+            vec!["treatment".into(), "outcome".into()],
+            "rcs-did-result",
+        )
+        .unwrap();
+        let mut bytes = Vec::new();
+        encoded.write_to(&mut bytes).unwrap();
+        let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(decoded, result);
+        result.interval_lower = Some(0.0);
+        assert!(
+            encode_analysis_result_artifact(
+                &result,
+                vec!["treatment".into(), "outcome".into()],
+                "rcs-invalid-interval"
+            )
+            .is_err()
+        );
     }
 
     #[test]

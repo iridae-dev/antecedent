@@ -281,8 +281,22 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         CausalQueryWire::PanelDid(query) => vec![
             ("query_kind".into(), "panel_did".into()),
             ("outcome".into(), query.outcome.to_string()),
-            ("design".into(), "balanced_two_period_panel".into()),
+            (
+                "design".into(),
+                if query.repeated_cross_section {
+                    "repeated_cross_section"
+                } else {
+                    "balanced_two_period_panel"
+                }
+                .into(),
+            ),
             ("temporal_coordinates".into(), "pre_post".into()),
+        ],
+        CausalQueryWire::PolicyValue(query) => vec![
+            ("query_kind".into(), "policy_value".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("policy_actions".into(), query.actions.len().to_string()),
+            ("temporal_coordinates".into(), "none".into()),
         ],
         CausalQueryWire::Survival(query) => vec![
             ("query_kind".into(), "survival".into()),
@@ -2489,6 +2503,36 @@ mod tests {
                 .collect();
         assert_eq!(labels.get("query_kind").map(String::as_str), Some("panel_did"));
         assert_eq!(labels.get("design").map(String::as_str), Some("balanced_two_period_panel"));
+    }
+
+    #[test]
+    fn repeated_cross_section_design_changes_target_identity() {
+        let (schema, _, _) = schema_and_query();
+        let panel = antecedent_core::PanelDidQuery::new(
+            VariableId::from_raw(1),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "b", "c", "d"].map(std::sync::Arc::<str>::from),
+            ["x", "y", "z", "w"].map(std::sync::Arc::<str>::from),
+        );
+        let repeated = antecedent_core::PanelDidQuery::repeated_cross_section(
+            panel.outcome,
+            panel.treated.clone(),
+            panel.post.clone(),
+            panel.subjects.clone(),
+            panel.clusters.clone(),
+        );
+        let panel_query = CausalQuery::PanelDid(panel);
+        let repeated_query = CausalQuery::PanelDid(repeated);
+        assert_ne!(
+            digest_wire(IdentityDomain::Target, &target_wire(&schema, &panel_query)).unwrap(),
+            digest_wire(IdentityDomain::Target, &target_wire(&schema, &repeated_query)).unwrap(),
+        );
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&causal_query_to_wire(&repeated_query).unwrap())
+                .into_iter()
+                .collect();
+        assert_eq!(labels.get("design").map(String::as_str), Some("repeated_cross_section"));
     }
 
     #[test]

@@ -85,6 +85,9 @@ impl CheckedPanelDidOperation {
                 });
             }
         };
+        if self.query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
+            return self.execute_repeated_cross_section(data, y);
+        }
         let mut subjects: BTreeMap<&str, (Option<f64>, Option<f64>, Option<bool>, Option<&str>)> =
             BTreeMap::new();
         for i in 0..y.len() {
@@ -203,6 +206,105 @@ impl CheckedPanelDidOperation {
         result.treatment = None;
         Ok(result)
     }
+
+    fn execute_repeated_cross_section(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let mut subjects = BTreeSet::new();
+        let mut sums = [[0.0; 2]; 2];
+        let mut counts = [[0usize; 2]; 2];
+        let mut cell_clusters: [[BTreeSet<&str>; 2]; 2] = Default::default();
+        for (i, value) in y.iter().enumerate() {
+            if !value.is_finite() {
+                return Err(CausalError::Unsupported {
+                    message: "repeated-cross-section DiD requires complete finite outcomes",
+                });
+            }
+            if !subjects.insert(self.query.subjects[i].as_ref()) {
+                return Err(CausalError::Compile {
+                    message: "repeated-cross-section DiD requires one row per subject".into(),
+                });
+            }
+            let group = usize::from(self.query.treated[i]);
+            let period = usize::from(self.query.post[i]);
+            sums[group][period] += value;
+            counts[group][period] += 1;
+            cell_clusters[group][period].insert(self.query.clusters[i].as_ref());
+        }
+        if counts.iter().flatten().any(|count| *count == 0) {
+            return Err(CausalError::Compile {
+                message: "repeated-cross-section DiD requires observations in all four group-period cells".into(),
+            });
+        }
+        if cell_clusters.iter().flatten().any(|clusters| clusters.len() < 2) {
+            return Err(CausalError::Unsupported {
+                message: "repeated-cross-section cluster SE requires at least two clusters in each group-period cell",
+            });
+        }
+        let means: [[f64; 2]; 2] = std::array::from_fn(|group| {
+            std::array::from_fn(|period| sums[group][period] / counts[group][period] as f64)
+        });
+        let effect = (means[1][1] - means[1][0]) - (means[0][1] - means[0][0]);
+        let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
+        for (i, value) in y.iter().enumerate() {
+            let group = usize::from(self.query.treated[i]);
+            let period = usize::from(self.query.post[i]);
+            let sign = if group == period { 1.0 } else { -1.0 };
+            *scores.entry(self.query.clusters[i].as_ref()).or_default() +=
+                sign * (value - means[group][period]) / counts[group][period] as f64;
+        }
+        let g = scores.len();
+        let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
+        let identification = self.identification.clone();
+        let estimate = EffectEstimate::new(
+            effect,
+            variance.sqrt(),
+            identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        );
+        let started = Instant::now();
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish {
+                physical: &self.physical,
+                identification,
+                estimand: self.estimand.clone(),
+                estimate,
+                identifier_id: IdentifierId::RandomizedDesign,
+                estimator_id: EstimatorId::RandomizedHt,
+                treatment: self.query.outcome,
+                outcome: self.query.outcome,
+                identify_cached: false,
+                extra_diagnostics: vec![Diagnostic::new(
+                    "estimate.quasi.repeated_cross_section_did.cluster_se",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "four-cell repeated-cross-section DiD; cluster score sandwich SE; normal intervals are not reported",
+                )],
+                refutations: Vec::new(),
+                distribution: None,
+                mediation: None,
+                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+                bootstrap_replicates_ok: None,
+                cancelled: false,
+                early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            },
+        );
+        result.panel_did = Some(crate::PanelDidEstimate {
+            effect,
+            standard_error: variance.sqrt(),
+            treated_subjects: counts[1].iter().sum(),
+            comparison_subjects: counts[0].iter().sum(),
+            clusters: g,
+            uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+        });
+        result.treatment = None;
+        Ok(result)
+    }
 }
 
 impl Study {
@@ -220,7 +322,9 @@ pub(crate) fn panel_did_identification(
     query: &antecedent_core::PanelDidQuery,
 ) -> (IdentificationResult, IdentifiedEstimand) {
     let mut assumptions = antecedent_core::AssumptionSet::default();
-    for assumption in [antecedent_core::Assumption::Consistency, antecedent_core::Assumption::NoInterference] {
+    for assumption in
+        [antecedent_core::Assumption::Consistency, antecedent_core::Assumption::NoInterference]
+    {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption,
             source: antecedent_core::AssumptionSource::UserDeclared,
@@ -234,11 +338,7 @@ pub(crate) fn panel_did_identification(
             "in the absence of treatment, treated and comparison groups would have had equal mean outcome changes",
         ),
         ("no_anticipation", "treatment does not affect pre-period outcomes"),
-        ("stable_treatment", "treatment assignment is constant within subject"),
-        (
-            "balanced_panel",
-            "each subject contributes exactly one observed outcome in each of two periods",
-        ),
+        ("stable_group", "the treatment-group definition is stable across periods"),
     ] {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
@@ -250,21 +350,70 @@ pub(crate) fn panel_did_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    let (design_id, design_description) = match query.design {
+        antecedent_core::DidSamplingDesign::BalancedPanel => (
+            "balanced_panel",
+            "each subject contributes exactly one observed outcome in each of two periods",
+        ),
+        antecedent_core::DidSamplingDesign::RepeatedCrossSection => (
+            "repeated_cross_section",
+            "each subject is sampled once and the sampled group composition is comparable across periods",
+        ),
+    };
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from(design_id),
+            description: Arc::from(design_description),
+        },
+        source: antecedent_core::AssumptionSource::UserDeclared,
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
     let intervention = arena.intern_intervention_set([]);
-    let distribution = arena.intern_distribution(outcomes, empty, intervention, antecedent_expr::DomainRef::Observational);
+    let distribution = arena.intern_distribution(
+        outcomes,
+        empty,
+        intervention,
+        antecedent_expr::DomainRef::Observational,
+    );
     let functional = arena.intern(antecedent_expr::ExprNode::Expectation {
-        function: antecedent_expr::OutcomeExprId::identity(query.outcome), distribution,
+        function: antecedent_expr::OutcomeExprId::identity(query.outcome),
+        distribution,
     });
-    arena.set_derivation(functional, antecedent_expr::DerivationMeta::rule(
-        "did.panel_change_score", Some(Arc::from("typed PanelDidQuery binds the observed group, period, subject, and cluster design"))));
-    let estimand = IdentifiedEstimand::new("did.panel_change_score", Arc::from([]), Arc::from([]), Arc::from([]), functional, None);
+    let rule = match query.design {
+        antecedent_core::DidSamplingDesign::BalancedPanel => "did.panel_change_score",
+        antecedent_core::DidSamplingDesign::RepeatedCrossSection => {
+            "did.repeated_cross_section_four_cell"
+        }
+    };
+    arena.set_derivation(
+        functional,
+        antecedent_expr::DerivationMeta::rule(
+            rule,
+            Some(Arc::from(
+                "typed PanelDidQuery binds the observed group, period, subject, and cluster design",
+            )),
+        ),
+    );
+    let estimand = IdentifiedEstimand::new(
+        rule,
+        Arc::from([]),
+        Arc::from([]),
+        Arc::from([]),
+        functional,
+        None,
+    );
     let mut derivation = DerivationTrace::default();
-    derivation.push("did.panel_change_score", "the balanced-panel difference in subject-level changes is identified under parallel trends and no anticipation");
+    derivation.push(rule, "the two-period group difference in outcome changes is identified under parallel trends and no anticipation");
     let identification = IdentificationResult::identified(
-        CausalQuery::PanelDid(query.clone()), vec![estimand.clone()], arena, derivation, assumptions,
+        CausalQuery::PanelDid(query.clone()),
+        vec![estimand.clone()],
+        arena,
+        derivation,
+        assumptions,
         IdentificationPerformanceRecord::default(),
     );
     (identification, estimand)

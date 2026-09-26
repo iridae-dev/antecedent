@@ -56,11 +56,12 @@ pub use analysis_result_artifact::{
     AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterventionalDistributionWire,
     MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire, StructuralResponseAtomWire,
-    StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
-    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
-    UnitEffectIntervalsWire, UnitEffectsWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    identified_set_interval_from_wire, identified_set_interval_to_wire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalWire,
+    TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,
+    TemporalMediationUncertaintyWire, UnitEffectIntervalsWire, UnitEffectsWire,
+    decode_analysis_result_artifact, encode_analysis_result_artifact,
+    encode_analysis_result_artifact_with_contract, identified_set_interval_from_wire,
+    identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, HedgeCertificateWire, IdentificationResultWire,

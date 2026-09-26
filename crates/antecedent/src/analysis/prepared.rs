@@ -4030,6 +4030,7 @@ pub(crate) enum PreparedExecution {
     Randomized(super::execute::CheckedRandomizedOperation),
     PolicyValue(super::execute::CheckedPolicyValueOperation),
     PanelDid(super::execute::CheckedPanelDidOperation),
+    Survival(super::execute::CheckedSurvivalOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
@@ -4119,6 +4120,7 @@ impl PreparedExecution {
             | Self::Randomized(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
+            | Self::Survival(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
             | Self::BayesianBasisAte(_)
@@ -6804,6 +6806,10 @@ impl PreparedStudy {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        if let PreparedExecution::Survival(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
         Ok(None)
     }
 
@@ -8577,6 +8583,7 @@ impl Study {
                     self.prepare_static_identification(&plan)?.map(Arc::new);
             }
             (DataInput::Tabular(_), CausalQuery::PolicyValue(_), None) => {}
+            (DataInput::Tabular(_), CausalQuery::Survival(_), None) => {}
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
@@ -10194,6 +10201,18 @@ impl Study {
             }
             _ => None,
         };
+        let checked_survival = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::Survival(_), GraphClass::RandomizedTrial)
+                if analysis.structure_source
+                    == crate::support::StructureSource::RandomizedTrial
+                    && analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedSurvivalOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let temporal_mediation_operation = match (
             &self.data,
             &self.query,
@@ -10766,6 +10785,8 @@ impl Study {
             PreparedExecution::PolicyValue(operation)
         } else if let Some(operation) = checked_panel_did {
             PreparedExecution::PanelDid(operation)
+        } else if let Some(operation) = checked_survival {
+            PreparedExecution::Survival(operation)
         } else if let Some(operation) = temporal_mediation_operation {
             PreparedExecution::TemporalMediation(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {
@@ -10856,6 +10877,10 @@ impl Study {
         }
         if let CausalQuery::PanelDid(query) = &self.query {
             let (identification, estimand) = super::execute::panel_did_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::Survival(query) = &self.query {
+            let (identification, estimand) = super::execute::survival_identification(query);
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if matches!(self.query, CausalQuery::Counterfactual(_)) {
@@ -11889,6 +11914,15 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             {
                 return Err(CausalError::Unsupported {
                     message: "PanelDid requires a graphless two-period panel design",
+                });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Survival(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Survival requires a graphless randomized trial",
                 });
             }
         }
