@@ -1,0 +1,40 @@
+feature_id = "estimate.bayesian_rd"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_rd_local_linear
+# (EstimatorId::BayesianRdLocalLinear, public name rd.bayesian_local_linear).
+#
+# The cited papers supply the sharp-RD estimand and the local-linear
+# specification `Y ~ 1 + T + (R-c) + T(R-c)` inside a window around the cutoff;
+# the frequentist counterpart is estimate.rd. The Bayesian layer on top of that
+# design — independent zero-centered Normal coefficient priors, a plug-in residual
+# variance, and equal-tailed posterior quantiles of the jump coefficient — is the
+# repository's own conjugate Gaussian construction, not a procedure from either
+# paper.
+papers = [
+ { title = "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design", doi = "10.1111/1468-0262.00183", sections = ["sharp RD identification of the jump at the cutoff"] },
+ { title = "Regression Discontinuity Designs: A Guide to Practice", doi = "10.1016/j.jeconom.2007.05.001", sections = ["local-linear estimation on either side of the cutoff"] },
+]
+
+implementation_deviations = [
+ "Unweighted rectangular window with a caller-declared symmetric bandwidth; no kernel weighting, data-driven bandwidth selection, or robust bias correction. Bandwidth comparisons are exposed only as an explicit sensitivity analysis (bayesian_rd_bandwidth_sensitivity).",
+ "Posterior is the conjugate Gaussian posterior of the four local-linear coefficients under independent N(0, prior_sd^2) priors and a plug-in residual variance; the residual variance is not given a prior and is not integrated out.",
+ "Sharp assignment T = 1{R >= cutoff} is verified row by row and any mismatch is refused with rd_assignment_not_sharp; fuzzy RD is not estimated.",
+ "Requires at least 12 in-window rows with at least 4 on each side; covariate-adjusted RD and manipulation, density, or continuity diagnostics are not provided.",
+ "The staged route accepts only an unmodified mean outcome with the built-in conjugate model; transferred and custom priors are refused.",
+ "The 300-replicate declared-law interval check is scoped to that local-linear Gaussian law and bandwidth; curved conditional expectations and other bandwidths inherit no guarantee.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian_rd.rs (in-module tests: local_linear_jump_recovers_known_truth_and_reports_bandwidth_sensitivity, non_sharp_assignment_is_refused)",
+ "crates/antecedent/tests/bayesian_iv_rd_staged.rs (bayesian_rd_executes_staged_and_checks_bandwidth_conditioning, rd_posterior_intervals_calibrate_under_declared_local_linear_law)",
+ "crates/antecedent/src/analysis/execute/bayesian_specialist_path.rs (model-scope refusals)",
+ "conformance/estimate/bayesian_rd (synthetic known-truth fixture: true jump 2.5 at cutoff 0 with fixed bandwidth 0.8)",
+ "python/tests/test_bayesian_estimator_lifecycle.py",
+]

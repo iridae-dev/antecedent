@@ -1,0 +1,50 @@
+feature_id = "estimate.gcm.fit.bayesian"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.gcm.fit.bayesian
+# (EstimatorId::GcmFitBayesian, public name gcm.fit.bayesian). This is the
+# estimator identity assigned when an anomaly-attribution query runs under
+# Bayesian inference (attribution_path.rs finish_gcm), and gcm.fit.bayesian is
+# also the algorithm label stamped on the Bayesian counterfactual posterior.
+#
+# Bayesian GCM fit: the mechanism families are selected once on the unweighted
+# data exactly as in estimate.gcm.fit; then every posterior draw samples one
+# Dirichlet(1,...,1) row-weight vector over the observed units, refits all
+# selected mechanisms under those shared weights, and re-runs the downstream
+# procedure (anomaly attribution, or abduction-action-prediction for the
+# counterfactual route) on the original rows. The published posterior is the
+# pushforward of those refits. Pearl supplies the abduction-action-prediction
+# procedure, Rubin the Bayesian bootstrap, and Janzing et al. the outlier score
+# the anomaly route re-evaluates per draw; layering the row-weight refit over a
+# fitted GCM is the repository's own construction and not a procedure from any
+# of them.
+papers = [
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 abduction-action-prediction"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
+ # DOI resolves via DataCite to the arXiv preprint of this work; see attribution.basic.toml
+ # for the title/author-order note.
+ { title = "Causal structure-based root cause analysis of outliers", doi = "10.48550/arXiv.1912.02724", sections = ["Section 2 (information-theoretic outlier score definition)"] },
+]
+
+implementation_deviations = [
+ "The posterior is a Dirichlet row-weight mechanism-refit bootstrap on the observed units, not a parametric coefficient-prior posterior and not a population posterior; it quantifies weighted-refit uncertainty for the fitted model and does not address model misspecification or causal identification.",
+ "Mechanism-family selection (5-fold cross-validated score) is made once on the unweighted data and is not revisited per draw; the posterior is conditional on that selection and on empirical support.",
+ "Anomaly attribution holds the marginal reference statistics at the observed data values across draws and publishes the posterior of each target's mean anomaly score; the anomaly score itself keeps the deviations recorded in attribution.basic.",
+ "On the counterfactual route, abducted disturbances are recomputed from the observed rows for every draw rather than drawn, so the mean_ite interval is for the average over the observed units and each unit interval is a credible interval for that observed unit's contrast, not a predictive interval for a new unit.",
+ "Coefficient priors, transferred priors, and external prior composition are refused; Bayesian inference here accepts only the draw count.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/staged_attribution_transport_interference.rs (bayesian_attribution_shared_row_weight_known_truth)",
+ "crates/antecedent/src/analysis/execute/checked_attribution.rs (in-module tests: anomaly_posterior_executes_from_retained_operation_after_builder_drop)",
+ "crates/antecedent/tests/checked_attribution_route_evidence.rs (all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused)",
+ "crates/antecedent/tests/v18_bayesian_remainder.rs (counterfactual_posterior_has_bayesian_bootstrap_variance, accepted_counterfactual_matches_explicit_bayesian)",
+ "conformance/estimate/staged_attribution (known-truth anomaly fixture: linear chain with one injected outlier row)",
+ "conformance/estimate/staged_static_kinds (Bayesian counterfactual mean ITE pin)",
+]

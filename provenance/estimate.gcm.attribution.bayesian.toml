@@ -1,0 +1,41 @@
+feature_id = "estimate.gcm.attribution.bayesian"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.gcm.attribution.bayesian
+# (EstimatorId::GcmAttributionBayesian, public name gcm.attribution.bayesian).
+# This is the estimator identity assigned when a change-attribution query runs
+# under Bayesian inference (attribution_path.rs finish_gcm).
+#
+# Bayesian attribution: the frequentist distribution-change attribution
+# (attribution.distribution_change; Shapley attribution of a marginal change to
+# per-node mechanism changes) is re-evaluated under a Bayesian bootstrap. Each
+# draw samples one Dirichlet(1,...,1) row-weight vector per population, shared
+# across every mechanism in that population, refits the baseline and comparison
+# GCMs under those weights, and recomputes the total change and its Shapley
+# components together. Budhathoki et al. supply the attribution being resampled
+# and Rubin the row-weight law; the per-population shared-weight refit is the
+# repository's own construction.
+papers = [
+ { title = "Why did the distribution change?", doi = "10.48550/arXiv.2102.13384", sections = ["Section 4 (Sections 4.1 Shapley Values, 4.2 Attributing Marginal Distribution Change)"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
+]
+
+implementation_deviations = [
+ "Intervals are modular bootstrap pushforwards of the fitted-model change attribution, not a joint posterior over mechanisms and attribution; they quantify weighted-refit uncertainty and do not address misspecification or causal identification.",
+ "Mechanism-family selection is made once on the original unweighted populations and is not revisited per draw; the posterior is conditional on that selection.",
+ "Each population receives its own Dirichlet(1,...,1) weight vector per draw; total and Shapley components of a draw are computed from the same weighted refit so they stay coupled.",
+ "Coefficient priors, transferred priors, and external prior composition are refused; Bayesian inference here accepts only the draw count.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/staged_attribution_transport_interference.rs (bayesian_attribution_shared_row_weight_known_truth)",
+ "crates/antecedent/src/analysis/execute/checked_attribution.rs (in-module tests: change_posterior_keeps_total_and_shapley_components_coupled)",
+ "crates/antecedent/tests/checked_attribution_route_evidence.rs (all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused)",
+ "conformance/estimate/staged_attribution (known-truth change fixture: two-period intercept-shift chain with total change 5.0)",
+]

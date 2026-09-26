@@ -1,0 +1,43 @@
+feature_id = "estimate.bayesian_robust_ate"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_robust_ate
+# (EstimatorId::BayesianRobustAte, public name bayesian.robust_ate, kernel
+# bayesian_bootstrap.aipw).
+#
+# Bayesian-bootstrap orthogonal ATE. Each posterior draw samples one Exp(1)
+# row-weight vector (Rubin's Dirichlet(1,...,1) law up to normalization), refits
+# the cross-fitted nuisances under those weights — a weighted ridge-logistic
+# propensity and per-arm weighted ridge outcome regressions on fixed
+# arm-stratified folds — and averages the AIPW / Neyman-orthogonal score with the
+# same weights. The cited papers supply the orthogonal score, cross-fitting, and
+# the Bayesian bootstrap; combining them as a modular bootstrap pushforward is the
+# repository's own construction and is not the estimator analyzed in any of them.
+papers = [
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1..1) observation weights"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["AIPW / Neyman-orthogonal score", "cross-fitting (sample splitting)"] },
+ { title = "Doubly Robust Estimation of Causal Effects", doi = "10.1093/aje/kwq439", sections = ["Doubly robust estimator"] },
+]
+
+implementation_deviations = [
+ "The interval is a modular bootstrap pushforward of the weighted orthogonal score, not a joint posterior over nuisance and target parameters; it does not establish repeated-sampling coverage or causal identification.",
+ "Row weights are Exp(1) draws rescaled to sum to n rather than Dirichlet probabilities summing to one (the same rescaling as data.bayesian_bootstrap); the score average is invariant to that common rescaling.",
+ "Nuisance families are fixed linear bases with a fixed ridge penalty (default 1.0) on non-intercept coefficients: weighted ridge-logistic propensity and weighted ridge outcome regressions per arm. The arbitrary ML learners and the rate conditions of the DML analysis are not inherited.",
+ "Fold membership is fixed by sorted stable row IDs within treatment arm (default 5 folds); it is not re-randomized per draw.",
+ "Propensities are clipped at a fixed bound (default 0.01) inside the score.",
+ "AllObserved binary mean ATE on a fixed DAG only; other populations, nonbinary treatment, non-mean outcomes, effect modifiers, transferred priors, and graph-posterior structures are refused.",
+ "Double robustness holds only when at least one nuisance is correctly specified under consistency, exchangeability, positivity, and regularity. A 40-replicate-per-scenario nominal 90% check observed 0.825 coverage with one misspecified nuisance, 0.775 with both misspecified, and 0.900 under one weak-overlap setting.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/bayesian_robust_ate.rs (bayesian_robust_ate_all_observed_staged_known_truth)",
+ "crates/antecedent-estimate/tests/bayesian_robust_ate_calibration.rs (repeated_sampling_is_scoped_to_one_correct_linear_nuisance: bounded misspecification and overlap scenarios)",
+ "conformance/estimate/bayesian_robust_ate (synthetic known-truth fixture: truth 2.0 with a correctly specified logistic propensity and a misspecified linear outcome nuisance)",
+ "python/tests/test_bayesian_estimator_lifecycle.py",
+]
