@@ -2,8 +2,8 @@
 use super::{
     Admg, Arc, CatalogTransportResult, ClassicalTransportDerivation, ClassicalTransportQuery,
     ClassicalTransportResult, Engine, ExecutionContext, IdentificationBudget, IdentificationError,
-    SHedgeCertificate, SelectionDiagram, SidLimits, VariableId, graph_signature,
-    identify_catalog_transport, verify_classical_transport, verify_s_hedge,
+    SHedgeCertificate, SelectionDiagram, SidLimits, VariableId, identify_catalog_transport,
+    verify_classical_transport, verify_s_hedge,
 };
 
 pub(super) const CLASSICAL_SETTING: &str = "classical_single_source_all_experiments_v1";
@@ -269,18 +269,7 @@ pub fn identify_meta_transport(
         result = engine.solve(state, true, 0)?;
     }
     if let Some(root_step) = result {
-        let (steps, root_step) = super::reachable_proof(&engine.proof, root_step);
-        let proof = ClassicalTransportDerivation {
-            query: query.clone(),
-            graph_signature: graph_signature(&diagram),
-            selection_targets: diagram.selection_targets().into(),
-            root: steps[root_step].output,
-            arena: engine.arena,
-            proof: steps,
-            root_step,
-            sources,
-        };
-        verify_classical_transport(&diagram, &query, &proof, limits, ctx)?;
+        let proof = engine.solved_derivation(root_step, sources)?;
         return Ok(ClassicalTransportResult::Identified(Box::new(proof)));
     }
     if let Some(state) = engine.obstruction.clone() {
@@ -327,18 +316,7 @@ pub fn identify_meta_catalog(
         }
         if let Some(root_step) = engine.solve(state.clone(), strategy != 0, 0)? {
             had_derivation = true;
-            let (steps, root_step) = super::reachable_proof(&engine.proof, root_step);
-            let proof = ClassicalTransportDerivation {
-                query: query.clone(),
-                graph_signature: graph_signature(&diagram),
-                selection_targets: diagram.selection_targets().into(),
-                root: steps[root_step].output,
-                arena: engine.arena.clone(),
-                proof: steps,
-                root_step,
-                sources: sources.clone(),
-            };
-            verify_classical_transport(&diagram, &query, &proof, limits, ctx)?;
+            let proof = engine.solved_derivation(root_step, sources.clone())?;
             proof.check_catalog_binding_resources(catalog, limits, ctx)?;
             match proof.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {

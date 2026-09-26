@@ -621,7 +621,6 @@ pub fn evaluate_exact_z_transport(
 ///
 /// # Errors
 /// Provider/catalog disagreement, missing assignment, or resource limit.
-#[allow(clippy::too_many_lines)] // Keep staged provider validation beside plan compilation.
 pub fn prepare_exact_z_transport(
     functional: &antecedent_identify::BoundZTransportFunctional,
     data: antecedent_expr::ExactTransportData,
@@ -629,17 +628,29 @@ pub fn prepare_exact_z_transport(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
-    use antecedent_core::{DistributionAvailability, VariableDomain, same_intervention_level};
+    validate_exact_laws(functional.catalog(), &data)?;
+    compile_exact_z_transport(functional, data, request, limits, ctx)
+}
+
+/// Compile the checked zTR formula against laws whose provider contract was
+/// already validated (a bootstrap or posterior draw rebuilds validated tables
+/// with new probabilities and need not revalidate them).
+///
+/// # Errors
+/// A request that does not bind the certified treatments at a cited level, or
+/// a compile-time resource limit.
+pub(crate) fn compile_exact_z_transport(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    use antecedent_core::same_intervention_level;
     use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
 
     let query = functional.derivation().query();
-    if request.entries().len() != query.treatments.len()
-        || query.treatments.iter().any(|variable| request.get(*variable).is_none())
-    {
-        return Err(EvalError::ProviderKind(
-            "exact zTR request must bind precisely the certified treatment coordinates",
-        ));
-    }
+    require_treatment_request(&query.treatments, &request)?;
     // A source factor that exchanged a treatment cites the experiment at the
     // concrete level recorded in the proof, whatever the root shape (a bare
     // direct-exchange distribution, or a summed product on the recursive
@@ -664,79 +675,6 @@ pub fn prepare_exact_z_transport(
             _ => {}
         }
     }
-    let catalog = functional.catalog();
-    for law in data.laws() {
-        let regime = catalog
-            .regimes
-            .iter()
-            .find(|regime| {
-                regime.id == law.regime() && regime.population.as_ref() == law.population()
-            })
-            .ok_or(EvalError::ProviderKind(
-                "exact zTR provider names an unknown evidence regime",
-            ))?;
-        if !regime.evidence_kind.can_satisfy_factor()
-            || !matches!(regime.distribution, DistributionAvailability::Joint)
-            || !regime.conditioned_on.is_empty()
-            || law.interventions().len() != regime.interventions.len()
-            || !law
-                .interventions()
-                .iter()
-                .all(|assignment| regime.interventions.contains(&assignment.variable))
-            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
-            || regime.intervention_values.iter().any(|required| {
-                !law.interventions().iter().any(|actual| {
-                    actual.variable == required.variable && actual.value == required.value
-                })
-            })
-        {
-            return Err(EvalError::ProviderKind(
-                "exact zTR provider disagrees with its evidence regime",
-            ));
-        }
-        for binding in catalog.bindings.iter().filter(|binding| binding.regime == regime.id) {
-            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
-                return Err(EvalError::ProviderKind(
-                    "exact zTR provider snapshot does not match catalog binding",
-                ));
-            }
-        }
-        for axis in law.axes() {
-            for coordinate in catalog
-                .environments
-                .iter()
-                .flat_map(|environment| environment.variables.iter())
-                .filter(|coordinate| coordinate.variable == axis.variable)
-            {
-                let valid = match coordinate.domain {
-                    VariableDomain::Unspecified => true,
-                    VariableDomain::Continuous => false,
-                    VariableDomain::Binary => {
-                        axis.values.len() == 2
-                            && [0.0, 1.0].iter().all(|level| {
-                                axis.values.iter().any(|value| value.as_f64() == Some(*level))
-                            })
-                    }
-                    VariableDomain::Categorical { cardinality } => {
-                        usize::try_from(cardinality).ok() == Some(axis.values.len())
-                            && (0..cardinality).all(|level| {
-                                axis.values
-                                    .iter()
-                                    .any(|value| value.as_f64() == Some(f64::from(level)))
-                            })
-                    }
-                    VariableDomain::Count => axis.values.iter().all(|value| {
-                        value.as_f64().is_some_and(|value| value >= 0.0 && value.fract() == 0.0)
-                    }),
-                };
-                if !valid {
-                    return Err(EvalError::ProviderKind(
-                        "exact zTR provider domain disagrees with evidence coordinates",
-                    ));
-                }
-            }
-        }
-    }
     // A factor whose exchanged coordinate is bound by an enclosing summation
     // names no single regime; the concrete world selects its law.
     ExactEvaluationPlan::compile(
@@ -749,6 +687,102 @@ pub fn prepare_exact_z_transport(
         LawTolerance::default(),
         ctx,
     )
+}
+
+/// The request must bind exactly the certified treatment coordinates.
+fn require_treatment_request(
+    treatments: &[antecedent_core::VariableId],
+    request: &antecedent_expr::Assignment,
+) -> Result<(), antecedent_expr::EvalError> {
+    if request.entries().len() != treatments.len()
+        || treatments.iter().any(|variable| request.get(*variable).is_none())
+    {
+        return Err(antecedent_expr::EvalError::ProviderKind(
+            "exact request must bind precisely the certified treatment coordinates",
+        ));
+    }
+    Ok(())
+}
+
+/// Check every supplied law against the evidence regime it claims to realize:
+/// the regime must be satisfiable, joint and unconditioned, the law's
+/// interventions and axes must be the regime's, every catalog binding of the
+/// regime must name the law's snapshot, and every declared coordinate domain
+/// must agree with the law's axis values. Shared by the classical and z routes.
+///
+/// # Errors
+/// The first provider/catalog disagreement found.
+pub(crate) fn validate_exact_laws(
+    catalog: &antecedent_core::EvidenceCatalog,
+    data: &antecedent_expr::ExactTransportData,
+) -> Result<(), antecedent_expr::EvalError> {
+    use antecedent_core::{DistributionAvailability, VariableDomain};
+    use antecedent_expr::EvalError;
+    for law in data.laws() {
+        let regime = catalog
+            .regimes
+            .iter()
+            .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
+            .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
+        if !regime.evidence_kind.can_satisfy_factor()
+            || !matches!(regime.distribution, DistributionAvailability::Joint)
+            || !regime.conditioned_on.is_empty()
+            || law.interventions().len() != regime.interventions.len()
+            || !law.interventions().iter().all(|a| regime.interventions.contains(&a.variable))
+            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
+            || regime.intervention_values.iter().any(|required| {
+                !law.interventions()
+                    .iter()
+                    .any(|a| a.variable == required.variable && a.value == required.value)
+            })
+        {
+            return Err(EvalError::ProviderKind(
+                "exact provider disagrees with its evidence regime",
+            ));
+        }
+        for binding in catalog.bindings.iter().filter(|b| b.regime == regime.id) {
+            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
+                return Err(EvalError::ProviderKind(
+                    "exact provider snapshot does not match catalog binding",
+                ));
+            }
+        }
+        for axis in law.axes() {
+            for coordinate in catalog
+                .environments
+                .iter()
+                .flat_map(|env| env.variables.iter())
+                .filter(|c| c.variable == axis.variable)
+            {
+                let valid = match coordinate.domain {
+                    VariableDomain::Unspecified => true,
+                    VariableDomain::Continuous => false,
+                    VariableDomain::Binary => {
+                        axis.values.len() == 2
+                            && [0.0, 1.0]
+                                .iter()
+                                .all(|level| axis.values.iter().any(|v| v.as_f64() == Some(*level)))
+                    }
+                    VariableDomain::Categorical { cardinality } => {
+                        usize::try_from(cardinality).ok() == Some(axis.values.len())
+                            && (0..cardinality).all(|level| {
+                                axis.values.iter().any(|v| v.as_f64() == Some(f64::from(level)))
+                            })
+                    }
+                    VariableDomain::Count => axis
+                        .values
+                        .iter()
+                        .all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)),
+                };
+                if !valid {
+                    return Err(EvalError::ProviderKind(
+                        "exact provider domain disagrees with evidence coordinates",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Whether a cited source regime supplies the requested level of `treatment`.
@@ -826,89 +860,17 @@ pub fn prepare_exact_transport(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
-    use antecedent_core::{DistributionAvailability, VariableDomain};
-    use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
-    let treatments = &functional.derivation().query().treatments;
-    if request.entries().len() != treatments.len()
-        || treatments.iter().any(|v| request.get(*v).is_none())
-    {
-        return Err(EvalError::ProviderKind(
-            "exact request must bind precisely the certified treatment coordinates",
-        ));
-    }
-    let catalog = functional.catalog();
-    for law in data.laws() {
-        let regime = catalog
-            .regimes
-            .iter()
-            .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
-            .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
-        if !regime.evidence_kind.can_satisfy_factor()
-            || !matches!(regime.distribution, DistributionAvailability::Joint)
-            || !regime.conditioned_on.is_empty()
-            || law.interventions().len() != regime.interventions.len()
-            || !law.interventions().iter().all(|a| regime.interventions.contains(&a.variable))
-            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
-            || regime.intervention_values.iter().any(|required| {
-                !law.interventions()
-                    .iter()
-                    .any(|a| a.variable == required.variable && a.value == required.value)
-            })
-        {
-            return Err(EvalError::ProviderKind(
-                "exact provider disagrees with its evidence regime",
-            ));
-        }
-        for binding in catalog.bindings.iter().filter(|b| b.regime == regime.id) {
-            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
-                return Err(EvalError::ProviderKind(
-                    "exact provider snapshot does not match catalog binding",
-                ));
-            }
-        }
-        for axis in law.axes() {
-            for coordinate in catalog
-                .environments
-                .iter()
-                .flat_map(|env| env.variables.iter())
-                .filter(|c| c.variable == axis.variable)
-            {
-                let valid = match coordinate.domain {
-                    VariableDomain::Unspecified => true,
-                    VariableDomain::Continuous => false,
-                    VariableDomain::Binary => {
-                        axis.values.len() == 2
-                            && [0.0, 1.0]
-                                .iter()
-                                .all(|level| axis.values.iter().any(|v| v.as_f64() == Some(*level)))
-                    }
-                    VariableDomain::Categorical { cardinality } => {
-                        usize::try_from(cardinality).ok() == Some(axis.values.len())
-                            && (0..cardinality).all(|level| {
-                                axis.values.iter().any(|v| v.as_f64() == Some(f64::from(level)))
-                            })
-                    }
-                    VariableDomain::Count => axis
-                        .values
-                        .iter()
-                        .all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)),
-                };
-                if !valid {
-                    return Err(EvalError::ProviderKind(
-                        "exact provider domain disagrees with evidence coordinates",
-                    ));
-                }
-            }
-        }
-    }
-    ExactEvaluationPlan::compile(
+    let query = functional.derivation().query();
+    require_treatment_request(&query.treatments, &request)?;
+    validate_exact_laws(functional.catalog(), &data)?;
+    antecedent_expr::ExactEvaluationPlan::compile(
         functional.arena(),
         functional.root(),
         data,
-        functional.derivation().query().outcomes.clone(),
+        query.outcomes.clone(),
         request,
         limits,
-        LawTolerance::default(),
+        antecedent_expr::LawTolerance::default(),
         ctx,
     )
 }

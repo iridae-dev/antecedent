@@ -344,19 +344,33 @@ pub fn identify_classical_transport(
         }
         return Ok(ClassicalTransportResult::NotCertified);
     };
-    let (proof, root_step) = reachable_proof(&engine.proof, root_step);
-    let derivation = ClassicalTransportDerivation {
-        query: query.clone(),
-        graph_signature: graph_signature(diagram),
-        selection_targets: Arc::from(diagram.selection_targets()),
-        root: proof[root_step].output,
-        arena: engine.arena,
-        proof,
-        root_step,
-        sources: Vec::new(),
-    };
-    verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
+    let derivation = engine.solved_derivation(root_step, Vec::new())?;
     Ok(ClassicalTransportResult::Identified(Box::new(derivation)))
+}
+
+impl Engine<'_> {
+    /// The verified derivation rooted at `root_step`: the reachable proof steps
+    /// with the engine's arena, exported for the sources the search declared.
+    /// Every identifier builds its positive result through this one path.
+    pub(crate) fn solved_derivation(
+        &self,
+        root_step: usize,
+        sources: Vec<MetaSource>,
+    ) -> Result<ClassicalTransportDerivation, IdentificationError> {
+        let (proof, root_step) = reachable_proof(&self.proof, root_step);
+        let derivation = ClassicalTransportDerivation {
+            query: self.query.clone(),
+            graph_signature: graph_signature(self.diagram),
+            selection_targets: Arc::from(self.diagram.selection_targets()),
+            root: proof[root_step].output,
+            arena: self.arena.clone(),
+            proof,
+            root_step,
+            sources,
+        };
+        verify_classical_transport(self.diagram, self.query, &derivation, self.limits, self.ctx)?;
+        Ok(derivation)
+    }
 }
 
 /// The proof steps reachable from `root_step`, in their original order, with
@@ -2032,18 +2046,7 @@ pub fn identify_catalog_transport(
     for strategy in 0..2 {
         if let Some(root_step) = result {
             had_derivation = true;
-            let (proof, root_step) = reachable_proof(&engine.proof, root_step);
-            let derivation = ClassicalTransportDerivation {
-                query: query.clone(),
-                graph_signature: graph_signature(diagram),
-                selection_targets: Arc::from(diagram.selection_targets()),
-                arena: engine.arena.clone(),
-                root: proof[root_step].output,
-                proof,
-                root_step,
-                sources: Vec::new(),
-            };
-            verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
+            let derivation = engine.solved_derivation(root_step, Vec::new())?;
             match derivation.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {
                     bound.searched = searched_stages(if strategy == 0 { 1 } else { 3 });
