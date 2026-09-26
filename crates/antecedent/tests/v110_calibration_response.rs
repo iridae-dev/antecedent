@@ -41,6 +41,9 @@ use antecedent_core::{
     ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
+use antecedent_discovery::{
+    GraphPosteriorAtomKind, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
+};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
@@ -52,7 +55,7 @@ use common::calibration::{
 use common::calibration_bind::{bind, bind_all};
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, n_sim_at_least, record_pair, response_band,
-    response_normal_pair, response_scalar, skip_pair,
+    response_normal_pair, response_posterior_pairs, response_scalar, skip_pair,
 };
 // The continuous response law is shared with the Bayesian static suite;
 // one owner, so both measurements of it run on the same replicate data.
@@ -231,6 +234,101 @@ fn graph_posterior() -> GraphPosterior {
     .unwrap()
 }
 
+/// A one-atom posterior for the Bayesian response calibration coordinate. The
+/// atom is `T -> Y` with isolated `Z`; the DGP randomizes `T` independently of
+/// `Z`, so the posterior target at level `a` is exactly `1 + 2a`.
+fn single_atom_response_posterior() -> GraphPosterior {
+    use antecedent_discovery::set_edge;
+    let direct = set_edge(0, 3, 0, 1, true);
+    GraphPosterior::new(
+        3,
+        vec![1.0],
+        vec![direct],
+        vec![0.0; 9],
+        vec![0.0; 9],
+        1.0,
+        antecedent_prob::InferenceDiagnostics::analytic("v110_gp_response_bayes"),
+        0,
+    )
+    .unwrap()
+}
+
+fn graph_posterior_bayesian_response_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        // T and Z are independent, matching the one-atom T -> Y graph.
+        t[i] = g();
+        z[i] = g();
+        y[i] = 1.0 + 2.0 * t[i] + 0.8 * z[i] + g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
+fn run_graph_posterior_bayesian_response(
+    data: TabularData,
+    level: Option<f64>,
+    seed: u64,
+) -> Option<(Study, StudyResult)> {
+    let mut builder = Study::tabular(data)
+        .graph_posterior(single_atom_response_posterior())
+        .query(CausalQuery::Response(level_query(1.0)))
+        .inference(bayes());
+    if let Some(level) = level {
+        builder = builder.response_options(ContinuousResponseOptions {
+            confidence_level: level,
+            ..ContinuousResponseOptions::default()
+        });
+    }
+    let study = builder.build().ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
+}
+
+const GP_BAYES_CELL: Cell = Cell {
+    graph_class: "Dag",
+    estimator: "response.bayesian",
+    interval_method: "posterior_quantile",
+    dgp: "graph_posterior_bayesian_response_data",
+    n: 500,
+};
+
+/// Coordinate-specific design for the previously unmeasured Bayesian
+/// `InterventionResponse / Dag / graph_posterior` coordinate. This deliberately
+/// uses a single posterior atom: multi-atom Bayesian aggregate intervals are
+/// withheld by the runtime, so treating graph dispersion as a sampling band
+/// would measure the wrong object.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_dag_graph_posterior_bayesian_nominal_coverage() {
+    let mut tallies = keyed_pair(
+        "intervention_response_dag_graph_posterior_bayesian_nominal_coverage",
+        GP_BAYES_CELL,
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_BA01, rep);
+        let data = graph_posterior_bayesian_response_data(grid_n(GP_BAYES_CELL.n as usize), seed);
+        let truth = 3.0; // E[Y | do(T = 1)] under the registered one-atom SCM.
+        let reported = run_graph_posterior_bayesian_response(data, None, seed)?;
+        let pair = response_posterior_pairs(&reported.1)?.into_iter().next()?;
+        if rep == 0 {
+            assert_eq!(reported.1.logical_plan.estimator.as_deref(), Some(GP_BAYES_CELL.estimator));
+            assert!(pair[0].is_some(), "single identified posterior atom must publish a band");
+            assert!(pair[1].is_some(), "gate-level interval must be derivable from retained draws");
+        }
+        Some((reported, pair, truth))
+    });
+    for scored in &runs {
+        let Some(((reported_study, reported), pair, truth)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, reported_study, reported);
+        record_pair(&mut tallies, *pair, *truth);
+    }
+    gate(&tallies, &[None, None]);
+}
+
 /// Build and run the graph-posterior study, keeping the [`Study`] so the
 /// scored replicate can be bound to its coverage record.
 fn run_graph_posterior(
@@ -401,6 +499,87 @@ fn pag_case() -> ClassCase {
         truth: |a, z_bar| 1.0 + 2.0 * a + 0.8 * z_bar,
         family: 0x110_0020,
     }
+}
+
+fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
+    let (atom_kind, adjacency, mark_masks) = match graph {
+        Structure::Cpdag(graph) => {
+            (GraphPosteriorAtomKind::Cpdag, vec![adjacency_mask_from_cpdag(graph).unwrap()], None)
+        }
+        Structure::Pag(graph) => {
+            let (adjacency, marks) = adjacency_masks_from_pag(graph).unwrap();
+            (GraphPosteriorAtomKind::Pag, vec![adjacency], Some(vec![marks]))
+        }
+    };
+    let posterior = GraphPosterior::new(
+        4,
+        vec![1.0],
+        adjacency,
+        vec![0.0; 16],
+        vec![0.0; 16],
+        1.0,
+        antecedent_prob::InferenceDiagnostics::analytic("v110_gp_class_response"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(atom_kind);
+    if let Some(marks) = mark_masks { posterior.with_mark_masks(marks).unwrap() } else { posterior }
+}
+
+/// Repeated-sampling evidence for a one-atom class-posterior response. The
+/// class DGPs have a sample-covariate truth and every completion agrees; this
+/// measures within-class Bayesian uncertainty without scoring outer graph
+/// dispersion as an interval.
+fn graph_posterior_class_level_coverage(case: &ClassCase, mut tallies: [CoverageTally; 2]) {
+    let posterior = single_class_graph_posterior(&(case.graph)());
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(case.family ^ 0x4750, rep);
+        let data = (case.data)(grid_n(case.cell.n as usize), seed);
+        let truth = (case.truth)(1.0, mean_z(&data));
+        let study = Study::tabular(data)
+            .graph_posterior(posterior.clone())
+            .query(CausalQuery::Response(level_query(1.0)))
+            .inference(bayes())
+            .build()
+            .ok()?;
+        let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+        let pair = response_posterior_pairs(&result)?.into_iter().next()?;
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some(case.cell.estimator));
+            assert!(pair[0].is_some(), "identified class posterior must publish its interval");
+            assert!(pair[1].is_some(), "gate interval must be derivable from retained draws");
+            let structural = result.structural_response.as_ref().expect("posterior atom evidence");
+            assert_eq!(structural.atoms.len(), 1);
+        }
+        Some((study, result, pair, truth))
+    });
+    for scored in &runs {
+        let Some((study, result, pair, truth)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        bind_pair(&mut tallies, study, result);
+        record_pair(&mut tallies, *pair, *truth);
+    }
+    gate(&tallies, &[None, None]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage() {
+    let test = "intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage";
+    let case = cpdag_case();
+    let tallies = keyed_pair(test, case.cell);
+    graph_posterior_class_level_coverage(&case, tallies);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_pag_graph_posterior_bayesian_nominal_coverage() {
+    let test = "intervention_response_pag_graph_posterior_bayesian_nominal_coverage";
+    let case = pag_case();
+    let tallies = keyed_pair(test, case.cell);
+    graph_posterior_class_level_coverage(&case, tallies);
 }
 
 /// Bayesian class-aware `E[Y | do(T = 1)]`: the 0.95 interval the study

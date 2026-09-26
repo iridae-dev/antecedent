@@ -198,13 +198,15 @@ numerical/calibration cases preserving the declared structural semantics.
 **Depends on:** the existing fixed-graph transport execution path; may start on
 fixed graphs before X2.
 
-- [ ] Choose an initial bounded sensitivity model on a named mechanism/factor
+- [x] Choose an initial bounded sensitivity model on a named mechanism/factor
       scale, with units, feasible parameter domain, and a zero-violation baseline.
       State how deviations alter the target functional or identified set.
-- [ ] Permit one and then jointly varying mechanism deviations without silently
-      treating arbitrary independent factor perturbations as a coherent SCM.
-      Verify compatibility, normalization, and the claimed interpretation.
-- [ ] Compute target responses and decision-threshold tipping points over the
+- [x] Permit one mechanism deviation at a time with factorization, normalization,
+      and fixed-graph propagation checks; unsupported provider/graph families
+      refuse rather than silently combining incompatible factor perturbations.
+- [ ] Permit jointly varying mechanism deviations while verifying compatibility,
+      normalization, and the claimed joint interpretation.
+- [x] Compute target responses and decision-threshold tipping points over the
       declared sensitivity set. Separate assumption ranges, statistical intervals,
       and any proven bounds; do not call a scenario sweep a sharp bound.
 - [ ] Compose sampling uncertainty with sensitivity only under a licensed
@@ -223,6 +225,12 @@ including responses beyond sparse finite tables, with honest approximation and
 inference? **Depends on:** the existing exact/empirical transport providers,
 ADMG identification, and the 2.0 learner substrate.
 Conditional-density/regression providers bind through `antecedent-learn`.
+
+The 2.0 linear-final-stage DR-Learner exposes pointwise HC0 CATE standard
+errors at observed, overlap-supported modifier values; forest leaf dispersion
+is diagnostic only. Synthetic known-truth fixtures establish method behavior,
+not interval coverage. The CATE inferential interval remains uncalibrated until
+a matching coverage record is run against the post-cleanup/refactor code.
 
 - [ ] Expose a graph/provider/query-specific estimator menu after
       identification. Show the graph conditions (including fixability and
@@ -556,6 +564,11 @@ baseline counts for current planning; new 2.1 rows add calibration obligations.
 The coordinate inventory is generated and checked without running calibration.
 Run measurements and update records only after implementation and subsequent
 cleanup/refactoring are complete, so their attestations bind the stabilized code.
+The static readiness audit currently finds runnable, ignored record-emitting
+designs for 31 of the 92 coordinates (65 of 172 cells). The other 61
+coordinates (107 cells) still need exact-truth designs or matching record
+emitters before the post-refactor calibration pass; these readiness counts do
+not change the 172 unmeasured cells.
 
 - [x] Publish the current distinct coordinates as a tracked list generated from
       the registry, with the count of cells behind each. Ratchet it: the count of

@@ -287,6 +287,36 @@ fn intervention_response_admg_bayesian_nominal_coverage() {
     gate(&tallies, &[None, None]);
 }
 
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn intervention_response_admg_bayesian_accepted_nominal_coverage() {
+    let mut tallies = keyed_pair(
+        "intervention_response_admg_bayesian_accepted_nominal_coverage",
+        "frontdoor_data",
+    );
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0414, rep);
+        let (study, result) =
+            run_intervention(SampleGrid::HEAVY.n(FRONTDOOR_N), true, RefuteSuite::None, seed)?;
+        let intervals = posterior_intervals(&result);
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
+            assert!(intervals[0].is_some(), "accepted ADMG must publish the posterior");
+        }
+        Some((study, result, intervals))
+    });
+    for scored in &runs {
+        let Some((study, result, intervals)) = scored else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        let [first, second] = &mut tallies;
+        bind_all(&mut [first, second], study, result);
+        record_pair(&mut tallies, *intervals, P_Y1_DO_T1);
+    }
+    gate(&tallies, &[None, None]);
+}
+
 const PAG_GRID: [f64; 5] = [-1.0, -0.5, 0.0, 0.5, 1.0];
 const ADMG_CURVE: [f64; 2] = [0.0, 1.0];
 const ADMG_CURVE_TRUTH: [f64; 2] = [0.33, 0.57];
@@ -529,6 +559,44 @@ fn response_curve_admg_bayesian_pointwise_nominal_coverage() {
     let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0422, rep);
         run_admg_curve(SampleGrid::HEAVY.n(FRONTDOOR_N), false, seed)
+    });
+    for run in &runs {
+        let bands = run.as_ref().and_then(|(_, result)| response_band(result));
+        if let (Some((study, result)), Some(_)) = (run, &bands) {
+            bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), study, result);
+        }
+        for (j, tally) in tallies.iter_mut().enumerate() {
+            match &bands {
+                Some((lower, upper, _)) => {
+                    tally.record(Some((lower[j], upper[j])), ADMG_CURVE_TRUTH[j])
+                }
+                None => tally.skip(),
+            }
+        }
+    }
+    gate(&tallies, &[None; 2]);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_curve_admg_bayesian_accepted_pointwise_nominal_coverage() {
+    let mut tallies: Vec<CoverageTally> = ADMG_CURVE
+        .iter()
+        .map(|a| {
+            CoverageTally::for_record(
+                RecordKey {
+                    test: "response_curve_admg_bayesian_accepted_pointwise_nominal_coverage",
+                    dgp: "frontdoor_data",
+                    interval: "posterior_quantile",
+                },
+                REPORTED_LEVEL,
+            )
+            .labelled(format!("a={a}"))
+        })
+        .collect();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x110_0423, rep);
+        run_admg_curve(SampleGrid::HEAVY.n(FRONTDOOR_N), true, seed)
     });
     for run in &runs {
         let bands = run.as_ref().and_then(|(_, result)| response_band(result));

@@ -428,6 +428,12 @@ def test_restricted_experiment_obstruction_is_structural_and_replays_snapshot():
     assert wire["version"] == 2
     assert wire["status"] == "proof_obstruction"
     assert wire["z_obstruction"] == decision["obstruction"]
+    assert "proof_graph" not in wire
+    from antecedent import _native
+
+    consumed = _native.consume_z_transport_failure_snapshot(snapshot)
+    assert consumed["status"] == "proof_obstruction"
+    assert consumed["z_obstruction"] == decision["obstruction"]
     summary, proposals = transport.plan_z_transport_evidence(
         stage, full, [], failure_snapshot=snapshot
     )
@@ -539,7 +545,11 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     assert any(factor["failure"] for factor in snapshot_wire["proof_graph"]["factors"])
     inspection = stage.inspect_proof(base)
     assert inspection["rules"]
-    assert any(factor["failure"] for factor in inspection["factors"])
+    failed_factors = [factor for factor in inspection["factors"] if factor["failure"]]
+    assert failed_factors
+    assert snapshot_wire["proof_graph"]["factors"] == inspection["factors"]
+    assert all(factor["population"] == "source" for factor in failed_factors)
+    assert all(factor["variables"] and factor["failure"] for factor in failed_factors)
     summary, proposals = transport.plan_z_transport_evidence(
         stage, base, [candidate], failure_snapshot=snapshot
     )
@@ -602,6 +612,12 @@ def test_z_transport_failure_snapshot_plan_and_actual_arrival():
     assert refused.value.reason_code == "transport_missing_provider"
     arrived = proposal.receive(actual, (law,), {"x": 0.0}, "snapshot_z0_arrival")
     result = json.loads(arrived.estimate())
+    # The typed proposal delta must survive the whole path: wire replay,
+    # actual-evidence binding, execution, and independent artifact consumption.
+    arrived_artifact = arrived.export()
+    consumed_arrival = json.loads(transport.consume_z_transport_artifact(arrived_artifact))
+    assert consumed_arrival["premises_digest"]
+    assert consumed_arrival["probabilities"] == pytest.approx(result["probabilities"])
     y1 = sum(
         p for atom, p in zip(result["atoms"], result["probabilities"], strict=True) if atom == [1.0]
     )

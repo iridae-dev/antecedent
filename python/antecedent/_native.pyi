@@ -3618,6 +3618,8 @@ class PreparedExactStage:
         target_parent_law: list[tuple[int, list[int], float]],
         decision_threshold: float | None = None,
         perturbed_treatment_level: int | None = None,
+        perturbed_root_mechanism: str | None = None,
+        perturbed_conditional_mechanism: str | None = None,
         cancel: CancellationToken | None = None,
     ) -> str: ...
 

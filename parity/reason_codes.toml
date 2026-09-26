@@ -162,6 +162,11 @@ applies_to = ["runtime_refusal"]
 meaning = "The question has no identified estimand under the declared structure; the refusal carries the identification status and whether the search was complete or capped."
 
 [[code]]
+id = "cross_world_not_identified"
+applies_to = ["runtime_refusal"]
+meaning = "A nested counterfactual query requires cross-world assumptions or graph semantics outside the explicitly licensed shared-exogenous contract."
+
+[[code]]
 id = "score_table_unavailable"
 applies_to = ["runtime_refusal"]
 meaning = "Retargeting reweights a prepared score table, and this study prepared none."

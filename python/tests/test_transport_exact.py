@@ -1,5 +1,6 @@
 """Exact-law stages have native authority and make no sampling-coverage claim."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -29,6 +30,71 @@ def fixture():
         "snapshot-1",
     )
     return identification, catalog, transport.ExactTransportData((law,))
+
+
+def test_prepared_fixed_graph_root_mechanism_sensitivity_smoke():
+    graph = Admg.from_edges(
+        ["u", "x", "y"], [("u", "x"), ("u", "y"), ("x", "y")]
+    )
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["x"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    catalog = transport.EvidenceCatalog(
+        regimes=[
+            transport.EvidenceRegime(
+                "trial", "source", kind="experimental", interventions=["x"], measured=["u", "y"]
+            ),
+            transport.EvidenceRegime("population", "target", measured=["u"]),
+        ]
+    )
+    source = transport.ExactDiscreteLaw(
+        "source",
+        "trial",
+        (("u", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.6, 0.15, 0.175, 0.075),
+        "source-snapshot",
+        interventions=(("x", 1.0),),
+    )
+    target = transport.ExactDiscreteLaw(
+        "target", "population", (("u", (0.0, 1.0)),), (0.75, 0.25), "target-snapshot"
+    )
+    prepared = transport.prepare_exact(
+        identified, catalog, transport.ExactTransportData((source, target)), at={"x": 1.0}
+    )
+    report = json.loads(
+        prepared.mechanism_sensitivity(
+            outcome_values=[0.0, 1.0],
+            parent_cardinalities=[2, 2],
+            treatment_levels=(0, 1),
+            max_fraction=0.2,
+            source_kernel_regime=1,
+            source_kernel_snapshot="source-snapshot",
+            target_parent_regime=2,
+            target_parent_snapshot="target-snapshot",
+            source_kernel=[
+                ([0, 0], [0.8, 0.2]),
+                ([0, 1], [0.2, 0.8]),
+                ([1, 0], [0.7, 0.3]),
+                ([1, 1], [0.3, 0.7]),
+            ],
+            source_parent_law=[([0], 0.75), ([1], 0.25)],
+            target_parent_law=[
+                (0, [0], 0.75),
+                (0, [1], 0.25),
+                (1, [0], 0.75),
+                (1, [1], 0.25),
+            ],
+            decision_threshold=0.53,
+            perturbed_conditional_mechanism="u",
+        )
+    )
+    assert report["perturbed_conditional_mechanism"] == "u"
+    assert report["baseline"] == pytest.approx(0.55)
+    assert report["assumption_range"] == pytest.approx({"minimum": 0.52, "maximum": 0.56})
+    assert report["tipping_fraction"] == pytest.approx(2 / 15)
 
 
 def test_exact_full_distribution_and_native_display_authority():

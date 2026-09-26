@@ -597,8 +597,9 @@ mod tests {
     use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{
-        SidLimits, ZTransportQuery, ZTransportResult as Identified, bind_z_transport_catalog,
-        decide_z_transport_with_catalog, identify_z_transport,
+        SidLimits, TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZTransportQuery,
+        ZTransportResult as Identified, ZTransportSourceSpec, bind_z_transport_catalog,
+        decide_two_source_z_transport, decide_z_transport_with_catalog, identify_z_transport,
     };
     use std::sync::Arc;
 
@@ -735,6 +736,7 @@ mod tests {
         outcome: VariableId,
         treatment_level: bool,
         probability_true: f64,
+        checked_proof: Option<&antecedent_identify::ZTransportDerivation>,
     ) -> PreparedZTransport {
         let coordinates = graph
             .causal_graph()
@@ -794,17 +796,22 @@ mod tests {
             source: Arc::from(population),
             target: Arc::from("target"),
         };
-        let antecedent_identify::ZTransportDecision::Identified(proof) =
-            decide_z_transport_with_catalog(
-                graph,
-                &query,
-                &catalog,
-                SidLimits::default(),
-                &ExecutionContext::for_tests(0),
-            )
-            .unwrap()
-        else {
-            panic!("component joint intervention must identify");
+        let proof = if let Some(proof) = checked_proof {
+            proof.clone()
+        } else {
+            let antecedent_identify::ZTransportDecision::Identified(proof) =
+                decide_z_transport_with_catalog(
+                    graph,
+                    &query,
+                    &catalog,
+                    SidLimits::default(),
+                    &ExecutionContext::for_tests(0),
+                )
+                .unwrap()
+            else {
+                panic!("component joint intervention must identify");
+            };
+            *proof
         };
         let functional = bind_z_transport_catalog(graph, &query, &proof, &catalog).unwrap();
         let law = ExactDiscreteLaw::try_new(
@@ -841,6 +848,86 @@ mod tests {
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
         let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let component_proofs = |level: bool| {
+            let make_catalog = |population: &str, treatment: VariableId, outcome: VariableId| {
+                let coordinates = [0, 1, 2, 3].map(|variable| VariableCoordinate {
+                    variable: VariableId::from_raw(variable),
+                    domain: VariableDomain::Binary,
+                    unit: None,
+                });
+                let regime = antecedent_core::EvidenceRegime::try_new(
+                    RegimeId::from_raw(u32::from(level)),
+                    RegimeKind::Experimental,
+                    EvidenceKind::Available,
+                    [treatment],
+                    [antecedent_core::InterventionAssignment {
+                        variable: treatment,
+                        value: Value::Bool(level),
+                    }],
+                    [outcome],
+                    population,
+                    DistributionAvailability::Joint,
+                )
+                .unwrap();
+                EvidenceCatalog::try_new(
+                    [
+                        Environment::try_new("alpha", coordinates.to_vec(), []).unwrap(),
+                        Environment::try_new("beta", coordinates.to_vec(), []).unwrap(),
+                        Environment::try_new("target", coordinates.to_vec(), []).unwrap(),
+                    ],
+                    [regime],
+                    [RegimeBinding {
+                        dataset_identity: None,
+                        regime: RegimeId::from_raw(u32::from(level)),
+                        snapshot_identity: Arc::from(format!("{population}-{level}")),
+                        schema_names: Arc::from([]),
+                        sampling: SamplingDesign::Independent,
+                        weights: None,
+                        dependence: DependenceGroup::IndependentStudies,
+                    }],
+                    None,
+                )
+                .unwrap()
+            };
+            let (w, z, x, y) = (
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                VariableId::from_raw(2),
+                VariableId::from_raw(3),
+            );
+            let source = |population: &str, treatment| ZTransportSourceSpec {
+                population: Arc::from(population),
+                controllable: Arc::from([treatment]),
+                experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                    variable: treatment,
+                    value: Value::Bool(level),
+                }]),
+                selection_targets: Arc::from([]),
+            };
+            let query = TwoSourceZTransportQuery {
+                outcomes: Arc::from([z, y]),
+                treatments: Arc::from([w, x]),
+                target: Arc::from("target"),
+                sources: [source("alpha", w), source("beta", x)],
+            };
+            let alpha = make_catalog("alpha", w, z);
+            let beta = make_catalog("beta", x, y);
+            let TwoSourceZTransportDecision::CombinedIdentified { components } =
+                decide_two_source_z_transport(
+                    diagram.causal_graph(),
+                    &query,
+                    [&alpha, &beta],
+                    SidLimits::default(),
+                    &ExecutionContext::for_tests(0),
+                )
+                .unwrap()
+            else {
+                panic!("complementary joint regimes must identify at level {level}");
+            };
+            components
+        };
+        let control_proofs = component_proofs(false);
+        let active_proofs = component_proofs(true);
         let alpha_control = independent_component(
             &diagram,
             "alpha",
@@ -848,6 +935,7 @@ mod tests {
             VariableId::from_raw(1),
             false,
             0.25,
+            Some(&control_proofs[0].derivation),
         );
         let beta_control = independent_component(
             &diagram,
@@ -856,6 +944,7 @@ mod tests {
             VariableId::from_raw(3),
             false,
             0.60,
+            Some(&control_proofs[1].derivation),
         );
         let alpha_active = independent_component(
             &diagram,
@@ -864,6 +953,7 @@ mod tests {
             VariableId::from_raw(1),
             true,
             0.70,
+            Some(&active_proofs[0].derivation),
         );
         let beta_active = independent_component(
             &diagram,
@@ -872,6 +962,7 @@ mod tests {
             VariableId::from_raw(3),
             true,
             0.40,
+            Some(&active_proofs[1].derivation),
         );
         let control = PreparedZTransport::estimate_independent_components(
             &alpha_control,

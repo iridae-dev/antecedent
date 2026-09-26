@@ -52,10 +52,12 @@ pub use graph_refute::GraphRefuter;
 pub use mechanism_sensitivity::{
     DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,
     DiscreteKernelSensitivityResult, FIXED_GRAPH_SENSITIVITY_MAX_STRATA,
-    FixedGraphMechanismSensitivityResult, FixedGraphMechanismSensitivitySpec,
+    FixedGraphConditionalMechanismSensitivityResult, FixedGraphMechanismSensitivityResult,
+    FixedGraphMechanismSensitivitySpec, FixedGraphRootMechanismSensitivityResult,
     FixedGraphSensitivityError, SourceOutcomeKernelRow, SourceParentLawRow, TargetParentLawRow,
     ZTransportMechanismSensitivityResult, ZTransportSensitivityError,
-    fixed_graph_mechanism_sensitivity, fixed_graph_treatment_level_sensitivity,
+    fixed_graph_conditional_mechanism_sensitivity, fixed_graph_mechanism_sensitivity,
+    fixed_graph_root_mechanism_sensitivity, fixed_graph_treatment_level_sensitivity,
     z_transport_mechanism_sensitivity,
 };
 pub use mediation::QueryRefutationPlan;

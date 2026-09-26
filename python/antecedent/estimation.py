@@ -3648,6 +3648,55 @@ class PreparedAnalysis(Generic[ResultT]):
             claim_id=refuted.claim_id,
         )
 
+    def mechanism_sensitivity(
+        self,
+        *,
+        outcome_values: Sequence[float],
+        parent_cardinalities: Sequence[int],
+        treatment_levels: tuple[int, int],
+        max_fraction: float,
+        source_kernel_regime: int,
+        source_kernel_snapshot: str,
+        target_parent_regime: int,
+        target_parent_snapshot: str,
+        source_kernel: Sequence[tuple[Sequence[int], Sequence[float]]],
+        source_parent_law: Sequence[tuple[Sequence[int], float]],
+        target_parent_law: Sequence[tuple[int, Sequence[int], float]],
+        decision_threshold: float | None = None,
+        perturbed_treatment_level: int | None = None,
+        perturbed_root_mechanism: str | None = None,
+        perturbed_conditional_mechanism: str | None = None,
+        cancel: Any = None,
+    ) -> dict[str, Any]:
+        """Evaluate checked fixed-graph mechanism sensitivity for exact transport."""
+        if self._kind != "exact_transport":
+            raise CausalUnsupportedError(
+                "mechanism_sensitivity applies only to prepared exact transport",
+                reason_code="option_not_applicable",
+            )
+        raw = self._native.mechanism_sensitivity(
+            list(outcome_values),
+            list(parent_cardinalities),
+            treatment_levels,
+            max_fraction,
+            source_kernel_regime,
+            source_kernel_snapshot,
+            target_parent_regime,
+            target_parent_snapshot,
+            [(list(levels), list(probabilities)) for levels, probabilities in source_kernel],
+            [(list(levels), probability) for levels, probability in source_parent_law],
+            [
+                (treatment, list(levels), probability)
+                for treatment, levels, probability in target_parent_law
+            ],
+            decision_threshold=decision_threshold,
+            perturbed_treatment_level=perturbed_treatment_level,
+            perturbed_root_mechanism=perturbed_root_mechanism,
+            perturbed_conditional_mechanism=perturbed_conditional_mechanism,
+            cancel=cancel,
+        )
+        return json.loads(raw)
+
     @describe_refusal
     def estimate(
         self,
