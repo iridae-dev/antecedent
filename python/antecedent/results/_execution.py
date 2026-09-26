@@ -132,7 +132,7 @@ class CalibrationInfo:
         return " · ".join(bits)
 
 
-AnswerKind = Literal["point", "bounds", "partial", "response", "structured", "unavailable"]
+AnswerKind = Literal["point", "bounds", "partial", "response", "structured", "policy_value", "unavailable"]
 
 #: The closed :attr:`Answer.kind` vocabulary, shared by live and loaded results.
 ANSWER_KINDS: tuple[AnswerKind, ...] = get_args(AnswerKind)
@@ -144,6 +144,7 @@ CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
     "bounds": "bounds",
     "mixture": "partial",
     "response": "response",
+    "policy_value": "policy_value",
     "incomplete": "unavailable",
     "refusal": "unavailable",
 }
@@ -181,6 +182,7 @@ class Answer:
     value: float | None = None
     bounds: tuple[float, float] | None = None
     detail: str | None = None
+    structured: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in ANSWER_KINDS:
@@ -203,6 +205,11 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind is None:
         return Answer("unavailable", detail=f"unrecognized_claim_kind:{claim_kind}")
     limitation = ReasoningSlots.from_result_section(contract, payload).rendering_limitation()
+    if kind == "policy_value":
+        policy = payload.get("policy_value")
+        if not isinstance(policy, Mapping):
+            return Answer("unavailable", detail="policy_value_payload_missing")
+        return Answer("policy_value", detail="held_out_randomized_dr", structured=dict(policy))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
     bounds = None
@@ -344,6 +351,10 @@ class ResultAPI:
     @property
     def answer(self) -> Answer:
         """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
+        policy = getattr(self, "policy_value", None)
+        if policy is not None:
+            from dataclasses import asdict
+            return Answer("policy_value", detail="held_out_randomized_dr", structured=asdict(policy))
         section = getattr(self, "transport", None)
         detail = getattr(section, "unavailable", None) if section is not None else None
         if detail:
@@ -368,6 +379,14 @@ class ResultAPI:
 
     def claim(self) -> str:
         """One paragraph: identification, answer, calibration. Same table as HTML."""
+        policy = getattr(self, "policy_value", None)
+        if policy is not None:
+            return (
+                f"Held-out randomized policy value {policy.policy_value:g}; reference value "
+                f"{policy.reference_value:g}; incremental value {policy.incremental_value:g}; "
+                f"treatment rate {policy.treatment_rate:.3f}. Its paired row-score SE is "
+                f"{policy.incremental_standard_error:g}; uncertainty assumes independent subjects."
+            )
         from .._claim import result_claim
 
         identification = getattr(self, "identification", None)

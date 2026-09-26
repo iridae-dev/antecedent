@@ -26,6 +26,7 @@ from ._views import (
     TemporalMediationSliceView,
     ValidationView,
 )
+from .provider import ProviderAnalysisResult
 from .response import (
     CausalResponseView,
     ResponseEnvelopeView,
@@ -40,7 +41,7 @@ from .response import (
 
 #: Shared analyze() result. Both classes implement :class:`ResultAPI`
 #: (``answer``, ``claim``, ``inspect``, ``as_point``, ``as_response``).
-Analysis: TypeAlias = AnalysisResult | CausalResponseView
+Analysis: TypeAlias = AnalysisResult | CausalResponseView | ProviderAnalysisResult
 
 __all__ = [
     "Analysis",
@@ -67,6 +68,7 @@ __all__ = [
     "PlanView",
     "PhysicalPlanView",
     "AnalysisResult",
+    "ProviderAnalysisResult",
     "CausalResponseView",
     "ResponseEnvelopeView",
     "ResponseUncertainty",

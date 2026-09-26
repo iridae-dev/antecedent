@@ -61,6 +61,47 @@ class EconMLSpec:
         """All jointly intervened variables, in certificate order."""
         return (self.treatment,) if isinstance(self.treatment, str) else self.treatment
 
+    @property
+    def spec(self):
+        """Reusable declaration of this handoff's boundaries, not a learner runner."""
+        from .extensibility import CausalProviderSpec
+
+        return CausalProviderSpec(
+            query_family="point_identified_adjustment_estimand",
+            identification_requirements=(self.identifier, "point_identified"),
+            observed_distributions=("aligned Y and T", "certified W", "optional certified X"),
+            nuisance_functions=(),
+            support_conditions=("explicit_or_accepted_graph", "common_certified_adjustment_set"),
+            data_dependence=(
+                "uses_caller_supplied_aligned_rows",
+                "handoff_does_not_own_or_record_training_rows",
+                "data_snapshot_identity_is_attached_when_available",
+            ),
+            inference_claims=(
+                "caller_attested_point_or_interval_only",
+                "interval_calibration_is_not_reverified",
+            ),
+            influence_function=None,
+            fold_policy="external_learner_owned_not_recorded_by_handoff",
+            output_shape="provider_defined",
+            uncertainty_semantics="externally_attested_not_reverifiable",
+            artifact_codec="antecedent_external_estimate_artifact",
+            deterministic=False,
+            provenance={"adapter": "antecedent.handoff.EconMLSpec"},
+        )
+
+    def as_provider(self, executor: Any) -> EconMLProviderAdapter:
+        """Wrap a caller-owned EconML fit callback in the Python provider runtime.
+
+        ``executor(columns, request)`` must return ``learner`` and ``effect``;
+        optional keys are ``learner_config``, ``interval``, ``label``,
+        ``value_types``, and ``contrast``. Data extraction, identity binding,
+        and artifact encoding remain owned by this handoff.
+        """
+        if not callable(executor):
+            raise TypeError("EconML provider executor must be callable")
+        return EconMLProviderAdapter(self, executor)
+
     def columns(self, data: Mapping[str, Any]) -> dict[str, Any]:
         """Return aligned Y, T, W and certified conditioning features X.
 
@@ -204,6 +245,52 @@ class EconMLSpec:
         if not isinstance(decoded.contract, Mapping):
             raise CausalValueError("external estimate receipt is missing a contract")
         return ExternalEstimate(encoded, decoded.contract)
+
+
+@dataclass(frozen=True, slots=True)
+class EconMLProviderAdapter:
+    """Runtime bridge retaining the existing EconML receipt and trust boundary."""
+
+    handoff: EconMLSpec
+    executor: Any = field(repr=False, compare=False)
+
+    @property
+    def spec(self):
+        return self.handoff.spec
+
+    def execute(self, request: Mapping[str, Any]):
+        from .extensibility import ProviderExecution
+
+        if "data" not in request:
+            raise CausalValueError("EconML provider request requires caller data")
+        columns = self.handoff.columns(request["data"])
+        result = self.executor(columns, request)
+        if not isinstance(result, Mapping) or "effect" not in result or "learner" not in result:
+            raise CausalValueError("EconML executor must return learner and effect")
+        allowed = {
+            "learner", "learner_config", "effect", "interval", "label", "value_types", "contrast"
+        }
+        unknown = set(result) - allowed
+        if unknown:
+            raise CausalValueError(f"EconML executor returned unsupported fields: {sorted(unknown)}")
+        receipt = self.handoff.attach(
+            learner=result["learner"],
+            learner_config=result.get("learner_config"),
+            effect=result["effect"],
+            interval=result.get("interval"),
+            data=request["data"],
+            label=result.get("label"),
+            value_types=result.get("value_types"),
+            contrast=result.get("contrast"),
+        )
+        return ProviderExecution(
+            estimate=result["effect"],
+            uncertainty=None,
+            assumptions=self.spec.identification_requirements,
+            support_status=self.handoff.status,
+            provenance={"adapter": "antecedent.handoff.EconMLProviderAdapter", "claim_id": receipt.claim_id},
+            artifact=receipt.export(),
+        )
 
 
 @dataclass(frozen=True, slots=True)

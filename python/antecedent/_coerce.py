@@ -156,7 +156,9 @@ def coerce_query(value: Any) -> Any:
     Every query dataclass in :mod:`antecedent.query` carries a ``kind``
     discriminator; anything without one is not a supported query type.
     """
+    from .experiment import RandomizedEffect
     from .interference import InterferenceQuery
+    from .quasi import PanelDifferenceInDifferences
     from .query import (
         AnomalyAttribution,
         AverageDerivative,
@@ -206,6 +208,8 @@ def coerce_query(value: Any) -> Any:
         TransportQuery,
         Transport,
         InterferenceQuery,
+        RandomizedEffect,
+        PanelDifferenceInDifferences,
     )
     if isinstance(value, valid):
         return value

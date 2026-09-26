@@ -29,20 +29,29 @@ mod callbacks;
 mod design_api;
 mod discovery_api;
 mod estimator_config;
+mod experiment_api;
+mod factorial_api;
 mod gcm_api;
 mod graph_build;
 mod graph_io;
 mod graphs;
 mod identification_details;
+mod interference_saturation_api;
 mod interrupt;
 mod learned_trial_api;
 mod observation_api;
+mod observational_interference_api;
+mod policy_api;
+mod policy_continuous_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
+mod quasi_api;
+mod regimes_api;
 mod response_api;
 mod stability;
 mod state_api;
+mod survival_api;
 mod temporal_api;
 mod temporal_license;
 mod transport_common;
@@ -854,6 +863,9 @@ pub(crate) fn evidence_status_parts(
 #[pyclass]
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
 pub(crate) struct AteAnalysisResult {
+    /// Held-out doubly robust policy answer.
+    #[pyo3(get)]
+    pub(crate) policy_value: Option<policy_api::PolicyValueSection>,
     #[pyo3(get)]
     pub(crate) structural_weight_basis: Option<String>,
     #[pyo3(get)]
@@ -1115,6 +1127,12 @@ pub(crate) struct AteAnalysisResult {
     /// Randomized exposure contrast (InterferenceQuery).
     #[pyo3(get)]
     interference: Option<transport_interference_api::InterferenceSection>,
+    /// Randomized Bernoulli ITT and design metadata.
+    #[pyo3(get)]
+    randomized_effect: Option<experiment_api::RandomizedEffectSection>,
+    /// Balanced two-period panel DiD estimate and cluster standard error.
+    #[pyo3(get)]
+    panel_did: Option<quasi_api::PanelDidSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
     #[pyo3(get)]
     anomaly: Option<Vec<gcm_api::AnomalyScores>>,
@@ -1476,6 +1494,13 @@ pub(crate) fn shared_study_sections(
     result: &antecedent::StudyResult,
     estimator_id: String,
 ) -> PyResult<SharedStudySections> {
+    let absent_effect = antecedent::EffectEstimate::new(
+        f64::NAN,
+        f64::NAN,
+        antecedent_core::AssumptionSet::default(),
+        antecedent_estimate::OverlapPolicy::ExplicitOverride,
+    );
+    let estimate = result.estimate.as_effect().unwrap_or(&absent_effect);
     // A temporal effect's estimand ids are dense unfolded node ids; read them
     // through the certificate's unfolding coordinates, not as schema ids (a
     // dense id past the first window slice would otherwise name the wrong
@@ -1515,25 +1540,25 @@ pub(crate) fn shared_study_sections(
     let latency_mode =
         result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
     let bootstrap_replicates_ok =
-        result.performance.bootstrap_replicates_ok.or(result.estimate.bootstrap_replicates_ok);
-    let cancelled = result.performance.cancelled || result.estimate.bootstrap_cancelled;
+        result.performance.bootstrap_replicates_ok.or(estimate.bootstrap_replicates_ok);
+    let cancelled = result.performance.cancelled || estimate.bootstrap_cancelled;
     let stage_timings: Vec<(String, u64)> =
         result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
     let identification = IdentificationSection {
         status: identification_status.clone(),
         method: method.clone(),
         adjustment_set: adjustment_set.clone(),
-        assumption_count: result.estimate.assumptions.len(),
+        assumption_count: estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
     };
     let (distribution_atoms, mean_interval) =
         distribution_sections(names, result.distribution.as_ref());
-    let overlap_ess = result.estimate.overlap_report.as_ref().and_then(|r| r.ess);
-    let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
+    let overlap_ess = estimate.overlap_report.as_ref().and_then(|r| r.ess);
+    let overlap_propensity_min = estimate.overlap_report.as_ref().map(|r| r.propensity_min);
     let estimate = EstimateSection {
-        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
+        ate: estimate.ate.is_finite().then_some(estimate.ate),
+        se_analytic: estimate.se_analytic,
+        se_bootstrap: estimate.se_bootstrap,
         estimator_id: estimator_id.clone(),
         method: method.clone(),
         overlap_ess,
@@ -1555,18 +1580,18 @@ pub(crate) fn shared_study_sections(
             .joint_covariance
             .as_ref()
             .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
-        score_inference: result.estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
-        scenario_effects: result.estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
-        scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
-        exceedance_cdf: result.estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
-        monotone_rearranged: result.estimate.monotone_rearranged,
+        score_inference: estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
+        scenario_effects: estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
+        exceedance_cdf: estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: estimate.monotone_rearranged,
         interaction_structurally_zero: result
             .response
             .as_ref()
             .map(|r| r.interaction_structurally_zero)
-            .or(Some(result.estimate.interaction_structurally_zero)),
-        unit_effects_homogeneous: Some(result.estimate.unit_effects_homogeneous),
-        score_table: result.estimate.score_table.as_ref().map(|t| ScoreTableSection {
+            .or(Some(estimate.interaction_structurally_zero)),
+        unit_effects_homogeneous: Some(estimate.unit_effects_homogeneous),
+        score_table: estimate.score_table.as_ref().map(|t| ScoreTableSection {
             n_rows: t.n_rows,
             n_folds: t.n_folds,
             provenance: t.nuisance_provenance.to_string(),
@@ -1581,10 +1606,10 @@ pub(crate) fn shared_study_sections(
             treatment: t.treatment.raw(),
             intervened: t.intervened.iter().map(|v| v.raw()).collect(),
         }),
-        simultaneous_interval: result.estimate.simultaneous_interval,
-        adjusted_p_values: result.estimate.adjusted_p_values,
-        family_contrast: result.estimate.family_contrast,
-        family_contrast_interval: result.estimate.family_contrast_interval,
+        simultaneous_interval: estimate.simultaneous_interval,
+        adjusted_p_values: estimate.adjusted_p_values,
+        family_contrast: estimate.family_contrast,
+        family_contrast_interval: estimate.family_contrast_interval,
         candidate_selection: result
             .estimate
             .candidate_selection
@@ -1609,17 +1634,17 @@ pub(crate) fn shared_study_sections(
                     disjoint: s.disjoint,
                 })
             }),
-        evalue: result.estimate.evalue,
-        evalue_threshold: result.estimate.evalue_threshold,
+        evalue: estimate.evalue,
+        evalue_threshold: estimate.evalue_threshold,
         distribution_atoms,
         mean_interval,
-        cate: result.estimate.cate.as_ref().map(|c| c.to_vec()),
-        cate_se: result.estimate.cate_se.as_ref().map(|c| c.to_vec()),
-        cate_leaf_dispersion: result.estimate.cate_leaf_dispersion.as_ref().map(|c| c.to_vec()),
-        outcome_oof_r2: result.estimate.outcome_oof_r2,
-        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
-        crossfit_folds: result.estimate.crossfit_folds,
-        crossfit_seed: result.estimate.crossfit_seed,
+        cate: estimate.cate.as_ref().map(|c| c.to_vec()),
+        cate_se: estimate.cate_se.as_ref().map(|c| c.to_vec()),
+        cate_leaf_dispersion: estimate.cate_leaf_dispersion.as_ref().map(|c| c.to_vec()),
+        outcome_oof_r2: estimate.outcome_oof_r2,
+        treatment_oof_logloss: estimate.treatment_oof_logloss,
+        crossfit_folds: estimate.crossfit_folds,
+        crossfit_seed: estimate.crossfit_seed,
         learner_provenance: result
             .estimate
             .learner_provenance
@@ -2690,6 +2715,15 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     attribution_api::register(m)?;
     graph_io::register(m)?;
     design_api::register(m)?;
+    policy_api::register(m)?;
+    policy_continuous_api::register(m)?;
+    experiment_api::register(m)?;
+    interference_saturation_api::register(m)?;
+    observational_interference_api::register(m)?;
+    factorial_api::register(m)?;
+    regimes_api::register(m)?;
+    quasi_api::register(m)?;
+    survival_api::register(m)?;
     Ok(())
 }
 

@@ -3358,6 +3358,184 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze a graphless Bernoulli, complete, or stratified randomized ITT study.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
+        assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
+        treated_per_row=None, *, accepted=false, seed=1, threads=None,
+        options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_randomized_effect(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        realized_assignment: Vec<bool>,
+        assignment_probabilities: Vec<f64>,
+        assignment_units: Vec<String>,
+        outcome_units: Vec<String>,
+        treatment_arms: (String, String),
+        design_kind: String,
+        treated_units: Option<usize>,
+        blocks: Option<Vec<String>>,
+        treated_per_row: Option<Vec<usize>>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("a randomized ITT query")?;
+        opts.refuse_population("a randomized ITT query")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let design = match design_kind.as_str() {
+                "bernoulli" => antecedent_core::RandomizationDesign::Bernoulli,
+                "complete" => antecedent_core::RandomizationDesign::Complete {
+                    treated_units: treated_units
+                        .ok_or_else(|| py_msg("complete randomization requires treated_units"))?,
+                },
+                "stratified" => antecedent_core::RandomizationDesign::Stratified {
+                    blocks: blocks
+                        .ok_or_else(|| py_msg("stratified randomization requires blocks"))?
+                        .into_iter()
+                        .map(Arc::<str>::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                    treated_per_row: treated_per_row
+                        .ok_or_else(|| py_msg("stratified randomization requires treated_per_row"))?
+                        .into(),
+                },
+                _ => return Err(py_msg("design_kind must be bernoulli, complete, or stratified")),
+            };
+            let query = antecedent_core::RandomizedEffectQuery::with_design(
+                design,
+                outcome_id,
+                realized_assignment,
+                assignment_probabilities,
+                assignment_units.into_iter().map(Arc::<str>::from).collect::<Vec<_>>(),
+                outcome_units.into_iter().map(Arc::<str>::from).collect::<Vec<_>>(),
+                (Arc::<str>::from(treatment_arms.0), Arc::<str>::from(treatment_arms.1)),
+            );
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::RandomizedEffect(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a balanced two-period panel DiD with subject-clustered uncertainty.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, treated, post, subjects, clusters, *, accepted=false, seed=1, threads=None, options=None))]
+    fn prepare_panel_did(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        treated: Vec<bool>,
+        post: Vec<bool>,
+        subjects: Vec<String>,
+        clusters: Vec<String>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("panel difference-in-differences")?;
+        opts.refuse_population("panel difference-in-differences")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let subject_arc: Vec<Arc<str>> =
+                subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> =
+                clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let query = antecedent_core::PanelDidQuery::new(
+                outcome_id,
+                treated,
+                post,
+                subject_arc,
+                cluster_arc,
+            );
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a randomized held-out doubly robust policy-value study.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, assignment, propensity, actions, reference,
+        mu0, mu1, costs, reference_costs, evaluation_subject_ids, disjoint_training_subjects,
+        crossfit_fold_ownership_valid, *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_policy_value(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        assignment: Vec<bool>,
+        propensity: Vec<f64>,
+        actions: Vec<bool>,
+        reference: Vec<bool>,
+        mu0: Vec<f64>,
+        mu1: Vec<f64>,
+        costs: Vec<f64>,
+        reference_costs: Vec<f64>,
+        evaluation_subject_ids: Vec<String>,
+        disjoint_training_subjects: bool,
+        crossfit_fold_ownership_valid: bool,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("held-out policy value")?;
+        opts.refuse_population("held-out policy value")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let query = antecedent_core::PolicyValueQuery {
+                outcome: outcome_id,
+                assignment: assignment.into(),
+                propensity: propensity.into(),
+                actions: actions.into(),
+                reference: reference.into(),
+                mu0: mu0.into(),
+                mu1: mu1.into(),
+                costs: costs.into(),
+                reference_costs: reference_costs.into(),
+                evaluation_subject_ids: evaluation_subject_ids
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
+                disjoint_training_subjects,
+                crossfit_fold_ownership_valid,
+            };
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Freeze GCM anomaly scores on a supplied explicit Dag.
     ///
     /// Compile assigns `gcm.parametric` / `gcm.fit`. Do not set identifier or
@@ -3914,7 +4092,7 @@ pub(crate) fn response_from_study(
     let name_of = |id: antecedent_core::VariableId| {
         names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
     };
-    let treatments = vec![name_of(result.treatment)];
+    let treatments = result.treatment.map(name_of).into_iter().collect();
     let outcomes = vec![name_of(result.outcome)];
     let adjustment_set = result.estimand.adjustment_set.iter().copied().map(name_of).collect();
     Ok(attach_study_response_meta(

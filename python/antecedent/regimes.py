@@ -1,0 +1,576 @@
+"""Point evaluation of prespecified longitudinal treatment regimes.
+
+This low-level utility evaluates static or history-adaptive binary regimes using
+user-supplied sequential treatment and censoring probabilities. The regime
+value and sequential g-formula paths are point-only; the binary MSM path
+returns pointwise subject-clustered standard errors. No path fits the nuisance
+probabilities or adds a support-matrix license.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from math import isfinite
+from typing import TypeAlias
+
+import numpy as np
+from numpy.typing import ArrayLike
+
+from . import _native
+
+HistoryPolicy: TypeAlias = Callable[[int, tuple[bool, ...], tuple[tuple[float, ...], ...]], bool]
+Regime: TypeAlias = Sequence[bool] | HistoryPolicy
+
+
+@dataclass(frozen=True, slots=True)
+class RegimeValue:
+    """Uncertainty-free value summary for a longitudinal regime."""
+
+    value: float
+    effective_sample_size: float
+    matched_observed_fraction: float
+    maximum_weight: float
+    uncertainty: str = "not_estimated"
+    support_status: str = "caller_supplied_sequential_probabilities"
+    assumptions: tuple[str, ...] = (
+        "consistency for the specified binary treatment history",
+        "sequential exchangeability conditional on the supplied pre-decision histories",
+        "sequential positivity for treatment and remaining uncensored",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class GFormulaValue:
+    """Point-only plug-in value from supplied sequential conditional means."""
+
+    value: float
+    subject_count: int
+    minimum_regime_action_probability: float
+    minimum_censoring_survival: float
+    fold_ownership: tuple[tuple[str, int], ...]
+    uncertainty: str = "not_estimated"
+    support_status: str = "caller_supplied_conditional_outcome_predictions"
+    crossfit_status: str = "not_claimed"
+    assumptions: tuple[str, ...] = (
+        "consistency for the specified treatment regime",
+        "sequential exchangeability conditional on supplied histories",
+        "sequential treatment and censoring positivity at the declared floor",
+        "conditional reward predictions are valid under the specified regime",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class DoublyRobustRegimeValue:
+    """Point-only sequentially augmented regime value from supplied Q scores."""
+
+    value: float
+    subject_count: int
+    minimum_regime_action_probability: float
+    minimum_censoring_probability: float
+    fold_ownership: tuple[tuple[str, int], ...]
+    uncertainty: str = "not_estimated"
+    support_status: str = "caller_supplied_sequential_Q_and_probabilities"
+    crossfit_status: str = "fold_ids_aligned_but_crossfit_not_independently_verified"
+    assumptions: tuple[str, ...] = (
+        "consistency for the specified treatment regime",
+        "sequential exchangeability conditional on supplied histories",
+        "sequential treatment and censoring positivity at the declared floor",
+        "q_prediction is the conditional mean of the next recursive pseudo-outcome under the regime",
+        "Q nuisance predictions are cross-fitted by subject fold as declared by the caller",
+        "the treatment and censoring probability nuisances satisfy sequential doubly robust conditions",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class MarginalStructuralModelResult:
+    """Additive binary-treatment MSM coefficients and pointwise clustered SEs."""
+
+    intercept: float
+    period_effects: tuple[float, ...]
+    standard_errors: tuple[float, ...]
+    stabilizing_numerator_probabilities: tuple[float, ...]
+    effective_sample_size: float
+    maximum_weight: float
+    observed_subjects: int
+    fold_ownership: tuple[tuple[str, int], ...]
+    uncertainty_kind: str = "subject_clustered_sandwich_standard_error"
+    uncertainty_semantics: str = "pointwise CR1 standard errors; no confidence intervals; no simultaneous coverage claim"
+    crossfit_status: str = "caller_supplied propensity data dependence is not independently verified"
+    support_status: str = "unlicensed_point_utility"
+    assumptions: tuple[str, ...] = (
+        "consistency for the observed longitudinal treatment histories",
+        "sequential exchangeability conditional on the histories used for treatment probabilities",
+        "sequential positivity for treatment and remaining uncensored",
+        "the supplied treatment and censoring probabilities are correctly specified",
+        "the additive marginal structural mean is correctly specified; period effects are additive and have no interactions",
+        "no interference between subjects",
+    )
+
+
+def evaluate_regime_value(
+    outcomes: ArrayLike,
+    treatment_history: ArrayLike,
+    regime: Regime,
+    treatment_probabilities: ArrayLike,
+    *,
+    covariate_history: ArrayLike | None = None,
+    outcome_observed: ArrayLike | None = None,
+    censoring_survival: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> RegimeValue:
+    """Evaluate a prespecified regime with a sequential inverse-probability score.
+
+    ``treatment_probabilities[i, t]`` is the known/externally estimated
+    conditional probability of treatment at time ``t`` given that unit's
+    pre-decision history; the score uses this probability for treated rows and
+    its complement for untreated rows. ``censoring_survival[i, t]`` is the
+    conditional probability of remaining observed through that period. The
+    product of those probabilities weights each complete observed trajectory.
+
+    A regime is either a static sequence of binary actions or a callback
+    ``regime(t, past_treatments, covariates_through_t)``. The callback is
+    evaluated separately for each subject and period. This is a point-only
+    Horvitz–Thompson estimator; uncertainty and nuisance estimation are outside
+    this API. Sequential exchangeability, consistency, and positivity are
+    assumptions supplied by the caller, not verified by the package.
+    """
+    y = np.asarray(outcomes, dtype=np.float64)
+    a = np.asarray(treatment_history)
+    p = np.asarray(treatment_probabilities, dtype=np.float64)
+    if y.ndim != 1 or y.size == 0 or not np.isfinite(y).all():
+        raise ValueError("outcomes must be a non-empty finite one-dimensional array")
+    if a.ndim != 2 or a.shape[0] != y.size or a.shape[1] == 0:
+        raise ValueError("treatment_history must have shape (subjects, periods)")
+    if not np.isin(a, (0, 1, False, True)).all():
+        raise ValueError("treatment_history must contain only binary actions")
+    a = a.astype(bool, copy=False)
+    n, periods = a.shape
+    if p.shape != a.shape or not np.isfinite(p).all():
+        raise ValueError("treatment_probabilities must be finite and match treatment_history")
+    if not isfinite(minimum_probability) or not 0 < minimum_probability <= 0.5:
+        raise ValueError("minimum_probability must be finite and in (0, 0.5]")
+    if np.any(p < minimum_probability) or np.any(p > 1.0 - minimum_probability):
+        raise ValueError("sequential treatment positivity is violated at the declared probability floor")
+    if callable(regime):
+        x = np.empty((n, periods, 0), dtype=np.float64) if covariate_history is None else np.asarray(covariate_history, dtype=np.float64)
+        if x.ndim != 3 or x.shape[:2] != a.shape or not np.isfinite(x).all():
+            raise ValueError("dynamic regimes require finite covariate_history shaped (subjects, periods, covariates)")
+        actions = np.empty_like(a)
+        for i in range(n):
+            past: list[bool] = []
+            for t in range(periods):
+                history = tuple(tuple(float(v) for v in x[i, s]) for s in range(t + 1))
+                action = regime(t, tuple(past), history)
+                if not isinstance(action, (bool, np.bool_)):
+                    raise ValueError("dynamic regime callback must return a bool for every subject-period")
+                actions[i, t] = bool(action)
+                past.append(bool(a[i, t]))
+    else:
+        actions = np.asarray(regime)
+        if actions.shape != (periods,) or not np.isin(actions, (0, 1, False, True)).all():
+            raise ValueError("static regime must contain one binary action per treatment period")
+        actions = np.broadcast_to(actions.astype(bool), a.shape).copy()
+    observed = np.ones(n, dtype=bool) if outcome_observed is None else np.asarray(outcome_observed)
+    if observed.shape != (n,) or not np.isin(observed, (0, 1, False, True)).all():
+        raise ValueError("outcome_observed must contain one bool per subject")
+    observed = observed.astype(bool, copy=False)
+    censor = np.ones_like(p) if censoring_survival is None else np.asarray(censoring_survival, dtype=np.float64)
+    if censor.shape != a.shape or not np.isfinite(censor).all():
+        raise ValueError("censoring_survival must be finite and match treatment_history")
+    if np.any(censor < minimum_probability) or np.any(censor > 1.0):
+        raise ValueError("sequential censoring positivity is violated at the declared probability floor")
+    value, ess, matched, max_weight = _native.evaluate_longitudinal_regime_value(
+        y, a, actions, p, observed, censor
+    )
+    return RegimeValue(value, ess, matched, max_weight)
+
+
+def evaluate_sequential_gformula(
+    period_outcome_predictions: ArrayLike,
+    treatment_history: ArrayLike,
+    regime: Regime,
+    treatment_probabilities: ArrayLike,
+    *,
+    subject_ids: Sequence[str],
+    fold_ids: Sequence[int],
+    covariate_history: ArrayLike | None = None,
+    censoring_survival: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> GFormulaValue:
+    """Average supplied period-reward predictions under a static/dynamic regime.
+
+    ``period_outcome_predictions[i, t]`` must already be the caller's
+    conditional mean reward for subject ``i`` at period ``t`` under the
+    specified regime and its downstream continuation. The returned value is
+    the mean across subjects of the sum over periods. This function does not
+    fit or cross-fit conditional models. Subject IDs and fold IDs preserve
+    subject-level ownership in the returned provenance; one row per unique
+    subject is required.
+
+    Treatment probabilities and censoring survival are supplied only for
+    sequential positivity checks; they are not weights in this plug-in
+    estimator. Censoring/dropout must be handled by the caller's prediction
+    construction under the declared assumptions.
+    """
+
+    q = np.asarray(period_outcome_predictions, dtype=np.float64)
+    a = np.asarray(treatment_history)
+    p = np.asarray(treatment_probabilities, dtype=np.float64)
+    if q.ndim != 2 or q.shape[0] == 0 or q.shape[1] == 0 or not np.isfinite(q).all():
+        raise ValueError("period_outcome_predictions must be a non-empty finite (subjects, periods) array")
+    if a.ndim != 2 or a.shape != q.shape or not np.isin(a, (0, 1, False, True)).all():
+        raise ValueError("treatment_history must be binary and match period_outcome_predictions")
+    a = a.astype(bool, copy=False)
+    n, periods = q.shape
+    if p.shape != q.shape or not np.isfinite(p).all():
+        raise ValueError("treatment_probabilities must be finite and match period_outcome_predictions")
+    if not isfinite(minimum_probability) or not 0 < minimum_probability <= 0.5:
+        raise ValueError("minimum_probability must be finite and in (0, 0.5]")
+    if np.any(p < minimum_probability) or np.any(p > 1.0 - minimum_probability):
+        raise ValueError("sequential treatment positivity is violated at the declared probability floor")
+
+    ids = tuple(subject_ids)
+    if len(ids) != n or any(not isinstance(subject_id, str) or not subject_id.strip() for subject_id in ids):
+        raise ValueError("subject_ids must contain one non-empty string per subject row")
+    if len(set(ids)) != n:
+        raise ValueError("g-formula inputs require one row per unique subject to preserve fold ownership")
+    raw_folds = np.asarray(fold_ids)
+    if (
+        raw_folds.shape != (n,)
+        or not np.issubdtype(raw_folds.dtype, np.signedinteger)
+        or np.any(raw_folds < np.iinfo(np.int64).min)
+        or np.any(raw_folds > np.iinfo(np.int64).max)
+        or np.any(raw_folds < 0)
+    ):
+        raise ValueError("fold_ids must contain one non-negative signed 64-bit integer per subject")
+    folds = raw_folds.astype(np.int64, copy=False)
+
+    if callable(regime):
+        x = (
+            np.empty((n, periods, 0), dtype=np.float64)
+            if covariate_history is None
+            else np.asarray(covariate_history, dtype=np.float64)
+        )
+        if x.ndim != 3 or x.shape[:2] != a.shape or not np.isfinite(x).all():
+            raise ValueError("dynamic regimes require finite covariate_history shaped (subjects, periods, covariates)")
+        actions = np.empty_like(a)
+        for i in range(n):
+            past: list[bool] = []
+            for t in range(periods):
+                history = tuple(tuple(float(v) for v in x[i, s]) for s in range(t + 1))
+                action = regime(t, tuple(past), history)
+                if not isinstance(action, (bool, np.bool_)):
+                    raise ValueError("dynamic regime callback must return a bool for every subject-period")
+                actions[i, t] = bool(action)
+                past.append(bool(a[i, t]))
+    else:
+        actions = np.asarray(regime)
+        if actions.shape != (periods,) or not np.isin(actions, (0, 1, False, True)).all():
+            raise ValueError("static regime must contain one binary action per treatment period")
+        actions = np.broadcast_to(actions.astype(bool), a.shape).copy()
+
+    censor = np.ones_like(p) if censoring_survival is None else np.asarray(censoring_survival, dtype=np.float64)
+    if censor.shape != q.shape or not np.isfinite(censor).all():
+        raise ValueError("censoring_survival must be finite and match period_outcome_predictions")
+    if np.any(censor < minimum_probability) or np.any(censor > 1.0):
+        raise ValueError("sequential censoring positivity is violated at the declared probability floor")
+    try:
+        value, subject_count, min_action_p, min_censor_p = _native.evaluate_sequential_gformula(
+            q,
+            actions,
+            p,
+            censor,
+            list(ids),
+            folds.tolist(),
+            float(minimum_probability),
+        )
+    except ValueError as error:
+        raise ValueError(str(error)) from error
+    return GFormulaValue(
+        float(value),
+        int(subject_count),
+        float(min_action_p),
+        float(min_censor_p),
+        tuple(zip(ids, (int(fold) for fold in folds), strict=True)),
+    )
+
+
+def evaluate_sequential_doubly_robust(
+    outcomes: ArrayLike,
+    outcome_observed: ArrayLike,
+    observation_history: ArrayLike,
+    treatment_history: ArrayLike,
+    regime: Regime,
+    q_predictions: ArrayLike,
+    treatment_probabilities: ArrayLike,
+    *,
+    subject_ids: Sequence[str],
+    fold_ids: Sequence[int],
+    prediction_fold_ids: Sequence[int],
+    covariate_history: ArrayLike | None = None,
+    censoring_probabilities: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> DoublyRobustRegimeValue:
+    """Compute a backward-recursive sequentially doubly robust regime score.
+
+    ``q_predictions[i, t]`` is the caller-supplied cross-fitted conditional
+    mean of the next recursive pseudo-outcome for subject ``i`` under the
+    regime at period ``t``. ``outcomes`` is the terminal outcome; a finite
+    placeholder is ignored when ``outcome_observed`` is false. Observation
+    history records whether each subject remains uncensored through each
+    period and must be monotone. ``censoring_probabilities[i, t]`` is the
+    conditional probability of remaining observed from the preceding period
+    through period ``t`` (not the cumulative survival).
+
+    Each subject must have one row, a subject fold ID, and a matching Q
+    prediction fold ID. This checks ownership alignment but cannot verify the
+    caller actually trained Q outside that subject's fold. No nuisance model
+    is fit and no interval is produced.
+    """
+
+    y = np.asarray(outcomes, dtype=np.float64)
+    terminal_observed = np.asarray(outcome_observed)
+    observed = np.asarray(observation_history)
+    a = np.asarray(treatment_history)
+    q = np.asarray(q_predictions, dtype=np.float64)
+    p = np.asarray(treatment_probabilities, dtype=np.float64)
+    if q.ndim != 2 or q.shape[0] == 0 or q.shape[1] == 0 or not np.isfinite(q).all():
+        raise ValueError("q_predictions must be a non-empty finite (subjects, periods) array")
+    n, periods = q.shape
+    if y.shape != (n,) or terminal_observed.shape != (n,):
+        raise ValueError("outcomes and outcome_observed must contain one value per subject")
+    if not np.isin(terminal_observed, (0, 1, False, True)).all():
+        raise ValueError("outcome_observed must contain one bool per subject")
+    terminal_observed = terminal_observed.astype(bool, copy=False)
+    if observed.shape != (n, periods) or not np.isin(observed, (0, 1, False, True)).all():
+        raise ValueError("observation_history must be binary and match q_predictions")
+    observed = observed.astype(bool, copy=False)
+    if np.any((~observed[:, :-1]) & observed[:, 1:]):
+        raise ValueError("observation_history must be monotone after censoring or dropout")
+    if not np.array_equal(terminal_observed, observed[:, -1]):
+        raise ValueError("outcome_observed must match the final observation-history period")
+    if not np.isfinite(y[terminal_observed]).all():
+        raise ValueError("observed terminal outcomes must be finite")
+    y = np.where(terminal_observed, y, 0.0)
+    if not terminal_observed.any():
+        raise ValueError("at least one terminal outcome must be observed for sequential augmentation")
+    if a.shape != (n, periods) or not np.isin(a, (0, 1, False, True)).all():
+        raise ValueError("treatment_history must be binary and match q_predictions")
+    a = a.astype(bool, copy=False)
+    if p.shape != (n, periods) or not np.isfinite(p).all():
+        raise ValueError("treatment_probabilities must be finite and match q_predictions")
+    if not isfinite(minimum_probability) or not 0 < minimum_probability <= 0.5:
+        raise ValueError("minimum_probability must be finite and in (0, 0.5]")
+    if np.any(p < minimum_probability) or np.any(p > 1.0 - minimum_probability):
+        raise ValueError("sequential treatment positivity is violated at the declared probability floor")
+
+    ids = tuple(subject_ids)
+    if len(ids) != n or any(not isinstance(subject_id, str) or not subject_id.strip() for subject_id in ids):
+        raise ValueError("subject_ids must contain one non-empty string per subject row")
+    if len(set(ids)) != n:
+        raise ValueError("doubly robust inputs require one row per unique subject to preserve fold ownership")
+
+    def integer_folds(values: Sequence[int], name: str) -> np.ndarray:
+        raw = np.asarray(values)
+        if (
+            raw.shape != (n,)
+            or not np.issubdtype(raw.dtype, np.signedinteger)
+            or np.any(raw < np.iinfo(np.int64).min)
+            or np.any(raw > np.iinfo(np.int64).max)
+            or np.any(raw < 0)
+        ):
+            raise ValueError(f"{name} must contain one non-negative signed 64-bit integer per subject")
+        return raw.astype(np.int64, copy=False)
+
+    folds = integer_folds(fold_ids, "fold_ids")
+    prediction_folds = integer_folds(prediction_fold_ids, "prediction_fold_ids")
+    if not np.array_equal(folds, prediction_folds):
+        raise ValueError("Q prediction fold ownership must match the subject fold IDs")
+
+    if callable(regime):
+        x = (
+            np.empty((n, periods, 0), dtype=np.float64)
+            if covariate_history is None
+            else np.asarray(covariate_history, dtype=np.float64)
+        )
+        if x.ndim != 3 or x.shape[:2] != a.shape or not np.isfinite(x).all():
+            raise ValueError("dynamic regimes require finite covariate_history shaped (subjects, periods, covariates)")
+        actions = np.empty_like(a)
+        for i in range(n):
+            past: list[bool] = []
+            for t in range(periods):
+                if not observed[i, t]:
+                    # No residual is taken after dropout, so the dynamic
+                    # policy need not inspect unavailable later history.
+                    actions[i, t] = False
+                    continue
+                history = tuple(tuple(float(v) for v in x[i, s]) for s in range(t + 1))
+                action = regime(t, tuple(past), history)
+                if not isinstance(action, (bool, np.bool_)):
+                    raise ValueError("dynamic regime callback must return a bool for every subject-period")
+                actions[i, t] = bool(action)
+                past.append(bool(a[i, t]))
+    else:
+        actions = np.asarray(regime)
+        if actions.shape != (periods,) or not np.isin(actions, (0, 1, False, True)).all():
+            raise ValueError("static regime must contain one binary action per treatment period")
+        actions = np.broadcast_to(actions.astype(bool), a.shape).copy()
+
+    censor = (
+        np.ones_like(p)
+        if censoring_probabilities is None
+        else np.asarray(censoring_probabilities, dtype=np.float64)
+    )
+    if censor.shape != (n, periods) or not np.isfinite(censor).all():
+        raise ValueError("censoring_probabilities must be finite and match q_predictions")
+    if np.any(censor < minimum_probability) or np.any(censor > 1.0):
+        raise ValueError("sequential censoring positivity is violated at the declared probability floor")
+    try:
+        value, subject_count, min_action_p, min_censor_p = _native.evaluate_sequential_doubly_robust(
+            y,
+            terminal_observed,
+            observed,
+            a,
+            actions,
+            q,
+            p,
+            censor,
+            list(ids),
+            folds.tolist(),
+            prediction_folds.tolist(),
+            float(minimum_probability),
+        )
+    except ValueError as error:
+        raise ValueError(str(error)) from error
+    return DoublyRobustRegimeValue(
+        float(value),
+        int(subject_count),
+        float(min_action_p),
+        float(min_censor_p),
+        tuple(zip(ids, (int(fold) for fold in folds), strict=True)),
+    )
+
+
+def fit_marginal_structural_model(
+    outcomes: ArrayLike,
+    treatment_history: ArrayLike,
+    treatment_probabilities: ArrayLike,
+    *,
+    stabilizing_numerator_probabilities: ArrayLike,
+    subject_ids: Sequence[str],
+    fold_ids: Sequence[int] | None = None,
+    outcome_observed: ArrayLike | None = None,
+    censoring_survival: ArrayLike | None = None,
+    minimum_probability: float = 0.01,
+) -> MarginalStructuralModelResult:
+    """Fit an additive binary marginal structural model with stabilized IPTW.
+
+    Terminal outcomes are one scalar per subject. Each period coefficient is
+    the marginal additive effect of its treatment, conditional on other period
+    indicators in the specified structural mean. Caller-supplied numerator
+    probabilities define stabilization: each is ``P(A_t=1)``. Censoring
+    weights are unstabilized and use the supplied conditional probability of
+    remaining observed at each period. This function fits no propensities.
+
+    Optional fold IDs record subject ownership, but do not verify whether the
+    supplied propensities were estimated out of fold. Standard errors use a
+    subject-clustered CR1 sandwich and are pointwise; no interval, simultaneous
+    coverage, or calibration claim is made. Identification requires consistency,
+    sequential exchangeability and positivity, correctly specified supplied
+    nuisance probabilities, no interference, and a correctly specified
+    additive marginal structural mean with no treatment interactions.
+    """
+    y = np.asarray(outcomes, dtype=np.float64)
+    a = np.asarray(treatment_history)
+    p = np.asarray(treatment_probabilities, dtype=np.float64)
+    numerator = np.asarray(stabilizing_numerator_probabilities, dtype=np.float64)
+    if y.ndim != 1 or y.size == 0:
+        raise ValueError("outcomes must be a non-empty one-dimensional subject vector")
+    if a.ndim != 2 or a.shape[0] != y.size or a.shape[1] == 0:
+        raise ValueError("treatment_history must have shape (subjects, periods)")
+    if not np.isin(a, (0, 1, False, True)).all():
+        raise ValueError("treatment_history must contain only binary actions")
+    a = a.astype(bool, copy=False)
+    n, periods = a.shape
+    if p.shape != a.shape or not np.isfinite(p).all():
+        raise ValueError("treatment_probabilities must be finite and match treatment_history")
+    if numerator.shape != (periods,) or not np.isfinite(numerator).all():
+        raise ValueError("stabilizing_numerator_probabilities must have one finite value per period")
+    if not isfinite(minimum_probability) or not 0 < minimum_probability <= 0.5:
+        raise ValueError("minimum_probability must be finite and in (0, 0.5]")
+    if np.any(p < minimum_probability) or np.any(p > 1.0 - minimum_probability):
+        raise ValueError("sequential treatment positivity is violated at the declared probability floor")
+    if np.any(numerator < minimum_probability) or np.any(numerator > 1.0 - minimum_probability):
+        raise ValueError("stabilizing numerator probabilities violate the declared positivity floor")
+    observed = np.ones(n, dtype=bool) if outcome_observed is None else np.asarray(outcome_observed)
+    if observed.shape != (n,) or not np.isin(observed, (0, 1, False, True)).all():
+        raise ValueError("outcome_observed must contain one bool per subject")
+    observed = observed.astype(bool, copy=False)
+    if not observed.any():
+        raise ValueError("at least one terminal outcome must be observed")
+    if not np.isfinite(y[observed]).all():
+        raise ValueError("observed terminal outcomes must be finite")
+    y = np.where(observed, y, 0.0)
+    censor = np.ones_like(p) if censoring_survival is None else np.asarray(censoring_survival, dtype=np.float64)
+    if censor.shape != a.shape or not np.isfinite(censor).all():
+        raise ValueError("censoring_survival must be finite and match treatment_history")
+    if np.any(censor < minimum_probability) or np.any(censor > 1.0):
+        raise ValueError("sequential censoring positivity is violated at the declared probability floor")
+
+    ids = tuple(subject_ids)
+    if len(ids) != n or any(not isinstance(value, str) or not value.strip() for value in ids):
+        raise ValueError("subject_ids must contain one non-empty string per subject")
+    if len(set(ids)) != n:
+        raise ValueError("subject_ids must be unique because each row is one subject cluster")
+    if fold_ids is None:
+        ownership: tuple[tuple[str, int], ...] = ()
+        crossfit = "fold IDs not supplied; supplied propensity data dependence is unknown"
+    else:
+        raw_folds = np.asarray(fold_ids)
+        if (
+            raw_folds.shape != (n,)
+            or not np.issubdtype(raw_folds.dtype, np.signedinteger)
+            or np.any(raw_folds < 0)
+        ):
+            raise ValueError("fold_ids must contain one non-negative integer per subject")
+        ownership = tuple((subject, int(fold)) for subject, fold in zip(ids, raw_folds, strict=True))
+        crossfit = "subject fold ownership recorded; propensity cross-fitting is declared by caller and not verified"
+
+    try:
+        intercept, effects, standard_errors, ess, max_weight, included = _native.fit_binary_msm(
+            y,
+            a,
+            p,
+            numerator,
+            observed,
+            censor,
+            float(minimum_probability),
+        )
+    except ValueError as error:
+        raise ValueError(str(error)) from error
+    return MarginalStructuralModelResult(
+        float(intercept),
+        tuple(float(value) for value in effects),
+        tuple(float(value) for value in standard_errors),
+        tuple(float(value) for value in numerator),
+        float(ess),
+        float(max_weight),
+        int(included),
+        ownership,
+        crossfit_status=crossfit,
+    )
+
+
+__all__ = [
+    "GFormulaValue",
+    "DoublyRobustRegimeValue",
+    "HistoryPolicy",
+    "MarginalStructuralModelResult",
+    "Regime",
+    "RegimeValue",
+    "evaluate_regime_value",
+    "fit_marginal_structural_model",
+    "evaluate_sequential_doubly_robust",
+    "evaluate_sequential_gformula",
+]
