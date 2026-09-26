@@ -2246,4 +2246,245 @@ mod tests {
         assert_eq!(result.minimizing_mechanism_level_by_parent_stratum, [0, 0]);
         assert_eq!(result.maximizing_mechanism_level_by_parent_stratum, [1, 1]);
     }
+
+    // --- Independent-path reconstruction of the "synthetic" tipping claim. ---
+    //
+    // The tests above pin the reported tipping fraction and exact range to
+    // closed-form arithmetic constants (`0.25 / 1.55`, `0.0125 / 0.07`, ...).
+    // That checks the route against its own linear-slope algebra but never
+    // against an independently contaminated target effect. The reconstructions
+    // below build a genuine contaminated mechanism `K' = (1 - delta) * K +
+    // delta * R` for a known replacement `R`, recompute the TRUE contaminated
+    // response by pushing `K'` through the honest functional (never through the
+    // route's own min/max/tipping formula), and check that (a) `delta = 0`
+    // reproduces the baseline, (b) the recomputed effect stays inside the
+    // reported `[minimum, maximum]` for every `delta` in the declared domain,
+    // and (c) the recomputed effect crosses the decision threshold at exactly
+    // the `delta` the route reports as its tipping fraction.
+
+    /// Independent honest functional: the signed stratum contrast of the mean
+    /// response under an explicit outcome kernel. This deliberately does NOT use
+    /// `low_slope`/`high_slope`; it evaluates the supplied kernel directly.
+    fn contrast_response(kernel: &[Vec<f64>], weights: &[f64], outcome_values: &[f64]) -> f64 {
+        kernel
+            .iter()
+            .zip(weights)
+            .map(|(row, weight)| {
+                weight * row.iter().zip(outcome_values).map(|(p, y)| p * y).sum::<f64>()
+            })
+            .sum()
+    }
+
+    /// `K' = (1 - delta) * K + delta * R`, row by row.
+    fn contaminate(kernel: &[Vec<f64>], replacement: &[Vec<f64>], delta: f64) -> Vec<Vec<f64>> {
+        kernel
+            .iter()
+            .zip(replacement)
+            .map(|(row, r)| row.iter().zip(r).map(|(p, q)| (1.0 - delta) * p + delta * q).collect())
+            .collect()
+    }
+
+    #[test]
+    fn outcome_kernel_tipping_matches_a_reconstructed_contaminated_target() {
+        let base = fixture(0.6, Some(-0.4));
+        let reported = base.evaluate().unwrap();
+        let tipping = reported.tipping_fraction.expect("threshold lies inside the reported range");
+        let threshold = -0.4;
+
+        // Known contaminant: the exact minimizing simplex vertex the route
+        // reports, i.e. a point mass on the witnessed outcome per stratum. This
+        // is the worst-case R that the reported (below-baseline) tipping assumes.
+        let categories = base.outcome_values.len();
+        let replacement: Vec<Vec<f64>> = reported
+            .receipt
+            .minimizing_outcome_by_stratum
+            .iter()
+            .map(|&winner| (0..categories).map(|c| f64::from(u8::from(c == winner))).collect())
+            .collect();
+
+        // (a) delta = 0 reproduces the sensitivity baseline exactly.
+        let at_zero = contaminate(&base.source_kernel, &replacement, 0.0);
+        let effect_at_zero =
+            contrast_response(&at_zero, &base.stratum_contrast_weights, &base.outcome_values);
+        assert!((effect_at_zero - reported.baseline).abs() < 1e-12);
+
+        // (b) every delta in the declared domain lands inside the reported range.
+        //     The honest hand functional is additionally cross-checked against
+        //     the crate's own evaluation path applied to the contaminated kernel
+        //     (evaluate baseline at zero contamination), which must agree.
+        let grid = [0.0, 0.1, 0.2, 0.3, 1.0 / 3.0, 0.4, 0.5, 0.6];
+        for &delta in &grid {
+            let contaminated = contaminate(&base.source_kernel, &replacement, delta);
+            let recomputed = contrast_response(
+                &contaminated,
+                &base.stratum_contrast_weights,
+                &base.outcome_values,
+            );
+            let via_eval = DiscreteKernelSensitivity {
+                source_kernel: contaminated,
+                outcome_values: base.outcome_values.clone(),
+                stratum_contrast_weights: base.stratum_contrast_weights.clone(),
+                max_fraction: 0.0,
+                decision_threshold: None,
+            }
+            .evaluate()
+            .unwrap()
+            .baseline;
+            assert!((recomputed - via_eval).abs() < 1e-12);
+            assert!(
+                recomputed >= reported.minimum - 1e-12 && recomputed <= reported.maximum + 1e-12,
+                "delta {delta}: recomputed {recomputed} escaped [{}, {}]",
+                reported.minimum,
+                reported.maximum
+            );
+        }
+
+        // (c) the recomputed true effect crosses the threshold at exactly the
+        //     reported tipping fraction: at that delta the effect equals the
+        //     threshold, and it is on opposite sides just inside and outside it.
+        let at_tipping = contaminate(&base.source_kernel, &replacement, tipping);
+        let effect_at_tipping =
+            contrast_response(&at_tipping, &base.stratum_contrast_weights, &base.outcome_values);
+        assert!((effect_at_tipping - threshold).abs() < 1e-12);
+
+        let before = contaminate(&base.source_kernel, &replacement, tipping - 1e-3);
+        let after = contaminate(&base.source_kernel, &replacement, tipping + 1e-3);
+        assert!(
+            contrast_response(&before, &base.stratum_contrast_weights, &base.outcome_values)
+                > threshold
+        );
+        assert!(
+            contrast_response(&after, &base.stratum_contrast_weights, &base.outcome_values)
+                < threshold
+        );
+    }
+
+    #[test]
+    fn conditional_mechanism_tipping_matches_a_reconstructed_contaminated_target() {
+        let (diagram, query, functional) =
+            checked_transport_fixture_with_dependent_outcome_parent();
+
+        // Same checked source kernel as the arithmetic-constant test above.
+        let mut source_kernel = Vec::new();
+        for u in 0..2 {
+            for x in 0..2 {
+                for v in 0..2 {
+                    let probability_one = match (u, x, v) {
+                        (0, 0, 0) => 0.1,
+                        (0, 0, 1) => 0.2,
+                        (0, 1, 0) => 0.3,
+                        (0, 1, 1) => 0.6,
+                        (1, 0, 0) => 0.15,
+                        (1, 0, 1) => 0.25,
+                        (1, 1, 0) => 0.4,
+                        (1, 1, 1) => 0.7,
+                        _ => unreachable!(),
+                    };
+                    source_kernel.push(SourceOutcomeKernelRow {
+                        parent_levels: vec![u, x, v],
+                        outcome_probabilities: vec![1.0 - probability_one, probability_one],
+                    });
+                }
+            }
+        }
+
+        // P(U) and the *uncontaminated* V|U mechanism the joint factorizes into.
+        let p_u = [0.75, 0.25];
+        let v_given_u = [[0.8, 0.2], [0.2, 0.8]];
+        let max_fraction = 0.2;
+        let threshold = 0.27;
+
+        // Build the target/source joint parent law for a contaminated V|U
+        // mechanism K'(V | U=u) = (1 - delta) * P(V | u) + delta * R_u, with R_u a
+        // known point mass on V = 0 for both U contexts (the minimizing vertex
+        // the route reports). The joint stays a valid DAG factorization, so
+        // feeding it back through the route recomputes the honest response.
+        let build_spec = |delta: f64| {
+            let mut source_parent_law = Vec::new();
+            for u in 0..2usize {
+                for v in 0..2usize {
+                    let r = f64::from(u8::from(v == 0));
+                    let contaminated_v = (1.0 - delta) * v_given_u[u][v] + delta * r;
+                    source_parent_law.push(SourceParentLawRow {
+                        parent_levels: vec![u, v],
+                        probability: p_u[u] * contaminated_v,
+                    });
+                }
+            }
+            let target_parent_law = (0..2)
+                .flat_map(|x| {
+                    source_parent_law.iter().map(move |row| TargetParentLawRow {
+                        treatment_level: x,
+                        parent_levels: row.parent_levels.clone(),
+                        probability: row.probability,
+                    })
+                })
+                .collect();
+            FixedGraphMechanismSensitivitySpec {
+                outcome_values: vec![0.0, 1.0],
+                parent_cardinalities: vec![2, 2, 2],
+                treatment_levels: [0, 1],
+                max_fraction,
+                decision_threshold: Some(threshold),
+                source_kernel_regime: RegimeId::from_raw(1),
+                source_kernel_snapshot: "source-snapshot".into(),
+                target_parent_regime: RegimeId::from_raw(2),
+                target_parent_snapshot: "target-snapshot".into(),
+                source_kernel: source_kernel.clone(),
+                source_parent_law,
+                target_parent_law,
+            }
+        };
+
+        // The route under test: reported range/tipping for the uncontaminated
+        // (delta = 0) mechanism over the declared [0, max_fraction] domain.
+        let reported = fixed_graph_conditional_mechanism_sensitivity(
+            &diagram,
+            &query,
+            &functional,
+            &build_spec(0.0),
+            VariableId::from_raw(2),
+            &antecedent_core::ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let tipping = reported.tipping_fraction.expect("threshold lies inside the reported range");
+
+        // Independent recomputation of the true contaminated response: evaluate a
+        // spec whose parent law already carries the contaminated K'; the route's
+        // baseline is the honest functional of that joint and does not depend on
+        // the reported min/max/tipping algebra.
+        let true_effect = |delta: f64| {
+            fixed_graph_conditional_mechanism_sensitivity(
+                &diagram,
+                &query,
+                &functional,
+                &build_spec(delta),
+                VariableId::from_raw(2),
+                &antecedent_core::ExecutionContext::for_tests(1),
+            )
+            .unwrap()
+            .baseline
+        };
+
+        // (a) delta = 0 reproduces the reported baseline.
+        assert!((true_effect(0.0) - reported.baseline).abs() < 1e-12);
+
+        // (b) every delta in the declared domain lands inside the reported range.
+        let grid = [0.0, 0.05, 0.1, tipping, 0.15, 0.2];
+        for &delta in &grid {
+            let effect = true_effect(delta);
+            assert!(
+                effect >= reported.minimum - 1e-12 && effect <= reported.maximum + 1e-12,
+                "delta {delta}: reconstructed {effect} escaped [{}, {}]",
+                reported.minimum,
+                reported.maximum
+            );
+        }
+
+        // (c) the reconstructed true effect crosses the threshold at exactly the
+        //     reported tipping fraction.
+        assert!((true_effect(tipping) - threshold).abs() < 1e-12);
+        assert!(true_effect(tipping - 1e-3) > threshold);
+        assert!(true_effect(tipping + 1e-3) < threshold);
+    }
 }
