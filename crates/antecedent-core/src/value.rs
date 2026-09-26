@@ -77,6 +77,24 @@ impl Value {
     }
 }
 
+/// Whether two concrete intervention levels name the same level.
+///
+/// This is the one equality every transport certificate check uses when it
+/// compares a query's experiment assignment, a catalog regime's declared
+/// levels, an evaluation request, and a law's intervention world. The policy
+/// is [`Value`] equality itself: bit equality for floats and no coercion
+/// across variants, so `Bool(true)`, `Int64(1)` and `Float64(1.0)` are three
+/// different levels. A catalog therefore declares its experiment levels in the
+/// variant the query uses. The exact evaluator's world key additionally
+/// identifies an integral `Float64` with the equal `Int64` when it selects a
+/// law; that is a provider convenience and never widens a certificate check.
+/// The symbolic-intervention marker is not a concrete level and only equals
+/// itself.
+#[must_use]
+pub fn same_intervention_level(left: &Value, right: &Value) -> bool {
+    left == right
+}
+
 /// Errors from validating a concrete intervention level.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]

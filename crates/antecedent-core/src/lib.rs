@@ -143,7 +143,7 @@ pub use transform::{
     LayerEffect, SemanticLayer, TransformEffect, TransformIntent, TransformationReport,
     intent_effects,
 };
-pub use value::Value;
+pub use value::{Value, same_intervention_level};
 
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

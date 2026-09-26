@@ -257,6 +257,11 @@ pub fn z_transport_mechanism_sensitivity(
         .map_err(|_| ZTransportSensitivityError::InvalidProof)?;
 
     let arena = functional.arena();
+    // The registered surrogate factorization cites exactly one source regime.
+    let [regime] = functional.cited_regimes() else {
+        return Err(ZTransportSensitivityError::IncompatibleFormula);
+    };
+    let regime = *regime;
     let ExprNode::SumOut { expr, .. } = arena.node(functional.root()) else {
         return Err(ZTransportSensitivityError::IncompatibleFormula);
     };
@@ -275,7 +280,7 @@ pub fn z_transport_mechanism_sensitivity(
             conditioned_on,
             intervention,
             population,
-            regime,
+            regime: leaf_regime,
             ..
         } = arena.node(*id)
         else {
@@ -286,7 +291,7 @@ pub fn z_transport_mechanism_sensitivity(
             query.experiment_assignment.iter().map(|a| a.variable).collect::<Vec<_>>();
         formula_interventions.sort_unstable();
         query_interventions.sort_unstable();
-        if *regime != Some(functional.regime())
+        if *leaf_regime != Some(regime)
             || arena.population(*population) != query.source.as_ref()
             || formula_interventions != query_interventions
         {
@@ -318,7 +323,7 @@ pub fn z_transport_mechanism_sensitivity(
         .iter()
         .find(|law| {
             law.population() == query.source.as_ref()
-                && law.regime() == functional.regime()
+                && law.regime() == regime
                 && law.interventions().len() == query.experiment_assignment.len()
                 && query.experiment_assignment.iter().all(|expected| {
                     law.interventions().iter().any(|actual| {
@@ -398,7 +403,7 @@ pub fn z_transport_mechanism_sensitivity(
     Ok(ZTransportMechanismSensitivityResult {
         query_binding: format!("{}:{}:{}", query.source, query.target, functional.root().raw()),
         provider_snapshot: law.snapshot_identity().to_owned(),
-        source_regime: functional.regime(),
+        source_regime: regime,
         response,
     })
 }
