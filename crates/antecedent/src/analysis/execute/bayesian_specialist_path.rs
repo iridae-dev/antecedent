@@ -7,7 +7,7 @@ use antecedent_estimate::bayesian_iv::fit_bayesian_iv_joint_fixed_loading;
 use antecedent_estimate::bayesian_rd::fit_bayesian_sharp_rd;
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
-/// Model-scope checks shared by the legacy and checked Bayesian IV routes.
+/// Model-scope checks shared by the ordinary and checked Bayesian IV routes.
 pub(super) fn check_bayesian_iv_scope(
     estimand: &IdentifiedEstimand,
     config: &BayesianConfig,
@@ -25,7 +25,7 @@ pub(super) fn check_bayesian_iv_scope(
     Ok(())
 }
 
-/// Model-scope checks shared by the legacy and checked Bayesian sharp-RD routes.
+/// Model-scope checks shared by the ordinary and checked Bayesian sharp-RD routes.
 pub(super) fn check_bayesian_rd_scope(
     query: &AverageEffectQuery,
     config: &BayesianConfig,

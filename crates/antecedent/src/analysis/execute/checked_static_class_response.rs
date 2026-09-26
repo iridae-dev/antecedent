@@ -4,7 +4,7 @@
 //! query, the selected procedure and the inference mode are retained together,
 //! so a click or refresh mixes the same completions the plan was sealed on and
 //! cannot re-identify against another class member. Unresolved completion mass
-//! keeps its legacy treatment: the envelope executor still withholds a scalar
+//! keeps the envelope executor's treatment: the envelope executor still withholds a scalar
 //! or refuses when no completion identifies the response.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

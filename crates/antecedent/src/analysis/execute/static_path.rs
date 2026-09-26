@@ -206,7 +206,7 @@ impl super::Study {
         };
         // Route the supported single binary-instrument slice through the checked IV
         // receipt. The generic 2SLS estimator still supports multiple/continuous
-        // instruments and adjustment covariates; those designs remain on its legacy
+        // instruments and adjustment covariates; those designs remain on its ordinary
         // preparation path because the current receipt lowers the binary Wald functional.
         let checked_iv_roles_supported = identification.estimands.first().is_some_and(|target| {
             target.instruments.len() == 1

@@ -508,7 +508,7 @@ impl super::Study {
                     route,
                     data,
                     physical,
-                    &super::super::prepared::PreparedExecution::LegacyStudyDispatch,
+                    &super::super::prepared::PreparedExecution::OrdinaryDispatch,
                     ctx,
                 )
             }
@@ -1328,7 +1328,7 @@ impl super::Study {
         // all-observed mean ATE on a supplied DAG under any diagnosed overlap
         // policy: the trim rule selects the cross-fitted or the common-support
         // procedure inside the retained operation. Route that selection through
-        // preparation; nearby estimators keep legacy dispatch.
+        // preparation; nearby estimators execute through the ordinary dispatcher.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
@@ -1698,9 +1698,9 @@ impl super::Study {
                 );
             }
         }
-        // The migrated static mean adjustment route executes from the prepared
-        // checked lowering even for the one-shot facade. Other routes retain
-        // their legacy dispatch until their own lowering checkpoint lands.
+        // The static mean adjustment route executes from the prepared checked
+        // lowering even for the one-shot facade. A configuration no sealed
+        // operation admits executes through the ordinary dispatcher below.
         if self.graph_posterior.is_none()
             && self.tiered.is_none()
             && self.graph.class() == GraphClass::Dag
