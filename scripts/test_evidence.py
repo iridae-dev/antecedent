@@ -957,13 +957,106 @@ def row_evidence_problems(row: dict) -> list[str]:
     return problems
 
 
+# ------------------------------------------------------------ checked execution
+
+
+_BUILDER = r"(?:[A-Za-z_][A-Za-z0-9_]*)?builder[A-Za-z0-9_]*"
+_BUILDER_DISCARDS = (
+    re.compile(rf"\bdrop\s*\(\s*{_BUILDER}\s*\)", re.I),
+    re.compile(rf"\bdel\s+{_BUILDER}\b", re.I),
+    re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
+)
+_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|refresh_series|run|evaluate_exact)\s*\(")
+_INSPECTS_PLAN = re.compile(r"\b(?:program|plan|lowering)\b", re.I)
+
+
+def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
+    """Why `body` (a test with the helpers it calls) is not checked-execution evidence.
+
+    Checked execution runs a licensed route from its retained checked operation
+    with no builder alive: the test discards its builder (`drop(builder…)`,
+    `del builder`, `builder = None`), executes the prepared plan (`execute`,
+    `estimate…`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
+    retained program or plan."""
+    if not any(pattern.search(body) for pattern in _BUILDER_DISCARDS):
+        return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]
+    if not _EXECUTES.search(body):
+        return [f"evidence assertion {assertion!r} does not execute the prepared plan"]
+    if not _INSPECTS_PLAN.search(body):
+        return [f"evidence assertion {assertion!r} does not inspect a retained program or plan"]
+    return []
+
+
+def checked_execution_citation_problems(test_rel: str, assertion: str) -> list[str]:
+    """The cited test resolves as an executing test and its body proves checked execution.
+
+    Python citations are checked statically here (no pytest collection per
+    citation); scripts/gate_checked_execution.sh runs every cited node in one
+    pytest process, which also proves collection."""
+    path = ROOT / str(test_rel)
+    try:
+        path.resolve().relative_to(ROOT.resolve())
+    except ValueError:
+        return ["test must remain inside the repository"]
+    if not path.is_file():
+        return [f"test {test_rel!r} does not exist"]
+    if path.suffix == ".py":
+        problems = static_python_test(path, assertion)
+    elif path.suffix == ".rs":
+        _, problems = resolve_rust_test(path, assertion)
+    else:
+        return ["test must be Rust or Python test code"]
+    if problems:
+        return [f"evidence assertion {assertion!r} is not an executing test: {p}" for p in problems]
+    return checked_execution_body_problems(closure(path, assertion), assertion)
+
+
+def checked_execution_problems(row: dict) -> list[str]:
+    """Why a licensed row's `checked_execution` does not cover its `estimators`.
+
+    One entry per licensed estimator, in the same set as `estimators` with no
+    duplicates; each entry names the executing test that drops its builder,
+    executes the retained plan for that estimator, and inspects it."""
+    estimators = row.get("estimators")
+    entries = row.get("checked_execution")
+    if not isinstance(estimators, list) or not estimators:
+        return ["checked_execution requires a non-empty estimators list"]
+    if not isinstance(entries, list) or not entries:
+        return ["checked_execution is required: one entry per licensed estimator"]
+    problems: list[str] = []
+    named: list[str] = []
+    for i, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            problems.append(f"checked_execution entry #{i} must be an inline table")
+            continue
+        estimator, test_rel, assertion = entry.get("estimator"), entry.get("test"), entry.get("assertion")
+        if not all(isinstance(v, str) and v.strip() for v in (estimator, test_rel, assertion)):
+            problems.append(f"checked_execution entry #{i} needs estimator, test and assertion")
+            continue
+        named.append(estimator)
+        problems += [
+            f"checked_execution[{estimator}] {p}"
+            for p in checked_execution_citation_problems(test_rel, assertion)
+        ]
+    if len(named) != len(set(named)):
+        problems.append("checked_execution names an estimator twice")
+    if set(named) != set(estimators):
+        problems.append(
+            f"checked_execution estimators {sorted(set(named))} != licensed estimators {sorted(set(estimators))}"
+        )
+    return problems
+
+
 def main(argv: list[str]) -> int:
     if argv[:1] == ["rows"] and len(argv) == 2:
         import tomllib
 
         failed = 0
         for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text()).get("cell", []), 1):
-            for problem in row_evidence_problems(row):
+            problems = row_evidence_problems(row)
+            if "checked_execution" in row:
+                problems += checked_execution_problems(row)
+            for problem in problems:
                 failed += 1
                 print(f"cell #{i}: {problem}")
         return 1 if failed else 0

@@ -8,6 +8,11 @@
 # consume the row's known_truth_fixture when the row claims known truth and build
 # every axis value of the row.
 #
+# Every licensed row's checked_execution names, per licensed estimator, the
+# executing test that drops its builder, executes the retained checked plan and
+# inspects it (scripts/test_evidence.py checked_execution_problems); the cited
+# tests run in scripts/gate_checked_execution.sh.
+#
 # Run standalone or via scripts/gate_release.sh.
 #   bash scripts/gate_support_matrix.sh --self-test   # broken evidence must fail
 set -euo pipefail
@@ -403,6 +408,14 @@ def check_evidence_test(label: str, row: dict) -> None:
         fail.append(f"{label}: {problem}")
 
 
+# Every licensed estimator on a row executes through a retained checked
+# operation: one checked_execution entry per estimator, each citing an
+# executing test that discards its builder, executes the plan, and inspects it.
+def check_checked_execution(label: str, row: dict) -> None:
+    for problem in test_evidence.checked_execution_problems(row):
+        fail.append(f"{label}: {problem}")
+
+
 for i, row in enumerate(cells, 1):
     label = f"parity/support_licensed.toml cell #{i}"
     for key in required:
@@ -475,6 +488,7 @@ for i, row in enumerate(cells, 1):
         fail.append(f"{label}: evidence_test and evidence_assertion must be set together")
     elif has_test:
         check_evidence_test(label, row)
+    check_checked_execution(label, row)
     if row.get("staged") is True and not (has_test and has_assertion):
         missing_evidence.add("|".join(str(x) for x in (q, g, s, inf, v)))
     key = (q, g, s, inf, v)
