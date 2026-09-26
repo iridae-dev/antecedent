@@ -729,14 +729,24 @@ pub fn decide_two_source_z_transport(
             });
         }
     }
+    // A line-11 terminal is an obstruction relative to one source's experiment
+    // family. Two such terminals rule out the union of the families only when
+    // the union is one of them: the sources declare the same controllable set
+    // on the same selection diagram. Otherwise a factor from each source might
+    // still combine, which this decision does not search.
     if let [
         ZTransportDecision::ProvenNonTransportable(left),
         ZTransportDecision::ProvenNonTransportable(right),
     ] = decisions.as_slice()
     {
-        return Ok(TwoSourceZTransportDecision::ProvenNonTransportable {
-            obstructions: [*left.clone(), *right.clone()],
-        });
+        let [first, second] = &query.sources;
+        let same_family = same_variable_set(&first.controllable, &second.controllable)
+            && same_variable_set(&first.selection_targets, &second.selection_targets);
+        if same_family {
+            return Ok(TwoSourceZTransportDecision::ProvenNonTransportable {
+                obstructions: [*left.clone(), *right.clone()],
+            });
+        }
     }
     Ok(TwoSourceZTransportDecision::NotCertified {
         reason: "z_transport.multi_source_combination_not_searched",

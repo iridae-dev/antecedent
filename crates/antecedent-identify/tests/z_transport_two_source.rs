@@ -179,3 +179,54 @@ fn a_factor_from_each_source_is_not_combined() {
         }
     ));
 }
+
+/// Two disjoint bows X1→Y1, X1↔Y1 and X2→Y2, X2↔Y2 with outcomes {Y1, Y2} and
+/// treatments {X1, X2}. Alone, a source that controls only X1 (or only X2)
+/// reaches line 11, yet P*_{x1,x2}(y1, y2) = P^α_{x1}(y1)·P^β_{x2}(y2) combines
+/// one factor from each source. Two single-family terminals therefore never
+/// certify non-transportability for the union of the families; the decision
+/// stays a named refusal to search that combination.
+#[test]
+fn two_line11_terminals_from_different_families_do_not_certify_an_obstruction() {
+    let mut graph = Admg::with_variables(4);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+    graph.insert_bidirected(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap();
+    let source = |population: &str, controllable: VariableId| ZTransportSourceSpec {
+        population: Arc::from(population),
+        controllable: Arc::from([controllable]),
+        experiment_assignment: Arc::from([InterventionAssignment {
+            variable: controllable,
+            value: Value::Bool(false),
+        }]),
+        selection_targets: Arc::from([]),
+    };
+    let query = TwoSourceZTransportQuery {
+        outcomes: Arc::from([VariableId::from_raw(1), VariableId::from_raw(3)]),
+        treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(2)]),
+        target: Arc::from("target"),
+        sources: [
+            source("alpha", VariableId::from_raw(0)),
+            source("beta", VariableId::from_raw(2)),
+        ],
+    };
+    let empty = empty_catalog();
+    let decision = decide_two_source_z_transport(
+        &graph,
+        &query,
+        [&empty, &empty],
+        SidLimits::default(),
+        &ExecutionContext::for_tests(74),
+    )
+    .unwrap();
+    assert!(
+        matches!(
+            decision,
+            TwoSourceZTransportDecision::NotCertified {
+                reason: "z_transport.multi_source_combination_not_searched",
+            }
+        ),
+        "{decision:?}"
+    );
+}
