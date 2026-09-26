@@ -91,11 +91,19 @@ class RestrictedTransportIdentification:
     missing: Mapping[str, Any] | None = None
     #: Checked line-11 obstruction records, one per source, when proven.
     obstructions: tuple[Mapping[str, Any], ...] = ()
+    #: For ``combined_identified``: one checked factor per source, each with its
+    #: ``source``, ``outcomes``, ``treatments``, ``proof`` and binding
+    #: ``inspection``. Empty for every single-source outcome.
+    components: tuple[Mapping[str, Any], ...] = ()
+    #: How the combined factors' product equals the target law, when combined:
+    #: ``independent_disconnected_components`` or ``intervention_separated_groups``.
+    combination: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "rules", tuple(self.rules))
         object.__setattr__(self, "laws", tuple(self.laws))
         object.__setattr__(self, "obstructions", tuple(self.obstructions))
+        object.__setattr__(self, "components", tuple(self.components))
 
 
 class RestrictedTransportExecution:
@@ -431,6 +439,30 @@ def identify_restricted(
     if decision["outcome"] == "identified":
         winner = next(b for b in bundles if b["source"].identity == decision["source"])
         return _decided(winner, decision), winner["catalog"]
+    if decision["outcome"] == "combined_identified":
+        # Each factor is transported from one source under the joint-regime rule;
+        # the two factors' product is the target law. The disconnected and the
+        # connected intervention-separated cases share this shape and differ only
+        # in `combination`.
+        components = tuple(decision.get("components") or ())
+        rules = tuple(
+            rule
+            for component in components
+            for rule in (component.get("proof", {}).get("rules") or ())
+        )
+        return (
+            RestrictedTransportIdentification(
+                outcome="combined_identified",
+                reason=None,
+                rules=rules,
+                formula=SCOPE,
+                source=None,
+                stage=bundles[0]["stage"],
+                components=components,
+                combination=decision.get("combination"),
+            ),
+            bundles[0]["catalog"],
+        )
     if decision["outcome"] == "proven_non_transportable":
         return (
             RestrictedTransportIdentification(

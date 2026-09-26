@@ -968,6 +968,11 @@ def _identification_from_restricted(graph: Admg, query: Transport, identified: A
     if outcome == "identified":
         status = "NonparametricallyIdentified"
         note = "identified"
+    elif outcome == "combined_identified":
+        # Two complementary sources each supply one checked factor; the target
+        # law is their product. This is a positive identification, not a refusal.
+        status = "NonparametricallyIdentified"
+        note = "combined_identified"
     elif outcome == "missing_evidence":
         status = "NotIdentified"
         note = "missing_evidence"
@@ -980,6 +985,8 @@ def _identification_from_restricted(graph: Admg, query: Transport, identified: A
         "native_outcome": outcome,
         "scope": identified.scope,
         "source": identified.source,
+        "components": [dict(component) for component in identified.components],
+        "combination": identified.combination,
         "missing_detail": (
             f"{_inner_phrase(query)} is identified for {query.target}, but "
             f"{identified.detail or 'a cited joint law is not supplied'}."
