@@ -189,6 +189,11 @@ impl DrLearner {
         Ok((effect, results.expect("profiles requested")))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        clippy::type_complexity,
+        reason = "one cohesive nuisance-fit-and-profile routine; the Result return names the optional pointwise-profile vector"
+    )]
     fn fit_with_profiles(
         &self,
         problem: &PreparedPropensityProblem,
@@ -311,6 +316,10 @@ impl DrLearner {
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "exact-support profile match: a retained row qualifies only when its covariate tuple equals the profile values exactly"
+)]
 fn pointwise_profile_results(
     spec: LearnerSpec,
     problem: &PreparedPropensityProblem,
@@ -571,7 +580,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for i in 0..n {
             let zi = if rng.next_f64() >= 0.5 { 1.0 } else { 0.0 };
-            let ti = if rng.next_f64() < if zi == 1.0 { 0.7 } else { 0.3 } { 1.0 } else { 0.0 };
+            let ti = if rng.next_f64() < if zi > 0.5 { 0.7 } else { 0.3 } { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;
             y[i] = (1.0 + zi) * ti + 0.4 * zi + standard_normal(&mut rng) * 0.25;
