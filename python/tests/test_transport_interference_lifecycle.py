@@ -122,7 +122,9 @@ def _golden(data, graph, query, new_data):
     return result, study, updated, report, loaded
 
 
-def _assert_lifecycle(result, study, updated, report, loaded, *, fresh, coordinate, key):
+def _assert_lifecycle(
+    result, study, updated, report, loaded, *, fresh, coordinate, key, dependency
+):
     assert isinstance(study, PreparedAnalysis)
     assert result.answer.kind == "point"
 
@@ -146,10 +148,14 @@ def _assert_lifecycle(result, study, updated, report, loaded, *, fresh, coordina
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
-    # export -> load verifies and round-trips the same answer and identities.
-    assert loaded.acceptance.verified
+    # export -> load recognizes the artifact and round-trips its identities, but an
+    # independent consumer cannot replay the sealed checked operation without the
+    # retained proof, so it reports that dependency instead of a verified program.
+    assert loaded.acceptance.recognized
+    assert not loaded.acceptance.verified
+    assert dependency in loaded.acceptance.details["unresolved"]
     assert loaded.artifact.payload_kind == "analysis_result"
-    assert loaded.answer == result.answer
+    assert loaded.answer.kind == "unavailable"
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
@@ -177,6 +183,7 @@ def test_route_transport_tabular_explicit():
         loaded,
         fresh=fresh,
         coordinate="TransportQuery:Admg:explicit:Frequentist:none",
+        dependency="dependencies.checked_transport_trial_operation",
         key={
             "query": "TransportQuery",
             "graph_class": "Admg",
@@ -214,6 +221,7 @@ def test_route_interference_tabular_explicit():
         loaded,
         fresh=fresh,
         coordinate="InterferenceQuery:Dag:explicit:Frequentist:none",
+        dependency="dependencies.checked_interference_operation",
         key={
             "query": "InterferenceQuery",
             "graph_class": "Dag",
@@ -491,4 +499,10 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
     assert restored_catalog["target_sampling"] == "representative_sample"
     assert restored_catalog["regimes"][0]["interventions"] == [0]
-    assert loaded.as_point() == result.as_point()
+    # The sealed transport trial operation is not replayable from bytes alone.
+    assert not loaded.acceptance.verified
+    assert (
+        "dependencies.checked_transport_trial_operation" in loaded.acceptance.details["unresolved"]
+    )
+    assert loaded.answer.kind == "unavailable"
+    assert result.as_point() == pytest.approx(result.estimate.ate)
