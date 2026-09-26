@@ -416,10 +416,11 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     assert!(claim.value.is_some_and(|value| (value - 2.0).abs() < 0.2));
     let bytes = prepared.encode_contracted_result(&result, "dag-ate", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    // The checked OLS adjustment replays from the portable design moments.
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{:?}",
+        consumed.acceptance.unresolved
     );
     assert_eq!(
         consumed.contract.as_ref().map(|section| section.identities.program),
@@ -654,10 +655,10 @@ fn consume_rehashes_identification_product_from_stored_payloads() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "rehash", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{:?}",
+        consumed.acceptance.unresolved
     );
     assert!(consumed.contract.as_ref().unwrap().identification_product.is_some());
     assert_eq!(
@@ -695,10 +696,10 @@ fn execution_identity_is_advertised_and_bound() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "execution", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(!consumed.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{:?}",
+        consumed.acceptance.unresolved
     );
     let section = consumed.contract.expect("contract");
     let advertised = section.identities.execution.expect("execution identity");
@@ -838,34 +839,23 @@ fn consume_licensed_family(
     let bytes = prepared.encode_contracted_result(&result, artifact_id, ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
     let named_nonportable_dependency = |reason: &std::sync::Arc<str>| {
-        matches!(
-            reason.as_ref(),
-            "dependencies.checked_glm_operation"
-                | "dependencies.checked_rd_operation"
-                | "dependencies.checked_propensity_operation"
-                | "dependencies.checked_derivative_response_operation"
-                | "dependencies.checked_response_grid_operation"
-                | "dependencies.checked_intervention_response_operation"
-                | "dependencies.checked_temporal_response_operation"
-                | "dependencies.checked_conditional_effect_operation"
-                | "dependencies.checked_mediation_operation"
-                | "dependencies.checked_bayesian_dag_ate_operation"
-                | "dependencies.checked_temporal_dag_effect_operation"
-                | "dependencies.checked_temporal_class_effect_operation"
-                | "dependencies.checked_temporal_class_response_operation"
-                | "dependencies.checked_temporal_graph_posterior_response_operation"
-                | "dependencies.checked_bayesian_temporal_dag_effect_operation"
-                | "dependencies.checked_bayesian_temporal_class_effect_operation"
-                | "dependencies.checked_temporal_graph_posterior_effect_operation"
-                | "dependencies.fitted_counterfactual_mechanisms"
-                // The portable result is readable and preserves the posterior
-                // claim, but does not carry joint factor draws for replay.
-                | "dependencies.distribution_posterior_factor_draws"
-                | "dependencies.functional_effect_posterior_draws"
-                // The plan records fitted design roles, but no independent
-                // consumer can recompute the numeric fit without replay rows.
-                | "dependencies.linear_fit_sufficient_statistics"
-        )
+        // Every sealed route executes on a retained checked operation that an
+        // independent consumer cannot resolve from the bytes alone.
+        let sealed_operation = reason
+            .strip_prefix("dependencies.checked_")
+            .is_some_and(|family| family.ends_with("_operation"));
+        sealed_operation
+            || matches!(
+                reason.as_ref(),
+                "dependencies.fitted_counterfactual_mechanisms"
+                    // The portable result is readable and preserves the posterior
+                    // claim, but does not carry joint factor draws for replay.
+                    | "dependencies.distribution_posterior_factor_draws"
+                    | "dependencies.functional_effect_posterior_draws"
+                    // The plan records fitted design roles, but no independent
+                    // consumer can recompute the numeric fit without replay rows.
+                    | "dependencies.linear_fit_sufficient_statistics"
+            )
     };
     let known_nonportable_dependency =
         consumed.acceptance.unresolved.iter().any(named_nonportable_dependency);
@@ -1888,10 +1878,10 @@ fn composition_artifact_reload_in_separate_process() {
     if let Ok(path) = std::env::var(FLAG) {
         let bytes = std::fs::read(path).unwrap();
         let consumed = consume_analysis_result(&bytes).unwrap();
-        assert!(!consumed.acceptance.accepts_as_verified_program());
-        assert_eq!(
-            consumed.acceptance.unresolved.as_ref(),
-            &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "{:?}",
+            consumed.acceptance.unresolved
         );
         let section = consumed.contract.as_ref().expect("reloaded contract");
         assert_eq!(section.graph_class.as_str(), "Dag");
@@ -4516,25 +4506,19 @@ fn claim_handoff_sender_restricted_forward_preserves_losses() {
 
     let bytes = prepared.encode_contracted_result(&result, "claim-handoff", &ctx).unwrap();
     let (sender, lossless) = accept_claim(&bytes, &ConsumerProfile::full()).unwrap();
-    assert!(!sender.acceptance.accepts_as_verified_program());
-    assert_eq!(
-        sender.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
+    assert!(
+        sender.acceptance.accepts_as_claim(),
+        "the checked OLS adjustment replays from its portable moments: {:?}",
+        sender.acceptance.unresolved
     );
     assert_eq!(lossless.input, claim.claim_id);
-    assert_eq!(lossless.output, None);
-    assert_eq!(
-        lossless.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.linear_fit_sufficient_statistics")]
-    );
-    assert!(!lossless.equivalent_claim());
+    assert_eq!(lossless.output, Some(claim.claim_id));
+    assert!(lossless.unresolved.is_empty());
+    assert!(lossless.equivalent_claim());
     let host = project_claim_host(&sender);
-    assert!(!host.accepts_as_claim);
-    assert!(
-        host.value.is_number(),
-        "the readable point remains present despite the replay refusal"
-    );
-    assert_eq!(host.identification_domain, serde_json::Value::Null);
+    assert!(host.accepts_as_claim);
+    assert!(host.value.is_number());
+    assert_eq!(host.identification_domain, serde_json::Value::String("identified".into()));
 
     let (forwarding, stored) = accept_claim(&bytes, &ConsumerProfile::forwarding()).unwrap();
     assert!(!forwarding.acceptance.accepts_as_claim());
@@ -5873,7 +5857,12 @@ fn encoder_refuses_a_result_from_another_program() {
     let own = confounded.estimate(&data, &ctx).unwrap();
     assert!((foreign.effect() - own.effect()).abs() > 0.1, "the programs disagree");
     let err = confounded.encode_contracted_result(&foreign, "foreign", &ctx).unwrap_err();
-    assert!(format!("{err}").contains("program"), "{err}");
+    // The snapshot binds the checked OLS design moments, which the foreign
+    // adjustment set changes, so the refusal names the snapshot layer first.
+    assert!(
+        matches!(err, antecedent::CausalError::Conflict { what: "data_snapshot", .. }),
+        "{err}"
+    );
     assert!(confounded.encode_contracted_result(&own, "own", &ctx).is_ok());
     // A result no prepared handle executed cannot be certified either.
     let mut detached = own.clone();
@@ -6299,7 +6288,15 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
             &prepared.encode_contracted_result(result, "mix", &ctx).unwrap(),
         )
         .unwrap();
-        assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+        // The mixture executes on a sealed graph-posterior operation an
+        // independent consumer cannot replay; its claim stays readable.
+        assert_eq!(
+            consumed.acceptance.unresolved.as_ref(),
+            &[std::sync::Arc::<str>::from(
+                "dependencies.checked_bayesian_graph_posterior_ate_operation"
+            )]
+        );
+        assert!(!consumed.acceptance.accepts_as_claim());
         consumed.contract.unwrap().claim.unwrap().claim_id
     };
     assert_ne!(
@@ -6321,7 +6318,13 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
         let result = prepared.estimate(data, &ctx).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "snapshot", &ctx).unwrap();
         let consumed = consume_analysis_result(&bytes).unwrap();
-        assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+        assert_eq!(
+            consumed.acceptance.unresolved.as_ref(),
+            &[std::sync::Arc::<str>::from(
+                "dependencies.checked_bayesian_graph_posterior_ate_operation"
+            )]
+        );
+        assert!(!consumed.acceptance.accepts_as_claim());
         let contract = consumed.contract.unwrap();
         assert_ne!(contract.claim.as_ref().unwrap().kind, "point", "a mixture is not a point");
         (contract.claim.unwrap().claim_id, bytes)
@@ -6358,8 +6361,11 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
             &section,
         ))
         .unwrap();
+        // Tampering must add a binding refusal beyond the sealed dependency.
         assert!(
-            !consumed.acceptance.accepts_as_claim(),
+            consumed.acceptance.unresolved.iter().any(|reason| {
+                reason.as_ref() != "dependencies.checked_bayesian_graph_posterior_ate_operation"
+            }),
             "tampered body accepted: {:?}",
             consumed.acceptance.unresolved
         );
