@@ -80,60 +80,7 @@ impl CheckedTemporalEffectOperation {
                 message: "temporal effect estimand is absent from its retained proof".into(),
             });
         }
-        // The identifier's query is an average-effect query over the unfolded
-        // graph. Check the semantic variables and both intervention levels after
-        // mapping them into that graph's dense ID space.
-        let expected_treatment = indexer
-            .dense_id(antecedent_core::TemporalNodeKey {
-                variable: query.treatment,
-                offset: query
-                    .try_treatment_offset()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?,
-            })
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-        let expected_outcome = indexer
-            .dense_id(antecedent_core::TemporalNodeKey {
-                variable: query.outcome,
-                offset: query.outcome_offset(),
-            })
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-        if query.is_multi_step_sustained() {
-            // The schedule identifier retains the complete temporal query and
-            // its joint contrast. A scalar average-effect projection would lose
-            // the other intervened time nodes.
-            if identification.query != CausalQuery::TemporalEffect(query.clone()) {
-                return Err(CausalError::Compile {
-                    message: "temporal schedule proof disagrees on the joint intervention regime"
-                        .into(),
-                });
-            }
-        } else {
-            let Some(proof_query) = identification.average_effect() else {
-                return Err(CausalError::Compile {
-                    message: "temporal effect proof has no average-effect target".into(),
-                });
-            };
-            if proof_query.treatment.raw() != expected_treatment
-                || proof_query.outcome.raw() != expected_outcome
-                || proof_query.target_population != query.target_population
-                || !intervention_matches(
-                    &proof_query.control,
-                    &query.control,
-                    expected_treatment,
-                    query.treatment,
-                )
-                || !intervention_matches(
-                    &proof_query.active,
-                    &query.active,
-                    expected_treatment,
-                    query.treatment,
-                )
-            {
-                return Err(CausalError::Compile {
-                    message: "temporal effect proof disagrees on target, population, or intervention levels".into(),
-                });
-            }
-        }
+        temporal_proof_binds_query(&identification, query, &indexer)?;
         let mut graph_edges =
             graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
         graph_edges.sort_unstable();
@@ -202,6 +149,74 @@ impl CheckedTemporalEffectOperation {
     pub(crate) fn matches_query(&self, query: &CausalQuery) -> bool {
         matches!(query, CausalQuery::TemporalEffect(candidate) if candidate == &self.query)
     }
+}
+
+/// Confirm an unfolded temporal proof targets `query`: the identifier's query
+/// is an average-effect query over the unfolded graph, so the semantic
+/// variables and both intervention levels are checked after mapping them into
+/// that graph's dense ID space. Multi-step schedules retain the joint query.
+pub(crate) fn temporal_proof_binds_query(
+    identification: &IdentificationResult,
+    query: &TemporalEffectQuery,
+    indexer: &TemporalIndexer,
+) -> Result<(), CausalError> {
+    // The identifier's query is an average-effect query over the unfolded
+    // graph. Check the semantic variables and both intervention levels after
+    // mapping them into that graph's dense ID space.
+    let expected_treatment = indexer
+        .dense_id(antecedent_core::TemporalNodeKey {
+            variable: query.treatment,
+            offset: query
+                .try_treatment_offset()
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
+        })
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let expected_outcome = indexer
+        .dense_id(antecedent_core::TemporalNodeKey {
+            variable: query.outcome,
+            offset: query.outcome_offset(),
+        })
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    if query.is_multi_step_sustained() {
+        // The schedule identifier retains the complete temporal query and
+        // its joint contrast. A scalar average-effect projection would lose
+        // the other intervened time nodes.
+        if identification.query != CausalQuery::TemporalEffect(query.clone()) {
+            return Err(CausalError::Compile {
+                message: "temporal schedule proof disagrees on the joint intervention regime"
+                    .into(),
+            });
+        }
+    } else {
+        let Some(proof_query) = identification.average_effect() else {
+            return Err(CausalError::Compile {
+                message: "temporal effect proof has no average-effect target".into(),
+            });
+        };
+        if proof_query.treatment.raw() != expected_treatment
+            || proof_query.outcome.raw() != expected_outcome
+            || proof_query.target_population != query.target_population
+            || !intervention_matches(
+                &proof_query.control,
+                &query.control,
+                expected_treatment,
+                query.treatment,
+            )
+            || !intervention_matches(
+                &proof_query.active,
+                &query.active,
+                expected_treatment,
+                query.treatment,
+            )
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "temporal effect proof disagrees on target, population, or intervention levels"
+                        .into(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn intervention_matches(

@@ -8,6 +8,7 @@ mod batch;
 mod builder;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
+mod checked_bayesian_temporal_class_effect;
 mod checked_bayesian_temporal_effect;
 mod checked_class_graph_posterior_effect;
 mod checked_conditional;
@@ -17,6 +18,7 @@ mod checked_temporal_class_effect;
 mod checked_temporal_class_response;
 mod checked_temporal_effect;
 mod checked_temporal_graph_posterior_response;
+mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_response;
 mod contract;
 mod contract_identity;
@@ -29,6 +31,7 @@ mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
 pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
+pub(crate) use checked_bayesian_temporal_class_effect::CheckedBayesianTemporalClassEffectOperation;
 pub(crate) use checked_bayesian_temporal_effect::CheckedBayesianTemporalEffectOperation;
 pub(crate) use checked_class_graph_posterior_effect::CheckedClassGraphPosteriorEffect;
 pub(crate) use checked_conditional::{CheckedConditionalOperation, ConditionalProcedure};
@@ -41,6 +44,9 @@ pub(crate) use checked_temporal_class_response::CheckedTemporalClassResponseOper
 pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;
 pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
+};
+pub(crate) use checked_temporal_graph_posterior_effect::{
+    CheckedTemporalGraphPosteriorEffect, CheckedTemporalGraphPosteriorProof,
 };
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
@@ -105,6 +111,9 @@ pub use prepared::{
     PreparedStudy,
 };
 pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
+pub use prepared::{
+    CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
+};
 pub use stage::{StageEvent, StageResultSink};
 
 pub(crate) use checked_temporal_response::{
