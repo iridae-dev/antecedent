@@ -1639,6 +1639,9 @@ pub(crate) struct CheckedAipwOperation {
     structure_source: crate::support::StructureSource,
     population_registry: Option<antecedent_core::PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    latency_bootstrap_not_applied: Option<(u32, u32)>,
     custom_validator_names: Arc<[Arc<str>]>,
     /// Tier closure used to justify adjustment when this is a CoDetermined route.
     tiered_background: Option<antecedent_graph::TieredBackground>,
@@ -1784,6 +1787,10 @@ impl CheckedAipwOperation {
             )
         });
         diagnostics.append(&mut refute_diagnostics);
+        if let Some((tier, configured)) = self.latency_bootstrap_not_applied {
+            diagnostics
+                .push(super::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured));
+        }
         let (identify_artifact, identify_operation) =
             crate::strategy_table::identify_provenance_step(self.identifier);
         let (estimate_artifact, estimate_operation) =
@@ -1899,6 +1906,9 @@ struct CheckedStaticResultMetadata<'a> {
     structure_source: crate::support::StructureSource,
     population_registry: Option<&'a antecedent_core::PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    latency_bootstrap_not_applied: Option<(u32, u32)>,
     refute: RefuteSuite,
     custom_validator_names: &'a [Arc<str>],
 }
@@ -1923,6 +1933,9 @@ pub(crate) struct CheckedGlmAdjustmentOperation {
     structure_source: crate::support::StructureSource,
     population_registry: Option<antecedent_core::PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    latency_bootstrap_not_applied: Option<(u32, u32)>,
     custom_validator_names: Arc<[Arc<str>]>,
 }
 
@@ -1974,6 +1987,9 @@ pub(crate) struct CheckedRdOperation {
     structure_source: crate::support::StructureSource,
     population_registry: Option<antecedent_core::PopulationRegistry>,
     latency_mode: Option<super::latency::LatencyMode>,
+    /// `(tier replicates, configured replicates)` when a latency tier's count
+    /// was set aside for the configured estimator's own count.
+    latency_bootstrap_not_applied: Option<(u32, u32)>,
     custom_validator_names: Arc<[Arc<str>]>,
 }
 
@@ -5526,6 +5542,7 @@ impl PreparedStudy {
                 structure_source: operation.structure_source,
                 population_registry: operation.population_registry.as_ref(),
                 latency_mode: operation.latency_mode,
+                latency_bootstrap_not_applied: operation.latency_bootstrap_not_applied,
                 refute: operation.refute,
                 custom_validator_names: &operation.custom_validator_names,
             },
@@ -5593,6 +5610,7 @@ impl PreparedStudy {
                 structure_source: operation.structure_source,
                 population_registry: operation.population_registry.as_ref(),
                 latency_mode: operation.latency_mode,
+                latency_bootstrap_not_applied: operation.latency_bootstrap_not_applied,
                 refute: operation.refute,
                 custom_validator_names: &operation.custom_validator_names,
             },
@@ -5654,6 +5672,7 @@ impl PreparedStudy {
                 structure_source: retained.structure_source,
                 population_registry: retained.population_registry.as_ref(),
                 latency_mode: retained.latency_mode,
+                latency_bootstrap_not_applied: retained.latency_bootstrap_not_applied,
                 refute: retained.refute,
                 custom_validator_names: &retained.custom_validator_names,
             },
@@ -5701,6 +5720,7 @@ impl PreparedStudy {
                 structure_source: operation.structure_source,
                 population_registry: operation.population_registry.as_ref(),
                 latency_mode: operation.latency_mode,
+                latency_bootstrap_not_applied: operation.latency_bootstrap_not_applied,
                 refute: operation.refute,
                 custom_validator_names: &[],
             },
@@ -5932,6 +5952,10 @@ impl PreparedStudy {
             ));
         }
         diagnostics.append(&mut extra_diagnostics);
+        if let Some((tier, configured)) = metadata.latency_bootstrap_not_applied {
+            diagnostics
+                .push(super::helpers::latency_bootstrap_not_applied_diagnostic(tier, configured));
+        }
         let bootstrap_ok = estimate.bootstrap_replicates_ok;
         let early_stopped = estimate.bootstrap_early_stopped;
         let (identify_artifact, identify_operation) =
@@ -8667,6 +8691,7 @@ impl Study {
                     structure_source: analysis.structure_source,
                     population_registry: analysis.population_registry.clone(),
                     latency_mode: analysis.latency_mode,
+                    latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
                     custom_validator_names: Arc::from(
                         analysis
                             .custom_validators
@@ -8772,6 +8797,7 @@ impl Study {
                         structure_source: analysis.structure_source,
                         population_registry: analysis.population_registry.clone(),
                         latency_mode: analysis.latency_mode,
+                        latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
                         custom_validator_names: Arc::from(
                             analysis
                                 .custom_validators
@@ -8919,6 +8945,7 @@ impl Study {
                             analysis.structure_source,
                             analysis.population_registry.clone(),
                             analysis.latency_mode,
+                            analysis.latency_bootstrap_not_applied,
                             class_proof,
                         )
                     })
@@ -9023,6 +9050,7 @@ impl Study {
                     refute: analysis.refute,
                     population_registry: analysis.population_registry.clone(),
                     latency_mode: analysis.latency_mode,
+                    latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
                     custom_validator_names: Arc::from([]),
                 };
                 Some(CheckedPropensityOperation::prepare(data, context, estimator, fitter)?)
@@ -9097,6 +9125,7 @@ impl Study {
                         structure_source: analysis.structure_source,
                         population_registry: analysis.population_registry.clone(),
                         latency_mode: analysis.latency_mode,
+                        latency_bootstrap_not_applied: analysis.latency_bootstrap_not_applied,
                         custom_validator_names: Arc::from(
                             analysis
                                 .custom_validators
