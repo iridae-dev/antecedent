@@ -803,10 +803,15 @@ impl EvidenceCatalog {
         self.regimes.iter().any(|regime| regime.available_experiment_on(population, variables))
     }
 
-    /// First available regime that can supply `need` (see [`EvidenceRegime::satisfies`]).
+    /// The lowest-id available regime that can supply `need` (see
+    /// [`EvidenceRegime::satisfies`]); every transport route binds the same
+    /// regime for the same need whatever the catalog's declaration order.
     #[must_use]
     pub fn satisfying_regime(&self, need: &FactorNeed<'_>) -> Option<&EvidenceRegime> {
-        self.regimes.iter().find(|regime| regime.satisfies(need))
+        self.regimes
+            .iter()
+            .filter(|regime| regime.satisfies(need))
+            .min_by_key(|regime| regime.id.raw())
     }
 
     /// Unmet executable-factor dependencies, sorted by factor id then reason.

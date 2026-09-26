@@ -397,15 +397,16 @@ fn selection_on_a_non_outcome_still_transports_and_matches_scm_truth() {
     let diagram = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([u])).unwrap();
     let blocked = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([Y])).unwrap();
     let query = surrogate_query();
+    let context = ExecutionContext::for_tests(62);
     assert!(
         matches!(
-            identify_z_transport(&blocked, &query).unwrap(),
+            identify_z_transport(&blocked, &query, SidLimits::default(), &context).unwrap(),
             ZTransportResult::NotCertified { .. }
         ),
         "selection on the outcome stays non-identified"
     );
-    let context = ExecutionContext::for_tests(62);
-    let ZTransportResult::Identified(proof) = identify_z_transport(&diagram, &query).unwrap()
+    let ZTransportResult::Identified(proof) =
+        identify_z_transport(&diagram, &query, SidLimits::default(), &context).unwrap()
     else {
         panic!("selection on an isolated non-outcome must still transport");
     };

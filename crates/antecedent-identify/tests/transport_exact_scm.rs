@@ -14,7 +14,8 @@ use antecedent_expr::{
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
-    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
+    ClassicalTransportQuery, ClassicalTransportResult, IdentificationError, SidLimits,
+    identify_classical_transport,
 };
 use std::sync::Arc;
 fn v(i: u32) -> VariableId {
@@ -605,6 +606,7 @@ fn exhausted_identification_budget_is_an_error_never_a_negative_witness() {
         let diagram = SelectionDiagram::try_new(graph.clone(), selected.clone()).unwrap();
         let error = identify_classical_transport(&diagram, &query, starved, &ctx)
             .expect_err("a starved search has no result");
+        assert!(matches!(error, IdentificationError::Budget { .. }), "{error}");
         assert!(error.to_string().contains("transport.identification_budget"), "{error}");
         let full =
             identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap();

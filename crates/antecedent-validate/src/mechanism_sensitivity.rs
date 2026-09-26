@@ -21,7 +21,7 @@ use antecedent_expr::ExprNode;
 use antecedent_graph::{DenseNodeId, NodeRef, SelectionDiagram};
 use antecedent_identify::{
     BoundTransportFunctional, BoundZTransportFunctional, ClassicalTransportQuery, SidLimits,
-    verify_classical_transport, verify_z_transport_derivation,
+    verify_classical_transport,
 };
 
 /// Inputs for discrete outcome-kernel contamination on a fixed graph.
@@ -203,6 +203,8 @@ pub struct ZTransportMechanismSensitivityResult {
 pub enum ZTransportSensitivityError {
     /// Proof does not independently verify against the supplied diagram.
     InvalidProof,
+    /// The execution context was cancelled before the range was computed.
+    Cancelled,
     /// Formula is not a checked outcome conditional times its shared parent marginal.
     IncompatibleFormula,
     /// Exact source provider does not match the formula's population, regime, world, or snapshot.
@@ -229,6 +231,7 @@ impl fmt::Display for ZTransportSensitivityError {
                 "z sensitivity requires finite numeric outcome and binary treatment domains"
             }
             Self::IncompleteKernel => "source law has an empty outcome-kernel stratum",
+            Self::Cancelled => "z sensitivity cancelled",
             Self::InvalidSensitivity(error) => return write!(f, "{error}"),
         })
     }
@@ -249,12 +252,26 @@ pub fn z_transport_mechanism_sensitivity(
     data: &ExactTransportData,
     max_fraction: f64,
     decision_threshold: Option<f64>,
-    _ctx: &antecedent_core::ExecutionContext,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportMechanismSensitivityResult, ZTransportSensitivityError> {
+    let cancelled = || {
+        if ctx.cancellation.is_cancelled() {
+            Err(ZTransportSensitivityError::Cancelled)
+        } else {
+            Ok(())
+        }
+    };
+    cancelled()?;
     let derivation = functional.derivation();
     let query = derivation.query();
-    verify_z_transport_derivation(diagram, query, derivation)
+    // The bound functional was verified when it was derived; the input identity
+    // is what it still has to prove against this diagram.
+    derivation
+        .check_inputs(diagram, query)
         .map_err(|_| ZTransportSensitivityError::InvalidProof)?;
+    let Some(confounder) = derivation.confounder() else {
+        return Err(ZTransportSensitivityError::IncompatibleFormula);
+    };
 
     let arena = functional.arena();
     // The registered surrogate factorization cites exactly one source regime.
@@ -301,10 +318,10 @@ pub fn z_transport_mechanism_sensitivity(
         let cond = arena.var_set(*conditioned_on);
         if vars == query.outcomes.as_ref()
             && query.treatments.iter().all(|v| cond.contains(v))
-            && cond.contains(&derivation.confounder())
+            && cond.contains(&confounder)
         {
             outcome_leaf = Some(*id);
-        } else if vars == [derivation.confounder()] && cond.is_empty() {
+        } else if vars == [confounder] && cond.is_empty() {
             parent_leaf = Some(*id);
         } else {
             return Err(ZTransportSensitivityError::IncompatibleFormula);
@@ -340,7 +357,7 @@ pub fn z_transport_mechanism_sensitivity(
     }
     let y = query.outcomes[0];
     let x = query.treatments[0];
-    let w = derivation.confounder();
+    let w = confounder;
     let axis_pos = |variable| law.axes().iter().position(|axis| axis.variable == variable);
     let (yi, xi, wi) = (axis_pos(y), axis_pos(x), axis_pos(w));
     let (yi, xi, wi) = (
@@ -368,6 +385,7 @@ pub fn z_transport_mechanism_sensitivity(
     let mut kernels = Vec::with_capacity(w_levels * 2);
     let mut weights = Vec::with_capacity(w_levels * 2);
     for wl in 0..w_levels {
+        cancelled()?;
         let mut parent_mass = 0.0;
         for row in 0..law.probabilities().len() {
             if (row / strides[wi]) % dims[wi] == wl {
@@ -928,8 +946,8 @@ mod tests {
     };
     use antecedent_graph::{Admg, DenseNodeId};
     use antecedent_identify::{
-        CatalogTransportResult, ZTransportQuery, bind_z_transport_catalog,
-        identify_catalog_transport, identify_z_transport_surrogate,
+        CatalogTransportResult, SidLimits, ZTransportQuery, bind_z_transport_catalog,
+        identify_catalog_transport, identify_z_transport,
     };
     use std::sync::Arc;
 
@@ -1007,9 +1025,13 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         };
-        let antecedent_identify::ZTransportResult::Identified(proof) =
-            identify_z_transport_surrogate(&diagram, &query).unwrap()
-        else {
+        let antecedent_identify::ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
             panic!("expected checked z formula")
         };
         let variables = [w, z, x, y];

@@ -244,7 +244,6 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
         record.clone(),
         &diagram,
         &query,
-        &catalog,
         limits,
         &ExecutionContext::for_tests(19),
     )
@@ -258,7 +257,6 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
             changed_terminal,
             &diagram,
             &query,
-            &catalog,
             limits,
             &ExecutionContext::for_tests(21),
         )
@@ -273,7 +271,6 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
             changed_line11,
             &diagram,
             &query,
-            &catalog,
             limits,
             &ExecutionContext::for_tests(25),
         )
