@@ -364,6 +364,7 @@ pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
             | CausalQuery::RandomizedEffect(_)
             | CausalQuery::PolicyValue(_)
             | CausalQuery::PanelDid(_)
+            | CausalQuery::Survival(_)
     )
 }
 

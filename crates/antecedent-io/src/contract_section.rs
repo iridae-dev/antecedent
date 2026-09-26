@@ -3726,6 +3726,7 @@ mod tests {
             estimate: Some(2.0),
             policy_value: None,
             panel_did: None,
+            survival: None,
             interventional_distribution: None,
             standard_error: Some(0.1),
             interval_lower: None,

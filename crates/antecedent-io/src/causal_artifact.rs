@@ -1461,6 +1461,7 @@ mod tests {
     fn panel_did_query_round_trips_in_causal_payload_artifact() {
         let query = CausalQueryWire::PanelDid(crate::query_wire::PanelDidQueryWire {
             outcome: 0,
+            repeated_cross_section: false,
             treated: vec![true, true, false, false],
             post: vec![false, true, false, true],
             subjects: vec!["a".into(), "a".into(), "b".into(), "b".into()],

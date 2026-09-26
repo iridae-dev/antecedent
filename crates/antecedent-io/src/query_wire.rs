@@ -799,6 +799,9 @@ pub struct SurvivalQueryWire {
 pub struct PanelDidQueryWire {
     /// Outcome column id.
     pub outcome: u32,
+    /// True for repeated cross sections; absent in older balanced-panel artifacts.
+    #[serde(default)]
+    pub repeated_cross_section: bool,
     /// Row-aligned treatment and period indicators.
     pub treated: Vec<bool>,
     /// Row-aligned pre/post indicator.
@@ -1423,6 +1426,8 @@ pub fn causal_query_to_wire_with_registry(
         }),
         CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
             outcome: q.outcome.raw(),
+            repeated_cross_section: q.design
+                == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
             treated: q.treated.to_vec(),
             post: q.post.to_vec(),
             subjects: q.subjects.iter().map(ToString::to_string).collect(),
@@ -1680,7 +1685,12 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::PolicyValue(q)
         }
         CausalQueryWire::PanelDid(w) => {
-            let q = PanelDidQuery::new(
+            let constructor = if w.repeated_cross_section {
+                PanelDidQuery::repeated_cross_section
+            } else {
+                PanelDidQuery::new
+            };
+            let q = constructor(
                 VariableId::from_raw(w.outcome),
                 w.treated.clone(),
                 w.post.clone(),
@@ -1985,6 +1995,31 @@ mod tests {
         let bytes = to_cbor(&wire).unwrap();
         let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
         assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
+    }
+
+    #[test]
+    fn repeated_cross_section_design_round_trips_and_differs_from_panel() {
+        let subjects = ["a", "b", "c", "d", "e", "f", "g", "h"].map(Arc::<str>::from);
+        let clusters = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"].map(Arc::<str>::from);
+        let panel = PanelDidQuery::new(
+            VariableId::from_raw(0),
+            [false, false, false, false, true, true, true, true],
+            [false, false, true, true, false, false, true, true],
+            subjects.clone(),
+            clusters.clone(),
+        );
+        let rcs = PanelDidQuery::repeated_cross_section(
+            VariableId::from_raw(0),
+            [false, false, false, false, true, true, true, true],
+            [false, false, true, true, false, false, true, true],
+            subjects,
+            clusters,
+        );
+        let wire = causal_query_to_wire(&CausalQuery::PanelDid(rcs.clone())).unwrap();
+        assert_ne!(wire, causal_query_to_wire(&CausalQuery::PanelDid(panel)).unwrap());
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), CausalQuery::PanelDid(rcs));
     }
 
     #[test]

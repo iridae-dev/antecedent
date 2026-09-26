@@ -663,6 +663,34 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Survival(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
+                    .into_iter()
+                    .flatten()
+                {
+                    data.schema()
+                        .get(id)
+                        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("randomized.survival_product_limit"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from("randomized.survival_product_limit")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.duration, q.event, q.treatment]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 // Parametric SCM paths use a query- and inference-specific estimator identity.
@@ -887,6 +915,9 @@ impl super::Study {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {

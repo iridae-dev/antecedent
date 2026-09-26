@@ -972,10 +972,10 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if self.policy_value.is_some() {
-            // Policy-value row-score SEs have an explicit independent-subject
-            // interpretation, but they are not part of the licensed effect
-            // interval calibration matrix.
+        let calibration = if self.policy_value.is_some() || self.survival.is_some() {
+            // These non-effect result families report no calibrated scalar
+            // effect interval. Their uncertainty semantics live in their
+            // dedicated result sections.
             antecedent_io::calibration::calibration_slots(&[])
         } else {
             antecedent_io::calibration::calibration_slots(
@@ -2375,11 +2375,16 @@ fn population_depends_on(
 }
 
 fn analysis_row_count(result: &StudyResult, contract: &CausalContract) -> u64 {
-    result.estimate.as_effect().and_then(|estimate| estimate
-        .n_obs
-        .or_else(|| estimate.influence.as_ref().map(|rows| rows.len() as u64))
-        .or_else(|| estimate.score_table.as_ref().map(|table| table.n_rows as u64))
-        .or_else(|| estimate.block_resampling.map(|block| block.rows as u64)))
+    result
+        .estimate
+        .as_effect()
+        .and_then(|estimate| {
+            estimate
+                .n_obs
+                .or_else(|| estimate.influence.as_ref().map(|rows| rows.len() as u64))
+                .or_else(|| estimate.score_table.as_ref().map(|table| table.n_rows as u64))
+                .or_else(|| estimate.block_resampling.map(|block| block.rows as u64))
+        })
         .unwrap_or(contract.row_count)
 }
 
@@ -3050,15 +3055,14 @@ fn result_reasoning(
     if let Some(effect) = result.estimate.as_effect() {
         let published = crate::PublishedScalarUncertainty::select(effect);
         match published.method {
-            antecedent_core::IntervalMethod::AnalyticSe => components.push(UncertaintyComponent::new(
-                UncertaintySource::Sampling, "analytic_se", false,
-            )),
-            antecedent_core::IntervalMethod::BootstrapSe => components.push(UncertaintyComponent::new(
-                UncertaintySource::Sampling, "bootstrap_se", false,
-            )),
-            antecedent_core::IntervalMethod::AndersonRubin => components.push(UncertaintyComponent::new(
-                UncertaintySource::Sampling, "anderson_rubin", false,
-            )),
+            antecedent_core::IntervalMethod::AnalyticSe => components
+                .push(UncertaintyComponent::new(UncertaintySource::Sampling, "analytic_se", false)),
+            antecedent_core::IntervalMethod::BootstrapSe => components.push(
+                UncertaintyComponent::new(UncertaintySource::Sampling, "bootstrap_se", false),
+            ),
+            antecedent_core::IntervalMethod::AndersonRubin => components.push(
+                UncertaintyComponent::new(UncertaintySource::Sampling, "anderson_rubin", false),
+            ),
             _ => {}
         }
     }
@@ -3172,7 +3176,10 @@ fn executed_scalar(result: &StudyResult) -> Option<f64> {
     if let Some(counterfactual) = &result.counterfactual {
         return counterfactual.mean_ite.is_finite().then_some(counterfactual.mean_ite);
     }
-    result.estimate.as_effect().and_then(|estimate| estimate.ate.is_finite().then_some(estimate.ate))
+    result
+        .estimate
+        .as_effect()
+        .and_then(|estimate| estimate.ate.is_finite().then_some(estimate.ate))
 }
 
 fn body_frame(
@@ -3241,6 +3248,17 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             clusters: did.clusters,
             uncertainty: did.uncertainty.to_string(),
         }),
+        survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {
+            times: survival.times.to_vec(),
+            control: survival.control.to_vec(),
+            treated: survival.treated.to_vec(),
+            rmst_control: survival.rmst_control,
+            rmst_treated: survival.rmst_treated,
+            target_cause: survival.target_cause,
+            tau: survival.tau,
+            minimum_event_risk_set: survival.minimum_event_risk_set,
+            uncertainty: survival.uncertainty.to_string(),
+        }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {
             antecedent_io::InterventionalDistributionWire {
                 atoms: distribution
@@ -3282,12 +3300,15 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         cate: effect.and_then(|v| v.cate.as_ref().map(|v| v.to_vec())),
         fitted_effect: effect.and_then(|v| v.fitted_effect.as_deref().cloned()),
         cate_se: effect.and_then(|v| v.cate_se.as_ref().map(|v| v.to_vec())),
-        cate_leaf_dispersion: effect.and_then(|v| v.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
+        cate_leaf_dispersion: effect
+            .and_then(|v| v.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
         outcome_oof_r2: effect.and_then(|v| v.outcome_oof_r2),
         treatment_oof_logloss: effect.and_then(|v| v.treatment_oof_logloss),
         crossfit_folds: effect.and_then(|v| v.crossfit_folds),
         crossfit_seed: effect.and_then(|v| v.crossfit_seed),
-        learner_provenance: effect.into_iter().flat_map(|v| v.learner_provenance.iter())
+        learner_provenance: effect
+            .into_iter()
+            .flat_map(|v| v.learner_provenance.iter())
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
     };

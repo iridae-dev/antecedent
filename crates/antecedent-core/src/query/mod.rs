@@ -35,7 +35,7 @@ pub use attribution::{
 };
 pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
-pub use did::PanelDidQuery;
+pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
