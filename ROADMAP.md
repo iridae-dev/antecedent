@@ -226,9 +226,11 @@ inference? **Depends on:** the existing exact/empirical transport providers,
 ADMG identification, and the 2.0 learner substrate.
 Conditional-density/regression providers bind through `antecedent-learn`.
 
-The 2.1 linear-final-stage DR-Learner exposes pointwise HC0 CATE inference at
-prespecified profiles that exactly match retained covariate tuples in both
-arms and pass the propensity-overlap check; it uses cross-fitted DR scores.
+The 2.1 linear-final-stage DR-Learner exposes pointwise HC0 inference on the
+best linear projection of the CATE onto the modifiers, evaluated at prespecified
+profiles that exactly match retained covariate tuples in both arms and pass the
+propensity-overlap check; it uses cross-fitted DR scores. The projection equals
+the true CATE only under a correctly specified linear/saturated final stage.
 Forest leaf dispersion remains diagnostic only. Synthetic known-truth fixtures
 establish method behavior, not interval coverage. These CATE bounds remain
 uncalibrated until a matching licensed coordinate and coverage record are
