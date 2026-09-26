@@ -552,6 +552,33 @@ def test_grid_cancellation_preserves_previous_execution():
     assert load(study.export()).execution_id == result.execution_id
 
 
+def test_consume_identification_executes_from_the_consumed_proof_after_builder_disposal():
+    from pathlib import Path
+
+    # The identification builder is released before the consumed proof drives a
+    # checked statistical plan; consumption re-verifies the embedded claim.
+    graph, identification_builder, catalog, data = fixture(statistical=True)
+    proof_wire = identification_builder.export()
+    expected = identification_builder.inspect()
+    del identification_builder, graph
+    proof = transport.consume_identification(proof_wire)
+    assert proof.outcome == "identified"
+    assert proof.inspect() == expected
+    plan = transport.prepare_statistical(proof, catalog, data, at={"x": 1.0}, bootstrap=40)
+    assert plan.inspect().identification.available
+    # Independent arithmetic: 0.8 P(y=1 | do(z=1)) + 0.2 P(y=1 | do(z=0)).
+    assert plan.estimate().mean("y") == pytest.approx(0.8 * 0.9 + 0.2 * 0.1)
+
+    # A frozen NotCertified claim is consumed as it was recorded: never upgraded
+    # to a proof or to an obstruction.
+    payload = (
+        Path(__file__).parent / "fixtures" / "transport" / "not_certified_v1.cbor"
+    ).read_bytes()
+    frozen = load(payload)
+    assert frozen.outcome == "not_certified"
+    assert load(frozen.export()).inspect() == frozen.inspect()
+
+
 def test_frozen_rust_not_certified_consumes_without_upgrade():
     from pathlib import Path
 
