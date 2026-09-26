@@ -53,7 +53,7 @@ observation = "catalog_domains_and_complete_observation_empirical_joints"
 guarantee = "immutable_authority_atomic_refresh_and_identity_invalidation"
 limits = "Finite binary/categorical catalog domains; one joint per regime/world; convenience samples cannot stand in for the target law. No learner-backed factors or silent smoothing."
 evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_statistical_prepare_estimate_and_inspect_license"
+evidence_assertion = "test_prepare_statistical_retains_checked_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.evaluate_empirical_table"
@@ -97,7 +97,7 @@ functional = "target_interventional_distribution"
 guarantee = "independently_checked_embedded_plugin_point"
 limits = "Version 2 checks all identities, sample summaries, replicate accounting, pointwise atom/mean intervals and reasoning; recomputes the point without fitting/fetching. Raw samples are required for re-estimation. Earlier statistical artifacts must be regenerated."
 evidence_test = "python/tests/test_transport_statistical.py"
-evidence_assertion = "test_statistical_native_authority_identity_and_load_round_trip"
+evidence_assertion = "test_consume_statistical_rechecks_the_point_and_refreshes_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.advanced.identify_classical"
@@ -126,7 +126,7 @@ observation = "exact_laws_with_required_denominator_support"
 guarantee = "exact_law_evaluation_without_sampling_uncertainty"
 limits = "Three bounded catalog strategies; checked irrelevant-zero rule; explicit support and resource failures. No sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_exact_full_distribution_and_native_display_authority"
+evidence_assertion = "test_evaluate_exact_executes_the_retained_program_after_builder_disposal"
 
 [[routes]]
 route = "antecedent_estimate.evaluate_exact_z_transport"
@@ -181,7 +181,7 @@ observation = "exact_law_or_empirical_plugin_joint_table"
 guarantee = "checked_graph_specific_prepared_point_route"
 limits = "Preparation compiles exact or empirical plugin tables against the checked zTR proof. A nominal percentile interval is attached later, at estimate, only when every cited law has counts."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_z_transport_prepared_native_route_matches_independent_truth"
+evidence_assertion = "test_z_transport_prepare_exact_compiles_a_checked_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedZTransportStage.estimate_refresh"
@@ -208,7 +208,7 @@ guarantee = "posterior_equal_tail_interval_around_the_plugin_point_coverage_not_
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
 limits = "estimator='empirical_support_bayesian_bootstrap' or 'state_space_dirichlet' with posterior_draws. The point stays the empirical plug-in; the interval is an equal-tail posterior interval whose reason is estimator_grid_not_measured and no coverage record exists. Fewer than the percentile floor of successful draws withholds the interval as insufficient_bootstrap_replicates. Exact laws without counts refuse the posterior. Nothing here is calibrated."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_bayesian_z_transport_publishes_an_unmeasured_posterior"
+evidence_assertion = "test_bayesian_z_transport_posterior_executes_retained_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent_identify.decide_two_source_z_transport"
@@ -235,7 +235,7 @@ guarantee = "independently_rechecked_proof_binding_and_point"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
 limits = "The consumer rechecks the proof, catalog binding, laws, and recomputed point, and refuses an artifact whose point result or embedded law was edited. It does not replay a bootstrap interval; loaded artifacts stay point-only."
 evidence_test = "python/tests/test_transport_z.py"
-evidence_assertion = "test_z_transport_artifact_tamper_is_refused_by_the_consumer"
+evidence_assertion = "test_z_transport_consumer_rechecks_the_embedded_point_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.inspect_catalog"
@@ -247,7 +247,7 @@ functional = "target_interventional_distribution"
 guarantee = "sound_incomplete"
 limits = "Exact-law contract only; no sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_catalog_diagnostics_distinguish_missing_evidence_and_future_experiments"
+evidence_assertion = "test_inspect_catalog_diagnoses_the_retained_proof_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.prepare_exact"
@@ -271,7 +271,7 @@ functional = "target_interventional_distribution"
 guarantee = "independently_checked_embedded_exact_law_claim"
 limits = "Exact-law contract only; no sampling uncertainty or arbitrary finite-catalog completeness."
 evidence_test = "python/tests/test_transport_exact.py"
-evidence_assertion = "test_common_prepared_lifecycle_export_consume_atomic_refresh"
+evidence_assertion = "test_consume_exact_estimates_from_the_embedded_law_after_builder_disposal"
 
 [[routes]]
 route = "transport.exact_table_evaluate"
@@ -310,7 +310,7 @@ limits = "Numerically enumerated only on ordered three-node meta graphs and name
 conformance_test = "crates/antecedent-identify/tests/meta_transport_scm.rs"
 conformance_assertion = "ordered_three_node_meta_graphs_match_every_target_atom_and_contrast"
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_complementary_sources_exact_grid_and_independent_consume"
+evidence_assertion = "test_identify_meta_proof_executes_through_retained_checked_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.prepare_response_grid"
@@ -322,7 +322,7 @@ functional = "retained_named_finite_intervention_family"
 guarantee = "immutable_authority_atomic_refresh_and_retained_unsupported_points"
 limits = "Finite discrete treatment domains; actual joint regimes only. Structural/evidence changes require preparation. No new calibrated coverage license."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_grid_family_identity_atomic_refresh_and_preview"
+evidence_assertion = "test_prepare_response_grid_retains_family_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.evaluate_response_grid"
@@ -334,7 +334,7 @@ functional = "target_distributions_means_and_paired_two_point_contrasts"
 guarantee = "retained_local_failures_and_shared_replicate_accounting"
 limits = "Exact laws carry no sampling uncertainty. Empirical IID intervals are nominal and pointwise; whole-family replicate support failures are shared. Bounded fixtures are not coverage measurements. No quantile inference, derivatives, simultaneous bands or automatic formula averaging."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_partial_grid_retains_missing_first_point"
+evidence_assertion = "test_evaluate_response_grid_retains_local_failures_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.consume_response_grid"
@@ -346,7 +346,7 @@ functional = "retained_partial_grid_and_four_reasoning_slots"
 guarantee = "independent_proof_binding_and_numerical_verification"
 limits = "Required features and all enclosing point claims are checked. No fitting, fetching or resampling on load. Raw samples must be supplied for statistical estimator replay; scalar projections produce loss receipts."
 evidence_test = "python/tests/test_transport_meta_grid.py"
-evidence_assertion = "test_grid_snapshot_refresh_and_scalar_loss_receipt"
+evidence_assertion = "test_consume_response_grid_refreshes_from_the_consumed_family_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.consume_identification"

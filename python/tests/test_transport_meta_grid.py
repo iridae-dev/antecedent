@@ -109,6 +109,42 @@ def test_complementary_sources_exact_grid_and_independent_consume():
     assert restored.export() == result.export()
 
 
+def test_identify_meta_proof_executes_through_retained_checked_plan_after_builder_disposal():
+    """The meta proof is the checked program the retained grid plan executes."""
+    graph_builder, identification_builder, catalog, data = fixture()
+    assert identification_builder.outcome == "identified"
+    program = identification_builder.formula
+    assert program
+    # Neither source identifies alone; the proof needs both complementary sources.
+    for source in ("a", "b"):
+        reduced = replace(
+            catalog,
+            environments=tuple(e for e in catalog.environments if e.identity in (source, "target")),
+            regimes=tuple(r for r in catalog.regimes if r.population == source),
+            bindings=tuple(b for b in catalog.bindings if b.regime.startswith(source)),
+        )
+        assert (
+            transport.identify_meta(
+                graph_builder, reduced, target="target", outcomes=["y"], treatments=["x"]
+            ).outcome
+            == "proven_non_transportable"
+        )
+    plan = prepare(
+        data,
+        query=transport.TransportResponseGridQuery(
+            identification_builder, catalog, ({"x": 0.0}, {"x": 1.0})
+        ),
+    )
+    del graph_builder, identification_builder
+    assert plan.inspect().identification.available
+    family = plan.estimate()
+    # Independent arithmetic: P(y | do(x)) = sum_z P(z | do(x)) P(y | do(z)).
+    assert [family.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
+    assert family.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
+    assert family.contrast(1, 0, "y")["interval"] is None
+    assert plan.refresh(data).points == family.points
+
+
 @pytest.mark.parametrize("statistical", [False, True])
 def test_partial_grid_retains_missing_first_point(statistical):
     _, identified, catalog, data = fixture(missing=True, statistical=statistical)
@@ -126,6 +162,36 @@ def test_partial_grid_retains_missing_first_point(statistical):
         with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
             transport.consume_response_grid(result.export()).estimate()
     assert study.refresh(data).points == result.points
+
+
+@pytest.mark.parametrize("statistical", [False, True])
+def test_evaluate_response_grid_retains_local_failures_after_builder_disposal(statistical):
+    """Grid evaluation runs from the retained plan and keeps point-local failures."""
+    graph_builder, identification_builder, catalog, data = fixture(
+        missing=True, statistical=statistical
+    )
+    plan = transport.prepare_response_grid(
+        identification_builder, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40
+    )
+    del graph_builder, identification_builder
+    assert plan.inspect().identification.available
+    family = plan.estimate()
+    # The missing first point is retained as a local failure, not dropped.
+    assert family.points[0]["status"] == "missing_evidence"
+    assert family.points[1]["status"] == "available"
+    assert family.mean(1, "y") == pytest.approx(0.74)
+    with pytest.raises(ValueError, match="executable"):
+        family.contrast(1, 0, "y")
+    if statistical:
+        assert family.points[1]["uncertainty"]["replicate_ids"]
+    else:
+        assert family.points[1]["uncertainty"]["available"] is False
+        assert (
+            family.points[1]["uncertainty"]["reason"]
+            == "exact_supplied_law_no_sampling_uncertainty"
+        )
+    assert plan.refresh(data).points == family.points
+    assert load(family.export()).points == family.points
 
 
 def test_statistical_grid_paired_contrast_and_catalog_permutation():
@@ -265,6 +331,36 @@ def test_grid_snapshot_refresh_and_scalar_loss_receipt():
     assert study.estimate().execution_id == original.execution_id
 
 
+def test_consume_response_grid_refreshes_from_the_consumed_family_after_builder_disposal():
+    """The consumer rechecks the embedded grid claim and replays only from supplied samples."""
+    graph_builder, identification_builder, catalog, data = fixture(statistical=True)
+    producer_builder = transport.prepare_response_grid(
+        identification_builder, catalog, data, at=[{"x": 0.0}, {"x": 1.0}], bootstrap=40, seed=2
+    )
+    family = producer_builder.estimate()
+    family_wire = family.export()
+    plan = producer_builder.inspect()
+    assert plan.identification.available
+    expected_points = family.points
+    del producer_builder, identification_builder, graph_builder, family
+    consumed = transport.consume_response_grid(family_wire)
+    assert consumed.inspect().program_id == plan.program_id
+    assert consumed.inspect().identification.available
+    # No fitting, fetching or resampling on load: raw samples are an explicit dependency.
+    with pytest.raises(CausalUnsupportedError, match="samples_not_embedded"):
+        consumed.estimate()
+    replay = consumed.refresh(data)
+    assert replay.points == expected_points
+    assert [replay.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
+    assert replay.contrast(1, 0, "y")["estimate"] == pytest.approx(0.48)
+    # A scalar projection of the consumed family carries its loss receipt.
+    scalar = replay.scalar_projection(0, "y")
+    assert scalar["value"] == replay.mean(0, "y")
+    assert not scalar["equivalent_claim"]
+    assert "accept_as_claim" in scalar["unavailable_operations"]
+    assert load(family_wire).points == expected_points
+
+
 def test_forwarded_dataset_aliases_share_resampling_and_reject_conflicts():
     _, identified, catalog, data = fixture(statistical=True)
     catalog = replace(
@@ -345,6 +441,43 @@ def test_grid_family_identity_atomic_refresh_and_preview():
             query=transport.TransportResponseGridQuery(identified, catalog, ({"x": 0.0},)),
             threads=2,
         )
+
+
+def test_prepare_response_grid_retains_family_plan_after_builder_disposal():
+    """The prepared family keeps its checked plan, refreshes atomically and invalidates identity."""
+    graph_builder, identification_builder, catalog, data = fixture()
+    query_builder = transport.TransportResponseGridQuery(
+        identification_builder, catalog, ({"x": 0.0}, {"x": 1.0})
+    )
+    plan = prepare(data, query=query_builder)
+    del query_builder, identification_builder, graph_builder
+    before = plan.inspect()
+    assert before.identification.available
+    family = plan.estimate()
+    assert [family.mean(i, "y") for i in range(2)] == pytest.approx([0.26, 0.74])
+    assert plan.inspect().execution_id == family.execution_id
+    # A malformed refresh is rejected atomically: the previous execution stands.
+    malformed = replace(
+        data, laws=(replace(data.laws[0], probabilities=(0.2, 0.2)), *data.laws[1:])
+    )
+    with pytest.raises(ValueError, match="unnormalized_law"):
+        plan.refresh(malformed)
+    assert plan.inspect().execution_id == family.execution_id
+    assert plan.estimate().points == family.points
+    # A new snapshot identity invalidates the execution claim until it is re-run.
+    renamed = replace(
+        data,
+        laws=tuple(
+            replace(law, snapshot_identity=law.snapshot_identity + "next") for law in data.laws
+        ),
+    )
+    plan.replace_snapshot(renamed)
+    assert plan.inspect().program_id == before.program_id
+    assert plan.inspect().execution_id != family.execution_id
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
+        plan.export()
+    assert plan.refresh(data).points == family.points
+    assert plan.inspect().execution_id == family.execution_id
 
 
 def calibration_case(seed, parameter=0, bootstrap=40):
