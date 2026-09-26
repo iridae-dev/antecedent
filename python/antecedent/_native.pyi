@@ -3652,9 +3652,17 @@ class ZTransportStage:
         cancel: CancellationToken | None = None,
     ) -> PreparedZTransportStage: ...
     def plan_evidence(
-        self, catalog: Any, candidates: list[Any], failure_snapshot: bytes | None = None
+        self,
+        catalog: Any,
+        candidates: list[Any],
+        failure_snapshot: bytes | None = None,
+        *,
+        max_evaluated: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str, list[ZTransportProposalStage]]: ...
-    def failure_snapshot(self, catalog: Any) -> bytes: ...
+    def failure_snapshot(
+        self, catalog: Any, *, cancel: CancellationToken | None = None
+    ) -> bytes: ...
     def inspect_proof(self, catalog: Any) -> dict[str, Any]: ...
     def decide(
         self,
@@ -3722,6 +3730,10 @@ class PreparedZTransportStage:
     @property
     def interval_type(self) -> str: ...
     @property
+    def interval_method(self) -> str | None: ...
+    @property
+    def interval_reason(self) -> str: ...
+    @property
     def seed(self) -> int: ...
 
 def identify_z_transport_stage(
@@ -3756,17 +3768,41 @@ def decide_two_source_z_transport_stage(
 def consume_z_transport_artifact(
     artifact: bytes,
     *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 def consume_z_transport_sensitivity_artifact(
     artifact: bytes,
     *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> ZTransportSensitivityResult: ...
-def consume_z_transport_failure_snapshot(artifact: bytes) -> Any: ...
-def replay_z_transport_proposal(artifact: bytes) -> None: ...
+def consume_z_transport_failure_snapshot(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> Any: ...
+def replay_z_transport_proposal(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
 def consume_exact_transport(
     bytes: bytes,
     *,

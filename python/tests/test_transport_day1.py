@@ -661,7 +661,7 @@ def test_restricted_prepared_study_is_a_first_class_handle():
     assert pattern in first
     edited = first.replace(pattern, cbor_bytes(probabilities[0] + 0.05), 1)
     payload["specialist_artifacts"][0] = base64.b64encode(edited).decode("ascii")
-    with pytest.raises(CausalSerializationError, match="mismatch"):
+    with pytest.raises(CausalSerializationError, match="does not replay"):
         load(b"ANTECEDENT-TRANSPORT-VIEW\x01" + json.dumps(payload).encode())
 
     contrast = analyze(
