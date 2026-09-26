@@ -1249,13 +1249,15 @@ fn prepared_pag_ate_reuses_identification_envelope() {
     assert_eq!(bayesian_prepared.structure_source(), antecedent::StructureSource::Accepted);
     let bayesian_click = bayesian_prepared.estimate(&data, &ctx).unwrap();
     assert!((bayesian_click.estimate.ate - bayesian_fresh.estimate.ate).abs() < 1e-12);
+    // A one-shot Bayesian class effect now prepares and executes its sealed
+    // envelope, so the fresh result reports its identification as cached once.
     assert_eq!(
         bayesian_fresh
             .diagnostics
             .iter()
             .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
             .count(),
-        0
+        1
     );
     assert_eq!(
         bayesian_click
