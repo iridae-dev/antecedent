@@ -36,7 +36,9 @@ fn table(vars: &[(&str, RoleHint, Vec<f64>)]) -> TabularData {
         .map(|(i, (_, _, values))| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(i as u32),
+                    VariableId::from_raw(
+                        u32::try_from(i).expect("fixture variable index fits u32"),
+                    ),
                     Arc::from(values.clone()),
                     ValidityBitmap::all_valid(n),
                 )
@@ -203,7 +205,7 @@ fn rd_posterior_intervals_calibrate_under_declared_local_linear_law() {
             }
         }
     }
-    let rd_rate = rd_covered as f64 / REPS as f64;
+    let rd_rate = f64::from(rd_covered) / REPS as f64;
     let mcse = (0.95 * 0.05 / REPS as f64).sqrt();
     eprintln!(
         "declared-model 95% posterior interval coverage: RD={rd_rate:.3}; 3MCSE={:.3}",
