@@ -664,7 +664,7 @@ mod tests {
     fn execute_checked(
         data: &TimeSeriesData,
         graph: &TemporalDag,
-        query: antecedent_core::MediationQuery,
+        query: &antecedent_core::MediationQuery,
         inference: InferenceMode,
         validation: RefuteSuite,
         bootstrap_replicates: u32,
@@ -685,7 +685,7 @@ mod tests {
             EstimatorId::TemporalMediation
         };
         let cache = crate::analysis::prepared::identify_temporal_mediation_horizons(
-            graph, &query, estimator,
+            graph, query, estimator,
         )
         .unwrap();
         CheckedTemporalMediationOperation::checked(&study, data, &physical, &cache)
@@ -734,7 +734,7 @@ mod tests {
             .map(|(id, values)| {
                 OwnedColumn::Float64(
                     Float64Column::new(
-                        VariableId::from_raw(id as u32),
+                        VariableId::from_raw(u32::try_from(id).unwrap()),
                         Arc::from(values),
                         ValidityBitmap::all_valid(N),
                     )
@@ -833,6 +833,11 @@ mod tests {
                         let effect = posterior.effect_column().unwrap();
                         let mut draws = posterior.draws.column(effect).unwrap().to_vec();
                         draws.sort_by(f64::total_cmp);
+                        #[allow(
+                            clippy::cast_possible_truncation,
+                            clippy::cast_sign_loss,
+                            reason = "a rounded quantile position in [0, len) is a valid index"
+                        )]
                         let q = |p: f64| draws[((draws.len() - 1) as f64 * p).round() as usize];
                         assert!(q(0.025) <= MEDIATED_TRUTH && MEDIATED_TRUTH <= q(0.975));
                     }
@@ -860,7 +865,7 @@ mod tests {
             let result = execute_checked(
                 &data,
                 &graph,
-                query,
+                &query,
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)),
                 RefuteSuite::None,
                 0,
@@ -904,7 +909,7 @@ mod tests {
         let result = execute_checked(
             &short,
             &graph,
-            query,
+            &query,
             InferenceMode::Frequentist,
             RefuteSuite::None,
             64,
@@ -935,7 +940,7 @@ mod tests {
         let result = execute_checked(
             &data,
             &graph,
-            query,
+            &query,
             InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)),
             RefuteSuite::Cheap,
             0,

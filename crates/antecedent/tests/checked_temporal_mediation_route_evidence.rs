@@ -69,7 +69,7 @@ fn series(outcome_shift: f64, extra_column: bool) -> TimeSeriesData {
         .map(|(id, values)| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(id as u32),
+                    VariableId::from_raw(u32::try_from(id).unwrap()),
                     Arc::from(values),
                     ValidityBitmap::all_valid(N),
                 )
@@ -173,7 +173,7 @@ fn checked_temporal_mediation_lifecycle_covers_all_fixed_dag_coordinates() {
                     expected_estimator == EstimatorId::BayesianTemporalMediation
                 );
                 assert_eq!(first.refutations.is_empty(), suite == RefuteSuite::None);
-                assert_eq!(first.mediation_grid.as_ref().unwrap().joint_posterior, false);
+                assert!(!first.mediation_grid.as_ref().unwrap().joint_posterior);
 
                 let refreshed = prepared.refresh_series(series(0.4, false), &context).unwrap();
                 assert!(

@@ -328,6 +328,7 @@ pub(crate) use response_path::{
 pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
 mod checked_temporal_class_response;
 mod checked_temporal_graph_posterior_response;
+mod checked_temporal_class_mediation;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
@@ -337,6 +338,7 @@ mod temporal_path;
 mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;
+pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
 include!("execute_helpers.rs");
 
 pub(super) use class_envelope_se::{

@@ -1659,6 +1659,19 @@ impl super::Study {
                 return prepared.estimate_series(data, ctx);
             }
         }
+        if super::CheckedTemporalClassMediationOperation::admits(self) {
+            if let DataInput::Temporal(data) | DataInput::Event(data) = &self.data {
+                let prepared = self.prepare(ctx)?;
+                if !prepared.has_checked_temporal_class_mediation_operation() {
+                    return Err(CausalError::Compile {
+                        message:
+                            "one-shot temporal class mediation did not retain its checked operation"
+                                .into(),
+                    });
+                }
+                return prepared.estimate_series(data, ctx);
+            }
+        }
         // The migrated static mean adjustment route executes from the prepared
         // checked lowering even for the one-shot facade. Other routes retain
         // their legacy dispatch until their own lowering checkpoint lands.
