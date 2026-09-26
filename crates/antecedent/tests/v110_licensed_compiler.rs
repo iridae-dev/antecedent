@@ -1025,7 +1025,7 @@ fn optional_estimator_setup(
         }
         "iv" => {
             let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
-            let t: Vec<f64> = (0..n).map(|i| f64::from(z[i] == 1.0 && i % 4 != 1)).collect();
+            let t: Vec<f64> = (0..n).map(|i| f64::from(z[i] > 0.5 && i % 4 != 1)).collect();
             let y: Vec<f64> = (0..n).map(|i| 0.5 * t[i] + ((i * 7 % 19) as f64) / 19.0).collect();
             let data = TabularData::from_f64_columns([
                 ("t", t.as_slice()),
@@ -1070,7 +1070,7 @@ fn optional_estimator_setup(
         "glm" => {
             let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
             let z: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
-            let y: Vec<f64> = (0..n).map(|i| ((i % 5 < 2) ^ (t[i] == 1.0)) as u8 as f64).collect();
+            let y: Vec<f64> = (0..n).map(|i| ((i % 5 < 2) ^ (t[i] > 0.5)) as u8 as f64).collect();
             let data = TabularData::from_f64_columns([
                 ("t", t.as_slice()),
                 ("y", y.as_slice()),
@@ -1202,10 +1202,15 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
     let consumed =
         consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
     if !consumed.acceptance.accepts_as_verified_program()
+        && !sealed_checked_operation_dependency_only(&consumed)
+        && !functional_effect_replay_dependency_only(&consumed)
         && !linear_replay_dependency_only(&consumed)
         && !bayesian_distribution_replay_dependency_only(&consumed)
     {
-        return Err(format!("{expected}: consume did not accept a verified program"));
+        return Err(format!(
+            "{expected}: consume did not accept a verified program: {:?}",
+            consumed.acceptance.unresolved
+        ));
     }
     let plan = &result.logical_plan;
     Ok(Route {
@@ -1381,6 +1386,11 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
             if estimator == "functional.distribution" && missing_distribution_laws {
                 dependency_refusals
                     .push(format!("{coordinate}: dependencies.distribution_factor_laws"));
+            } else if sealed_checked_operation_dependency_only(&consumed)
+                || functional_effect_replay_dependency_only(&consumed)
+            {
+                dependency_refusals
+                    .push(format!("{coordinate}: {:?}", consumed.acceptance.unresolved));
             } else if linear_replay_dependency_only(&consumed) {
                 dependency_refusals
                     .push(format!("{coordinate}: dependencies.linear_fit_sufficient_statistics"));
@@ -1534,6 +1544,11 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
                 {
                     dependency_refusals
                         .push(format!("{coordinate}: dependencies.distribution_factor_laws"));
+                } else if sealed_checked_operation_dependency_only(&consumed)
+                    || functional_effect_replay_dependency_only(&consumed)
+                {
+                    dependency_refusals
+                        .push(format!("{coordinate}: {:?}", consumed.acceptance.unresolved));
                 } else if linear_replay_dependency_only(&consumed) {
                     dependency_refusals.push(format!(
                         "{coordinate}: dependencies.linear_fit_sufficient_statistics"
@@ -1584,6 +1599,62 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
         dependency_refusals.join("\n")
     );
     assert_eq!(inspected, 60, "optional estimator registry drifted");
+}
+
+/// The sealed outcome. Every licensed route executes on a retained checked
+/// operation; a consumer that holds only the exported bytes cannot resolve that
+/// operation, so it names it as `dependencies.checked_<family>_operation` (the
+/// counterfactual GCM route names its fitted mechanisms) and withholds
+/// verified-program acceptance while it still recognizes the contract section
+/// and reads the body. Any other unresolved reason, or an unrecognized or
+/// unreadable contract, is a genuine refusal.
+fn sealed_checked_operation_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    let acceptance = &consumed.acceptance;
+    acceptance.recognized
+        && consumed.contract.is_some()
+        && !acceptance.unresolved.is_empty()
+        && acceptance.unresolved.iter().all(|reason| {
+            reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms"
+                || reason
+                    .as_ref()
+                    .strip_prefix("dependencies.checked_")
+                    .is_some_and(|family| family.ends_with("_operation"))
+        })
+}
+
+/// The functional-effect programs export a readable claim without the replay
+/// input an independent consumer would need: posterior row weights for a
+/// Bayesian scalar or response, or a response grid for a frequentist ADMG
+/// intervention response. The route evidence pins each key as the outcome.
+fn functional_effect_replay_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    let Some(contract) = consumed.contract.as_ref() else {
+        return false;
+    };
+    let functional_effect = contract.estimator.as_deref() == Some("functional.effect")
+        || contract.program.as_ref().is_some_and(|program| {
+            program.commitments.resolved_estimator.as_deref() == Some("functional.effect")
+        });
+    let bayesian = contract
+        .inference_binding
+        .as_ref()
+        .is_some_and(|binding| binding.inference == "bayesian" && binding.bayesian.is_some());
+    consumed.acceptance.recognized
+        && functional_effect
+        && consumed.acceptance.unresolved.len() == 1
+        && match consumed.acceptance.unresolved[0].as_ref() {
+            "dependencies.functional_effect_posterior_draws"
+            | "dependencies.functional_effect_response_posterior_draws" => bayesian,
+            "program.functional_effect_response_grid" => {
+                !bayesian
+                    && contract.graph_class.as_str() == "Admg"
+                    && matches!(contract.target.query, antecedent_io::CausalQueryWire::Response(_))
+            }
+            _ => false,
+        }
 }
 
 fn linear_replay_dependency_only(consumed: &antecedent_io::AnalysisResultConsumption) -> bool {
