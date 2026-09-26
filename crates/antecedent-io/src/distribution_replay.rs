@@ -873,8 +873,9 @@ mod tests {
     fn functional_scalar_replay_refuses_resource_exhaustion_and_zero_mass() {
         let (query, program, laws) = scalar_fixture();
         let mut too_large = laws.clone();
-        too_large.domains[0].1 =
-            (0..=MAX_REPLAY_CELLS).map(|value| ValueWire::Int64(value as i64)).collect();
+        too_large.domains[0].1 = (0..=MAX_REPLAY_CELLS)
+            .map(|value| ValueWire::Int64(i64::try_from(value).unwrap()))
+            .collect();
         assert_eq!(
             replay_functional_scalar(&query, Some(0.75), &program, &too_large),
             Err("functional_effect.factor_laws_resource_limit")
