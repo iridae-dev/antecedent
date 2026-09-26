@@ -3355,7 +3355,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Frequentist",
         validation: "none",
         route_estimator: Some("aipw"),
-        estimators: &["aipw"],
+        estimators: &["aipw", "cell.aipw"],
     },
     LicensedCell {
         query: "AverageEffect",
