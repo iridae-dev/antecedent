@@ -2,11 +2,44 @@
 
 ## 2.1.0
 
-Development branch for Bayesian parity. Added model-scoped Bayesian support for attribution, trial transport, finite-network interference, and CPDAG/PAG class-posterior intervention response; expanded conditional and response posterior evaluation. New learned and specialist estimator contracts remain scoped to their implemented models and evidence.
+Antecedent 2.1.0 keeps the `identify → estimate → inspect → refresh → export → consume` lifecycle of 2.0.0 and makes every licensed route execute from a checked operation retained at preparation.
 
-The evidence-to-decision work in this branch adds a portable restricted-experiment failure snapshot, checked hypothetical study proposals, and arrival validation against actual catalog evidence and provider identity. The registered surrogate route accepts a sufficient joint source margin and executes exact or empirical point estimates through Rust and Python; a separate versioned artifact lets an independent consumer recheck the proof, catalog, laws, and point result. A direct joint source-exchange case carries both intervention values. The bounded single-source TRz decision now follows recursive source exchanges through the remaining controllable set and records a replayable line-11 obstruction only with the complete source experimental family and target observational joint law. Independent binary SCM fixtures check both a restricted-experiment obstruction and a positive formula requiring two successive exchanges. Missing laws and computation exhaustion remain distinct from obstruction. Compatible outcome-kernel contamination reports an assumption range, witnesses, and tipping fraction with independent replay. No interval is claimed for these point routes.
+### What's New?
 
-Every licensed route now executes through a retained checked operation. Preparation seals the identification proof, class envelope or posterior atoms, procedure, inference settings, and validation suite into the prepared plan; estimates and refreshes run from that plan after the builder is released, refreshes refuse schema changes, and one-shot runs of a sealed route prepare and execute the same operation. This closes the static class, graph-posterior, temporal class, temporal mediation, static and temporal response, Bayesian specialist, and trial transport families, and the four public transport stages. Each licensed cell in `parity/support_licensed.toml` cites the builder-independent evidence for every estimator it licenses, and the release gate executes that evidence. An independent consumer of an exported sealed result verifies the artifact and reports the missing checked operation as an unresolved dependency rather than accepting a replay it cannot perform.
+#### Checked execution on every licensed route
+
+- Preparation seals the identification proof, class envelope or posterior atoms, procedure, inference settings, and validation suite into the prepared plan. Estimates and refreshes run from that plan after the builder is released, a refresh refuses a schema change, and a one-shot run of a sealed route prepares and executes the same operation and reports the reused identification.
+- Static CPDAG and PAG effects, graph-posterior effects, temporal class effects, temporal mediation, static and temporal response, Bayesian specialist procedures, trimmed and untrimmed AIPW, and trial transport execute this way, as do the public transport stages. Sealed static routes keep their projection and tier-replicate diagnostics.
+- Each licensed cell in `parity/support_licensed.toml` cites the builder-independent evidence for every estimator it licenses, and the release gate executes that evidence. An independent consumer of an exported sealed result verifies the artifact and reports the checked operation it cannot replay as an unresolved dependency.
+
+#### Bayesian parity
+
+- Adds model-scoped Bayesian support for attribution, trial transport, finite-network interference, and CPDAG/PAG class-posterior intervention response, and expands conditional and response posterior evaluation. Learned and specialist estimator contracts stay scoped to their implemented models and evidence.
+- Bayesian transport intervals draw each cited dataset from its own random stream, and a cited law's probabilities must reconcile with its empirical counts before a point and its interval are published together.
+
+#### z-transportability and restricted experiments
+
+- Identifies a target effect from a single source's experiments on a bounded controllable set. The registered surrogate route accepts a sufficient joint source margin; the bounded TRz decision follows recursive source exchanges through the remaining controllable set, takes the source c-factor at each exchange, binds exchanged coordinates to the summation variable or the requested treatment level, and refuses a request whose level no cited regime supports. Independent binary SCM fixtures pin the two-exchange formula at both treatment levels.
+- A structural line-11 obstruction is certified from the selection diagram and independently rechecked on replay. A two-source decision identifies from whichever source suffices and refuses a combination it does not search by name; two single-family obstructions never combine into a proven obstruction.
+- Refusals are typed end to end: invalid input, missing evidence, budget exhaustion, cancellation, structural non-transportability, support failure, and numerical failure carry distinct kinds and registered reason codes from identification through estimation, artifacts, and the Python bindings.
+- A portable failure snapshot, checked hypothetical study proposals with a budget receipt of evaluated and unevaluated candidates, and arrival validation against actual catalog evidence and provider identity. The point artifact (version 2) embeds the proof, catalog binding, laws, program, and a premises digest; a consumer rechecks all of them under its own evaluation limits and recomputes the point.
+- Compatible outcome-kernel contamination reports an assumption range, witnesses, and a tipping fraction; the sensitivity artifact replays its baseline point before comparing ranges.
+- Empirical cited tables publish a nominal percentile bootstrap interval, and Bayesian providers publish a posterior equal-tail interval, both labelled with an unmeasured coverage status; exported point artifacts stay point-only.
+- The restricted-experiment route is a first-class prepared study in Python: it exports, loads, inspects, previews, and refreshes with a new snapshot identity like every other route.
+
+### Breaking changes from 2.0.0
+
+Python
+
+- Loading an exported result whose route executes from a sealed checked operation keeps the recorded answer and identities, but `loaded.acceptance.verified` is false and `acceptance.status` is `"sealed"`; `acceptance.unresolved` names the checked operation an independent consumer cannot replay. Code that treated `verified` as the only accepted state must accept `sealed`.
+- Transport bindings raise the typed `Causal*` exception classes (`CausalCancelledError`, `CausalResourceError`, `CausalUnsupportedError` with a registered reason code, `CausalSerializationError`, `CausalValueError`) instead of `ValueError`.
+- `PreparedZTransportStage.estimate` reports the interval `method` and `reason` as separate keys, and its refresh on a handle prepared with empirical counts refuses count-free laws.
+
+Rust
+
+- `IdentificationError` gains typed variants for cancellation, budgets, invalid input, invalid catalogs, missing evidence, and invalid derivations; `identify_z_transport`, `verify_z_transport_derivation`, the failure snapshot, the planner, and proposal replay take `SidLimits` and an `ExecutionContext`.
+- `ZTransportArtifactWire` and the sensitivity artifact are version 2; earlier bytes are refused with `IoError::UnsupportedVersion`. Consumption takes `ZTransportConsumeLimits`.
+- `EstimationError::Refused` carries the transport reason codes; `IoError` gains `Refused` and `ZTransport` variants.
 
 ## 2.0.0
 
