@@ -122,6 +122,20 @@ for family in sorted(FAMILIES):
         errors.append(f"{family}: requires a positive and a counterexample row")
     elif pair["positive"] == pair["counterexample"]:
         errors.append(f"{family}: one assertion cannot be both positive and counterexample")
+# Every licensed route owns its evidence: one assertion cited by several routes
+# proves at most one of them, so a shared citation is an error, not a warning.
+cited_by: dict[tuple[str, str], list[str]] = {}
+for route in registry.get("routes", []):
+    if route.get("status") != "licensed":
+        continue
+    key = (route.get("evidence_test", ""), route.get("evidence_assertion", ""))
+    cited_by.setdefault(key, []).append(route.get("route", "?"))
+for (path, assertion), names in sorted(cited_by.items()):
+    if len(names) > 1:
+        errors.append(
+            f"{path}::{assertion} is the sole evidence for {len(names)} routes "
+            f"({', '.join(names)}); cite a distinct assertion per route"
+        )
 required = {
     "antecedent.transport.identify",
     "antecedent.transport.reload_lowered_expression",

@@ -120,7 +120,11 @@ invalidation contract. Compatible snapshot replacement retains identification
 and invalidates execution claims. Structural/evidence changes require another
 preparation. Explicit refresh constructs and executes a candidate before
 publishing it, so failure preserves the previous valid state. Stale request or
-result identities are rejected. Python display objects cannot substitute for
+result identities are rejected. On the restricted (z-transport) day-1 route
+the prepared study keeps one native handle per target assignment; a refreshed
+snapshot with the same catalog binding rebinds those handles natively, and a
+snapshot whose identity changes the binding rebuilds laws and catalog together
+and prepares again, so no handle executes against a stale catalog. Python display objects cannot substitute for
 native certificates or authorize export.
 
 Exact artifacts use a distinct versioned envelope and contain checked proof,
