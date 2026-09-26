@@ -4,15 +4,19 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
-use antecedent_core::{EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, RegimeKind};
+use antecedent_core::{
+    EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, ExecutionContext, IdentityDomain,
+    RegimeKind,
+};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    BoundZTransportFunctional, ClassicalTransportQuery, ClassicalTransportResult, SidLimits,
-    ZTransportDecision, ZTransportDerivation, ZTransportObstruction, ZTransportObstructionRecord,
-    ZTransportProofInspection, ZTransportQuery, bind_z_transport_catalog,
-    decide_z_transport_with_catalog, identify_classical_transport, identify_z_transport,
-    validate_z_experiment_family,
+    BoundZTransportFunctional, ClassicalTransportQuery, ClassicalTransportResult,
+    IdentificationBudget, IdentificationError, SidLimits, ZTransportDecision, ZTransportDerivation,
+    ZTransportObstruction, ZTransportObstructionRecord, ZTransportProofInspection, ZTransportQuery,
+    ZTransportResult, bind_z_transport_catalog, decide_z_transport_with_catalog,
+    identify_classical_transport, identify_z_transport, validate_z_experiment_family,
 };
+pub use antecedent_io::z_transport_artifact::ZTransportQueryWire;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -45,6 +49,9 @@ pub struct ZTransportFailureSnapshot {
     proof_graph: Option<ZTransportProofInspection>,
     obstruction: Option<antecedent_identify::sid::SHedgeRecord>,
     z_obstruction: Option<ZTransportObstructionRecord>,
+    /// The checked positive formula of a missing-evidence failure, identified
+    /// once at snapshot time and reused by every proposal.
+    derivation: Option<Arc<ZTransportDerivation>>,
     catalog_digest: String,
     graph_digest: String,
 }
@@ -61,7 +68,7 @@ pub struct ZTransportFailureSnapshotWire {
     pub graph: antecedent_io::wire::AdmgWire,
     /// Population-specific mechanisms.
     pub selection_targets: Vec<u32>,
-    /// Exact catalog, including currently available bindings.
+    /// Exact catalog in canonical order, including currently available bindings.
     pub catalog: antecedent_io::transport_catalog_wire::EvidenceCatalogWire,
     /// Failure classification and missing factor obligations.
     pub status: ZTransportFailureStatus,
@@ -78,29 +85,14 @@ pub struct ZTransportFailureSnapshotWire {
     pub z_obstruction: Option<ZTransportObstructionRecord>,
     /// Canonical digest of the frozen catalog.
     pub catalog_digest: String,
-    /// Digest of the graph wire and selection targets.
+    /// Digest of the sorted graph wire and selection targets.
     pub graph_digest: String,
     /// Digest of every snapshot field, including query, status, and obligations.
     pub snapshot_digest: String,
 }
 
-/// Stable query wire for the snapshot.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ZTransportQueryWire {
-    /// Outcome variable IDs.
-    pub outcomes: Vec<u32>,
-    /// Treatment variable IDs.
-    pub treatments: Vec<u32>,
-    /// Controllable variable IDs.
-    pub controllable: Vec<u32>,
-    /// Exact concrete source intervention assignments.
-    pub experiment_assignment: Vec<(u32, antecedent_io::query_wire::ValueWire)>,
-    /// Source population.
-    pub source: String,
-    /// Target population.
-    pub target: String,
-}
+/// Snapshot wire versions this reader accepts.
+const SNAPSHOT_VERSIONS: [u32; 2] = [1, 2];
 
 impl ZTransportFailureSnapshot {
     /// Freeze an outcome, catalog, query, and graph as the planning anchor.
@@ -121,6 +113,7 @@ impl ZTransportFailureSnapshot {
             proof_graph: None,
             obstruction: None,
             z_obstruction: None,
+            derivation: None,
             catalog_digest: catalog_digest(catalog)?,
             graph_digest: graph_digest(diagram)?,
         })
@@ -144,28 +137,29 @@ impl ZTransportFailureSnapshot {
         &self.catalog_digest
     }
 
+    /// The checked positive formula this failure could not bind, when the
+    /// status is missing evidence.
+    #[must_use]
+    pub fn derivation(&self) -> Option<&ZTransportDerivation> {
+        self.derivation.as_deref()
+    }
+
     /// Encode all inputs needed to independently inspect this failure.
+    ///
+    /// # Errors
+    /// Graph or catalog encoding failure.
     pub fn to_wire(&self) -> Result<ZTransportFailureSnapshotWire, ZTransportPlanningError> {
-        let assignments = self
-            .query
-            .experiment_assignment
-            .iter()
-            .map(|a| (a.variable.raw(), antecedent_io::query_wire::ValueWire::from_value(&a.value)))
-            .collect();
+        let catalog = self
+            .catalog
+            .canonicalized()
+            .map_err(|error| ZTransportPlanningError::Invalid(error.to_string()))?;
         let mut wire = ZTransportFailureSnapshotWire {
             version: if self.z_obstruction.is_some() { 2 } else { 1 },
-            query: ZTransportQueryWire {
-                outcomes: ids(&self.query.outcomes),
-                treatments: ids(&self.query.treatments),
-                controllable: ids(&self.query.controllable),
-                experiment_assignment: assignments,
-                source: self.query.source.to_string(),
-                target: self.query.target.to_string(),
-            },
+            query: ZTransportQueryWire::from_query(&self.query),
             graph: antecedent_io::admg_to_wire(self.diagram.causal_graph())?,
             selection_targets: ids(self.diagram.selection_targets()),
             catalog: antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(
-                &self.catalog,
+                &catalog,
             ),
             status: self.status.clone(),
             obligations: self.obligations.iter().map(ToString::to_string).collect(),
@@ -180,19 +174,25 @@ impl ZTransportFailureSnapshot {
         Ok(wire)
     }
 
-    /// Restore and verify a portable failure snapshot.
+    /// Restore and verify a portable failure snapshot under the caller's
+    /// identification limits and execution context.
+    ///
+    /// # Errors
+    /// An unsupported version, a proof that does not replay, a digest that does
+    /// not match, or a recomputed outcome that differs from the recorded one.
     // This is intentionally one validation transaction: decomposing it risks
     // obscuring the order in which nested proofs are checked against frozen inputs.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "keeps snapshot reconstruction and validation atomic"
-    )]
     pub fn from_wire(
         wire: &ZTransportFailureSnapshotWire,
+        limits: SidLimits,
+        ctx: &ExecutionContext,
     ) -> Result<Self, ZTransportPlanningError> {
-        if !matches!(wire.version, 1 | 2) || (wire.version == 1 && wire.z_obstruction.is_some()) {
+        if !SNAPSHOT_VERSIONS.contains(&wire.version) {
+            return Err(ZTransportPlanningError::UnsupportedVersion { version: wire.version });
+        }
+        if wire.version == 1 && wire.z_obstruction.is_some() {
             return Err(ZTransportPlanningError::Invalid(
-                "unsupported failure snapshot version".into(),
+                "a version 1 failure snapshot carries no line-11 obstruction".into(),
             ));
         }
         let graph = antecedent_io::admg_from_wire(&wire.graph)?;
@@ -206,45 +206,8 @@ impl ZTransportFailureSnapshot {
         )
         .map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?;
         let catalog = wire.catalog.to_catalog()?;
-        let query = ZTransportQuery {
-            outcomes: wire
-                .query
-                .outcomes
-                .iter()
-                .copied()
-                .map(antecedent_core::VariableId::from_raw)
-                .collect::<Vec<_>>()
-                .into(),
-            treatments: wire
-                .query
-                .treatments
-                .iter()
-                .copied()
-                .map(antecedent_core::VariableId::from_raw)
-                .collect::<Vec<_>>()
-                .into(),
-            controllable: wire
-                .query
-                .controllable
-                .iter()
-                .copied()
-                .map(antecedent_core::VariableId::from_raw)
-                .collect::<Vec<_>>()
-                .into(),
-            experiment_assignment: wire
-                .query
-                .experiment_assignment
-                .iter()
-                .map(|(variable, value)| antecedent_core::InterventionAssignment {
-                    variable: antecedent_core::VariableId::from_raw(*variable),
-                    value: value.to_value(),
-                })
-                .collect::<Vec<_>>()
-                .into(),
-            source: Arc::from(wire.query.source.as_str()),
-            target: Arc::from(wire.query.target.as_str()),
-        };
-        let snapshot = Self::new(
+        let query = wire.query.to_query();
+        let mut snapshot = Self::new(
             &diagram,
             &query,
             &catalog,
@@ -254,7 +217,6 @@ impl ZTransportFailureSnapshot {
                 .map(|value| Arc::<str>::from(value.as_str()))
                 .collect::<Vec<_>>(),
         )?;
-        let mut snapshot = snapshot;
         snapshot.proof_graph.clone_from(&wire.proof_graph);
         if let Some(record) = &wire.obstruction {
             let classical = ClassicalTransportQuery {
@@ -267,7 +229,7 @@ impl ZTransportFailureSnapshot {
                 record.clone(),
                 &diagram,
                 &classical,
-                &antecedent_core::ExecutionContext::for_tests(0),
+                ctx,
             )?;
             snapshot.obstruction = Some(record.clone());
         }
@@ -276,19 +238,17 @@ impl ZTransportFailureSnapshot {
                 record.clone(),
                 &diagram,
                 &query,
-                &catalog,
-                SidLimits::default(),
-                &antecedent_core::ExecutionContext::for_tests(0),
+                limits,
+                ctx,
             )?;
             snapshot.z_obstruction = Some(record.clone());
         }
-        let recomputed = snapshot_z_transport_failure(&diagram, &query, &catalog)?;
+        let recomputed = snapshot_z_transport_failure(&diagram, &query, &catalog, limits, ctx)?;
         if recomputed.status != snapshot.status
             || recomputed.obligations != snapshot.obligations
-            || recomputed.obstruction.is_some() != snapshot.obstruction.is_some()
+            || recomputed.obstruction != snapshot.obstruction
             || recomputed.z_obstruction != snapshot.z_obstruction
-            || serde_json::to_value(&recomputed.proof_graph).ok()
-                != serde_json::to_value(&snapshot.proof_graph).ok()
+            || recomputed.proof_graph != snapshot.proof_graph
         {
             return Err(ZTransportPlanningError::Invalid(
                 "failure snapshot outcome differs from current checked identification".into(),
@@ -298,10 +258,9 @@ impl ZTransportFailureSnapshot {
             || snapshot.graph_digest != wire.graph_digest
             || failure_snapshot_digest(wire)? != wire.snapshot_digest
         {
-            return Err(ZTransportPlanningError::Invalid(
-                "failure snapshot digest mismatch".into(),
-            ));
+            return Err(ZTransportPlanningError::DigestMismatch);
         }
+        snapshot.derivation = recomputed.derivation;
         Ok(snapshot)
     }
 }
@@ -310,8 +269,8 @@ impl ZTransportFailureSnapshot {
 #[derive(Clone, Debug)]
 pub struct ZTransportProposal {
     pub(crate) candidate: TransportEvidenceCandidate,
-    pub(crate) snapshot: ZTransportFailureSnapshot,
-    pub(crate) derivation: ZTransportDerivation,
+    pub(crate) snapshot: Arc<ZTransportFailureSnapshot>,
+    pub(crate) derivation: Arc<ZTransportDerivation>,
     pub(crate) checked_preview: BoundZTransportFunctional,
 }
 
@@ -375,13 +334,41 @@ pub struct ZTransportCandidateAssessment {
     pub outcome: ZTransportCandidateOutcome,
 }
 
-/// Candidate results and verified sufficient IDs sorted by cost then ID.
+/// Finite candidate universe and computational limit for a z-transport plan.
+#[derive(Clone, Debug)]
+pub struct ZTransportPlanSpec {
+    /// All feasible candidates considered by this plan, in declared order.
+    pub candidates: Vec<TransportEvidenceCandidate>,
+    /// Maximum number of candidates to evaluate. Remaining items stay unevaluated.
+    pub max_evaluated: usize,
+    /// Search limits under which the frozen formula's binding is checked.
+    pub identification_limits: SidLimits,
+}
+
+/// Candidate results, verified sufficient IDs sorted by cost then ID, and the
+/// budget receipt naming what was and was not evaluated.
 #[derive(Clone, Debug)]
 pub struct ZTransportPlanResult {
-    /// All candidate assessments in input order.
+    /// Assessments for evaluated candidates, in input order.
     pub assessments: Vec<ZTransportCandidateAssessment>,
     /// IDs for proposals that produced a checked and bound formula.
     pub ranked_sufficient: Vec<Arc<str>>,
+    /// Number of candidates in the declared universe.
+    pub candidate_universe_size: usize,
+    /// The configured maximum candidate evaluations.
+    pub search_limit: usize,
+    /// Candidate IDs that were evaluated, in input order.
+    pub evaluated: Vec<Arc<str>>,
+    /// Candidate IDs beyond the evaluation budget, in input order.
+    pub unevaluated: Vec<Arc<str>>,
+}
+
+impl ZTransportPlanResult {
+    /// True when some declared candidates were not evaluated.
+    #[must_use]
+    pub fn truncated(&self) -> bool {
+        !self.unevaluated.is_empty()
+    }
 }
 
 /// z-transport planning and arrival validation failures.
@@ -390,6 +377,18 @@ pub enum ZTransportPlanningError {
     /// Mismatch between declared action, delta, snapshot, or supplied evidence.
     #[error("invalid z-transport planning input: {0}")]
     Invalid(String),
+    /// A snapshot or proposal wire of a version this reader does not accept.
+    #[error("unsupported z-transport planning wire version {version}")]
+    UnsupportedVersion {
+        /// Observed version.
+        version: u32,
+    },
+    /// A stored digest does not match the recomputed premises.
+    #[error("z-transport planning digest mismatch")]
+    DigestMismatch,
+    /// The plan specification is malformed.
+    #[error("invalid z-transport plan specification: {0}")]
+    InvalidSpec(&'static str),
     /// Failed wire conversion.
     #[error(transparent)]
     Io(#[from] antecedent_io::IoError),
@@ -401,7 +400,14 @@ pub enum ZTransportPlanningError {
     Catalog(#[from] antecedent_core::QueryError),
 }
 
-/// Capture an explicit failed outcome from the currently supported identifier.
+/// Capture an explicit failed outcome from the currently supported identifier
+/// under the caller's identification limits and execution context.
+///
+/// # Errors
+/// The query binds to available evidence (there is no failure to snapshot), an
+/// invalid catalog, or an identification error that is not a classified
+/// refusal (an unsupported input or exhausted budget is a snapshot status, not
+/// an error).
 // This routine classifies one bounded theorem/availability result and attaches
 // the corresponding checked proof; keep that mapping visible in one place.
 #[expect(
@@ -412,17 +418,20 @@ pub fn snapshot_z_transport_failure(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
     catalog: &EvidenceCatalog,
+    limits: SidLimits,
+    ctx: &ExecutionContext,
 ) -> Result<ZTransportFailureSnapshot, ZTransportPlanningError> {
-    let identification = match identify_z_transport(diagram, query) {
+    let identification = match identify_z_transport(diagram, query, limits, ctx) {
         Ok(result) => result,
         Err(error) => {
-            let code = error.to_string();
-            let status = if code.starts_with("z_transport.unsupported_") {
-                Some(ZTransportFailureStatus::UnsupportedInput)
-            } else if code == "z_transport.exhausted_computation" {
-                Some(ZTransportFailureStatus::ExhaustedComputation)
-            } else {
-                None
+            let status = match &error {
+                IdentificationError::UnsupportedInput { .. } => {
+                    Some(ZTransportFailureStatus::UnsupportedInput)
+                }
+                IdentificationError::Budget { budget: IdentificationBudget::ZTransport } => {
+                    Some(ZTransportFailureStatus::ExhaustedComputation)
+                }
+                _ => None,
             };
             if let Some(status) = status {
                 return ZTransportFailureSnapshot::new(
@@ -430,28 +439,20 @@ pub fn snapshot_z_transport_failure(
                     query,
                     catalog,
                     status,
-                    [Arc::from(code)],
+                    [Arc::from(error.to_string())],
                 );
             }
             return Err(error.into());
         }
     };
     match identification {
-        antecedent_identify::ZTransportResult::Identified(derivation) => {
+        ZTransportResult::Identified(derivation) => {
             match bind_z_transport_catalog(diagram, query, &derivation, catalog) {
                 Ok(_) => Err(ZTransportPlanningError::Invalid(
                     "query already binds to available evidence".into(),
                 )),
-                Err(error) => {
+                Err(error @ IdentificationError::MissingEvidence { .. }) => {
                     let message = error.to_string();
-                    let status = if message.contains("unsupported_domain")
-                        || message.contains("unsupported_observed_count")
-                        || message.contains("unsupported_controllable_count")
-                    {
-                        ZTransportFailureStatus::UnsupportedInput
-                    } else {
-                        ZTransportFailureStatus::MissingEvidence
-                    };
                     let graph = derivation.inspect_proof(catalog);
                     let obligations = graph
                         .factors
@@ -467,22 +468,27 @@ pub fn snapshot_z_transport_failure(
                         diagram,
                         query,
                         catalog,
-                        status,
+                        ZTransportFailureStatus::MissingEvidence,
                         if obligations.is_empty() { vec![Arc::from(message)] } else { obligations },
                     )?;
                     snapshot.proof_graph = Some(graph);
+                    snapshot.derivation = Some(Arc::new(*derivation));
                     Ok(snapshot)
                 }
+                Err(error @ IdentificationError::UnsupportedInput { .. }) => {
+                    ZTransportFailureSnapshot::new(
+                        diagram,
+                        query,
+                        catalog,
+                        ZTransportFailureStatus::UnsupportedInput,
+                        [Arc::from(error.to_string())],
+                    )
+                }
+                Err(error) => Err(error.into()),
             }
         }
-        antecedent_identify::ZTransportResult::NotCertified { reason } => {
-            match decide_z_transport_with_catalog(
-                diagram,
-                query,
-                catalog,
-                SidLimits::default(),
-                &antecedent_core::ExecutionContext::for_tests(0),
-            )? {
+        ZTransportResult::NotCertified { reason } => {
+            match decide_z_transport_with_catalog(diagram, query, catalog, limits, ctx)? {
                 ZTransportDecision::ProvenNonTransportable(obstruction) => {
                     let mut snapshot = ZTransportFailureSnapshot::new(
                         diagram,
@@ -560,12 +566,7 @@ pub fn snapshot_z_transport_failure(
                 target: Arc::clone(&query.target),
             };
             if let ClassicalTransportResult::ProvenNonTransportable(witness) =
-                identify_classical_transport(
-                    diagram,
-                    &classical,
-                    SidLimits::default(),
-                    &antecedent_core::ExecutionContext::for_tests(0),
-                )?
+                identify_classical_transport(diagram, &classical, limits, ctx)?
             {
                 let mut snapshot = ZTransportFailureSnapshot::new(
                     diagram,
@@ -616,10 +617,23 @@ fn target_joint_observational_law(
 }
 
 /// Verify that a candidate is feasible and its delta matches the declared action.
+///
+/// # Errors
+/// An empty identity, an invalid cost, an empty delta, or a proposed regime the
+/// declared action cannot produce.
 pub fn validate_z_transport_candidate(
     snapshot: &ZTransportFailureSnapshot,
     candidate: &TransportEvidenceCandidate,
 ) -> Result<(), ZTransportPlanningError> {
+    validated_preview(snapshot, candidate).map(drop)
+}
+
+/// [`validate_z_transport_candidate`], returning the previewed catalog so the
+/// structural check that follows does not preview the delta a second time.
+fn validated_preview(
+    snapshot: &ZTransportFailureSnapshot,
+    candidate: &TransportEvidenceCandidate,
+) -> Result<EvidenceCatalog, ZTransportPlanningError> {
     if candidate.id.trim().is_empty()
         || candidate.recruitment_sampling.trim().is_empty()
         || !candidate.cost.amount.is_finite()
@@ -630,7 +644,7 @@ pub fn validate_z_transport_candidate(
             "candidate identity, cost, or delta is invalid".into(),
         ));
     }
-    candidate.delta.preview_catalog(&snapshot.catalog)?;
+    let preview = candidate.delta.preview_catalog(&snapshot.catalog)?;
     for regime in candidate.delta.proposed_regimes.iter() {
         let matches = match &candidate.design {
             CandidateDesign::Intervene(plan) => {
@@ -657,7 +671,7 @@ pub fn validate_z_transport_candidate(
             )));
         }
     }
-    Ok(())
+    Ok(preview)
 }
 
 fn valid_intervention_values(
@@ -695,9 +709,14 @@ fn valid_intervention_values(
     })
 }
 
-/// Check candidate sufficiency on an isolated hypothetical catalog.
+/// Check candidate sufficiency on an isolated hypothetical catalog, reusing
+/// the formula identified when the failure was snapshotted.
+///
+/// # Errors
+/// A snapshot that is not a missing-evidence failure, an invalid candidate, or
+/// a formula the hypothetical catalog does not bind.
 pub fn propose_z_transport_evidence(
-    snapshot: &ZTransportFailureSnapshot,
+    snapshot: &Arc<ZTransportFailureSnapshot>,
     candidate: &TransportEvidenceCandidate,
 ) -> Result<ZTransportProposal, ZTransportPlanningError> {
     if snapshot.status != ZTransportFailureStatus::MissingEvidence {
@@ -705,34 +724,46 @@ pub fn propose_z_transport_evidence(
             "evidence planning requires a missing-evidence failure snapshot".into(),
         ));
     }
-    validate_z_transport_candidate(snapshot, candidate)?;
-    let antecedent_identify::ZTransportResult::Identified(derivation) =
-        identify_z_transport(&snapshot.diagram, &snapshot.query)?
-    else {
+    let preview = validated_preview(snapshot, candidate)?;
+    let Some(derivation) = snapshot.derivation.as_ref() else {
         return Err(ZTransportPlanningError::Invalid(
             "snapshot query has no checked positive formula".into(),
         ));
     };
-    let preview = hypothetical_catalog(&snapshot.catalog, &candidate.delta)?;
+    let preview = hypothetical_catalog(&preview, &candidate.delta)?;
     let checked_preview =
-        bind_z_transport_catalog(&snapshot.diagram, &snapshot.query, &derivation, &preview)?;
+        bind_z_transport_catalog(&snapshot.diagram, &snapshot.query, derivation, &preview)?;
     Ok(ZTransportProposal {
         candidate: candidate.clone(),
-        snapshot: snapshot.clone(),
-        derivation: *derivation,
+        snapshot: Arc::clone(snapshot),
+        derivation: Arc::clone(derivation),
         checked_preview,
     })
 }
 
-/// Evaluate every candidate against the frozen failure and rank only checked proposals.
-#[must_use]
+/// Evaluate up to `spec.max_evaluated` candidates against the frozen failure
+/// and rank only checked proposals. The receipt names every candidate that was
+/// and was not evaluated.
+///
+/// # Errors
+/// A zero evaluation budget, or cancellation before the plan completes.
 pub fn plan_z_transport_evidence(
-    snapshot: &ZTransportFailureSnapshot,
-    candidates: &[TransportEvidenceCandidate],
-) -> ZTransportPlanResult {
+    snapshot: &Arc<ZTransportFailureSnapshot>,
+    spec: &ZTransportPlanSpec,
+    ctx: &ExecutionContext,
+) -> Result<ZTransportPlanResult, ZTransportPlanningError> {
+    if spec.max_evaluated == 0 {
+        return Err(ZTransportPlanningError::InvalidSpec(
+            "max_evaluated must be greater than zero",
+        ));
+    }
+    let count = spec.max_evaluated.min(spec.candidates.len());
     let mut ids = BTreeSet::new();
-    let mut assessments = Vec::with_capacity(candidates.len());
-    for candidate in candidates {
+    let mut assessments = Vec::with_capacity(count);
+    for candidate in spec.candidates.iter().take(count) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled.into());
+        }
         let outcome = if ids.insert(candidate.id.clone()) {
             match propose_z_transport_evidence(snapshot, candidate) {
                 Ok(proposal) => ZTransportCandidateOutcome::VerifiedSufficient(proposal),
@@ -762,10 +793,14 @@ pub fn plan_z_transport_evidence(
             .then_with(|| a.0.sample_budget.cmp(&b.0.sample_budget))
             .then_with(|| a.1.cmp(&b.1))
     });
-    ZTransportPlanResult {
-        assessments,
+    Ok(ZTransportPlanResult {
         ranked_sufficient: ranked.into_iter().map(|entry| entry.1).collect(),
-    }
+        candidate_universe_size: spec.candidates.len(),
+        search_limit: spec.max_evaluated,
+        evaluated: assessments.iter().map(|assessment| Arc::clone(&assessment.id)).collect(),
+        unevaluated: spec.candidates.iter().skip(count).map(|c| Arc::clone(&c.id)).collect(),
+        assessments,
+    })
 }
 
 impl ZTransportProposal {
@@ -776,6 +811,9 @@ impl ZTransportProposal {
     }
 
     /// Serialize the snapshot, study delta, and checked proof for portable replay.
+    ///
+    /// # Errors
+    /// Snapshot or arena encoding failure.
     pub fn to_wire(&self) -> Result<ZTransportProposalWire, ZTransportPlanningError> {
         Ok(ZTransportProposalWire {
             version: 1,
@@ -799,25 +837,32 @@ impl ZTransportProposal {
     }
 
     /// Recheck snapshot binding and the hypothetical formula.
+    ///
+    /// # Errors
+    /// A changed snapshot identity, an invalid candidate, or a formula the
+    /// hypothetical catalog no longer binds.
     pub fn replay(&self) -> Result<(), ZTransportPlanningError> {
         if catalog_digest(&self.snapshot.catalog)? != self.snapshot.catalog_digest
             || graph_digest(&self.snapshot.diagram)? != self.snapshot.graph_digest
         {
-            return Err(ZTransportPlanningError::Invalid(
-                "failure snapshot identity changed".into(),
-            ));
+            return Err(ZTransportPlanningError::DigestMismatch);
         }
-        validate_z_transport_candidate(&self.snapshot, &self.candidate)?;
+        let preview = validated_preview(&self.snapshot, &self.candidate)?;
         bind_z_transport_catalog(
             &self.snapshot.diagram,
             &self.snapshot.query,
             &self.derivation,
-            &hypothetical_catalog(&self.snapshot.catalog, &self.candidate.delta)?,
+            &hypothetical_catalog(&preview, &self.candidate.delta)?,
         )?;
         Ok(())
     }
 
-    /// Reidentify and bind after evidence arrives in a real available catalog.
+    /// Bind the checked formula after evidence arrives in a real available catalog.
+    ///
+    /// # Errors
+    /// A failed replay, a catalog that does not preserve the base, a proposed
+    /// regime that arrived changed or unbound, or a provider snapshot that does
+    /// not bind every arriving regime.
     pub fn receive(
         &self,
         actual_catalog: &EvidenceCatalog,
@@ -840,17 +885,10 @@ impl ZTransportProposal {
                 "provider snapshot does not bind every arriving proposed regime".into(),
             ));
         }
-        let antecedent_identify::ZTransportResult::Identified(derivation) =
-            identify_z_transport(&self.snapshot.diagram, &self.snapshot.query)?
-        else {
-            return Err(ZTransportPlanningError::Invalid(
-                "query no longer has a checked positive formula".into(),
-            ));
-        };
         let functional = bind_z_transport_catalog(
             &self.snapshot.diagram,
             &self.snapshot.query,
-            &derivation,
+            &self.derivation,
             actual_catalog,
         )?;
         Ok(ZTransportArrival { functional, provider_snapshot })
@@ -858,12 +896,21 @@ impl ZTransportProposal {
 }
 
 impl ZTransportProposalWire {
-    /// Restore and recheck a portable proposal against its frozen failure.
-    pub fn replay(&self) -> Result<ZTransportProposal, ZTransportPlanningError> {
+    /// Restore and recheck a portable proposal against its frozen failure under
+    /// the caller's identification limits and execution context.
+    ///
+    /// # Errors
+    /// An unsupported version, a snapshot that does not replay, an invalid
+    /// candidate, or a proof that does not verify or bind.
+    pub fn replay(
+        &self,
+        limits: SidLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<ZTransportProposal, ZTransportPlanningError> {
         if self.version != 1 {
-            return Err(ZTransportPlanningError::Invalid("unsupported proposal version".into()));
+            return Err(ZTransportPlanningError::UnsupportedVersion { version: self.version });
         }
-        let snapshot = ZTransportFailureSnapshot::from_wire(&self.snapshot)?;
+        let snapshot = Arc::new(ZTransportFailureSnapshot::from_wire(&self.snapshot, limits, ctx)?);
         let delta = self.delta.to_delta(&snapshot.catalog)?;
         let design = match self.design.kind.as_str() {
             "intervene" => CandidateDesign::Intervene(crate::ExperimentPlan {
@@ -907,15 +954,17 @@ impl ZTransportProposalWire {
                 .into(),
             cost: self.cost,
         };
-        validate_z_transport_candidate(&snapshot, &candidate)?;
+        let preview = validated_preview(&snapshot, &candidate)?;
         let arena = antecedent_io::expr_arena_from_wire(&self.arena)?;
-        let derivation = antecedent_identify::ZTransportDerivation::from_record_checked(
+        let derivation = Arc::new(antecedent_identify::ZTransportDerivation::from_record_checked(
             &snapshot.diagram,
             &snapshot.query,
             &self.proof,
             arena,
-        )?;
-        let preview = hypothetical_catalog(&snapshot.catalog, &candidate.delta)?;
+            limits,
+            ctx,
+        )?);
+        let preview = hypothetical_catalog(&preview, &candidate.delta)?;
         let checked_preview =
             bind_z_transport_catalog(&snapshot.diagram, &snapshot.query, &derivation, &preview)?;
         Ok(ZTransportProposal { candidate, snapshot, derivation, checked_preview })
@@ -956,15 +1005,14 @@ fn validate_actual_delta(
     Ok(())
 }
 
-/// Add isolated placeholder provider bindings so structural planning can check
-/// whether a proposed law would satisfy the formula. These identities never
-/// leave a proposal as available evidence and are replaced by actual bindings
-/// during arrival.
+/// Add isolated placeholder provider bindings to an already previewed catalog
+/// so structural planning can check whether a proposed law would satisfy the
+/// formula. These identities never leave a proposal as available evidence and
+/// are replaced by actual bindings during arrival.
 fn hypothetical_catalog(
-    base: &EvidenceCatalog,
+    preview: &EvidenceCatalog,
     delta: &EvidenceCatalogDelta,
 ) -> Result<EvidenceCatalog, ZTransportPlanningError> {
-    let preview = delta.preview_catalog(base)?;
     let mut bindings = preview.bindings.to_vec();
     for regime in delta.proposed_regimes.iter() {
         bindings.push(antecedent_core::RegimeBinding {
@@ -1018,11 +1066,14 @@ fn same_assignments(
 ) -> bool {
     a.len() == b.len()
         && a.iter().all(|x| {
-            b.iter().any(|y| x.variable == y.variable && x.value.as_f64() == y.value.as_f64())
+            b.iter().any(|y| {
+                x.variable == y.variable
+                    && antecedent_core::same_intervention_level(&x.value, &y.value)
+            })
         })
 }
 fn same_vars(a: &[antecedent_core::VariableId], b: &[antecedent_core::VariableId]) -> bool {
-    a.len() == b.len() && a.iter().all(|x| b.contains(x))
+    a.iter().collect::<BTreeSet<_>>() == b.iter().collect::<BTreeSet<_>>()
 }
 fn ids(values: &[antecedent_core::VariableId]) -> Vec<u32> {
     values.iter().map(|v| v.raw()).collect()
@@ -1031,35 +1082,43 @@ fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, ZTransportPlannin
     let canonical =
         catalog.canonicalized().map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?;
     let wire = antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&canonical);
-    Ok(blake3::hash(
-        &serde_json::to_vec(&wire).map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?,
-    )
-    .to_hex()
-    .to_string())
+    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Identification, &wire)?.to_hex())
 }
+/// Digest of the graph with sorted edge lists and sorted selection targets, so
+/// an equal diagram built in another insertion order has the same identity.
 fn graph_digest(diagram: &SelectionDiagram) -> Result<String, ZTransportPlanningError> {
-    let wire = antecedent_io::admg_to_wire(diagram.causal_graph())?;
-    let payload = serde_json::to_vec(&(wire, ids(diagram.selection_targets())))
-        .map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?;
-    Ok(blake3::hash(&payload).to_hex().to_string())
+    let mut wire = antecedent_io::admg_to_wire(diagram.causal_graph())?;
+    wire.directed.sort_unstable();
+    wire.bidirected.sort_unstable();
+    let mut selections = ids(diagram.selection_targets());
+    selections.sort_unstable();
+    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Identification, &(wire, selections))?
+        .to_hex())
 }
 
 fn failure_snapshot_digest(
     wire: &ZTransportFailureSnapshotWire,
 ) -> Result<String, ZTransportPlanningError> {
-    let payload = serde_json::to_vec(&(
-        wire.version,
-        &wire.query,
-        &wire.graph,
-        &wire.selection_targets,
-        &wire.catalog,
-        &wire.status,
-        &wire.obligations,
-        &wire.catalog_digest,
-        &wire.graph_digest,
-    ))
-    .map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?;
-    Ok(blake3::hash(&payload).to_hex().to_string())
+    let mut graph = wire.graph.clone();
+    graph.directed.sort_unstable();
+    graph.bidirected.sort_unstable();
+    let mut selections = wire.selection_targets.clone();
+    selections.sort_unstable();
+    Ok(antecedent_io::identity::digest_wire(
+        IdentityDomain::Claim,
+        &(
+            wire.version,
+            &wire.query,
+            &graph,
+            &selections,
+            &wire.catalog,
+            &wire.status,
+            &wire.obligations,
+            &wire.catalog_digest,
+            &wire.graph_digest,
+        ),
+    )?
+    .to_hex())
 }
 
 #[cfg(test)]
@@ -1071,6 +1130,18 @@ mod tests {
         VariableCoordinate, VariableDomain, VariableId,
     };
     use antecedent_graph::{Admg, DenseNodeId};
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(0)
+    }
+
+    fn snapshot(
+        diagram: &SelectionDiagram,
+        query: &ZTransportQuery,
+        catalog: &EvidenceCatalog,
+    ) -> ZTransportFailureSnapshot {
+        snapshot_z_transport_failure(diagram, query, catalog, SidLimits::default(), &ctx()).unwrap()
+    }
 
     #[test]
     fn line11_obstruction_is_structural_with_or_without_the_experiment_family() {
@@ -1137,17 +1208,17 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let complete = EvidenceCatalog::try_new([source, target], regimes, bindings, None).unwrap();
-        let checked = snapshot_z_transport_failure(&diagram, &query, &complete).unwrap();
+        let checked = snapshot(&diagram, &query, &complete);
         assert_eq!(checked.status(), &ZTransportFailureStatus::ProofObstruction);
         let wire = checked.to_wire().unwrap();
         assert!(wire.z_obstruction.is_some());
         assert!(wire.obstruction.is_none());
-        ZTransportFailureSnapshot::from_wire(&wire).unwrap();
+        ZTransportFailureSnapshot::from_wire(&wire, SidLimits::default(), &ctx()).unwrap();
 
         let mut incomplete = complete;
         incomplete.regimes = incomplete.regimes[..2].to_vec().into();
         incomplete.bindings = incomplete.bindings[..2].to_vec().into();
-        let unresolved = snapshot_z_transport_failure(&diagram, &query, &incomplete).unwrap();
+        let unresolved = snapshot(&diagram, &query, &incomplete);
         assert_eq!(unresolved.status(), &ZTransportFailureStatus::ProofObstruction);
         assert!(unresolved.to_wire().unwrap().z_obstruction.is_some());
     }
@@ -1212,17 +1283,41 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let catalog = EvidenceCatalog::try_new(environments, regimes, bindings, None).unwrap();
-        let snapshot = snapshot_z_transport_failure(&diagram, &query, &catalog).unwrap();
+        let snapshot = snapshot(&diagram, &query, &catalog);
         assert_eq!(snapshot.status(), &ZTransportFailureStatus::ProofObstruction);
         let wire = snapshot.to_wire().unwrap();
         assert_eq!(wire.version, 2);
         assert!(wire.obstruction.is_none());
         assert!(wire.z_obstruction.is_some());
-        ZTransportFailureSnapshot::from_wire(&wire).unwrap();
+        ZTransportFailureSnapshot::from_wire(&wire, SidLimits::default(), &ctx()).unwrap();
 
         let mut tampered = wire.clone();
         tampered.z_obstruction.as_mut().unwrap().terminal.treatments.clear();
-        assert!(ZTransportFailureSnapshot::from_wire(&tampered).is_err());
+        let error = ZTransportFailureSnapshot::from_wire(&tampered, SidLimits::default(), &ctx())
+            .unwrap_err();
+        assert!(
+            matches!(
+                error,
+                ZTransportPlanningError::Identification(
+                    IdentificationError::InvalidDerivation { .. }
+                )
+            ),
+            "{error}"
+        );
+        let mut future = wire.clone();
+        future.version = 3;
+        assert!(matches!(
+            ZTransportFailureSnapshot::from_wire(&future, SidLimits::default(), &ctx())
+                .unwrap_err(),
+            ZTransportPlanningError::UnsupportedVersion { version: 3 }
+        ));
+        let mut digest = wire;
+        digest.snapshot_digest = "00".repeat(32);
+        assert!(matches!(
+            ZTransportFailureSnapshot::from_wire(&digest, SidLimits::default(), &ctx())
+                .unwrap_err(),
+            ZTransportPlanningError::DigestMismatch
+        ));
     }
 
     fn fixture() -> (SelectionDiagram, ZTransportQuery) {
@@ -1303,8 +1398,9 @@ mod tests {
         )
         .unwrap();
         let catalog = EvidenceCatalog::try_new([source], [], [], None).unwrap();
-        let snapshot = snapshot_z_transport_failure(&diagram, &query, &catalog).unwrap();
+        let snapshot = snapshot(&diagram, &query, &catalog);
         assert_eq!(snapshot.status(), &ZTransportFailureStatus::MissingEvidence);
+        assert!(snapshot.derivation().is_some());
         let wire = snapshot.to_wire().unwrap();
         assert_eq!(wire.version, 1);
         assert_eq!(wire.query.source, "source");
@@ -1313,20 +1409,67 @@ mod tests {
         assert!(!wire.catalog_digest.is_empty());
         assert_eq!(wire.obligations.len(), 2);
         assert_eq!(wire.proof_graph.as_ref().unwrap().factors.len(), 2);
-        assert!(ZTransportFailureSnapshot::from_wire(&wire).is_ok());
+        let restored =
+            ZTransportFailureSnapshot::from_wire(&wire, SidLimits::default(), &ctx()).unwrap();
+        assert!(restored.derivation().is_some());
         let mut changed_query = wire.clone();
         changed_query.query.source = "other-source".into();
-        assert!(ZTransportFailureSnapshot::from_wire(&changed_query).is_err());
+        assert!(matches!(
+            ZTransportFailureSnapshot::from_wire(&changed_query, SidLimits::default(), &ctx())
+                .unwrap_err(),
+            ZTransportPlanningError::Invalid(_) | ZTransportPlanningError::Identification(_)
+        ));
         let mut changed_snapshot = wire.clone();
         changed_snapshot.obligations[0].push_str(" changed");
-        assert!(ZTransportFailureSnapshot::from_wire(&changed_snapshot).is_err());
+        assert!(matches!(
+            ZTransportFailureSnapshot::from_wire(&changed_snapshot, SidLimits::default(), &ctx())
+                .unwrap_err(),
+            ZTransportPlanningError::Invalid(_)
+        ));
+        // Digests are insensitive to edge insertion order.
+        let mut reordered = wire;
+        reordered.graph.directed.reverse();
+        assert_eq!(failure_snapshot_digest(&reordered).unwrap(), reordered.snapshot_digest);
     }
 
     #[test]
+    fn unsupported_and_exhausted_identification_are_typed_snapshot_statuses() {
+        let (diagram, query) = fixture();
+        let catalog = catalog_with_high_regime();
+        let exhausted = snapshot_z_transport_failure(
+            &diagram,
+            &query,
+            &catalog,
+            SidLimits { steps: 0, depth: 1 },
+            &ctx(),
+        )
+        .unwrap();
+        assert_eq!(exhausted.status(), &ZTransportFailureStatus::ExhaustedComputation);
+        assert_eq!(exhausted.obligations()[0].as_ref(), "z_transport.exhausted_computation");
+        let mut oversized = query;
+        oversized.controllable = (0..4).map(VariableId::from_raw).collect::<Vec<_>>().into();
+        oversized.controllable =
+            [0, 1, 2, 3, 0].iter().map(|raw| VariableId::from_raw(*raw)).collect::<Vec<_>>().into();
+        let unsupported = snapshot_z_transport_failure(
+            &diagram,
+            &oversized,
+            &catalog,
+            SidLimits::default(),
+            &ctx(),
+        )
+        .unwrap();
+        assert_eq!(unsupported.status(), &ZTransportFailureStatus::UnsupportedInput);
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one proposal exercised through replay and every arrival outcome"
+    )]
     fn proposal_replay_and_arrival_reidentify_against_actual_provider() {
         let (diagram, query) = fixture();
         let base = catalog_with_high_regime();
-        let snapshot = snapshot_z_transport_failure(&diagram, &query, &base).unwrap();
+        let snapshot = Arc::new(snapshot(&diagram, &query, &base));
         let proposed = EvidenceRegime::try_new(
             RegimeId::from_raw(10),
             RegimeKind::Experimental,
@@ -1376,14 +1519,43 @@ mod tests {
             feasibility_constraints: Arc::from([]),
             cost: crate::DesignCost { amount: 1.0, sample_budget: 20 },
         };
-        assert!(validate_z_transport_candidate(&snapshot, &mismatched_measurement).is_err());
-        let plan = plan_z_transport_evidence(&snapshot, &[candidate]);
+        assert!(matches!(
+            validate_z_transport_candidate(&snapshot, &mismatched_measurement).unwrap_err(),
+            ZTransportPlanningError::Invalid(_)
+        ));
+        let spec = ZTransportPlanSpec {
+            candidates: vec![candidate.clone(), mismatched_measurement.clone()],
+            max_evaluated: 1,
+            identification_limits: SidLimits::default(),
+        };
+        let plan = plan_z_transport_evidence(&snapshot, &spec, &ctx()).unwrap();
         assert_eq!(
             plan.ranked_sufficient,
             [Arc::<str>::from("low-z")],
             "assessments: {:?}",
             plan.assessments
         );
+        assert!(plan.truncated());
+        assert_eq!(plan.evaluated, [Arc::<str>::from("low-z")]);
+        assert_eq!(plan.unevaluated, [Arc::<str>::from("incomplete-measurement-action")]);
+        assert_eq!(plan.candidate_universe_size, 2);
+        assert!(matches!(
+            plan_z_transport_evidence(
+                &snapshot,
+                &ZTransportPlanSpec { max_evaluated: 0, ..spec.clone() },
+                &ctx()
+            )
+            .unwrap_err(),
+            ZTransportPlanningError::InvalidSpec(_)
+        ));
+        let full = plan_z_transport_evidence(
+            &snapshot,
+            &ZTransportPlanSpec { max_evaluated: 2, ..spec },
+            &ctx(),
+        )
+        .unwrap();
+        assert!(!full.truncated());
+        assert!(matches!(full.assessments[1].outcome, ZTransportCandidateOutcome::Rejected { .. }));
         let ZTransportCandidateOutcome::VerifiedSufficient(proposal) = &plan.assessments[0].outcome
         else {
             panic!("proposed joint evidence should complete the family");
@@ -1392,11 +1564,17 @@ mod tests {
         let proposal_wire = proposal.to_wire().unwrap();
         let encoded = serde_json::to_vec(&proposal_wire).unwrap();
         let decoded: ZTransportProposalWire = serde_json::from_slice(&encoded).unwrap();
-        let restored = decoded.replay().unwrap();
+        let restored = decoded.replay(SidLimits::default(), &ctx()).unwrap();
         restored.replay().unwrap();
         let mut stale_proposal = decoded.clone();
         stale_proposal.snapshot.query.source = "other-source".into();
-        assert!(stale_proposal.replay().is_err());
+        assert!(stale_proposal.replay(SidLimits::default(), &ctx()).is_err());
+        let mut future = decoded;
+        future.version = 2;
+        assert!(matches!(
+            future.replay(SidLimits::default(), &ctx()).unwrap_err(),
+            ZTransportPlanningError::UnsupportedVersion { version: 2 }
+        ));
 
         let mut actual_regime = proposed;
         actual_regime.evidence_kind = EvidenceKind::Available;
@@ -1420,7 +1598,10 @@ mod tests {
         assert_eq!(arrived.provider_snapshot.as_ref(), "source-low-arrival");
         assert_eq!(arrived.functional.catalog().regimes.len(), 2);
         assert!(restored.receive(&actual, "source-low-arrival").is_ok());
-        assert!(proposal.receive(&actual, "source-high").is_err());
+        assert!(matches!(
+            proposal.receive(&actual, "source-high").unwrap_err(),
+            ZTransportPlanningError::Invalid(_)
+        ));
 
         let changed_value = EvidenceRegime::try_new(
             RegimeId::from_raw(10),
@@ -1454,7 +1635,10 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(proposal.receive(&mismatched, "source-low-arrival").is_err());
+        assert!(matches!(
+            proposal.receive(&mismatched, "source-low-arrival").unwrap_err(),
+            ZTransportPlanningError::Invalid(_)
+        ));
 
         let changed_source = EvidenceRegime::try_new(
             RegimeId::from_raw(10),
@@ -1489,7 +1673,10 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(proposal.receive(&wrong_source, "source-low-arrival").is_err());
+        assert!(matches!(
+            proposal.receive(&wrong_source, "source-low-arrival").unwrap_err(),
+            ZTransportPlanningError::Invalid(_)
+        ));
 
         let insufficient_law = EvidenceRegime::try_new(
             RegimeId::from_raw(10),
@@ -1512,6 +1699,13 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(proposal.receive(&insufficient, "source-low-arrival").is_err());
+        // An arriving regime that measures less than the proposed one is not
+        // the proposal's evidence; it is refused before the formula is bound,
+        // so a proposal that was checked against the hypothetical catalog can
+        // never reach binding with insufficient evidence.
+        assert!(matches!(
+            proposal.receive(&insufficient, "source-low-arrival").unwrap_err(),
+            ZTransportPlanningError::Invalid(message) if message.contains("differs from proposal")
+        ));
     }
 }

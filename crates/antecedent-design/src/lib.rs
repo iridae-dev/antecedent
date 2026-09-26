@@ -56,7 +56,7 @@ pub use transport_planner::{
 pub use z_transport_planner::{
     ZTransportArrival, ZTransportCandidateAssessment, ZTransportCandidateOutcome,
     ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportFailureStatus,
-    ZTransportPlanResult, ZTransportPlanningError, ZTransportProposal, ZTransportProposalWire,
-    ZTransportQueryWire, plan_z_transport_evidence, propose_z_transport_evidence,
-    snapshot_z_transport_failure, validate_z_transport_candidate,
+    ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal,
+    ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
+    propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
 };
