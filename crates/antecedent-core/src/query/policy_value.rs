@@ -42,6 +42,7 @@ pub struct MultiActionPolicyInputs {
 impl MultiActionPolicyInputs {
     /// Whether capacities or budgets can couple recommendations across rows.
     /// An unconstraining declared limit is harmless to row-score inference.
+    #[must_use]
     pub fn global_constraints_couple_rows(&self) -> bool {
         let n = self.assignment.len();
         [(&self.capacities, &self.costs, self.budget),
@@ -56,6 +57,12 @@ impl MultiActionPolicyInputs {
     }
 
     /// Validate action support, probability rows, availability, and constraints.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidPolicyValue`] when the action support,
+    /// probability rows, availability mask, or capacity and budget constraints
+    /// are malformed or misaligned.
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.assignment.len();
         let k = self.action_labels.len();
@@ -158,6 +165,15 @@ pub struct FixedCandidateRegretInputs {
 
 impl PolicyValueQuery {
     /// Validate frozen row-aligned policy value inputs and positivity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidPolicyValue`] when a multi-action query
+    /// carries non-multi-action inputs or non-unique subject IDs, the binary
+    /// inputs and outcome predictions are misaligned, propensities are not
+    /// strictly inside the unit interval, predictions or costs are non-finite,
+    /// nuisance ownership metadata is missing or inconsistent with the
+    /// estimator, or the uplift binning is malformed.
     pub fn validate(&self) -> Result<(), QueryError> {
         if let Some(multi) = &self.multi_action {
             if !self.assignment.is_empty() || !self.propensity.is_empty() || !self.actions.is_empty()
@@ -220,18 +236,16 @@ impl PolicyValueQuery {
             if !self.uplift_bins.is_empty() || !self.uplift_training_subject_ids.is_empty() {
                 return Err(QueryError::InvalidPolicyValue("uplift bins and training subjects require a positive bin count".into()));
             }
-        } else {
-            if self.uplift_bins.len() != n || self.uplift_bin_count > n
-                || self.uplift_training_subject_ids.is_empty()
-                || self.uplift_training_subject_ids.iter().any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
-                || self.uplift_training_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != self.uplift_training_subject_ids.len()
-                || self.uplift_bins.iter().any(|&bin| bin >= self.uplift_bin_count)
-                || (0..self.uplift_bin_count).any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
-            {
-                return Err(QueryError::InvalidPolicyValue("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint".into()));
-            }
+        } else if self.uplift_bins.len() != n || self.uplift_bin_count > n
+            || self.uplift_training_subject_ids.is_empty()
+            || self.uplift_training_subject_ids.iter().any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+            || self.uplift_training_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != self.uplift_training_subject_ids.len()
+            || self.uplift_bins.iter().any(|&bin| bin >= self.uplift_bin_count)
+            || (0..self.uplift_bin_count).any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
+        {
+            return Err(QueryError::InvalidPolicyValue("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint".into()));
         }
-        if !ipw && !(self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
+        if !(ipw || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
             return Err(QueryError::InvalidPolicyValue(
                 "prediction ownership requires disjoint training IDs or matching excluded-fold metadata".into(),
             ));

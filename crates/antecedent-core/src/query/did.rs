@@ -139,6 +139,9 @@ impl PanelDidQuery {
     }
 
     /// Construct an augmented panel ATT with supplied, row-aligned nuisance predictions.
+    // The augmented panel binds four frozen columns plus assignment, subject,
+    // cluster, and cross-fit metadata; each is a distinct caller input.
+    #[allow(clippy::too_many_arguments)]
     #[must_use]
     pub fn augmented_panel(
         outcome_post: VariableId,
@@ -175,6 +178,15 @@ impl PanelDidQuery {
     }
 
     /// Validate metadata dimensions and labels.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidRandomizedEffect`] when fewer than four rows
+    /// are supplied or the metadata vectors are misaligned, subject or cluster
+    /// labels are blank, an augmented panel is missing or has non-distinct
+    /// columns or duplicate subjects, nuisance columns are attached without an
+    /// augmented panel, or a staggered design has an invalid cohort/period
+    /// selection or misaligned cohort/period vectors.
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.treated.len();
         if n < 4 || self.post.len() != n || self.subjects.len() != n || self.clusters.len() != n {

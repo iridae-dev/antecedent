@@ -62,6 +62,15 @@ pub struct SurvivalQuery {
 
 impl SurvivalQuery {
     /// Validate identifiers, horizon, functional, and observation contract.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidSurvival`] when the duration, event,
+    /// treatment, and entry columns are not distinct, the horizon `tau` is not
+    /// finite and positive, a cumulative-incidence target cause is not a
+    /// positive event code, delayed entry is combined with known censoring
+    /// under a non-marginal observation assumption, or a supplied known
+    /// censoring schedule is malformed.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.duration == self.event
             || self.duration == self.treatment

@@ -573,6 +573,10 @@ pub fn gaussian_local_quadratic_bias_corrected(
     })
 }
 
+/// Fitted `N`-coefficient local polynomial: point estimates, their sandwich
+/// standard errors, and the per-row influence basis.
+type LocalPolynomialFit<const N: usize> = ([f64; N], [f64; N], Vec<[f64; N]>);
+
 /// Gaussian-kernel local polynomial with `N` coefficients in the scaled power
 /// basis `u = (x − at)/h`, returning the coefficients and their Eicker–White
 /// sandwich standard errors. Inputs are validated by the caller.
@@ -582,7 +586,7 @@ fn robust_local_polynomial<const N: usize>(
     at: f64,
     bandwidth: f64,
     observation_weights: Option<&[f64]>,
-) -> Result<([f64; N], [f64; N], Vec<[f64; N]>), StatsError> {
+) -> Result<LocalPolynomialFit<N>, StatsError> {
     // Scaled powers keep the Gram well conditioned; the coefficient on u^k is
     // h^k times the coefficient on (x − at)^k.
     let mut gram = [[0.0; N]; N];
