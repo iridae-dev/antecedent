@@ -743,6 +743,10 @@ portable artifacts. They require a balanced panel, explicit treatment timing,
 no anticipation or interference, and a defensible donor counterfactual or
 untreated trend. Results are point-only, remain `unlicensed_point_utility`,
 and add no support-matrix license or calibrated interval claim.
+For synthetic control only, a declared uniform one-treated-unit assignment
+enables an exact Fisher sharp-null test that refits each possible treated unit.
+It reports the full assignment distribution and a p-value, without converting
+the effect's point estimate into an interval or a licensed matrix cell.
 
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no

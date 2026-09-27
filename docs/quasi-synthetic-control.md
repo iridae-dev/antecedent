@@ -24,6 +24,17 @@ does not verify those assumptions.
 The retained result is available as `result.synthetic_control`. The prepared
 study freezes unit and period row order; refreshing with changed design labels
 is refused. The result and point-only uncertainty semantics round-trip through
-the contracted artifact. Synthetic DiD has its own retained result section;
-augmented synthetic control, covariate adjustment, and calibrated placebo
-inference remain unavailable. Neither route adds a support-matrix license.
+the contracted artifact. Synthetic DiD has its own retained result section.
+
+When the treated unit was selected uniformly from the observed units before
+outcomes were seen, set `uniform_unit_randomization=True` on `SyntheticControl`.
+The retained native path then refits each possible treated-unit assignment
+against all other units. It reports every absolute post-period gap and their
+exact two-sided tail fraction as `randomization_p_value`. This is a Fisher
+sharp-null test under the declared assignment mechanism, with no interval for
+the effect estimate. It is distinct from the descriptive donor-only placebo
+rank. The artifact binds the assignment declaration and rejects a p-value
+that disagrees with the saved assignment statistics. The exact enumeration is
+currently limited to 32 candidate units; synthetic DiD refuses this option.
+The route remains off the support-matrix axis. Augmented synthetic control
+and covariate adjustment remain unavailable.
