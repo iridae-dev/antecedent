@@ -194,7 +194,7 @@ def test_supported_repeated_cross_section_did_has_exact_graphless_license():
     assert result.panel_did.interval_95 is not None
     assert result.panel_did.support_status == "licensed"
     loaded = antecedent.load(result.export(artifact_id="licensed-repeated-did"))
-    assert loaded.answer.structured["panel_did"]["graphless_support_status"] == "licensed"
+    assert loaded.answer.structured["graphless_support_status"] == "licensed"
 
 
 def test_repeated_cross_section_did_runs_through_public_flow_and_direct_utility():
