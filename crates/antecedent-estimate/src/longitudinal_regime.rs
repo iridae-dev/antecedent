@@ -1,6 +1,6 @@
 //! Prespecified binary longitudinal regime value with supplied sequential probabilities.
 //!
-//! This is a point estimator. The probabilities and subject-level fold ownership
+//! Probabilities and subject-level fold ownership
 //! are inputs, not nuisance models fitted or verified by this kernel.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -46,6 +46,22 @@ pub fn evaluate_sequential_dr_value(
     treatment_probability: &[f64], censoring_probability: &[f64],
     periods: usize, minimum_probability: f64,
 ) -> Result<RegimeValueSummary, &'static str> {
+    evaluate_sequential_dr_value_with_subject_scores(
+        outcomes, outcome_observed, observation_history, treatment, actions,
+        q_predictions, treatment_probability, censoring_probability,
+        periods, minimum_probability,
+    ).map(|(summary, _)| summary)
+}
+
+/// Return one full-history augmentation score per subject for calibration.
+/// Scores alone do not establish independent nuisance fitting or an interval
+/// claim; callers must keep the Q ownership contract separate.
+pub fn evaluate_sequential_dr_value_with_subject_scores(
+    outcomes: &[f64], outcome_observed: &[bool], observation_history: &[bool],
+    treatment: &[bool], actions: &[bool], q_predictions: &[f64],
+    treatment_probability: &[f64], censoring_probability: &[f64],
+    periods: usize, minimum_probability: f64,
+) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
     let n = outcomes.len();
     let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
     if n == 0 || periods == 0 || outcome_observed.len() != n
@@ -62,6 +78,7 @@ pub fn evaluate_sequential_dr_value(
     let mut min_action: f64 = 1.0;
     let mut min_censor: f64 = 1.0;
     let mut maximum_weight: f64 = 1.0;
+    let mut scores = Vec::with_capacity(n);
     for i in 0..n {
         if outcome_observed[i] && !outcomes[i].is_finite() {
             return Err("observed terminal outcomes must be finite");
@@ -103,12 +120,13 @@ pub fn evaluate_sequential_dr_value(
             maximum_weight = maximum_weight.max(weight);
         }
         total += next;
+        scores.push(next);
         if !total.is_finite() { return Err("sequential augmented values overflowed across subjects"); }
     }
-    Ok(RegimeValueSummary { value: total / n as f64,
+    Ok((RegimeValueSummary { value: total / n as f64,
         effective_sample_size: n as f64, matched_observed_fraction: outcome_observed.iter().filter(|&&x| x).count() as f64 / n as f64,
         maximum_weight, minimum_action_probability: min_action, minimum_censoring_probability: min_censor,
-        score_standard_error: None })
+        score_standard_error: None }, scores))
 }
 
 /// Evaluate supplied conditional period rewards under a prescribed regime.
@@ -280,6 +298,127 @@ pub fn evaluate_regime_value(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fixed_exogenous_q_sequential_dr_subject_scores_cover_randomized_truth() {
+        let n = 300;
+        let simulations = 2_000;
+        let mut state = 0xD73A_94E1_2B6C_850F_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let actions = vec![true; n * 2];
+        let q = (0..n).flat_map(|_| [3.5, 4.2]).collect::<Vec<_>>();
+        let p = vec![0.5; n * 2];
+        let c = vec![0.9; n * 2];
+        let mut covered_90 = 0;
+        let mut covered_95 = 0;
+        for _ in 0..simulations {
+            let mut treatment = Vec::with_capacity(n * 2);
+            let mut history = Vec::with_capacity(n * 2);
+            let mut observed = Vec::with_capacity(n);
+            let mut outcomes = Vec::with_capacity(n);
+            for _ in 0..n {
+                let a0 = uniform() < 0.5;
+                let a1 = uniform() < 0.5;
+                let o0 = uniform() < 0.9;
+                let o1 = o0 && uniform() < 0.9;
+                treatment.extend([a0, a1]);
+                history.extend([o0, o1]);
+                observed.push(o1);
+                outcomes.push(2.0 + f64::from(a0) + f64::from(a1)
+                    + 2.0 * (uniform() - 0.5));
+            }
+            let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
+                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
+            ).unwrap();
+            assert_eq!(scores.len(), n);
+            let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
+                / (n * (n - 1)) as f64).sqrt();
+            assert!(se.is_finite() && se > 0.0);
+            covered_90 += usize::from((summary.value - 4.0).abs()
+                <= antecedent_stats::normal_ppf(0.95) * se);
+            covered_95 += usize::from((summary.value - 4.0).abs()
+                <= antecedent_stats::normal_ppf(0.975) * se);
+        }
+        for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
+            let coverage = hits as f64 / simulations as f64;
+            let mcse = (nominal * (1.0 - nominal) / simulations as f64).sqrt();
+            println!("fixed exogenous Q sequential DR: nominal={nominal}, coverage={coverage}");
+            assert!((coverage - nominal).abs() <= 3.0 * mcse,
+                "fixed-Q sequential DR coverage {coverage} at {nominal}");
+        }
+    }
+
+    #[test]
+    fn subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth() {
+        let n = 300;
+        let simulations = 2_000;
+        let mut state = 0x149C_6F82_D30A_5BE7_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let actions = vec![true; n * 2];
+        let p = vec![0.5; n * 2];
+        let c = vec![0.9; n * 2];
+        let mut covered_90 = 0;
+        let mut covered_95 = 0;
+        for _ in 0..simulations {
+            let mut treatment = Vec::with_capacity(n * 2);
+            let mut history = Vec::with_capacity(n * 2);
+            let mut observed = Vec::with_capacity(n);
+            let mut outcomes = Vec::with_capacity(n);
+            for _ in 0..n {
+                let a0 = uniform() < 0.5;
+                let a1 = uniform() < 0.5;
+                let o0 = uniform() < 0.9;
+                let o1 = o0 && uniform() < 0.9;
+                treatment.extend([a0, a1]);
+                history.extend([o0, o1]);
+                observed.push(o1);
+                outcomes.push(2.0 + f64::from(a0) + f64::from(a1)
+                    + 2.0 * (uniform() - 0.5));
+            }
+            let mut q = vec![0.0; n * 2];
+            for fold in 0..5 {
+                let training = (0..n).filter(|&i| i % 5 != fold
+                    && observed[i] && treatment[2 * i] && treatment[2 * i + 1]);
+                let (sum, count) = training.fold((0.0, 0_usize), |(sum, count), i|
+                    (sum + outcomes[i], count + 1));
+                assert!(count >= 20, "training support in excluded folds");
+                let prediction = sum / count as f64;
+                for i in (fold..n).step_by(5) {
+                    q[2 * i] = prediction;
+                    q[2 * i + 1] = prediction;
+                }
+            }
+            let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
+                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
+            ).unwrap();
+            let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
+                / (n * (n - 1)) as f64).sqrt();
+            assert!(se.is_finite() && se > 0.0);
+            covered_90 += usize::from((summary.value - 4.0).abs()
+                <= antecedent_stats::normal_ppf(0.95) * se);
+            covered_95 += usize::from((summary.value - 4.0).abs()
+                <= antecedent_stats::normal_ppf(0.975) * se);
+        }
+        for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
+            let coverage = hits as f64 / simulations as f64;
+            let mcse = (nominal * (1.0 - nominal) / simulations as f64).sqrt();
+            println!("subject-excluded fold Q sequential DR: nominal={nominal}, coverage={coverage}");
+            assert!((coverage - nominal).abs() <= 3.0 * mcse,
+                "subject-excluded Q sequential DR coverage {coverage} at {nominal}");
+        }
+    }
 
     #[test]
     fn subject_ipw_interval_recovers_randomized_censored_truth_over_repeated_samples() {
