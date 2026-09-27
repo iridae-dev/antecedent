@@ -731,12 +731,15 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   influence-function standard error;
   `experiment.estimate_cuped_effect` provides one-covariate CUPED precision
   adjustment with a standard error. `RandomizedEffect(...,
-  ancova_covariates=("baseline_a", "baseline_b"))` now carries multi-covariate
-  ANCOVA through the retained Rust Study and Python `prepare` / `analyze`
+  ancova_covariates=("baseline_a", "baseline_b", "baseline_c"))` carries ANCOVA
+  with three or more pre-assignment covariates through the retained Rust Study
+  and Python `prepare` / `analyze`
   path for independent Bernoulli assignment with a common probability. It
   fits the treatment and pre-assignment covariate coefficients jointly and
-  labels its independent-row HC0 variance; the result has no calibrated
-  interval and is off the support-matrix axis. ANCOVA refuses non-Bernoulli
+  labels its independent-row HC0 variance; with three or more covariates the
+  result has no calibrated interval and is off the support-matrix axis, whereas
+  one or two covariates receive the licensed pointwise HC0 interval described
+  above. ANCOVA refuses non-Bernoulli
   designs, fixed CUPED or receipt adjustment on the same query, duplicate or
   collinear covariates, and non-finite values. The direct utilities likewise
   have no new support-matrix licenses or calibrated interval claims. The native
