@@ -1003,6 +1003,9 @@ pub struct RandomizedEffectQueryWire {
     /// Declared treated count for each row's block (stratified designs only).
     #[serde(default)]
     pub treated_per_row: Vec<usize>,
+    /// Row-aligned switchback period labels.
+    #[serde(default)]
+    pub periods: Vec<String>,
     /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
     #[serde(default)]
     pub fixed_cuped: Option<(u32, f64)>,
@@ -1016,6 +1019,8 @@ pub enum RandomizationDesignWire {
     /// Independent Bernoulli assignment.
     #[default]
     Bernoulli,
+    /// Unit-period switching within independent sequences.
+    Switchback,
     /// Complete randomization with a fixed treated count.
     Complete {
         /// Declared number assigned to treatment.
@@ -1062,12 +1067,12 @@ impl CausalQueryWire {
             | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_) => None,
         }
     }
 
-            | Self::SyntheticControl(_)
     /// Target population of a population-scoped query.
     ///
     /// The wire mirror of [`antecedent_core::CausalQuery::target_population`],
@@ -1095,12 +1100,12 @@ impl CausalQueryWire {
             | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_) => None,
         }
     }
 }
-            | Self::SyntheticControl(_)
 
 /// Structural transportability query wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1542,6 +1547,7 @@ pub fn causal_query_to_wire_with_registry(
                         RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
                     }
                     RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
+                    RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
                 },
                 outcome: q.outcome.raw(),
                 realized_assignment: q.realized_assignment.to_vec(),
@@ -1562,6 +1568,10 @@ pub fn causal_query_to_wire_with_registry(
                     _ => Vec::new(),
                 },
                 fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
+                periods: match &q.design {
+                    RandomizationDesign::Switchback { periods } => periods.iter().map(ToString::to_string).collect(),
+                    _ => Vec::new(),
+                },
             })
         }
         CausalQuery::PolicyValue(q) => CausalQueryWire::PolicyValue(PolicyValueQueryWire {
@@ -1595,6 +1605,13 @@ pub fn causal_query_to_wire_with_registry(
             subjects: q.subjects.iter().map(ToString::to_string).collect(),
             clusters: q.clusters.iter().map(ToString::to_string).collect(),
         }),
+        CausalQuery::SyntheticControl(q) => CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
+            outcome: q.outcome.raw(),
+            units: q.units.iter().map(ToString::to_string).collect(),
+            periods: q.periods.to_vec(),
+            treated_unit: q.treated_unit.to_string(),
+            intervention_period: q.intervention_period,
+        }),
         CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
             duration: q.duration.raw(),
             event: q.event.raw(),
@@ -1605,13 +1622,6 @@ pub fn causal_query_to_wire_with_registry(
                 antecedent_core::SurvivalFunctional::SurvivalAndRmst => None,
                 antecedent_core::SurvivalFunctional::CumulativeIncidence { target_cause } => {
                     Some(target_cause)
-        CausalQuery::SyntheticControl(q) => CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
-            outcome: q.outcome.raw(),
-            units: q.units.iter().map(ToString::to_string).collect(),
-            periods: q.periods.to_vec(),
-            treated_unit: q.treated_unit.to_string(),
-            intervention_period: q.intervention_period,
-        }),
                 }
             },
             independent_observation: matches!(&q.observation_assumption,
@@ -1837,6 +1847,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                         .into(),
                     treated_per_row: w.treated_per_row.clone().into(),
                 },
+                RandomizationDesignWire::Switchback => RandomizationDesign::Switchback {
+                    periods: w.periods.iter().map(|period| Arc::<str>::from(period.as_str())).collect::<Vec<_>>().into(),
+                },
             };
             let mut query = RandomizedEffectQuery::with_design(
                 design,
@@ -1919,6 +1932,17 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PanelDid(q)
         }
+        CausalQueryWire::SyntheticControl(w) => {
+            let q = SyntheticControlQuery::new(
+                VariableId::from_raw(w.outcome),
+                w.units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
+                w.periods.clone(),
+                Arc::<str>::from(w.treated_unit.as_str()),
+                w.intervention_period,
+            );
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::SyntheticControl(q)
+        }
         CausalQueryWire::Survival(w) => {
             let q = antecedent_core::SurvivalQuery {
                 duration: VariableId::from_raw(w.duration),
@@ -1932,17 +1956,6 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     return Err(IoError::Convert(
                         "survival requires marginal independent observation declaration".into(),
                     ));
-        CausalQueryWire::SyntheticControl(w) => {
-            let q = SyntheticControlQuery::new(
-                VariableId::from_raw(w.outcome),
-                w.units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
-                w.periods.clone(),
-                Arc::<str>::from(w.treated_unit.as_str()),
-                w.intervention_period,
-            );
-            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
-            CausalQuery::SyntheticControl(q)
-        }
                 },
                 functional: w.target_cause.map_or(
                     antecedent_core::SurvivalFunctional::SurvivalAndRmst,
@@ -2216,6 +2229,18 @@ mod tests {
         );
         let cuped_wire = causal_query_to_wire(&cuped).unwrap();
         assert_eq!(causal_query_from_wire(&cuped_wire).unwrap(), cuped);
+
+        let switchback = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Switchback {
+                periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
+            },
+            VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+            ["s0", "s0", "s1", "s1"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3"].map(Arc::<str>::from),
+            ("off", "on"),
+        ));
+        let switchback_wire = causal_query_to_wire(&switchback).unwrap();
+        assert_eq!(causal_query_from_wire(&switchback_wire).unwrap(), switchback);
 
         let stratified = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
             RandomizationDesign::Stratified {

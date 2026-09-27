@@ -1458,6 +1458,9 @@ impl StudyBuilder {
                     | antecedent_core::RandomizationDesign::Cluster { .. } => {
                         EstimatorId::RandomizedNeyman
                     }
+                    antecedent_core::RandomizationDesign::Switchback { .. } => {
+                        EstimatorId::RandomizedSwitchbackHt
+                    }
                 };
                 if self.estimator.is_some_and(|id| id != expected) {
                     return Err(CausalError::Unsupported {
@@ -1511,6 +1514,7 @@ impl StudyBuilder {
                         id,
                         EstimatorId::RandomizedHt
                             | EstimatorId::RandomizedFixedCupedHt
+                            | EstimatorId::RandomizedSwitchbackHt
                             | EstimatorId::RandomizedNeyman
                             | EstimatorId::RandomizedSurvivalProductLimit
                             | EstimatorId::LongitudinalIpwRegime

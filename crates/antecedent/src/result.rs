@@ -73,7 +73,8 @@ impl std::ops::DerefMut for PrimaryEstimate {
 pub struct RandomizedEffectEstimate {
     /// ITT contrast under the declared assignment mechanism.
     pub effect: f64,
-    /// Design-based conservative variance estimate; no interval is implied.
+    /// Design variance or conservative bound as labeled by `uncertainty`;
+    /// switchback uses an independent-sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
     /// Smallest declared unit-level inclusion probability.
     pub minimum_assignment_probability: f64,
@@ -81,6 +82,8 @@ pub struct RandomizedEffectEstimate {
     pub assignment_design: Arc<str>,
     /// Row-aligned block labels for stratified assignment, empty otherwise.
     pub blocks: Arc<[Arc<str>]>,
+    /// Row-aligned period labels for switchback assignment, empty otherwise.
+    pub periods: Arc<[Arc<str>]>,
     /// Number of analyzed control assignment units.
     pub control_units: usize,
     /// Number of analyzed treatment assignment units.
@@ -112,9 +115,6 @@ pub struct PanelDidEstimate {
     pub uncertainty: Arc<str>,
 }
 
-/// Point value of a prespecified treatment regime over subject histories.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LongitudinalRegimeEstimate {
 /// Balanced-panel synthetic-control point result and donor-support diagnostics.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SyntheticControlEstimate {
@@ -138,6 +138,9 @@ pub struct SyntheticControlEstimate {
     pub uncertainty: Arc<str>,
 }
 
+/// Point value of a prespecified treatment regime over subject histories.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LongitudinalRegimeEstimate {
     /// Horvitz--Thompson mean over all enrolled subjects.
     pub value: f64,
     /// Effective sample size of observed matching histories.
@@ -441,11 +444,11 @@ pub struct StudyResult {
     pub randomized_effect: Option<RandomizedEffectEstimate>,
     /// Balanced two-period panel difference-in-differences result.
     pub panel_did: Option<PanelDidEstimate>,
+    /// Synthetic-control point result with donor and placebo diagnostics.
+    pub synthetic_control: Option<SyntheticControlEstimate>,
     /// Held-out doubly robust policy evaluation; never an ATE.
     pub policy_value: Option<PolicyValueEstimate>,
     /// Randomized right-censored survival or competing-risk curve.
-    /// Synthetic-control point result with donor and placebo diagnostics.
-    pub synthetic_control: Option<SyntheticControlEstimate>,
     pub survival: Option<SurvivalEstimate>,
     /// Prespecified longitudinal regime value.
     pub longitudinal_regime: Option<LongitudinalRegimeEstimate>,

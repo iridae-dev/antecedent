@@ -49,7 +49,7 @@ impl CheckedRandomizedOperation {
             || study.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "randomized ITT supports Bernoulli, complete, stratified, and cluster design-based estimation only, without a graph, validation suite, or bootstrap",
+                message: "randomized ITT supports Bernoulli, complete, stratified, cluster, and switchback estimation only, without a graph, validation suite, or bootstrap",
             });
         }
         if query.realized_assignment.len() != data.row_count() {
@@ -146,6 +146,7 @@ impl CheckedRandomizedOperation {
             control_units,
             treatment_units,
             blocks,
+            periods,
             assignment_design,
             uncertainty,
             diagnostic,
@@ -188,6 +189,7 @@ impl CheckedRandomizedOperation {
                     control_units,
                     treatment_units,
                     Arc::from([]),
+                    Arc::from([]),
                     Arc::<str>::from("bernoulli"),
                     Arc::<str>::from(if self.query.fixed_cuped.is_some() {
                         "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
@@ -221,6 +223,7 @@ impl CheckedRandomizedOperation {
                     variance,
                     n - treated_units,
                     *treated_units,
+                    Arc::from([]),
                     Arc::from([]),
                     Arc::<str>::from("complete"),
                     Arc::<str>::from("complete_neyman_variance_upper_bound_no_interval"),
@@ -257,6 +260,7 @@ impl CheckedRandomizedOperation {
                     variance,
                     clusters - treated_clusters,
                     *treated_clusters,
+                    Arc::from([]),
                     Arc::from([]),
                     Arc::<str>::from("cluster"),
                     Arc::<str>::from("cluster_neyman_variance_upper_bound_no_interval"),
@@ -298,12 +302,51 @@ impl CheckedRandomizedOperation {
                     control_units,
                     treatment_units,
                     Arc::clone(blocks),
+                    Arc::from([]),
                     Arc::<str>::from("stratified"),
                     Arc::<str>::from("stratified_neyman_variance_upper_bound_no_interval"),
                     "Stratified difference in means weighted by block size, with blockwise Neyman conservative variance estimate; no confidence interval is reported",
                 )
             }
+            antecedent_core::RandomizationDesign::Switchback { periods } => {
+                let mut by_sequence = std::collections::BTreeMap::<&str, f64>::new();
+                let mut control_periods = 0;
+                let mut treatment_periods = 0;
+                for i in 0..n {
+                    let p = self.query.assignment_probabilities[i];
+                    let score = if self.query.realized_assignment[i] {
+                        treatment_periods += 1;
+                        outcomes[i] / p
+                    } else {
+                        control_periods += 1;
+                        -outcomes[i] / (1.0 - p)
+                    };
+                    *by_sequence.entry(&self.query.assignment_units[i]).or_default() += score;
+                }
+                let scores = by_sequence.values().copied().collect::<Vec<_>>();
+                let sequences = scores.len();
+                let mean = scores.iter().sum::<f64>() / sequences as f64;
+                let variance = sequences as f64 / (sequences - 1) as f64
+                    * scores.iter().map(|score| (score - mean).powi(2)).sum::<f64>()
+                    / (n * n) as f64;
+                (
+                    scores.iter().sum::<f64>() / n as f64,
+                    variance,
+                    control_periods,
+                    treatment_periods,
+                    Arc::from([]),
+                    Arc::clone(periods),
+                    Arc::<str>::from("switchback"),
+                    Arc::<str>::from("switchback_independent_sequence_sandwich_variance_no_interval"),
+                    "Unit-period HT ITT with independent-sequence score sandwich variance; arbitrary within-sequence dependence, no interval",
+                )
+            }
         };
+        if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
+            return Err(CausalError::Unsupported {
+                message: "randomized effect or design variance is not finite under the declared probabilities",
+            });
+        }
         let estimate = EffectEstimate::new(
             effect,
             // The retained design variance lives in randomized_effect. Passing
@@ -327,11 +370,11 @@ impl CheckedRandomizedOperation {
                 outcome: self.query.outcome,
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
-                    if matches!(self.query.design, antecedent_core::RandomizationDesign::Bernoulli)
-                    {
-                        "estimate.randomized.ht_itt"
-                    } else {
-                        "estimate.randomized.neyman_itt"
+                    match self.query.design {
+                        antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() => "estimate.randomized.fixed_cuped_ht_itt",
+                        antecedent_core::RandomizationDesign::Bernoulli => "estimate.randomized.ht_itt",
+                        antecedent_core::RandomizationDesign::Switchback { .. } => "estimate.randomized.switchback_ht_itt",
+                        _ => "estimate.randomized.neyman_itt",
                     },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -355,9 +398,13 @@ impl CheckedRandomizedOperation {
                 .assignment_probabilities
                 .iter()
                 .copied()
+                .map(|p| if matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
+                    p.min(1.0 - p)
+                } else { p })
                 .fold(f64::INFINITY, f64::min),
             assignment_design,
             blocks,
+            periods,
             control_units,
             treatment_units,
             uncertainty,
@@ -627,7 +674,7 @@ pub(crate) fn randomized_identification(
 ) -> (IdentificationResult, IdentifiedEstimand) {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     let mut standard = vec![Assumption::Consistency, Assumption::Positivity];
-    if !matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. }) {
+    if !matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. } | antecedent_core::RandomizationDesign::Switchback { .. }) {
         standard.push(Assumption::NoInterference);
     }
     for assumption in standard {
@@ -649,6 +696,26 @@ pub(crate) fn randomized_identification(
             status: AssumptionStatus::Declared,
         });
     }
+    if matches!(query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("switchback_no_carryover"),
+                description: Arc::from("a unit-period outcome depends on its current assignment, not assignments in earlier periods"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("independent_sequences_no_between_sequence_interference"),
+                description: Arc::from("switching sequences are independent and treatment in one sequence does not affect another sequence's outcomes"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
     assumptions.push(AssumptionRecord {
         assumption: Assumption::Custom {
             id: Arc::from("known_random_assignment"),
@@ -661,6 +728,8 @@ pub(crate) fn randomized_identification(
                     "Treatment assignment follows independent complete randomization within each declared block",
                 antecedent_core::RandomizationDesign::Cluster { .. } =>
                     "Treatment assignment follows complete randomization of independent clusters; arbitrary dependence is allowed within clusters",
+                antecedent_core::RandomizationDesign::Switchback { .. } =>
+                    "Unit-period treatment has the declared known marginal assignment probabilities within independent switching sequences",
             }),
         },
         source: AssumptionSource::UserDeclared,
@@ -735,5 +804,6 @@ fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> Es
         antecedent_core::RandomizationDesign::Complete { .. }
         | antecedent_core::RandomizationDesign::Stratified { .. }
         | antecedent_core::RandomizationDesign::Cluster { .. } => EstimatorId::RandomizedNeyman,
+        antecedent_core::RandomizationDesign::Switchback { .. } => EstimatorId::RandomizedSwitchbackHt,
     }
 }

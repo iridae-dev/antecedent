@@ -433,6 +433,36 @@ pub struct SyntheticControlWire {
     pub uncertainty: String,
 }
 
+/// Retained randomized ITT design metadata and design-aware variance.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RandomizedEffectWire {
+    /// Intention-to-treat contrast.
+    pub effect: f64,
+    /// Design variance estimate or conservative bound, as labeled by uncertainty.
+    pub variance: f64,
+    /// Assignment design name.
+    pub assignment_design: String,
+    /// Row-aligned assignment unit labels.
+    pub assignment_units: Vec<String>,
+    /// Row-aligned outcome unit labels.
+    pub outcome_units: Vec<String>,
+    /// Row-aligned block labels, when stratified.
+    pub blocks: Vec<String>,
+    /// Row-aligned period labels, when switchback.
+    pub periods: Vec<String>,
+    /// Control and treatment arm labels.
+    pub treatment_arms: (String, String),
+    /// Observed control assignment units or unit-periods.
+    pub control_units: usize,
+    /// Observed treatment assignment units or unit-periods.
+    pub treatment_units: usize,
+    /// Smallest declared assignment probability.
+    pub minimum_assignment_probability: f64,
+    /// Explicit no-interval uncertainty contract.
+    pub uncertainty: String,
+}
+
 /// Randomized arm event-time curves with an explicit point-only uncertainty contract.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -500,6 +530,12 @@ pub struct AnalysisResultWire {
     /// Balanced two-period panel DiD metadata and cluster uncertainty semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panel_did: Option<PanelDidWire>,
+    /// Synthetic-control result with donor and placebo diagnostics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synthetic_control: Option<SyntheticControlWire>,
+    /// Retained randomized experiment design and variance semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomized_effect: Option<RandomizedEffectWire>,
     /// Randomized survival or competing-risk curve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub survival: Option<SurvivalWire>,
@@ -530,9 +566,6 @@ pub struct AnalysisResultWire {
     /// Response axis.
     pub response: Option<CausalResponseWire>,
     /// Nested canonical posterior artifact bytes, including draws when requested.
-    /// Synthetic-control result with donor and placebo diagnostics.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub synthetic_control: Option<SyntheticControlWire>,
     pub posterior_artifact: Option<Vec<u8>>,
     /// Horizon-indexed mediation axis.
     pub mediation_grid: Option<TemporalMediationGridWire>,
@@ -732,10 +765,76 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     }
     validate_variable_names(variable_names)?;
     validate_query_ids(&result.query, variable_names.len())?;
+    if matches!(&result.query, crate::CausalQueryWire::RandomizedEffect(query)
+        if matches!(query.design, crate::RandomizationDesignWire::Switchback))
+        && result.randomized_effect.is_none()
+    {
+        return Err(IoError::Convert("switchback artifact is missing its randomized result section".into()));
+    }
+    if let Some(randomized) = &result.randomized_effect {
+        let crate::CausalQueryWire::RandomizedEffect(query) = &result.query else {
+            return Err(IoError::Convert("randomized result section is attached to a different query".into()));
+        };
+        let (design, uncertainty) = match &query.design {
+            crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() =>
+                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"),
+            crate::RandomizationDesignWire::Bernoulli =>
+                ("bernoulli", "bernoulli_ht_design_variance_no_interval"),
+            crate::RandomizationDesignWire::Complete { .. } =>
+                ("complete", "complete_neyman_variance_upper_bound_no_interval"),
+            crate::RandomizationDesignWire::Cluster { .. } =>
+                ("cluster", "cluster_neyman_variance_upper_bound_no_interval"),
+            crate::RandomizationDesignWire::Stratified =>
+                ("stratified", "stratified_neyman_variance_upper_bound_no_interval"),
+            crate::RandomizationDesignWire::Switchback =>
+                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval"),
+        };
+        let (control, treated) = if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
+            let mut clusters = std::collections::BTreeMap::new();
+            for (unit, assignment) in query.assignment_units.iter().zip(&query.realized_assignment) {
+                clusters.insert(unit, *assignment);
+            }
+            (clusters.values().filter(|assigned| !**assigned).count(),
+             clusters.values().filter(|assigned| **assigned).count())
+        } else {
+            (query.realized_assignment.iter().filter(|assigned| !**assigned).count(),
+             query.realized_assignment.iter().filter(|assigned| **assigned).count())
+        };
+        let minimum_probability = query.assignment_probabilities.iter().copied()
+            .map(|p| if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
+                p.min(1.0 - p)
+            } else { p })
+            .fold(f64::INFINITY, f64::min);
+        if result.estimate != Some(randomized.effect)
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
+            || !randomized.effect.is_finite()
+            || !randomized.variance.is_finite()
+            || randomized.variance < 0.0
+            || randomized.assignment_design != design
+            || randomized.uncertainty != uncertainty
+            || randomized.assignment_units != query.assignment_units
+            || randomized.outcome_units != query.outcome_units
+            || randomized.blocks != query.blocks
+            || randomized.periods != query.periods
+            || randomized.treatment_arms != query.treatment_arms
+            || randomized.control_units != control
+            || randomized.treatment_units != treated
+            || (randomized.minimum_assignment_probability - minimum_probability).abs() > 1e-12
+        {
+            return Err(IoError::Convert("invalid randomized payload or fabricated interval".into()));
+        }
+    }
     if matches!(result.query, crate::CausalQueryWire::PanelDid(_)) && result.panel_did.is_none() {
         return Err(IoError::Convert(
             "panel DiD artifact is missing its design-specific result section".into(),
         ));
+    }
+    if matches!(result.query, crate::CausalQueryWire::SyntheticControl(_))
+        && result.synthetic_control.is_none()
+    {
+        return Err(IoError::Convert("synthetic-control artifact is missing its donor-support result section".into()));
     }
     if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
         return Err(IoError::Convert(
@@ -858,11 +957,6 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         let crate::CausalQueryWire::PanelDid(query) = &result.query else {
             return Err(IoError::Convert(
                 "panel DiD result section is attached to a different query".into(),
-    if matches!(result.query, crate::CausalQueryWire::SyntheticControl(_))
-        && result.synthetic_control.is_none()
-    {
-        return Err(IoError::Convert("synthetic-control artifact is missing its donor-support result section".into()));
-    }
             ));
         };
         let mut subjects = std::collections::BTreeMap::<&str, (bool, &str)>::new();
@@ -930,6 +1024,38 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             return Err(IoError::Convert(
                 "invalid panel DiD payload or fabricated interval".into(),
             ));
+        }
+    }
+    if let Some(fit) = &result.synthetic_control {
+        let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
+            return Err(IoError::Convert("synthetic-control result is attached to a different query".into()));
+        };
+        let donors: std::collections::BTreeSet<&str> = query.units.iter()
+            .map(String::as_str).filter(|unit| *unit != query.treated_unit.as_str()).collect();
+        let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
+            .filter(|period| *period < query.intervention_period).collect();
+        let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
+            .filter(|period| *period >= query.intervention_period).collect();
+        let weight_names: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
+        let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
+        if result.estimate != Some(fit.effect)
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some() || result.interval_upper.is_some()
+            || !fit.effect.is_finite()
+            || !fit.pre_treatment_rmse.is_finite() || fit.pre_treatment_rmse < 0.0
+            || !fit.placebo_rank.is_finite() || !(0.0..=1.0).contains(&fit.placebo_rank)
+            || !fit.effective_donors.is_finite() || fit.effective_donors < 1.0
+            || fit.donor_weights.len() != donors.len() || donors.len() < 3
+            || weight_names != donors.iter().copied().collect::<Vec<_>>()
+            || fit.donor_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
+            || (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
+            || (fit.effective_donors - 1.0 / squared_mass).abs() > 1e-8
+            || fit.placebo_effects.len() != donors.len()
+            || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
+            || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
+            || fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
+        {
+            return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
         }
     }
     if let Some(curve) = &result.survival {
@@ -1053,38 +1179,6 @@ fn validate_interventional_distribution(result: &AnalysisResultWire) -> Result<(
                 "interventional distribution atom contains a non-finite value".into(),
             ));
         }
-    if let Some(fit) = &result.synthetic_control {
-        let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
-            return Err(IoError::Convert("synthetic-control result is attached to a different query".into()));
-        };
-        let donors: std::collections::BTreeSet<&str> = query.units.iter()
-            .map(String::as_str).filter(|unit| *unit != query.treated_unit.as_str()).collect();
-        let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
-            .filter(|period| *period < query.intervention_period).collect();
-        let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
-            .filter(|period| *period >= query.intervention_period).collect();
-        let weight_names: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
-        let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
-        if result.estimate != Some(fit.effect)
-            || result.standard_error.is_some()
-            || result.interval_lower.is_some() || result.interval_upper.is_some()
-            || !fit.effect.is_finite()
-            || !fit.pre_treatment_rmse.is_finite() || fit.pre_treatment_rmse < 0.0
-            || !fit.placebo_rank.is_finite() || !(0.0..=1.0).contains(&fit.placebo_rank)
-            || !fit.effective_donors.is_finite() || fit.effective_donors < 1.0
-            || fit.donor_weights.len() != donors.len() || donors.len() < 3
-            || weight_names != donors.iter().copied().collect::<Vec<_>>()
-            || fit.donor_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
-            || (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
-            || (fit.effective_donors - 1.0 / squared_mass).abs() > 1e-8
-            || fit.placebo_effects.len() != donors.len()
-            || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
-            || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
-            || fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
-        {
-            return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
-        }
-    }
         if expected_outcomes.len() == 1 {
             if let Some(value) = atom.outcomes[0].1.to_value().as_f64() {
                 numeric_mean += value * atom.probability;

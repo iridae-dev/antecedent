@@ -52,6 +52,7 @@ from .errors import (
 from .experiment import (
     BernoulliAssignment,
     RandomizedEffect,
+    SwitchbackEffect,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
 )
@@ -285,6 +286,7 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         assignment_units=tuple(section.assignment_units),
         outcome_units=tuple(section.outcome_units),
         blocks=tuple(section.blocks) or None,
+        periods=tuple(section.periods) or None,
         treatment_arms=(section.control_arm, section.treatment_arm),
         control_units=section.control_units,
         treatment_units=section.treatment_units,
@@ -335,8 +337,6 @@ def _panel_did_from_raw(
     )
 
 
-def _survival_from_raw(
-    raw: Any, query: Any = None
 def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
     section = getattr(raw, "synthetic_control", None)
     if section is None:
@@ -354,6 +354,8 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
     )
 
 
+def _survival_from_raw(
+    raw: Any, query: Any = None
 ) -> SurvivalEstimate | CumulativeIncidenceEstimate | None:
     section = getattr(raw, "survival", None)
     if section is None:
@@ -773,9 +775,9 @@ def _wrap_ate(
         interference=_interference_from_raw(raw),
         randomized_effect=_randomized_effect_from_raw(raw),
         panel_did=_panel_did_from_raw(raw, query),
+        synthetic_control=_synthetic_control_from_raw(raw),
         policy_value=_policy_value_from_raw(raw),
         survival=_survival_from_raw(raw, query),
-        synthetic_control=_synthetic_control_from_raw(raw),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
@@ -1599,16 +1601,17 @@ _PreparedQuery = (
     | TransportResponseGridQuery
     | InterferenceQuery
     | RandomizedEffect
+    | SwitchbackEffect
     | PolicyValue
     | MultiActionPolicyValue
     | AnomalyAttribution
     | ChangeAttribution
     | PanelDifferenceInDifferences
     | StaggeredAdoption
+    | SyntheticControl
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegimeQuery
-    | SyntheticControl
 )
 
 
@@ -1763,9 +1766,6 @@ def _staggered_payload(
     return names, columns, design
 
 
-def _longitudinal_regime_payload(
-    data: Any, query: LongitudinalRegimeQuery
-) -> tuple[list[str], list[Any]]:
 def _synthetic_control_payload(
     data: Any, query: SyntheticControl
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
@@ -1785,6 +1785,9 @@ def _synthetic_control_payload(
     return names, columns, {"units": units, "periods": periods}
 
 
+def _longitudinal_regime_payload(
+    data: Any, query: LongitudinalRegimeQuery
+) -> tuple[list[str], list[Any]]:
     """Send the numeric endpoint to Rust; histories remain frozen query metadata."""
     from .quasi import _raw_columns
 
@@ -1964,15 +1967,17 @@ class _PrepareRoute:
             return self._policy_value()
         if isinstance(query, RandomizedEffect):
             return self._randomized_effect()
+        if isinstance(query, SwitchbackEffect):
+            return self._switchback_effect()
         if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
             return self._panel_did()
+        if isinstance(query, SyntheticControl):
+            return self._synthetic_control()
         if isinstance(query, LongitudinalRegimeQuery):
             return self._longitudinal_regime()
         if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
             return self._survival()
         if self.discovery is not None:
-        if isinstance(query, SyntheticControl):
-            return self._synthetic_control()
             return self._graph_posterior()
         if self.graph is None:
             raise CausalValueError("PreparedAnalysis.prepare requires graph= or discovery=")
@@ -2515,6 +2520,28 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _switchback_effect(self) -> tuple[Any, Literal["average"]]:
+        query = cast(SwitchbackEffect, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                "SwitchbackEffect carries its randomization design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        self._refuse_ids("SwitchbackEffect")
+        self._refuse_estimator_config("SwitchbackEffect")
+        if self._explicit_refute():
+            raise CausalUnsupportedError("SwitchbackEffect has no refutation route", reason_code="option_not_applicable")
+        design = query.design
+        n = len(design.realized_assignment)
+        native = _NativePreparedAnalysis.prepare_randomized_effect(
+            self.names, self.columns, query.outcome,
+            list(design.realized_assignment), list(design.assignment_probabilities),
+            list(design.sequence_ids), [f"switchback-row-{i}" for i in range(n)],
+            tuple(design.treatment_arms), "switchback",
+            periods=list(design.period_ids), accepted=False, **self._common(),
+        )
+        return native, "average"
+
     def _randomized_effect(self) -> tuple[Any, Literal["average"]]:
         query = cast(RandomizedEffect, self.query)
         if self.graph is not None or self.discovery is not None:
@@ -2616,6 +2643,27 @@ class _PrepareRoute:
             )
         return native, "average"
 
+    def _synthetic_control(self) -> tuple[Any, Literal["average"]]:
+        query = cast(SyntheticControl, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", "SyntheticControl")
+        self._refuse_ids("SyntheticControl")
+        self._refuse_estimator_config("SyntheticControl")
+        if self._explicit_refute() or self.bootstrap:
+            raise _not_applicable("refute/bootstrap", "SyntheticControl")
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise _not_applicable("inference", "SyntheticControl")
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("synthetic-control design columns were not bound at prepare")
+        native = _NativePreparedAnalysis.prepare_synthetic_control(
+            self.names, self.columns, query.outcome,
+            list(design["units"]), list(design["periods"]),
+            query.treated_unit, query.intervention_period,
+            accepted=False, **self._common()
+        )
+        return native, "average"
+
     def _survival(self) -> tuple[Any, Literal["average"]]:
         from .observation import IndependentGiven
 
@@ -2643,27 +2691,6 @@ class _PrepareRoute:
                 reason_code="route_not_supported",
             )
         assumption = query.observation_assumption
-    def _synthetic_control(self) -> tuple[Any, Literal["average"]]:
-        query = cast(SyntheticControl, self.query)
-        if self.graph is not None or self.discovery is not None:
-            raise _not_applicable("graph/discovery", "SyntheticControl")
-        self._refuse_ids("SyntheticControl")
-        self._refuse_estimator_config("SyntheticControl")
-        if self._explicit_refute() or self.bootstrap:
-            raise _not_applicable("refute/bootstrap", "SyntheticControl")
-        if self.inference is not None and not isinstance(self.inference, Frequentist):
-            raise _not_applicable("inference", "SyntheticControl")
-        design = self.design_columns
-        if design is None:
-            raise CausalValueError("synthetic-control design columns were not bound at prepare")
-        native = _NativePreparedAnalysis.prepare_synthetic_control(
-            self.names, self.columns, query.outcome,
-            list(design["units"]), list(design["periods"]),
-            query.treated_unit, query.intervention_period,
-            accepted=False, **self._common()
-        )
-        return native, "average"
-
         if not isinstance(assumption, IndependentGiven) or tuple(assumption.variables):
             raise CausalUnsupportedError(
                 "the unadjusted survival route requires an explicit marginal IndependentGiven(()) censoring and entry assumption",
@@ -3915,6 +3942,8 @@ class PreparedAnalysis(Generic[ResultT]):
         if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl)):
             if isinstance(query, StaggeredAdoption):
                 names, columns, design_columns = _staggered_payload(data, query)
+            elif isinstance(query, SyntheticControl):
+                names, columns, design_columns = _synthetic_control_payload(data, query)
             else:
                 names, columns, design_columns = _panel_did_payload(data, query)
             frame = None
@@ -3942,8 +3971,6 @@ class PreparedAnalysis(Generic[ResultT]):
             names=names,
             columns=columns,
             frame=frame,
-            elif isinstance(query, SyntheticControl):
-                names, columns, design_columns = _synthetic_control_payload(data, query)
             query=query,
             graph=graph,
             discovery=discovery,
@@ -4217,6 +4244,7 @@ class PreparedAnalysis(Generic[ResultT]):
         if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl)):
             names, columns, design = (
                 _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
+                else _synthetic_control_payload(data, query) if isinstance(query, SyntheticControl)
                 else _panel_did_payload(data, query)
             )
             if design != self._design_columns:
@@ -4244,7 +4272,6 @@ class PreparedAnalysis(Generic[ResultT]):
         | CausalResponseView
         | StatisticalTransportDistribution
         | TransportResponseGrid
-                else _synthetic_control_payload(data, query) if isinstance(query, SyntheticControl)
     ):
         if self._kind in ("response_curve", "intervention_response"):
             query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None

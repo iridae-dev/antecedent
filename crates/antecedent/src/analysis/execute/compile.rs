@@ -616,6 +616,9 @@ impl super::Study {
                             | antecedent_core::RandomizationDesign::Cluster { .. } => {
                                 "randomized.neyman_itt"
                             }
+                            antecedent_core::RandomizationDesign::Switchback { .. } => {
+                                "randomized.switchback_ht_itt"
+                            }
                         })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
@@ -697,9 +700,6 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
-            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
-                let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Survival(q) = &self.query else { unreachable!() };
             (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::SyntheticControl(q) = &self.query else { unreachable!() };
@@ -722,6 +722,9 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Survival(q) = &self.query else { unreachable!() };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
                     .into_iter()
@@ -1002,10 +1005,10 @@ impl super::Study {
             (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
-            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
-            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
+            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {

@@ -91,6 +91,7 @@ class SwitchbackEffect:
 
     outcome: str
     design: SwitchbackDesign
+    kind: Literal["switchback_effect"] = field(default="switchback_effect", init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
@@ -421,11 +422,15 @@ class RandomizedEffect:
 
 @dataclass(frozen=True, slots=True)
 class RandomizedExperimentEstimate:
-    """Native design-based estimate that retains its experiment unit mapping."""
+    """Native randomized estimate with retained design and unit mapping.
+
+    The legacy ``variance_upper_bound`` field is a sequence sandwich variance
+    estimate for switchback designs. Read ``uncertainty`` for its semantics.
+    """
 
     effect: float
     variance_upper_bound: float
-    assignment_design: Literal["bernoulli", "complete", "cluster", "stratified"]
+    assignment_design: Literal["bernoulli", "complete", "cluster", "stratified", "switchback"]
     assignment_units: tuple[str, ...]
     outcome_units: tuple[str, ...]
     blocks: tuple[str, ...] | None
@@ -435,6 +440,12 @@ class RandomizedExperimentEstimate:
     minimum_assignment_probability: float
     uncertainty: str
     support_status: str
+    periods: tuple[str, ...] | None = None
+
+    @property
+    def variance(self) -> float:
+        """Design-aware variance estimate or bound identified by ``uncertainty``."""
+        return self.variance_upper_bound
 
 
 @dataclass(frozen=True, slots=True)

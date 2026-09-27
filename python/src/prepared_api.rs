@@ -3362,7 +3362,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, accepted=false, seed=1, threads=None,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3381,6 +3381,7 @@ impl PyPreparedAnalysis {
         treated_per_row: Option<Vec<usize>>,
         treated_clusters: Option<usize>,
         fixed_cuped: Option<(String, f64)>,
+        periods: Option<Vec<String>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3413,9 +3414,13 @@ impl PyPreparedAnalysis {
                     treated_clusters: treated_clusters
                         .ok_or_else(|| py_msg("cluster randomization requires treated_clusters"))?,
                 },
+                "switchback" => antecedent_core::RandomizationDesign::Switchback {
+                    periods: periods.ok_or_else(|| py_msg("switchback randomization requires periods"))?
+                        .into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                },
                 _ => {
                     return Err(py_msg(
-                        "design_kind must be bernoulli, complete, stratified, or cluster",
+                        "design_kind must be bernoulli, complete, stratified, cluster, or switchback",
                     ));
                 }
             };
@@ -3540,11 +3545,6 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Freeze a known-randomization longitudinal regime value over whole subjects.
-            Ok(finished_prepared(prepared, names, false))
-        })
-    }
-
     /// Freeze one treated unit and its balanced donor pool for native synthetic control.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
@@ -3571,6 +3571,11 @@ impl PyPreparedAnalysis {
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a known-randomization longitudinal regime value over whole subjects.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
