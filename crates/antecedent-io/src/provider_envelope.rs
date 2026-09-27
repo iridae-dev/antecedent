@@ -90,9 +90,13 @@ fn count(shape: &[usize]) -> Option<usize> {
 
 fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
     let h = &envelope.header;
-    if h.version != 1 { return Err("unsupported provider envelope version".into()); }
-    if !nonempty(&h.provider) || !nonempty(&h.query_family)
-        || !nonempty(&h.uncertainty_semantics) || !nonempty(&h.provider_support_status)
+    if h.version != 1 {
+        return Err("unsupported provider envelope version".into());
+    }
+    if !nonempty(&h.provider)
+        || !nonempty(&h.query_family)
+        || !nonempty(&h.uncertainty_semantics)
+        || !nonempty(&h.provider_support_status)
         || h.assumptions.iter().any(|assumption| !nonempty(assumption))
     {
         return Err("provider envelope requires non-empty identity and claims".into());
@@ -125,16 +129,18 @@ fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
     }
     match (&h.uncertainty, &h.uncertainty_shape) {
         (None, None) => {}
-        (Some(values), Some(shape)) if h.uncertainty_semantics != "point_only"
-            && (shape.is_empty() || shape == &h.shape)
-            && count(shape) == Some(values.len())
-            && values.iter().all(|value| value.is_finite()) => {}
+        (Some(values), Some(shape))
+            if h.uncertainty_semantics != "point_only"
+                && (shape.is_empty() || shape == &h.shape)
+                && count(shape) == Some(values.len())
+                && values.iter().all(|value| value.is_finite()) => {}
         _ => return Err("provider uncertainty shape or semantics are invalid".into()),
     }
     match (&envelope.external_artifact, &h.external_artifact_digest) {
         (None, None) => {}
-        (Some(artifact), Some(digest)) if artifact.len() <= MAX_ARTIFACT
-            && digest == &blake3::hash(artifact).to_hex().to_string() => {}
+        (Some(artifact), Some(digest))
+            if artifact.len() <= MAX_ARTIFACT
+                && digest == &blake3::hash(artifact).to_hex().to_string() => {}
         _ => return Err("provider artifact digest or size is invalid".into()),
     }
     Ok(())
@@ -143,11 +149,15 @@ fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
 /// Validate and seal an external result through the native fixed envelope.
 /// The opaque provider artifact is retained byte for byte.
 pub fn seal_provider_envelope(mut envelope: ProviderEnvelope) -> Result<Vec<u8>, String> {
-    envelope.header.external_artifact_digest = envelope.external_artifact.as_ref()
+    envelope.header.external_artifact_digest = envelope
+        .external_artifact
+        .as_ref()
         .map(|artifact| blake3::hash(artifact).to_hex().to_string());
     validate(&envelope)?;
     let header = serde_json::to_vec(&envelope.header).map_err(|error| error.to_string())?;
-    if header.len() > MAX_HEADER { return Err("provider envelope header is too large".into()); }
+    if header.len() > MAX_HEADER {
+        return Err("provider envelope header is too large".into());
+    }
     let artifact = envelope.external_artifact.as_deref().unwrap_or(&[]);
     let mut bytes = Vec::with_capacity(MAGIC.len() + 8 + header.len() + artifact.len() + 32);
     bytes.extend_from_slice(MAGIC);
@@ -175,8 +185,10 @@ pub fn open_verified_provider_envelope(
     expected_request_digest: &str,
     expected_evidence_digest: &str,
 ) -> Result<ProviderEnvelope, String> {
-    decode_provider_envelope(bytes, Some((expected_spec_digest, expected_request_digest,
-        expected_evidence_digest)))
+    decode_provider_envelope(
+        bytes,
+        Some((expected_spec_digest, expected_request_digest, expected_evidence_digest)),
+    )
 }
 
 fn decode_provider_envelope(
@@ -187,11 +199,18 @@ fn decode_provider_envelope(
     if bytes.len() < prefix + 32 || &bytes[..MAGIC.len()] != MAGIC {
         return Err("provider envelope magic or length is invalid".into());
     }
-    let header_len = u32::from_le_bytes(bytes[MAGIC.len()..MAGIC.len() + 4]
-        .try_into().map_err(|_| "provider header length is invalid")?) as usize;
-    let artifact_len = u32::from_le_bytes(bytes[MAGIC.len() + 4..prefix]
-        .try_into().map_err(|_| "provider artifact length is invalid")?) as usize;
-    if header_len > MAX_HEADER || artifact_len > MAX_ARTIFACT
+    let header_len = u32::from_le_bytes(
+        bytes[MAGIC.len()..MAGIC.len() + 4]
+            .try_into()
+            .map_err(|_| "provider header length is invalid")?,
+    ) as usize;
+    let artifact_len = u32::from_le_bytes(
+        bytes[MAGIC.len() + 4..prefix]
+            .try_into()
+            .map_err(|_| "provider artifact length is invalid")?,
+    ) as usize;
+    if header_len > MAX_HEADER
+        || artifact_len > MAX_ARTIFACT
         || bytes.len() != prefix + header_len + artifact_len + 32
     {
         return Err("provider envelope section lengths are invalid".into());
@@ -200,20 +219,22 @@ fn decode_provider_envelope(
     if blake3::hash(signed).as_bytes() != &bytes[bytes.len() - 32..] {
         return Err("provider envelope checksum mismatch".into());
     }
-    let header: ProviderEnvelopeHeader = serde_json::from_slice(&bytes[prefix..prefix + header_len])
-        .map_err(|error| error.to_string())?;
+    let header: ProviderEnvelopeHeader =
+        serde_json::from_slice(&bytes[prefix..prefix + header_len])
+            .map_err(|error| error.to_string())?;
     if header.external_artifact_digest.is_none() && artifact_len != 0 {
         return Err("provider envelope carries an unclaimed artifact section".into());
     }
     match (header.trust, expected_verification) {
         (ExternalProviderTrust::ExternallyAttested, None) => {}
         (ExternalProviderTrust::VerifiedExtension, Some((spec, request, evidence)))
-            if header.spec_digest == spec && header.request_digest == request
+            if header.spec_digest == spec
+                && header.request_digest == request
                 && header.verification_evidence_digest.as_deref() == Some(evidence) => {}
         _ => return Err("provider envelope trust requires matching host verification".into()),
     }
-    let external_artifact = (header.external_artifact_digest.is_some()).then(||
-        bytes[prefix + header_len..prefix + header_len + artifact_len].to_vec());
+    let external_artifact = (header.external_artifact_digest.is_some())
+        .then(|| bytes[prefix + header_len..prefix + header_len + artifact_len].to_vec());
     let envelope = ProviderEnvelope { header, external_artifact };
     validate(&envelope)?;
     Ok(envelope)
@@ -233,8 +254,10 @@ mod tests {
                 spec_digest: "a".repeat(64),
                 request_digest: "b".repeat(64),
                 verification_evidence_digest: None,
-                estimate: vec![2.0], shape: vec![],
-                uncertainty: None, uncertainty_shape: None,
+                estimate: vec![2.0],
+                shape: vec![],
+                uncertainty: None,
+                uncertainty_shape: None,
                 uncertainty_semantics: "point_only".into(),
                 assumptions: vec!["backdoor adjustment".into()],
                 provider_support_status: "caller_asserted".into(),

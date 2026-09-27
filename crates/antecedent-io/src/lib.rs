@@ -41,6 +41,7 @@ pub mod posterior;
 pub mod posterior_convert;
 pub mod prior_bank;
 pub mod provenance_wire;
+pub mod provider_envelope;
 pub mod query_wire;
 pub mod reader;
 pub mod response_wire;
