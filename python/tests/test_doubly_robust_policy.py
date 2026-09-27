@@ -138,3 +138,41 @@ def test_retained_policy_value_honors_capacity_budget_and_availability():
             ),
             refute="none",
         )
+
+
+def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
+    query = policy.PolicyValue(
+        outcome="y",
+        assignment=[False, True, False, True],
+        propensity=0.5,
+        policy=policy.BinaryPolicy([False, True, False, True]),
+        evaluation_subject_ids=["a", "b", "c", "d"],
+    )
+    result = ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none")
+    assert result.policy_value.policy_value == pytest.approx(4.0)
+    assert result.policy_value.reference_value == pytest.approx(1.0)
+    assert result.policy_value.incremental_value == pytest.approx(3.0)
+    assert result.policy_value.prediction_ownership == "no_outcome_nuisance_predictions"
+    assert result.policy_value.uncertainty == "ipw_row_score_standard_error_independent_subjects"
+    assert result.policy_value.policy_value_standard_error >= 0
+    direct = policy.evaluate_policy(
+        {"y": [1.0, 3.0, 1.0, 3.0]}, outcome="y",
+        assignment=query.assignment, propensity=query.propensity, policy=query.policy,
+    )
+    assert result.policy_value.policy_value == pytest.approx(direct.policy_value)
+    assert result.policy_value.incremental_value == pytest.approx(direct.incremental_value)
+    artifact = ant.load(result.export(artifact_id="policy-ipw"))
+    assert artifact.answer.structured["uncertainty"] == result.policy_value.uncertainty
+
+    with pytest.raises(CausalValueError, match="supplied together"):
+        policy.PolicyValue(
+            outcome="y", assignment=[False, True], propensity=0.5,
+            policy=policy.BinaryPolicy([False, True]),
+            evaluation_subject_ids=["a", "b"], mu0=[1.0, 1.0],
+        )
+    with pytest.raises(CausalValueError, match="requires mu0 and mu1"):
+        policy.PolicyValue(
+            outcome="y", assignment=[False, True], propensity=0.5,
+            policy=policy.BinaryPolicy([False, True]),
+            evaluation_subject_ids=["a", "b"], training_subject_ids=["train"],
+        )

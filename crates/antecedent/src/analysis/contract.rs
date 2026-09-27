@@ -3076,10 +3076,10 @@ fn result_reasoning(
             false,
         ));
     }
-    if body.policy_value.is_some() {
+    if let Some(policy) = &body.policy_value {
         components.push(UncertaintyComponent::new(
             UncertaintySource::Sampling,
-            "policy_value_row_score_standard_error_independent_subjects",
+            format!("policy_value_{}", policy.uncertainty),
             false,
         ));
     }
@@ -3234,7 +3234,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         prediction_ownership: policy.prediction_ownership.to_string(),
         propensity_min: policy.propensity_min,
         propensity_max: policy.propensity_max,
-        uncertainty: "row_score_standard_error_independent_subjects".into(),
+        uncertainty: policy.uncertainty.to_string(),
     });
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),

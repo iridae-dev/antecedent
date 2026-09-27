@@ -34,6 +34,8 @@ pub struct PolicyValueSection {
     pub propensity_min: f64,
     /// Propensity support maximum.
     pub propensity_max: f64,
+    /// Native estimator uncertainty semantics.
+    pub uncertainty: String,
 }
 
 impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
@@ -51,6 +53,7 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             prediction_ownership: value.prediction_ownership.to_string(),
             propensity_min: value.propensity_min,
             propensity_max: value.propensity_max,
+            uncertainty: value.uncertainty.to_string(),
         }
     }
 }

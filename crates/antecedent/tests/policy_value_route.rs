@@ -60,3 +60,27 @@ fn policy_query_refuses_missing_ownership_or_overlap() {
     invalid.propensity = Arc::from([0.0]);
     assert!(invalid.validate().is_err());
 }
+
+#[test]
+fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
+    let y = [1.0, 3.0, 1.0, 3.0];
+    let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
+    let mut q = query();
+    q.mu0 = Arc::from([]);
+    q.mu1 = Arc::from([]);
+    q.disjoint_training_subjects = false;
+    let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q)).build().unwrap();
+    let ctx = ExecutionContext::for_tests(42);
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let answer = result.policy_value.as_ref().unwrap();
+    assert!((answer.policy_value - 4.0).abs() < 1e-12);
+    assert!((answer.reference_value - 1.0).abs() < 1e-12);
+    assert!((answer.incremental_value - 3.0).abs() < 1e-12);
+    assert_eq!(answer.prediction_ownership.as_ref(), "no_outcome_nuisance_predictions");
+    assert_eq!(answer.uncertainty.as_ref(), "ipw_row_score_standard_error_independent_subjects");
+    let bytes = prepared.encode_contracted_result(&result, "policy-ipw", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().uncertainty, answer.uncertainty.as_ref());
+    assert_eq!(body.estimate, None);
+}

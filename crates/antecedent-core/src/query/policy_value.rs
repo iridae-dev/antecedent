@@ -21,7 +21,7 @@ pub struct PolicyValueQuery {
     pub actions: Arc<[bool]>,
     /// Reference policy (all control when omitted).
     pub reference: Arc<[bool]>,
-    /// Frozen control and treated conditional outcome predictions.
+    /// Frozen control predictions; both prediction vectors may be empty for IPW.
     pub mu0: Arc<[f64]>,
     /// Frozen treated conditional outcome predictions.
     pub mu1: Arc<[f64]>,
@@ -41,11 +41,11 @@ impl PolicyValueQuery {
     /// Validate frozen row-aligned policy value inputs and positivity.
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.assignment.len();
+        let ipw = self.mu0.is_empty() && self.mu1.is_empty();
         if n < 2
             || self.actions.len() != n
             || self.reference.len() != n
-            || self.mu0.len() != n
-            || self.mu1.len() != n
+            || (!ipw && (self.mu0.len() != n || self.mu1.len() != n))
             || self.evaluation_subject_ids.len() != n
             || !(self.propensity.len() == 1 || self.propensity.len() == n)
             || !(self.costs.len() == 1 || self.costs.len() == n)
@@ -75,7 +75,12 @@ impl PolicyValueQuery {
                     .into(),
             ));
         }
-        if !(self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
+        if ipw && (self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
+            return Err(QueryError::InvalidPolicyValue(
+                "IPW has no nuisance prediction ownership metadata".into(),
+            ));
+        }
+        if !ipw && !(self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
             return Err(QueryError::InvalidPolicyValue(
                 "prediction ownership requires disjoint training IDs or matching excluded-fold metadata".into(),
             ));
@@ -117,6 +122,17 @@ mod tests {
         assert!(query.validate().is_err());
         query = valid();
         query.propensity = Arc::from([0.0]);
+        assert!(query.validate().is_err());
+    }
+
+    #[test]
+    fn ipw_requires_no_nuisance_ownership_but_refuses_partial_predictions() {
+        let mut query = valid();
+        query.mu0 = Arc::from([]);
+        query.mu1 = Arc::from([]);
+        query.disjoint_training_subjects = false;
+        assert!(query.validate().is_ok());
+        query.mu0 = Arc::from([1.0, 1.0]);
         assert!(query.validate().is_err());
     }
 }

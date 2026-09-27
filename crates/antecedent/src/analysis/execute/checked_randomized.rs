@@ -440,17 +440,19 @@ impl CheckedPolicyValueOperation {
                 });
             }
         };
-        let score = antecedent_estimate::policy_value::evaluate_policy_value_scores(
-            y,
-            &self.query.assignment,
-            &self.query.actions,
-            &self.query.propensity,
-            &self.query.mu0,
-            &self.query.mu1,
-            &self.query.reference,
-            &self.query.costs,
-            &self.query.reference_costs,
-        )
+        let ipw = self.query.mu0.is_empty();
+        let score = if ipw {
+            antecedent_estimate::policy_value::evaluate_policy_value_ipw_scores(
+                y, &self.query.assignment, &self.query.actions, &self.query.propensity,
+                &self.query.reference, &self.query.costs, &self.query.reference_costs,
+            )
+        } else {
+            antecedent_estimate::policy_value::evaluate_policy_value_scores(
+                y, &self.query.assignment, &self.query.actions, &self.query.propensity,
+                &self.query.mu0, &self.query.mu1, &self.query.reference,
+                &self.query.costs, &self.query.reference_costs,
+            )
+        }
         .map_err(|message| CausalError::Unsupported { message })?;
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -466,15 +468,19 @@ impl CheckedPolicyValueOperation {
                     OverlapPolicy::ExplicitOverride,
                 ),
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedDrPolicy,
+                estimator_id: if ipw { EstimatorId::RandomizedIpwPolicy } else { EstimatorId::RandomizedDrPolicy },
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.policy_value.doubly_robust",
+                    if ipw { "estimate.policy_value.ipw" } else { "estimate.policy_value.doubly_robust" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "held-out randomized AIPW policy value; row-score standard errors assume independent subjects",
+                    if ipw {
+                        "fixed randomized IPW policy value; row-score standard errors assume independent subjects"
+                    } else {
+                        "held-out randomized AIPW policy value; row-score standard errors assume independent subjects"
+                    },
                 )],
                 refutations: Vec::new(),
                 distribution: None,
@@ -498,13 +504,20 @@ impl CheckedPolicyValueOperation {
             policy_standard_error: score.policy_standard_error,
             reference_standard_error: score.reference_standard_error,
             incremental_standard_error: score.incremental_standard_error,
-            prediction_ownership: Arc::from(if self.query.disjoint_training_subjects {
+            prediction_ownership: Arc::from(if ipw {
+                "no_outcome_nuisance_predictions"
+            } else if self.query.disjoint_training_subjects {
                 "declared_disjoint_training_subject_ids"
             } else {
                 "caller_declared_cross_fitted_excluded_fold_ids"
             }),
             propensity_min: score.propensity_min,
             propensity_max: score.propensity_max,
+            uncertainty: Arc::from(if ipw {
+                "ipw_row_score_standard_error_independent_subjects"
+            } else {
+                "row_score_standard_error_independent_subjects"
+            }),
         });
         Ok(result)
     }

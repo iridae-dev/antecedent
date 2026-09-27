@@ -326,6 +326,8 @@ pub enum EstimatorId {
     RandomizedNeyman,
     /// Doubly robust held-out policy value under known randomized propensities.
     RandomizedDrPolicy,
+    /// Fixed-policy inverse-probability value under known randomized propensities.
+    RandomizedIpwPolicy,
     /// Randomized product-limit survival/RMST or competing-risk incidence.
     RandomizedSurvivalProductLimit,
     /// Prespecified sequential inverse-probability regime value.
@@ -736,6 +738,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.policy_value.doubly_robust",
             ),
         },
+        EstimatorId::RandomizedIpwPolicy => EstimatorData {
+            name: "randomized.ipw_policy",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.ipw_policy",
+            provenance: ("estimate.policy_value.ipw", "estimate.policy_value.ipw"),
+        },
         EstimatorId::RandomizedSurvivalProductLimit => EstimatorData {
             name: "randomized.survival_product_limit",
             parallel_task_dimension: "analysis",
@@ -988,6 +996,7 @@ pub fn validate_static_pair(
             EstimatorId::RandomizedHt
             | EstimatorId::RandomizedNeyman
             | EstimatorId::RandomizedDrPolicy
+            | EstimatorId::RandomizedIpwPolicy
             | EstimatorId::RandomizedSurvivalProductLimit
             | EstimatorId::LongitudinalIpwRegime,
         )
@@ -1159,7 +1168,9 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::RandomizedHt | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
-        EstimatorId::RandomizedDrPolicy => matches!(method, EstimandMethod::RandomizedItt),
+        EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy => {
+            matches!(method, EstimandMethod::RandomizedItt)
+        }
         EstimatorId::RandomizedSurvivalProductLimit => false,
         EstimatorId::LongitudinalIpwRegime => false,
     }

@@ -212,19 +212,21 @@ class DoublyRobustPolicyEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class PolicyValue:
-    """Immutable query spec for held-out doubly robust binary policy value.
+    """Immutable query for randomized binary policy value.
 
     Policy constraints and action availability are checked on the evaluation
-    rows before the retained native study is prepared.
+    rows before the retained native study is prepared. Omit both ``mu0`` and
+    ``mu1`` for a fixed-policy IPW estimate. Supply both predictions with
+    disjoint training subjects or excluded-fold metadata for AIPW.
     """
 
     outcome: str
     assignment: Sequence[bool]
     propensity: float | Sequence[float]
     policy: BinaryPolicy
-    mu0: Sequence[float]
-    mu1: Sequence[float]
     evaluation_subject_ids: Sequence[str]
+    mu0: Sequence[float] | None = None
+    mu1: Sequence[float] | None = None
     training_subject_ids: Sequence[str] | None = None
     fold_ids: Sequence[int] | None = None
     prediction_excluded_fold_ids: Sequence[int] | None = None
@@ -245,13 +247,33 @@ class PolicyValue:
             not isinstance(value, (bool, np.bool_)) for value in self.available
         ):
             raise CausalValueError("available entries must be bool values")
-        ownership = _prediction_ownership(
-            self.evaluation_subject_ids, len(self.policy.actions), self.training_subject_ids,
-            self.fold_ids, self.prediction_excluded_fold_ids,
-        )
+        if (self.mu0 is None) != (self.mu1 is None):
+            raise CausalValueError("mu0 and mu1 must be supplied together")
+        if self.mu0 is not None:
+            n = len(self.policy.actions)
+            if len(self.mu0) != n or len(self.mu1) != n or not all(
+                isfinite(float(value)) for value in (*self.mu0, *self.mu1)
+            ):
+                raise CausalValueError("mu0 and mu1 must have one finite prediction per evaluation row")
+        if self.mu0 is None:
+            ids = list(self.evaluation_subject_ids)
+            if len(ids) != len(self.policy.actions) or any(
+                not isinstance(value, str) or not value for value in ids
+            ) or len(set(ids)) != len(ids):
+                raise CausalValueError("evaluation_subject_ids must be unique non-empty IDs for every row")
+            if any(value is not None for value in (
+                self.training_subject_ids, self.fold_ids, self.prediction_excluded_fold_ids,
+            )):
+                raise CausalValueError("prediction ownership metadata requires mu0 and mu1")
+            ownership = "no_outcome_nuisance_predictions"
+        else:
+            ownership = _prediction_ownership(
+                self.evaluation_subject_ids, len(self.policy.actions), self.training_subject_ids,
+                self.fold_ids, self.prediction_excluded_fold_ids,
+            )
         object.__setattr__(self, "assignment", tuple(bool(v) for v in self.assignment))
-        object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0))
-        object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1))
+        object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0) if self.mu0 is not None else ())
+        object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1) if self.mu1 is not None else ())
         object.__setattr__(self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids))
         if self.available is not None:
             object.__setattr__(self, "available", tuple(self.available))

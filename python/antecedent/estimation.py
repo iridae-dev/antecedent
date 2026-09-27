@@ -372,6 +372,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
     section = getattr(raw, "policy_value", None)
     if section is None:
         return None
+    ipw = section.prediction_ownership == "no_outcome_nuisance_predictions"
     return DoublyRobustPolicyEvaluation(
         policy_value=section.policy_value,
         reference_value=section.reference_value,
@@ -385,6 +386,23 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
+        uncertainty=section.uncertainty,
+        evaluation_method=(
+            "randomized_ipw_fixed_policy" if ipw
+            else "doubly_robust_randomized_heldout_or_cross_fitted"
+        ),
+        assumptions=(
+            (
+                "Known randomized treatment propensities with strict treatment overlap.",
+                "Consistency and no interference between evaluation subjects.",
+                "The policy and reference were fixed without using evaluation outcomes.",
+            ) if ipw else (
+                "Known randomized treatment propensities with strict treatment overlap.",
+                "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
+                "Consistency and no interference between evaluation subjects.",
+                "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
+            )
+        ),
     )
 
 
