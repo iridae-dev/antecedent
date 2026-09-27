@@ -74,6 +74,9 @@ pub struct FixedCandidateRegret {
     pub candidate_values: Vec<f64>,
     /// Plug-in best-candidate minus selected-candidate value.
     pub regret: f64,
+    /// Paired standard error of each candidate-minus-selected contrast, in
+    /// candidate order. The selected member has a zero contrast and SE.
+    pub contrast_standard_errors: Vec<f64>,
     /// Simultaneous 95% interval for finite-class regret. It covers all paired
     /// candidate contrasts through a Bonferroni family bound.
     pub interval_95: [f64; 2],
@@ -132,6 +135,7 @@ pub fn evaluate_fixed_candidate_regret(
     let mut lower: f64 = 0.0;
     let mut upper: f64 = 0.0;
     let mut regret: f64 = 0.0;
+    let mut contrast_standard_errors = vec![0.0; k];
     for (j, candidate) in scores.iter().enumerate() {
         if j == selected_index { continue; }
         let difference = means[j] - means[selected_index];
@@ -144,11 +148,12 @@ pub fn evaluate_fixed_candidate_regret(
             return Err("finite-class regret paired scores must have finite variance");
         }
         regret = regret.max(difference);
+        contrast_standard_errors[j] = variance.sqrt();
         lower = lower.max(difference - span);
         upper = upper.max(difference + span);
     }
     Ok(FixedCandidateRegret {
-        candidate_values: means, regret,
+        candidate_values: means, regret, contrast_standard_errors,
         interval_95: [lower, upper], selected_index,
     })
 }
