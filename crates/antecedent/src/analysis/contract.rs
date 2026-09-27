@@ -3412,6 +3412,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 value: regime.value,
                 value_standard_error: regime.value_standard_error,
                 value_interval_95: regime.value_interval_95,
+                period_intervals_95: regime.period_intervals_95.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
                 interval_reason: regime.interval_reason.as_ref().map(ToString::to_string),
                 effective_sample_size: regime.effective_sample_size,
                 matched_observed_fraction: regime.matched_observed_fraction,

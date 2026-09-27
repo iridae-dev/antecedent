@@ -18,6 +18,7 @@ pub struct LongitudinalRegimeSection {
     pub value: f64,
     pub value_standard_error: Option<f64>,
     pub value_interval_95: Option<(f64, f64)>,
+    pub period_intervals_95: Option<Vec<(f64, f64)>>,
     pub interval_reason: Option<String>,
     pub effective_sample_size: f64,
     pub matched_observed_fraction: f64,
@@ -42,6 +43,8 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
             value: value.value,
             value_standard_error: value.value_standard_error,
             value_interval_95: value.value_interval_95.map(|bounds| (bounds[0], bounds[1])),
+            period_intervals_95: value.period_intervals_95.as_ref().map(|intervals|
+                intervals.iter().map(|bounds| (bounds[0], bounds[1])).collect()),
             interval_reason: value.interval_reason.as_ref().map(ToString::to_string),
             effective_sample_size: value.effective_sample_size,
             matched_observed_fraction: value.matched_observed_fraction,

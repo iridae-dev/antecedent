@@ -458,6 +458,7 @@ class LongitudinalRegimeSection:
     value: float
     value_standard_error: float | None
     value_interval_95: tuple[float, float] | None
+    period_intervals_95: list[tuple[float, float]] | None
     interval_reason: str | None
     effective_sample_size: float
     matched_observed_fraction: float
