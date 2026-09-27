@@ -33,12 +33,13 @@ struct Contrast {
 }
 
 #[test]
-fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth() {
+fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings() {
     let contrasts = [
         Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.5), to: (1.0, 0.5) },
         Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (0.0, 1.0) },
         Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (1.0, 1.0) },
         Contrast { mapping: ExposureMapping::WeightedNeighborExposure, from: (0.0, 1.0 / 3.0), to: (1.0, 1.0 / 3.0) },
+        Contrast { mapping: ExposureMapping::NeighborCount, from: (0.0, 1.0), to: (1.0, 1.0) },
     ];
     let edges = (0..CLUSTERS).flat_map(|cluster| {
         (0..UNITS_PER_CLUSTER).flat_map(move |within| {
@@ -51,9 +52,9 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
     }).collect::<Vec<_>>();
     let clusters = (0..CLUSTERS).flat_map(|id| [id as u32; UNITS_PER_CLUSTER]).collect::<Vec<_>>();
     let mut state = 0x8A43_F5D2_0977_141B;
-    let mut accepted = [0_u32; 4];
-    let mut covered = [0_u32; 4];
-    for trial in 0..400 {
+    let mut accepted = [0_u32; 5];
+    let mut covered = [0_u32; 5];
+    for trial in 0..2_000 {
         let mut permutation = (0..CLUSTERS).collect::<Vec<_>>();
         for index in (1..CLUSTERS).rev() {
             permutation.swap(index, next_u64(&mut state) as usize % (index + 1));
@@ -92,6 +93,7 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
                 let neighbor = match contrast.mapping {
                     ExposureMapping::NeighborFraction => (a + b) / 2.0,
                     ExposureMapping::WeightedNeighborExposure => (a + 2.0 * b) / 3.0,
+                    ExposureMapping::NeighborCount => a + b,
                     _ => unreachable!(),
                 };
                 let own = f64::from(assignment[index]);
@@ -130,9 +132,13 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
         }
     }
     for (index, contrast) in contrasts.iter().enumerate() {
-        assert!(accepted[index] >= 360, "contrast {index} {:?}: interval support {}/400", contrast.mapping, accepted[index]);
-        assert!(covered[index] * 10 >= accepted[index] * 9,
-            "contrast {index} {:?}: coverage {}/{}", contrast.mapping, covered[index], accepted[index]);
+        let rate = covered[index] as f64 / accepted[index] as f64;
+        eprintln!("saturation contrast {index} {:?}: {}/{}, coverage={rate:.4}",
+            contrast.mapping, covered[index], accepted[index]);
+        assert!(accepted[index] >= 1_800,
+            "contrast {index} {:?}: interval support {}/2000", contrast.mapping, accepted[index]);
+        assert!((0.93..=0.97).contains(&rate),
+            "contrast {index} {:?}: coverage {rate}", contrast.mapping);
     }
 }
 
