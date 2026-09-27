@@ -508,6 +508,10 @@ pub struct LocalPolynomialBiasCorrected {
     pub robust_first_derivative_standard_error: f64,
     /// Heteroskedasticity-robust standard error of the bias-corrected second derivative.
     pub robust_second_derivative_standard_error: f64,
+    /// Joint robust covariance of the corrected `(level, slope, curvature)`.
+    /// The level and curvature use the quartic fit; the slope uses the cubic
+    /// fit. Cross-covariances retain their shared observation influences.
+    pub coefficient_covariance: [[f64; 3]; 3],
 }
 
 /// Robust bias-corrected local-quadratic coordinates at `at` (see
@@ -542,12 +546,22 @@ pub fn gaussian_local_quadratic_bias_corrected(
             return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
         }
     }
-    let (cubic, cubic_se) = robust_local_polynomial::<4>(x, y, at, bandwidth, observation_weights)?;
-    let (quartic, quartic_se) =
+    let (cubic, cubic_se, cubic_influence) =
+        robust_local_polynomial::<4>(x, y, at, bandwidth, observation_weights)?;
+    let (quartic, quartic_se, quartic_influence) =
         robust_local_polynomial::<5>(x, y, at, bandwidth, observation_weights)?;
     // Derivative ν of a fitted polynomial in u = (x − at)/h is ν!·γ_ν / h^ν.
     let first_scale = 1.0 / bandwidth;
     let second_scale = 2.0 / (bandwidth * bandwidth);
+    let mut covariance = [[0.0; 3]; 3];
+    for (cubic_row, quartic_row) in cubic_influence.iter().zip(&quartic_influence) {
+        let psi = [quartic_row[0], cubic_row[1] * first_scale, quartic_row[2] * second_scale];
+        for a in 0..3 {
+            for b in 0..3 {
+                covariance[a][b] += psi[a] * psi[b];
+            }
+        }
+    }
     Ok(LocalPolynomialBiasCorrected {
         value: quartic[0],
         first_derivative: cubic[1] * first_scale,
@@ -555,6 +569,7 @@ pub fn gaussian_local_quadratic_bias_corrected(
         robust_standard_error: quartic_se[0],
         robust_first_derivative_standard_error: cubic_se[1] * first_scale,
         robust_second_derivative_standard_error: quartic_se[2] * second_scale,
+        coefficient_covariance: covariance,
     })
 }
 
@@ -567,7 +582,7 @@ fn robust_local_polynomial<const N: usize>(
     at: f64,
     bandwidth: f64,
     observation_weights: Option<&[f64]>,
-) -> Result<([f64; N], [f64; N]), StatsError> {
+) -> Result<([f64; N], [f64; N], Vec<[f64; N]>), StatsError> {
     // Scaled powers keep the Gram well conditioned; the coefficient on u^k is
     // h^k times the coefficient on (x − at)^k.
     let mut gram = [[0.0; N]; N];
@@ -599,14 +614,18 @@ fn robust_local_polynomial<const N: usize>(
     let inverse = inverse_small(gram).ok_or(StatsError::SingularLocalDesign { order: N - 1 })?;
     let gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
     let mut influence_ss = [0.0; N];
+    let mut influences = Vec::with_capacity(rows.len());
     for &(w, row, yi) in &rows {
         let residual = yi - row.iter().zip(gamma).map(|(a, b)| a * b).sum::<f64>();
+        let mut psi = [0.0; N];
         for (k, ss) in influence_ss.iter_mut().enumerate() {
             let hat = inverse[k].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
-            *ss += (w * hat * residual).powi(2);
+            psi[k] = w * hat * residual;
+            *ss += psi[k].powi(2);
         }
+        influences.push(psi);
     }
-    Ok((gamma, influence_ss.map(f64::sqrt)))
+    Ok((gamma, influence_ss.map(f64::sqrt), influences))
 }
 
 /// Gauss–Jordan inverse with partial pivoting for a small dense matrix.
@@ -830,7 +849,7 @@ mod tests {
         let (at, h) = (0.3, 0.5);
         let truth_second = 12.0 * at * at;
         let quadratic = gaussian_local_quadratic(&x, &y, at, h).unwrap();
-        let (cubic, _) = robust_local_polynomial::<4>(&x, &y, at, h, None).unwrap();
+        let (cubic, _, _) = robust_local_polynomial::<4>(&x, &y, at, h, None).unwrap();
         let cubic_second = 2.0 * cubic[2] / (h * h);
         let corrected = gaussian_local_quadratic_bias_corrected(&x, &y, at, h, None).unwrap();
         assert!((quadratic.second_derivative - truth_second).abs() > 0.5);
@@ -888,6 +907,18 @@ mod tests {
         assert!((two_step.value - corrected.value).abs() < 1e-9);
         assert!(corrected.robust_first_derivative_standard_error > 0.0);
         assert!(corrected.robust_second_derivative_standard_error > 0.0);
+        let covariance = corrected.coefficient_covariance;
+        let standard_errors = [
+            corrected.robust_standard_error,
+            corrected.robust_first_derivative_standard_error,
+            corrected.robust_second_derivative_standard_error,
+        ];
+        for a in 0..3 {
+            assert!((covariance[a][a].sqrt() - standard_errors[a]).abs() < 1e-12);
+            for b in 0..3 {
+                assert!((covariance[a][b] - covariance[b][a]).abs() < 1e-18);
+            }
+        }
     }
 
     #[test]
