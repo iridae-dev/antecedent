@@ -387,6 +387,40 @@ def test_staggered_event_study_runs_through_retained_analyze_with_direct_parity(
         antecedent.analyze({**data, "cohort": [3] * len(cohorts)}, query=query)
 
 
+def _staggered_event_interval_fixture(clusters_per_group: int):
+    data = {"y": [], "id": [], "period": [], "cohort": [], "cluster": []}
+    for group, cohort in (("control", 0), ("treated", 3)):
+        for cluster in range(clusters_per_group):
+            identifier = f"{group}-{cluster}"
+            for period in range(1, 5):
+                noise = ((cluster % 7) - 3) * ((period % 3) - 1) / 10
+                data["y"].append(5.0 + 2.0 * period + noise
+                                 + (4.0 if cohort == 3 and period >= 3 else 0.0))
+                data["id"].append(identifier)
+                data["period"].append(period)
+                data["cohort"].append(cohort)
+                data["cluster"].append(identifier)
+    query = StaggeredAdoption("y", "id", "period", "cohort",
+                             cluster="cluster", event_study=True)
+    return data, query
+
+
+def test_staggered_event_known_truth_fixture_spans_thin_and_supported_clusters():
+    import antecedent
+
+    for clusters_per_group in (8, 24):
+        data, query = _staggered_event_interval_fixture(clusters_per_group)
+        result = antecedent.analyze(data, query=query)
+        effects = result.panel_did.effects
+        assert len(effects) == 3
+        for effect, truth in zip(effects, (0.0, 4.0, 4.0), strict=True):
+            assert effect.estimate == pytest.approx(truth)
+            assert effect.standard_error > 0.0
+            assert effect.clusters == 2 * clusters_per_group
+            assert effect.treated_subjects == clusters_per_group
+            assert effect.control_subjects == clusters_per_group
+
+
 def test_staggered_event_study_refuses_no_never_treated_comparison_group():
     with pytest.raises(CausalValueError, match="never-treated controls"):
         estimate_staggered_event_study(
