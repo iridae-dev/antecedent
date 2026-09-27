@@ -443,7 +443,8 @@ def _panel_did_from_raw(
             effects,
             uncertainty=("event_time_pointwise_normal_intervals_independent_clusters" if supported
                          else "cluster_robust_se_only_pointwise_cr1_unlicensed"),
-            support_status=("off_axis_pointwise_95" if supported else "unlicensed_point_utility"),
+            support_status=("licensed" if section.graphless_support_status == "licensed" else
+                            "off_axis_pointwise_95" if supported else "unlicensed_point_utility"),
         )
     repeated = isinstance(query, PanelDifferenceInDifferences) and query.sampling == "repeated_cross_section"
     staggered = isinstance(query, StaggeredAdoption)
