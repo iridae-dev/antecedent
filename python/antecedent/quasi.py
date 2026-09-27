@@ -16,11 +16,10 @@ from ._native import augmented_panel_difference_in_differences as _augmented_pan
 from ._native import difference_in_differences as _difference_in_differences
 from ._native import group_time_att as _group_time_att
 from ._native import local_polynomial_fuzzy_discontinuity as _local_polynomial_fuzzy_discontinuity
-from ._native import panel_difference_in_differences as _panel_difference_in_differences
 from ._native import staggered_event_study as _staggered_event_study
 from ._native import synthetic_control as _synthetic_control
 from ._native import synthetic_difference_in_differences as _synthetic_did
-from .errors import CausalValueError
+from .errors import CausalError, CausalValueError
 
 
 def _binary(values: Sequence[Any], name: str) -> list[bool]:
@@ -552,47 +551,36 @@ def estimate_did(
 def estimate_panel_did(
     data: Any, query: PanelDifferenceInDifferences, *, cluster: str | None = None
 ) -> PanelDifferenceInDifferencesEstimate:
-    """Estimate balanced-panel DiD as the treated-control mean difference in subject changes.
+    """Estimate two-period DiD through the retained native analysis path.
 
-    Standard errors use subject clusters by default, or the optional higher-level
-    cluster column. They use a CR1-style G/(G-1) multiplier on summed influence
-    contributions. Only pointwise SEs are reported; no p-values or intervals.
+    This is the same checked execution used by ``analyze`` and ``prepare``.
+    The optional ``cluster`` overrides the cluster bound in the query.
     """
 
     if not isinstance(query, PanelDifferenceInDifferences):
         raise CausalValueError("query must be a PanelDifferenceInDifferences")
-    if query.sampling == "repeated_cross_section":
-        from ._analyze import analyze
+    from ._analyze import analyze
 
-        effective = replace(query, cluster=cluster) if cluster is not None else query
-        result = analyze(data, query=effective)
-        if result.panel_did is None:
-            raise CausalValueError("repeated-cross-section DiD did not return a DiD section")
-        return result.panel_did
-    names, columns = _raw_columns(data)
-    for name in (query.outcome, query.subject, query.treated, query.post):
-        if name not in names:
-            raise CausalValueError(f"required panel difference-in-differences column {name!r} is missing")
-    if cluster is not None and (not isinstance(cluster, str) or cluster not in names):
-        raise CausalValueError("cluster must name a present cluster column")
-    outcome = np.asarray(columns[names.index(query.outcome)], dtype=np.float64)
-    subjects = list(columns[names.index(query.subject)])
-    if any(not isinstance(subject, str) or not subject for subject in subjects):
-        raise CausalValueError("subject IDs must be non-empty strings")
-    group = _binary(columns[names.index(query.treated)], "treated")
-    period = _binary(columns[names.index(query.post)], "post")
-    clusters = subjects if cluster is None else list(columns[names.index(cluster)])
-    if any(not isinstance(value, str) or not value for value in clusters):
-        raise CausalValueError("cluster IDs must be non-empty strings")
+    effective = replace(query, cluster=cluster) if cluster is not None else query
     try:
-        estimate, standard_error, n_treated, n_control, n_clusters = _panel_difference_in_differences(
-            outcome, subjects, group, period, clusters
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return PanelDifferenceInDifferencesEstimate(
-        float(estimate), float(standard_error), int(n_treated), int(n_control), int(n_clusters)
-    )
+        result = analyze(data, query=effective)
+    except CausalError as error:
+        # Keep the direct utility's historical value-error surface while the
+        # retained analysis path supplies the single numeric implementation.
+        message = str(error)
+        if "cluster SE requires at least two clusters in each group" in message:
+            message = "cluster-robust standard error requires at least two clusters in each treatment group"
+        elif "cluster must be stable within subject" in message:
+            message = "cluster ID must be constant within each subject"
+        elif "treatment must be stable within subject" in message:
+            message = "treatment assignment must be stable within each subject"
+        elif (effective.sampling == "balanced_panel" and
+              "DiD requires at least four aligned rows" in message):
+            message = "each subject must have exactly one pre and one post observation"
+        raise CausalValueError(message) from error
+    if result.panel_did is None:
+        raise CausalValueError("retained DiD result is missing its DiD section")
+    return result.panel_did
 
 
 def _integer_column(values: Sequence[Any], name: str, *, minimum: int) -> list[int]:
