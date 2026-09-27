@@ -57,6 +57,26 @@ use super::prepared::{
     PreparedStudy,
 };
 
+/// Bind an executed graphless license onto the contract's support reasoning.
+///
+/// Every graphless family sets the same four fields once the realized support
+/// status is known: the contract-level `support_status`, then the support
+/// slot's `matrix_status` and `matrix_coordinate`. The per-family coordinate
+/// string is the only thing that differs, so each family supplies it through
+/// `coordinate`, evaluated only when the row is actually licensed.
+fn set_graphless_reasoning(
+    contract: &mut CausalContract,
+    support_status: Option<CellStatus>,
+    coordinate: impl FnOnce() -> Arc<str>,
+) {
+    contract.support_status = support_status;
+    if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
+        support.matrix_status = Arc::from(support_status.map_or("off_axis", CellStatus::as_str));
+        support.matrix_coordinate =
+            (support_status == Some(CellStatus::Licensed)).then(coordinate);
+    }
+}
+
 /// Immutable causal-contract companion. Not a second builder.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -518,152 +538,123 @@ impl PreparedStudy {
         }
         let (mut contract, payloads) = compiled;
         if result.continuous_dose_response.is_some() {
-            contract.support_status = result.support_status;
-            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
-                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
-                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| Arc::from("graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals"));
-            }
+            set_graphless_reasoning(&mut contract, result.support_status, || {
+                Arc::from("graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals")
+            });
         }
         if result.policy_value.is_some() {
-            contract.support_status = result.support_status;
-            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
-                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
-                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| {
-                        let CausalQuery::PolicyValue(query) = self.query() else {
-                            unreachable!("licensed policy result must retain its policy query")
-                        };
-                        let multi = query.multi_action.is_some();
-                        let uplift = query.uplift_bin_count > 0;
-                        let cate = query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty());
-                        let ipw = query.mu0.is_empty();
-                        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
-                            multi, ipw, uplift, cate, query.regret.is_some(),
-                            !ipw && query.crossfit_fold_ownership_valid && !query.disjoint_training_subjects,
-                        );
-                        Arc::from(format!("graphless:policy_value/{design}/{method}/{claim}"))
-                    });
-            }
+            set_graphless_reasoning(&mut contract, result.support_status, || {
+                let CausalQuery::PolicyValue(query) = self.query() else {
+                    unreachable!("licensed policy result must retain its policy query")
+                };
+                let multi = query.multi_action.is_some();
+                let uplift = query.uplift_bin_count > 0;
+                let cate = query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty());
+                let ipw = query.mu0.is_empty();
+                let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
+                    multi, ipw, uplift, cate, query.regret.is_some(),
+                    !ipw && query.crossfit_fold_ownership_valid && !query.disjoint_training_subjects,
+                );
+                Arc::from(format!("graphless:policy_value/{design}/{method}/{claim}"))
+            });
         }
         if result.panel_did.is_some() {
-            contract.support_status = result.support_status;
-            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
-                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
-                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| {
-                        let CausalQuery::PanelDid(query) = self.query() else {
-                            unreachable!("licensed DiD result must retain its DiD query")
-                        };
-                        let (design, method) = if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
-                            ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
-                        } else { ("panel_2x2", "cluster_change_scores_cr1") };
-                        Arc::from(format!("graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"))
-                    });
-            }
+            set_graphless_reasoning(&mut contract, result.support_status, || {
+                let CausalQuery::PanelDid(query) = self.query() else {
+                    unreachable!("licensed DiD result must retain its DiD query")
+                };
+                let (design, method) = if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
+                    ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
+                } else { ("panel_2x2", "cluster_change_scores_cr1") };
+                Arc::from(format!("graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"))
+            });
         }
         if result.survival.is_some() {
-            contract.support_status = result.support_status;
-            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
-                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
-                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| {
-                        // The licensed scalar route is fixed by the query's entry
-                        // and censoring facets. Cumulative incidence never reaches
-                        // this arm; only the paired RMST + horizon survival scalar
-                        // intervals carry a graphless matrix coordinate. The
-                        // simultaneous band is a separate claim carried on the
-                        // band's own `graphless_support_status`, never a matrix
-                        // coordinate, matching the interference precedent.
-                        let CausalQuery::Survival(query) = self.query() else {
-                            unreachable!("licensed survival result must retain its survival query")
-                        };
-                        let design = if query.delayed_entry.is_some() {
-                            "delayed_entry_two_arm_individual_randomized"
-                        } else {
-                            "two_arm_individual_randomized"
-                        };
-                        let method = if query.known_censoring.is_some() {
-                            "arm_stratified_subject_bootstrap_ipcw_product_limit"
-                        } else {
-                            "arm_stratified_subject_bootstrap_product_limit"
-                        };
-                        Arc::from(format!("graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"))
-                    });
-            }
+            set_graphless_reasoning(&mut contract, result.support_status, || {
+                // The licensed scalar route is fixed by the query's entry
+                // and censoring facets. Cumulative incidence never reaches
+                // this arm; only the paired RMST + horizon survival scalar
+                // intervals carry a graphless matrix coordinate. The
+                // simultaneous band is a separate claim carried on the
+                // band's own `graphless_support_status`, never a matrix
+                // coordinate, matching the interference precedent.
+                let CausalQuery::Survival(query) = self.query() else {
+                    unreachable!("licensed survival result must retain its survival query")
+                };
+                let design = if query.delayed_entry.is_some() {
+                    "delayed_entry_two_arm_individual_randomized"
+                } else {
+                    "two_arm_individual_randomized"
+                };
+                let method = if query.known_censoring.is_some() {
+                    "arm_stratified_subject_bootstrap_ipcw_product_limit"
+                } else {
+                    "arm_stratified_subject_bootstrap_product_limit"
+                };
+                Arc::from(format!("graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"))
+            });
         }
         if let Some(randomized) = &result.randomized_effect {
             // Preparation cannot know the realized outcome variance. Keep the
             // program identity fixed, then bind the executed graphless license
             // in the result-specific reasoning and claim only after estimation.
-            contract.support_status = result.support_status;
-            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
-                support.matrix_status = Arc::from(result.support_status
-                    .map_or("off_axis", CellStatus::as_str));
-                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| {
-                        // The Wald complier effect is its own graphless family; a
-                        // Bernoulli assignment design does not fold it into ITT.
-                        if randomized.estimand.as_ref() == "treatment_on_treated" {
-                            return Arc::from("graphless:complier_effect/bernoulli_one_sided/wald_ratio_influence/pointwise_95_normal_interval");
-                        }
-                        if randomized.estimand.as_ref() == "cace_late" {
-                            return Arc::from("graphless:complier_effect/bernoulli/wald_ratio_influence/pointwise_95_normal_interval");
-                        }
-                        let (method, claim) = match randomized.assignment_design.as_ref() {
-                            "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_fixed_cuped_ht_score_normal_interval" =>
-                                ("fixed_cuped_ht_score", "pointwise_95_normal_interval"),
-                            "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_ancova_hc0_normal_interval" =>
-                                ("ancova_hc0", "pointwise_95_normal_interval"),
-                            "bernoulli" => ("independent_action_ht_score", "pointwise_95_normal_interval"),
-                            "complete" => ("neyman_difference_in_means", "pointwise_95_normal_interval"),
-                            "cluster" => ("neyman_unit_weighted_cluster_totals", "pointwise_95_normal_interval"),
-                            "stratified" => ("blocked_neyman_difference_in_means", "pointwise_95_normal_interval"),
-                            "factorial_2x2" => ("fixed_cell_neyman_contrasts", "three_pointwise_95_normal_intervals"),
-                            "multi_arm" => ("independent_action_ht_scores", "all_action_pointwise_95_normal_intervals"),
-                            "switchback" => ("independent_sequence_ht_score", "pointwise_95_student_interval"),
-                            _ => unreachable!("only exact graphless randomized rows can be licensed"),
-                        };
-                        Arc::from(format!("graphless:randomized_effect/{}/{method}/{claim}",
-                            randomized.assignment_design))
-                    });
-            }
+            set_graphless_reasoning(&mut contract, result.support_status, || {
+                // The Wald complier effect is its own graphless family; a
+                // Bernoulli assignment design does not fold it into ITT.
+                if randomized.estimand.as_ref() == "treatment_on_treated" {
+                    return Arc::from("graphless:complier_effect/bernoulli_one_sided/wald_ratio_influence/pointwise_95_normal_interval");
+                }
+                if randomized.estimand.as_ref() == "cace_late" {
+                    return Arc::from("graphless:complier_effect/bernoulli/wald_ratio_influence/pointwise_95_normal_interval");
+                }
+                let (method, claim) = match randomized.assignment_design.as_ref() {
+                    "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_fixed_cuped_ht_score_normal_interval" =>
+                        ("fixed_cuped_ht_score", "pointwise_95_normal_interval"),
+                    "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_ancova_hc0_normal_interval" =>
+                        ("ancova_hc0", "pointwise_95_normal_interval"),
+                    "bernoulli" => ("independent_action_ht_score", "pointwise_95_normal_interval"),
+                    "complete" => ("neyman_difference_in_means", "pointwise_95_normal_interval"),
+                    "cluster" => ("neyman_unit_weighted_cluster_totals", "pointwise_95_normal_interval"),
+                    "stratified" => ("blocked_neyman_difference_in_means", "pointwise_95_normal_interval"),
+                    "factorial_2x2" => ("fixed_cell_neyman_contrasts", "three_pointwise_95_normal_intervals"),
+                    "multi_arm" => ("independent_action_ht_scores", "all_action_pointwise_95_normal_intervals"),
+                    "switchback" => ("independent_sequence_ht_score", "pointwise_95_student_interval"),
+                    _ => unreachable!("only exact graphless randomized rows can be licensed"),
+                };
+                Arc::from(format!("graphless:randomized_effect/{}/{method}/{claim}",
+                    randomized.assignment_design))
+            });
         }
         if result.longitudinal_regime.is_some() {
-            contract.support_status = result.support_status;
-            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
-                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
-                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| {
-                        let CausalQuery::LongitudinalRegime(query) = self.query() else {
-                            unreachable!("licensed longitudinal result must retain its regime query")
-                        };
-                        let (design, method, claim) = match query.method {
-                            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => (
-                                if query.periods == 2 {
-                                    "known_sequential_randomized_two_period"
-                                } else {
-                                    "known_sequential_randomized_three_period"
-                                },
-                                "subject_excluded_q_sequential_dr_scores",
-                                "conditional_q_pointwise_95_normal_interval",
-                            ),
-                            antecedent_core::LongitudinalRegimeMethod::GFormula => (
-                                "known_sequential_randomized_two_period",
-                                "fixed_known_q_g_formula_scores",
-                                "conditional_q_pointwise_95_normal_interval",
-                            ),
-                            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => (
-                                "known_sequential_randomized_additive_msm",
-                                "stabilized_ipw_cr1_scores",
-                                "intercept_and_period_effects_pointwise_95_normal_intervals",
-                            ),
-                            antecedent_core::LongitudinalRegimeMethod::Ipw =>
-                                unreachable!("only calibrated graphless longitudinal rows can be licensed"),
-                        };
-                        Arc::from(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"))
-                    });
-            }
+            set_graphless_reasoning(&mut contract, result.support_status, || {
+                let CausalQuery::LongitudinalRegime(query) = self.query() else {
+                    unreachable!("licensed longitudinal result must retain its regime query")
+                };
+                let (design, method, claim) = match query.method {
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => (
+                        if query.periods == 2 {
+                            "known_sequential_randomized_two_period"
+                        } else {
+                            "known_sequential_randomized_three_period"
+                        },
+                        "subject_excluded_q_sequential_dr_scores",
+                        "conditional_q_pointwise_95_normal_interval",
+                    ),
+                    antecedent_core::LongitudinalRegimeMethod::GFormula => (
+                        "known_sequential_randomized_two_period",
+                        "fixed_known_q_g_formula_scores",
+                        "conditional_q_pointwise_95_normal_interval",
+                    ),
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => (
+                        "known_sequential_randomized_additive_msm",
+                        "stabilized_ipw_cr1_scores",
+                        "intercept_and_period_effects_pointwise_95_normal_intervals",
+                    ),
+                    antecedent_core::LongitudinalRegimeMethod::Ipw =>
+                        unreachable!("only calibrated graphless longitudinal rows can be licensed"),
+                };
+                Arc::from(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"))
+            });
         }
         // Interference is on the geometric support axis: its contract keeps the
         // geometric `InterferenceQuery` coordinate and calibration basis. The
