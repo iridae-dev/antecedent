@@ -154,6 +154,29 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
 }
 
 #[test]
+fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
+    let (data, query) = fixture();
+    let query = query.with_augmentation(0.1).with_uniform_unit_randomization();
+    let ctx = ExecutionContext::for_tests(23);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.synthetic_control.as_ref().unwrap();
+    assert_eq!(fit.uncertainty.as_ref(), "point_only_augmented_with_exact_unit_randomization_p_value_no_interval");
+    let observed = fit.randomization_statistics.iter()
+        .find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
+    assert!((observed - fit.effect.abs()).abs() < 1e-12);
+    let extreme = fit.randomization_statistics.iter().filter(|(_, value)| *value >= observed).count();
+    assert_eq!(fit.randomization_p_value, Some(extreme as f64 / 4.0));
+    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    let bytes = prepared.encode_contracted_result(&result, "augmented-exact", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_p_value, fit.randomization_p_value);
+    let mut fabricated = body.clone();
+    fabricated.synthetic_control.as_mut().unwrap().randomization_p_value = Some(0.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+}
+
+#[test]
 fn exact_unit_randomization_is_superuniform_over_all_sharp_null_assignments() {
     let mut units = Vec::new();
     let mut periods = Vec::new();
@@ -221,6 +244,6 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     let mut fabricated = body.clone();
     fabricated.synthetic_control.as_mut().unwrap().outcome_model_correction = Some(0.0);
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
-    assert!(query.clone().with_uniform_unit_randomization().validate().is_err());
+    assert!(query.clone().with_uniform_unit_randomization().validate().is_ok());
     assert!(query.difference_in_differences().validate().is_err());
 }

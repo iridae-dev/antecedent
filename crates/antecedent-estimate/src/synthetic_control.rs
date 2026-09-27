@@ -387,6 +387,37 @@ pub fn exact_synthetic_unit_randomization_test(
     })
 }
 
+/// Exact sharp-null Fisher test for the augmented synthetic-control statistic.
+///
+/// The ridge outcome model and simplex donor fit are recomputed for every
+/// candidate treated unit. Reusing the unaugmented randomization distribution
+/// would test a different statistic from the reported augmented effect.
+pub fn exact_augmented_synthetic_unit_randomization_test(
+    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    intervention_period: i64, ridge_penalty: f64,
+) -> Result<SyntheticUnitRandomizationTest, String> {
+    let mut candidates: Vec<&str> = units.iter().map(String::as_str).collect();
+    candidates.sort_unstable();
+    candidates.dedup();
+    if candidates.len() > 32 {
+        return Err("exact augmented synthetic unit randomization currently supports at most 32 candidate units".into());
+    }
+    let mut statistics = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        let fit = fit_augmented_synthetic_control(
+            outcome, units, periods, candidate, intervention_period, ridge_penalty,
+        )?;
+        statistics.push((candidate.to_string(), fit.effect.abs()));
+    }
+    let observed = statistics.iter().find(|(unit, _)| unit == treated_unit)
+        .ok_or_else(|| "treated unit is absent from exact augmented randomization distribution".to_string())?.1;
+    let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
+    Ok(SyntheticUnitRandomizationTest {
+        p_value: extreme as f64 / statistics.len() as f64,
+        statistics,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,6 +505,46 @@ mod tests {
             let rejections = tests.iter().filter(|test| test.p_value <= alpha).count();
             assert!(rejections <= numerator);
         }
+    }
+
+    #[test]
+    fn augmented_uniform_unit_test_refits_the_reported_statistic() {
+        let mut outcome = Vec::new();
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        for (unit, level, trend) in [
+            ("a", 0.0, 0.2), ("b", 1.0, -0.1),
+            ("c", 2.0, 0.3), ("d", 3.0, 0.0),
+        ] {
+            for period in 1..=6 {
+                units.push(unit.to_string());
+                periods.push(period);
+                outcome.push(level + trend * period as f64 + if period >= 5 && unit == "d" { 2.0 } else { 0.0 });
+            }
+        }
+        let candidates = ["a", "b", "c", "d"];
+        let tests: Vec<_> = candidates.iter().map(|unit|
+            exact_augmented_synthetic_unit_randomization_test(
+                &outcome, &units, &periods, unit, 5, 0.1,
+            ).unwrap()
+        ).collect();
+        for test in &tests[1..] {
+            assert_eq!(test.statistics, tests[0].statistics);
+        }
+        for (unit, statistic) in &tests[0].statistics {
+            let fit = fit_augmented_synthetic_control(
+                &outcome, &units, &periods, unit, 5, 0.1,
+            ).unwrap();
+            assert!((statistic - fit.effect.abs()).abs() < 1e-12);
+        }
+        for numerator in 1..=candidates.len() {
+            let alpha = numerator as f64 / candidates.len() as f64;
+            let rejections = tests.iter().filter(|test| test.p_value <= alpha).count();
+            assert!(rejections <= numerator);
+        }
+        assert!(exact_augmented_synthetic_unit_randomization_test(
+            &outcome, &units, &periods, "absent", 5, 0.1,
+        ).is_err());
     }
 }
 
