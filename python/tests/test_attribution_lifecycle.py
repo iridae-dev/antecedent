@@ -8,7 +8,7 @@ The two licensed GCM cells run on ``analyze`` and retain a study::
     report = result.inspect().to_dict()
     loaded = ant.load(result.export())
 
-cheap/full, Bayesian, accepted, graph-posterior, and non-Dag stay refused.
+cheap/full, accepted, graph-posterior, and non-Dag stay refused.
 """
 
 from __future__ import annotations
@@ -224,3 +224,34 @@ def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
             graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),
             query=_anomaly_query(),
         )
+
+
+def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
+    data = _outlier_chain()
+    query = ant.AnomalyAttribution(
+        ["y"], max_units=100, reference=ant.AnomalyReference(center=0.0, scale=10.0)
+    )
+    result = ant.analyze(
+        data,
+        graph=_dag(),
+        query=query,
+        inference=ant.Bayesian(n_draws=32),
+        return_posterior_artifact=True,
+    )
+    empirical = ant.analyze(
+        data, graph=_dag(), query=_anomaly_query(), inference=ant.Bayesian(n_draws=32)
+    )
+    assert result.anomaly[0].scores != empirical.anomaly[0].scores
+    assert result.posterior is not None
+    posterior = ant.inference.decode_posterior_artifact(result.posterior.artifact)
+    assert posterior.quantity_names == ["mean_anomaly_score[1]"]
+    assert posterior.q025[0] < posterior.q975[0]
+    loaded = ant.load(result.export())
+    assert loaded.answer == result.answer
+    assert loaded.export() == result.export()
+
+
+@pytest.mark.parametrize("scale", [0.0, -1.0, float("nan")])
+def test_fixed_anomaly_reference_rejects_invalid_scale(scale):
+    with pytest.raises(ant.errors.CausalValueError):
+        ant.AnomalyReference(center=0.0, scale=scale)
