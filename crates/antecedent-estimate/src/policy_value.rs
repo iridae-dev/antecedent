@@ -71,10 +71,12 @@ pub struct UpliftBinScore {
     pub rank: usize,
     /// Horvitz-Thompson treatment contrast in this bin.
     pub effect: f64,
-    /// Independent-subject row-score standard error; no interval claim.
+    /// Independent-subject row-score standard error.
     pub standard_error: f64,
     /// Number of evaluation subjects in the bin.
     pub evaluation_rows: usize,
+    /// Pointwise 95% interval when held-out rank and randomized support pass.
+    pub interval_95: Option<[f64; 2]>,
 }
 
 /// Point estimate of one randomized action effect against control in a fixed baseline stratum.
@@ -145,12 +147,16 @@ pub fn evaluate_uplift_bins(
         || bin_count > n || !(propensity.len() == 1 || propensity.len() == n)
     { return Err("uplift rows, probabilities, and bin count must align"); }
     let mut groups = vec![Vec::<f64>::new(); bin_count];
+    let mut treated_rows = vec![0_usize; bin_count];
+    let mut control_rows = vec![0_usize; bin_count];
     for i in 0..n {
         let p = propensity[if propensity.len() == 1 { 0 } else { i }];
         if !outcome[i].is_finite() || !p.is_finite() || p <= 0.0 || p >= 1.0
             || score_bins[i] >= bin_count
         { return Err("uplift requires finite outcomes, strict overlap, and valid score bins"); }
         groups[score_bins[i]].push(if assignment[i] { outcome[i] / p } else { -outcome[i] / (1.0 - p) });
+        if assignment[i] { treated_rows[score_bins[i]] += 1; }
+        else { control_rows[score_bins[i]] += 1; }
     }
     groups.into_iter().enumerate().map(|(rank, scores)| {
         let count = scores.len();
@@ -158,7 +164,13 @@ pub fn evaluate_uplift_bins(
         let effect = scores.iter().sum::<f64>() / count as f64;
         let standard_error = (scores.iter().map(|x| (x - effect).powi(2)).sum::<f64>()
             / (count * (count - 1)) as f64).sqrt();
-        Ok(UpliftBinScore { rank, effect, standard_error, evaluation_rows: count })
+        let interval_95 = if count >= 300 && treated_rows[rank] >= 50 && control_rows[rank] >= 50
+            && standard_error.is_finite() && standard_error > 0.0 {
+            let span = antecedent_stats::normal_ppf(0.975) * standard_error;
+            let bounds = [effect - span, effect + span];
+            bounds.iter().all(|value| value.is_finite()).then_some(bounds)
+        } else { None };
+        Ok(UpliftBinScore { rank, effect, standard_error, evaluation_rows: count, interval_95 })
     }).collect()
 }
 
@@ -288,6 +300,45 @@ fn evaluate_scores(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn held_out_uplift_bin_intervals_cover_fixed_rank_truth() {
+        const BIN_ROWS: usize = 300;
+        const DRAWS: usize = 2_000;
+        let bins = (0..BIN_ROWS * 2).map(|i| usize::from(i >= BIN_ROWS)).collect::<Vec<_>>();
+        let mut state = 0x3721_f0de_8b64_5c19_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE_4E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let truths = [2.0, 0.5];
+        let mut covered = [0_usize; 2];
+        for _ in 0..DRAWS {
+            let assignment = (0..BIN_ROWS * 2).map(|_| uniform() < 0.5).collect::<Vec<_>>();
+            let outcome = (0..BIN_ROWS * 2).map(|i| {
+                1.0 + truths[bins[i]] * f64::from(assignment[i]) + 2.0 * (uniform() - 0.5)
+            }).collect::<Vec<_>>();
+            let points = evaluate_uplift_bins(&outcome, &assignment, &[0.5], &bins, 2).unwrap();
+            for (index, point) in points.iter().enumerate() {
+                let interval = point.interval_95.expect("300 independently randomized subjects per fixed rank bin");
+                covered[index] += usize::from(interval[0] <= truths[index] && truths[index] <= interval[1]);
+            }
+        }
+        for (index, hits) in covered.into_iter().enumerate() {
+            let rate = hits as f64 / DRAWS as f64;
+            eprintln!("uplift bin {index}: {hits}/{DRAWS}, coverage={rate:.4}");
+            assert!((0.93..=0.97).contains(&rate), "pointwise 95% uplift-bin coverage {rate}");
+        }
+        let assignment = (0..299).map(|i| i % 2 == 0).collect::<Vec<_>>();
+        let point = evaluate_uplift_bins(&vec![1.0; 299], &assignment, &[0.5], &vec![0; 299], 1).unwrap();
+        assert!(point[0].interval_95.is_none());
+        let assignment = (0..300).map(|i| i < 49).collect::<Vec<_>>();
+        let point = evaluate_uplift_bins(&vec![1.0; 300], &assignment, &[0.5], &vec![0; 300], 1).unwrap();
+        assert!(point[0].interval_95.is_none());
+    }
 
     #[test]
     fn recovers_known_constant_outcome_values() {
