@@ -594,35 +594,27 @@ impl PreparedStudy {
                 Arc::from(format!("graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"))
             });
         }
-        if let Some(randomized) = &result.randomized_effect {
+        if result.randomized_effect.is_some() {
             // Preparation cannot know the realized outcome variance. Keep the
             // program identity fixed, then bind the executed graphless license
             // in the result-specific reasoning and claim only after estimation.
             set_graphless_reasoning(&mut contract, result.support_status, || {
-                // The Wald complier effect is its own graphless family; a
-                // Bernoulli assignment design does not fold it into ITT.
-                if randomized.estimand.as_ref() == "treatment_on_treated" {
-                    return Arc::from("graphless:complier_effect/bernoulli_one_sided/wald_ratio_influence/pointwise_95_normal_interval");
-                }
-                if randomized.estimand.as_ref() == "cace_late" {
-                    return Arc::from("graphless:complier_effect/bernoulli/wald_ratio_influence/pointwise_95_normal_interval");
-                }
-                let (method, claim) = match randomized.assignment_design.as_ref() {
-                    "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_fixed_cuped_ht_score_normal_interval" =>
-                        ("fixed_cuped_ht_score", "pointwise_95_normal_interval"),
-                    "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_ancova_hc0_normal_interval" =>
-                        ("ancova_hc0", "pointwise_95_normal_interval"),
-                    "bernoulli" => ("independent_action_ht_score", "pointwise_95_normal_interval"),
-                    "complete" => ("neyman_difference_in_means", "pointwise_95_normal_interval"),
-                    "cluster" => ("neyman_unit_weighted_cluster_totals", "pointwise_95_normal_interval"),
-                    "stratified" => ("blocked_neyman_difference_in_means", "pointwise_95_normal_interval"),
-                    "factorial_2x2" => ("fixed_cell_neyman_contrasts", "three_pointwise_95_normal_intervals"),
-                    "multi_arm" => ("independent_action_ht_scores", "all_action_pointwise_95_normal_intervals"),
-                    "switchback" => ("independent_sequence_ht_score", "pointwise_95_student_interval"),
-                    _ => unreachable!("only exact graphless randomized rows can be licensed"),
+                let CausalQuery::RandomizedEffect(query) = self.query() else {
+                    unreachable!("licensed randomized result must retain its randomized query")
                 };
-                Arc::from(format!("graphless:randomized_effect/{}/{method}/{claim}",
-                    randomized.assignment_design))
+                // Shared with the execute-side license handshake so the emitted
+                // coordinate cannot drift from the licensed key. The Wald
+                // complier effect is its own graphless family; a Bernoulli
+                // assignment design does not fold it into ITT.
+                let (family, design, method, _assignment_unit, claim) =
+                    antecedent_core::randomized_graphless_coordinate(
+                        &query.design,
+                        query.estimand,
+                        query.received_treatment.is_some(),
+                        query.fixed_cuped.is_some(),
+                        !query.ancova_covariates.is_empty(),
+                    );
+                Arc::from(format!("graphless:{family}/{design}/{method}/{claim}"))
             });
         }
         if result.longitudinal_regime.is_some() {

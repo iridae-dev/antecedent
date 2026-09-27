@@ -610,31 +610,13 @@ impl CheckedRandomizedOperation {
         // Graphless licenses are exact design/method/inference claims. A
         // published interval alone is insufficient: sparse or other designs
         // must not inherit a geometric matrix coordinate by analogy.
-        let (family, design, method, assignment_unit, claim) = match self.query.design {
-            antecedent_core::RandomizationDesign::Bernoulli
-                if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated =>
-                ("complier_effect", "bernoulli_one_sided", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Bernoulli if self.query.received_treatment.is_some() =>
-                ("complier_effect", "bernoulli", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() =>
-                ("randomized_effect", "bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
-                ("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Bernoulli =>
-                ("randomized_effect", "bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Complete { .. } =>
-                ("randomized_effect", "complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Cluster { .. } =>
-                ("randomized_effect", "cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Stratified { .. } =>
-                ("randomized_effect", "stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
-            antecedent_core::RandomizationDesign::Factorial2x2 { .. } =>
-                ("randomized_effect", "factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals"),
-            antecedent_core::RandomizationDesign::MultiArm { .. } =>
-                ("randomized_effect", "multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
-            antecedent_core::RandomizationDesign::Switchback { .. } =>
-                ("randomized_effect", "switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval"),
-        };
+        let (family, design, method, assignment_unit, claim) = antecedent_core::randomized_graphless_coordinate(
+            &self.query.design,
+            self.query.estimand,
+            self.query.received_treatment.is_some(),
+            self.query.fixed_cuped.is_some(),
+            !self.query.ancova_covariates.is_empty(),
+        );
         let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
         let support_blocks = if matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {

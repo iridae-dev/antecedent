@@ -63,6 +63,52 @@ pub enum RandomizedEstimand {
     TreatmentOnTreated,
 }
 
+/// The exact graphless support-key tuple `(family, design, method,
+/// assignment_unit, inference_claim)` for a retained randomized query, shared by
+/// the execute-side license handshake and the contract-side matrix coordinate so
+/// the two cannot drift. The facets are independent structural properties the
+/// query already fixed upstream (and `RandomizedEffectQuery::validate` guarantees
+/// receipt/CUPED/ANCOVA only occur with Bernoulli assignment), so this is a pure
+/// lookup, not the license decision itself.
+#[must_use]
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "each flag is an independent structural property of the executed query; together they select one exact license coordinate and are not a refactorable state object"
+)]
+pub fn randomized_graphless_coordinate(
+    design: &RandomizationDesign,
+    estimand: RandomizedEstimand,
+    received_treatment: bool,
+    fixed_cuped: bool,
+    has_ancova: bool,
+) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
+    match design {
+        RandomizationDesign::Bernoulli
+            if estimand == RandomizedEstimand::TreatmentOnTreated =>
+            ("complier_effect", "bernoulli_one_sided", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Bernoulli if received_treatment =>
+            ("complier_effect", "bernoulli", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Bernoulli if fixed_cuped =>
+            ("randomized_effect", "bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Bernoulli if has_ancova =>
+            ("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Bernoulli =>
+            ("randomized_effect", "bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Complete { .. } =>
+            ("randomized_effect", "complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Cluster { .. } =>
+            ("randomized_effect", "cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval"),
+        RandomizationDesign::Stratified { .. } =>
+            ("randomized_effect", "stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
+        RandomizationDesign::Factorial2x2 { .. } =>
+            ("randomized_effect", "factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals"),
+        RandomizationDesign::MultiArm { .. } =>
+            ("randomized_effect", "multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
+        RandomizationDesign::Switchback { .. } =>
+            ("randomized_effect", "switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval"),
+    }
+}
+
 /// Intention-to-treat contrast for a two-arm randomized trial.
 ///
 /// Assignment and unit identity are part of the query contract so a prepared

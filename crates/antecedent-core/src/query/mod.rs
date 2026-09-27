@@ -58,7 +58,9 @@ pub use policy_value::{
     PolicyValueQuery,
 };
 pub use population::{PopulationRegistry, PopulationSelection};
-pub use randomized::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
+pub use randomized::{
+    randomized_graphless_coordinate, RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand,
+};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec, ObservationAssumption,
     ObservationSpec, ResponseFunctional, ResponseQuery, TemporalResponseLicense,

@@ -118,7 +118,7 @@ pub use query::{
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
     policy_graphless_coordinate,
     PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
-    RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
+    randomized_graphless_coordinate, RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
     ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig, ShapleyMode,
     SurvivalFunctional, SurvivalQuery, SyntheticControlQuery, SyntheticPanelMethod,
     TargetPopulation, TargetSampling, TemporalEffectQuery, TemporalResponseLicense,
