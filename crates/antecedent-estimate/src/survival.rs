@@ -775,6 +775,15 @@ mod tests {
             &[1.0, 3.0, 1.0, 3.0], &[1, 0, 1, 0], &[false, false, true, true],
             3.0, SurvivalEndpoint::Survival, 399, 7,
         ).unwrap_err().contains("80 subjects"));
+        let duration = (0..160).map(|i| if i % 5 == 0 { 1.0 } else { 3.0 }).collect::<Vec<_>>();
+        let event = duration.iter().map(|time| i64::from(*time == 1.0)).collect::<Vec<_>>();
+        let treated = (0..160).map(|i| i >= 80).collect::<Vec<_>>();
+        let first = randomized_survival_bootstrap_difference_band(
+            &duration, &event, &treated, 3.0, SurvivalEndpoint::Survival, 399, 42,
+        ).unwrap();
+        assert_eq!(first, randomized_survival_bootstrap_difference_band(
+            &duration, &event, &treated, 3.0, SurvivalEndpoint::Survival, 399, 42,
+        ).unwrap());
     }
 
     #[test]
