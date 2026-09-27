@@ -225,6 +225,7 @@ impl CheckedPanelDidOperation {
             clusters: g,
             uncertainty: Arc::from(if interval_supported { "cluster_robust_normal_interval_independent_clusters" } else { "cluster_robust_standard_error_no_interval" }),
             event_time_effects: Arc::from([]),
+            event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
         result.treatment = None;
@@ -282,6 +283,7 @@ impl CheckedPanelDidOperation {
             clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
             uncertainty: Arc::from("point_only_no_standard_error"),
             event_time_effects: Arc::from([]),
+            event_time_intervals_95: Arc::from([]),
             augmented: Some((fit.propensity_min, fit.propensity_max,
                 fit.effective_control_sample_size, nuisance.predictions_cross_fitted)),
         });
@@ -298,14 +300,30 @@ impl CheckedPanelDidOperation {
             y, &self.query.subjects, &self.query.periods, &self.query.cohorts,
             &self.query.clusters,
         ).map_err(|message| CausalError::Compile { message })?;
-        let representative = effects.iter().find(|effect| effect.event_time >= 0)
+        let control_clusters = self.query.clusters.iter().zip(self.query.cohorts.iter())
+            .filter(|(_, cohort)| **cohort == 0)
+            .map(|(cluster, _)| cluster.as_ref())
+            .collect::<BTreeSet<_>>();
+        let event_time_intervals_95 = effects.iter().map(|effect| {
+            if effect.event_time < 0 { return None; }
+            let treated_clusters = self.query.clusters.iter().zip(self.query.cohorts.iter())
+                .filter(|(_, cohort)| **cohort == effect.cohort)
+                .map(|(cluster, _)| cluster.as_ref())
+                .collect::<BTreeSet<_>>();
+            antecedent_estimate::staggered_event_study::pointwise_interval_95(
+                effect, treated_clusters.len(), control_clusters.len())
+        }).collect::<Vec<_>>();
+        let representative_index = effects.iter().position(|effect| effect.event_time >= 0)
             .ok_or_else(|| CausalError::Compile { message: "event study has no post-adoption contrast".into() })?;
+        let representative = &effects[representative_index];
+        let representative_interval = event_time_intervals_95[representative_index];
+        let any_interval = event_time_intervals_95.iter().any(Option::is_some);
         let estimate = EffectEstimate::new(
             representative.effect,
-            f64::NAN,
+            if representative_interval.is_some() { representative.standard_error } else { f64::NAN },
             self.identification.required_assumptions.clone(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
-        );
+        ).with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -320,10 +338,11 @@ impl CheckedPanelDidOperation {
                 outcome: self.query.outcome,
                 identify_cached: false,
                 extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.quasi.staggered_event_study.pointwise_cluster_se",
+                    if any_interval { "estimate.quasi.staggered_event_study.pointwise_95" }
+                    else { "estimate.quasi.staggered_event_study.pointwise_cluster_se" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "cohort-specific event times include descriptive preperiod contrasts; -1 is omitted; the scalar is the first post-adoption contrast; no interval or parallel-trends test",
+                    "cohort-specific event times include descriptive preperiod contrasts without intervals; -1 is omitted; supported post-adoption contrasts have separate pointwise 95% cluster intervals, never simultaneous bands; parallel trends are assumed rather than tested",
                 )],
                 refutations: Vec::new(), distribution: None, mediation: None,
                 wall_time_ns: 0, bootstrap_replicates_ok: None,
@@ -334,15 +353,18 @@ impl CheckedPanelDidOperation {
         result.panel_did = Some(crate::PanelDidEstimate {
             effect: representative.effect,
             standard_error: representative.standard_error,
-            interval_95: None,
+            interval_95: representative_interval,
             treated_subjects: representative.treated_subjects,
             comparison_subjects: representative.comparison_subjects,
             clusters: representative.clusters,
-            uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            uncertainty: Arc::from(if any_interval { "event_time_pointwise_normal_intervals_independent_clusters" }
+                else { "cluster_robust_standard_error_no_interval" }),
             event_time_effects: effects.into(),
+            event_time_intervals_95: event_time_intervals_95.into(),
             augmented: None,
         });
         result.treatment = None;
+        result.rebind_interval(false);
         Ok(result)
     }
 
@@ -467,6 +489,7 @@ impl CheckedPanelDidOperation {
             clusters: cluster_count,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
+            event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
         result.treatment = None;
@@ -575,6 +598,7 @@ impl CheckedPanelDidOperation {
             clusters: g,
             uncertainty: Arc::from(if interval_supported { "cluster_robust_normal_interval_independent_clusters" } else { "cluster_robust_standard_error_no_interval" }),
             event_time_effects: Arc::from([]),
+            event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
         result.treatment = None;
