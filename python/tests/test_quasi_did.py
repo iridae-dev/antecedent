@@ -58,9 +58,14 @@ def test_native_balanced_panel_did_recovers_known_treatment_effect():
     assert result.treated_subjects == 4
     assert result.control_subjects == 4
     assert result.clusters == 8
-    assert result.uncertainty == "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    assert result.uncertainty == "cluster_robust_standard_error_no_interval"
     assert result.support_status == "unlicensed_point_utility"
     assert "complete_pre_post_panel" in result.assumptions
+    import antecedent
+    assert result == antecedent.analyze(
+        {"y": outcome, "id": subjects, "group": treated, "after": post},
+        query=PanelDifferenceInDifferences("y", "id", "group", "after"),
+    ).panel_did
 
 
 def test_panel_did_clustered_standard_error_matches_known_influence_variance():
@@ -76,6 +81,25 @@ def test_panel_did_clustered_standard_error_matches_known_influence_variance():
     # CR1 factor 8/7 times sum of squared cluster influence contributions.
     assert result.estimate == pytest.approx(2.0)
     assert result.standard_error == pytest.approx((20.0 / 7.0) ** 0.5)
+
+
+def test_direct_panel_did_inherits_retained_interval_and_support_status():
+    import antecedent
+
+    ids, groups, periods, outcomes = [], [], [], []
+    for group in (False, True):
+        for cluster in range(30):
+            for after in (False, True):
+                ids.append(f"subject-{group}-{cluster}")
+                groups.append(group)
+                periods.append(after)
+                outcomes.append(cluster * 0.1 + 2.0 * int(group and after) if after else 0.0)
+    data = {"y": outcomes, "id": ids, "group": groups, "after": periods}
+    query = PanelDifferenceInDifferences("y", "id", "group", "after")
+    direct = estimate_panel_did(data, query)
+    assert direct == antecedent.analyze(data, query=query).panel_did
+    assert direct.interval_95 is not None
+    assert direct.support_status == "off_axis_interval_evidence"
 
 
 def test_panel_did_refuses_too_few_clusters_or_cluster_changes_within_subject():
