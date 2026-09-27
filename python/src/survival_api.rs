@@ -22,6 +22,7 @@ pub struct SurvivalSection {
     pub difference_at_tau_interval: Option<Vec<f64>>,
     pub bootstrap_replicates_requested: Option<u32>,
     pub bootstrap_replicates_ok: Option<u32>,
+    pub assignment_counts: (usize, usize),
     pub censoring_survival_provenance: Option<String>,
     pub difference_band: Option<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32)>,
     pub band_unavailable_reason: Option<String>,
@@ -43,6 +44,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             difference_at_tau_interval: value.difference_at_tau_interval.map(|interval| interval.to_vec()),
             bootstrap_replicates_requested: value.bootstrap_replicates_requested,
             bootstrap_replicates_ok: value.bootstrap_replicates_ok,
+            assignment_counts: (value.assignment_counts[0], value.assignment_counts[1]),
             censoring_survival_provenance: value.censoring_survival_provenance.as_ref().map(ToString::to_string),
             difference_band: value.difference_band.as_ref().map(|band| (
                 band.times.to_vec(), band.difference.to_vec(), band.lower.to_vec(),

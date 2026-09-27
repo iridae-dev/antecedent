@@ -195,6 +195,68 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
 }
 
 #[test]
+fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    for arm in [false, true] {
+        for i in 0..120 {
+            let failed = i % (if arm { 7 } else { 3 }) == 0;
+            duration.push(if failed { 1.0 } else { 3.0 });
+            event.push(f64::from(failed));
+            treatment.push(f64::from(arm));
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    let ctx = ExecutionContext::for_tests(7_729);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q.clone()))
+        .bootstrap_replicates(299).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let curve = result.survival.as_ref().unwrap();
+    assert_eq!(curve.assignment_counts, [120, 120]);
+    assert_eq!(curve.bootstrap_replicates_ok, Some(299));
+    assert!(curve.rmst_difference_interval.is_some());
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.difference_band.is_none());
+    let encoded = prepared.encode_contracted_result(&result, "licensed-survival", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body.clone();
+    forged.survival.as_mut().unwrap().assignment_counts = Some([119, 121]);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-arm-counts",
+    ).is_err());
+    let mut forged = body.clone();
+    forged.survival.as_mut().unwrap().bootstrap_replicates_ok = Some(298);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-draw-count",
+    ).is_err());
+    let mut q = q;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let entry = vec![0.0; 240];
+    let with_entry = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()), ("entry", entry.as_slice()),
+    ]).unwrap();
+    let prepared = Study::tabular(with_entry.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(299).build().unwrap().prepare(&ctx).unwrap();
+    let off_axis = prepared.estimate(&with_entry, &ctx).unwrap();
+    assert!(off_axis.support_status.is_none());
+    let encoded = prepared.encode_contracted_result(&off_axis, "entry-off-axis", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    body.survival.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &body, header.variable_names, "forged-entry-license",
+    ).is_err());
+}
+
+#[test]
 fn delayed_entry_subject_bootstrap_retains_interval_and_refuses_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();

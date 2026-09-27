@@ -73,6 +73,7 @@ def load_rows() -> list[dict]:
             if evidence == "known_truth_test" and (
                 "95_normal_interval" in row["inference_claim"]
                 or "95_student_interval" in row["inference_claim"]
+                or "95_percentile_intervals" in row["inference_claim"]
             ):
                 body = re.search(
                     rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
@@ -89,7 +90,12 @@ def load_rows() -> list[dict]:
                 switchback_evidence = row["design"] == "switchback" and body is not None \
                     and all(token in body.group(1) for token in ("2_000", "covered", "assert_eq!(rejected, 0")) \
                     and all(token in source.read_text() for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
-                if body is None or not (legacy_evidence or policy_evidence or did_evidence or switchback_evidence) or not (
+                survival_evidence = row["family"] == "survival" and body is not None \
+                    and all(token in body.group(1) for token in (
+                        "const REPLICATIONS: usize = 2_000", "covered_rmst", "covered_tau",
+                        "1_860..=1_970", "rmst_difference", "difference_at_tau",
+                    ))
+                if body is None or not (legacy_evidence or policy_evidence or did_evidence or switchback_evidence or survival_evidence) or not (
                     switchback_evidence or any(token in body.group(1)
                         for token in ("truth", "target", "truths", "TRUTH"))):
                     raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")

@@ -164,6 +164,32 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
         antecedent.analyze(data, query=query, bootstrap=198)
 
 
+def test_graphless_survival_scalar_license_at_support_boundary() -> None:
+    data = {
+        "duration": [1.0 if i % 3 == 0 else 3.0 for i in range(120)]
+        + [1.0 if i % 7 == 0 else 3.0 for i in range(120)],
+        "event": [float(i % 3 == 0) for i in range(120)]
+        + [float(i % 7 == 0) for i in range(120)],
+        "treatment": [0.0] * 120 + [1.0] * 120,
+    }
+    query = SurvivalOutcome(
+        "duration", "event", "treatment", 3.0,
+        randomized=True, observation_assumption=IndependentGiven(()),
+    )
+    result = antecedent.analyze(data, query=query, bootstrap=299, seed=7729)
+    assert result.evidence_status == "licensed"
+    assert result.survival.support_status == "licensed"
+    assert result.survival.rmst_difference_interval is not None
+    assert result.survival.survival_at_tau_difference_interval is not None
+    assert result.survival.difference_band is None
+    loaded = antecedent.load(result.export())
+    assert loaded.artifact.payload["survival"]["graphless_support_status"] == "licensed"
+    assert loaded.artifact.payload["survival"]["assignment_counts"] == [120, 120]
+    thin = {key: value[1:120] + value[121:] for key, value in data.items()}
+    off_axis = antecedent.analyze(thin, query=query, bootstrap=299, seed=7729)
+    assert off_axis.survival.support_status == "unlicensed_pointwise_interval"
+
+
 def test_retained_competing_risk_known_g_pointwise_interval() -> None:
     n = 40
     duration = [1.0 if i % 5 == 0 or i % 7 == 0 else 3.0 for i in range(n)] * 2

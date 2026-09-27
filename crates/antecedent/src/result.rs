@@ -401,6 +401,8 @@ pub struct SurvivalEstimate {
     pub bootstrap_replicates_ok: Option<u32>,
     /// Caller-supplied fixed censoring function, when the IPCW route was used.
     pub censoring_survival_provenance: Option<Arc<str>>,
+    /// Realized control and treated subject counts for an exact graphless license.
+    pub assignment_counts: [usize; 2],
     /// Simultaneous full-grid difference band; separate from scalar intervals.
     pub difference_band: Option<SurvivalDifferenceBand>,
     /// Why an explicit bootstrap request did not produce a full-grid band.

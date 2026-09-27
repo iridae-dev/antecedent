@@ -129,6 +129,10 @@ impl CheckedSurvivalOperation {
                 }),
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let assignment_counts = [
+            treated.iter().filter(|&&arm| !arm).count(),
+            treated.iter().filter(|&&arm| arm).count(),
+        ];
         let endpoint = match self.query.functional {
             SurvivalFunctional::SurvivalAndRmst => SurvivalEndpoint::Survival,
             SurvivalFunctional::CumulativeIncidence { target_cause } => {
@@ -245,10 +249,36 @@ impl CheckedSurvivalOperation {
             difference_at_tau_interval: intervals.as_ref().map(|value| value.difference_at_tau),
             bootstrap_replicates_requested: intervals.as_ref().map(|value| value.replicates_requested),
             bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
+            assignment_counts,
             censoring_survival_provenance: minimum_censoring_survival.map(|_| Arc::from("caller_supplied_fixed_not_fitted_or_verified")),
             difference_band,
             band_unavailable_reason,
         });
+        if self.query.known_censoring.is_none()
+            && self.query.delayed_entry.is_none()
+            && matches!(self.query.functional, SurvivalFunctional::SurvivalAndRmst)
+            && intervals.as_ref().is_some_and(|value| value.replicates_ok >= 299)
+            && matches!(crate::support::classify_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "survival",
+                    design: "two_arm_individual_randomized",
+                    method: "arm_stratified_subject_bootstrap_product_limit",
+                    inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated: assignment_counts[1],
+                    control: assignment_counts[0],
+                    rows: self.rows,
+                    interval_95_published: intervals.is_some(),
+                    reported_intervals: 2,
+                    all_reported_intervals: true,
+                    ..Default::default()
+                },
+            ), crate::support::GraphlessSupportStatus::Licensed { .. })
+        {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         Ok(result)
     }
 }

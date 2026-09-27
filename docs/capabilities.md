@@ -88,8 +88,13 @@ Known censoring probabilities stay fixed with their subjects and are not fit
 or independently verified; simultaneous bands for this weighted path are
 refused. Marginal delayed-entry studies, with or without fixed known censoring
 probabilities, can report scalar pointwise intervals after their separate
-repeated-sampling gates, but no simultaneous band. The queries remain outside
-the licensed support-matrix axes. See
+repeated-sampling gates, but no simultaneous band. A separate exact
+[graphless license](graphless-support-matrix.md) covers only the unweighted,
+no-entry, individually randomized survival route when at least 120 subjects
+per arm and 299 valid subject-bootstrap draws produce both pointwise scalar
+intervals for RMST and survival at the fixed horizon. Two 2,000-study
+known-truth checks run at that support boundary. The full-curve band and
+competing-risk or weighted contrasts do not inherit this scalar license. See
 [Survival outcomes](survival-outcomes.md).
 
 ## Graph primitives

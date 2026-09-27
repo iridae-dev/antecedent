@@ -2,6 +2,20 @@
 # threshold is refused. These rows do not inherit geometric support cells.
 
 [[license]]
+family = "survival"
+design = "two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_product_limit"
+inference_claim = "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+assignment_unit = "unit"
+min_rows = 240
+min_assignment_units_per_arm = 120
+min_reported_intervals = 2
+all_reported_intervals = true
+known_truth_test = "crates/antecedent-estimate/src/survival.rs::randomized_survival_scalar_bootstrap_support_boundary_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::licensed_survival_scalar_intervals_round_trip_and_refuse_forgery"
+limitations = "Individually randomized independent subjects, at least 120 observed subjects per arm, marginal independent right censoring within arm, no delayed entry or caller-supplied censoring weights, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for RMST and survival difference at the fixed horizon. Two 2,000-study known-truth coverage checks run at 120 subjects per arm and 299 draws. The row does not license a simultaneous curve band, conditional censoring, delayed entry, or competing-risk incidence."
+
+[[license]]
 family = "continuous_dose_policy"
 design = "fixed_group_kernel"
 method = "inverse_density_kernel_paired_scores"
