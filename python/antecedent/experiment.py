@@ -185,9 +185,9 @@ class ExperimentDesign:
     for Bernoulli and complete randomization. Cluster assignment may repeat an
     assignment unit across outcome rows; its cluster IDs must match the design.
     The retained ``analyze`` route supports Bernoulli, complete, stratified,
-    and cluster assignment. SwitchbackEffect also uses the retained route
-    with sequence and period metadata. Factorial and noncompliance workflows
-    remain separate direct utilities or explicit refusals.
+    cluster, and fixed-cell factorial assignment. SwitchbackEffect uses the
+    retained route with sequence and period metadata. ComplierEffect uses a
+    separate retained encouragement query with observed treatment receipt.
     """
 
     assignment: AssignmentDesign
