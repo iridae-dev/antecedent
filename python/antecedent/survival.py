@@ -1,9 +1,11 @@
-"""Point-only survival summaries for individually randomized two-arm studies.
+"""Survival and competing-risk outcomes for randomized two-arm studies.
 
-The estimators use event-time risk sets and support right censoring, with an
-explicit marginal independent-entry path for left-truncated observations.
-They add no support-matrix license, conditional observation adjustment, or
-interval inference.
+The native estimators use event-time risk sets for right censoring and an
+explicit marginal independent-entry path for left truncation. Retained
+``analyze`` queries can report pointwise bootstrap intervals and simultaneous
+curve bands when their subject-level inference gates pass. Direct estimation
+utilities report points only. Neither path adds a graphless support-matrix
+license or verifies a caller-supplied censoring model.
 """
 
 from __future__ import annotations
