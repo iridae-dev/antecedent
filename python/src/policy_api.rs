@@ -42,8 +42,8 @@ pub struct PolicyValueSection {
     pub uncertainty: String,
     /// Held-out randomized uplift by descending frozen score bin.
     pub uplift_bins: Vec<(usize, f64, f64, usize, Option<(f64, f64)>)>,
-    /// Point-only conditional contrasts: group, action, effect, total and observed rows.
-    pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize)>,
+    /// Conditional contrasts: group, action, effect, total and observed rows, SE, interval.
+    pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize, f64, Option<(f64, f64)>)>,
 }
 
 /// Retained conditional continuous-dose grid; no interval or policy value.
@@ -101,6 +101,7 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             multi_action_cate: value.multi_action_cate.iter().map(|point| (
                 point.group.clone(), point.action.clone(), point.effect,
                 point.evaluation_rows, point.observed_action_rows, point.observed_control_rows,
+                point.standard_error, point.interval_95.map(|bounds| (bounds[0], bounds[1])),
             )).collect(),
         }
     }

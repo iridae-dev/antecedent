@@ -442,7 +442,7 @@ pub struct ContinuousDoseResponseWire {
     pub uncertainty: String,
 }
 
-/// One point-only randomized multi-action conditional effect.
+/// One randomized multi-action conditional effect.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct MultiActionCateWire {
@@ -452,6 +452,12 @@ pub struct MultiActionCateWire {
     pub action: String,
     /// Point estimate of the action minus control contrast.
     pub effect: f64,
+    /// Paired action-minus-control row-score standard error.
+    #[serde(default)]
+    pub standard_error: f64,
+    /// Pointwise interval when randomized group support is sufficient.
+    #[serde(default)]
+    pub interval_95: Option<[f64; 2]>,
     /// Total rows in the group.
     pub evaluation_rows: usize,
     /// Rows assigned the action.
@@ -1886,6 +1892,48 @@ fn validate_result(
             })
         {
             return Err(IoError::Convert("invalid policy uplift-bin support or interval".into()));
+        }
+        if let Some(multi) = &query.multi_action {
+            let k = multi.action_labels.len();
+            if k < 2 {
+                return Err(IoError::Convert("multi-action CATE requires a control and an action".into()));
+            }
+            let mut groups = multi.cate_groups.clone();
+            groups.sort_unstable();
+            groups.dedup();
+            if policy.multi_action_cate.len() != groups.len() * k.saturating_sub(1)
+                || policy.multi_action_cate.iter().enumerate().any(|(index, point)| {
+                    let group = &groups[index / (k - 1)];
+                    let action = index % (k - 1) + 1;
+                    let rows = multi.cate_groups.iter().enumerate()
+                        .filter(|(_, label)| *label == group).map(|(row, _)| row).collect::<Vec<_>>();
+                    let observed_action = rows.iter().filter(|&&row| multi.assignment[row] == action).count();
+                    let observed_control = rows.iter().filter(|&&row| multi.assignment[row] == 0).count();
+                    let strong_overlap = rows.iter().all(|&row| {
+                        multi.propensities[row * k] >= 0.2
+                            && multi.propensities[row * k + action] >= 0.2
+                    });
+                    let interval_valid = point.interval_95.is_none_or(|bounds| {
+                        let span = z * point.standard_error;
+                        let tolerance = 1e-10 * (1.0 + point.effect.abs() + span.abs());
+                        rows.len() >= 300 && observed_action >= 50 && observed_control >= 50
+                            && strong_overlap && point.standard_error > 0.0
+                            && bounds.iter().all(|value| value.is_finite())
+                            && (bounds[0] - (point.effect - span)).abs() <= tolerance
+                            && (bounds[1] - (point.effect + span)).abs() <= tolerance
+                    });
+                    point.group != group.as_str() || point.action != multi.action_labels[action].as_str()
+                        || point.evaluation_rows != rows.len()
+                        || point.observed_action_rows != observed_action
+                        || point.observed_control_rows != observed_control
+                        || !point.effect.is_finite() || !point.standard_error.is_finite()
+                        || point.standard_error < 0.0 || !interval_valid
+                })
+            {
+                return Err(IoError::Convert("invalid multi-action CATE support or interval".into()));
+            }
+        } else if !policy.multi_action_cate.is_empty() {
+            return Err(IoError::Convert("multi-action CATE requires a multi-action query".into()));
         }
     }
     if let Some(did) = &result.panel_did {

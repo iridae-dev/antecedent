@@ -717,14 +717,16 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=("off_axis_pointwise_95" if section.policy_interval_95 is not None
                         or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
+                        or any(interval is not None for *_, interval in section.multi_action_cate)
                         else "unlicensed_point_utility"),
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
         uplift_bins=tuple(UpliftBin(int(rank), float(effect), float(se), int(rows), interval)
                           for rank, effect, se, rows, interval in section.uplift_bins),
-        multi_action_cate=tuple(MultiActionCatePoint(group, action, float(effect), int(rows), int(action_rows), int(control_rows))
-                                for group, action, effect, rows, action_rows, control_rows in section.multi_action_cate),
+        multi_action_cate=tuple(MultiActionCatePoint(group, action, float(effect), int(rows), int(action_rows), int(control_rows),
+                                                 float(se), interval, "pointwise_95" if interval is not None else "point_only")
+                                for group, action, effect, rows, action_rows, control_rows, se, interval in section.multi_action_cate),
         uncertainty=section.uncertainty,
         evaluation_method=(
             "randomized_multi_action_ipw_fixed_policy" if multi_action else
@@ -769,7 +771,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
                 "ranking-model ownership is checked from caller-supplied subject IDs only",
             ) if section.uplift_bins else ())
             + ((
-                "multi-action conditional effects are point-only; no interval coverage is licensed",
+                "multi-action conditional intervals require at least 300 independent evaluation subjects in each fixed baseline group, 50 observed subjects per compared arm, and each compared action probability at least 0.2",
             ) if section.multi_action_cate else ())
         ),
     )

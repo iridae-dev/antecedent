@@ -267,6 +267,7 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
         assert_eq!(point.observed_action_rows, 1);
         assert_eq!(point.observed_control_rows, 1);
         assert!((point.effect - if point.action == "A" { 1.0 } else { 3.0 }).abs() < 1e-12);
+        assert!(point.interval_95.is_none());
     }
     let grouped_artifact = grouped_prepared.encode_contracted_result(&grouped_result, "grouped-policy", &ctx).unwrap();
     let (_, _, grouped_body) = antecedent_io::decode_analysis_result_artifact(&grouped_artifact).unwrap();
@@ -315,7 +316,7 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
         costs: [0.0, 0.1, 0.2].into(), reference_costs: [0.0; 3].into(),
         capacities: [n; 3].into(), reference_capacities: [n; 3].into(),
         budget: Some(n as f64 * 0.2), reference_budget: None,
-        cate_groups: Arc::from([]),
+        cate_groups: vec![Arc::<str>::from("g0"); n].into(),
     });
     let ctx = ExecutionContext::for_tests(45);
     let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
@@ -324,9 +325,18 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     let value = result.policy_value.as_ref().unwrap();
     assert!(value.policy_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
+    assert_eq!(value.multi_action_cate.len(), 2);
+    for (point, truth) in value.multi_action_cate.iter().zip([1.0, 3.0]) {
+        let bounds = point.interval_95.expect("300 randomized subjects and 100 observed per arm");
+        assert!(bounds[0] < truth && truth < bounds[1]);
+    }
     let bytes = prepared.encode_contracted_result(&result, "multi-interval", &ctx).unwrap();
-    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.policy_value.unwrap().policy_interval_95, value.policy_interval_95);
+    let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, value.policy_interval_95);
+    assert_eq!(body.policy_value.as_ref().unwrap().multi_action_cate[0].interval_95,
+        value.multi_action_cate[0].interval_95);
+    body.policy_value.as_mut().unwrap().multi_action_cate[0].interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-cate").is_err());
 
     q.multi_action.as_mut().unwrap().budget = Some(40.0);
     let constrained = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
