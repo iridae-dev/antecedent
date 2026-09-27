@@ -185,7 +185,7 @@ impl CheckedSurvivalOperation {
                         }
                     };
                     let band_support = (band.replicates_ok >= 399
-                        && matches!(crate::support::classify_graphless(
+                        && crate::support::license_if_graphless(
                             crate::support::GraphlessSupportKey {
                                 family: "survival",
                                 design: "two_arm_individual_randomized",
@@ -201,7 +201,7 @@ impl CheckedSurvivalOperation {
                                 reported_intervals: 1,
                                 ..Default::default()
                             },
-                        ), crate::support::GraphlessSupportStatus::Licensed { .. }))
+                        ).is_some())
                         .then_some(crate::support::CellStatus::Licensed);
                     (Some(crate::result::SurvivalDifferenceBand {
                         times: band.times.into(), difference: band.difference.into(),
@@ -303,7 +303,7 @@ impl CheckedSurvivalOperation {
             } else {
                 "arm_stratified_subject_bootstrap_product_limit"
             };
-            if matches!(crate::support::classify_graphless(
+            if crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "survival",
                     design,
@@ -321,7 +321,7 @@ impl CheckedSurvivalOperation {
                     known_density: ipcw,
                     ..Default::default()
                 },
-            ), crate::support::GraphlessSupportStatus::Licensed { .. })
+            ).is_some()
             {
                 result.support_status = Some(crate::support::CellStatus::Licensed);
             }

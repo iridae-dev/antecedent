@@ -224,7 +224,7 @@ impl CheckedLongitudinalRegimeOperation {
         let graphless_dr_licensed = self.query.method == LongitudinalRegimeMethod::SequentialDoublyRobust
             && dr_interval.is_some()
             && matches!(self.query.periods, 2 | 3)
-            && matches!(crate::support::classify_graphless(
+            && crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: if self.query.periods == 2 {
@@ -244,7 +244,7 @@ impl CheckedLongitudinalRegimeOperation {
                         && self.query.prediction_fold_ids.as_deref() == Some(self.query.fold_ids.as_ref()),
                     ..Default::default()
                 },
-            ), crate::support::GraphlessSupportStatus::Licensed { .. });
+            ).is_some();
         // The two-period fixed-known-Q g-formula interval only publishes after
         // its own subject, positivity, and censoring floors hold, so its
         // graphless license is a function of that published interval plus the
@@ -254,7 +254,7 @@ impl CheckedLongitudinalRegimeOperation {
         let graphless_g_formula_licensed = self.query.method == LongitudinalRegimeMethod::GFormula
             && g_formula_interval.is_some()
             && self.query.periods == 2
-            && matches!(crate::support::classify_graphless(
+            && crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: "known_sequential_randomized_two_period",
@@ -268,7 +268,7 @@ impl CheckedLongitudinalRegimeOperation {
                     min_probability: summary.minimum_action_probability,
                     ..Default::default()
                 },
-            ), crate::support::GraphlessSupportStatus::Licensed { .. });
+            ).is_some();
         // The additive MSM publishes separate pointwise subject-clustered CR1
         // intervals for the intercept and every period coefficient only after
         // its subject, observed-outcome, and effective-weight floors hold, so
@@ -277,7 +277,7 @@ impl CheckedLongitudinalRegimeOperation {
         // SEs are enforced upstream by the intervals and stated in the row.
         let graphless_msm_licensed = self.query.method == LongitudinalRegimeMethod::MarginalStructuralModel
             && msm_intervals.is_some()
-            && matches!(crate::support::classify_graphless(
+            && crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: "known_sequential_randomized_additive_msm",
@@ -293,7 +293,7 @@ impl CheckedLongitudinalRegimeOperation {
                     min_effective_sample_size: summary.effective_sample_size,
                     ..Default::default()
                 },
-            ), crate::support::GraphlessSupportStatus::Licensed { .. });
+            ).is_some();
         let graphless_licensed =
             graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
         let mut result = finish_identified_execute_with_context(

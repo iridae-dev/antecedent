@@ -719,19 +719,15 @@ fn interference_graphless_license(
     method: &'static str,
     support: crate::support::GraphlessAssignmentSupport,
 ) -> Option<crate::support::CellStatus> {
-    matches!(
-        crate::support::classify_graphless(
-            crate::support::GraphlessSupportKey {
-                family: "interference",
-                design,
-                method,
-                inference_claim: "exposure_contrast_pointwise_95_student_interval",
-            },
-            support,
-        ),
-        crate::support::GraphlessSupportStatus::Licensed { .. },
+    crate::support::license_if_graphless(
+        crate::support::GraphlessSupportKey {
+            family: "interference",
+            design,
+            method,
+            inference_claim: "exposure_contrast_pointwise_95_student_interval",
+        },
+        support,
     )
-    .then_some(crate::support::CellStatus::Licensed)
 }
 
 fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {

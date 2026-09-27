@@ -243,7 +243,7 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
-        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+        if crate::support::license_if_graphless(
             crate::support::GraphlessSupportKey {
                 family: "difference_in_differences", design: "panel_2x2",
                 method: "cluster_change_scores_cr1", inference_claim: "pointwise_95_normal_interval",
@@ -253,7 +253,7 @@ impl CheckedPanelDidOperation {
                 interval_95_published: interval_95.is_some(), reported_intervals: usize::from(interval_95.is_some()),
                 ..Default::default()
             },
-        ) {
+        ).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         result.treatment = None;
@@ -360,25 +360,22 @@ impl CheckedPanelDidOperation {
         let representative_treated_clusters = treated_cluster_count(representative.cohort);
         let published_intervals = event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
         let graphless_licensed = representative_interval.is_some()
-            && matches!(
-                crate::support::classify_graphless(
-                    crate::support::GraphlessSupportKey {
-                        family: "difference_in_differences",
-                        design: "staggered_event_study",
-                        method: "never_treated_event_study_cluster_cr1",
-                        inference_claim: "post_adoption_event_time_pointwise_95_normal_intervals",
-                    },
-                    crate::support::GraphlessAssignmentSupport {
-                        assignment_unit: "cluster",
-                        treated: representative_treated_clusters,
-                        control: control_clusters.len(),
-                        interval_95_published: true,
-                        reported_intervals: published_intervals,
-                        ..Default::default()
-                    },
-                ),
-                crate::support::GraphlessSupportStatus::Licensed { .. },
-            );
+            && crate::support::license_if_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "difference_in_differences",
+                    design: "staggered_event_study",
+                    method: "never_treated_event_study_cluster_cr1",
+                    inference_claim: "post_adoption_event_time_pointwise_95_normal_intervals",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "cluster",
+                    treated: representative_treated_clusters,
+                    control: control_clusters.len(),
+                    interval_95_published: true,
+                    reported_intervals: published_intervals,
+                    ..Default::default()
+                },
+            ).is_some();
         let pretrend_diagnostic = match antecedent_estimate::staggered_event_study::pretrend_falsification_statistic(&effects) {
             Ok(statistic) => Diagnostic::new(
                 "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z",
@@ -700,7 +697,7 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
-        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+        if crate::support::license_if_graphless(
             crate::support::GraphlessSupportKey {
                 family: "difference_in_differences", design: "repeated_cross_section_2x2",
                 method: "four_cell_cluster_scores_cr1", inference_claim: "pointwise_95_normal_interval",
@@ -711,7 +708,7 @@ impl CheckedPanelDidOperation {
                 interval_95_published: interval_95.is_some(), reported_intervals: usize::from(interval_95.is_some()),
                 ..Default::default()
             },
-        ) {
+        ).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         result.treatment = None;
