@@ -340,3 +340,33 @@ def test_retained_held_out_policy_intervals_and_crossfit_refusal():
     constrained_result = ant.analyze({"y": y}, query=constrained, refute="none").policy_value
     assert constrained_result.policy_value_interval_95 is None
     assert constrained_result.incremental_value_interval_95 is None
+
+
+def test_retained_multi_action_policy_interval_and_global_constraint_refusal():
+    n = 90
+    labels = ("control", "A", "B")
+    assigned = [labels[i % 3] for i in range(n)]
+    y = [[1.0, 2.0, 4.0][i % 3] + (i % 7) / 10 for i in range(n)]
+    common = dict(
+        outcome="y", assignment=assigned,
+        propensities=[[1 / 3] * 3 for _ in range(n)],
+        evaluation_subject_ids=[f"multi-{i}" for i in range(n)],
+    )
+    independent = policy.MultiActionPolicyValue(
+        **common,
+        policy=policy.MultiActionPolicy(labels, assigned, costs=[0, 0.1, 0.2],
+                                        capacities=[n] * 3, budget=n * 0.2),
+    )
+    result = ant.analyze({"y": y}, query=independent, refute="none")
+    assert result.policy_value.policy_value_interval_95 is not None
+    assert result.policy_value.incremental_value_interval_95 is not None
+    artifact = ant.load(result.export(artifact_id="multi-policy-interval"))
+    assert artifact.answer.structured["policy_interval_95"] == pytest.approx(result.policy_value.policy_value_interval_95)
+
+    constrained = policy.MultiActionPolicyValue(
+        **common,
+        policy=policy.MultiActionPolicy(labels, assigned, costs=[0, 0.1, 0.2],
+                                        capacities=[n] * 3, budget=10.0),
+    )
+    point_only = ant.analyze({"y": y}, query=constrained, refute="none").policy_value
+    assert point_only.policy_value_interval_95 is None
