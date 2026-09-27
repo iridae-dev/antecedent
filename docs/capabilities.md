@@ -593,6 +593,15 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `NeighborFraction`, and the total exposure contrast `(0, 0)` to `(1, 1)`.
   It requires at least two clusters per arm and reports a conservative
   cluster-level variance without an interval or a Bernoulli calibration claim.
+  `SaturationDesign` is a third retained construction: complete allocation of
+  clusters to low/high treatment probabilities followed by independent
+  Bernoulli assignment of units. With a matching `PartialInterference` partition,
+  `InterferenceQuery` accepts `NeighborCount`, `NeighborFraction`, or
+  `WeightedNeighborExposure` and estimates direct, spillover, or total contrasts
+  from the requested exposure levels. Exact cluster-allocation and neighbor
+  assignment probabilities are computed in Rust. The variance is a descriptive
+  covariance-free proxy; no interval or support-matrix license is claimed.
+  Direct and retained Python routes use the same native estimator.
   `interference.estimate` remains an unlicensed utility over every design and
   exposure mapping; it returns bare numbers.
 * **Randomized experiment ITT** (`antecedent.experiment`): `ExperimentDesign`
@@ -619,8 +628,12 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   It reports the outcome ITT, positive receipt first stage, Wald CACE/LATE,
   and independent-unit influence variance under exclusion and monotonicity;
   it refuses zero or negative first stages and publishes no interval.
-  Multi-arm and factorial designs remain separate utilities or explicit
-  refusals on this retained route.
+  `experiment.FactorialRandomization` carries a fixed four-cell 2×2 design
+  through the same retained `RandomizedEffect` route. It requires at least two
+  units per cell and reports both marginal main effects and their interaction
+  with cellwise Neyman conservative variance estimates and no interval. The
+  query and artifact retain the second-factor assignment, cell counts, and
+  labels. Multi-arm assignment remains a separate utility on this route.
   `experiment.estimate_complier_effect` also provides a direct randomized
   noncompliance ITT and Wald CACE/LATE point estimate with an
   influence-function standard error;
