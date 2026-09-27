@@ -129,7 +129,7 @@ impl CheckedContinuousDoseOperation {
             }
             let intervals = [value.policy_interval_95, value.reference_interval_95,
                 value.incremental_interval_95];
-            matches!(crate::support::classify_graphless(
+            crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "continuous_dose_policy",
                     design: "fixed_group_kernel",
@@ -149,7 +149,7 @@ impl CheckedContinuousDoseOperation {
                     known_density: self.query.density_provenance.as_ref() == "known",
                     ..Default::default()
                 },
-            ), crate::support::GraphlessSupportStatus::Licensed { .. })
+            ).is_some()
         });
         let mut result = finish_identified_execute_with_context(
             &self.result_context,

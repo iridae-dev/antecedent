@@ -676,7 +676,7 @@ impl CheckedRandomizedOperation {
             self.query.assignment_probabilities.iter().copied()
                 .map(|p| p.min(1.0 - p)).fold(f64::INFINITY, f64::min)
         };
-        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+        if crate::support::license_if_graphless(
             crate::support::GraphlessSupportKey {
                 family, design, method, inference_claim: claim,
             },
@@ -694,7 +694,7 @@ impl CheckedRandomizedOperation {
                 balanced_sequences,
                 ..Default::default()
             },
-        ) {
+        ).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         result.rebind_interval(false);
@@ -1061,9 +1061,9 @@ impl CheckedPolicyValueOperation {
                     .all(|id| !self.query.evaluation_subject_ids.contains(id)),
             ..Default::default()
         };
-        if matches!(crate::support::classify_graphless(
+        if crate::support::license_if_graphless(
             crate::support::GraphlessSupportKey { family: "policy_value", design, method, inference_claim: claim }, observed,
-        ), crate::support::GraphlessSupportStatus::Licensed { .. }) {
+        ).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         Ok(result)

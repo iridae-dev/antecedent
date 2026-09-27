@@ -177,6 +177,19 @@ pub fn classify_graphless(
         })
 }
 
+/// The execute-side graphless license handshake: return
+/// [`CellStatus::Licensed`] when `key`/`observed` classify as licensed, and
+/// `None` otherwise. Every checked-execution operation shares this so the
+/// per-site scaffold is only the key derivation and support-field population.
+#[must_use]
+pub(crate) fn license_if_graphless(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+) -> Option<CellStatus> {
+    matches!(classify_graphless(key, observed), GraphlessSupportStatus::Licensed { .. })
+        .then_some(CellStatus::Licensed)
+}
+
 #[cfg(test)]
 mod graphless_support_tests {
     use super::*;
