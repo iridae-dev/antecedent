@@ -2813,6 +2813,7 @@ class _PrepareRoute:
             treated_per_row,
             treated_clusters=treated_clusters,
             fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
+            ancova_covariates=list(query.ancova_covariates),
             exact_randomization_test=query.exact_randomization_test,
             second_factor_assignment=list(assignment.second_factor_assignment) if isinstance(assignment, FactorialRandomization) else None,
             factorial_cell_counts=assignment.cell_counts if isinstance(assignment, FactorialRandomization) else None,

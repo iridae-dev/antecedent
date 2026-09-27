@@ -74,6 +74,44 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
 }
 
 #[test]
+fn multi_covariate_ancova_runs_in_retained_study_and_artifact() {
+    let assignment = [false, true, false, true, true, false, true, false];
+    let x1 = [0., 1., 2., 3., 4., 5., 6., 7.];
+    let x2 = [1., 0., 1., 0., 1., 0., 1., 0.];
+    let y = (0..8).map(|i| 3. + 2. * f64::from(assignment[i]) + 4. * x1[i] - x2[i]).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()), ("baseline_a", &x1), ("baseline_b", &x2),
+    ]).unwrap();
+    let base = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0), assignment, [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    );
+    let query = base.clone().with_ancova(vec![VariableId::from_raw(1), VariableId::from_raw(2)]);
+    let ctx = ExecutionContext::for_tests(67);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let adjusted = result.randomized_effect.as_ref().unwrap();
+    assert!((adjusted.effect - 2.).abs() < 1e-10);
+    assert!(adjusted.variance_upper_bound < 1e-20);
+    assert_eq!(adjusted.uncertainty.as_ref(), "bernoulli_ancova_hc0_variance_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "ancova_pre_assignment_covariates"
+    )));
+    let bytes = prepared.encode_contracted_result(&result, "ancova", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().uncertainty, "bernoulli_ancova_hc0_variance_no_interval");
+    let mut forged = artifact;
+    forged.standard_error = Some(0.1);
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged-ancova").is_err());
+    assert!(base.clone().with_ancova(vec![VariableId::from_raw(1), VariableId::from_raw(1)]).validate().is_err());
+    assert!(base.with_fixed_cuped(VariableId::from_raw(1), 4.).with_ancova(vec![VariableId::from_raw(2)]).validate().is_err());
+}
+
+#[test]
 fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
     let outcomes = [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0];
     let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();

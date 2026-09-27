@@ -73,6 +73,23 @@ def test_fixed_cuped_refuses_unsupported_design_and_missing_baseline():
         )
 
 
+def test_retained_ancova_uses_multiple_baselines_and_refuses_unsupported_combinations():
+    assignment = [False, True, False, True, True, False, True, False]
+    x1 = np.arange(8, dtype=float)
+    x2 = np.asarray([1., 0., 1., 0., 1., 0., 1., 0.])
+    outcomes = 3. + 2. * np.asarray(assignment, dtype=float) + 4. * x1 - x2
+    query = ant.RandomizedEffect("outcome", _design(assignment), ancova_covariates=("x1", "x2"))
+    result = ant.analyze({"outcome": outcomes, "x1": x1, "x2": x2}, query=query, refute="none")
+    assert result.answer.value == pytest.approx(2.)
+    assert result.randomized_effect.uncertainty == "bernoulli_ancova_hc0_variance_no_interval"
+    assert result.randomized_effect.variance_upper_bound == pytest.approx(0., abs=1e-20)
+    assert any("ancova_pre_assignment_covariates" in item for item in result.assumptions or ())
+    with pytest.raises(CausalValueError, match="Bernoulli"):
+        ant.RandomizedEffect("outcome", _design(assignment, randomization=interference.CompleteRandomization(4)), ancova_covariates=("x1",))
+    with pytest.raises(CausalValueError, match="distinct"):
+        ant.RandomizedEffect("outcome", _design(assignment), ancova_covariates=("x1", "x1"))
+
+
 def test_randomized_effect_rejects_non_itt_and_misaligned_units():
     with pytest.raises(CausalValueError, match="supports the ITT"):
         ant.ExperimentDesign(

@@ -1088,6 +1088,9 @@ pub struct RandomizedEffectQueryWire {
     /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
     #[serde(default)]
     pub fixed_cuped: Option<(u32, f64)>,
+    /// Pre-assignment covariates jointly fitted by ANCOVA.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ancova_covariates: Vec<u32>,
     /// Row-aligned observed receipt for CACE/LATE.
     #[serde(default)]
     pub received_treatment: Option<Vec<bool>>,
@@ -1712,6 +1715,7 @@ pub fn causal_query_to_wire_with_registry(
                     _ => Vec::new(),
                 },
                 fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
+                ancova_covariates: q.ancova_covariates.iter().map(|id| id.raw()).collect(),
                 received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
                 exact_randomization_test: q.exact_randomization_test,
                 second_factor_assignment: match &q.design {
@@ -2090,6 +2094,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             );
             if let Some((id, coefficient)) = w.fixed_cuped {
                 query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
+            }
+            if !w.ancova_covariates.is_empty() {
+                query = query.with_ancova(w.ancova_covariates.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>());
             }
             if let Some(receipt) = &w.received_treatment {
                 query = query.with_received_treatment(receipt.clone());

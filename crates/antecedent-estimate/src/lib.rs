@@ -16,6 +16,7 @@
 #![deny(missing_docs)]
 
 pub mod adjustment;
+pub mod ancova;
 pub mod aipw;
 pub mod ar_kernel;
 pub mod bayesian;

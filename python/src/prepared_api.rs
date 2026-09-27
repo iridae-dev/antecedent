@@ -3379,7 +3379,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, received_treatment=None, exact_randomization_test=false,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, exact_randomization_test=false,
         second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
@@ -3399,6 +3399,7 @@ impl PyPreparedAnalysis {
         treated_per_row: Option<Vec<usize>>,
         treated_clusters: Option<usize>,
         fixed_cuped: Option<(String, f64)>,
+        ancova_covariates: Option<Vec<String>>,
         periods: Option<Vec<String>>,
         received_treatment: Option<Vec<bool>>,
         exact_randomization_test: bool,
@@ -3468,6 +3469,12 @@ impl PyPreparedAnalysis {
             if let Some((covariate, coefficient)) = fixed_cuped {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
+            }
+            if let Some(covariates) = ancova_covariates {
+                if !covariates.is_empty() {
+                    let ids = covariates.iter().map(|name| crate::graph_build::schema_var_id(data.schema(), name)).collect::<PyResult<Vec<_>>>()?;
+                    query = query.with_ancova(ids);
+                }
             }
             if let Some(received) = received_treatment {
                 query = query.with_received_treatment(received);

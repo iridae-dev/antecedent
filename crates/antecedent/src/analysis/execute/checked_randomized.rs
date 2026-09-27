@@ -64,6 +64,10 @@ impl CheckedRandomizedOperation {
             data.schema().get(covariate)
                 .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         }
+        for &covariate in query.ancova_covariates.iter() {
+            data.schema().get(covariate)
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        }
         if physical.logical.query != study.query
             || physical.logical.record.identifier.as_deref()
                 != Some(IdentifierId::RandomizedDesign.as_str())
@@ -152,7 +156,21 @@ impl CheckedRandomizedOperation {
             assignment_design,
             uncertainty,
             diagnostic,
-        ) = if let Some(received) = &self.query.received_treatment {
+        ) = if !self.query.ancova_covariates.is_empty() {
+            let covariates = self.query.ancova_covariates.iter().map(|&id| {
+                match data.column(id).map_err(CausalError::from)? {
+                    antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
+                    _ => Err(CausalError::Unsupported { message: "ANCOVA pre-assignment covariates must be continuous" }),
+                }
+            }).collect::<Result<Vec<_>, _>>()?;
+            let refs = covariates.iter().map(Vec::as_slice).collect::<Vec<_>>();
+            let fit = antecedent_estimate::ancova::fit_ancova(outcomes, &self.query.realized_assignment, &refs)
+                .map_err(|message| CausalError::Unsupported { message })?;
+            (fit.effect, fit.hc0_variance, fit.control, fit.treated, Arc::from([]), Arc::from([]),
+                Arc::<str>::from("bernoulli"),
+                Arc::<str>::from("bernoulli_ancova_hc0_variance_no_interval"),
+                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no calibrated confidence interval")
+        } else if let Some(received) = &self.query.received_treatment {
             let mut outcome_scores = Vec::with_capacity(n);
             let mut receipt_scores = Vec::with_capacity(n);
             let mut controls = 0;
@@ -454,6 +472,7 @@ impl CheckedRandomizedOperation {
                     match self.query.design {
                         antecedent_core::RandomizationDesign::Bernoulli if self.query.received_treatment.is_some() => "estimate.randomized.wald_cace_late",
                         antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() => "estimate.randomized.fixed_cuped_ht_itt",
+                        antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() => "estimate.randomized.ancova_itt",
                         antecedent_core::RandomizationDesign::Bernoulli => "estimate.randomized.ht_itt",
                         antecedent_core::RandomizationDesign::Switchback { .. } => "estimate.randomized.switchback_ht_itt",
                         _ => "estimate.randomized.neyman_itt",
@@ -878,6 +897,17 @@ pub(crate) fn randomized_identification(
             status: AssumptionStatus::Declared,
         });
     }
+    if !query.ancova_covariates.is_empty() {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("ancova_pre_assignment_covariates"),
+                description: Arc::from("ANCOVA covariates were measured before randomization; its HC0 variance treats independently assigned rows as the sampling units"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Declared,
+        });
+    }
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
@@ -935,6 +965,8 @@ fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> Es
                 EstimatorId::RandomizedWaldCace
             } else if query.fixed_cuped.is_some() {
                 EstimatorId::RandomizedFixedCupedHt
+            } else if !query.ancova_covariates.is_empty() {
+                EstimatorId::RandomizedAncova
             } else {
                 EstimatorId::RandomizedHt
             }

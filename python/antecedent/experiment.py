@@ -356,6 +356,7 @@ class RandomizedEffect:
     design: ExperimentDesign
     _: KW_ONLY
     cuped: FixedCUPED | None = None
+    ancova_covariates: tuple[str, ...] = ()
     exact_randomization_test: bool = False
     kind: Literal["randomized_effect"] = field(default="randomized_effect", init=False, repr=False)
 
@@ -367,10 +368,17 @@ class RandomizedEffect:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
             if not isinstance(self.design.assignment, BernoulliAssignment):
                 raise CausalValueError("retained fixed CUPED currently requires Bernoulli assignment")
+        if self.ancova_covariates:
+            if not isinstance(self.ancova_covariates, tuple) or any(not isinstance(name, str) or not name.strip() for name in self.ancova_covariates) or len(set(self.ancova_covariates)) != len(self.ancova_covariates) or self.outcome in self.ancova_covariates:
+                raise CausalValueError("ANCOVA requires distinct, non-empty pre-assignment covariate names separate from outcome")
+            if self.cuped is not None or not isinstance(self.design.assignment, BernoulliAssignment):
+                raise CausalValueError("retained ANCOVA requires Bernoulli assignment and cannot combine with fixed CUPED")
+            if len(self.design.realized_assignment) <= len(self.ancova_covariates) + 2:
+                raise CausalValueError("ANCOVA requires residual degrees of freedom")
         if isinstance(self.design.assignment, FactorialRandomization) and self.exact_randomization_test:
             raise CausalValueError("exact Fisher inference is only available for unadjusted complete two-arm designs")
         if self.exact_randomization_test:
-            if type(self.exact_randomization_test) is not bool or self.cuped is not None or not isinstance(self.design.assignment, CompleteRandomization) or len(self.design.realized_assignment) > 20:
+            if type(self.exact_randomization_test) is not bool or self.cuped is not None or self.ancova_covariates or not isinstance(self.design.assignment, CompleteRandomization) or len(self.design.realized_assignment) > 20:
                 raise CausalValueError("exact randomization inference requires an unadjusted complete two-arm design with at most 20 units")
 
     def to_interference_query(self) -> InterferenceQuery:
@@ -400,9 +408,9 @@ class RandomizedEffect:
         or a support-matrix license. Exact randomization inference is available
         through the retained ``analyze`` or ``prepare`` route.
         """
-        if self.exact_randomization_test:
+        if self.exact_randomization_test or self.ancova_covariates:
             raise CausalUnsupportedError(
-                "exact randomization inference requires analyze or prepare to retain its null distribution contract",
+                "exact randomization inference requires analyze or prepare; ANCOVA also requires this retained inference contract",
                 reason_code="route_not_supported",
             )
         if isinstance(self.design.assignment, FactorialRandomization):

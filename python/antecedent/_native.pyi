@@ -1254,6 +1254,7 @@ class PreparedAnalysis:
         *,
         treated_clusters: int | None = None,
         fixed_cuped: tuple[str, float] | None = None,
+        ancova_covariates: list[str] | None = None,
         periods: list[str] | None = None,
         received_treatment: list[bool] | None = None,
         exact_randomization_test: bool = False,
