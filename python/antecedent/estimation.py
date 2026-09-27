@@ -73,7 +73,7 @@ from .interference import (
 )
 from .policy import BinaryPolicy, DoublyRobustPolicyEvaluation, PolicyValue, evaluate_policy
 from .population import coerce_target_population
-from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate
+from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate, StaggeredAdoption
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -298,12 +298,21 @@ def _panel_did_from_raw(
     if section is None:
         return None
     repeated = isinstance(query, PanelDifferenceInDifferences) and query.sampling == "repeated_cross_section"
+    staggered = isinstance(query, StaggeredAdoption)
     return PanelDifferenceInDifferencesEstimate(
         estimate=section.effect, standard_error=section.standard_error,
         treated_subjects=section.treated_subjects, control_subjects=section.comparison_subjects,
         clusters=section.clusters, uncertainty=section.uncertainty,
-        design="repeated_cross_section_2x2" if repeated else "balanced_two_period_panel",
+        design="balanced_staggered_adoption_group_time_att" if staggered else ("repeated_cross_section_2x2" if repeated else "balanced_two_period_panel"),
         assumptions=(
+            "cohort_specific_parallel_untreated_trends",
+            "no_anticipation",
+            "absorbing_treatment_after_adoption",
+            "never_treated_controls_are_valid",
+            "no_interference",
+            "balanced_panel",
+            "independent_sampling_clusters",
+        ) if staggered else (
             "parallel_untreated_trends",
             "no_anticipation",
             "stable_group_definition",
@@ -318,6 +327,8 @@ def _panel_did_from_raw(
             "independent_sampling_clusters",
         ),
         support_status="unlicensed_point_utility",
+        cohort=query.target_cohort if staggered else None,
+        period=query.target_period if staggered else None,
     )
 
 
@@ -1553,6 +1564,7 @@ _PreparedQuery = (
     | AnomalyAttribution
     | ChangeAttribution
     | PanelDifferenceInDifferences
+    | StaggeredAdoption
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegimeQuery
@@ -1672,6 +1684,39 @@ def _panel_did_payload(
         "treated": tuple(_binary(raw[query.treated], query.treated)),
         "post": tuple(_binary(raw[query.post], query.post)),
         "repeated_cross_section": query.sampling == "repeated_cross_section",
+    }
+    names, columns = ingest_columns({query.outcome: raw[query.outcome]})
+    return names, columns, design
+
+
+def _staggered_payload(
+    data: Any, query: StaggeredAdoption
+) -> tuple[list[str], list[Any], dict[str, Any]]:
+    from .quasi import _integer_column, _raw_columns
+
+    if query.target_cohort is None or query.target_period is None:
+        raise CausalValueError("analyze with StaggeredAdoption requires target_cohort and target_period")
+    raw_names, raw_columns = _raw_columns(data)
+    raw = dict(zip(raw_names, raw_columns, strict=True))
+    required = (query.outcome, query.subject, query.period, query.cohort)
+    if query.cluster is not None:
+        required += (query.cluster,)
+    missing = [name for name in required if name not in raw]
+    if missing:
+        raise CausalValueError(f"required staggered DiD columns are missing: {missing}")
+    subjects = tuple(str(value) for value in raw[query.subject])
+    clusters = subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    if any(not value.strip() for value in (*subjects, *clusters)):
+        raise CausalValueError("subject and cluster IDs must be non-empty")
+    periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
+    cohorts = tuple(_integer_column(raw[query.cohort], "cohort", minimum=0))
+    design = {
+        "subjects": subjects,
+        "clusters": clusters,
+        "periods": periods,
+        "cohorts": cohorts,
+        "target_cohort": query.target_cohort,
+        "target_period": query.target_period,
     }
     names, columns = ingest_columns({query.outcome: raw[query.outcome]})
     return names, columns, design
@@ -1859,7 +1904,7 @@ class _PrepareRoute:
             return self._policy_value()
         if isinstance(query, RandomizedEffect):
             return self._randomized_effect()
-        if isinstance(query, PanelDifferenceInDifferences):
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
             return self._panel_did()
         if isinstance(query, LongitudinalRegimeQuery):
             return self._longitudinal_regime()
@@ -2453,7 +2498,7 @@ class _PrepareRoute:
         return native, "average"
 
     def _panel_did(self) -> tuple[Any, Literal["average"]]:
-        query = cast(PanelDifferenceInDifferences, self.query)
+        query = cast(PanelDifferenceInDifferences | StaggeredAdoption, self.query)
         if self.graph is not None or self.discovery is not None:
             raise CausalUnsupportedError("PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=", reason_code="option_not_applicable")
         self._refuse_ids("PanelDifferenceInDifferences")
@@ -2466,12 +2511,20 @@ class _PrepareRoute:
         design = self.design_columns
         if design is None:
             raise CausalValueError("panel DiD design columns were not bound at prepare")
-        native = _NativePreparedAnalysis.prepare_panel_did(
-            names, columns, query.outcome, list(design["treated"]), list(design["post"]),
-            list(design["subjects"]), list(design["clusters"]),
-            repeated_cross_section=bool(design["repeated_cross_section"]),
-            accepted=False, **self._common()
-        )
+        if isinstance(query, StaggeredAdoption):
+            native = _NativePreparedAnalysis.prepare_staggered_group_time(
+                names, columns, query.outcome, list(design["subjects"]),
+                list(design["clusters"]), list(design["periods"]), list(design["cohorts"]),
+                design["target_cohort"], design["target_period"],
+                accepted=False, **self._common()
+            )
+        else:
+            native = _NativePreparedAnalysis.prepare_panel_did(
+                names, columns, query.outcome, list(design["treated"]), list(design["post"]),
+                list(design["subjects"]), list(design["clusters"]),
+                repeated_cross_section=bool(design["repeated_cross_section"]),
+                accepted=False, **self._common()
+            )
         return native, "average"
 
     def _survival(self) -> tuple[Any, Literal["average"]]:
@@ -3749,8 +3802,11 @@ class PreparedAnalysis(Generic[ResultT]):
         rd_args = (running_variable, cutoff, bandwidth)
 
         design_columns = None
-        if isinstance(query, PanelDifferenceInDifferences):
-            names, columns, design_columns = _panel_did_payload(data, query)
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
+            if isinstance(query, StaggeredAdoption):
+                names, columns, design_columns = _staggered_payload(data, query)
+            else:
+                names, columns, design_columns = _panel_did_payload(data, query)
             frame = None
         elif isinstance(query, LongitudinalRegimeQuery):
             names, columns = _longitudinal_regime_payload(data, query)
@@ -4046,8 +4102,11 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         query = self._query
-        if isinstance(query, PanelDifferenceInDifferences):
-            names, columns, design = _panel_did_payload(data, query)
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
+            names, columns, design = (
+                _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
+                else _panel_did_payload(data, query)
+            )
             if design != self._design_columns:
                 raise CausalUnsupportedError(
                     "panel DiD refresh requires the prepared subject, cluster, treatment, and period row order",

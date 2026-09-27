@@ -549,7 +549,7 @@ pub(crate) fn validate_query_ids(
                     }
                 }
             };
-            antecedent_core::RandomizedEffectQuery::with_design(
+            let mut query = antecedent_core::RandomizedEffectQuery::with_design(
                 design,
                 antecedent_core::VariableId::from_raw(wire.outcome),
                 wire.realized_assignment.clone(),
@@ -1490,6 +1490,9 @@ mod tests {
         let query = CausalQueryWire::PanelDid(crate::query_wire::PanelDidQueryWire {
             outcome: 0,
             repeated_cross_section: false,
+            staggered_target: None,
+            periods: Vec::new(),
+            cohorts: Vec::new(),
             treated: vec![true, true, false, false],
             post: vec![false, true, false, true],
             subjects: vec!["a".into(), "a".into(), "b".into(), "b".into()],

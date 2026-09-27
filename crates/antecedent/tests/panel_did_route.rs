@@ -152,3 +152,70 @@ fn repeated_cross_section_refuses_duplicate_subject_or_sparse_cell_clusters() {
             .is_err()
     );
 }
+
+#[test]
+fn staggered_group_time_runs_as_retained_native_study() {
+    let mut outcome = Vec::new();
+    let mut subjects = Vec::new();
+    let mut clusters = Vec::new();
+    let mut periods = Vec::new();
+    let mut cohorts = Vec::new();
+    for subject in 0..8 {
+        for period in 1..=4 {
+            let cohort = if subject < 4 { 0 } else { 3 };
+            subjects.push(Arc::<str>::from(format!("s{subject}")));
+            clusters.push(Arc::<str>::from(format!("c{subject}")));
+            periods.push(period);
+            cohorts.push(cohort);
+            outcome.push(
+                subject as f64
+                    + 2.0 * period as f64
+                    + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 },
+            );
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let query = PanelDidQuery::staggered_group_time(
+        VariableId::from_raw(0),
+        subjects,
+        clusters,
+        periods,
+        cohorts,
+        3,
+        4,
+    );
+    let context = ExecutionContext::for_tests(7);
+    let result =
+        Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&context).unwrap();
+    let estimate = result.panel_did.as_ref().unwrap();
+    assert_eq!(estimate.effect, 4.0);
+    assert_eq!(estimate.standard_error, 0.0);
+    assert_eq!(estimate.treated_subjects, 4);
+    assert_eq!(estimate.comparison_subjects, 4);
+    assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
+    for required in
+        ["cohort_specific_parallel_untreated_trends", "never_treated_controls_are_valid"]
+    {
+        assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+            &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required
+        )));
+    }
+    let prepared = Study::tabular(data.clone())
+        .query(query.clone())
+        .build()
+        .unwrap()
+        .prepare(&context)
+        .unwrap();
+    assert_eq!(prepared.estimate(&data, &context).unwrap().panel_did, result.panel_did);
+
+    let no_controls = PanelDidQuery::staggered_group_time(
+        query.outcome,
+        query.subjects.to_vec(),
+        query.clusters.to_vec(),
+        query.periods.to_vec(),
+        vec![3; query.cohorts.len()],
+        3,
+        4,
+    );
+    assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+}

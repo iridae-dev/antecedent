@@ -1202,6 +1202,14 @@ class PreparedAnalysis:
         threads: int | None = None, options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_staggered_group_time(
+        names: list[str], columns: Sequence[Any], outcome: str,
+        subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
+        target_cohort: int, target_period: int, *, accepted: bool = False,
+        seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_survival(
         names: list[str], columns: Sequence[Any], duration: str, event: str,
         treatment: str, tau: float, target_cause: int | None = None,
