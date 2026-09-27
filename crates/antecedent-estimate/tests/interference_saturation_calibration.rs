@@ -1,0 +1,178 @@
+//! Repeated-sampling evidence for cluster-level saturation intervals.
+
+use std::sync::Arc;
+
+use antecedent_core::{AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, VariableId};
+use antecedent_data::{NetworkData, NetworkEdge, TabularData};
+use antecedent_estimate::{estimate_cluster_interference_total_with_inference, estimate_saturation_interference};
+
+const CLUSTERS: usize = 80;
+const UNITS_PER_CLUSTER: usize = 3;
+
+fn next_u64(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut x = *state;
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ (x >> 31)
+}
+
+fn uniform(state: &mut u64) -> f64 {
+    (next_u64(state) >> 11) as f64 / (1_u64 << 53) as f64
+}
+
+fn centered_noise(state: &mut u64) -> f64 {
+    (0..12).map(|_| uniform(state)).sum::<f64>() - 6.0
+}
+
+#[derive(Clone)]
+struct Contrast {
+    mapping: ExposureMapping,
+    from: (f64, f64),
+    to: (f64, f64),
+    truth: f64,
+}
+
+#[test]
+fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth() {
+    let contrasts = [
+        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.5), to: (1.0, 0.5), truth: 2.5 },
+        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (0.0, 1.0), truth: 3.0 },
+        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (1.0, 1.0), truth: 6.0 },
+        Contrast { mapping: ExposureMapping::WeightedNeighborExposure, from: (0.0, 1.0 / 3.0), to: (1.0, 1.0 / 3.0), truth: 2.0 + 1.0 / 3.0 },
+    ];
+    let edges = (0..CLUSTERS).flat_map(|cluster| {
+        (0..UNITS_PER_CLUSTER).flat_map(move |within| {
+            let first = cluster * UNITS_PER_CLUSTER;
+            [
+                NetworkEdge { from: (first + (within + 1) % 3) as u32, to: (first + within) as u32, weight: 1.0 },
+                NetworkEdge { from: (first + (within + 2) % 3) as u32, to: (first + within) as u32, weight: 2.0 },
+            ]
+        })
+    }).collect::<Vec<_>>();
+    let clusters = (0..CLUSTERS).flat_map(|id| [id as u32; UNITS_PER_CLUSTER]).collect::<Vec<_>>();
+    let mut state = 0x8A43_F5D2_0977_141B;
+    let mut accepted = [0_u32; 4];
+    let mut covered = [0_u32; 4];
+    for _ in 0..400 {
+        let mut permutation = (0..CLUSTERS).collect::<Vec<_>>();
+        for index in (1..CLUSTERS).rev() {
+            permutation.swap(index, next_u64(&mut state) as usize % (index + 1));
+        }
+        let mut high = [false; CLUSTERS];
+        for &cluster in &permutation[..CLUSTERS / 2] { high[cluster] = true; }
+        let mut assignment = vec![false; CLUSTERS * UNITS_PER_CLUSTER];
+        let mut realized = vec![0.0; assignment.len()];
+        let mut noise = vec![0.0; assignment.len()];
+        let mut cluster_noise = [0.0; CLUSTERS];
+        for cluster in 0..CLUSTERS {
+            cluster_noise[cluster] = 0.5 * centered_noise(&mut state);
+            for within in 0..UNITS_PER_CLUSTER {
+                let index = cluster * UNITS_PER_CLUSTER + within;
+                let p = if high[cluster] { 0.8 } else { 0.2 };
+                realized[index] = p;
+                assignment[index] = uniform(&mut state) < p;
+                noise[index] = 0.25 * centered_noise(&mut state);
+            }
+        }
+        for (contrast_index, contrast) in contrasts.iter().enumerate() {
+            let outcomes = (0..assignment.len()).map(|index| {
+                let cluster = index / UNITS_PER_CLUSTER;
+                let within = index % UNITS_PER_CLUSTER;
+                let first = cluster * UNITS_PER_CLUSTER;
+                let a = f64::from(assignment[first + (within + 1) % 3]);
+                let b = f64::from(assignment[first + (within + 2) % 3]);
+                let neighbor = match contrast.mapping {
+                    ExposureMapping::NeighborFraction => (a + b) / 2.0,
+                    ExposureMapping::WeightedNeighborExposure => (a + 2.0 * b) / 3.0,
+                    _ => unreachable!(),
+                };
+                let own = f64::from(assignment[index]);
+                5.0 + 2.0 * own + 3.0 * neighbor + own * neighbor
+                    + cluster_noise[cluster] + noise[index]
+            }).collect::<Vec<_>>();
+            let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+            let network = NetworkData::try_new(data, edges.clone()).unwrap();
+            let query = InterferenceQuery::new(
+                AssignmentDesign::TwoStageSaturation {
+                    clusters: Arc::from(clusters.clone()), low_probability: 0.2,
+                    high_probability: 0.8, high_clusters: CLUSTERS / 2,
+                    realized_saturation: Arc::from(realized.clone()),
+                },
+                contrast.mapping.clone(),
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: ExposureLevel { own: contrast.from.0, neighbors: contrast.from.1 },
+                    to: ExposureLevel { own: contrast.to.0, neighbors: contrast.to.1 },
+                },
+            );
+            let result = estimate_saturation_interference(&query, &network, &assignment).unwrap();
+            if let Some(interval) = result.pointwise_interval {
+                accepted[contrast_index] += 1;
+                covered[contrast_index] += u32::from(
+                    interval.bounds[0] <= contrast.truth && contrast.truth <= interval.bounds[1],
+                );
+            }
+        }
+    }
+    for (index, contrast) in contrasts.iter().enumerate() {
+        assert!(accepted[index] >= 360, "contrast {index} {:?}: interval support {}/400", contrast.mapping, accepted[index]);
+        assert!(covered[index] * 10 >= accepted[index] * 9,
+            "contrast {index} {:?}: coverage {}/{}", contrast.mapping, covered[index], accepted[index]);
+    }
+}
+
+#[test]
+fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
+    let edges = (0..CLUSTERS).flat_map(|cluster| {
+        (0..UNITS_PER_CLUSTER).map(move |within| {
+            let first = cluster * UNITS_PER_CLUSTER;
+            NetworkEdge {
+                from: (first + (within + 1) % UNITS_PER_CLUSTER) as u32,
+                to: (first + within) as u32,
+                weight: 1.0,
+            }
+        })
+    }).collect::<Vec<_>>();
+    let clusters = (0..CLUSTERS).flat_map(|id| [id as u32; UNITS_PER_CLUSTER]).collect::<Vec<_>>();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from(clusters), treated_clusters: CLUSTERS / 2,
+        },
+        ExposureMapping::NeighborFraction,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+        },
+    );
+    let mut state = 0xBFD2_5126_F4C0_BA85;
+    let mut covered = 0;
+    for _ in 0..400 {
+        let mut permutation = (0..CLUSTERS).collect::<Vec<_>>();
+        for index in (1..CLUSTERS).rev() {
+            permutation.swap(index, next_u64(&mut state) as usize % (index + 1));
+        }
+        let mut assigned_cluster = [false; CLUSTERS];
+        for &cluster in &permutation[..CLUSTERS / 2] { assigned_cluster[cluster] = true; }
+        let assignment = (0..CLUSTERS).flat_map(|cluster| [assigned_cluster[cluster]; UNITS_PER_CLUSTER])
+            .collect::<Vec<_>>();
+        let mut outcomes = Vec::with_capacity(assignment.len());
+        for cluster in 0..CLUSTERS {
+            let shock = 0.5 * centered_noise(&mut state);
+            for _ in 0..UNITS_PER_CLUSTER {
+                outcomes.push(5.0 + 6.0 * f64::from(assigned_cluster[cluster])
+                    + shock + 0.25 * centered_noise(&mut state));
+            }
+        }
+        let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+        let network = NetworkData::try_new(data, edges.clone()).unwrap();
+        let (estimate, interval) = estimate_cluster_interference_total_with_inference(
+            &query, &network, &assignment,
+        ).unwrap();
+        let interval = interval.expect("40 independent clusters per assignment arm");
+        assert!(estimate.contrast.conservative_variance > 0.0);
+        covered += u32::from(interval.bounds[0] <= 6.0 && 6.0 <= interval.bounds[1]);
+    }
+    assert!(covered >= 360, "cluster total coverage {covered}/400");
+}

@@ -160,7 +160,9 @@ pub use identified_set::{
     imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
-    BayesianInterferenceEstimate, InterferenceEstimate, estimate_cluster_interference_total,
+    BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate, estimate_cluster_interference_total,
+    estimate_cluster_interference_total_with_inference,
+    estimate_cluster_interference_total_pointwise,
     estimate_interference, estimate_interference_bayesian, own_treatment_level,
 };
 pub use interference_saturation::{SaturationInterferenceEstimate, estimate_saturation_interference};

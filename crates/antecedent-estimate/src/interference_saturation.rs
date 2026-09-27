@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::{AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery};
 use antecedent_data::{NetworkData, TableView};
@@ -23,17 +23,39 @@ pub struct SaturationInterferenceEstimate {
     pub from_exposed_clusters: usize,
     /// Number of clusters containing observed active-exposed units.
     pub to_exposed_clusters: usize,
+    /// Independent-cluster pointwise Neyman interval when its support gate passes.
+    pub pointwise_interval: Option<SaturationClusterInterval>,
+    /// Why the interval is withheld, while the point estimate remains available.
+    pub interval_unavailable_reason: Option<&'static str>,
+}
+
+/// Conservative first-stage Neyman interval with within-cluster assignment
+/// variation retained in the observed cluster scores.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SaturationClusterInterval {
+    /// Standard error of the Horvitz--Thompson exposure contrast.
+    pub standard_error: f64,
+    /// Two-sided pointwise 95% treatment-minus-control interval.
+    pub bounds: [f64; 2],
+    /// Welch--Satterthwaite degrees of freedom for the two cluster arms.
+    pub degrees_of_freedom: f64,
+    /// Independent high- and low-saturation cluster counts.
+    pub high_clusters: usize,
+    /// Independent low-saturation cluster count.
+    pub low_clusters: usize,
 }
 
 /// Estimate one contrast under complete high/low cluster allocation followed by
 /// independent Bernoulli assignment within each cluster. Exposure probabilities
-/// enumerate the cluster allocations and all incoming-neighbor assignments.
+/// marginalize the high/low allocation of each unit's own cluster and enumerate
+/// its incoming-neighbor assignments. Other cluster allocations cancel because
+/// partial interference forbids cross-cluster edges.
 /// The variance is a covariance-free plug-in bound, not a calibrated interval.
 ///
 /// # Errors
 ///
 /// Refuses invalid randomization, cross-cluster edges, absent realized exposures,
-/// nonpositive exposure probabilities, or designs above exact enumeration caps.
+/// nonpositive exposure probabilities, or neighborhoods above enumeration caps.
 pub fn estimate_saturation_interference(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -69,8 +91,8 @@ pub fn estimate_saturation_interference(
     ids.sort_unstable();
     ids.dedup();
     let k = ids.len();
-    if k < 2 || *high_clusters == 0 || *high_clusters >= k || k > 30 {
-        return Err(EstimationError::unsupported("exact saturation requires two arms and at most 30 clusters"));
+    if k < 2 || *high_clusters == 0 || *high_clusters >= k {
+        return Err(EstimationError::unsupported("exact saturation requires both high and low cluster arms"));
     }
     let positions = clusters.iter().map(|id| ids.binary_search(id).expect("collected cluster"))
         .collect::<Vec<_>>();
@@ -102,13 +124,9 @@ pub fn estimate_saturation_interference(
         }
         incoming.push(neighbors);
     }
-    let mut configs = Vec::new();
-    enumerate_configs(0, *high_clusters, &mut vec![false; k], &mut configs);
-    if configs.len() > 50_000 {
-        return Err(EstimationError::unsupported("exact saturation refuses more than 50,000 cluster allocations"));
-    }
-    let from_p = level_probabilities(&configs, &positions, &incoming, *low_probability, *high_probability, &query.exposure, from);
-    let to_p = level_probabilities(&configs, &positions, &incoming, *low_probability, *high_probability, &query.exposure, to);
+    let high_share = *high_clusters as f64 / k as f64;
+    let from_p = level_probabilities(&incoming, *low_probability, *high_probability, high_share, &query.exposure, from);
+    let to_p = level_probabilities(&incoming, *low_probability, *high_probability, high_share, &query.exposure, to);
     let observed = exposures(assignment, &incoming, &query.exposure)?;
     let baseline = weighted_mean(&outcomes, clusters, &observed, from, &from_p)?;
     let active = weighted_mean(&outcomes, clusters, &observed, to, &to_p)?;
@@ -117,10 +135,20 @@ pub fn estimate_saturation_interference(
     if !variance.is_finite() || !minimum_exposure_probability.is_finite() {
         return Err(EstimationError::data_msg("saturation estimate overflowed finite precision"));
     }
+    let ht_contrast = active.ht - baseline.ht;
+    let interval = saturation_cluster_interval(
+        &ids, &observed_cluster_saturation, *high_probability, *high_clusters,
+        &baseline.cluster_totals, &active.cluster_totals, n, ht_contrast,
+        baseline.clusters, active.clusters,
+    );
+    let (pointwise_interval, interval_unavailable_reason) = match interval {
+        Ok(value) => (Some(value), None),
+        Err(reason) => (None, Some(reason)),
+    };
     Ok(SaturationInterferenceEstimate {
         estimate: InterferenceEstimate {
             contrast: RandomizationContrast {
-                horvitz_thompson: active.ht - baseline.ht,
+                horvitz_thompson: ht_contrast,
                 hajek: active.hajek - baseline.hajek,
                 conservative_variance: variance,
             },
@@ -132,32 +160,75 @@ pub fn estimate_saturation_interference(
         to_exposed_units: active.units,
         from_exposed_clusters: baseline.clusters,
         to_exposed_clusters: active.clusters,
+        pointwise_interval,
+        interval_unavailable_reason,
     })
 }
 
-fn enumerate_configs(position: usize, remaining: usize, current: &mut [bool], out: &mut Vec<Vec<bool>>) {
-    if out.len() > 50_000 || remaining > current.len() - position { return; }
-    if position == current.len() {
-        if remaining == 0 { out.push(current.to_vec()); }
-        return;
+#[allow(clippy::too_many_arguments)]
+fn saturation_cluster_interval(
+    ids: &[u32], observed_saturation: &[Option<f64>], high_probability: f64,
+    high_count: usize, from_totals: &BTreeMap<u32, f64>, to_totals: &BTreeMap<u32, f64>,
+    units: usize, point: f64, from_clusters: usize, to_clusters: usize,
+) -> Result<SaturationClusterInterval, &'static str> {
+    let k = ids.len();
+    let low_count = k - high_count;
+    if high_count < 8 || low_count < 8 {
+        return Err("pointwise saturation inference requires eight independent clusters in each saturation arm");
     }
-    current[position] = false;
-    enumerate_configs(position + 1, remaining, current, out);
-    if remaining > 0 {
-        current[position] = true;
-        enumerate_configs(position + 1, remaining - 1, current, out);
+    if from_clusters < 8 || to_clusters < 8 {
+        return Err("pointwise saturation inference requires eight exposed clusters at each requested level");
     }
+    let scale = k as f64 / units as f64;
+    let mut high_scores = Vec::with_capacity(high_count);
+    let mut low_scores = Vec::with_capacity(low_count);
+    for (position, id) in ids.iter().enumerate() {
+        let score = scale * (to_totals.get(id).copied().unwrap_or(0.0)
+            - from_totals.get(id).copied().unwrap_or(0.0));
+        if observed_saturation[position].is_some_and(|p| (p - high_probability).abs() <= 1e-12) {
+            high_scores.push(score);
+        } else {
+            low_scores.push(score);
+        }
+    }
+    let component = |scores: &[f64]| {
+        let mean = scores.iter().sum::<f64>() / scores.len() as f64;
+        let variance = scores.iter().map(|score| (score - mean).powi(2)).sum::<f64>()
+            / (scores.len() - 1) as f64;
+        let arm_share = scores.len() as f64 / k as f64;
+        arm_share.powi(2) * variance / scores.len() as f64
+    };
+    let high_variance = component(&high_scores);
+    let low_variance = component(&low_scores);
+    let variance = high_variance + low_variance;
+    if !variance.is_finite() || variance <= 0.0 {
+        return Err("pointwise saturation inference requires positive finite between-cluster score variation");
+    }
+    let denominator = high_variance.powi(2) / (high_count - 1) as f64
+        + low_variance.powi(2) / (low_count - 1) as f64;
+    let df = variance.powi(2) / denominator;
+    let critical = antecedent_stats::student_t_ppf(0.975, df);
+    if !critical.is_finite() || critical <= 0.0 {
+        return Err("pointwise saturation inference critical value is unavailable");
+    }
+    let standard_error = variance.sqrt();
+    Ok(SaturationClusterInterval {
+        standard_error,
+        bounds: [point - critical * standard_error, point + critical * standard_error],
+        degrees_of_freedom: df,
+        high_clusters: high_count,
+        low_clusters: low_count,
+    })
 }
 
 fn level_probabilities(
-    configs: &[Vec<bool>], positions: &[usize], incoming: &[Vec<(usize, f64)>],
-    low: f64, high: f64, mapping: &ExposureMapping, level: ExposureLevel,
+    incoming: &[Vec<(usize, f64)>], low: f64, high: f64,
+    high_share: f64, mapping: &ExposureMapping, level: ExposureLevel,
 ) -> Vec<f64> {
-    (0..positions.len()).map(|unit| {
+    (0..incoming.len()).map(|unit| {
         let mut probability = 0.0;
-        for config in configs {
-            let own_p = if config[positions[unit]] { high } else { low };
-            let own_mass = if level.own == 1.0 { own_p } else { 1.0 - own_p };
+        for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
+            let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
             let neighbors = &incoming[unit];
             let mut neighbor_mass = 0.0;
             for mask in 0..(1_usize << neighbors.len()) {
@@ -165,10 +236,9 @@ fn level_probabilities(
                 let mut treated = 0.0;
                 let mut treated_weight = 0.0;
                 let mut total_weight = 0.0;
-                for (j, &(source, weight)) in neighbors.iter().enumerate() {
-                    let p = if config[positions[source]] { high } else { low };
+                for (j, &(_, weight)) in neighbors.iter().enumerate() {
                     let selected = mask & (1 << j) != 0;
-                    mass *= if selected { p } else { 1.0 - p };
+                    mass *= if selected { saturation } else { 1.0 - saturation };
                     treated += if selected { 1.0 } else { 0.0 };
                     treated_weight += if selected { weight } else { 0.0 };
                     total_weight += weight;
@@ -181,13 +251,20 @@ fn level_probabilities(
                 };
                 if (exposure - level.neighbors).abs() <= 1e-12 { neighbor_mass += mass; }
             }
-            probability += own_mass * neighbor_mass;
+            probability += saturation_mass * own_mass * neighbor_mass;
         }
-        probability / configs.len() as f64
+        probability
     }).collect()
 }
 
-struct WeightedMean { ht: f64, hajek: f64, variance: f64, units: usize, clusters: usize }
+struct WeightedMean {
+    ht: f64,
+    hajek: f64,
+    variance: f64,
+    units: usize,
+    clusters: usize,
+    cluster_totals: BTreeMap<u32, f64>,
+}
 
 fn weighted_mean(
     outcomes: &[f64], clusters: &[u32], observed: &[ExposureLevel],
@@ -199,6 +276,7 @@ fn weighted_mean(
     let mut variance = 0.0;
     let mut units = 0;
     let mut observed_clusters = BTreeSet::new();
+    let mut cluster_totals = BTreeMap::new();
     for i in 0..outcomes.len() {
         let p = probabilities[i];
         if !p.is_finite() || p <= 0.0 {
@@ -207,6 +285,7 @@ fn weighted_mean(
         if (observed[i].own - level.own).abs() <= 1e-12 && (observed[i].neighbors - level.neighbors).abs() <= 1e-12 {
             let weight = 1.0 / p;
             total += outcomes[i] * weight;
+            *cluster_totals.entry(clusters[i]).or_insert(0.0) += outcomes[i] * weight;
             weights += weight;
             // Cauchy bounds every unknown pairwise covariance of the observed
             // HT score contributions by the product of their standard deviations.
@@ -218,7 +297,7 @@ fn weighted_mean(
     if units == 0 || weights == 0.0 {
         return Err(EstimationError::unsupported("requested saturation exposure is absent from realized assignments"));
     }
-    Ok(WeightedMean { ht: total / n, hajek: total / weights, variance: variance.powi(2) / n.powi(2), units, clusters: observed_clusters.len() })
+    Ok(WeightedMean { ht: total / n, hajek: total / weights, variance: variance.powi(2) / n.powi(2), units, clusters: observed_clusters.len(), cluster_totals })
 }
 
 #[cfg(test)]
@@ -229,6 +308,47 @@ mod tests {
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
     use super::estimate_saturation_interference;
+
+    #[test]
+    fn local_mixture_matches_global_complete_allocation_enumeration() {
+        let incoming = vec![vec![(1_usize, 1.0), (2_usize, 2.0)]; 3];
+        for (mapping, level) in [
+            (ExposureMapping::NeighborFraction, ExposureLevel { own: 0.0, neighbors: 0.5 }),
+            (ExposureMapping::WeightedNeighborExposure, ExposureLevel { own: 1.0, neighbors: 1.0 / 3.0 }),
+        ] {
+            let observed = super::level_probabilities(&incoming, 0.2, 0.8, 0.5, &mapping, level)[0];
+            let mut expected = 0.0;
+            for high_a in [false, true] {
+                for high_b in [false, true] {
+                    for high_c in [false, true] {
+                        for high_d in [false, true] {
+                            if [high_a, high_b, high_c, high_d].iter().filter(|&&high| high).count() != 2 {
+                                continue;
+                            }
+                            let p = if high_a { 0.8 } else { 0.2 };
+                            let own_mass = if level.own == 1.0 { p } else { 1.0 - p };
+                            for first in [false, true] {
+                                for second in [false, true] {
+                                    let g = match mapping {
+                                        ExposureMapping::NeighborFraction =>
+                                            (f64::from(first) + f64::from(second)) / 2.0,
+                                        ExposureMapping::WeightedNeighborExposure =>
+                                            (f64::from(first) + 2.0 * f64::from(second)) / 3.0,
+                                        _ => unreachable!(),
+                                    };
+                                    if (g - level.neighbors).abs() <= 1e-12 {
+                                        expected += own_mass * (if first { p } else { 1.0 - p })
+                                            * (if second { p } else { 1.0 - p }) / 6.0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            assert!((observed - expected).abs() < 1e-12);
+        }
+    }
 
     fn fixture() -> (NetworkData, Vec<bool>, InterferenceQuery) {
         let clusters = [0_u32, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
@@ -289,5 +409,39 @@ mod tests {
         edges.push(NetworkEdge { from: 0, to: 3, weight: 1.0 });
         let crossed = NetworkData::try_new(network.units().clone(), edges).unwrap();
         assert!(estimate_saturation_interference(&query, &crossed, &assignment).is_err());
+    }
+
+    #[test]
+    fn exact_marginalization_accepts_many_clusters_and_withholds_thin_interval() {
+        let (network, assignment, mut query) = fixture();
+        let point = estimate_saturation_interference(&query, &network, &assignment).unwrap();
+        assert!(point.pointwise_interval.is_none());
+        assert!(point.interval_unavailable_reason.unwrap().contains("eight independent clusters"));
+        // Forty independent clusters would require over 10^11 global high/low
+        // allocations; the exact marginal mixture needs only two states per unit.
+        let clusters = (0..40).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
+        let mut realized = vec![0.2; 60];
+        realized.extend(vec![0.8; 60]);
+        query.assignment = AssignmentDesign::TwoStageSaturation {
+            clusters: Arc::from(clusters), low_probability: 0.2,
+            high_probability: 0.8, high_clusters: 20,
+            realized_saturation: Arc::from(realized),
+        };
+        let expanded_assignment = assignment.iter().copied().cycle().take(120).collect::<Vec<_>>();
+        let outcomes = vec![1.0; 120];
+        let expanded_data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+        let expanded_edges = (0..40).flat_map(|cluster| {
+            let first = cluster * 3;
+            (first..first + 3).flat_map(move |from| {
+                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
+                    from: from as u32, to: to as u32, weight: 1.0,
+                })
+            })
+        }).collect::<Vec<_>>();
+        let expanded = NetworkData::try_new(expanded_data, expanded_edges).unwrap();
+        // The observed assignment here is arbitrary; this assertion exercises
+        // the exact marginal calculation beyond the old enumeration cap.
+        let result = estimate_saturation_interference(&query, &expanded, &expanded_assignment);
+        assert!(result.is_ok());
     }
 }
