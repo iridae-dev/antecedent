@@ -265,6 +265,27 @@ mod tests {
     }
 
     #[test]
+    fn complete_interval_support_boundary_covers_known_itt() {
+        const UNITS: usize = 60;
+        const REPLICATES: usize = 2_000;
+        let control = (0..UNITS).map(|i| 1.0 + 0.7 * (i as f64 * 0.41).sin()).collect::<Vec<_>>();
+        let treated = (0..UNITS).map(|i| control[i] + 2.0 + 0.3 * (i as f64 * 0.29).cos())
+            .collect::<Vec<_>>();
+        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>()
+            / UNITS as f64;
+        let covered = (0..REPLICATES).filter(|rep| {
+            let order = allocation(UNITS, *rep);
+            let treatment = order[..UNITS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
+            let comparison = order[UNITS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
+            let [lower, upper] = complete_unit_itt(&treatment, &comparison).unwrap().interval_95.unwrap();
+            lower <= truth && truth <= upper
+        }).count();
+        let rate = covered as f64 / REPLICATES as f64;
+        eprintln!("complete Neyman boundary interval: {covered}/{REPLICATES} = {rate:.4}");
+        assert!((0.93..=0.985).contains(&rate));
+    }
+
+    #[test]
     fn blocked_randomization_covers_known_itt_and_withholds_sparse_blocks() {
         const BLOCKS: usize = 4;
         const UNITS_PER_BLOCK: usize = 30;
@@ -392,6 +413,33 @@ mod tests {
         // severe undercoverage.
         let rate = covered as f64 / REPLICATES as f64;
         eprintln!("cluster Neyman interval: {covered}/{REPLICATES} = {rate:.4}");
+        assert!((0.93..=0.985).contains(&rate));
+    }
+
+    #[test]
+    fn cluster_interval_support_boundary_covers_known_itt() {
+        const CLUSTERS: usize = 60;
+        const REPLICATES: usize = 2_000;
+        let sizes = (0..CLUSTERS).map(|i| 2 + i % 3).collect::<Vec<_>>();
+        let rows = sizes.iter().sum::<usize>();
+        let control = (0..CLUSTERS).map(|i| {
+            sizes[i] as f64 * (1.0 + 0.6 * (i as f64 * 0.37).sin())
+        }).collect::<Vec<_>>();
+        let treated = (0..CLUSTERS).map(|i| {
+            control[i] + sizes[i] as f64 * (2.0 + 0.25 * (i as f64 * 0.53).cos())
+        }).collect::<Vec<_>>();
+        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>()
+            / rows as f64;
+        let covered = (0..REPLICATES).filter(|rep| {
+            let order = allocation(CLUSTERS, *rep);
+            let treatment = order[..CLUSTERS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
+            let comparison = order[CLUSTERS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
+            let [lower, upper] = complete_cluster_itt(&treatment, &comparison, rows)
+                .unwrap().interval_95.unwrap();
+            lower <= truth && truth <= upper
+        }).count();
+        let rate = covered as f64 / REPLICATES as f64;
+        eprintln!("cluster Neyman boundary interval: {covered}/{REPLICATES} = {rate:.4}");
         assert!((0.93..=0.985).contains(&rate));
     }
 }

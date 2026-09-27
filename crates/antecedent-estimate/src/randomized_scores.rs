@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Minimum independently assigned rows for a pointwise action-contrast interval.
-pub const MIN_ROWS_FOR_INTERVAL: usize = 200;
+pub const MIN_ROWS_FOR_INTERVAL: usize = 400;
 /// Minimum observed rows in each contrasted action for an interval.
 pub const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
 /// Minimum declared probability for either contrasted action at every row.
-pub const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.1;
+pub const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.3;
 const NORMAL_95: f64 = 1.959_963_984_540_054;
 
 /// Horvitz–Thompson effect and its conservative independent-row score variance.
