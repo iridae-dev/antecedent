@@ -174,6 +174,7 @@ pub struct LocalPolynomialRatioSection {
     pub reduced_form_standard_error: f64,
     pub first_stage_standard_error: f64,
     pub uncertainty: String,
+    pub graphless_support_status: Option<String>,
 }
 
 impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSection {
@@ -193,6 +194,7 @@ impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSec
             reduced_form_standard_error: value.reduced_form_standard_error,
             first_stage_standard_error: value.first_stage_standard_error,
             uncertainty: value.uncertainty.to_string(),
+            graphless_support_status: None,
         }
     }
 }

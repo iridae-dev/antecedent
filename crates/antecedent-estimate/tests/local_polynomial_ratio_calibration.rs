@@ -67,3 +67,68 @@ fn regression_kink_quartic_trend_uses_the_higher_order_pilot() {
     assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
     assert!((0.925..=0.975).contains(&rate), "quartic kink coverage {rate:.4}");
 }
+
+// The two self-contained tests below are the graphless-license evidence rows
+// cited by `parity/support_graphless.toml`. Each owns its own 2,000-replication
+// known-truth loop so the generator gate can read the literal `interval_95`,
+// `covered`, `REPLICATES`, `TRUTH`, and `0.93..=0.985` tokens in one test body.
+#[test]
+fn fuzzy_jump_ratio_normal_interval_covers_known_truth() {
+    const REPLICATES: usize = 2_000;
+    let mut rng = CausalRng::from_seed(0x21_09_27_11);
+    let running: Vec<f64> = (1..=1_200).map(|index| -1.0 + f64::from(index) / 600.5).collect();
+    let mut treatment = vec![0.0; running.len()];
+    let mut outcome = vec![0.0; running.len()];
+    let mut accepted: usize = 0;
+    let mut covered: usize = 0;
+    for _ in 0..REPLICATES {
+        for (index, &x) in running.iter().enumerate() {
+            let probability = 0.1 + 0.02 * x + if x > 0.0 { 0.8 } else { 0.0 };
+            treatment[index] = f64::from(rng.next_f64() < probability);
+            outcome[index] = 0.7 + 0.5 * x + 0.3 * x * x + 0.1 * x.powi(3)
+                + TRUTH * treatment[index] + standard_normal(&mut rng);
+        }
+        let fit = match fit_local_polynomial_ratio(&running, &outcome, &treatment, 0.0, 0.5, false) {
+            Ok(fit) => fit,
+            Err(message) if message.contains("weak first stage") => continue,
+            Err(message) => panic!("unexpected local-ratio refusal: {message}"),
+        };
+        accepted += 1;
+        let interval_95 = (fit.ci_lower, fit.ci_upper);
+        covered += usize::from(interval_95.0 <= TRUTH && TRUTH <= interval_95.1);
+    }
+    let rate = covered as f64 / accepted as f64;
+    eprintln!("fuzzy jump license: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
+    assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
+    assert!((0.93..=0.985).contains(&rate), "fuzzy jump license coverage {rate:.4}");
+}
+
+#[test]
+fn regression_kink_ratio_normal_interval_covers_known_truth() {
+    const REPLICATES: usize = 2_000;
+    let mut rng = CausalRng::from_seed(0x21_09_27_12);
+    let running: Vec<f64> = (1..=1_200).map(|index| -1.0 + f64::from(index) / 600.5).collect();
+    let mut treatment = vec![0.0; running.len()];
+    let mut outcome = vec![0.0; running.len()];
+    let mut accepted: usize = 0;
+    let mut covered: usize = 0;
+    for _ in 0..REPLICATES {
+        for (index, &x) in running.iter().enumerate() {
+            treatment[index] = 1.0 + 0.2 * x + 3.0 * x.max(0.0) + 0.1 * standard_normal(&mut rng);
+            outcome[index] = 0.7 + 0.5 * x + 0.3 * x * x + 0.1 * x.powi(3)
+                + TRUTH * treatment[index] + 0.5 * standard_normal(&mut rng);
+        }
+        let fit = match fit_local_polynomial_ratio(&running, &outcome, &treatment, 0.0, 1.0, true) {
+            Ok(fit) => fit,
+            Err(message) if message.contains("weak first stage") => continue,
+            Err(message) => panic!("unexpected local-ratio refusal: {message}"),
+        };
+        accepted += 1;
+        let interval_95 = (fit.ci_lower, fit.ci_upper);
+        covered += usize::from(interval_95.0 <= TRUTH && TRUTH <= interval_95.1);
+    }
+    let rate = covered as f64 / accepted as f64;
+    eprintln!("regression kink license: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
+    assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
+    assert!((0.93..=0.985).contains(&rate), "regression kink license coverage {rate:.4}");
+}

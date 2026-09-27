@@ -86,6 +86,7 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
     assert fit is not None
     assert fit.estimate == pytest.approx(3.0, abs=1e-7)
     assert fit.ci_lower < 3.0 < fit.ci_upper
+    assert fit.support_status == "licensed"
     assert result.estimate.se_analytic == pytest.approx(fit.standard_error)
     direct = (estimate_regression_kink if kink else estimate_fuzzy_rd)(rows, query)
     assert fit.standard_error == pytest.approx(direct.standard_error)

@@ -2423,7 +2423,12 @@ pub(crate) fn ate_result_from_analysis(
         }),
         synthetic_control: result.synthetic_control.as_ref().map(Into::into),
         synthetic_did: result.synthetic_did.as_ref().map(Into::into),
-        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(Into::into),
+        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|value| {
+            let mut section = crate::quasi_api::LocalPolynomialRatioSection::from(value);
+            section.graphless_support_status = result.support_status
+                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section
+        }),
         survival: result.survival.as_ref().map(Into::into),
         longitudinal_regime: result.longitudinal_regime.as_ref().map(Into::into),
         anomaly: result

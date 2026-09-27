@@ -691,6 +691,9 @@ pub struct LocalPolynomialRatioWire {
     pub first_stage_standard_error: f64,
     /// Interval construction or legacy point-only uncertainty semantics.
     pub uncertainty: String,
+    /// Exact graphless license status; absent for off-axis or legacy results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
 }
 
 /// Retained randomized ITT design metadata and design-aware variance.
@@ -1662,6 +1665,16 @@ fn validate_result(
                 bounds.is_some_and(|value| value.is_finite() && (value - expected).abs() <= tolerance)
             } else { bounds.is_none() }
         };
+        let ratio_design = if fit.kink { "regression_kink" } else { "fuzzy_jump" };
+        let ratio_method = if fit.kink { "local_quartic_slope_rbc_hc0_delta" } else { "local_quadratic_cubic_rbc_hc0_delta" };
+        let ratio_licensed = interval_available && graphless_data::LICENSES.iter().any(|row| {
+            row.family == "local_polynomial_ratio" && row.design == ratio_design
+                && row.method == ratio_method && row.inference_claim == "pointwise_95_normal_interval"
+                && row.assignment_unit == "unit"
+                && fit.n_right >= row.min_assignment_units_per_arm
+                && fit.n_left >= row.min_assignment_units_per_arm
+                && 1 >= row.min_reported_intervals
+        });
         #[allow(clippy::float_cmp, reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch")]
         if fit.cutoff != query.cutoff
             || fit.bandwidth != query.bandwidth
@@ -1685,6 +1698,8 @@ fn validate_result(
             || fit.n_left < 3
             || fit.n_right < 3
             || (!legacy_point_only && fit.uncertainty != "rbc_hc0_delta_normal_fixed_bandwidth")
+            || fit.graphless_support_status.as_deref().is_some_and(|status|
+                Some(status) != ratio_licensed.then_some("licensed"))
         {
             return Err(IoError::Convert("invalid local ratio support or fabricated interval".into()));
         }

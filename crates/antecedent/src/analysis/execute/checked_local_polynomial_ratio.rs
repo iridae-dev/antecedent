@@ -92,6 +92,26 @@ impl CheckedLocalPolynomialRatioOperation {
             first_stage_standard_error: fit.first_stage_standard_error,
             uncertainty: Arc::from("rbc_hc0_delta_normal_fixed_bandwidth"),
         });
+        // Graphless license handshake: the estimator's own weak-first-stage and
+        // bandwidth-support screens already gate `interval_available`; the license
+        // only confirms the exact family/design/method and the retained local
+        // observation floor before publishing the pointwise ratio interval.
+        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "local_polynomial_ratio",
+                design: if self.query.kink { "regression_kink" } else { "fuzzy_jump" },
+                method: if self.query.kink { "local_quartic_slope_rbc_hc0_delta" } else { "local_quadratic_cubic_rbc_hc0_delta" },
+                inference_claim: "pointwise_95_normal_interval",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "unit", treated: fit.n_right, control: fit.n_left,
+                interval_95_published: interval_available,
+                reported_intervals: usize::from(interval_available),
+                ..Default::default()
+            },
+        ) {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         Ok(result)
     }
 }

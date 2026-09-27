@@ -3495,6 +3495,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             reduced_form_standard_error: fit.reduced_form_standard_error,
             first_stage_standard_error: fit.first_stage_standard_error,
             uncertainty: fit.uncertainty.to_string(),
+            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
         }),
         randomized_effect: result.randomized_effect.as_ref().map(|randomized| {
             antecedent_io::RandomizedEffectWire {

@@ -577,7 +577,8 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
             "local_monotonicity",
             "independent_local_observations",
         ),
-        support_status="off_axis_interval_evidence",
+        support_status=("licensed" if getattr(section, "graphless_support_status", None) == "licensed"
+                        else "off_axis_interval_evidence"),
         diagnostics=("local_quadratic_triangular_kernel",
                      "quartic_pilot_bias_correction_at_same_bandwidth" if isinstance(query, RegressionKink)
                      else "cubic_pilot_bias_correction_at_same_bandwidth",

@@ -448,6 +448,7 @@ class LocalPolynomialRatioSection:
     reduced_form_standard_error: float
     first_stage_standard_error: float
     uncertainty: str
+    graphless_support_status: str | None
 
 class SurvivalSection:
     times: list[float]
