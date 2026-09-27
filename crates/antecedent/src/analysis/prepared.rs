@@ -4029,6 +4029,7 @@ pub(crate) enum PreparedExecution {
     Interference(super::execute::CheckedInterferenceOperation),
     Randomized(super::execute::CheckedRandomizedOperation),
     PolicyValue(super::execute::CheckedPolicyValueOperation),
+    ContinuousDoseResponse(super::execute::CheckedContinuousDoseOperation),
     PanelDid(super::execute::CheckedPanelDidOperation),
     SyntheticControl(super::execute::CheckedSyntheticControlOperation),
     LocalPolynomialRatio(super::execute::CheckedLocalPolynomialRatioOperation),
@@ -4122,6 +4123,7 @@ impl PreparedExecution {
             | Self::Interference(_)
             | Self::Randomized(_)
             | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
@@ -6808,6 +6810,10 @@ impl PreparedStudy {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        if let PreparedExecution::ContinuousDoseResponse(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
         if let PreparedExecution::PanelDid(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
@@ -8601,6 +8607,7 @@ impl Study {
                     self.prepare_static_identification(&plan)?.map(Arc::new);
             }
             (DataInput::Tabular(_), CausalQuery::PolicyValue(_), None) => {}
+            (DataInput::Tabular(_), CausalQuery::ContinuousDoseResponse(_), None) => {}
             (DataInput::Tabular(_), CausalQuery::Survival(_), None) => {}
             (DataInput::Tabular(_), CausalQuery::LongitudinalRegime(_), None) => {}
             (DataInput::Tabular(_), _, None) => {
@@ -10210,6 +10217,14 @@ impl Study {
             }
             _ => None,
         };
+        let checked_continuous_dose = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::ContinuousDoseResponse(_), GraphClass::RandomizedTrial)
+                if analysis.graph_posterior.is_none() && analysis.tiered.is_none() && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedContinuousDoseOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let checked_panel_did = match (&self.data, &self.query, analysis.graph.class()) {
             (DataInput::Tabular(data), CausalQuery::PanelDid(_), GraphClass::RandomizedTrial)
                 if analysis.graph_posterior.is_none()
@@ -10831,6 +10846,8 @@ impl Study {
             PreparedExecution::Randomized(operation)
         } else if let Some(operation) = checked_policy_value {
             PreparedExecution::PolicyValue(operation)
+        } else if let Some(operation) = checked_continuous_dose {
+            PreparedExecution::ContinuousDoseResponse(operation)
         } else if let Some(operation) = checked_panel_did {
             PreparedExecution::PanelDid(operation)
         } else if let Some(operation) = checked_synthetic_control {
@@ -11968,6 +11985,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported {
                     message: "PolicyValue requires a graphless randomized trial",
                 });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::ContinuousDoseResponse(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported { message: "continuous-dose response requires a graphless fixed baseline-group design" });
             }
         }
         (DataInput::Tabular(_), CausalQuery::PanelDid(_)) => {

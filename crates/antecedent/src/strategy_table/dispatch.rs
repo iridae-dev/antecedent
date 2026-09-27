@@ -182,6 +182,11 @@ pub fn identify_static_query_with_rd(
                 message: static_identifier_refusal(identifier),
             });
         }
+        IdentifierId::ContinuousDoseExchangeability => {
+            return Err(CausalError::Unsupported {
+                message: static_identifier_refusal(identifier),
+            });
+        }
     };
     require_identified(&result)?;
     Ok(result)

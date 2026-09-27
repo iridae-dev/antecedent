@@ -174,6 +174,19 @@ pub struct SyntheticControlEstimate {
     pub augmentation_ridge: Option<f64>,
 }
 
+/// Point-only conditional response grid with local support diagnostics.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContinuousDoseResponseEstimate {
+    /// One response and support record for each baseline-group target cell.
+    pub points: Arc<[antecedent_estimate::continuous_dose::DoseResponsePoint]>,
+    /// Prespecified smoothing window.
+    pub bandwidth: f64,
+    /// Caller-declared source of dose densities.
+    pub density_provenance: Arc<str>,
+    /// No inferential standard error or interval is licensed.
+    pub uncertainty: Arc<str>,
+}
+
 /// Point-only synthetic difference-in-differences result with fitted simplex weights.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SyntheticDidEstimate {
@@ -552,6 +565,8 @@ pub struct StudyResult {
     pub local_polynomial_ratio: Option<LocalPolynomialRatioEstimate>,
     /// Held-out doubly robust policy evaluation; never an ATE.
     pub policy_value: Option<PolicyValueEstimate>,
+    /// Conditional continuous-dose response grid; not a policy value.
+    pub continuous_dose_response: Option<ContinuousDoseResponseEstimate>,
     /// Randomized right-censored survival or competing-risk curve.
     pub survival: Option<SurvivalEstimate>,
     /// Prespecified longitudinal regime value.

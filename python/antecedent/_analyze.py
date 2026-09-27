@@ -13,7 +13,7 @@ from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPa
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
-from .policy import MultiActionPolicyValue, PolicyValue
+from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
 from .query import (
     AnomalyAttribution,
@@ -63,10 +63,11 @@ def analyze(
         | ComplierEffect
         | SwitchbackEffect
         | PolicyValue
+        | ConditionalDoseResponse
         | MultiActionPolicyValue
         | PanelDifferenceInDifferences
-        | StaggeredAdoption
         | AugmentedPanelDiD
+        | StaggeredAdoption
         | SyntheticControl
         | SyntheticDifferenceInDifferences
         | FuzzyRegressionDiscontinuity

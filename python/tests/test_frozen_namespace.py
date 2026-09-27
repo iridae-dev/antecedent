@@ -41,6 +41,7 @@ _EXPECTED_ALL = {
     "AnalysisResult",
     "BinaryPolicy",
     "PolicyValue",
+    "ConditionalDoseResponse",
     "MultiActionPolicyValue",
     "LongitudinalRegimeQuery",
     "LongitudinalRegimeEstimate",
@@ -329,7 +330,7 @@ _EXPECTED_STAGE_ALL = {
         "WithinTier",
     },
     "policy": {
-        "BinaryPolicy", "ConditionalDoseResponseEstimate", "ConditionalDoseResponsePoint",
+        "BinaryPolicy", "ConditionalDoseResponse", "ConditionalDoseResponseEstimate", "ConditionalDoseResponsePoint",
         "DoublyRobustPolicyEvaluation", "MultiActionPolicy", "MultiActionPolicyValue", "PolicyEvaluation", "UpliftBin",
         "estimate_continuous_dose_response", "evaluate_policy_doubly_robust",
         "evaluate_multi_action_policy", "evaluate_policy", "uplift_by_score",

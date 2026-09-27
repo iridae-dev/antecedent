@@ -51,6 +51,7 @@ pub(super) enum AnalysisRoute {
     Interference,
     RandomizedEffect,
     PolicyValue,
+    ContinuousDoseResponse,
     PanelDid,
     SyntheticControl,
     LocalPolynomialRatio,
@@ -123,6 +124,7 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
             AnalysisRoute::RandomizedEffect
         }
         (DataModality::Tabular, CausalQuery::PolicyValue(_)) => AnalysisRoute::PolicyValue,
+        (DataModality::Tabular, CausalQuery::ContinuousDoseResponse(_)) => AnalysisRoute::ContinuousDoseResponse,
         (DataModality::Tabular, CausalQuery::PanelDid(_)) => AnalysisRoute::PanelDid,
         (DataModality::Tabular, CausalQuery::SyntheticControl(_)) => AnalysisRoute::SyntheticControl,
         (DataModality::Tabular, CausalQuery::LocalPolynomialRatio(_)) => AnalysisRoute::LocalPolynomialRatio,

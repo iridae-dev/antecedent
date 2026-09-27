@@ -363,6 +363,7 @@ pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
             | CausalQuery::UnitChange(_)
             | CausalQuery::RandomizedEffect(_)
             | CausalQuery::PolicyValue(_)
+            | CausalQuery::ContinuousDoseResponse(_)
             | CausalQuery::PanelDid(_)
             | CausalQuery::SyntheticControl(_)
             | CausalQuery::LocalPolynomialRatio(_)

@@ -3709,6 +3709,41 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze a baseline-group continuous-dose response grid.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, dose, dose_density, baseline_groups,
+        target_doses, bandwidth, density_provenance, *, min_local_support=3,
+        accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_continuous_dose_response(
+        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
+        outcome: String, dose: String, dose_density: String, baseline_groups: Vec<String>,
+        target_doses: Vec<f64>, bandwidth: f64, density_provenance: String,
+        min_local_support: usize, accepted: bool, seed: u64, threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("continuous-dose response")?;
+        opts.refuse_population("continuous-dose response")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let query = antecedent_core::ContinuousDoseResponseQuery {
+                outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
+                dose: crate::graph_build::schema_var_id(data.schema(), &dose)?,
+                dose_density: crate::graph_build::schema_var_id(data.schema(), &dose_density)?,
+                baseline_groups: baseline_groups.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                target_doses: target_doses.into(), bandwidth, min_local_support,
+                density_provenance: Arc::from(density_provenance),
+            };
+            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Freeze a fixed-window fuzzy RD or regression-kink analysis.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, treatment, running, cutoff, bandwidth,

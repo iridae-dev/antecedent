@@ -652,6 +652,20 @@ pub(crate) fn validate_query_ids(
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
         }
+        Q::ContinuousDoseResponse(wire) => {
+            for id in [wire.outcome, wire.dose, wire.dose_density] {
+                validate_id(id, variable_count)?;
+            }
+            antecedent_core::ContinuousDoseResponseQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                dose: antecedent_core::VariableId::from_raw(wire.dose),
+                dose_density: antecedent_core::VariableId::from_raw(wire.dose_density),
+                baseline_groups: wire.baseline_groups.iter().map(|value| std::sync::Arc::<str>::from(value.as_str())).collect::<Vec<_>>().into(),
+                target_doses: wire.target_doses.clone().into(),
+                bandwidth: wire.bandwidth, min_local_support: wire.min_local_support,
+                density_provenance: std::sync::Arc::from(wire.density_provenance.as_str()),
+            }.validate().map_err(|error| IoError::Convert(error.to_string()))
+        }
         Q::PanelDid(wire) => {
             validate_id(wire.outcome, variable_count)?;
             if let Some((pre, propensity, prediction, _)) = wire.augmented {
@@ -1596,6 +1610,7 @@ mod tests {
     fn panel_did_query_round_trips_in_causal_payload_artifact() {
         let query = CausalQueryWire::PanelDid(crate::query_wire::PanelDidQueryWire {
             outcome: 0,
+            augmented: None,
             repeated_cross_section: false,
             staggered_target: None,
             staggered_event_study: false,
@@ -1610,7 +1625,6 @@ mod tests {
         let artifact =
             encode_causal_payload_artifact(&payload, vec!["outcome".into()], "panel-did-query")
                 .unwrap();
-            augmented: None,
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

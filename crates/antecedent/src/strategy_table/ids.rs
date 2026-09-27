@@ -98,6 +98,8 @@ pub enum IdentifierId {
     InterferenceDesign,
     /// Randomized trial assignment directly identifies the ITT.
     RandomizedDesign,
+    /// Conditional dose response under supplied density and group exchangeability.
+    ContinuousDoseExchangeability,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
 }
@@ -182,6 +184,11 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             name: "randomized.design",
             is_dag_only: false,
             provenance: ("identify.randomized.design", "identify.randomized.design"),
+        },
+        IdentifierId::ContinuousDoseExchangeability => IdentifierData {
+            name: "policy.continuous_dose_exchangeability",
+            is_dag_only: false,
+            provenance: ("identify.policy.continuous_dose", "identify.policy.continuous_dose"),
         },
         IdentifierId::ResponseBackdoor => IdentifierData {
             name: "response.backdoor",
@@ -326,6 +333,8 @@ pub enum EstimatorId {
     InterferenceBayesianGaussian,
     /// Horvitz--Thompson design-based Bernoulli ITT.
     RandomizedHt,
+    /// Local triangular-kernel response with supplied inverse dose density.
+    ContinuousDoseKernel,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,
     /// Fitted multi-covariate ANCOVA under independent Bernoulli assignment.
@@ -761,6 +770,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "randomized.ht_itt",
             provenance: ("estimate.randomized.ht_itt", "estimate.randomized.ht_itt"),
         },
+        EstimatorId::ContinuousDoseKernel => EstimatorData {
+            name: "policy.triangular_kernel_inverse_density",
+            parallel_task_dimension: "analysis",
+            kernel_label: "policy.triangular_kernel_inverse_density",
+            provenance: ("estimate.policy.continuous_dose", "estimate.policy.continuous_dose"),
+        },
         EstimatorId::RandomizedFixedCupedHt => EstimatorData {
             name: "randomized.fixed_cuped_ht_itt",
             parallel_task_dimension: "analysis",
@@ -1099,6 +1114,7 @@ pub fn validate_static_pair(
             | EstimatorId::LongitudinalSequentialDrRegime
             | EstimatorId::LongitudinalMarginalStructuralModel,
         )
+        | (IdentifierId::ContinuousDoseExchangeability, EstimatorId::ContinuousDoseKernel)
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
             if backdoor_estimators
@@ -1266,6 +1282,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceSaturationExact
         | EstimatorId::InterferenceObservationalIpw
         | EstimatorId::InterferenceBayesianGaussian => false,
+        EstimatorId::ContinuousDoseKernel => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
         | EstimatorId::RandomizedAncova

@@ -696,6 +696,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     synthetic_did: Any | None = None
     local_polynomial_ratio: Any | None = None
     policy_value: DoublyRobustPolicyEvaluation | None = None
+    continuous_dose_response: Any | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
     longitudinal_regime: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,

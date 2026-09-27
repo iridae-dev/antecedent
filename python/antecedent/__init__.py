@@ -135,7 +135,7 @@ from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
-from .policy import BinaryPolicy, MultiActionPolicyValue, PolicyValue
+from .policy import BinaryPolicy, ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .query import (
     AnomalyAttribution,
     AnomalyReference,
@@ -196,6 +196,7 @@ __all__ = [
     "InterferenceQuery",
     "BinaryPolicy",
     "PolicyValue",
+    "ConditionalDoseResponse",
     "MultiActionPolicyValue",
     "ExperimentDesign",
     "FixedCUPED",

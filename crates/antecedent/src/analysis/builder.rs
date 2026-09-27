@@ -1377,6 +1377,7 @@ impl StudyBuilder {
                     Some(
                         CausalQuery::RandomizedEffect(_)
                             | CausalQuery::PolicyValue(_)
+                            | CausalQuery::ContinuousDoseResponse(_)
                             | CausalQuery::PanelDid(_)
                             | CausalQuery::SyntheticControl(_)
                             | CausalQuery::LocalPolynomialRatio(_)
@@ -1450,6 +1451,7 @@ impl StudyBuilder {
             query,
             CausalQuery::RandomizedEffect(_)
                 | CausalQuery::PolicyValue(_)
+                | CausalQuery::ContinuousDoseResponse(_)
                 | CausalQuery::PanelDid(_)
                 | CausalQuery::SyntheticControl(_)
                 | CausalQuery::LocalPolynomialRatio(_)

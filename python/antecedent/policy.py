@@ -448,6 +448,43 @@ class ConditionalDoseResponseEstimate:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class ConditionalDoseResponse:
+    """Retained baseline-group response grid through ``prepare`` or ``analyze``.
+
+    The supplied density is used at observed doses. Group labels must be
+    measured before treatment; they and the target grid are frozen at prepare.
+    """
+
+    outcome: str
+    dose: str
+    baseline_group: str
+    dose_density: str
+    target_doses: Sequence[float]
+    bandwidth: float
+    density_provenance: str
+    min_local_support: int = 3
+
+    def __post_init__(self) -> None:
+        names = (self.outcome, self.dose, self.baseline_group, self.dose_density)
+        if any(not isinstance(name, str) or not name.strip() for name in names) or len(set(names)) != 4:
+            raise CausalValueError("continuous-dose columns must be distinct non-empty names")
+        try:
+            targets = tuple(float(value) for value in self.target_doses)
+        except (TypeError, ValueError) as error:
+            raise CausalValueError("target_doses must be numeric") from error
+        if not targets or any(not isfinite(value) for value in targets):
+            raise CausalValueError("target_doses must be non-empty and finite")
+        object.__setattr__(self, "target_doses", targets)
+        if not isfinite(self.bandwidth) or self.bandwidth <= 0.0:
+            raise CausalValueError("bandwidth must be finite and positive")
+        if isinstance(self.min_local_support, bool) or not isinstance(self.min_local_support, Integral) or self.min_local_support < 2:
+            raise CausalValueError("min_local_support must be an integer of at least two")
+        object.__setattr__(self, "min_local_support", int(self.min_local_support))
+        if self.density_provenance not in ("known", "externally_estimated"):
+            raise CausalValueError("density_provenance must be known or externally_estimated")
+
+
 def uplift_by_score(
     evaluation_data: Any,
     *,
@@ -874,6 +911,7 @@ __all__ = [
     "UpliftBin",
     "ConditionalDoseResponsePoint",
     "ConditionalDoseResponseEstimate",
+    "ConditionalDoseResponse",
     "evaluate_multi_action_policy",
     "evaluate_policy",
     "evaluate_policy_doubly_robust",

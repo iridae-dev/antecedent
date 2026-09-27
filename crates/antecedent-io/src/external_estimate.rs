@@ -164,6 +164,7 @@ fn receipt_body(
         temporal_identification: Vec::new(),
         estimate: attach.scalar_value,
         policy_value: None,
+        continuous_dose_response: None,
         panel_did: None,
         synthetic_control: None,
         synthetic_did: None,

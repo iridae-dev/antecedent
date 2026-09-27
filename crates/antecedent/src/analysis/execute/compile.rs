@@ -747,6 +747,27 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::ContinuousDoseResponse(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                if q.baseline_groups.len() != data.row_count() {
+                    return Err(CausalError::Compile { message: "continuous-dose baseline groups must align with table rows".into() });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("policy.continuous_dose_response"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None, graph_review_required: false,
+                        identifier: Some(Arc::from(IdentifierId::ContinuousDoseExchangeability.as_str())),
+                        estimator: Some(Arc::from(EstimatorId::ContinuousDoseKernel.as_str())),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome, q.dose, q.dose_density]),
+                    },
+                    query: self.query.clone(), split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::LocalPolynomialRatio(q) = &self.query else { unreachable!() };
@@ -1072,6 +1093,9 @@ impl super::Study {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {

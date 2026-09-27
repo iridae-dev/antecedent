@@ -107,7 +107,7 @@ pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNod
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
     AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
-    ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery, DependenceGroup,
+    ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery, CounterfactualQuery, DependenceGroup,
     DerivativeScale, DerivativeWeighting, DidSamplingDesign, DistributionAvailability, Environment,
     EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime,
     ExposureLevel, ExposureMapping, ExposurePropensityProvenance, FactorNeed, GridSpec, InterferenceFunctional,

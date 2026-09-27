@@ -217,6 +217,7 @@ class AteAnalysisResult:
     survival: SurvivalSection | None
     longitudinal_regime: LongitudinalRegimeSection | None
     policy_value: PolicyValueSection | None
+    continuous_dose_response: ContinuousDoseResponseSection | None
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
@@ -388,8 +389,8 @@ class PanelDidSection:
     clusters: int
     uncertainty: str
     event_time_effects: list[tuple[int, int, int, float, int, int, float, int]]
-
     augmented: tuple[float, float, float, bool] | None
+
 class SyntheticControlSection:
     effect: float
     pre_treatment_rmse: float
@@ -472,6 +473,12 @@ class PolicyValueSection:
     uncertainty: str
     uplift_bins: list[tuple[int, float, float, int]]
     multi_action_cate: list[tuple[str, str, float, int, int, int]]
+
+class ContinuousDoseResponseSection:
+    points: list[tuple[str, float, float, int, float, float, float, float]]
+    bandwidth: float
+    density_provenance: str
+    uncertainty: str
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
@@ -1289,13 +1296,6 @@ class PreparedAnalysis:
         threads: int | None = None, options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_staggered_group_time(
-        names: list[str], columns: Sequence[Any], outcome: str,
-        subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
-        target_cohort: int, target_period: int, *, accepted: bool = False,
-        seed: int = 1, threads: int | None = None,
-        options: dict[str, Any] | None = None,
-    ) -> PreparedAnalysis: ...
     def prepare_augmented_panel_did(
         names: list[str], columns: Sequence[Any], outcome_pre: str, outcome_post: str,
         propensity: str, untreated_change_prediction: str, treated: list[bool],
@@ -1304,6 +1304,13 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_staggered_group_time(
+        names: list[str], columns: Sequence[Any], outcome: str,
+        subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
+        target_cohort: int, target_period: int, *, accepted: bool = False,
+        seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_staggered_event_study(
         names: list[str], columns: Sequence[Any], outcome: str,
@@ -1320,6 +1327,14 @@ class PreparedAnalysis:
         augmentation_ridge: float | None = None,
         accepted: bool = False,
         seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_continuous_dose_response(
+        names: list[str], columns: Sequence[Any], outcome: str, dose: str,
+        dose_density: str, baseline_groups: list[str], target_doses: list[float],
+        bandwidth: float, density_provenance: str, *, min_local_support: int = 3,
+        accepted: bool = False, seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod

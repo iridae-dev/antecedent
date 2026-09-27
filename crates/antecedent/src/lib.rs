@@ -107,7 +107,7 @@ pub use query::*;
 pub use result::{
     AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES, PanelDidEstimate,
     SyntheticControlEstimate, SyntheticDidEstimate, LocalPolynomialRatioEstimate,
-    LongitudinalRegimeEstimate, PolicyValueEstimate, PrimaryEstimate,
+    ContinuousDoseResponseEstimate, LongitudinalRegimeEstimate, PolicyValueEstimate, PrimaryEstimate,
     PublishedScalarUncertainty, RandomizedEffectEstimate,
     SurvivalEstimate,
     RowWeightsBinding, StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
