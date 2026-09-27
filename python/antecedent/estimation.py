@@ -602,6 +602,10 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         policy_value_standard_error=section.policy_standard_error,
         reference_value_standard_error=section.reference_standard_error,
         incremental_value_standard_error=section.incremental_standard_error,
+        policy_value_interval_95=section.policy_interval_95,
+        incremental_value_interval_95=section.incremental_interval_95,
+        support_status=("off_axis_pointwise_95" if section.policy_interval_95 is not None
+                        else "unlicensed_point_utility"),
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
