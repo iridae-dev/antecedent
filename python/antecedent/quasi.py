@@ -6,20 +6,15 @@ These utilities do not add a support-matrix license or interval guarantee.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
 
 from ._data import as_columns
-from ._native import augmented_panel_difference_in_differences as _augmented_panel_did
 from ._native import difference_in_differences as _difference_in_differences
 from ._native import group_time_att as _group_time_att
-from ._native import local_polynomial_fuzzy_discontinuity as _local_polynomial_fuzzy_discontinuity
-from ._native import staggered_event_study as _staggered_event_study
-from ._native import synthetic_control as _synthetic_control
-from ._native import synthetic_difference_in_differences as _synthetic_did
-from .errors import CausalError, CausalValueError
+from .errors import CausalValueError
 
 
 def _binary(values: Sequence[Any], name: str) -> list[bool]:
@@ -603,41 +598,6 @@ def estimate_did(
     return DifferenceInDifferencesEstimate(float(value))
 
 
-def estimate_panel_did(
-    data: Any, query: PanelDifferenceInDifferences, *, cluster: str | None = None
-) -> PanelDifferenceInDifferencesEstimate:
-    """Estimate two-period DiD through the retained native analysis path.
-
-    This is the same checked execution used by ``analyze`` and ``prepare``.
-    The optional ``cluster`` overrides the cluster bound in the query.
-    """
-
-    if not isinstance(query, PanelDifferenceInDifferences):
-        raise CausalValueError("query must be a PanelDifferenceInDifferences")
-    from ._analyze import analyze
-
-    effective = replace(query, cluster=cluster) if cluster is not None else query
-    try:
-        result = analyze(data, query=effective)
-    except CausalError as error:
-        # Keep the direct utility's historical value-error surface while the
-        # retained analysis path supplies the single numeric implementation.
-        message = str(error)
-        if "cluster SE requires at least two clusters in each group" in message:
-            message = "cluster-robust standard error requires at least two clusters in each treatment group"
-        elif "cluster must be stable within subject" in message:
-            message = "cluster ID must be constant within each subject"
-        elif "treatment must be stable within subject" in message:
-            message = "treatment assignment must be stable within each subject"
-        elif (effective.sampling == "balanced_panel" and
-              "DiD requires at least four aligned rows" in message):
-            message = "each subject must have exactly one pre and one post observation"
-        raise CausalValueError(message) from error
-    if result.panel_did is None:
-        raise CausalValueError("retained DiD result is missing its DiD section")
-    return result.panel_did
-
-
 def _integer_column(values: Sequence[Any], name: str, *, minimum: int) -> list[int]:
     encoded: list[int] = []
     for value in values:
@@ -711,211 +671,6 @@ def estimate_group_time_att(
     return StaggeredAdoptionEstimate(effects)
 
 
-def estimate_staggered_event_study(
-    data: Any, query: StaggeredAdoption, *, cluster: str | None = None
-) -> StaggeredEventStudyEstimate:
-    """Return cohort-by-event-time contrasts relative to event time -1.
-
-    Pre-adoption coefficients are descriptive checks, not a parallel-trends
-    test. Pointwise standard errors aggregate subject-level influence scores
-    into independent clusters and apply G/(G-1). Supply a higher-level cluster
-    column when appropriate; subject IDs are the default. The retained event
-    study reports separate post-adoption pointwise intervals only with the
-    calibrated cluster support. It does not validate parallel trends or form
-    simultaneous bands.
-    """
-    if not isinstance(query, StaggeredAdoption):
-        raise CausalValueError("query must be a StaggeredAdoption")
-    if query.event_study:
-        from ._analyze import analyze
-        result = analyze(data, query=query)
-        if result.panel_did is None or not isinstance(result.panel_did, StaggeredEventStudyEstimate):
-            raise CausalValueError("retained event study did not return cohort-specific effects")
-        return result.panel_did
-    if cluster is None:
-        cluster = query.cluster
-    names, columns = _raw_columns(data)
-    for name in (query.outcome, query.subject, query.period, query.cohort):
-        if name not in names:
-            raise CausalValueError(f"required staggered-adoption column {name!r} is missing")
-    if cluster is not None and (not isinstance(cluster, str) or cluster not in names):
-        raise CausalValueError("cluster must name a present cluster column")
-    outcome = np.asarray(columns[names.index(query.outcome)], dtype=np.float64)
-    subjects = list(columns[names.index(query.subject)])
-    if any(not isinstance(subject, str) or not subject for subject in subjects):
-        raise CausalValueError("subject IDs must be non-empty strings")
-    periods = _integer_column(columns[names.index(query.period)], "period", minimum=1)
-    cohorts = _integer_column(columns[names.index(query.cohort)], "cohort", minimum=0)
-    clusters = subjects if cluster is None else list(columns[names.index(cluster)])
-    if any(not isinstance(value, str) or not value for value in clusters):
-        raise CausalValueError("cluster IDs must be non-empty strings")
-    try:
-        raw = _staggered_event_study(outcome, subjects, periods, cohorts, clusters)
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    effects = tuple(
-        StaggeredEventTimeEffect(int(g), int(t), int(e), float(estimate), float(se), int(nt), int(nc), int(gc))
-        for g, t, e, estimate, nt, nc, se, gc in raw
-    )
-    return StaggeredEventStudyEstimate(effects)
-
-
-def estimate_synthetic_control(data: Any, query: SyntheticControl) -> SyntheticControlEstimate:
-    """Fit simplex donor weights to pre-period outcomes and compare post means.
-
-    The returned placebo rank is the finite donor-pool tail fraction from
-    leave-one-donor-out fits. It is explicitly uncalibrated, makes no inference
-    claim, and does not change the point-only uncertainty status.
-    """
-
-    if not isinstance(query, SyntheticControl):
-        raise CausalValueError("query must be a SyntheticControl")
-    if query.uniform_unit_randomization or query.augmentation_ridge is not None:
-        from .estimation import PreparedAnalysis
-
-        result = PreparedAnalysis.prepare(data, query=query).estimate(data).synthetic_control
-        assert result is not None
-        return result
-    names, columns = _raw_columns(data)
-    for name in (query.outcome, query.unit, query.period):
-        if name not in names:
-            raise CausalValueError(f"required synthetic-control column {name!r} is missing")
-    outcome = np.asarray(columns[names.index(query.outcome)], dtype=np.float64)
-    units = list(columns[names.index(query.unit)])
-    if any(not isinstance(unit, str) or not unit for unit in units):
-        raise CausalValueError("unit IDs must be non-empty strings")
-    periods = _integer_column(columns[names.index(query.period)], "period", minimum=1)
-    try:
-        estimate, pre_rmse, raw_weights, placebo_effects, placebo_rank, n_pre, n_post = (
-            _synthetic_control(
-                outcome,
-                units,
-                periods,
-                query.treated_unit,
-                int(query.intervention_period),
-            )
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    weights = tuple((str(unit), float(weight)) for unit, weight in raw_weights)
-    squared_mass = sum(weight**2 for _, weight in weights)
-    effective_donors = 1.0 / squared_mass if squared_mass > 0 else 0.0
-    return SyntheticControlEstimate(
-        estimate=float(estimate),
-        pre_treatment_rmse=float(pre_rmse),
-        donor_weights=weights,
-        placebo_effects=tuple(float(value) for value in placebo_effects),
-        placebo_rank_p_value=float(placebo_rank),
-        effective_donors=float(effective_donors),
-        n_donors=len(weights),
-        n_pre_periods=int(n_pre),
-        n_post_periods=int(n_post),
-    )
-
-
-def estimate_synthetic_did(
-    data: Any, query: SyntheticDifferenceInDifferences
-) -> SyntheticDifferenceInDifferencesEstimate:
-    """Estimate SDID with native simplex weights on units and pre-periods.
-
-    The balanced-panel kernel reports a point estimate, pre-fit RMSE and both
-    weight vectors. A declared uniform single-unit assignment requests an
-    exact sharp-null p-value through retained analysis; it reports no interval.
-    """
-
-    if not isinstance(query, SyntheticDifferenceInDifferences):
-        raise CausalValueError("query must be a SyntheticDifferenceInDifferences")
-    if query.uniform_unit_randomization:
-        from .estimation import PreparedAnalysis
-
-        result = PreparedAnalysis.prepare(data, query=query).estimate(data).synthetic_did
-        assert result is not None
-        return result
-    names, columns = _raw_columns(data)
-    for name in (query.outcome, query.unit, query.period):
-        if name not in names:
-            raise CausalValueError(f"required synthetic DiD column {name!r} is missing")
-    outcome = np.asarray(columns[names.index(query.outcome)], dtype=np.float64)
-    units = list(columns[names.index(query.unit)])
-    if any(not isinstance(unit, str) or not unit for unit in units):
-        raise CausalValueError("unit IDs must be non-empty strings")
-    periods = _integer_column(columns[names.index(query.period)], "period", minimum=1)
-    try:
-        estimate, pre_rmse, raw_units, raw_times, n_donors, n_pre, n_post = (
-            _synthetic_did(outcome, units, periods, query.treated_unit, int(query.intervention_period))
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return SyntheticDifferenceInDifferencesEstimate(
-        estimate=float(estimate),
-        pre_treatment_rmse=float(pre_rmse),
-        donor_weights=tuple((str(unit), float(weight)) for unit, weight in raw_units),
-        time_weights=tuple((int(period), float(weight)) for period, weight in raw_times),
-        n_donors=int(n_donors),
-        n_pre_periods=int(n_pre),
-        n_post_periods=int(n_post),
-    )
-
-
-def estimate_augmented_panel_did(
-    data: Any, query: AugmentedPanelDiD
-) -> AugmentedPanelDiDEstimate:
-    """Estimate panel ATT with supplied propensity and untreated-change nuisance.
-
-    The caller supplies one row per subject. The propensity and untreated
-    change prediction columns are passed unchanged to the Rust estimator;
-    the point utility does not fit or validate nuisance models.
-    """
-
-    if not isinstance(query, AugmentedPanelDiD):
-        raise CausalValueError("query must be an AugmentedPanelDiD")
-    names, columns = _raw_columns(data)
-    required = (
-        query.outcome_pre,
-        query.outcome_post,
-        query.subject,
-        query.treated,
-        query.propensity,
-        query.untreated_change_prediction,
-    )
-    if query.cluster is not None:
-        required += (query.cluster,)
-    for name in required:
-        if name not in names:
-            raise CausalValueError(f"required augmented panel DiD column {name!r} is missing")
-    subjects = list(columns[names.index(query.subject)])
-    if any(not isinstance(subject, str) or not subject for subject in subjects):
-        raise CausalValueError("subject IDs must be non-empty strings")
-    if len(set(subjects)) != len(subjects):
-        raise CausalValueError("augmented panel DiD requires one row per unique subject")
-    treated = _binary(columns[names.index(query.treated)], "treated")
-    try:
-        pre = np.asarray(columns[names.index(query.outcome_pre)], dtype=np.float64)
-        post = np.asarray(columns[names.index(query.outcome_post)], dtype=np.float64)
-        propensity = np.asarray(columns[names.index(query.propensity)], dtype=np.float64)
-        prediction = np.asarray(
-            columns[names.index(query.untreated_change_prediction)], dtype=np.float64
-        )
-    except (TypeError, ValueError) as error:
-        raise CausalValueError("outcomes, propensities, and predictions must be numeric") from error
-    try:
-        estimate, n_treated, n_control, p_min, p_max, ess = _augmented_panel_did(
-            pre, post, treated, propensity, prediction
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return AugmentedPanelDiDEstimate(
-        estimate=float(estimate),
-        treated_subjects=int(n_treated),
-        control_subjects=int(n_control),
-        propensity_min=float(p_min),
-        propensity_max=float(p_max),
-        effective_control_sample_size=float(ess),
-        nuisance_predictions_cross_fitted=query.predictions_cross_fitted,
-        clusters=len(set(subjects if query.cluster is None else columns[names.index(query.cluster)])),
-    )
-
-
 def _validate_rd_spec(outcome: str, treatment: str, running: str, cutoff: float, bandwidth: float) -> None:
     fields = (outcome, treatment, running)
     if any(not isinstance(value, str) or not value.strip() for value in fields):
@@ -930,91 +685,6 @@ def _validate_rd_spec(outcome: str, treatment: str, running: str, cutoff: float,
         bandwidth, (int, float, np.integer, np.floating)
     ) or not np.isfinite(bandwidth) or bandwidth <= 0:
         raise CausalValueError("bandwidth must be finite and positive")
-
-
-def _estimate_local_polynomial_ratio(data: Any, query: Any, *, kink: bool) -> LocalPolynomialRatioEstimate:
-    names, columns = _raw_columns(data)
-    for name in (query.outcome, query.treatment, query.running):
-        if name not in names:
-            raise CausalValueError(f"required local-polynomial column {name!r} is missing")
-    outcome = np.asarray(columns[names.index(query.outcome)], dtype=np.float64)
-    treatment = np.asarray(columns[names.index(query.treatment)], dtype=np.float64)
-    running = np.asarray(columns[names.index(query.running)], dtype=np.float64)
-    try:
-        (
-            estimate,
-            reduced,
-            first_stage,
-            n_left,
-            n_right,
-            standard_error,
-            ci_lower,
-            ci_upper,
-            reduced_se,
-            first_stage_se,
-        ) = _local_polynomial_fuzzy_discontinuity(
-            running, outcome, treatment, float(query.cutoff), float(query.bandwidth), kink
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return LocalPolynomialRatioEstimate(
-        estimate=float(estimate),
-        reduced_form_discontinuity=float(reduced),
-        first_stage_discontinuity=float(first_stage),
-        observations_left=int(n_left),
-        observations_right=int(n_right),
-        standard_error=float(standard_error),
-        ci_lower=float(ci_lower),
-        ci_upper=float(ci_upper),
-        reduced_form_standard_error=float(reduced_se),
-        first_stage_standard_error=float(first_stage_se),
-        cutoff=float(query.cutoff),
-        bandwidth=float(query.bandwidth),
-        kink=bool(kink),
-        design=(
-            "fuzzy_regression_kink_local_quadratic"
-            if kink
-            else "fuzzy_regression_discontinuity_local_quadratic"
-        ),
-        assumptions=(
-            (
-                "potential_outcome_derivatives_are_smooth_at_cutoff",
-                "no_precise_manipulation_of_running_variable",
-                "exclusion_restriction_for_threshold_induced_slope_change",
-                "monotonicity_for_local_complier_interpretation",
-                "no_interference",
-            )
-            if kink
-            else LocalPolynomialRatioEstimate.__dataclass_fields__["assumptions"].default
-        ),
-        diagnostics=(
-            "local_quadratic_triangular_kernel",
-            "left_right_window_counts_reported",
-            "quartic_pilot_bias_correction_at_same_bandwidth" if kink else "cubic_pilot_bias_correction_at_same_bandwidth",
-            "hc0_sandwich_covariance_with_delta_method_ratio_se",
-            "nominal_95_interval_calibrated_on_strong_first_stage_fixtures",
-        ),
-    )
-
-
-def estimate_fuzzy_rd(data: Any, query: FuzzyRegressionDiscontinuity) -> LocalPolynomialRatioEstimate:
-    """Estimate fuzzy RD as local-quadratic outcome jump / treatment jump.
-
-    The implementation corrects the local-quadratic leading cubic bias with a
-    same-bandwidth local-cubic pilot and uses HC0 covariance with a delta-method
-    normal interval. Repeated-sampling evidence covers a strong-first-stage,
-    fixed-bandwidth fixture; the design remains outside the support matrix.
-    """
-    if not isinstance(query, FuzzyRegressionDiscontinuity):
-        raise CausalValueError("query must be a FuzzyRegressionDiscontinuity")
-    return _estimate_local_polynomial_ratio(data, query, kink=False)
-
-
-def estimate_regression_kink(data: Any, query: RegressionKink) -> LocalPolynomialRatioEstimate:
-    """Estimate a fuzzy regression-kink ratio from local-quadratic slope changes."""
-    if not isinstance(query, RegressionKink):
-        raise CausalValueError("query must be a RegressionKink")
-    return _estimate_local_polynomial_ratio(data, query, kink=True)
 
 
 __all__ = [
@@ -1038,12 +708,5 @@ __all__ = [
     "SharpRegressionDiscontinuity",
     "LocalPolynomialRatioEstimate",
     "estimate_did",
-    "estimate_panel_did",
     "estimate_group_time_att",
-    "estimate_staggered_event_study",
-    "estimate_synthetic_control",
-    "estimate_synthetic_did",
-    "estimate_augmented_panel_did",
-    "estimate_fuzzy_rd",
-    "estimate_regression_kink",
 ]

@@ -3,7 +3,9 @@
 These native-backed Python workflows provide point estimates outside the
 support matrix. Neither returns an interval or a calibrated inference claim.
 
-`estimate_synthetic_did` requires a balanced panel with one treated unit, at
+`SyntheticDifferenceInDifferences` runs through `analyze(data, query=query)`
+and `PreparedAnalysis.prepare(data, query=query)`, reporting
+`result.synthetic_did`. It requires a balanced panel with one treated unit, at
 least two donors, two pre-periods and one post-period. It estimates simplex
 weights over donor units and pre-treatment periods, then computes the weighted
 difference-in-differences contrast. The caller must justify no anticipation,
@@ -11,14 +13,13 @@ no interference, and that the convex unit/time weights represent the untreated
 counterfactual trend. Pre-fit RMSE is diagnostic only; there is no automatic
 fit threshold or placebo-based interval.
 
-`SyntheticDifferenceInDifferences` also works with `analyze(data, query=query)`
-and `PreparedAnalysis.prepare(data, query=query)`. The retained route executes
-the same Rust kernel and reports `result.synthetic_did`, including donor and
+The retained route reports `result.synthetic_did`, including donor and
 pre-period weights. Unit and period row order is frozen when prepared; the
 artifact preserves both weight vectors and refuses a fabricated standard error
 or interval. This route remains `unlicensed_point_utility`.
 
-`estimate_augmented_panel_did` requires one row per subject, pre/post outcomes,
+`AugmentedPanelDiD`, through `analyze(data, query=query).panel_did`, requires
+one row per subject, pre/post outcomes,
 a binary treatment indicator, propensity scores, and predictions of the
 untreated outcome change. It uses an ATT augmentation: the treated mean change
 minus the predicted treated counterfactual change, corrected by propensity
@@ -44,8 +45,7 @@ assert result.panel_did.uncertainty == "point_only_no_standard_error"
 
 The prepared query freezes unique subject IDs, optional higher-level cluster
 IDs, treatment assignments, and the names of the supplied nuisance columns.
-Refreshing with a different subject or cluster order is refused. The shared
-native estimator is used by both the direct utility and retained Study.
+Refreshing with a different subject or cluster order is refused.
 `result.panel_did` reports the propensity range and effective weighted control
 count; the artifact records no standard error and no interval for this design.
 `predictions_cross_fitted=True` is a caller declaration, not a verification of

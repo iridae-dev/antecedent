@@ -11,7 +11,6 @@ from typing import Any
 import numpy as np
 
 from ._data import as_columns
-from ._native import conditional_dose_response as _conditional_dose_response
 from ._native import evaluate_binary_policy as _evaluate_binary_policy
 from ._native import evaluate_binary_policy_doubly_robust as _evaluate_binary_policy_doubly_robust
 from ._native import evaluate_multi_action_policy as _evaluate_multi_action_policy
@@ -619,89 +618,6 @@ def uplift_by_score(
                  for rank, effect, se, count in raw)
 
 
-def estimate_continuous_dose_response(
-    data: Any,
-    *,
-    outcome: str,
-    dose: str,
-    baseline_group: str,
-    dose_density: str,
-    target_doses: Sequence[float],
-    bandwidth: float,
-    density_provenance: str,
-    min_local_support: int = 3,
-) -> ConditionalDoseResponseEstimate:
-    """Estimate conditional responses at target doses with local kernel weights.
-
-    Within each supplied baseline group, this computes a Hájek mean using a
-    triangular kernel centered at each target dose and inverse caller-supplied
-    density at each observed dose. It is a response curve utility; it does not
-    select or evaluate a dose policy.
-    """
-
-    # Preserve categorical group labels while converting only numeric columns.
-    if isinstance(data, Mapping):
-        names = [str(name) for name in data]
-        columns = [np.asarray(data[name]) for name in data]
-    elif hasattr(data, "columns") and hasattr(data, "__getitem__"):
-        names = [str(name) for name in data.columns]
-        columns = [np.asarray(data[name]) for name in data.columns]
-    else:
-        names, columns = as_columns(data)
-    if len(set(names)) != len(names) or any(column.ndim != 1 for column in columns):
-        raise CausalValueError("continuous-dose inputs require unique one-dimensional columns")
-    if columns and len({len(column) for column in columns}) != 1:
-        raise CausalValueError("continuous-dose input columns must have equal row counts")
-    for name in (outcome, dose, baseline_group, dose_density):
-        if name not in names:
-            raise CausalValueError(f"required continuous-dose column {name!r} is missing")
-    if not isinstance(density_provenance, str) or density_provenance not in {
-        "known", "externally_estimated"
-    }:
-        raise CausalValueError("density_provenance must be known or externally_estimated")
-    if not isfinite(bandwidth) or bandwidth <= 0.0:
-        raise CausalValueError("bandwidth must be finite and positive")
-    if isinstance(min_local_support, bool) or not isinstance(min_local_support, Integral) or min_local_support < 2:
-        raise CausalValueError("min_local_support must be an integer of at least two")
-    if len(target_doses) == 0:
-        raise CausalValueError("target_doses must not be empty")
-    try:
-        values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
-        doses = np.asarray(columns[names.index(dose)], dtype=np.float64)
-        densities = np.asarray(columns[names.index(dose_density)], dtype=np.float64)
-    except (TypeError, ValueError) as error:
-        raise CausalValueError("outcome, dose, and density columns must be numeric") from error
-    groups = list(columns[names.index(baseline_group)])
-    if any(not isinstance(group, str) or not group for group in groups):
-        raise CausalValueError("baseline group labels must be non-empty strings")
-    targets = np.asarray(target_doses, dtype=np.float64)
-    if targets.ndim != 1 or not np.isfinite(targets).all():
-        raise CausalValueError("target_doses must be a finite one-dimensional sequence")
-    try:
-        raw_points = _conditional_dose_response(
-            values,
-            doses,
-            groups,
-            densities,
-            targets.tolist(),
-            float(bandwidth),
-            min_local_support=int(min_local_support),
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    points = tuple(
-        ConditionalDoseResponsePoint(
-            str(group), float(target), float(response), int(local_rows),
-            float(effective_n), float(min_density), float(max_weight), float(local_sd),
-        )
-        for group, target, response, local_rows, effective_n, min_density, max_weight, local_sd
-        in raw_points
-    )
-    return ConditionalDoseResponseEstimate(
-        points, float(bandwidth), density_provenance
-    )
-
-
 def evaluate_policy(
     evaluation_data: Any,
     *,
@@ -1009,5 +925,4 @@ __all__ = [
     "evaluate_policy",
     "evaluate_policy_doubly_robust",
     "uplift_by_score",
-    "estimate_continuous_dose_response",
 ]

@@ -9,9 +9,7 @@ from typing import Literal
 import numpy as np
 
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
-from ._native import estimate_complier_effect as _estimate_complier_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
-from ._native import estimate_multi_arm_effects as _estimate_multi_arm_effects
 from ._native import estimate_stratified_effect as _estimate_stratified_effect
 from ._native import estimate_switchback_effect as _estimate_switchback_effect
 from ._native import exact_randomization_test as _exact_randomization_test
@@ -643,50 +641,6 @@ class ComplierEffectEstimate:
     )
 
 
-def estimate_complier_effect(
-    outcomes: Sequence[float],
-    assignment: Sequence[bool],
-    received: Sequence[bool],
-    propensity: float | Sequence[float],
-) -> ComplierEffectEstimate:
-    """Estimate ITT and Wald CACE/LATE under randomized noncompliance.
-
-    This utility accepts unit-level known assignment probabilities and returns
-    a point estimate, an asymptotic influence-function standard error, and, when
-    the calibrated support thresholds hold, the same pointwise 95% interval the
-    retained analyze route publishes. It assumes exclusion and monotonicity; the
-    utility itself never adds a licensed support cell.
-    """
-    y = np.asarray(outcomes, dtype=np.float64)
-    if y.ndim != 1 or y.size < 2 or not np.isfinite(y).all():
-        raise CausalValueError("outcomes must be a finite one-dimensional array with at least two rows")
-    z = _binary_assignment(assignment, len(y), "assignment")
-    d = _binary_assignment(received, len(y), "received")
-    p = np.asarray(propensity, dtype=np.float64)
-    if p.ndim == 0:
-        p = np.full(len(y), float(p), dtype=np.float64)
-    if p.ndim != 1 or len(p) not in (1, len(y)):
-        raise CausalValueError("propensity must be scalar or one value per unit")
-    if not np.isfinite(p).all() or np.any(p <= 0) or np.any(p >= 1):
-        raise CausalValueError("assignment propensities must be strictly between zero and one")
-    try:
-        raw = _estimate_complier_effect(y, z, d, p)
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    outcome_itt, first_stage, effect, standard_error, interval = raw
-    interval_95 = (float(interval[0]), float(interval[1])) if interval is not None else None
-    return ComplierEffectEstimate(
-        intention_to_treat_effect=float(outcome_itt),
-        first_stage_effect=float(first_stage),
-        complier_average_causal_effect=float(effect),
-        standard_error=float(standard_error),
-        interval_95=interval_95,
-        uncertainty=("asymptotic_influence_function_pointwise_95_normal_interval"
-                     if interval_95 is not None
-                     else "asymptotic_influence_function_standard_error"),
-    )
-
-
 @dataclass(frozen=True, slots=True)
 class CUPEDEstimate:
     effect: float
@@ -855,52 +809,6 @@ class MultiArmExperimentEstimate:
     )
 
 
-def estimate_multi_arm_effect(
-    data: object,
-    *,
-    outcome: str,
-    assignment: Sequence[str],
-    action_labels: Sequence[str],
-    propensities: Sequence[Sequence[float]],
-) -> MultiArmExperimentEstimate:
-    """Estimate all arm means and contrasts to the first (control) action."""
-    from ._data import as_columns
-
-    names, columns = as_columns(data)
-    if outcome not in names:
-        raise CausalValueError(f"outcome column {outcome!r} is missing from data")
-    y = np.asarray(columns[names.index(outcome)], dtype=np.float64)
-    labels = tuple(action_labels)
-    assigned = tuple(assignment)
-    if len(labels) < 2 or any(not isinstance(label, str) or not label.strip() for label in labels):
-        raise CausalValueError("action_labels must contain at least two non-empty labels")
-    if len(set(labels)) != len(labels):
-        raise CausalValueError("action_labels must be unique")
-    if len(assigned) != len(y) or any(action not in labels for action in assigned):
-        raise CausalValueError("assignment must name one declared action per outcome row")
-    probabilities = np.asarray(propensities, dtype=np.float64)
-    if probabilities.shape != (len(y), len(labels)):
-        raise CausalValueError("propensities must have one row per unit and one column per action")
-    try:
-        raw = _estimate_multi_arm_effects(
-            y, [labels.index(action) for action in assigned], probabilities
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    values = tuple(float(item[0]) for item in raw)
-    variances = tuple(float(item[1]) for item in raw)
-    supports = tuple(int(item[2]) for item in raw)
-    control_value = values[0]
-    contrasts = tuple(
-        MultiArmContrast(
-            labels[index], values[index], values[index] - control_value,
-            2.0 * (variances[index] + variances[0]), supports[index],
-        )
-        for index in range(1, len(labels))
-    )
-    return MultiArmExperimentEstimate(labels[0], tuple(zip(labels, values, strict=True)), contrasts)
-
-
 def _binary_assignment(values: Sequence[bool], n: int, name: str) -> list[bool]:
     raw = list(values)
     if len(raw) != n:
@@ -929,9 +837,7 @@ __all__ = [
     "SwitchbackDesign",
     "SwitchbackEffect",
     "SwitchbackEstimate",
-    "estimate_complier_effect",
     "estimate_cuped_effect",
     "estimate_ancova_effect",
     "exact_randomization_test",
-    "estimate_multi_arm_effect",
 ]

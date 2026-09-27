@@ -8,8 +8,6 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.quasi import (
     AugmentedPanelDiD,
     SyntheticDifferenceInDifferences,
-    estimate_augmented_panel_did,
-    estimate_synthetic_did,
 )
 
 
@@ -29,10 +27,10 @@ def _synthetic_did_panel():
 
 
 def test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects():
-    result = estimate_synthetic_did(
+    result = analyze(
         _synthetic_did_panel(),
-        SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4),
-    )
+        query=SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4),
+    ).synthetic_did
     assert result.estimate == pytest.approx(7.0)
     assert result.n_donors == 3
     assert result.n_pre_periods == 3
@@ -47,7 +45,7 @@ def test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects
 def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights():
     rows = _synthetic_did_panel()
     query = SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4)
-    direct = estimate_synthetic_did(rows, query)
+    direct = analyze(rows, query=query).synthetic_did
     result = analyze(rows, query=query)
     fit = result.synthetic_did
     assert fit is not None
@@ -68,7 +66,7 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
     query = SyntheticDifferenceInDifferences(
         "y", "unit", "period", "treated", 4, uniform_unit_randomization=True,
     )
-    direct = estimate_synthetic_did(rows, query)
+    direct = analyze(rows, query=query).synthetic_did
     prepared = antecedent.prepare(rows, query=query)
     result = prepared.estimate()
     fit = result.synthetic_did
@@ -91,12 +89,12 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
 def test_synthetic_did_refuses_unbalanced_and_insufficient_pre_support():
     query = SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4)
     rows = _synthetic_did_panel()
-    with pytest.raises(CausalValueError, match="balanced panel"):
-        estimate_synthetic_did({key: value[:-1] for key, value in rows.items()}, query)
-    with pytest.raises(CausalValueError, match="two pre-periods"):
-        estimate_synthetic_did(
+    with pytest.raises(CausalCompileError, match="balanced panel"):
+        analyze({key: value[:-1] for key, value in rows.items()}, query=query)
+    with pytest.raises(CausalCompileError, match="two pre-periods"):
+        analyze(
             rows,
-            SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 2),
+            query=SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 2),
         )
 
 
@@ -105,7 +103,7 @@ def test_augmented_panel_did_recovers_known_effect_and_reports_overlap():
     treated = [True, True, True, False, False, False]
     baseline = np.array([10.0, 12.0, 13.0, 9.0, 15.0, 11.0])
     changes = np.array([5.0, 5.0, 5.0, 2.0, 2.0, 2.0])
-    result = estimate_augmented_panel_did(
+    result = analyze(
         {
             "id": subjects,
             "pre": baseline,
@@ -114,8 +112,8 @@ def test_augmented_panel_did_recovers_known_effect_and_reports_overlap():
             "p": np.full(6, 0.5),
             "m0": np.full(6, 2.0),
         },
-        AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True),
-    )
+        query=AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True),
+    ).panel_did
     assert result.estimate == pytest.approx(3.0)
     assert result.treated_subjects == 3
     assert result.control_subjects == 3
@@ -123,7 +121,7 @@ def test_augmented_panel_did_recovers_known_effect_and_reports_overlap():
     assert result.propensity_max == pytest.approx(0.5)
     assert result.effective_control_sample_size == pytest.approx(3.0)
     assert result.nuisance_predictions_cross_fitted
-    assert result.uncertainty == "point_only"
+    assert result.uncertainty == "point_only_no_standard_error"
     assert "strict_propensity_overlap" in result.assumptions
 
 
@@ -137,10 +135,10 @@ def test_augmented_panel_did_refuses_nonoverlap_and_duplicate_subjects():
         "p": [0.5, 0.5, 0.0, 0.5],
         "m0": [0.0] * 4,
     }
-    with pytest.raises(CausalValueError, match="strictly between zero and one"):
-        estimate_augmented_panel_did(data, query)
-    with pytest.raises(CausalValueError, match="unique subject"):
-        estimate_augmented_panel_did({**data, "id": ["a", "a", "c", "d"]}, query)
+    with pytest.raises(CausalCompileError, match="strictly between zero and one"):
+        analyze(data, query=query)
+    with pytest.raises(CausalValueError, match="unique row per subject"):
+        analyze({**data, "id": ["a", "a", "c", "d"]}, query=query)
 
 
 def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
@@ -155,7 +153,7 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
         "p": [0.5] * 6,
         "m0": [2.0] * 6,
     }
-    direct = estimate_augmented_panel_did(data, query)
+    direct = antecedent.analyze(data, query=query).panel_did
     prepared = antecedent.prepare(data, query=query)
     result = prepared.estimate()
     assert result.panel_did.estimate == pytest.approx(3.0)

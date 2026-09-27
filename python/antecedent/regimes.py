@@ -733,116 +733,6 @@ def evaluate_sequential_doubly_robust(
     )
 
 
-def fit_marginal_structural_model(
-    outcomes: ArrayLike,
-    treatment_history: ArrayLike,
-    treatment_probabilities: ArrayLike,
-    *,
-    stabilizing_numerator_probabilities: ArrayLike,
-    subject_ids: Sequence[str],
-    fold_ids: Sequence[int] | None = None,
-    outcome_observed: ArrayLike | None = None,
-    censoring_survival: ArrayLike | None = None,
-    minimum_probability: float = 0.01,
-) -> MarginalStructuralModelResult:
-    """Fit an additive binary marginal structural model with stabilized IPTW.
-
-    Terminal outcomes are one scalar per subject. Each period coefficient is
-    the marginal additive effect of its treatment, conditional on other period
-    indicators in the specified structural mean. Caller-supplied numerator
-    probabilities define stabilization: each is ``P(A_t=1)``. Censoring
-    weights are unstabilized and use the supplied conditional probability of
-    remaining observed at each period. This function fits no propensities.
-
-    Optional fold IDs record subject ownership, but do not verify whether the
-    supplied propensities were estimated out of fold. Standard errors use a
-    subject-clustered CR1 sandwich and are pointwise; no interval, simultaneous
-    coverage, or calibration claim is made. Identification requires consistency,
-    sequential exchangeability and positivity, correctly specified supplied
-    nuisance probabilities, no interference, and a correctly specified
-    additive marginal structural mean with no treatment interactions.
-    """
-    y = np.asarray(outcomes, dtype=np.float64)
-    a = np.asarray(treatment_history)
-    p = np.asarray(treatment_probabilities, dtype=np.float64)
-    numerator = np.asarray(stabilizing_numerator_probabilities, dtype=np.float64)
-    if y.ndim != 1 or y.size == 0:
-        raise CausalValueError("outcomes must be a non-empty one-dimensional subject vector")
-    if a.ndim != 2 or a.shape[0] != y.size or a.shape[1] == 0:
-        raise CausalValueError("treatment_history must have shape (subjects, periods)")
-    if not np.isin(a, (0, 1, False, True)).all():
-        raise CausalValueError("treatment_history must contain only binary actions")
-    a = a.astype(bool, copy=False)
-    n, periods = a.shape
-    if p.shape != a.shape or not np.isfinite(p).all():
-        raise CausalValueError("treatment_probabilities must be finite and match treatment_history")
-    if numerator.shape != (periods,) or not np.isfinite(numerator).all():
-        raise CausalValueError("stabilizing_numerator_probabilities must have one finite value per period")
-    if not isfinite(minimum_probability) or not 0 < minimum_probability <= 0.5:
-        raise CausalValueError("minimum_probability must be finite and in (0, 0.5]")
-    if np.any(p < minimum_probability) or np.any(p > 1.0 - minimum_probability):
-        raise CausalValueError("sequential treatment positivity is violated at the declared probability floor")
-    if np.any(numerator < minimum_probability) or np.any(numerator > 1.0 - minimum_probability):
-        raise CausalValueError("stabilizing numerator probabilities violate the declared positivity floor")
-    observed = np.ones(n, dtype=bool) if outcome_observed is None else np.asarray(outcome_observed)
-    if observed.shape != (n,) or not np.isin(observed, (0, 1, False, True)).all():
-        raise CausalValueError("outcome_observed must contain one bool per subject")
-    observed = observed.astype(bool, copy=False)
-    if not observed.any():
-        raise CausalValueError("at least one terminal outcome must be observed")
-    if not np.isfinite(y[observed]).all():
-        raise CausalValueError("observed terminal outcomes must be finite")
-    y = np.where(observed, y, 0.0)
-    censor = np.ones_like(p) if censoring_survival is None else np.asarray(censoring_survival, dtype=np.float64)
-    if censor.shape != a.shape or not np.isfinite(censor).all():
-        raise CausalValueError("censoring_survival must be finite and match treatment_history")
-    if np.any(censor < minimum_probability) or np.any(censor > 1.0):
-        raise CausalValueError("sequential censoring positivity is violated at the declared probability floor")
-
-    ids = tuple(subject_ids)
-    if len(ids) != n or any(not isinstance(value, str) or not value.strip() for value in ids):
-        raise CausalValueError("subject_ids must contain one non-empty string per subject")
-    if len(set(ids)) != n:
-        raise CausalValueError("subject_ids must be unique because each row is one subject cluster")
-    if fold_ids is None:
-        ownership: tuple[tuple[str, int], ...] = ()
-        crossfit = "fold IDs not supplied; supplied propensity data dependence is unknown"
-    else:
-        raw_folds = np.asarray(fold_ids)
-        if (
-            raw_folds.shape != (n,)
-            or not np.issubdtype(raw_folds.dtype, np.signedinteger)
-            or np.any(raw_folds < 0)
-        ):
-            raise CausalValueError("fold_ids must contain one non-negative integer per subject")
-        ownership = tuple((subject, int(fold)) for subject, fold in zip(ids, raw_folds, strict=True))
-        crossfit = "subject fold ownership recorded; propensity cross-fitting is declared by caller and not verified"
-
-    try:
-        intercept, effects, standard_errors, ess, max_weight, included = _native.fit_binary_msm(
-            y,
-            a,
-            p,
-            numerator,
-            observed,
-            censor,
-            float(minimum_probability),
-        )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return MarginalStructuralModelResult(
-        float(intercept),
-        tuple(float(value) for value in effects),
-        tuple(float(value) for value in standard_errors),
-        tuple(float(value) for value in numerator),
-        float(ess),
-        float(max_weight),
-        int(included),
-        ownership,
-        crossfit_status=crossfit,
-    )
-
-
 __all__ = [
     "LongitudinalRegime",
     "LongitudinalRegimeEstimate",
@@ -853,7 +743,6 @@ __all__ = [
     "Regime",
     "RegimeValue",
     "evaluate_regime_value",
-    "fit_marginal_structural_model",
     "evaluate_sequential_doubly_robust",
     "evaluate_sequential_gformula",
 ]

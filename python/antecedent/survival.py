@@ -18,19 +18,7 @@ from typing import Any
 import numpy as np
 
 from ._data import as_columns
-from ._native import (
-    randomized_cumulative_incidence as _randomized_cumulative_incidence,
-)
-from ._native import (
-    randomized_cumulative_incidence_delayed_entry as _randomized_cumulative_incidence_delayed_entry,
-)
 from ._native import randomized_cumulative_incidence_ipcw as _randomized_cumulative_incidence_ipcw
-from ._native import (
-    randomized_survival as _randomized_survival,
-)
-from ._native import (
-    randomized_survival_delayed_entry as _randomized_survival_delayed_entry,
-)
 from ._native import randomized_survival_ipcw as _randomized_survival_ipcw
 from .errors import CausalValueError
 from .observation import IndependentGiven
@@ -326,163 +314,6 @@ class CumulativeIncidenceEstimate:
     )
 
 
-def estimate_survival(data: Any, query: SurvivalOutcome) -> SurvivalEstimate:
-    """Estimate arm-specific survival curves and RMST through ``tau`` in Rust.
-
-    Censored rows contribute to risk sets until their censoring time. Censoring
-    is assumed independent of event time within each arm. Non-randomized
-    assignments, conditional delayed entry, time-varying censoring adjustment,
-    and competing-risk codes are refused by this binary-event API. Use
-    :func:`estimate_cumulative_incidence` for coded competing events.
-    """
-
-    if not isinstance(query, SurvivalOutcome):
-        raise CausalValueError("query must be a SurvivalOutcome")
-    if query.known_censoring is not None:
-        raise CausalValueError("known censoring survival belongs in analyze(data, query=...) for retained IPCW execution")
-    if not query.randomized:
-        raise CausalValueError("causal survival estimates currently require declared individual random assignment")
-    names, columns = as_columns(data)
-    required = [query.duration, query.event_observed, query.treatment]
-    if query.delayed_entry is not None:
-        required.append(query.delayed_entry)
-    for name in required:
-        if name not in names:
-            raise CausalValueError(f"required survival column {name!r} is missing")
-    duration = np.asarray(columns[names.index(query.duration)], dtype=np.float64)
-    events = list(columns[names.index(query.event_observed)])
-    treatment = list(columns[names.index(query.treatment)])
-    if len(events) != len(duration) or len(treatment) != len(duration):
-        raise CausalValueError("duration, event_observed, and treatment columns must have equal lengths")
-    event_values = _binary(events, "event_observed")
-    treated_values = _binary(treatment, "treatment")
-    try:
-        if query.delayed_entry is None:
-            times, control, treated, rmst_control, rmst_treated = _randomized_survival(
-                duration, event_values, treated_values, float(query.tau)
-            )
-        else:
-            entry = np.asarray(columns[names.index(query.delayed_entry)], dtype=np.float64)
-            times, control, treated, rmst_control, rmst_treated = (
-                _randomized_survival_delayed_entry(
-                    duration, entry, event_values, treated_values, float(query.tau)
-                )
-            )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return SurvivalEstimate(
-        tuple(float(value) for value in times),
-        tuple(float(value) for value in control),
-        tuple(float(value) for value in treated),
-        float(rmst_control),
-        float(rmst_treated),
-        float(rmst_treated - rmst_control),
-        float(query.tau),
-        assumptions=(
-            (
-                "individual_random_assignment",
-                "independent_right_censoring_within_arm",
-                "consistency",
-                "no_interference",
-            )
-            if query.delayed_entry is None
-            else (
-                "individual_random_assignment",
-                "independent_right_censoring_within_arm",
-                "independent_left_truncation_given_IndependentGiven_empty",
-                "consistency",
-                "no_interference",
-            )
-        ),
-    )
-
-
-def estimate_cumulative_incidence(
-    data: Any, query: CompetingRisksOutcome
-) -> CumulativeIncidenceEstimate:
-    """Estimate cause-specific cumulative-incidence curves in native Rust.
-
-    Code zero denotes right censoring and each positive code denotes one
-    distinct event type. At each event time the estimator updates the target
-    cause's incidence using the all-cause event-free survival immediately
-    before that time, so other event causes compete in the risk set instead
-    of being misclassified as ordinary censoring. An optional delayed-entry
-    column requires ``IndependentGiven(())`` and uses the strict interval
-    ``(entry, duration]`` for event-time risk sets.
-    """
-
-    if not isinstance(query, CompetingRisksOutcome):
-        raise CausalValueError("query must be a CompetingRisksOutcome")
-    if query.known_censoring is not None:
-        raise CausalValueError("known censoring survival belongs in analyze(data, query=...) for retained IPCW execution")
-    if not query.randomized:
-        raise CausalValueError("causal cumulative incidence requires declared individual random assignment")
-    names, columns = as_columns(data)
-    required = [query.duration, query.event_cause, query.treatment]
-    if query.delayed_entry is not None:
-        required.append(query.delayed_entry)
-    for name in required:
-        if name not in names:
-            raise CausalValueError(f"required competing-risks column {name!r} is missing")
-    duration = np.asarray(columns[names.index(query.duration)], dtype=np.float64)
-    raw_causes = list(columns[names.index(query.event_cause)])
-    treatment = list(columns[names.index(query.treatment)])
-    if len(raw_causes) != len(duration) or len(treatment) != len(duration):
-        raise CausalValueError("duration, event_cause, and treatment columns must have equal lengths")
-    causes: list[int] = []
-    for value in raw_causes:
-        if isinstance(value, (bool, np.bool_)):
-            raise CausalValueError("event_cause values must be non-negative integer codes; zero denotes censoring")
-        if isinstance(value, (int, np.integer)) or (
-            isinstance(value, (float, np.floating)) and np.isfinite(value) and value.is_integer()
-        ):
-            code = int(value)
-        else:
-            raise CausalValueError("event_cause values must be non-negative integer codes; zero denotes censoring")
-        if code < 0 or code > np.iinfo(np.int64).max:
-            raise CausalValueError("event_cause values must fit in non-negative 64-bit integer codes")
-        causes.append(code)
-    treated_values = _binary(treatment, "treatment")
-    try:
-        if query.delayed_entry is None:
-            times, control, treated = _randomized_cumulative_incidence(
-                duration, causes, treated_values, float(query.tau), int(query.target_cause)
-            )
-        else:
-            entry = np.asarray(columns[names.index(query.delayed_entry)], dtype=np.float64)
-            times, control, treated = _randomized_cumulative_incidence_delayed_entry(
-                duration, entry, causes, treated_values, float(query.tau), int(query.target_cause)
-            )
-    except ValueError as error:
-        raise CausalValueError(str(error)) from error
-    return CumulativeIncidenceEstimate(
-        int(query.target_cause),
-        tuple(float(value) for value in times),
-        tuple(float(value) for value in control),
-        tuple(float(value) for value in treated),
-        float(treated[-1] - control[-1]),
-        float(query.tau),
-        assumptions=(
-            (
-                "individual_random_assignment",
-                "all_event_causes_coded_distinctly",
-                "independent_right_censoring_within_arm",
-                "consistency",
-                "no_interference",
-            )
-            if query.delayed_entry is None
-            else (
-                "individual_random_assignment",
-                "all_event_causes_coded_distinctly",
-                "independent_right_censoring_within_arm",
-                "independent_left_truncation_given_IndependentGiven_empty",
-                "consistency",
-                "no_interference",
-            )
-        ),
-    )
-
-
 def estimate_survival_ipcw(
     data: Any,
     query: SurvivalOutcome,
@@ -621,8 +452,6 @@ __all__ = [
     "KnownCensoringSurvival",
     "SurvivalEstimate",
     "SurvivalOutcome",
-    "estimate_cumulative_incidence",
     "estimate_cumulative_incidence_ipcw",
     "estimate_survival_ipcw",
-    "estimate_survival",
 ]

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import math
+
 import pytest
 from antecedent import analyze
 from antecedent.errors import CausalCompileError, CausalUnsupportedError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
-from antecedent.quasi import SyntheticControl, estimate_synthetic_control
+from antecedent.quasi import SyntheticControl
 
 
 def _synthetic_truth() -> dict[str, list[object]]:
@@ -31,9 +32,9 @@ def _synthetic_truth() -> dict[str, list[object]]:
 
 
 def test_native_synthetic_control_recovers_known_effect_and_reports_diagnostics():
-    result = estimate_synthetic_control(
-        _synthetic_truth(), SyntheticControl("y", "unit", "period", "treated", 5)
-    )
+    result = analyze(
+        _synthetic_truth(), query=SyntheticControl("y", "unit", "period", "treated", 5)
+    ).synthetic_control
     assert result.estimate == pytest.approx(5.0, abs=1e-5)
     assert result.pre_treatment_rmse < 1e-5
     weights = dict(result.donor_weights)
@@ -55,29 +56,29 @@ def test_synthetic_control_refuses_insufficient_donor_pool():
     rows = _synthetic_truth()
     rows = {key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
             for key, values in rows.items()}
-    with pytest.raises(CausalValueError, match="at least three donor units"):
-        estimate_synthetic_control(
-            rows, SyntheticControl("y", "unit", "period", "treated", 5)
+    with pytest.raises(CausalCompileError, match="at least three donor units"):
+        analyze(
+            rows, query=SyntheticControl("y", "unit", "period", "treated", 5)
         )
 
 
 def test_synthetic_control_refuses_unbalanced_panel_and_no_pre_support():
     rows = _synthetic_truth()
     short = {key: values[:-1] for key, values in rows.items()}
-    with pytest.raises(CausalValueError, match="balanced panel"):
-        estimate_synthetic_control(
-            short, SyntheticControl("y", "unit", "period", "treated", 5)
+    with pytest.raises(CausalCompileError, match="balanced panel"):
+        analyze(
+            short, query=SyntheticControl("y", "unit", "period", "treated", 5)
         )
-    with pytest.raises(CausalValueError, match="at least two pre-periods"):
-        estimate_synthetic_control(
-            rows, SyntheticControl("y", "unit", "period", "treated", 1)
+    with pytest.raises(CausalCompileError, match="at least two pre-periods"):
+        analyze(
+            rows, query=SyntheticControl("y", "unit", "period", "treated", 1)
         )
 
 
 def test_retained_analyze_and_prepare_match_direct_point_result():
     rows = _synthetic_truth()
     query = SyntheticControl("y", "unit", "period", "treated", 5)
-    direct = estimate_synthetic_control(rows, query)
+    direct = analyze(rows, query=query).synthetic_control
     result = analyze(rows, query=query)
     fit = result.synthetic_control
     assert fit is not None
@@ -121,7 +122,7 @@ def test_uniform_unit_randomization_reports_exact_sharp_null_p_value_only():
     assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
     assert "exact_uniform_unit_randomization_sharp_null_test" in fit.diagnostics
     assert math.isnan(result.estimate.se_analytic)
-    assert estimate_synthetic_control(rows, query) == fit
+    assert analyze(rows, query=query).synthetic_control == fit
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
 
 
@@ -160,7 +161,7 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
     assert fit.support_status == "unlicensed_point_utility"
     assert "donor_ridge_outcome_model_transports" in fit.assumptions
     assert math.isnan(result.estimate.se_analytic)
-    assert estimate_synthetic_control(rows, query) == fit
+    assert analyze(rows, query=query).synthetic_control == fit
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
     with pytest.raises(CausalValueError, match="positive"):
         SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=0.0)
@@ -174,4 +175,4 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
     assert exact.randomization_p_value == pytest.approx(
         sum(statistic >= abs(exact.estimate) for _, statistic in exact.randomization_statistics) / 4
     )
-    assert estimate_synthetic_control(rows, exact_query) == exact
+    assert analyze(rows, query=exact_query).synthetic_control == exact

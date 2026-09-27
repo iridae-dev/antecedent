@@ -19,17 +19,16 @@ anticipation, consistency, stable assignment,
 and no interference. Staggered adoption and missing waves are refused by this
 query; repeated cross sections use its explicit sampling mode.
 
-`estimate_panel_did` delegates to this retained route for balanced panels and
-repeated cross sections. It defaults to subject clusters and accepts an optional
+The retained route serves balanced panels and repeated cross sections through
+`result.panel_did`. It defaults to subject clusters and accepts an optional
 higher-level cluster column. `estimate_group_time_att` uses the same cluster
 score contract for post-adoption cohort-period contrasts.
 
 `antecedent.prepare(data, query=StaggeredAdoption(..., event_study=True))` and
 `antecedent.analyze(...)` retain all cohort-specific event-time contrasts in
 one native `Study`. The result's `panel_did.effects` holds the full curve,
-including descriptive pre-adoption contrasts. The direct
-`estimate_staggered_event_study` utility uses the same native estimator.
-Both use the immediately
+including descriptive pre-adoption contrasts.
+It uses the immediately
 pre-adoption period (`g - 1`) as the reference and cohort 0 as the never-treated
 comparison group. The API reports cohort and calendar period, event time,
 effect, and treated/control subject counts for every comparison.

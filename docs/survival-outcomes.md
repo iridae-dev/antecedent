@@ -1,32 +1,15 @@
 # Survival outcomes: current 2.1.0 slice
 
-The direct survival API is an explicitly limited point-estimation utility for
-two-arm, individually randomized studies with right-censored follow-up. It
-computes arm-specific Kaplan–Meier step curves and restricted mean survival
-time (RMST) through a user-specified horizon. A declared treatment assignment
-is required before the result is described as causal.
+Survival outcomes are an explicitly limited point-estimation slice for
+two-arm, individually randomized studies with right-censored follow-up. The
+`prepare` / `analyze` flow computes arm-specific Kaplan–Meier step curves and
+restricted mean survival time (RMST) through a user-specified horizon. A
+declared treatment assignment is required before the result is described as
+causal. The result exposes `result.survival`, a structured answer and a
+portable study artifact:
 
 ```python
 import antecedent
-
-query = antecedent.survival.SurvivalOutcome(
-    duration="follow_up_days",
-    event_observed="event",
-    treatment="treated",
-    tau=180,
-    randomized=True,
-)
-summary = antecedent.survival.estimate_survival(data, query)
-summary.rmst_difference
-summary.times, summary.control_survival, summary.treated_survival
-```
-
-The same unadjusted survival and competing-risk queries can use the retained
-`prepare` / `analyze` flow when the caller explicitly supplies the marginal
-observation assumption. The result exposes `result.survival`, a structured
-answer and a portable study artifact:
-
-```python
 from antecedent.observation import IndependentGiven
 
 query = antecedent.survival.SurvivalOutcome(
@@ -39,11 +22,12 @@ query = antecedent.survival.SurvivalOutcome(
 )
 result = antecedent.analyze(data, query=query)
 result.survival.rmst_difference
+result.survival.times, result.survival.control_survival, result.survival.treated_survival
 ```
 
-The unweighted retained route requires `randomized=True` and
-`IndependentGiven(())` for marginally independent censoring, including when
-there is no delayed entry. It publishes no scalar ATE.
+The unweighted route requires `randomized=True` and `IndependentGiven(())` for
+marginally independent censoring, including when there is no delayed entry. It
+publishes no scalar ATE.
 
 Rows with `event_observed=False` are treated as right-censored: they remain in
 the risk set through their recorded duration and do not count as events. The
@@ -52,7 +36,7 @@ implementation requires both arms to have observed follow-up at least through
 within each arm, consistency, and no interference. These assumptions are
 reported but cannot be verified from the table.
 
-The direct utility remains point-only. The retained `prepare` / `analyze`
+The default route is point-only. The `prepare` / `analyze`
 route can compute **pointwise** two-sided 95% percentile intervals for the
 RMST treatment-minus-control contrast and the survival-probability contrast
 at `tau` when `bootstrap` is explicitly requested:
@@ -216,7 +200,7 @@ query = antecedent.survival.SurvivalOutcome(
     delayed_entry="entry_day",
     observation_assumption=antecedent.observation.IndependentGiven(()),
 )
-summary = antecedent.survival.estimate_survival(data, query)
+summary = antecedent.analyze(data, query=query).survival
 ```
 
 The event-time risk set follows counting-process intervals `(entry, duration]`:
@@ -261,12 +245,13 @@ query = antecedent.survival.CompetingRisksOutcome(
     target_cause=1,
     tau=180,
     randomized=True,
+    observation_assumption=antecedent.observation.IndependentGiven(()),
 )
-cif = antecedent.survival.estimate_cumulative_incidence(data, query)
+cif = antecedent.analyze(data, query=query).survival
 cif.incidence_difference
 ```
 
-The direct utility is **point-only**. The retained route can provide the
+The default route is **point-only**. With `bootstrap`, the route can provide the
 pointwise incidence-difference interval and the unweighted simultaneous
 difference band described above. Its assumptions include
 individual random assignment, complete and
