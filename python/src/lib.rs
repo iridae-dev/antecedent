@@ -46,6 +46,7 @@ mod policy_continuous_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
+mod provider_api;
 mod quasi_api;
 mod regimes_api;
 mod response_api;
@@ -2594,6 +2595,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
+    provider_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an
     // unoptimized extension sneaks in: a stale editable install rebuilt through

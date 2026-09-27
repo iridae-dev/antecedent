@@ -1065,12 +1065,22 @@ round trip. The host runs every fixture through the ordinary provider runtime,
 checks declared output shape and uncertainty semantics, and replays each
 fixture when the provider declares deterministic behavior. Only after every
 check passes does the registry record a `ProviderVerificationReport` and
-promote that provider. Subsequent results carry the evidence digest and origin;
+promote that provider. Only requests whose canonical digest matches one of the
+verified fixtures carry `verified_extension`; every other request remains
+`externally_attested`. Verified results carry the evidence digest and origin;
 changing the provider's declared spec invalidates execution. An installed
 entry-point provider can use this route without rebuilding Python or Rust.
 The scientific truth and independence of the reference cases remain the
 caller's responsibility. Verification covers those cases and does not grant
-native licensing or interval calibration.
+native licensing or interval calibration. Every provider execution also passes
+its estimate, shape, uncertainty semantics, trust, and provenance through a
+fixed native Rust envelope. `ProviderAnalysisResult.export_host()` exports this
+checksummed host envelope; `export()` continues to return the provider's
+original opaque artifact byte for byte, including existing EconML receipts.
+Opening a verified host envelope requires the host's matching spec, exact
+request, and fixture-evidence digests. The envelope validates the declared
+claims and artifact integrity; it does not establish the scientific truth of
+an external estimator or turn a fixture into interval calibration.
 
 ```python
 from antecedent.extensibility import ProviderVerificationFixture, providers

@@ -250,6 +250,7 @@ class ProviderResult:
     trust: ProviderTrust
     uncertainty_semantics: str
     artifact: bytes | None = None
+    host_artifact: bytes | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -556,6 +557,40 @@ class ProviderRegistry:
         if report is not None and effective_trust is ProviderTrust.VERIFIED_EXTENSION:
             provenance["verification_evidence_digest"] = report.evidence_digest
             provenance["verification_evidence_origin"] = report.evidence_origin
+        try:
+            request_digest = _digest(request)
+        except TypeError:
+            if effective_trust is ProviderTrust.VERIFIED_EXTENSION:
+                raise ValueError("verified request must have a canonical digest") from None
+            request_digest = hashlib.sha256(repr(dict(request)).encode("utf-8")).hexdigest()
+            provenance["request_digest_method"] = "repr_fallback_external_only"
+        from . import _native
+
+        header = {
+            "version": 1,
+            "provider": name,
+            "query_family": spec.query_family,
+            "trust": effective_trust.value,
+            "spec_digest": _digest(_spec_evidence(spec)),
+            "request_digest": request_digest,
+            "verification_evidence_digest": (
+                report.evidence_digest
+                if effective_trust is ProviderTrust.VERIFIED_EXTENSION and report is not None
+                else None
+            ),
+            "estimate": estimate.reshape(-1).tolist(),
+            "shape": list(estimate.shape),
+            "uncertainty": None if uncertainty is None else uncertainty.reshape(-1).tolist(),
+            "uncertainty_shape": None if uncertainty is None else list(uncertainty.shape),
+            "uncertainty_semantics": spec.uncertainty_semantics,
+            "assumptions": list(raw.assumptions),
+            "provider_support_status": raw.support_status,
+            "provenance": provenance,
+            "external_artifact_digest": None,
+        }
+        host_artifact = _native.seal_provider_result(
+            json.dumps(header, sort_keys=True, allow_nan=False), raw.artifact
+        )
         return ProviderResult(
             estimate,
             uncertainty,
@@ -565,6 +600,7 @@ class ProviderRegistry:
             effective_trust,
             spec.uncertainty_semantics,
             raw.artifact,
+            host_artifact,
         )
 
 

@@ -58,6 +58,10 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
     def artifact(self) -> bytes | None:
         return self.provider_result.artifact
 
+    @property
+    def host_artifact(self) -> bytes | None:
+        return self.provider_result.host_artifact
+
     def claim(self) -> str:
         return (
             f"Provider {self.provider_name!r} returned output for family "
@@ -109,6 +113,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
                 "trust": provider.trust.value,
                 "provenance": dict(provider.provenance),
                 "artifact_present": provider.artifact is not None,
+                "host_artifact_present": provider.host_artifact is not None,
             },
         )
 
@@ -116,6 +121,12 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
         if self.artifact is None:
             raise ValueError("provider result has no portable artifact")
         return self.artifact
+
+    def export_host(self) -> bytes:
+        """Export the native-validated host envelope and opaque provider receipt."""
+        if self.host_artifact is None:
+            raise ValueError("provider result has no host artifact")
+        return self.host_artifact
 
     def to_dict(self) -> dict[str, Any]:
         from ._slots import json_value
@@ -131,6 +142,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             "trust": result.trust.value,
             "uncertainty_semantics": result.uncertainty_semantics,
             "artifact_present": result.artifact is not None,
+            "host_artifact_present": result.host_artifact is not None,
         }
         dumped = super().to_dict()
         dumped["provider_result"] = json_value(result_dict)
