@@ -374,16 +374,16 @@ impl CheckedRandomizedOperation {
                         + 2 * usize::from(second_factor_assignment[i]);
                     cells[cell].push(outcomes[i]);
                 }
-                let means = cells.each_ref().map(|cell| cell.iter().sum::<f64>() / cell.len() as f64);
-                let components = cells.each_ref().map(|cell| sample_variance(cell) / cell.len() as f64);
-                let primary = 0.5 * (means[1] - means[0] + means[3] - means[2]);
-                let secondary = 0.5 * (means[2] - means[0] + means[3] - means[1]);
-                let interaction = means[3] - means[2] - means[1] + means[0];
-                let total_variance = components.iter().sum::<f64>();
-                factorial_contrasts = Some((secondary, interaction, total_variance / 4.0, total_variance));
+                let fit = antecedent_estimate::randomized_neyman::factorial_2x2(
+                    cells.each_ref().map(Vec::as_slice),
+                ).ok_or(CausalError::Unsupported {
+                    message: "factorial ITT requires finite outcomes and estimable cell variances",
+                })?;
+                factorial_contrasts = Some((fit.secondary, fit.interaction,
+                    fit.main_effect_variance_upper_bound, fit.interaction_variance_upper_bound));
                 (
-                    primary,
-                    total_variance / 4.0,
+                    fit.primary,
+                    fit.main_effect_variance_upper_bound,
                     cells[0].len() + cells[2].len(),
                     cells[1].len() + cells[3].len(),
                     Arc::from([]), Arc::from([]),

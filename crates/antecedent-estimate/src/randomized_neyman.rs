@@ -100,6 +100,72 @@ pub fn blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> Option<BlockedItt> {
     Some(BlockedItt { effect, variance_upper_bound, interval_95 })
 }
 
+/// Minimum observed units in each factorial cell for pointwise intervals.
+pub const MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL: usize = 30;
+
+/// Main effects and interaction from a fixed-cell 2×2 factorial trial.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Factorial2x2 {
+    /// Primary-factor main effect, averaging the two secondary-factor levels.
+    pub primary: f64,
+    /// Secondary-factor main effect, averaging the two primary-factor levels.
+    pub secondary: f64,
+    /// Difference in primary-factor effects between secondary-factor levels.
+    pub interaction: f64,
+    /// Conservative variance for either main effect.
+    pub main_effect_variance_upper_bound: f64,
+    /// Conservative variance for the interaction.
+    pub interaction_variance_upper_bound: f64,
+    /// Pointwise primary main-effect interval at adequately supported cells.
+    pub primary_interval_95: Option<[f64; 2]>,
+    /// Pointwise secondary main-effect interval at adequately supported cells.
+    pub secondary_interval_95: Option<[f64; 2]>,
+    /// Pointwise interaction interval at adequately supported cells.
+    pub interaction_interval_95: Option<[f64; 2]>,
+}
+
+/// Estimate a fixed-cell 2×2 factorial trial from cells `[00, 10, 01, 11]`.
+///
+/// Each cell needs two finite observations to estimate its variance. The
+/// intervals require at least 30 in every cell and positive variance. They
+/// are pointwise; simultaneous familywise coverage is not claimed.
+#[must_use]
+pub fn factorial_2x2(cells: [&[f64]; 4]) -> Option<Factorial2x2> {
+    if cells.iter().any(|cell| cell.len() < 2 || cell.iter().any(|value| !value.is_finite())) {
+        return None;
+    }
+    let means = cells.map(|cell| cell.iter().sum::<f64>() / cell.len() as f64);
+    let components = std::array::from_fn::<_, 4, _>(|i| {
+        let mean = means[i];
+        cells[i].iter().map(|value| (value - mean).powi(2)).sum::<f64>()
+            / ((cells[i].len() - 1) * cells[i].len()) as f64
+    });
+    let primary = 0.5 * (means[1] - means[0] + means[3] - means[2]);
+    let secondary = 0.5 * (means[2] - means[0] + means[3] - means[1]);
+    let interaction = means[3] - means[2] - means[1] + means[0];
+    let interaction_variance_upper_bound = components.iter().sum::<f64>();
+    let main_effect_variance_upper_bound = interaction_variance_upper_bound / 4.0;
+    if !primary.is_finite() || !secondary.is_finite() || !interaction.is_finite()
+        || !interaction_variance_upper_bound.is_finite()
+    {
+        return None;
+    }
+    let supported = cells.iter().all(|cell| cell.len() >= MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL)
+        && interaction_variance_upper_bound > 0.0;
+    let main_radius = NORMAL_95 * main_effect_variance_upper_bound.sqrt();
+    let interaction_radius = NORMAL_95 * interaction_variance_upper_bound.sqrt();
+    Some(Factorial2x2 {
+        primary,
+        secondary,
+        interaction,
+        main_effect_variance_upper_bound,
+        interaction_variance_upper_bound,
+        primary_interval_95: supported.then_some([primary - main_radius, primary + main_radius]),
+        secondary_interval_95: supported.then_some([secondary - main_radius, secondary + main_radius]),
+        interaction_interval_95: supported.then_some([interaction - interaction_radius, interaction + interaction_radius]),
+    })
+}
+
 /// A cluster-randomized intention-to-treat contrast over outcome totals.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ClusterItt {
@@ -232,6 +298,51 @@ mod tests {
         assert!((0.93..=0.985).contains(&rate));
         let sparse = [(&[2.0, 4.0][..], &[1.0, 3.0][..]); BLOCKS];
         assert!(blocked_unit_itt(&sparse).unwrap().interval_95.is_none());
+    }
+
+    #[test]
+    fn factorial_cell_randomization_covers_three_known_pointwise_effects() {
+        const UNITS: usize = 120;
+        const CELL_SIZE: usize = 30;
+        const REPLICATES: usize = 2_000;
+        let potential = (0..UNITS).map(|i| {
+            let x = i as f64;
+            let baseline = 1.0 + 0.65 * (0.41 * x).sin();
+            let primary = 2.0 + 0.2 * (0.23 * x).cos();
+            let secondary = 1.0 + 0.15 * (0.19 * x).sin();
+            let interaction = 0.5 + 0.1 * (0.31 * x).cos();
+            [baseline, baseline + primary, baseline + secondary,
+                baseline + primary + secondary + interaction]
+        }).collect::<Vec<_>>();
+        let average = |f: &dyn Fn(&[f64; 4]) -> f64| potential.iter().map(f).sum::<f64>()
+            / UNITS as f64;
+        let truths = [
+            average(&|y| 0.5 * (y[1] - y[0] + y[3] - y[2])),
+            average(&|y| 0.5 * (y[2] - y[0] + y[3] - y[1])),
+            average(&|y| y[3] - y[2] - y[1] + y[0]),
+        ];
+        let mut covered = [0_usize; 3];
+        for rep in 0..REPLICATES {
+            let order = allocation(UNITS, rep);
+            let cells = std::array::from_fn::<_, 4, _>(|cell| {
+                order[cell * CELL_SIZE..(cell + 1) * CELL_SIZE].iter()
+                    .map(|&i| potential[i][cell]).collect::<Vec<_>>()
+            });
+            let fit = factorial_2x2(cells.each_ref().map(Vec::as_slice)).unwrap();
+            let intervals = [fit.primary_interval_95.unwrap(), fit.secondary_interval_95.unwrap(),
+                fit.interaction_interval_95.unwrap()];
+            for k in 0..3 {
+                covered[k] += usize::from(intervals[k][0] <= truths[k] && truths[k] <= intervals[k][1]);
+            }
+        }
+        eprintln!("factorial pointwise intervals: {covered:?}/{REPLICATES}");
+        for count in covered {
+            let rate = count as f64 / REPLICATES as f64;
+            assert!((0.93..=0.985).contains(&rate));
+        }
+        let sparse = std::array::from_fn::<_, 4, _>(|_| vec![0.0, 1.0]);
+        assert!(factorial_2x2(sparse.each_ref().map(Vec::as_slice)).unwrap()
+            .interaction_interval_95.is_none());
     }
 
     #[test]
