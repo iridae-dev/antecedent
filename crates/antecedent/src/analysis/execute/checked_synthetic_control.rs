@@ -3,6 +3,7 @@
 
 use super::*;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
+use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_test;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
 use antecedent_core::SyntheticPanelMethod;
 
@@ -72,6 +73,11 @@ impl CheckedSyntheticControlOperation {
         let fit = fit_synthetic_control(y, &units, &self.query.periods, &self.query.treated_unit,
             self.query.intervention_period)
             .map_err(|message| CausalError::Compile { message })?;
+        let randomization = if self.query.uniform_unit_randomization {
+            Some(exact_synthetic_unit_randomization_test(y, &units, &self.query.periods,
+                &self.query.treated_unit, self.query.intervention_period)
+                .map_err(|message| CausalError::Compile { message })?)
+        } else { None };
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
         let effective_donors = if squared_mass > 0.0 { 1.0 / squared_mass } else { 0.0 };
         let estimate = EffectEstimate::new(
@@ -89,9 +95,10 @@ impl CheckedSyntheticControlOperation {
                 extra_diagnostics: vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; effective donors {}; placebo rank {} is descriptive and uncalibrated; no interval",
+                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; effective donors {}; leave-one-donor-out placebo rank {} is descriptive and uncalibrated; exact unit-randomization p-value {:?} applies only under declared uniform one-unit assignment and the sharp null; no interval",
                         fit.donor_weights.len(), fit.n_pre_periods, fit.n_post_periods,
-                        fit.pre_treatment_rmse, effective_donors, fit.placebo_rank),
+                        fit.pre_treatment_rmse, effective_donors, fit.placebo_rank,
+                        randomization.as_ref().map(|test| test.p_value)),
                 )],
                 refutations: Vec::new(), distribution: None, mediation: None,
                 wall_time_ns: 0, bootstrap_replicates_ok: None,
@@ -109,7 +116,15 @@ impl CheckedSyntheticControlOperation {
             effective_donors,
             n_pre_periods: fit.n_pre_periods,
             n_post_periods: fit.n_post_periods,
-            uncertainty: Arc::from("point_only_with_unlicensed_placebo_rank"),
+            uncertainty: Arc::from(if randomization.is_some() {
+                "point_only_with_exact_unit_randomization_p_value_no_interval"
+            } else { "point_only_with_unlicensed_placebo_rank" }),
+            randomization_p_value: randomization.as_ref().map(|test| test.p_value),
+            randomization_statistics: randomization.map_or_else(
+                || Arc::from([]),
+                |test| test.statistics.into_iter().map(|(unit, statistic)|
+                    (Arc::<str>::from(unit), statistic)).collect::<Vec<_>>().into(),
+            ),
         });
         result.treatment = None;
         Ok(result)
@@ -180,6 +195,17 @@ pub(crate) fn synthetic_control_identification(
     ] {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if query.uniform_unit_randomization {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("uniform_single_treated_unit_assignment"),
+                description: Arc::from("exactly one treated unit was selected uniformly before outcomes were observed"),
+            },
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,
             status: antecedent_core::AssumptionStatus::Declared,

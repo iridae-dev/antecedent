@@ -33,6 +33,8 @@ pub struct SyntheticControlQuery {
     pub intervention_period: i64,
     /// Distinguishes synthetic control from synthetic difference in differences.
     pub method: SyntheticPanelMethod,
+    /// Declare uniform assignment of exactly one treated unit for a sharp-null test.
+    pub uniform_unit_randomization: bool,
 }
 
 impl SyntheticControlQuery {
@@ -45,13 +47,20 @@ impl SyntheticControlQuery {
         treated_unit: impl Into<Arc<str>>,
         intervention_period: i64,
     ) -> Self {
-        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control }
+        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control, uniform_unit_randomization: false }
     }
 
     /// Use the same frozen panel for a synthetic difference-in-differences contrast.
     #[must_use]
     pub fn difference_in_differences(mut self) -> Self {
         self.method = SyntheticPanelMethod::DifferenceInDifferences;
+        self
+    }
+
+    /// Request exhaustive unit-level Fisher randomization inference.
+    #[must_use]
+    pub fn with_uniform_unit_randomization(mut self) -> Self {
+        self.uniform_unit_randomization = true;
         self
     }
 
@@ -64,6 +73,11 @@ impl SyntheticControlQuery {
         {
             return Err(QueryError::InvalidRandomizedEffect(
                 "synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period".into(),
+            ));
+        }
+        if self.uniform_unit_randomization && self.method != SyntheticPanelMethod::Control {
+            return Err(QueryError::InvalidRandomizedEffect(
+                "unit-randomization inference currently applies only to synthetic control".into(),
             ));
         }
         Ok(())

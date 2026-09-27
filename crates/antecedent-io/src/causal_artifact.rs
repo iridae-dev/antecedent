@@ -654,13 +654,16 @@ pub(crate) fn validate_query_ids(
         }
         Q::SyntheticControl(wire) => {
             validate_ids([wire.outcome], variable_count)?;
-            antecedent_core::SyntheticControlQuery::new(
+            let query = antecedent_core::SyntheticControlQuery::new(
                 antecedent_core::VariableId::from_raw(wire.outcome),
                 wire.units.iter().map(|unit| std::sync::Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
                 wire.periods.clone(),
                 std::sync::Arc::<str>::from(wire.treated_unit.as_str()),
                 wire.intervention_period,
-            ).validate().map_err(|error| IoError::Convert(error.to_string()))
+            );
+            let query = if wire.difference_in_differences { query.difference_in_differences() } else { query };
+            let query = if wire.uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
+            query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::LocalPolynomialRatio(wire) => {
             validate_ids([wire.outcome, wire.treatment, wire.running], variable_count)?;

@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
+
+fn is_false(value: &bool) -> bool { !*value }
 use crate::response_wire::{response_query_from_wire, response_query_to_wire, ResponseQueryWire};
 
 /// Wire scalar value.
@@ -900,6 +902,9 @@ pub struct SyntheticControlQueryWire {
     /// Whether the panel contrast uses convex unit and pre-period weights.
     #[serde(default)]
     pub difference_in_differences: bool,
+    /// Uniformly randomized choice of one treated unit for exact sharp-null inference.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub uniform_unit_randomization: bool,
 }
 
 /// Fixed-cutoff local ratio design, including whether the contrast is a kink.
@@ -1742,6 +1747,7 @@ pub fn causal_query_to_wire_with_registry(
                 intervention_period: q.intervention_period,
                 difference_in_differences: q.method
                     == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
+                uniform_unit_randomization: q.uniform_unit_randomization,
             })
         }
         CausalQuery::LocalPolynomialRatio(q) => {
@@ -2139,6 +2145,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 w.intervention_period,
             );
             let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
+            let q = if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::SyntheticControl(q)
         }

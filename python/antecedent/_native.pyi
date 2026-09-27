@@ -391,6 +391,8 @@ class SyntheticControlSection:
     n_pre_periods: int
     n_post_periods: int
     uncertainty: str
+    randomization_p_value: float | None
+    randomization_statistics: list[tuple[str, float]]
 
 class SyntheticDidSection:
     effect: float
@@ -1269,6 +1271,7 @@ class PreparedAnalysis:
         names: list[str], columns: Sequence[Any], outcome: str,
         units: list[str], periods: list[int], treated_unit: str,
         intervention_period: int, *, difference_in_differences: bool = False,
+        uniform_unit_randomization: bool = False,
         accepted: bool = False,
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,

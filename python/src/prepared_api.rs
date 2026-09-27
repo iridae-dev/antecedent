@@ -3576,12 +3576,13 @@ impl PyPreparedAnalysis {
     /// Freeze one treated unit and its balanced donor pool for native synthetic control.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
-        intervention_period, *, difference_in_differences=false, accepted=false, seed=1, threads=None, options=None))]
+        intervention_period, *, difference_in_differences=false, uniform_unit_randomization=false,
+        accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_synthetic_control(
         py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
         outcome: String, units: Vec<String>, periods: Vec<i64>, treated_unit: String,
-        intervention_period: i64, difference_in_differences: bool, accepted: bool, seed: u64, threads: Option<u32>,
+        intervention_period: i64, difference_in_differences: bool, uniform_unit_randomization: bool, accepted: bool, seed: u64, threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3601,6 +3602,7 @@ impl PyPreparedAnalysis {
             );
             let query =
                 if difference_in_differences { query.difference_in_differences() } else { query };
+            let query = if uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
             query.validate().map_err(|error| {
                 py_err(antecedent::CausalError::Compile { message: error.to_string() })
             })?;
