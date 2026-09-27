@@ -116,6 +116,26 @@ fn point_data(n: usize, seed: u64) -> TabularData {
         .unwrap()
 }
 
+/// Same in-assumption law, shifted so the positive response level at `AT` is
+/// 0.25. This stresses the denominator of elasticity without changing the
+/// additive outcome or Gaussian conditional treatment assumptions.
+fn weak_elasticity_level_data(n: usize, seed: u64) -> TabularData {
+    let mut z = gaussian(seed);
+    let mut a = Vec::with_capacity(n);
+    let mut x = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    let intercept = 0.25 - 2.0 * AT.sin();
+    for _ in 0..n {
+        let xi = z();
+        let ai = 0.5 * xi + z();
+        x.push(xi);
+        a.push(ai);
+        y.push(intercept + 2.0 * ai.sin() + xi + z());
+    }
+    TabularData::from_f64_columns([("a", a.as_slice()), ("x", x.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
 /// Same outcome law, but A = 0.5X + (0.5 + 0.5|X|)(E − 1) with E ~ Exp(1):
 /// skewed and heteroskedastic given X, outside the Gaussian treatment score.
 fn skewed_treatment_draw(z: &mut impl FnMut() -> f64) -> (f64, f64) {
@@ -620,11 +640,11 @@ fn elasticity_bayesian_nominal_90_coverage() {
     .assert();
 }
 
-// --- Frequentist elasticity on a DAG (delta-method analytic_se) ---------------
+// --- Frequentist elasticity on a DAG (Fieller analytic interval) ---------------
 
 /// Run one Frequentist elasticity replicate on [`point_data`], on either the
 /// explicit DAG or its accepted wrapper. Fixed caller bandwidth, no bootstrap,
-/// so the runtime keys the delta-method interval under `analytic_se`.
+/// so the runtime keys the Fieller interval under `analytic_se`.
 fn run_elasticity_frequentist(
     data: &TabularData,
     accepted: bool,
@@ -652,7 +672,7 @@ fn run_elasticity_frequentist(
     Ok((study, result))
 }
 
-/// Score the Frequentist elasticity `analytic_se` interval over `n_sim()`
+/// Score the Frequentist elasticity Fieller interval over `n_sim()`
 /// replicates of [`point_data`], for the explicit or accepted DAG.
 ///
 /// The estimand is the true elasticity of the structural mean at `AT`:
@@ -676,6 +696,7 @@ fn elasticity_frequentist_coverage(
         match scored {
             Ok((study, result)) => {
                 let response = result.response.as_ref().expect("response");
+                let interval = scalar_interval_at(response, level);
                 if rep == 0 {
                     // The interval must be a published Confidence scalar, and its
                     // construction the Kennedy-DR point-derivative under analytic_se.
@@ -694,8 +715,19 @@ fn elasticity_frequentist_coverage(
                         "{test}: expected an analytic_se construction, got {methods:?}"
                     );
                 }
-                bind(&mut tally, study, result);
-                tally.record(scalar_interval_at(response, level), truth);
+                if interval.is_some() {
+                    bind(&mut tally, study, result);
+                } else {
+                    assert!(
+                        response.support.warnings.iter().any(|warning| {
+                            warning.code.as_ref() == "response.derivative_interval_unbounded"
+                        }),
+                        "{test}: missing interval must identify an unbounded Fieller set"
+                    );
+                }
+                // An unbounded set cannot be serialized as a finite scalar
+                // interval; count that replicate as a miss, never discard it.
+                tally.record(interval, truth);
             }
             Err(error) => {
                 eprintln!("{test}: replicate {rep} refused: {error}");
@@ -740,6 +772,49 @@ fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
         0.95,
     )
     .assert();
+}
+
+#[test]
+#[ignore = "probe: weak positive denominator is not a finite-interval license"]
+fn elasticity_weak_positive_level_fieller_probe() {
+    let truth = AT * mu_prime(AT) / 0.25;
+    let mut tally = CoverageTally::new("elasticity_weak_positive_level_fieller_probe", 0.95);
+    let mut unbounded = 0;
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = replicate_seed(0xA11E, rep);
+        run_elasticity_frequentist(&weak_elasticity_level_data(500, seed), false, seed, 0.95)
+    });
+    let mut nonpositive_fit = 0;
+    for run in runs {
+        let (_, result) = match run {
+            Ok(value) => value,
+            Err(error) => {
+                assert!(error.contains("positive fitted response"), "unexpected refusal: {error}");
+                nonpositive_fit += 1;
+                tally.skip();
+                continue;
+            }
+        };
+        let response = result.response.as_ref().expect("response");
+        let interval = scalar_interval_at(response, 0.95);
+        if interval.is_none() {
+            unbounded += 1;
+            assert!(response.support.warnings.iter().any(|warning| {
+                warning.code.as_ref() == "response.derivative_interval_unbounded"
+            }));
+        }
+        // A missing finite interval counts as a miss in this probe. A Fieller
+        // confidence set can still contain the truth when it is unbounded.
+        tally.record(interval, truth);
+    }
+    eprintln!(
+        "weak-denominator Fieller: {unbounded}/{} unbounded, {nonpositive_fit} nonpositive fitted responses; finite-interval coverage including misses={:.3} ({}/{})",
+        n_sim(),
+        tally.rate(),
+        tally.covered(),
+        tally.attempts()
+    );
+    assert!(unbounded > 0, "the probe must exercise the unbounded-set path");
 }
 
 // --- Multivariate GAM plug-in (Bayesian publishes a pointwise band) ----------
@@ -930,9 +1005,8 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
             .iter()
             .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
     };
-    // The transforms that used to withhold: each now publishes a Confidence
-    // scalar carrying the delta-method disclosure, and none carries the old
-    // withheld diagnostic.
+    // Each transform publishes a Confidence scalar. Elasticity uses Fieller
+    // bounds; the remaining transforms use a delta-method interval.
     for (label, functional) in [
         ("elasticity", point_query(DerivativeScale::LogLog)),
         ("semi_elasticity_log_outcome", point_query(DerivativeScale::LogOutcome)),
@@ -962,7 +1036,16 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
             ),
             "{label}: interval must be a confidence scalar"
         );
-        assert!(delta_note(&response), "{label}: must disclose the delta-method interval");
+        let note = if label == "elasticity" {
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_fieller")
+        } else {
+            delta_note(&response)
+        };
+        assert!(note, "{label}: must disclose the interval construction");
         assert!(no_withheld(&response), "{label}: must not withhold");
     }
     // The identity / log-treatment order-1 cases keep their direct-SE interval.
