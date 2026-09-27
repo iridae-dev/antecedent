@@ -1499,9 +1499,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             && dr_matching_subjects >= 50
             && dr_min_action >= 0.4 && dr_min_censor >= 0.85
             && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0);
+        let g_formula_expected = if query.method == "g_formula"
+            && query.known_fixed_outcome_predictions
+            && query.probabilities_known_by_design {
+            antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+                &query.period_outcome_predictions, &query.regime_actions,
+                &query.treatment_probabilities, &query.censoring_probabilities,
+                n, query.periods, query.minimum_probability,
+            ).ok().and_then(|summary| {
+                antecedent_estimate::longitudinal_regime::g_formula_fixed_q_pointwise_interval_95(
+                    &summary, &query.period_outcome_predictions, n, query.periods,
+                ).map(|interval| (summary.value, interval))
+            })
+        } else { None };
         let expected_reason = match query.method.as_str() {
             "ipw" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
-            "g_formula" => Some("prediction_model_uncertainty_not_accounted"),
+            "g_formula" if !query.known_fixed_outcome_predictions => Some("prediction_model_uncertainty_not_accounted"),
+            "g_formula" if !query.probabilities_known_by_design => Some("known_sequential_randomization_required_for_fixed_q_interval"),
+            "g_formula" if g_formula_expected.is_none() => Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score"),
             "sequential_dr" if regime.value_interval_95.is_none() => Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"),
             "marginal_structural_model" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
@@ -1511,6 +1526,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             else { "pointwise_subject_clustered_cr1_no_interval" }
         } else if query.method == "sequential_dr" && regime.value_interval_95.is_some() {
             "pointwise_subject_score_conditional_excluded_fold_q_95"
+        } else if query.method == "g_formula" && regime.value_interval_95.is_some() {
+            "pointwise_subject_score_conditional_fixed_known_q_95"
         } else if regime.value_interval_95.is_some() {
             "pointwise_subject_score_95"
         } else { "point_only_no_interval" };
@@ -1519,7 +1536,13 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 let se = regime.value_standard_error.unwrap_or(f64::NAN);
                 let span = antecedent_stats::normal_ppf(0.975) * se;
                 let tolerance = 1e-10 * (1.0 + regime.value.abs() + span.abs());
-                (eligible_ipw || eligible_msm || eligible_dr) && bounds[0].is_finite() && bounds[1].is_finite()
+                (eligible_ipw || eligible_msm || eligible_dr || g_formula_expected.is_some())
+                    && g_formula_expected.is_none_or(|(value, (expected_se, expected_bounds))| {
+                        (regime.value - value).abs() <= 1e-10
+                            && (se - expected_se).abs() <= 1e-10
+                            && bounds == expected_bounds
+                    })
+                    && bounds[0].is_finite() && bounds[1].is_finite()
                     && (bounds[0] - (regime.value - span)).abs() <= tolerance
                     && (bounds[1] - (regime.value + span)).abs() <= tolerance
             }
@@ -1550,6 +1573,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || !regime.value.is_finite()
             || regime.value_standard_error.is_some_and(|se| !se.is_finite() || se < 0.0
                 || !(matches!(query.method.as_str(), "ipw" | "marginal_structural_model")
+                    || query.method == "g_formula" && g_formula_expected.is_some()
                     || query.method == "sequential_dr" && regime.value_interval_95.is_some()))
             || !interval_valid
             || !period_intervals_valid

@@ -11,6 +11,7 @@ fn query() -> LongitudinalRegimeQuery {
         outcome: VariableId::from_raw(0),
         method: antecedent_core::LongitudinalRegimeMethod::Ipw,
         period_outcome_predictions: None,
+        known_fixed_outcome_predictions: false,
         stabilizing_numerator_probabilities: None,
         q_predictions: None,
         observation_history: None,
@@ -274,6 +275,50 @@ fn known_truth_g_formula_is_retained_and_artifact_identifies_method() {
         "fabricated"
     )
     .is_err());
+}
+
+#[test]
+fn fixed_known_q_g_formula_interval_round_trips_and_refuses_forged_provenance() {
+    let subjects = 400;
+    let predictions = (0..subjects).flat_map(|subject| {
+        let x = if subject % 2 == 0 { -1.0 } else { 1.0 };
+        [1.0 + 0.2 * x, 2.0 + 0.3 * x]
+    }).collect::<Vec<_>>();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::GFormula;
+    q.period_outcome_predictions = Some(Arc::from(predictions));
+    q.known_fixed_outcome_predictions = true;
+    q.treatment_history = Arc::from(vec![false; subjects * 2]);
+    q.regime_actions = Arc::from(vec![true; subjects * 2]);
+    q.treatment_probabilities = Arc::from(vec![0.5; subjects * 2]);
+    q.censoring_probabilities = Arc::from(vec![1.0; subjects * 2]);
+    q.outcome_observed = Arc::from(vec![true; subjects]);
+    q.subject_ids = Arc::from((0..subjects).map(|subject| Arc::<str>::from(format!("subject-{subject}"))).collect::<Vec<_>>());
+    q.fold_ids = Arc::from(vec![0; subjects]);
+    q.excluded_fold_predictions = false;
+    q.probabilities_known_by_design = true;
+    let outcome = vec![0.0; subjects];
+    let data = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
+    let ctx = ExecutionContext::for_tests(314);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let value = result.longitudinal_regime.as_ref().unwrap();
+    assert_eq!(value.value, 3.0);
+    assert!(value.value_standard_error.unwrap() > 0.0);
+    let interval = value.value_interval_95.unwrap();
+    assert!(interval[0] < 3.0 && 3.0 < interval[1]);
+    assert_eq!(value.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
+    let encoded = prepared.encode_contracted_result(&result, "fixed-known-q", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(interval));
+    assert!(matches!(&body.query, antecedent_io::CausalQueryWire::LongitudinalRegime(query)
+        if query.known_fixed_outcome_predictions));
+    let mut forged = body;
+    if let antecedent_io::CausalQueryWire::LongitudinalRegime(query) = &mut forged.query {
+        query.known_fixed_outcome_predictions = false;
+    }
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged-fixed-q").is_err());
 }
 
 #[test]

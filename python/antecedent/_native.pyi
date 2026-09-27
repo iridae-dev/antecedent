@@ -1394,6 +1394,7 @@ class PreparedAnalysis:
         outcome_observed: list[bool], subject_ids: list[str], fold_ids: list[int],
         excluded_fold_predictions: bool, probabilities_known_by_design: bool,
         minimum_probability: float, *, method: str = "ipw", period_outcome_predictions: list[float] = [],
+        known_fixed_outcome_predictions: bool = False,
         stabilizing_numerator_probabilities: list[float] = [],
         q_predictions: list[float] = [], observation_history: list[bool] = [], prediction_fold_ids: list[int] = [],
         rule_id: str | None = None, rule_version: str | None = None, rule_provenance: str | None = None,
