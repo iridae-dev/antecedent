@@ -12,7 +12,7 @@ pub struct PanelDidSection {
     /// Difference in mean subject changes.
     pub effect: f64,
     /// Cluster-robust standard error.
-    pub standard_error: f64,
+    pub standard_error: Option<f64>,
     /// Treated subject count.
     pub treated_subjects: usize,
     /// Comparison subject count.
@@ -31,7 +31,7 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
     fn from(value: &antecedent::PanelDidEstimate) -> Self {
         Self {
             effect: value.effect,
-            standard_error: value.standard_error,
+            standard_error: if value.augmented.is_some() { None } else { Some(value.standard_error) },
             treated_subjects: value.treated_subjects,
             comparison_subjects: value.comparison_subjects,
             clusters: value.clusters,

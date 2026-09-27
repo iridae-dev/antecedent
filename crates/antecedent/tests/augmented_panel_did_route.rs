@@ -45,6 +45,7 @@ fn augmented_panel_did_retains_known_truth_and_point_only_semantics() {
     let bytes = prepared.encode_contracted_result(&result, "augmented-panel-did", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().augmented, Some((0.5, 0.5, 3.0, true)));
+    assert_eq!(body.panel_did.as_ref().unwrap().standard_error, None);
     assert!(body.interval_lower.is_none() && body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().augmented.as_mut().unwrap().2 = 99.0;

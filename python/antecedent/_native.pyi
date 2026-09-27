@@ -383,7 +383,7 @@ class RandomizedEffectSection:
 
 class PanelDidSection:
     effect: float
-    standard_error: float
+    standard_error: float | None
     treated_subjects: int
     comparison_subjects: int
     clusters: int
