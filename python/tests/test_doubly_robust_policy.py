@@ -112,7 +112,7 @@ def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
     assert regret.target == "best_in_prespecified_candidate_class_minus_selected"
     assert regret.regret > 0.0
     assert regret.interval_95[0] <= regret.regret <= regret.interval_95[1]
-    assert result.policy_value.support_status == "off_axis_simultaneous_95"
+    assert result.policy_value.support_status == "licensed"
     loaded = ant.load(result.export(artifact_id="finite-class-regret"))
     assert loaded.answer.structured["regret"]["selected_index"] == 1
     with pytest.raises(CausalValueError, match="regret training IDs"):
@@ -419,7 +419,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
                for point in thin_result.policy_value.multi_action_cate)
 
 
-def test_retained_held_out_policy_intervals_and_crossfit_refusal():
+def test_retained_held_out_and_crossfit_policy_intervals_and_constraint_refusal():
     n = 300
     assignment = [i % 2 == 1 for i in range(n)]
     actions = [i % 3 == 0 for i in range(n)]
@@ -447,10 +447,12 @@ def test_retained_held_out_policy_intervals_and_crossfit_refusal():
         fold_ids=[i % 2 for i in range(n)],
         prediction_excluded_fold_ids=[i % 2 for i in range(n)],
     )
-    point_only = ant.analyze({"y": y}, query=crossfit, refute="none").policy_value
-    assert point_only.policy_value_interval_95 is None
-    assert point_only.incremental_value_interval_95 is None
-    assert point_only.support_status == "unlicensed_point_utility"
+    crossfit_result = ant.analyze({"y": y}, query=crossfit, refute="none").policy_value
+    assert crossfit_result.policy_value_interval_95 is not None
+    assert crossfit_result.incremental_value_interval_95 is not None
+    assert (crossfit_result.policy_value_interval_95[0]
+            < crossfit_result.policy_value < crossfit_result.policy_value_interval_95[1])
+    assert crossfit_result.support_status == "licensed"
 
     constrained = policy.PolicyValue(
         **dict(common, policy=policy.BinaryPolicy(actions, costs=0.1, capacity=sum(actions))),
