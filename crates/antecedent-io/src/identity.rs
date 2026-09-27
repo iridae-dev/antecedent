@@ -268,6 +268,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 match query.estimand {
                     crate::RandomizedEstimandWire::Itt => "itt".into(),
                     crate::RandomizedEstimandWire::CaceLate => "cace_late".into(),
+                    crate::RandomizedEstimandWire::TreatmentOnTreated => "treatment_on_treated".into(),
                 },
             ),
             ("exact_randomization_test".into(), query.exact_randomization_test.to_string()),

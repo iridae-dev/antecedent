@@ -1174,6 +1174,8 @@ pub enum RandomizedEstimandWire {
     Itt,
     /// Wald complier effect under exclusion and monotonicity.
     CaceLate,
+    /// Effect among treatment recipients under one-sided noncompliance.
+    TreatmentOnTreated,
 }
 
 /// Assignment mechanism serialized with a randomized ITT query.
@@ -1744,6 +1746,9 @@ pub fn causal_query_to_wire_with_registry(
                     antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => {
                         RandomizedEstimandWire::CaceLate
                     }
+                    antecedent_core::RandomizedEstimand::TreatmentOnTreated => {
+                        RandomizedEstimandWire::TreatmentOnTreated
+                    }
                 },
                 design: match &q.design {
                     RandomizationDesign::Bernoulli => RandomizationDesignWire::Bernoulli,
@@ -2200,14 +2205,18 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 query = query.with_ancova(w.ancova_covariates.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>());
             }
             if let Some(receipt) = &w.received_treatment {
-                query = query.with_received_treatment(receipt.clone());
+                query = if w.estimand == RandomizedEstimandWire::TreatmentOnTreated {
+                    query.with_treatment_on_treated(receipt.clone())
+                } else {
+                    query.with_received_treatment(receipt.clone())
+                };
             }
             if w.exact_randomization_test {
                 query = query.with_exact_randomization_test();
             }
-            if (w.estimand == RandomizedEstimandWire::CaceLate) != w.received_treatment.is_some() {
+            if (w.estimand != RandomizedEstimandWire::Itt) != w.received_treatment.is_some() {
                 return Err(IoError::Convert(
-                    "CACE/LATE estimand and treatment receipt must agree".into(),
+                    "receipt-adjusted estimand and treatment receipt must agree".into(),
                 ));
             }
             query.validate().map_err(|e| IoError::Convert(e.to_string()))?;

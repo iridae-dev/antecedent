@@ -59,6 +59,8 @@ pub enum RandomizedEstimand {
     IntentionToTreat,
     /// Wald complier effect under exclusion and monotonicity.
     ComplierAverageCausalEffect,
+    /// Effect among recipients under one-sided noncompliance and exclusion.
+    TreatmentOnTreated,
 }
 
 /// Intention-to-treat contrast for a two-arm randomized trial.
@@ -165,6 +167,14 @@ impl RandomizedEffectQuery {
         self
     }
 
+    /// Target recipients under declared one-sided noncompliance (no control-arm receipt).
+    #[must_use]
+    pub fn with_treatment_on_treated(mut self, received: impl Into<Arc<[bool]>>) -> Self {
+        self.estimand = RandomizedEstimand::TreatmentOnTreated;
+        self.received_treatment = Some(received.into());
+        self
+    }
+
     /// Enumerate every fixed-count assignment under the Fisher sharp null.
     #[must_use]
     pub fn with_exact_randomization_test(mut self) -> Self {
@@ -225,7 +235,7 @@ impl RandomizedEffectQuery {
                 "exact randomization inference requires an unadjusted complete two-arm design with at most 20 units".into(),
             ));
         }
-        if self.estimand == RandomizedEstimand::ComplierAverageCausalEffect {
+        if matches!(self.estimand, RandomizedEstimand::ComplierAverageCausalEffect | RandomizedEstimand::TreatmentOnTreated) {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || self.fixed_cuped.is_some()
                 || !self.ancova_covariates.is_empty()
@@ -235,9 +245,17 @@ impl RandomizedEffectQuery {
                     "CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment".into(),
                 ));
             }
+            if self.estimand == RandomizedEstimand::TreatmentOnTreated
+                && self.received_treatment.as_ref().is_some_and(|receipt|
+                    receipt.iter().zip(self.realized_assignment.iter()).any(|(received, assigned)| *received && !*assigned))
+            {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment".into(),
+                ));
+            }
         } else if self.received_treatment.is_some() {
             return Err(QueryError::InvalidRandomizedEffect(
-                "treatment receipt is only valid for a CACE/LATE query".into(),
+                "treatment receipt is only valid for a CACE/LATE or treatment-on-treated query".into(),
             ));
         }
         if let Some((covariate, coefficient)) = self.fixed_cuped {

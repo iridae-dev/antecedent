@@ -380,6 +380,43 @@ fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
 }
 
 #[test]
+fn one_sided_treatment_on_treated_is_distinct_and_refuses_two_sided_receipt() {
+    // Only encouraged recipients have a +4 treatment response. Under one-sided
+    // noncompliance and exclusion, the recipient ATT equals the Wald ratio.
+    let outcomes = [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let base = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        [true, false, true, false, true, false, true, false],
+        [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "encouraged"),
+    );
+    let query = base.clone().with_treatment_on_treated([true, false, true, false, false, false, false, false]);
+    let ctx = ExecutionContext::for_tests(63);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let section = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(section.estimand.as_ref(), "treatment_on_treated");
+    assert_eq!(section.effect, 4.0);
+    assert_eq!(section.intention_to_treat_effect, Some(2.0));
+    assert_eq!(section.first_stage_effect, Some(0.5));
+    assert!(section.interval_95.is_none());
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "one_sided_noncompliance"
+    )));
+    let bytes = prepared.encode_contracted_result(&result, "tot", &ctx).unwrap();
+    let (_, header, mut artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().estimand, "treatment_on_treated");
+    artifact.randomized_effect.as_mut().unwrap().estimand = "cace_late".into();
+    assert!(antecedent_io::encode_analysis_result_artifact(&artifact, header.variable_names, "forged-tot").is_err());
+    let two_sided = base.with_treatment_on_treated([true, true, true, false, false, false, false, false]);
+    assert!(two_sided.validate().is_err());
+}
+
+#[test]
 fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
     let outcomes = [1.0, 2.0, 3.0, 4.0];
     let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
