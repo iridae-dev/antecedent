@@ -154,6 +154,40 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
 }
 
 #[test]
+fn exact_unit_randomization_is_superuniform_over_all_sharp_null_assignments() {
+    let mut units = Vec::new();
+    let mut periods = Vec::new();
+    let mut outcomes = Vec::new();
+    for unit in 0..8 {
+        for period in 1..=4 {
+            units.push(Arc::<str>::from(format!("unit-{unit}")));
+            periods.push(period);
+            // Under the sharp null, this complete outcome panel is fixed
+            // regardless of which unit receives the uniform assignment.
+            outcomes.push(unit as f64 * 0.31 + period as f64 * 0.17
+                + ((unit * 7 + period as usize * 3) % 11) as f64 * 0.13);
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let ctx = ExecutionContext::for_tests(71);
+    let mut p_values = Vec::new();
+    for assigned in 0..8 {
+        let query = SyntheticControlQuery::new(
+            VariableId::from_raw(0), units.clone(), periods.clone(),
+            format!("unit-{assigned}"), 4,
+        ).with_uniform_unit_randomization();
+        let result = Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
+        let fit = result.synthetic_control.unwrap();
+        p_values.push(fit.randomization_p_value.unwrap());
+        assert_eq!(fit.randomization_statistics.len(), 8);
+    }
+    for alpha in [0.125, 0.25, 0.5] {
+        let rejects = p_values.iter().filter(|p| **p <= alpha).count();
+        assert!(rejects as f64 / 8.0 <= alpha, "sharp-null rejection rate exceeds {alpha}");
+    }
+}
+
+#[test]
 fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() {
     let mut units = Vec::new();
     let mut periods = Vec::new();
