@@ -73,6 +73,18 @@ def test_registry_rejects_native_self_promotion_and_wrong_shape():
         registry.execute("y", {})
 
 
+def test_point_only_provider_cannot_return_uncertainty_at_execution():
+    class FalseUncertainty(_Provider):
+        def execute(self, request):
+            return ProviderExecution([1.0, 2.0], [0.1, 0.1],
+                                     ("caller_asserted",), "both_arms", {"version": "1"})
+
+    registry = ProviderRegistry()
+    registry.register("point-only", FalseUncertainty())
+    with pytest.raises(ValueError, match="point-only provider returned uncertainty"):
+        registry.execute("point-only", {})
+
+
 def test_provider_reported_support_cannot_become_the_host_trust_status():
     class SelfPromoting(_Provider):
         def execute(self, request):
