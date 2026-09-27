@@ -816,6 +816,17 @@ impl CheckedPolicyValueOperation {
                 scope: AssumptionScope::Identification,
                 status: AssumptionStatus::Declared,
             });
+            if query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty()) {
+                identification.required_assumptions.push(AssumptionRecord {
+                    assumption: Assumption::Custom {
+                        id: Arc::from("fixed_pre_outcome_cate_groups"),
+                        description: Arc::from("baseline groups for multi-action conditional contrasts were fixed before observing evaluation outcomes"),
+                    },
+                    source: AssumptionSource::UserDeclared,
+                    scope: AssumptionScope::Identification,
+                    status: AssumptionStatus::Declared,
+                });
+            }
         }
         Ok(Self {
             query: query.clone(),
@@ -977,6 +988,71 @@ impl CheckedPolicyValueOperation {
             uplift_bins,
             multi_action_cate,
         });
+        let policy = result.policy_value.as_ref().expect("policy value was just attached");
+        let (design, method, claim) = match (multi.is_some(), ipw, !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty()) {
+            (true, _, _, true) => ("multi_action_ipw_cate", "fixed_randomized_multi_action_ipw_fixed_group_scores",
+                "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"),
+            (true, _, _, false) => ("multi_action_ipw", "fixed_randomized_multi_action_ipw_scores",
+                "paired_policy_incremental_pointwise_95_normal_intervals"),
+            (false, true, true, _) => ("binary_ipw_uplift", "fixed_randomized_ipw_frozen_rank_scores",
+                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
+            (false, false, true, _) => ("binary_aipw_uplift", "fixed_held_out_randomized_aipw_frozen_rank_scores",
+                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
+            (false, true, false, _) => ("binary_ipw", "fixed_randomized_ipw_scores",
+                "paired_policy_incremental_pointwise_95_normal_intervals"),
+            (false, false, false, _) => ("binary_aipw", "fixed_held_out_randomized_aipw_scores",
+                "paired_policy_incremental_pointwise_95_normal_intervals"),
+        };
+        let (treated, control, min_action_rows, min_probability) = if let Some(multi) = multi {
+            let k = multi.action_labels.len();
+            (multi.assignment.iter().filter(|&&action| action != 0).count(),
+             multi.assignment.iter().filter(|&&action| action == 0).count(),
+             (0..k).map(|action| multi.assignment.iter().filter(|&&observed| observed == action).count())
+                .min().unwrap_or(0),
+             multi.propensities.iter().copied().fold(f64::INFINITY, f64::min))
+        } else {
+            let treated = self.query.assignment.iter().filter(|&&assigned| assigned).count();
+            (treated, y.len() - treated, treated.min(y.len() - treated),
+             self.query.propensity.iter().copied().map(|p| p.min(1.0 - p))
+                .fold(f64::INFINITY, f64::min))
+        };
+        let min_bin_rows = policy.uplift_bins.iter().map(|bin| bin.evaluation_rows).min().unwrap_or(0);
+        let min_bin_arm_rows = if policy.uplift_bins.is_empty() { 0 } else {
+            (0..policy.uplift_bins.len()).flat_map(|bin| {
+                let treated = self.query.uplift_bins.iter().enumerate()
+                    .filter(|&(row, &rank)| rank == bin && self.query.assignment[row]).count();
+                let total = policy.uplift_bins[bin].evaluation_rows;
+                [treated, total - treated]
+            }).min().unwrap_or(0)
+        };
+        let min_group_rows = policy.multi_action_cate.iter().map(|point| point.evaluation_rows).min().unwrap_or(0);
+        let min_group_arm_rows = policy.multi_action_cate.iter()
+            .flat_map(|point| [point.observed_action_rows, point.observed_control_rows]).min().unwrap_or(0);
+        let scalar_intervals = usize::from(policy.policy_interval_95.is_some())
+            + usize::from(policy.incremental_interval_95.is_some());
+        let extras = policy.uplift_bins.iter().filter(|bin| bin.interval_95.is_some()).count()
+            + policy.multi_action_cate.iter().filter(|point| point.interval_95.is_some()).count();
+        let all_reported_intervals = scalar_intervals == 2
+            && policy.uplift_bins.iter().all(|bin| bin.interval_95.is_some())
+            && policy.multi_action_cate.iter().all(|point| point.interval_95.is_some());
+        let observed = crate::support::GraphlessAssignmentSupport {
+            assignment_unit: "unit", treated, control, rows: y.len(), min_action_rows,
+            min_probability, interval_95_published: scalar_intervals == 2,
+            reported_intervals: scalar_intervals + extras, all_reported_intervals,
+            policy_matches, reference_matches, min_bin_rows, min_bin_arm_rows,
+            min_group_rows, min_group_arm_rows,
+            uncoupled_constraints: independent_policy_rows,
+            disjoint_nuisance_training: self.query.disjoint_training_subjects,
+            rank_ownership: !self.query.uplift_training_subject_ids.is_empty()
+                && self.query.uplift_training_subject_ids.iter()
+                    .all(|id| !self.query.evaluation_subject_ids.contains(id)),
+            ..Default::default()
+        };
+        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+            crate::support::GraphlessSupportKey { family: "policy_value", design, method, inference_claim: claim }, observed,
+        ) {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         Ok(result)
     }
 }

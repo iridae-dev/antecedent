@@ -501,6 +501,7 @@ class PolicyValueSection:
     propensity_min: float
     propensity_max: float
     uncertainty: str
+    graphless_support_status: str | None
     uplift_bins: list[tuple[int, float, float, int, tuple[float, float] | None]]
     multi_action_cate: list[tuple[str, str, float, int, int, int, float, tuple[float, float] | None]]
 

@@ -40,6 +40,8 @@ pub struct PolicyValueSection {
     pub propensity_max: f64,
     /// Native estimator uncertainty semantics.
     pub uncertainty: String,
+    /// Exact graphless support license, when its policy row matches.
+    pub graphless_support_status: Option<String>,
     /// Held-out randomized uplift by descending frozen score bin.
     pub uplift_bins: Vec<(usize, f64, f64, usize, Option<(f64, f64)>)>,
     /// Conditional contrasts: group, action, effect, total and observed rows, SE, interval.
@@ -94,6 +96,7 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             propensity_min: value.propensity_min,
             propensity_max: value.propensity_max,
             uncertainty: value.uncertainty.to_string(),
+            graphless_support_status: None,
             uplift_bins: value.uplift_bins.iter().map(|bin| (
                 bin.rank, bin.effect, bin.standard_error, bin.evaluation_rows,
                 bin.interval_95.map(|bounds| (bounds[0], bounds[1])),

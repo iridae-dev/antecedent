@@ -244,7 +244,7 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
         ranking_training_subject_ids=["rank-train"], uplift_bins=2,
     )
     result = ant.analyze({"y": outcome}, query=query, refute="none")
-    assert result.policy_value.support_status == "off_axis_pointwise_95"
+    assert result.policy_value.support_status == "licensed"
     bins = result.policy_value.uplift_bins
     assert [bin.evaluation_rows for bin in bins] == [300, 300]
     for point, truth in zip(bins, (2.0, 0.5), strict=True):
@@ -342,7 +342,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
     labels = ("control", "A", "B")
     assigned = [labels[i % 3] for i in range(n)]
     outcomes = [1.0 + (0.0, 1.0, 3.0)[i % 3] + (i % 7) / 10.0 for i in range(n)]
-    fixed = policy.MultiActionPolicy(labels, ["control"] * n)
+    fixed = policy.MultiActionPolicy(labels, [labels[(i // 3) % 3] for i in range(n)])
     query = policy.MultiActionPolicyValue(
         outcome="y", assignment=assigned,
         propensities=[[1.0 / 3.0] * 3 for _ in range(n)],
@@ -350,6 +350,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         baseline_groups=["g0"] * n,
     )
     result = ant.analyze({"y": outcomes}, query=query, refute="none")
+    assert result.policy_value.support_status == "licensed"
     points = result.policy_value.multi_action_cate
     assert len(points) == 2
     for point, truth in zip(points, (1.0, 3.0)):
@@ -358,6 +359,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
         assert point.interval_95[0] < truth < point.interval_95[1]
     loaded = ant.load(result.export(artifact_id="multi-cate-interval"))
     assert loaded.answer.structured["multi_action_cate"][0]["interval_95"] == pytest.approx(points[0].interval_95)
+    assert loaded.answer.structured["graphless_support_status"] == "licensed"
 
     thin = policy.MultiActionPolicyValue(
         outcome="y", assignment=assigned[:299],
@@ -389,7 +391,7 @@ def test_retained_held_out_policy_intervals_and_crossfit_refusal():
     assert answer.incremental_value_interval_95 is not None
     assert answer.policy_value_interval_95[0] < answer.policy_value < answer.policy_value_interval_95[1]
     assert answer.incremental_value_interval_95[0] < answer.incremental_value < answer.incremental_value_interval_95[1]
-    assert answer.support_status == "off_axis_pointwise_95"
+    assert answer.support_status == "licensed"
     artifact = ant.load(result.export(artifact_id="policy-interval"))
     assert artifact.answer.structured["policy_interval_95"] == pytest.approx(answer.policy_value_interval_95)
     assert artifact.answer.structured["incremental_interval_95"] == pytest.approx(answer.incremental_value_interval_95)

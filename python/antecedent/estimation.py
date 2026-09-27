@@ -719,10 +719,11 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_standard_error=section.incremental_standard_error,
         policy_value_interval_95=section.policy_interval_95,
         incremental_value_interval_95=section.incremental_interval_95,
-        support_status=("off_axis_pointwise_95" if section.policy_interval_95 is not None
-                        or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
-                        or any(interval is not None for *_, interval in section.multi_action_cate)
-                        else "unlicensed_point_utility"),
+        support_status=(section.graphless_support_status or
+                        ("off_axis_pointwise_95" if section.policy_interval_95 is not None
+                         or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
+                         or any(interval is not None for *_, interval in section.multi_action_cate)
+                         else "unlicensed_point_utility")),
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
