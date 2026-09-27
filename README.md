@@ -104,7 +104,7 @@ We believe this approach is critical when causal inference is built to exist bey
 
 Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 472 licensed cells, 170 have no coverage measurement for their estimator and 5 report no interval (counts in the [support matrix](docs/support-matrix.md)).
 
-For the 2.1.0 development summary, read the [release notes](docs/release-notes/v2.1.0.md) and [changelog](CHANGELOG.md).
+For what 2.1.0 adds over 2.0.0, read the [release notes](docs/release-notes/v2.1.0.md) and [changelog](CHANGELOG.md).
 
 ## License
 
