@@ -6,7 +6,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     SurvivalFunctional,
 };
-use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_bootstrap_difference_band, randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary, randomized_survival_summary};
+use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_bootstrap_difference_band, randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary_with_entry, randomized_survival_summary};
 
 #[derive(Clone)]
 pub(crate) struct CheckedSurvivalOperation {
@@ -41,11 +41,6 @@ impl CheckedSurvivalOperation {
             });
         };
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        if query.delayed_entry.is_some() && query.known_censoring.is_some() && study.bootstrap_replicates > 0 {
-            return Err(CausalError::Unsupported {
-                message: "combined delayed-entry and fixed-censoring bootstrap requires separate calibration",
-            });
-        }
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -149,8 +144,8 @@ impl CheckedSurvivalOperation {
             }
             censoring_grid = Some((known.times.as_ref(), probabilities, known.minimum_probability));
             let (_, probabilities, _) = censoring_grid.as_ref().expect("just set");
-            let (summary, minimum) = randomized_survival_ipcw_summary(
-                &duration, &event, &treated, &known.times, probabilities,
+            let (summary, minimum) = randomized_survival_ipcw_summary_with_entry(
+                &duration, &event, &treated, entry.as_deref(), &known.times, probabilities,
                 self.query.tau, known.minimum_probability, endpoint,
             ).map_err(|message| CausalError::Unsupported { message })?;
             (summary, Some(minimum))
@@ -306,7 +301,9 @@ pub(crate) fn survival_identification(
         ),
         (
             "independent_censoring_and_entry",
-            if query.known_censoring.is_some() {
+            if query.known_censoring.is_some() && query.delayed_entry.is_some() {
+                "left entry and censoring are marginally independent of potential event times within treatment arms, and the caller-supplied censoring survival is correct"
+            } else if query.known_censoring.is_some() {
                 "censoring is independent of potential event times within treatment arms conditional on declared variables, and the caller-supplied censoring survival is correct"
             } else {
                 "censoring and delayed entry are marginally independent of potential event times within treatment arms"

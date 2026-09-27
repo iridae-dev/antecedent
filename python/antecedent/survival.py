@@ -134,7 +134,7 @@ class SurvivalOutcome:
             if not isinstance(self.known_censoring, KnownCensoringSurvival):
                 raise CausalValueError("known_censoring must be KnownCensoringSurvival")
             if self.delayed_entry is not None:
-                raise CausalValueError("known censoring survival does not combine with delayed entry")
+                _validate_entry_contract(self.delayed_entry, self.observation_assumption)
             if not isinstance(self.observation_assumption, IndependentGiven):
                 raise CausalValueError("known censoring requires an explicit IndependentGiven observation assumption")
             if abs(self.known_censoring.times[-1] - self.tau) > 1e-10:
@@ -287,7 +287,7 @@ class CompetingRisksOutcome:
             if not isinstance(self.known_censoring, KnownCensoringSurvival):
                 raise CausalValueError("known_censoring must be KnownCensoringSurvival")
             if self.delayed_entry is not None:
-                raise CausalValueError("known censoring survival does not combine with delayed entry")
+                _validate_entry_contract(self.delayed_entry, self.observation_assumption)
             if not isinstance(self.observation_assumption, IndependentGiven):
                 raise CausalValueError("known censoring requires an explicit IndependentGiven observation assumption")
             if abs(self.known_censoring.times[-1] - self.tau) > 1e-10:

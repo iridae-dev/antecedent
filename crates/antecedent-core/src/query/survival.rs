@@ -36,8 +36,10 @@ pub enum SurvivalFunctional {
 ///
 /// The event column is zero for censoring and one for a binary event, or a
 /// positive cause code for competing risks. `IndependentGiven([])` declares
-/// marginally independent censoring. Conditional assumptions require a
-/// censoring-adjusted estimator and are refused by this point estimator.
+/// marginally independent censoring and, when present, entry. Conditional
+/// censoring requires caller-supplied known censoring survival. Combining
+/// known censoring survival with delayed entry retains the marginal empty-set
+/// observation claim; conditional entry is not adjusted.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurvivalQuery {
     /// Observed follow-up duration.
@@ -82,9 +84,11 @@ impl SurvivalQuery {
             ));
         }
         if let Some(known) = &self.known_censoring {
-            if self.delayed_entry.is_some() {
+            if self.delayed_entry.is_some()
+                && !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if vars.is_empty())
+            {
                 return Err(QueryError::InvalidSurvival(
-                    "known censoring survival does not combine with delayed entry".into(),
+                    "combined delayed entry and known censoring requires marginal IndependentGiven(())".into(),
                 ));
             }
             if known.times.len() < 2
@@ -145,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn accepts_conditional_censoring_with_known_grid_and_refuses_entry_combination() {
+    fn combined_entry_and_known_censoring_requires_marginal_observation_claim() {
         let mut q = query();
         q.observation_assumption =
             ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(3)]));
@@ -159,5 +163,7 @@ mod tests {
         assert!(q.validate().is_ok());
         q.delayed_entry = Some(VariableId::from_raw(7));
         assert!(q.validate().is_err());
+        q.observation_assumption = ObservationAssumption::IndependentGiven(Arc::from([]));
+        assert!(q.validate().is_ok());
     }
 }
