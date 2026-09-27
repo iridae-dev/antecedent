@@ -332,14 +332,21 @@ impl CheckedPanelDidOperation {
             .filter(|(_, cohort)| **cohort == 0)
             .map(|(cluster, _)| cluster.as_ref())
             .collect::<BTreeSet<_>>();
+        // Distinct treated clusters per cohort in a single pass, mirroring the
+        // control-cluster set above. Indexed by cohort for each event-time
+        // effect and for the representative cohort below, instead of rescanning
+        // every row for every effect.
+        let mut treated_clusters_per_cohort: BTreeMap<i64, BTreeSet<&str>> = BTreeMap::new();
+        for (cluster, cohort) in self.query.clusters.iter().zip(self.query.cohorts.iter()) {
+            treated_clusters_per_cohort.entry(*cohort).or_default().insert(cluster.as_ref());
+        }
+        let treated_cluster_count = |cohort: i64| {
+            treated_clusters_per_cohort.get(&cohort).map_or(0, BTreeSet::len)
+        };
         let event_time_intervals_95 = effects.iter().map(|effect| {
             if effect.event_time < 0 { return None; }
-            let treated_clusters = self.query.clusters.iter().zip(self.query.cohorts.iter())
-                .filter(|(_, cohort)| **cohort == effect.cohort)
-                .map(|(cluster, _)| cluster.as_ref())
-                .collect::<BTreeSet<_>>();
             antecedent_estimate::staggered_event_study::pointwise_interval_95(
-                effect, treated_clusters.len(), control_clusters.len())
+                effect, treated_cluster_count(effect.cohort), control_clusters.len())
         }).collect::<Vec<_>>();
         let representative_index = effects.iter().position(|effect| effect.event_time >= 0)
             .ok_or_else(|| CausalError::Compile { message: "event study has no post-adoption contrast".into() })?;
@@ -350,11 +357,7 @@ impl CheckedPanelDidOperation {
         // is actually published and each side clears the independent-cluster
         // support gate. Capture the support before `effects` moves into the
         // result. Pre-adoption leads and event time -1 stay point-only.
-        let representative_treated_clusters = self.query.clusters.iter().zip(self.query.cohorts.iter())
-            .filter(|(_, cohort)| **cohort == representative.cohort)
-            .map(|(cluster, _)| cluster.as_ref())
-            .collect::<BTreeSet<_>>()
-            .len();
+        let representative_treated_clusters = treated_cluster_count(representative.cohort);
         let published_intervals = event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
         let graphless_licensed = representative_interval.is_some()
             && matches!(

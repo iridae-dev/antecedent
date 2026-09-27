@@ -305,6 +305,7 @@ impl CheckedInterferenceOperation {
                         _ => unreachable!(),
                     };
                     let interval_available = interval.is_some();
+                    let to_exposed_units = self.assignment.iter().filter(|&&assigned| assigned).count();
                     let graphless_support_status = interval.as_ref().and_then(|_| {
                         interference_graphless_license(
                             "cluster_randomization_total",
@@ -333,8 +334,8 @@ impl CheckedInterferenceOperation {
                         } else if !interval_available {
                             Some("pointwise cluster-total inference requires positive finite between-cluster variation")
                         } else { None },
-                        from_exposed_units: self.assignment.iter().filter(|&&assigned| !assigned).count(),
-                        to_exposed_units: self.assignment.iter().filter(|&&assigned| assigned).count(),
+                        from_exposed_units: self.assignment.len() - to_exposed_units,
+                        to_exposed_units,
                         from_exposed_clusters: control_clusters,
                         to_exposed_clusters: treated_clusters,
                     };
