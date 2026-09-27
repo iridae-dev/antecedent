@@ -1,4 +1,4 @@
-# Synthetic DiD and augmented panel DiD utilities
+# Synthetic DiD and augmented panel DiD
 
 These native-backed Python workflows provide point estimates outside the
 support matrix. Neither returns an interval or a calibrated inference claim.
@@ -29,3 +29,25 @@ does not verify fold ownership. Identification still requires conditional
 parallel trends or a correct untreated-change model, and a correct propensity
 model or outcome model. Effective weighted control sample size is reported as
 a support diagnostic, not a license or inference guarantee.
+
+`AugmentedPanelDiD` also enters the ordinary retained flow:
+
+```python
+import antecedent
+from antecedent.quasi import AugmentedPanelDiD
+
+query = AugmentedPanelDiD("pre", "post", "subject", "treated", "propensity", "untreated_change")
+prepared = antecedent.prepare(data, query=query)
+result = prepared.estimate()
+assert result.panel_did.uncertainty == "point_only_no_standard_error"
+```
+
+The prepared query freezes unique subject IDs, optional higher-level cluster
+IDs, treatment assignments, and the names of the supplied nuisance columns.
+Refreshing with a different subject or cluster order is refused. The shared
+native estimator is used by both the direct utility and retained Study.
+`result.panel_did` reports the propensity range and effective weighted control
+count; the artifact records no standard error and no interval for this design.
+`predictions_cross_fitted=True` is a caller declaration, not a verification of
+out-of-fold training. This point route remains outside the licensed support
+matrix until its identification and inference evidence is sufficient.

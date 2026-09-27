@@ -776,6 +776,16 @@ Staggered event studies also run through retained `prepare` / `analyze` with
 `StaggeredAdoption(..., event_study=True)`; the direct utility shares its native
 estimator.
 
+`AugmentedPanelDiD` accepts one row per subject with pre/post outcomes, a
+binary treatment indicator, supplied propensity, and supplied prediction of
+the untreated outcome change. It uses the same native ATT estimator through
+both the direct utility and retained `prepare` / `analyze` path. Unique subject
+IDs and optional cluster IDs are frozen at preparation. The result reports
+the propensity range and effective weighted control count. Cross-fitting is
+caller-declared, and the artifact omits a standard error for this point-only
+route. It remains `unlicensed_point_utility` and adds no interval or
+support-matrix license.
+
 `antecedent.quasi.StaggeredAdoption` adds a balanced-panel group-time ATT
 utility. Cohort 0 is explicitly never treated; for each adoption cohort and
 post period, the native estimator compares outcome changes from that cohort's

@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import analyze
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalCompileError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.quasi import (
     AugmentedPanelDiD,
@@ -140,5 +140,5 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
     artifact = result.export()
     loaded = antecedent.load(artifact)
     assert loaded.export() == artifact
-    with pytest.raises((CausalValueError, ValueError), match="overlap|strictly between"):
+    with pytest.raises(CausalCompileError, match="overlap|strictly between"):
         antecedent.analyze({**data, "p": [0.0] + [0.5] * 5}, query=query)
