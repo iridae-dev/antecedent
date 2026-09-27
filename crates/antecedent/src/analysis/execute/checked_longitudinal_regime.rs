@@ -6,7 +6,8 @@ use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
-use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value};
+use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value, RegimeValueSummary};
+use antecedent_estimate::marginal_structural_model::{fit_binary_msm, MsmSummary};
 
 #[derive(Clone)]
 pub(crate) struct CheckedLongitudinalRegimeOperation {
@@ -62,6 +63,7 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
             LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
             LongitudinalRegimeMethod::SequentialDoublyRobust => EstimatorId::LongitudinalSequentialDrRegime,
+            LongitudinalRegimeMethod::MarginalStructuralModel => EstimatorId::LongitudinalMarginalStructuralModel,
         };
         if physical.logical.query != study.query
             || physical.logical.record.identifier.as_deref()
@@ -109,6 +111,7 @@ impl CheckedLongitudinalRegimeOperation {
                 });
             }
         };
+        let mut msm: Option<MsmSummary> = None;
         let (summary, estimator_id, method, diagnostic, description) = match self.query.method {
             LongitudinalRegimeMethod::Ipw => (
                 evaluate_regime_value(outcome, &self.query.treatment_history, &self.query.regime_actions,
@@ -136,6 +139,32 @@ impl CheckedLongitudinalRegimeOperation {
                 "estimate.longitudinal.sequential_dr_regime.point_only",
                 "backward-recursive augmented regime value from caller-supplied subject-owned Q scores and known sequential probabilities; no interval or calibration claim",
             ),
+            LongitudinalRegimeMethod::MarginalStructuralModel => {
+                let fit = fit_binary_msm(outcome, &self.query.treatment_history,
+                    &self.query.treatment_probabilities,
+                    self.query.stabilizing_numerator_probabilities.as_deref().expect("validated MSM numerators"),
+                    &self.query.outcome_observed, &self.query.censoring_probabilities,
+                    self.query.periods, self.query.minimum_probability)
+                    .map_err(|message| CausalError::Unsupported { message })?;
+                let mut min_action: f64 = 1.0;
+                let mut min_censor: f64 = 1.0;
+                for j in 0..self.query.treatment_history.len() {
+                    let p = self.query.treatment_probabilities[j];
+                    min_action = min_action.min(if self.query.treatment_history[j] { p } else { 1.0 - p });
+                    min_censor = min_censor.min(self.query.censoring_probabilities[j]);
+                }
+                let summary = RegimeValueSummary {
+                    value: fit.intercept, effective_sample_size: fit.effective_sample_size,
+                    matched_observed_fraction: fit.observed_subjects as f64 / self.rows as f64,
+                    maximum_weight: fit.maximum_weight,
+                    minimum_action_probability: min_action,
+                    minimum_censoring_probability: min_censor,
+                };
+                msm = Some(fit);
+                (Ok(summary), EstimatorId::LongitudinalMarginalStructuralModel,
+                    "marginal_structural_model", "estimate.longitudinal.marginal_structural_model.pointwise_cr1",
+                    "additive binary marginal structural mean with stabilized sequential IPTW and subject-clustered pointwise CR1 standard errors; no interval or calibration claim")
+            },
         };
         let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
         let mut result = finish_identified_execute_with_context(
@@ -182,8 +211,12 @@ impl CheckedLongitudinalRegimeOperation {
             maximum_weight: summary.maximum_weight,
             minimum_action_probability: summary.minimum_action_probability,
             minimum_censoring_probability: summary.minimum_censoring_probability,
-            uncertainty: Arc::from("point_only_no_interval"),
+            uncertainty: Arc::from(if msm.is_some() { "pointwise_subject_clustered_cr1_no_interval" } else { "point_only_no_interval" }),
             probability_ownership: Arc::from("known_sequential_randomization"),
+            period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),
+            standard_errors: msm.as_ref().map(|fit| Arc::from(fit.standard_errors.as_slice())),
+            stabilizing_numerator_probabilities: msm.as_ref().map(|_| self.query.stabilizing_numerator_probabilities.as_ref().expect("validated MSM numerator").clone()),
+            observed_subjects: msm.as_ref().map(|fit| fit.observed_subjects),
         });
         Ok(result)
     }
@@ -269,6 +302,16 @@ fn longitudinal_identification(
                 source: AssumptionSource::UserDeclared, scope: AssumptionScope::Identification, status: AssumptionStatus::Declared });
         }
     }
+    if query.method == LongitudinalRegimeMethod::MarginalStructuralModel {
+        for (id, description) in [
+            ("additive_marginal_structural_mean", "the terminal marginal mean is additive in binary period treatments without interactions"),
+            ("stabilized_sequential_weights", "supplied treatment and censoring probabilities and prespecified numerator probabilities identify a stabilized IPTW model"),
+            ("pointwise_subject_clustered_cr1", "the reported CR1 sandwich treats each whole subject history as one independent cluster and does not establish interval coverage"),
+        ] {
+            assumptions.push(AssumptionRecord { assumption: Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+                source: AssumptionSource::UserDeclared, scope: AssumptionScope::Identification, status: AssumptionStatus::Declared });
+        }
+    }
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
@@ -283,6 +326,7 @@ fn longitudinal_identification(
         LongitudinalRegimeMethod::Ipw => "longitudinal.sequential_randomization",
         LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula",
         LongitudinalRegimeMethod::SequentialDoublyRobust => "longitudinal.sequential_dr",
+        LongitudinalRegimeMethod::MarginalStructuralModel => "longitudinal.marginal_structural_model",
     };
     arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from("known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean"))));
     let estimand = IdentifiedEstimand::new(

@@ -445,6 +445,10 @@ class LongitudinalRegimeSection:
     minimum_censoring_probability: float
     uncertainty: str
     probability_ownership: str
+    period_effects: list[float] | None
+    standard_errors: list[float] | None
+    stabilizing_numerator_probabilities: list[float] | None
+    observed_subjects: int | None
 
 class PolicyValueSection:
     policy_value: float
@@ -1332,6 +1336,7 @@ class PreparedAnalysis:
         outcome_observed: list[bool], subject_ids: list[str], fold_ids: list[int],
         excluded_fold_predictions: bool, probabilities_known_by_design: bool,
         minimum_probability: float, *, method: str = "ipw", period_outcome_predictions: list[float] = [],
+        stabilizing_numerator_probabilities: list[float] = [],
         q_predictions: list[float] = [], observation_history: list[bool] = [], prediction_fold_ids: list[int] = [],
         accepted: bool = False, seed: int = 1,
         threads: int | None = None, options: dict[str, Any] | None = None,

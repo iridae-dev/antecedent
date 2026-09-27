@@ -14,6 +14,8 @@ pub enum LongitudinalRegimeMethod {
     GFormula,
     /// Backward-recursive augmented value using supplied subject-owned Q scores.
     SequentialDoublyRobust,
+    /// Additive binary marginal structural mean with stabilized IPTW.
+    MarginalStructuralModel,
 }
 
 /// Prespecified binary static or history-dependent actions, resolved before
@@ -28,6 +30,8 @@ pub struct LongitudinalRegimeQuery {
     /// Prespecified conditional period rewards under the regime, subject-major.
     /// Required for g-formula and absent for IPW.
     pub period_outcome_predictions: Option<Arc<[f64]>>,
+    /// One marginal treatment-one numerator probability per period for MSM.
+    pub stabilizing_numerator_probabilities: Option<Arc<[f64]>>,
     /// Period Q scores for sequential augmentation.
     pub q_predictions: Option<Arc<[f64]>>,
     /// Whether the subject remains observed at each decision.
@@ -83,6 +87,10 @@ impl LongitudinalRegimeQuery {
             (LongitudinalRegimeMethod::Ipw, None) => {}
             (LongitudinalRegimeMethod::GFormula, Some(q))
                 if q.len() == cells && q.iter().all(|v| v.is_finite()) => {}
+            (LongitudinalRegimeMethod::MarginalStructuralModel, None)
+                if self.stabilizing_numerator_probabilities.as_ref().is_some_and(|v|
+                    v.len() == self.periods && v.iter().all(|p| p.is_finite() && *p >= self.minimum_probability && *p <= 1.0 - self.minimum_probability))
+                    && self.outcome_observed.iter().filter(|&&x| x).count() > self.periods + 1 => {}
             (LongitudinalRegimeMethod::SequentialDoublyRobust, None)
                 if self.q_predictions.as_ref().is_some_and(|q| q.len() == cells && q.iter().all(|v| v.is_finite()))
                     && self.observation_history.as_ref().is_some_and(|o| o.len() == cells)
@@ -98,6 +106,10 @@ impl LongitudinalRegimeQuery {
         if self.method != LongitudinalRegimeMethod::SequentialDoublyRobust
             && (self.q_predictions.is_some() || self.observation_history.is_some() || self.prediction_fold_ids.is_some()) {
             return Err(QueryError::InvalidLongitudinalRegime("sequential DR fields require the sequential doubly robust method".into()));
+        }
+        if self.method != LongitudinalRegimeMethod::MarginalStructuralModel
+            && self.stabilizing_numerator_probabilities.is_some() {
+            return Err(QueryError::InvalidLongitudinalRegime("stabilizing numerator probabilities require the marginal structural model method".into()));
         }
         if let Some(observed) = &self.observation_history {
             for i in 0..n {
@@ -152,6 +164,7 @@ mod tests {
             outcome: VariableId::from_raw(0),
             method: LongitudinalRegimeMethod::Ipw,
             period_outcome_predictions: None,
+            stabilizing_numerator_probabilities: None,
             q_predictions: None,
             observation_history: None,
             prediction_fold_ids: None,

@@ -37,8 +37,9 @@ class LongitudinalRegimeQuery:
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
     subject_ids: Sequence[str]
-    method: Literal["ipw", "g_formula", "sequential_dr"] = "ipw"
+    method: Literal["ipw", "g_formula", "sequential_dr", "marginal_structural_model"] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
+    stabilizing_numerator_probabilities: Sequence[float] | None = None
     q_predictions: Sequence[Sequence[float]] | None = None
     observation_history: Sequence[Sequence[bool]] | None = None
     prediction_fold_ids: Sequence[int] | None = None
@@ -57,8 +58,14 @@ class LongitudinalRegimeQuery:
         if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
             raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
         n, periods = history.shape
-        if self.method not in ("ipw", "g_formula", "sequential_dr"):
-            raise ValueError("method must be 'ipw', 'g_formula', or 'sequential_dr'")
+        if self.method not in ("ipw", "g_formula", "sequential_dr", "marginal_structural_model"):
+            raise ValueError("unknown longitudinal method")
+        numerator = None if self.stabilizing_numerator_probabilities is None else np.asarray(self.stabilizing_numerator_probabilities, dtype=np.float64)
+        if self.method == "marginal_structural_model":
+            if numerator is None or numerator.shape != (periods,) or not np.isfinite(numerator).all():
+                raise ValueError("marginal_structural_model requires one finite stabilizing numerator probability per period")
+        elif numerator is not None:
+            raise ValueError("stabilizing numerator probabilities require marginal_structural_model")
         predictions = None if self.period_outcome_predictions is None else np.asarray(self.period_outcome_predictions, dtype=np.float64)
         if self.method == "g_formula":
             if predictions is None or predictions.shape != (n, periods) or not np.isfinite(predictions).all():
@@ -114,6 +121,10 @@ class LongitudinalRegimeQuery:
         floor = self.minimum_probability
         if not isfinite(floor) or not 0 < floor <= 0.5 or np.any(probabilities < floor) or np.any(probabilities > 1 - floor) or np.any(censor < floor) or np.any(censor > 1):
             raise ValueError("sequential treatment or censoring positivity fails at the declared floor")
+        if numerator is not None and (np.any(numerator < floor) or np.any(numerator > 1 - floor)):
+            raise ValueError("stabilizing numerator probabilities violate the declared positivity floor")
+        if self.method == "marginal_structural_model" and np.count_nonzero(observed) <= periods + 1:
+            raise ValueError("MSM requires more observed subjects than coefficients")
         object.__setattr__(self, "treatment_history", tuple(tuple(map(bool, row)) for row in history))
         object.__setattr__(self, "actions", tuple(tuple(map(bool, row)) for row in actions))
         object.__setattr__(self, "treatment_probabilities", tuple(tuple(map(float, row)) for row in probabilities))
@@ -123,6 +134,8 @@ class LongitudinalRegimeQuery:
         object.__setattr__(self, "fold_ids", folds)
         if predictions is not None:
             object.__setattr__(self, "period_outcome_predictions", tuple(tuple(map(float, row)) for row in predictions))
+        if numerator is not None:
+            object.__setattr__(self, "stabilizing_numerator_probabilities", tuple(map(float, numerator)))
         if q is not None:
             object.__setattr__(self, "q_predictions", tuple(tuple(map(float, row)) for row in q))
             object.__setattr__(self, "observation_history", tuple(tuple(map(bool, row)) for row in observation))
@@ -132,9 +145,47 @@ class LongitudinalRegimeQuery:
     def periods(self) -> int:
         return len(self.treatment_history[0])
 
+    @classmethod
+    def marginal_structural_model(
+        cls,
+        *,
+        outcome: str,
+        treatment_history: Sequence[Sequence[bool]],
+        treatment_probabilities: Sequence[Sequence[float]],
+        stabilizing_numerator_probabilities: Sequence[float],
+        subject_ids: Sequence[str],
+        censoring_probabilities: Sequence[Sequence[float]] | None = None,
+        outcome_observed: Sequence[bool] | None = None,
+        fold_ids: Sequence[int] | None = None,
+        excluded_fold_predictions: bool = False,
+        probabilities_known_by_design: bool = True,
+        minimum_probability: float = 0.01,
+    ) -> LongitudinalRegimeQuery:
+        """Specify an additive MSM without an irrelevant regime-action argument.
+
+        The model still uses the ordinary subject-history Study query and the
+        same validation, artifacts, and pointwise CR1 result contract.
+        """
+        history = np.asarray(treatment_history)
+        if history.ndim != 2 or history.shape[1] == 0:
+            raise ValueError("treatment_history must be a non-empty subject-by-period array")
+        return cls(
+            outcome=outcome, treatment_history=treatment_history,
+            actions=[False] * history.shape[1],
+            treatment_probabilities=treatment_probabilities,
+            subject_ids=subject_ids, method="marginal_structural_model",
+            stabilizing_numerator_probabilities=stabilizing_numerator_probabilities,
+            censoring_probabilities=censoring_probabilities,
+            outcome_observed=outcome_observed, fold_ids=fold_ids,
+            excluded_fold_predictions=excluded_fold_predictions,
+            probabilities_known_by_design=probabilities_known_by_design,
+            minimum_probability=minimum_probability,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class LongitudinalRegimeEstimate:
+    """Regime mean, or additive MSM intercept and period effects with pointwise CR1 errors."""
     value: float
     effective_sample_size: float
     matched_observed_fraction: float
@@ -145,6 +196,10 @@ class LongitudinalRegimeEstimate:
     uncertainty: str = "point_only_no_interval"
     probability_ownership: str = "known_sequential_randomization"
     support_status: str = "unlicensed_point_utility"
+    period_effects: tuple[float, ...] | None = None
+    standard_errors: tuple[float, ...] | None = None
+    stabilizing_numerator_probabilities: tuple[float, ...] | None = None
+    observed_subjects: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -11,6 +11,7 @@ fn query() -> LongitudinalRegimeQuery {
         outcome: VariableId::from_raw(0),
         method: antecedent_core::LongitudinalRegimeMethod::Ipw,
         period_outcome_predictions: None,
+        stabilizing_numerator_probabilities: None,
         q_predictions: None,
         observation_history: None,
         prediction_fold_ids: None,
@@ -26,6 +27,47 @@ fn query() -> LongitudinalRegimeQuery {
         probabilities_known_by_design: true,
         minimum_probability: 0.01,
     }
+}
+
+#[test]
+fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_identity() {
+    let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
+    let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
+    q.treatment_history = Arc::from([false, false, false, true, true, false, true, true,
+        false, false, false, true, true, false, true, true]);
+    q.regime_actions = Arc::from([false; 16]);
+    q.treatment_probabilities = Arc::from([0.5; 16]);
+    q.censoring_probabilities = Arc::from([1.0; 16]);
+    q.outcome_observed = Arc::from([true; 8]);
+    q.subject_ids = Arc::from(["a", "b", "c", "d", "e", "f", "g", "h"].map(Arc::<str>::from));
+    q.fold_ids = Arc::from([0, 0, 0, 0, 1, 1, 1, 1]);
+    q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let ctx = ExecutionContext::for_tests(91);
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let fit = first.longitudinal_regime.as_ref().unwrap();
+    assert_eq!(&*fit.method, "marginal_structural_model");
+    assert!((fit.value - 1.0).abs() < 1e-10);
+    let effects = fit.period_effects.as_ref().unwrap();
+    assert!((effects[0] - 2.0).abs() < 1e-10 && (effects[1] - 3.0).abs() < 1e-10);
+    assert_eq!(fit.observed_subjects, Some(8));
+    assert_eq!(&*fit.uncertainty, "pointwise_subject_clustered_cr1_no_interval");
+    assert!(first.identification.required_assumptions.entries.iter().any(|record| {
+        matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
+            if id.as_ref() == "additive_marginal_structural_mean")
+    }));
+    let bytes = prepared.encode_contracted_result(&first, "longitudinal-msm", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let recorded = &body.longitudinal_regime.as_ref().unwrap().period_effects;
+    assert!((recorded[0] - 2.0).abs() < 1e-10 && (recorded[1] - 3.0).abs() < 1e-10);
+    let mut fabricated = body.clone();
+    fabricated.longitudinal_regime.as_mut().unwrap().standard_errors.clear();
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    q.stabilizing_numerator_probabilities = Some(Arc::from([0.0; 2]));
+    assert!(q.validate().is_err());
 }
 
 #[test]

@@ -818,6 +818,9 @@ impl super::Study {
                             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
                                 "longitudinal.sequential_dr_regime"
                             }
+                            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                                "longitudinal.marginal_structural_model"
+                            }
                         }),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
@@ -832,6 +835,9 @@ impl super::Study {
                             }
                             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
                                 "longitudinal.sequential_dr_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                                "longitudinal.marginal_structural_model"
                             }
                         })),
                         validation_suite: self.validation_suite_id(),

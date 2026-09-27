@@ -212,12 +212,12 @@ pub struct LocalPolynomialRatioEstimate {
     pub uncertainty: Arc<str>,
 }
 
-/// Point value of a prespecified treatment regime over subject histories.
+/// Longitudinal regime value or additive MSM summary over subject histories.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LongitudinalRegimeEstimate {
-    /// Named point method, either `ipw` or `g_formula`.
+    /// Named method: IPW, g-formula, sequential DR, or additive MSM.
     pub method: Arc<str>,
-    /// Horvitz--Thompson mean over all enrolled subjects.
+    /// Regime mean, or the additive MSM intercept for the MSM method.
     pub value: f64,
     /// Effective sample size: matching weighted histories for IPW, subject count for g-formula.
     pub effective_sample_size: f64,
@@ -233,6 +233,14 @@ pub struct LongitudinalRegimeEstimate {
     pub uncertainty: Arc<str>,
     /// Provenance of supplied sequential probabilities.
     pub probability_ownership: Arc<str>,
+    /// Additive MSM period coefficients, absent for regime-value methods.
+    pub period_effects: Option<Arc<[f64]>>,
+    /// Pointwise subject-clustered CR1 standard errors for MSM coefficients.
+    pub standard_errors: Option<Arc<[f64]>>,
+    /// Stabilizing numerator probabilities used by the MSM.
+    pub stabilizing_numerator_probabilities: Option<Arc<[f64]>>,
+    /// Number of observed terminal outcomes entering the MSM.
+    pub observed_subjects: Option<usize>,
 }
 
 /// Doubly robust held-out policy value and paired row-score uncertainty.

@@ -797,6 +797,9 @@ pub struct LongitudinalRegimeQueryWire {
     /// Caller-supplied conditional period rewards for g-formula.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_outcome_predictions: Vec<f64>,
+    /// Stabilizing treatment-one probabilities, one per period for MSM.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stabilizing_numerator_probabilities: Vec<f64>,
     /// Subject-major conditional Q scores for sequential augmentation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub q_predictions: Vec<f64>,
@@ -1865,12 +1868,14 @@ pub fn causal_query_to_wire_with_registry(
                     antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
                     antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
                     antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => "marginal_structural_model",
                 }
                 .into(),
                 period_outcome_predictions: q
                     .period_outcome_predictions
                     .as_ref()
                     .map_or_else(Vec::new, |q| q.to_vec()),
+                stabilizing_numerator_probabilities: q.stabilizing_numerator_probabilities.as_ref().map_or_else(Vec::new, |p| p.to_vec()),
                 q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
                 observation_history: q.observation_history.as_ref().map_or_else(Vec::new, |o| o.to_vec()),
                 prediction_fold_ids: q.prediction_fold_ids.as_ref().map_or_else(Vec::new, |f| f.to_vec()),
@@ -2293,6 +2298,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
                 "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
+                "marginal_structural_model" => antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel,
                 _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
             };
             let q = antecedent_core::LongitudinalRegimeQuery {
@@ -2304,6 +2310,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 } else {
                     Some(w.period_outcome_predictions.clone().into())
                 },
+                stabilizing_numerator_probabilities: if w.stabilizing_numerator_probabilities.is_empty() { None } else { Some(w.stabilizing_numerator_probabilities.clone().into()) },
                 q_predictions: if w.q_predictions.is_empty() { None } else { Some(w.q_predictions.clone().into()) },
                 observation_history: if w.observation_history.is_empty() { None } else { Some(w.observation_history.clone().into()) },
                 prediction_fold_ids: if w.prediction_fold_ids.is_empty() { None } else { Some(w.prediction_fold_ids.clone().into()) },

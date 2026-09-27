@@ -20,6 +20,10 @@ pub struct LongitudinalRegimeSection {
     pub minimum_censoring_probability: f64,
     pub uncertainty: String,
     pub probability_ownership: String,
+    pub period_effects: Option<Vec<f64>>,
+    pub standard_errors: Option<Vec<f64>>,
+    pub stabilizing_numerator_probabilities: Option<Vec<f64>>,
+    pub observed_subjects: Option<usize>,
 }
 
 impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection {
@@ -34,6 +38,10 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
             minimum_censoring_probability: value.minimum_censoring_probability,
             uncertainty: value.uncertainty.to_string(),
             probability_ownership: value.probability_ownership.to_string(),
+            period_effects: value.period_effects.as_ref().map(|v| v.to_vec()),
+            standard_errors: value.standard_errors.as_ref().map(|v| v.to_vec()),
+            stabilizing_numerator_probabilities: value.stabilizing_numerator_probabilities.as_ref().map(|v| v.to_vec()),
+            observed_subjects: value.observed_subjects,
         }
     }
 }
@@ -104,222 +112,25 @@ fn fit_binary_msm(
     censoring_survival: PyReadonlyArray2<'_, f64>,
     minimum_probability: f64,
 ) -> PyResult<(f64, Vec<f64>, Vec<f64>, f64, f64, usize)> {
-    let y = outcome.as_array();
+    let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let a = treatment.as_array();
-    let p = treatment_probability.as_array();
-    let numerator = numerator_probability.as_array();
-    let observed = outcome_observed.as_array();
-    let censor = censoring_survival.as_array();
     let (n, periods) = a.dim();
-    if n == 0
-        || periods == 0
-        || y.len() != n
-        || observed.len() != n
-        || p.dim() != (n, periods)
-        || censor.dim() != (n, periods)
-        || numerator.len() != periods
-    {
-        return Err(PyValueError::new_err(
-            "MSM arrays must have matching subject and period dimensions",
-        ));
+    let p = treatment_probability.as_array();
+    let censor = censoring_survival.as_array();
+    if p.dim() != (n, periods) || censor.dim() != (n, periods) {
+        return Err(PyValueError::new_err("MSM arrays must have matching subject and period dimensions"));
     }
-    if !minimum_probability.is_finite()
-        || !(0.0..=0.5).contains(&minimum_probability)
-        || minimum_probability == 0.0
-    {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 0.5]"));
-    }
-    for (t, &probability) in numerator.iter().enumerate() {
-        if !probability.is_finite()
-            || probability < minimum_probability
-            || probability > 1.0 - minimum_probability
-        {
-            return Err(PyValueError::new_err(format!(
-                "stabilizing numerator probability at period {t} violates the declared positivity floor"
-            )));
-        }
-    }
-    let columns = periods + 1;
-    let included = observed.iter().filter(|&&included| included).count();
-    if included <= columns {
-        return Err(PyValueError::new_err(
-            "MSM requires more observed subjects than intercept-plus-treatment coefficients",
-        ));
-    }
-    let mut design = vec![vec![0.0; columns]; n];
-    let mut weights = vec![0.0; n];
-    let mut max_weight: f64 = 0.0;
-    let mut weight_sum = 0.0;
-    let mut weight_square_sum = 0.0;
-    for i in 0..n {
-        design[i][0] = 1.0;
-        if observed[i] && !y[i].is_finite() {
-            return Err(PyValueError::new_err("observed terminal outcomes must be finite"));
-        }
-        let mut weight = 1.0;
-        for t in 0..periods {
-            let probability = p[[i, t]];
-            let censor_probability = censor[[i, t]];
-            if !probability.is_finite()
-                || probability < minimum_probability
-                || probability > 1.0 - minimum_probability
-            {
-                return Err(PyValueError::new_err(format!(
-                    "sequential treatment positivity is violated at subject {i}, period {t}"
-                )));
-            }
-            if !censor_probability.is_finite()
-                || censor_probability < minimum_probability
-                || censor_probability > 1.0
-            {
-                return Err(PyValueError::new_err(format!(
-                    "sequential censoring positivity is violated at subject {i}, period {t}"
-                )));
-            }
-            design[i][t + 1] = if a[[i, t]] { 1.0 } else { 0.0 };
-            if observed[i] {
-                let numerator_action = if a[[i, t]] { numerator[t] } else { 1.0 - numerator[t] };
-                let denominator_action = if a[[i, t]] { probability } else { 1.0 - probability };
-                weight *= numerator_action / (denominator_action * censor_probability);
-                if !weight.is_finite() {
-                    return Err(PyValueError::new_err(
-                        "stabilized sequential weight overflowed; raise positivity floors or shorten the horizon",
-                    ));
-                }
-            }
-        }
-        if observed[i] {
-            weights[i] = weight;
-            max_weight = max_weight.max(weight);
-            weight_sum += weight;
-            weight_square_sum += weight * weight;
-            if !weight_sum.is_finite() || !weight_square_sum.is_finite() {
-                return Err(PyValueError::new_err(
-                    "stabilized weight diagnostics overflowed; raise positivity floors or shorten the horizon",
-                ));
-            }
-        }
-    }
-    let mut bread_input = vec![vec![0.0; columns]; columns];
-    let mut rhs = vec![0.0; columns];
-    for i in 0..n {
-        if !observed[i] {
-            continue;
-        }
-        for j in 0..columns {
-            rhs[j] += weights[i] * design[i][j] * y[i];
-            for k in 0..columns {
-                bread_input[j][k] += weights[i] * design[i][j] * design[i][k];
-            }
-        }
-    }
-    if rhs.iter().chain(bread_input.iter().flatten()).any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err(
-            "weighted marginal structural model normal equations overflowed",
-        ));
-    }
-    let bread = invert_matrix(bread_input)?;
-    let beta = multiply_vector(&bread, &rhs);
-    if beta.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("marginal structural model coefficients are non-finite"));
-    }
-    let mut meat = vec![vec![0.0; columns]; columns];
-    for i in 0..n {
-        if !observed[i] {
-            continue;
-        }
-        let residual = y[i] - dot(&design[i], &beta);
-        let score = design[i].iter().map(|value| weights[i] * value * residual).collect::<Vec<_>>();
-        for j in 0..columns {
-            for k in 0..columns {
-                meat[j][k] += score[j] * score[k];
-            }
-        }
-    }
-    let mut covariance = multiply_matrices(&multiply_matrices(&bread, &meat), &bread);
-    let correction = included as f64 / (included - columns) as f64;
-    for row in &mut covariance {
-        for element in row {
-            *element *= correction;
-        }
-    }
-    let standard_errors =
-        (1..columns).map(|index| covariance[index][index].max(0.0).sqrt()).collect::<Vec<_>>();
-    let effective_sample_size = weight_sum * weight_sum / weight_square_sum;
-    if covariance.iter().flatten().any(|value| !value.is_finite())
-        || standard_errors.iter().any(|value| !value.is_finite())
-        || !effective_sample_size.is_finite()
-    {
-        return Err(PyValueError::new_err("marginal structural model covariance is non-finite"));
-    }
-    Ok((
-        beta[0],
-        beta.into_iter().skip(1).collect(),
-        standard_errors,
-        effective_sample_size,
-        max_weight,
-        included,
-    ))
-}
-
-fn invert_matrix(mut matrix: Vec<Vec<f64>>) -> PyResult<Vec<Vec<f64>>> {
-    let size = matrix.len();
-    let mut inverse = vec![vec![0.0; size]; size];
-    for index in 0..size {
-        inverse[index][index] = 1.0;
-    }
-    for column in 0..size {
-        let pivot = (column..size)
-            .max_by(|&left, &right| {
-                matrix[left][column].abs().total_cmp(&matrix[right][column].abs())
-            })
-            .expect("non-empty pivot candidates");
-        let scale = matrix[pivot].iter().map(|value| value.abs()).fold(0.0, f64::max);
-        if matrix[pivot][column].abs() <= 1e-12 * scale.max(1.0) {
-            return Err(PyValueError::new_err(
-                "weighted marginal structural model design is rank-deficient",
-            ));
-        }
-        matrix.swap(column, pivot);
-        inverse.swap(column, pivot);
-        let divisor = matrix[column][column];
-        for index in 0..size {
-            matrix[column][index] /= divisor;
-            inverse[column][index] /= divisor;
-        }
-        for row in 0..size {
-            if row == column {
-                continue;
-            }
-            let factor = matrix[row][column];
-            for index in 0..size {
-                matrix[row][index] -= factor * matrix[column][index];
-                inverse[row][index] -= factor * inverse[column][index];
-            }
-        }
-    }
-    Ok(inverse)
-}
-
-fn multiply_vector(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
-    matrix.iter().map(|row| dot(row, vector)).collect()
-}
-
-fn multiply_matrices(left: &[Vec<f64>], right: &[Vec<f64>]) -> Vec<Vec<f64>> {
-    let size = left.len();
-    let mut result = vec![vec![0.0; size]; size];
-    for row in 0..size {
-        for middle in 0..size {
-            for column in 0..size {
-                result[row][column] += left[row][middle] * right[middle][column];
-            }
-        }
-    }
-    result
-}
-
-fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter().zip(right).map(|(a, b)| a * b).sum()
+    let a = a.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let censor = censor.iter().copied().collect::<Vec<_>>();
+    let numerator = numerator_probability.as_array().iter().copied().collect::<Vec<_>>();
+    let observed = outcome_observed.as_array().iter().copied().collect::<Vec<_>>();
+    let summary = antecedent_estimate::marginal_structural_model::fit_binary_msm(
+        &y, &a, &p, &numerator, &observed,
+        &censor, periods, minimum_probability,
+    ).map_err(PyValueError::new_err)?;
+    Ok((summary.intercept, summary.period_effects, summary.standard_errors,
+        summary.effective_sample_size, summary.maximum_weight, summary.observed_subjects))
 }
 
 /// Plug-in sequential g-formula value for caller-supplied conditional rewards.

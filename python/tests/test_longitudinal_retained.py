@@ -157,3 +157,56 @@ def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation()
     with pytest.raises(ValueError, match="monotone"):
         LongitudinalRegimeQuery(**{**args, "observation_history": [[False, True]] + [[True, True]] * 3},
                                 prediction_fold_ids=[0, 1, 0, 1])
+
+
+def test_msm_retained_matches_direct_and_round_trips_pointwise_uncertainty():
+    import numpy as np
+    from antecedent.regimes import fit_marginal_structural_model
+
+    histories = np.repeat(np.array([[0, 0], [0, 1], [1, 0], [1, 1]]), 4, axis=0)
+    residuals = np.tile([-1.0, 0.0, 0.0, 1.0], 4)
+    y = 10.0 + 2.0 * histories[:, 0] + 3.0 * histories[:, 1] + residuals
+    ids = [f"s{i}" for i in range(16)]
+    direct = fit_marginal_structural_model(
+        y, histories, np.full((16, 2), 0.5),
+        stabilizing_numerator_probabilities=[0.5, 0.5], subject_ids=ids,
+        fold_ids=[i % 4 for i in range(16)],
+    )
+    query = LongitudinalRegimeQuery.marginal_structural_model(
+        outcome="y", treatment_history=histories,
+        treatment_probabilities=np.full((16, 2), 0.5),
+        stabilizing_numerator_probabilities=[0.5, 0.5],
+        subject_ids=ids, fold_ids=[i % 4 for i in range(16)],
+    )
+    prepared = antecedent.prepare({"y": y}, query=query)
+    result = prepared.estimate()
+    fit = result.longitudinal_regime
+    assert fit.method == "marginal_structural_model"
+    assert fit.value == pytest.approx(direct.intercept)
+    assert fit.period_effects == pytest.approx(direct.period_effects)
+    assert fit.standard_errors == pytest.approx(direct.standard_errors)
+    assert fit.observed_subjects == direct.observed_subjects
+    assert fit.uncertainty == "pointwise_subject_clustered_cr1_no_interval"
+    assert fit.support_status == "unlicensed_point_utility"
+    assert "additive_marginal_structural_mean" in " ".join(result.assumptions or [])
+    assert antecedent.analyze({"y": y}, query=query).longitudinal_regime == fit
+    artifact = antecedent.load(prepared.export()).artifact
+    assert artifact.payload["longitudinal_regime"]["period_effects"] == pytest.approx([2.0, 3.0])
+    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    assert query_artifact.payload["longitudinal_regime"]["stabilizing_numerator_probabilities"] == [0.5, 0.5]
+
+
+def test_msm_retained_refuses_invalid_numerators_and_unowned_probabilities():
+    histories = [[False, False], [False, True], [True, False], [True, True]] * 2
+    args = dict(outcome="y", method="marginal_structural_model", treatment_history=histories,
+                actions=[False, False], treatment_probabilities=[[0.5, 0.5]] * 8,
+                subject_ids=[f"s{i}" for i in range(8)])
+    with pytest.raises(ValueError, match="requires one finite"):
+        LongitudinalRegimeQuery(**args)
+    with pytest.raises(ValueError, match="positivity floor"):
+        LongitudinalRegimeQuery(**args, stabilizing_numerator_probabilities=[0.0, 0.5])
+    query = LongitudinalRegimeQuery(**args, stabilizing_numerator_probabilities=[0.5, 0.5],
+                                    probabilities_known_by_design=False,
+                                    excluded_fold_predictions=True, fold_ids=[0, 1] * 4)
+    with pytest.raises(CausalUnsupportedError, match="known sequential randomization"):
+        antecedent.analyze({"y": list(range(8))}, query=query)
