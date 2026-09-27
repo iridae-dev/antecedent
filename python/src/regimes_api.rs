@@ -7,6 +7,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
+/// Additive MSM fit: intercept, coefficients, standard errors, weight
+/// diagnostics, and the retained subject count.
+type MsmFit = (f64, Vec<f64>, Vec<f64>, f64, f64, usize);
+
 /// Retained sequential randomized regime value with bounded IPW inference.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -128,7 +132,7 @@ fn fit_binary_msm(
     outcome_observed: PyReadonlyArray1<'_, bool>,
     censoring_survival: PyReadonlyArray2<'_, f64>,
     minimum_probability: f64,
-) -> PyResult<(f64, Vec<f64>, Vec<f64>, f64, f64, usize)> {
+) -> PyResult<MsmFit> {
     let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let a = treatment.as_array();
     let (n, periods) = a.dim();

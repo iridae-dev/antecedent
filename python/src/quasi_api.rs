@@ -5,6 +5,27 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+/// One staggered event-study effect: cohort, period, event time, estimate,
+/// treated and comparison counts, standard error, clusters.
+type EventTimeEffect = (i64, i64, i64, f64, usize, usize, f64, usize);
+/// One group-time ATT: cohort, period, estimate, treated and comparison
+/// counts, standard error, clusters.
+type GroupTimeAtt = (i64, i64, f64, usize, usize, f64, usize);
+/// Per-subject two-period panel row: pre outcome, post outcome, treated flag,
+/// cluster label.
+type PanelRow<'a> = (Option<f64>, Option<f64>, Option<bool>, Option<&'a str>);
+/// Per-unit staggered panel row: adoption cohort, outcome by period, cluster.
+type UnitPanel<'a> = (Option<i64>, std::collections::BTreeMap<i64, f64>, Option<&'a str>);
+/// Synthetic-control fit: effect, pre-treatment RMSE, donor weights, placebo
+/// effects, placebo rank, pre- and post-period counts.
+type SyntheticControlFit = (f64, f64, Vec<(String, f64)>, Vec<f64>, f64, usize, usize);
+/// Synthetic DiD fit: effect, pre-treatment RMSE, donor weights, time weights,
+/// donor count, pre- and post-period counts.
+type SyntheticDidFit = (f64, f64, Vec<(String, f64)>, Vec<(i64, f64)>, usize, usize, usize);
+/// Fuzzy discontinuity fit: estimate, reduced form, first stage, left and right
+/// counts, standard error, interval bounds, reduced-form and first-stage SEs.
+type FuzzyDiscontinuityFit = (f64, f64, f64, usize, usize, f64, f64, f64, f64, f64);
+
 /// Retained panel DiD result with support-gated pointwise uncertainty.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -26,7 +47,7 @@ pub struct PanelDidSection {
     /// Exact graphless two-period DiD support license, when matched.
     pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
-    pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
+    pub event_time_effects: Vec<EventTimeEffect>,
     pub event_time_intervals_95: Vec<Option<(f64, f64)>>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
     pub augmented: Option<(f64, f64, f64, bool)>,
@@ -232,7 +253,7 @@ fn panel_difference_in_differences(
     if values.iter().any(|value| !value.is_finite()) {
         return Err(PyValueError::new_err("outcomes must be finite"));
     }
-    let mut rows: BTreeMap<&str, (Option<f64>, Option<f64>, Option<bool>, Option<&str>)> =
+    let mut rows: BTreeMap<&str, PanelRow<'_>> =
         BTreeMap::new();
     for i in 0..n {
         let id = subjects[i].as_str();
@@ -316,7 +337,7 @@ fn group_time_att(
     periods: Vec<i64>,
     cohorts: Vec<i64>,
     clusters: Vec<String>,
-) -> PyResult<Vec<(i64, i64, f64, usize, usize, f64, usize)>> {
+) -> PyResult<Vec<GroupTimeAtt>> {
     use std::collections::{BTreeMap, BTreeSet};
 
     let values = outcome.as_array();
@@ -336,7 +357,7 @@ fn group_time_att(
     }
 
     // Per unit: its adoption cohort and exactly one outcome at every common period.
-    let mut units: BTreeMap<&str, (Option<i64>, BTreeMap<i64, f64>, Option<&str>)> =
+    let mut units: BTreeMap<&str, UnitPanel<'_>> =
         BTreeMap::new();
     let mut all_periods = BTreeSet::new();
     for i in 0..n {
@@ -459,7 +480,7 @@ fn staggered_event_study(
     periods: Vec<i64>,
     cohorts: Vec<i64>,
     clusters: Vec<String>,
-) -> PyResult<Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>> {
+) -> PyResult<Vec<EventTimeEffect>> {
     let values: Vec<f64> = outcome.as_array().iter().copied().collect();
     let effects = antecedent_estimate::staggered_event_study::estimate(
         &values, &subjects, &periods, &cohorts, &clusters,
@@ -479,7 +500,7 @@ fn synthetic_control(
     periods: Vec<i64>,
     treated_unit: String,
     intervention_period: i64,
-) -> PyResult<(f64, f64, Vec<(String, f64)>, Vec<f64>, f64, usize, usize)> {
+) -> PyResult<SyntheticControlFit> {
     let values: Vec<f64> = outcome.as_array().iter().copied().collect();
     let fit = antecedent_estimate::synthetic_control::fit_synthetic_control(
         &values, &units, &periods, &treated_unit, intervention_period,
@@ -496,7 +517,7 @@ fn synthetic_difference_in_differences(
     periods: Vec<i64>,
     treated_unit: String,
     intervention_period: i64,
-) -> PyResult<(f64, f64, Vec<(String, f64)>, Vec<(i64, f64)>, usize, usize, usize)> {
+) -> PyResult<SyntheticDidFit> {
     let values: Vec<f64> = outcome.as_array().iter().copied().collect();
     let fit = antecedent_estimate::synthetic_control::fit_synthetic_did(
         &values, &units, &periods, &treated_unit, intervention_period,
@@ -539,7 +560,7 @@ fn local_polynomial_fuzzy_discontinuity(
     cutoff: f64,
     bandwidth: f64,
     kink: bool,
-) -> PyResult<(f64, f64, f64, usize, usize, f64, f64, f64, f64, f64)> {
+) -> PyResult<FuzzyDiscontinuityFit> {
     let running: Vec<f64> = running.as_array().iter().copied().collect();
     let outcome: Vec<f64> = outcome.as_array().iter().copied().collect();
     let treatment: Vec<f64> = treatment.as_array().iter().copied().collect();
