@@ -23,6 +23,8 @@ pub struct SurvivalSection {
     pub bootstrap_replicates_requested: Option<u32>,
     pub bootstrap_replicates_ok: Option<u32>,
     pub censoring_survival_provenance: Option<String>,
+    pub difference_band: Option<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32)>,
+    pub band_unavailable_reason: Option<String>,
 }
 
 impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
@@ -42,6 +44,11 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             bootstrap_replicates_requested: value.bootstrap_replicates_requested,
             bootstrap_replicates_ok: value.bootstrap_replicates_ok,
             censoring_survival_provenance: value.censoring_survival_provenance.as_ref().map(ToString::to_string),
+            difference_band: value.difference_band.as_ref().map(|band| (
+                band.times.to_vec(), band.difference.to_vec(), band.lower.to_vec(),
+                band.upper.to_vec(), band.replicates_ok,
+            )),
+            band_unavailable_reason: value.band_unavailable_reason.as_ref().map(ToString::to_string),
         }
     }
 }

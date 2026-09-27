@@ -235,3 +235,65 @@ fn delayed_entry_subject_bootstrap_retains_interval_and_refuses_forgery() {
     forged.survival.as_mut().unwrap().uncertainty = "point_only_no_interval".into();
     assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged").is_err());
 }
+
+#[test]
+fn simultaneous_curve_band_is_retained_and_artifact_checked() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    for arm in [false, true] {
+        for i in 0..100 {
+            let time = if i % (if arm { 4 } else { 5 }) == 0 { 1.0 }
+                else if i % 7 == 0 { 2.0 } else { 3.0 };
+            duration.push(time);
+            event.push(if time < 3.0 { 1.0 } else { 0.0 });
+            treatment.push(f64::from(arm));
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    let ctx = ExecutionContext::for_tests(923);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(399).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let curve = result.survival.as_ref().unwrap();
+    let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
+    assert_eq!(band.times.as_ref(), curve.times.as_ref());
+    assert_eq!(band.replicates_ok, 399);
+    assert!(band.lower.iter().zip(band.difference.iter()).zip(band.upper.iter())
+        .all(|((&lower, &difference), &upper)| lower <= difference && difference <= upper));
+    assert!(curve.rmst_difference_interval.is_some());
+    assert_eq!(result.survival, prepared.estimate(&data, &ctx).unwrap().survival);
+    let bytes = prepared.encode_contracted_result(&result, "survival-band", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().difference_band.as_ref().unwrap().lower, band.lower.as_ref());
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap().difference[1] += 0.1;
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged-band").is_err());
+}
+
+#[test]
+fn simultaneous_band_withholds_small_arms_without_erasing_scalar_interval() {
+    let n = 60;
+    let duration = (0..2 * n).map(|i| if i % 5 == 0 { 1.0 } else { 3.0 }).collect::<Vec<_>>();
+    let event = duration.iter().map(|&time| if time < 3.0 { 1.0 } else { 0.0 }).collect::<Vec<_>>();
+    let treatment = [vec![0.0; n], vec![1.0; n]].concat();
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    let ctx = ExecutionContext::for_tests(923);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(399).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let curve = result.survival.as_ref().unwrap();
+    assert!(curve.difference_band.is_none());
+    assert!(curve.band_unavailable_reason.as_deref().unwrap().contains("80 subjects"));
+    assert!(curve.rmst_difference_interval.is_some());
+}

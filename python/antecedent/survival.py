@@ -144,6 +144,23 @@ class SurvivalOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class SurvivalDifferenceBand:
+    """A 95% simultaneous band for one treatment-minus-control event-time curve.
+
+    Coverage is for the complete reported event-time grid. The scalar RMST and
+    fixed-horizon intervals use a separate pointwise bootstrap construction.
+    """
+
+    times: tuple[float, ...]
+    difference: tuple[float, ...]
+    lower: tuple[float, ...]
+    upper: tuple[float, ...]
+    replicates_ok: int
+    level: float = 0.95
+    method: str = "subject_stratified_bootstrap_supremum"
+
+
+@dataclass(frozen=True, slots=True)
 class SurvivalEstimate:
     """Kaplan-Meier step curves and RMST with optional pointwise contrasts."""
 
@@ -160,6 +177,8 @@ class SurvivalEstimate:
     bootstrap_replicates_requested: int | None = None
     bootstrap_replicates_ok: int | None = None
     censoring_survival_provenance: str | None = None
+    difference_band: SurvivalDifferenceBand | None = None
+    band_unavailable_reason: str | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
@@ -292,6 +311,8 @@ class CumulativeIncidenceEstimate:
     bootstrap_replicates_requested: int | None = None
     bootstrap_replicates_ok: int | None = None
     censoring_survival_provenance: str | None = None
+    difference_band: SurvivalDifferenceBand | None = None
+    band_unavailable_reason: str | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
