@@ -105,16 +105,23 @@ impl CheckedContinuousDoseOperation {
         let density = numeric(self.query.dose_density)?;
         let groups: Vec<String> =
             self.query.baseline_groups.iter().map(ToString::to_string).collect();
-        let points = antecedent_estimate::continuous_dose::conditional_dose_response(
-            &outcome,
-            &dose,
-            &groups,
-            &density,
-            &self.query.target_doses,
-            self.query.bandwidth,
-            self.query.min_local_support,
-        )
-        .map_err(|message| CausalError::Compile { message })?;
+        let points = if self.query.target_doses.is_empty() { Vec::new() } else {
+            antecedent_estimate::continuous_dose::conditional_dose_response(
+                &outcome, &dose, &groups, &density, &self.query.target_doses,
+                self.query.bandwidth, self.query.min_local_support,
+            ).map_err(|message| CausalError::Compile { message })?
+        };
+        let fixed_policy = self.query.fixed_policy.as_ref().map(|rule| {
+            let policy = rule.policy_doses.iter().map(|(group, dose)| (group.to_string(), *dose))
+                .collect::<Vec<_>>();
+            let reference = rule.reference_doses.iter().map(|(group, dose)| (group.to_string(), *dose))
+                .collect::<Vec<_>>();
+            antecedent_estimate::continuous_dose::fixed_dose_policy_value(
+                &outcome, &dose, &groups, &density, &policy, &reference,
+                self.query.bandwidth, self.query.min_local_support,
+                self.query.density_provenance.as_ref() == "known",
+            ).map_err(|message| CausalError::Compile { message })
+        }).transpose()?;
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -137,7 +144,11 @@ impl CheckedContinuousDoseOperation {
                     "estimate.policy.continuous_dose_support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "all baseline-group target cells met local support; density provenance is caller-declared; local SD is descriptive; no interval or continuous-dose policy value",
+                    if fixed_policy.is_some() {
+                        "fixed group-to-dose policy and reference estimate kernel-smoothed intervention values with paired independent-row variance; the result does not identify an exact-dose intervention"
+                    } else {
+                        "all baseline-group target cells met local support; density provenance is caller-declared; local SD is descriptive; no interval or continuous-dose policy value"
+                    },
                 )],
                 refutations: Vec::new(),
                 distribution: None,
@@ -154,7 +165,13 @@ impl CheckedContinuousDoseOperation {
             points: points.into(),
             bandwidth: self.query.bandwidth,
             density_provenance: self.query.density_provenance.clone(),
-            uncertainty: Arc::from("point_only_no_interval"),
+            uncertainty: Arc::from(match &fixed_policy {
+                Some(value) if value.incremental_interval_95.is_some() =>
+                    "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals",
+                Some(_) => "fixed_group_kernel_smoothed_paired_variance_no_interval",
+                None => "point_only_no_interval",
+            }),
+            fixed_policy,
         });
         result.treatment = None;
         Ok(result)
@@ -195,6 +212,17 @@ pub(crate) fn continuous_dose_identification(
             assumption: Assumption::Custom {
                 id: Arc::from(id),
                 description: Arc::from(description),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
+    if query.fixed_policy.is_some() {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("fixed_group_dose_policy"),
+                description: Arc::from("policy and reference doses were fixed for pre-treatment groups independently of these evaluation outcomes; the estimand averages each group's inverse-density kernel-smoothed intervention response, not its exact-dose potential outcome"),
             },
             source: AssumptionSource::UserDeclared,
             scope: AssumptionScope::Identification,

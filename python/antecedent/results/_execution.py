@@ -212,7 +212,9 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer("policy_value", detail="held_out_randomized_dr", structured=dict(policy))
     dose = payload.get("continuous_dose_response")
     if kind == "point" and isinstance(dose, Mapping):
-        return Answer("structured", detail="continuous_dose_response_point_only", structured=dict(dose))
+        detail = ("fixed_group_kernel_smoothed_dose_policy_value" if dose.get("fixed_policy") is not None
+                  else "continuous_dose_response_point_only")
+        return Answer("structured", detail=detail, structured=dict(dose))
     survival = payload.get("survival")
     if kind == "point" and isinstance(survival, Mapping):
         detail = ("randomized_survival_pointwise_bootstrap"
@@ -385,7 +387,9 @@ class ResultAPI:
         if dose is not None:
             from dataclasses import asdict
 
-            return Answer("structured", detail="continuous_dose_response_point_only", structured=asdict(dose))
+            detail = ("fixed_group_kernel_smoothed_dose_policy_value" if dose.policy_value_estimated
+                      else "continuous_dose_response_point_only")
+            return Answer("structured", detail=detail, structured=asdict(dose))
         survival = getattr(self, "survival", None)
         if survival is not None:
             from dataclasses import asdict
@@ -521,6 +525,11 @@ class ResultAPI:
             )
         dose = getattr(self, "continuous_dose_response", None)
         if dose is not None:
+            if dose.policy_value_estimated:
+                value = dose.fixed_policy
+                return (f"Fixed group-dose policy kernel-smoothed value {value.policy_value:g}; "
+                        f"reference {value.reference_value:g}; incremental {value.incremental_value:g}. "
+                        "The target is a local intervention, not exact-dose potential-outcome value.")
             return f"Conditional continuous-dose response at {len(dose.points)} group-target cells. Point-only; no calibrated interval or policy value."
         from .._claim import result_claim
 

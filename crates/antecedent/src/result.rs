@@ -190,7 +190,7 @@ pub struct SyntheticControlEstimate {
     pub augmentation_ridge: Option<f64>,
 }
 
-/// Point-only conditional response grid with local support diagnostics.
+/// Conditional response grid and optional fixed kernel-smoothed dose-policy value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousDoseResponseEstimate {
     /// One response and support record for each baseline-group target cell.
@@ -199,7 +199,9 @@ pub struct ContinuousDoseResponseEstimate {
     pub bandwidth: f64,
     /// Caller-declared source of dose densities.
     pub density_provenance: Arc<str>,
-    /// No inferential standard error or interval is licensed.
+    /// Fixed group-to-dose policy value, when requested.
+    pub fixed_policy: Option<antecedent_estimate::continuous_dose::DosePolicyValue>,
+    /// Point-only response or the dose-policy interval method.
     pub uncertainty: Arc<str>,
 }
 

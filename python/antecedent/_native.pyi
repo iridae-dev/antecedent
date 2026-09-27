@@ -511,6 +511,24 @@ class ContinuousDoseResponseSection:
     bandwidth: float
     density_provenance: str
     uncertainty: str
+    fixed_policy: DosePolicyValueSection | None
+
+class DosePolicyValueSection:
+    policy_doses: list[tuple[str, float]]
+    reference_doses: list[tuple[str, float]]
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    policy_variance: float
+    reference_variance: float
+    incremental_variance: float
+    policy_interval_95: tuple[float, float] | None
+    reference_interval_95: tuple[float, float] | None
+    incremental_interval_95: tuple[float, float] | None
+    minimum_local_rows: int
+    minimum_effective_sample_size: float
+    maximum_normalized_weight: float
+    minimum_dose_density: float
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
@@ -1367,6 +1385,8 @@ class PreparedAnalysis:
         names: list[str], columns: Sequence[Any], outcome: str, dose: str,
         dose_density: str, baseline_groups: list[str], target_doses: list[float],
         bandwidth: float, density_provenance: str, *, min_local_support: int = 3,
+        policy_doses: list[tuple[str, float]] | None = None,
+        reference_doses: list[tuple[str, float]] | None = None,
         accepted: bool = False, seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
