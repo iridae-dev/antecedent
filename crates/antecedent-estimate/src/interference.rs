@@ -423,12 +423,101 @@ pub const fn own_treatment_level(treated: bool) -> ExposureLevel {
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "coverage fixtures build small cluster sizes and node ids from usize/u64 loop counters"))]
     use std::sync::Arc;
 
     use antecedent_core::{AssignmentDesign, ExposureMapping, InterferenceFunctional, VariableId};
     use antecedent_data::TabularData;
 
     use super::*;
+
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+    }
+
+    #[test]
+    fn cluster_total_interval_covers_known_truth() {
+        // Fixed finite population of cluster potential outcomes with a constant
+        // additive total effect (the unit-level effect variance is zero), so the
+        // conservative cluster Neyman variance is unbiased and the pointwise 95%
+        // Welch interval covers at the nominal rate. Only the complete cluster
+        // allocation is re-randomized. Eight clusters per arm is the licensed
+        // support boundary.
+        const REPLICATES: usize = 2_000;
+        const K: usize = 16;
+        const TREATED: usize = 8;
+        let truth = 3.0_f64;
+        let baseline = (0..K)
+            .map(|cluster| 0.7 * (cluster as f64 * 0.9).sin() + 0.2 * (cluster % 3) as f64)
+            .collect::<Vec<_>>();
+        let edges = (0..K)
+            .flat_map(|cluster| {
+                let first = (cluster * 2) as u32;
+                [
+                    antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                ]
+            })
+            .collect::<Vec<_>>();
+        let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+        let mut rng = XorShift(0x0BAD_C0DE_D15E_A5E1);
+        let mut covered = 0_usize;
+        let mut supported = 0_usize;
+        for _ in 0..REPLICATES {
+            let mut order = (0..K).collect::<Vec<_>>();
+            for i in (1..K).rev() {
+                let j = (rng.next() as usize) % (i + 1);
+                order.swap(i, j);
+            }
+            let mut treated_cluster = [false; K];
+            for &cluster in &order[..TREATED] {
+                treated_cluster[cluster] = true;
+            }
+            let mut assignment = Vec::with_capacity(K * 2);
+            let mut outcomes = Vec::with_capacity(K * 2);
+            for unit in 0..K * 2 {
+                let cluster = unit / 2;
+                let treated = treated_cluster[cluster];
+                assignment.push(treated);
+                let y0 = baseline[cluster] + 0.1 * (unit % 2) as f64;
+                outcomes.push(if treated { y0 + truth } else { y0 });
+            }
+            let table = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+            let network = NetworkData::try_new(table, edges.clone()).unwrap();
+            let query = InterferenceQuery::new(
+                AssignmentDesign::ClusterRandomization {
+                    clusters: Arc::from(clusters.clone()),
+                    treated_clusters: TREATED,
+                },
+                ExposureMapping::NeighborFraction,
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                    to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+                },
+            );
+            let (_, interval) =
+                estimate_cluster_interference_total_with_inference(&query, &network, &assignment)
+                    .unwrap();
+            if let Some(interval_95) = interval {
+                supported += 1;
+                covered += usize::from(
+                    interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1],
+                );
+            }
+        }
+        let rate = covered as f64 / supported as f64;
+        eprintln!("cluster total: {covered}/{supported}, coverage={rate:.4}");
+        assert!(supported >= 1_950, "too many degenerate refusals: {supported}");
+        assert!((0.93..=0.985).contains(&rate), "pointwise 95% coverage {rate}");
+    }
 
     #[test]
     fn cluster_total_pointwise_refuses_thin_assignment_arms() {

@@ -260,8 +260,26 @@ impl CheckedInterferenceOperation {
                         degrees_of_freedom: interval.degrees_of_freedom,
                         first_stage_arm_clusters: [interval.low_clusters, interval.high_clusters],
                     });
+                    let graphless_support_status = interval.as_ref().and_then(|interval| {
+                        interference_graphless_license(
+                            "two_stage_saturation",
+                            "saturation_cluster_neyman_welch",
+                            crate::support::GraphlessAssignmentSupport {
+                                assignment_unit: "cluster",
+                                // first_stage_arm_clusters is [low, high] saturation arms.
+                                control: interval.first_stage_arm_clusters[0],
+                                treated: interval.first_stage_arm_clusters[1],
+                                blocks: 2,
+                                min_block_arm: value.from_exposed_clusters.min(value.to_exposed_clusters),
+                                interval_95_published: true,
+                                reported_intervals: 1,
+                                ..Default::default()
+                            },
+                        )
+                    });
                     let inference = crate::result::InterferenceInference {
                         method: "saturation_cluster_neyman_welch",
+                        graphless_support_status,
                         interval,
                         interval_unavailable_reason: value.interval_unavailable_reason,
                         from_exposed_units: value.from_exposed_units,
@@ -287,8 +305,23 @@ impl CheckedInterferenceOperation {
                         _ => unreachable!(),
                     };
                     let interval_available = interval.is_some();
+                    let graphless_support_status = interval.as_ref().and_then(|_| {
+                        interference_graphless_license(
+                            "cluster_randomization_total",
+                            "cluster_total_neyman_welch",
+                            crate::support::GraphlessAssignmentSupport {
+                                assignment_unit: "cluster",
+                                treated: treated_clusters,
+                                control: control_clusters,
+                                interval_95_published: true,
+                                reported_intervals: 1,
+                                ..Default::default()
+                            },
+                        )
+                    });
                     let inference = crate::result::InterferenceInference {
                         method: "cluster_total_neyman_welch",
+                        graphless_support_status,
                         interval: interval.map(|interval| crate::result::InterferencePointwiseInterval {
                             lower: interval.bounds[0], upper: interval.bounds[1],
                             standard_error: interval.standard_error,
@@ -358,8 +391,27 @@ impl CheckedInterferenceOperation {
                     degrees_of_freedom: interval.degrees_of_freedom,
                     first_stage_arm_clusters: [summary.from_exposed_clusters, summary.to_exposed_clusters],
                 });
+                let graphless_support_status = interval.as_ref().and_then(|_| {
+                    interference_graphless_license(
+                        "observational_known_exposure",
+                        "observational_known_exposure_cluster_t",
+                        crate::support::GraphlessAssignmentSupport {
+                            assignment_unit: "cluster",
+                            treated: summary.to_exposed_clusters,
+                            control: summary.from_exposed_clusters,
+                            // Independent partial-interference clusters are the units of inference.
+                            blocks: summary.clusters,
+                            interval_95_published: true,
+                            reported_intervals: 1,
+                            known_density: summary.propensity_provenance
+                                == antecedent_core::ExposurePropensityProvenance::Known,
+                            ..Default::default()
+                        },
+                    )
+                });
                 let interference_inference = crate::result::InterferenceInference {
                     method: "observational_known_exposure_cluster_t",
+                    graphless_support_status,
                     interval,
                     interval_unavailable_reason: summary.interval_unavailable_reason,
                     from_exposed_units: summary.from_exposed_units,
@@ -655,6 +707,30 @@ fn estimate_observed_exposure(
             propensity_provenance: *provenance,
         },
     ).map_err(CausalError::from)
+}
+
+/// License one interference exposure-contrast interval against the exact
+/// graphless support table. The interval must already be published; a withheld
+/// interval or too little independent-cluster support classifies as refused and
+/// yields no license.
+fn interference_graphless_license(
+    design: &'static str,
+    method: &'static str,
+    support: crate::support::GraphlessAssignmentSupport,
+) -> Option<crate::support::CellStatus> {
+    matches!(
+        crate::support::classify_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "interference",
+                design,
+                method,
+                inference_claim: "exposure_contrast_pointwise_95_student_interval",
+            },
+            support,
+        ),
+        crate::support::GraphlessSupportStatus::Licensed { .. },
+    )
+    .then_some(crate::support::CellStatus::Licensed)
 }
 
 fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {

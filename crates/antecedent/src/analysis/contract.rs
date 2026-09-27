@@ -617,6 +617,12 @@ impl PreparedStudy {
                     });
             }
         }
+        // Interference is on the geometric support axis: its contract keeps the
+        // geometric `InterferenceQuery` coordinate and calibration basis. The
+        // off-axis exposure-contrast interval license is carried instead in
+        // `interference_inference.graphless_support_status`, wired to the
+        // artifact and revalidated by `validate_result`, so it is never a
+        // separate matrix coordinate that would break calibration verification.
         Ok((contract, payloads))
     }
 
@@ -3580,6 +3586,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         }),
         interference_inference: result.interference_inference.as_ref().map(|inference| antecedent_io::InterferenceInferenceWire {
             method: inference.method.into(),
+            graphless_support_status: inference.graphless_support_status.map(CellStatus::as_str).map(str::to_string),
             interval: inference.interval.as_ref().map(|interval| antecedent_io::InterferencePointwiseIntervalWire {
                 lower: interval.lower,
                 upper: interval.upper,

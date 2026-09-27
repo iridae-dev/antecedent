@@ -348,6 +348,83 @@ mod tests {
     }
 
     #[test]
+    fn saturation_exposure_interval_covers_known_truth() {
+        // Fixed finite-population potential outcomes; only the two randomization
+        // stages vary. Two units per cluster expose the (own, neighbor) cells
+        // exactly and preserve within-cluster assignment dependence. Twenty-four
+        // clusters per saturation arm is the licensed support boundary; the
+        // total (0,0) -> (1,1) contrast has known truth 2.4.
+        const REPLICATES: usize = 2_000;
+        const CLUSTERS: usize = 48;
+        let truth = 2.4_f64;
+        let clusters = (0..CLUSTERS).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+        let edges = (0..CLUSTERS)
+            .flat_map(|cluster| {
+                let first = (2 * cluster) as u32;
+                [
+                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                ]
+            })
+            .collect::<Vec<_>>();
+        let mut rng = Random(0x51A7_0F3C_9E2D_11AB);
+        let mut covered = 0_usize;
+        let mut supported = 0_usize;
+        for _ in 0..REPLICATES {
+            let mut order = (0..CLUSTERS).collect::<Vec<_>>();
+            for i in (1..CLUSTERS).rev() {
+                let j = (rng.next() as usize) % (i + 1);
+                order.swap(i, j);
+            }
+            let mut high = [false; CLUSTERS];
+            for &cluster in &order[..CLUSTERS / 2] {
+                high[cluster] = true;
+            }
+            let realized = (0..CLUSTERS)
+                .flat_map(|cluster| [if high[cluster] { 0.8 } else { 0.2 }; 2])
+                .collect::<Vec<_>>();
+            let assignment =
+                (0..CLUSTERS * 2).map(|unit| rng.uniform() < realized[unit]).collect::<Vec<_>>();
+            let outcomes = (0..CLUSTERS * 2)
+                .map(|unit| {
+                    let own = f64::from(assignment[unit]);
+                    let neighbor = f64::from(assignment[unit ^ 1]);
+                    let base = 1.0 + 0.15 * ((unit / 2) as f64 * 0.37).sin() + 0.09 * (unit % 2) as f64;
+                    base + 1.2 * own + 0.7 * neighbor + 0.5 * own * neighbor
+                })
+                .collect::<Vec<_>>();
+            let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+            let network = NetworkData::try_new(units, edges.clone()).unwrap();
+            let query = InterferenceQuery::new(
+                AssignmentDesign::TwoStageSaturation {
+                    clusters: Arc::from(clusters.clone()),
+                    low_probability: 0.2,
+                    high_probability: 0.8,
+                    high_clusters: CLUSTERS / 2,
+                    realized_saturation: Arc::from(realized.clone()),
+                },
+                ExposureMapping::NeighborFraction,
+                InterferenceFunctional::ExposureContrast {
+                    outcome: VariableId::from_raw(0),
+                    from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                    to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+                },
+            );
+            let result = estimate_saturation_interference(&query, &network, &assignment).unwrap();
+            if let Some(interval_95) = result.pointwise_interval {
+                supported += 1;
+                covered += usize::from(
+                    interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1],
+                );
+            }
+        }
+        let rate = covered as f64 / supported as f64;
+        eprintln!("saturation total: {covered}/{supported}, coverage={rate:.4}");
+        assert!(supported >= 1_900, "too many sparse refusals: {supported}");
+        assert!((0.93..=0.985).contains(&rate), "pointwise 95% coverage {rate}");
+    }
+
+    #[test]
     fn two_stage_direct_spillover_total_pointwise_coverage() {
         // Fixed finite-population potential outcomes; only the two randomization
         // stages vary. Two units per cluster expose the four (own, neighbor)

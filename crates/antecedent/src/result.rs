@@ -609,6 +609,10 @@ pub struct InterferencePointwiseInterval {
 pub struct InterferenceInference {
     /// Construction identifier.
     pub method: &'static str,
+    /// Exact graphless interference license after observed cluster support and
+    /// a published pointwise interval pass; `None` when the interval is withheld
+    /// or the design/exposure support does not match a licensed row.
+    pub graphless_support_status: Option<crate::support::CellStatus>,
     /// Pointwise interval, when its support conditions pass.
     pub interval: Option<InterferencePointwiseInterval>,
     /// Reason a point estimate has no interval.

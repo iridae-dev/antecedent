@@ -461,6 +461,8 @@ pub(crate) struct InterferenceSection {
     pointwise_interval: Option<(f64, f64, f64, f64, usize, usize, String)>,
     #[pyo3(get)]
     interval_unavailable_reason: Option<String>,
+    #[pyo3(get)]
+    graphless_support_status: Option<String>,
 }
 
 impl InterferenceSection {
@@ -492,6 +494,8 @@ impl InterferenceSection {
                 interval.first_stage_arm_clusters[0], interval.first_stage_arm_clusters[1], v.method.to_string(),
             ))),
             interval_unavailable_reason: inference.and_then(|v| v.interval_unavailable_reason.map(str::to_string)),
+            graphless_support_status: inference
+                .and_then(|v| v.graphless_support_status.map(|status| status.as_str().to_string())),
         }
     }
 }

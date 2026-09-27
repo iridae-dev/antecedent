@@ -268,6 +268,88 @@ mod tests {
 
     use super::{ObservationalExposureSpec, estimate_observational_exposure};
 
+    struct XorShift(u64);
+
+    impl XorShift {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn uniform(&mut self) -> f64 {
+            (self.next() >> 11) as f64 / (1_u64 << 53) as f64
+        }
+    }
+
+    #[test]
+    fn observational_known_exposure_interval_covers_known_truth() {
+        // Fixed finite population of unit potential outcomes; per-unit exposure is
+        // re-randomized by independent Bernoulli(0.5) own-treatment within each
+        // two-unit cluster, so the marginal probability of the (0,0) and (1,1)
+        // levels is exactly 0.25. Known supplied propensities make the IPW
+        // contrast design-unbiased and the CR1 cluster interval cover at the
+        // nominal rate. Thirty independent clusters is the licensed support floor;
+        // fifty keeps both requested levels comfortably above eight exposed
+        // clusters. The (0,0) -> (1,1) contrast has known truth 3.5.
+        const REPLICATES: usize = 2_000;
+        const CLUSTERS: usize = 120;
+        let truth = 3.5_f64;
+        let labels = (0..CLUSTERS).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+        let edges = (0..CLUSTERS)
+            .flat_map(|cluster| {
+                let first = (2 * cluster) as u32;
+                [
+                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                ]
+            })
+            .collect::<Vec<_>>();
+        let base = (0..CLUSTERS * 2)
+            .map(|unit| 0.5 * (unit / 2 % 5) as f64 + 0.1 * (unit % 2) as f64)
+            .collect::<Vec<_>>();
+        let probabilities = vec![0.25; CLUSTERS * 2];
+        let mut rng = XorShift(0x39F1_77C4_2B8E_A013);
+        let mut covered = 0_usize;
+        let mut supported = 0_usize;
+        for _ in 0..REPLICATES {
+            let assignment =
+                (0..CLUSTERS * 2).map(|_| rng.uniform() < 0.5).collect::<Vec<_>>();
+            let outcomes = (0..CLUSTERS * 2)
+                .map(|unit| {
+                    let own = f64::from(assignment[unit]);
+                    let neighbor = f64::from(assignment[unit ^ 1]);
+                    base[unit] + 2.0 * own + 1.5 * neighbor
+                })
+                .collect::<Vec<_>>();
+            let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+            let network = NetworkData::try_new(data, edges.clone()).unwrap();
+            let spec = ObservationalExposureSpec {
+                assignment: &assignment,
+                clusters: &labels,
+                exposure: &ExposureMapping::NeighborFraction,
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+                propensity_from: &probabilities,
+                propensity_to: &probabilities,
+                propensity_provenance: ExposurePropensityProvenance::Known,
+            };
+            let result =
+                estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
+            if let Some(interval_95) = result.pointwise_interval {
+                supported += 1;
+                covered += usize::from(
+                    interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1],
+                );
+            }
+        }
+        let rate = covered as f64 / supported as f64;
+        eprintln!("observational known: {covered}/{supported}, coverage={rate:.4}");
+        assert!(supported >= 1_950, "too many sparse refusals: {supported}");
+        assert!((0.93..=0.985).contains(&rate), "pointwise 95% coverage {rate}");
+    }
+
     #[test]
     fn supplied_propensities_recover_known_network_contrast_and_cluster_variance() {
         let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
