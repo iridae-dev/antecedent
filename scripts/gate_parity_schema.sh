@@ -476,7 +476,7 @@ else:
 
     def _collects(tests):
         return subprocess.run(
-            ["uv", "run", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
+            ["uv", "run", "--no-sync", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
             cwd=root / "python",
             capture_output=True,
             text=True,
