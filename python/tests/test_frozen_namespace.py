@@ -325,6 +325,7 @@ _EXPECTED_STAGE_ALL = {
         "PanelDifferenceInDifferences",
         "PanelDifferenceInDifferencesEstimate",
         "RegressionKink",
+        "SharpRegressionDiscontinuity",
         "StaggeredAdoption",
         "StaggeredAdoptionEstimate",
         "StaggeredEventStudyEstimate",

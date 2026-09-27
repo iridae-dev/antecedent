@@ -54,7 +54,6 @@ def _rd(seed: int, n: int = 2000) -> dict[str, np.ndarray]:
 
 
 RD_GRAPH = [("x", "t"), ("x", "y"), ("t", "y")]
-RD_OPTIONS = dict(identifier="rd.sharp", running_variable="x", cutoff=0.0, bandwidth=0.3)
 
 
 def _cpdag() -> Any:
@@ -198,7 +197,7 @@ ESTIMATOR_ROUTES: list[tuple[str, Callable[[], Any], Any, Any, dict[str, Any]]] 
         ant.AverageEffect("t", "y"),
         {"identifier": "frontdoor"},
     ),
-    ("rd", lambda: _rd(1), RD_GRAPH, ant.AverageEffect("t", "y"), RD_OPTIONS),
+    ("rd", lambda: _rd(1), None, ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3), {}),
     (
         "conditional",
         lambda: _static(1),
@@ -258,7 +257,9 @@ def test_no_estimator_runs_under_an_inference_mode_it_does_not_implement(
     assert not silent, f"{name}: ran a different inference mode than requested: {silent}"
     # The route is exercised: at least one Frequentist execution ran.
     assert any(entry.endswith("Frequentist") for entry in ran), (name, ran)
-    if name in ("dag", "dag_binary", "cpdag", "admg", "iv", "frontdoor", "rd"):
+    # (The "rd" route is a query that selects its own estimator and refuses
+    # estimator= overrides with option_not_applicable, not estimator_inference_mismatch.)
+    if name in ("dag", "dag_binary", "cpdag", "admg", "iv", "frontdoor"):
         assert mismatches > 0
 
 
@@ -325,7 +326,10 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
             "unknown estimator",
             lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="bogus"),
         ),
-        ("RD kwarg off route", lambda: ant.analyze(data, graph=GRAPH, query=query, bandwidth=0.3)),
+        (
+            "sharp RD estimator off route",
+            lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="rd.sharp"),
+        ),
         (
             "regimes without RPCMCI",
             lambda: ant.analyze(data, graph=GRAPH, query=query, regimes=[0] * n),
@@ -512,10 +516,7 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
 def test_sharp_rd_contract_names_per_execution_identification() -> None:
     study = ant.prepare(
         _rd(0),
-        graph=RD_GRAPH,
-        query=ant.AverageEffect("t", "y"),
-        estimator="rd.sharp",
-        **RD_OPTIONS,
+        query=ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3),
     )
     identification = study.inspect().identification
     assert identification.available is False

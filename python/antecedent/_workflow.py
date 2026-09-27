@@ -50,9 +50,6 @@ def prepare(
     validators: Sequence[Any] | Mapping[str, Any] | None = None,
     accept_discovered: bool = True,
     regimes: Sequence[int] | None = None,
-    running_variable: str | None = None,
-    cutoff: float | None = None,
-    bandwidth: float | None = None,
     provider: Any | None = None,
     controls: Any | None = None,
 ) -> PreparedAnalysis[_PreparedResult]:
@@ -85,9 +82,6 @@ def prepare(
         validators=validators,
         accept_discovered=accept_discovered,
         regimes=regimes,
-        running_variable=running_variable,
-        cutoff=cutoff,
-        bandwidth=bandwidth,
         provider=provider,
         controls=controls,
     )

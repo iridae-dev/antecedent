@@ -333,17 +333,15 @@ def _rd_data(n: int = 400) -> dict[str, np.ndarray]:
 
 
 def _rd(data: dict[str, np.ndarray], **kwargs: Any):
-    kwargs.setdefault("running_variable", "r")
-    kwargs.setdefault("cutoff", 0.0)
-    kwargs.setdefault("bandwidth", 1.2)
-    rv = kwargs["running_variable"]
+    rv = kwargs.pop("running_variable", "r")
+    cutoff = kwargs.pop("cutoff", 0.0)
+    bandwidth = kwargs.pop("bandwidth", 1.2)
     # A sharp design's treatment column is that design's threshold rule.
-    data = {**data, "t": (data[rv] >= kwargs["cutoff"]).astype(float)}
+    data = {**data, "t": (data[rv] >= cutoff).astype(float)}
     return _analyze(
         data=data,
-        graph=[(rv, "t"), (rv, "y"), ("t", "y")],
-        estimator="rd.sharp",
-        identifier="rd.sharp",
+        graph=None,
+        query=ant.quasi.SharpRegressionDiscontinuity("y", "t", rv, cutoff, bandwidth),
         **kwargs,
     )
 
