@@ -129,13 +129,23 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
 
     def export(self) -> bytes:
         if self.artifact is None:
-            raise ValueError("provider result has no portable artifact")
+            from ..errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "provider result has no portable artifact; the provider returned none",
+                reason_code="not_executed",
+            )
         return self.artifact
 
     def export_host(self) -> bytes:
         """Export the native-validated host envelope and opaque provider receipt."""
         if self.host_artifact is None:
-            raise ValueError("provider result has no host artifact")
+            from ..errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "provider result has no host artifact; the provider returned none",
+                reason_code="not_executed",
+            )
         return self.host_artifact
 
     def to_dict(self) -> dict[str, Any]:
