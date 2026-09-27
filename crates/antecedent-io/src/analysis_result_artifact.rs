@@ -472,7 +472,8 @@ pub struct PanelDidWire {
     /// Difference in mean subject-level changes.
     pub effect: f64,
     /// Cluster-robust standard error.
-    pub standard_error: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
     /// Treated subject count.
     pub treated_subjects: usize,
     /// Comparison subject count.
@@ -1424,7 +1425,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                         && clusters == expected_clusters && treated >= 2 && controls >= 2 && clusters >= 4
                 })
                 && representative.is_some_and(|effect| did.effect == effect.3
-                    && did.standard_error == effect.6)
+                    && did.standard_error == Some(effect.6))
         } else { did.event_time_effects.is_empty() };
         let (treated_subjects, comparison_subjects) = if query.staggered_event_study {
             representative.map(|effect| (effect.4, effect.5)).unwrap_or((0, 0))
@@ -1465,7 +1466,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                     && p_min.is_finite() && p_max.is_finite()
                     && *p_min > 0.0 && *p_min <= *p_max && *p_max < 1.0
                     && ess.is_finite() && *ess > 0.0 && *ess <= comparison_subjects as f64 + 1e-9
-                    && did.standard_error == 0.0
+                    && did.standard_error.is_none()
                     && did.uncertainty == "point_only_no_standard_error"
             }
             (None, None) => true,
@@ -1474,8 +1475,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         if result.estimate != Some(did.effect)
             || result.standard_error.is_some()
             || !did.effect.is_finite()
-            || !did.standard_error.is_finite()
-            || did.standard_error < 0.0
+            || did.standard_error.is_some_and(|se| !se.is_finite() || se < 0.0)
+            || (query.augmented.is_none() && did.standard_error.is_none())
             || did.treated_subjects != treated_subjects
             || did.comparison_subjects != comparison_subjects
             || did.clusters != clusters
@@ -2100,7 +2101,7 @@ mod tests {
         result.standard_error = None;
         result.panel_did = Some(PanelDidWire {
             effect: 2.0,
-            standard_error: 0.4,
+            standard_error: Some(0.4),
             treated_subjects: 2,
             comparison_subjects: 2,
             clusters: 4,
@@ -2138,7 +2139,7 @@ mod tests {
         result.standard_error = None;
         result.panel_did = Some(PanelDidWire {
             effect: 2.0,
-            standard_error: (16.0_f64 / 7.0).sqrt(),
+            standard_error: Some((16.0_f64 / 7.0).sqrt()),
             treated_subjects: 4,
             comparison_subjects: 4,
             clusters: 8,
@@ -2193,7 +2194,7 @@ mod tests {
         result.standard_error = None;
         result.panel_did = Some(PanelDidWire {
             effect: 4.0,
-            standard_error: 0.5,
+            standard_error: Some(0.5),
             treated_subjects: 4,
             comparison_subjects: 4,
             clusters: 8,
