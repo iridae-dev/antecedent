@@ -4307,6 +4307,12 @@ class PreparedAnalysis(Generic[ResultT]):
         refuse_transport_only_kwargs(
             query, provider=provider, inference=inference, controls=controls
         )
+        # A design-carrying query may name its row-aligned inputs by data column;
+        # resolve those from the raw data (any dtype) and drop them before the numeric
+        # ingest. No-op when the caller passed the arrays inline.
+        from ._columns import resolve_query as _resolve_query_columns
+
+        query, data = _resolve_query_columns(query, data)
         if isinstance(query, Transport):
             if not isinstance(graph, Admg):
                 raise CausalTypeError("transport.Transport requires graph=Admg(...)")

@@ -216,18 +216,34 @@ class ExperimentDesign:
     """
 
     assignment: AssignmentDesign
-    realized_assignment: Sequence[bool]
-    assignment_units: Sequence[str]
-    outcome_units: Sequence[str]
+    realized_assignment: Sequence[bool] | str
+    assignment_units: Sequence[str] | str
+    outcome_units: Sequence[str] | str
     _: KW_ONLY
-    blocks: Sequence[str] | None = None
+    blocks: Sequence[str] | str | None = None
     treatment_arms: tuple[str, str] = ("control", "treated")
     estimand: Literal["itt"] = "itt"
     kind: Literal["experiment_design"] = field(
         default="experiment_design", init=False, repr=False
     )
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    _COLUMN_FIELDS = {
+        "realized_assignment": "bool",
+        "assignment_units": "str",
+        "outcome_units": "str",
+        "blocks": "str",
+    }
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names unvalidated; resolve_columns rebuilds
+            # this design against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         object.__setattr__(self, "realized_assignment", tuple(self.realized_assignment))
         object.__setattr__(self, "assignment_units", tuple(self.assignment_units))
         object.__setattr__(self, "outcome_units", tuple(self.outcome_units))
@@ -385,9 +401,15 @@ class RandomizedEffect:
     exact_randomization_test: bool = False
     kind: Literal["randomized_effect"] = field(default="randomized_effect", init=False, repr=False)
 
+    #: Recurse into the design so its column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("design",)
+
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty variable name")
+        # The design's row-length checks below re-run when resolve_columns rebuilds
+        # this query with the design resolved against the data.
+        deferred = getattr(self.design, "_deferred_columns", False)
         if isinstance(self.design, MultiArmExperimentDesign):
             if self.cuped is not None or self.ancova_covariates or self.exact_randomization_test:
                 raise CausalValueError("multi-arm contrasts do not combine with CUPED, ANCOVA, or exact Fisher inference")
@@ -402,7 +424,7 @@ class RandomizedEffect:
                 raise CausalValueError("ANCOVA requires distinct, non-empty pre-assignment covariate names separate from outcome")
             if self.cuped is not None or not isinstance(self.design.assignment, BernoulliAssignment):
                 raise CausalValueError("retained ANCOVA requires Bernoulli assignment and cannot combine with fixed CUPED")
-            if len(self.design.realized_assignment) <= len(self.ancova_covariates) + 2:
+            if not deferred and len(self.design.realized_assignment) <= len(self.ancova_covariates) + 2:
                 raise CausalValueError("ANCOVA requires residual degrees of freedom")
         if isinstance(self.design.assignment, FactorialRandomization) and self.exact_randomization_test:
             raise CausalValueError("exact Fisher inference is only available for unadjusted complete two-arm designs")
@@ -411,7 +433,7 @@ class RandomizedEffect:
             or self.cuped is not None
             or self.ancova_covariates
             or not isinstance(self.design.assignment, CompleteRandomization)
-            or len(self.design.realized_assignment) > 20
+            or (not deferred and len(self.design.realized_assignment) > 20)
         ):
             raise CausalValueError("exact randomization inference requires an unadjusted complete two-arm design with at most 20 units")
 
