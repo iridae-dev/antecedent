@@ -606,6 +606,9 @@ pub struct SyntheticControlWire {
     /// Exact sharp-null p-value under declared uniform single-unit assignment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub randomization_p_value: Option<f64>,
+    /// Constant additive effect tested by the exact Fisher p-value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomization_null_effect: Option<f64>,
     /// Absolute post-gap statistics for every candidate treated unit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub randomization_statistics: Vec<(String, f64)>,
@@ -643,6 +646,9 @@ pub struct SyntheticDidWire {
     /// Exact sharp-null p-value under declared uniform single-unit assignment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub randomization_p_value: Option<f64>,
+    /// Constant additive effect tested by the exact Fisher p-value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomization_null_effect: Option<f64>,
     /// Absolute synthetic-DiD contrast for every candidate treated unit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub randomization_statistics: Vec<(String, f64)>,
@@ -2514,7 +2520,8 @@ fn validate_result(
             || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
             || (!query.uniform_unit_randomization && (
                 (query.augmentation_ridge.is_none() && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
-                || fit.randomization_p_value.is_some() || !fit.randomization_statistics.is_empty()))
+                || fit.randomization_p_value.is_some() || fit.randomization_null_effect.is_some()
+                || !fit.randomization_statistics.is_empty()))
             || (query.augmentation_ridge.is_none() && (
                 fit.unadjusted_effect.is_some() || fit.outcome_model_correction.is_some()
                 || fit.augmentation_ridge.is_some()))
@@ -2526,6 +2533,11 @@ fn validate_result(
                 || (fit.unadjusted_effect.unwrap_or(f64::NAN)
                     - fit.outcome_model_correction.unwrap_or(f64::NAN) - fit.effect).abs() > 1e-8))
             || (query.uniform_unit_randomization && (
+                fit.randomization_null_effect.is_some_and(|effect|
+                    !effect.is_finite() || effect != query.sharp_null_effect.unwrap_or(0.0))
+                || (query.sharp_null_effect.is_some() && fit.randomization_null_effect.is_none())
+                || !query.sharp_null_effect.unwrap_or(0.0).is_finite()
+                ||
                 (query.augmentation_ridge.is_none()
                     && fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval")
                 || (query.augmentation_ridge.is_some()
@@ -2568,8 +2580,14 @@ fn validate_result(
             || (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
             || (!query.uniform_unit_randomization && (
                 fit.uncertainty != "point_only_no_interval"
-                || fit.randomization_p_value.is_some() || !fit.randomization_statistics.is_empty()))
+                || fit.randomization_p_value.is_some() || fit.randomization_null_effect.is_some()
+                || !fit.randomization_statistics.is_empty()))
             || (query.uniform_unit_randomization && (
+                fit.randomization_null_effect.is_some_and(|effect|
+                    !effect.is_finite() || effect != query.sharp_null_effect.unwrap_or(0.0))
+                || (query.sharp_null_effect.is_some() && fit.randomization_null_effect.is_none())
+                || !query.sharp_null_effect.unwrap_or(0.0).is_finite()
+                ||
                 fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval"
                 || fit.randomization_statistics.len() != donors.len() + 1
                 || fit.randomization_statistics.len() > 32

@@ -3426,6 +3426,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 n_post_periods: fit.n_post_periods,
                 uncertainty: fit.uncertainty.to_string(),
                 randomization_p_value: fit.randomization_p_value,
+                randomization_null_effect: fit.randomization_null_effect,
                 randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
                     (unit.to_string(), *statistic)).collect(),
                 unadjusted_effect: fit.unadjusted_effect,
@@ -3447,6 +3448,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             n_post_periods: fit.n_post_periods,
             uncertainty: fit.uncertainty.to_string(),
             randomization_p_value: fit.randomization_p_value,
+            randomization_null_effect: fit.randomization_null_effect,
             randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
                 (unit.to_string(), *statistic)).collect(),
         }),

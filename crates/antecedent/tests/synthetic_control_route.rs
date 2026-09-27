@@ -171,8 +171,13 @@ fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
     assert_eq!(fit.randomization_p_value, Some(1.0));
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "constant-effect-null", &ctx).unwrap();
-    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_p_value, Some(1.0));
+    assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_null_effect, Some(5.0));
+    let mut fabricated = body.clone();
+    fabricated.synthetic_control.as_mut().unwrap().randomization_null_effect = Some(1.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &fabricated, header.variable_names, "fabricated").is_err());
 }
 
 #[test]
