@@ -654,21 +654,11 @@ pub(crate) fn validate_query_ids(
         }
         Q::PanelDid(wire) => {
             validate_id(wire.outcome, variable_count)?;
-            antecedent_core::PanelDidQuery::new(
-                antecedent_core::VariableId::from_raw(wire.outcome),
-                wire.treated.clone(),
-                wire.post.clone(),
-                wire.subjects
-                    .iter()
-                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
-                    .collect::<Vec<_>>(),
-                wire.clusters
-                    .iter()
-                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
-                    .collect::<Vec<_>>(),
-            )
-            .validate()
-            .map_err(|e| IoError::Convert(e.to_string()))
+            if let Some((pre, propensity, prediction, _)) = wire.augmented {
+                validate_ids([pre, propensity, prediction], variable_count)?;
+            }
+            let query = causal_query_from_wire(&Q::PanelDid(wire.clone()))?;
+            query.validate().map_err(|e| IoError::Convert(e.to_string()))
         }
         Q::SyntheticControl(wire) => {
             validate_ids([wire.outcome], variable_count)?;
@@ -1620,6 +1610,7 @@ mod tests {
         let artifact =
             encode_causal_payload_artifact(&payload, vec!["outcome".into()], "panel-did-query")
                 .unwrap();
+            augmented: None,
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

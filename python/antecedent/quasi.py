@@ -397,6 +397,7 @@ class AugmentedPanelDiD:
     propensity: str
     untreated_change_prediction: str
     predictions_cross_fitted: bool = False
+    cluster: str | None = None
 
     def __post_init__(self) -> None:
         names = (
@@ -413,6 +414,8 @@ class AugmentedPanelDiD:
             raise CausalValueError("augmented panel DiD columns must be distinct")
         if not isinstance(self.predictions_cross_fitted, bool):
             raise CausalValueError("predictions_cross_fitted must be boolean")
+        if self.cluster is not None and (not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in names):
+            raise CausalValueError("cluster must be a distinct non-empty column name")
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,6 +427,7 @@ class AugmentedPanelDiDEstimate:
     propensity_max: float
     effective_control_sample_size: float
     nuisance_predictions_cross_fitted: bool
+    clusters: int = 0
     uncertainty: str = "point_only"
     design: str = "augmented_panel_difference_in_differences"
     assumptions: tuple[str, ...] = (
@@ -814,6 +818,8 @@ def estimate_augmented_panel_did(
         query.propensity,
         query.untreated_change_prediction,
     )
+    if query.cluster is not None:
+        required += (query.cluster,)
     for name in required:
         if name not in names:
             raise CausalValueError(f"required augmented panel DiD column {name!r} is missing")
@@ -846,6 +852,7 @@ def estimate_augmented_panel_did(
         propensity_max=float(p_max),
         effective_control_sample_size=float(ess),
         nuisance_predictions_cross_fitted=query.predictions_cross_fitted,
+        clusters=len(set(subjects if query.cluster is None else columns[names.index(query.cluster)])),
     )
 
 

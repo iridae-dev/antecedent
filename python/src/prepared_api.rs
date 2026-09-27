@@ -3560,6 +3560,41 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze a one-row-per-subject augmented panel ATT with supplied nuisance columns.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome_pre, outcome_post, propensity,
+        untreated_change_prediction, treated, subjects, clusters, predictions_cross_fitted,
+        *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_augmented_panel_did(
+        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
+        outcome_pre: String, outcome_post: String, propensity: String,
+        untreated_change_prediction: String, treated: Vec<bool>, subjects: Vec<String>,
+        clusters: Vec<String>, predictions_cross_fitted: bool, accepted: bool,
+        seed: u64, threads: Option<u32>, options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("augmented panel difference-in-differences")?;
+        opts.refuse_population("augmented panel difference-in-differences")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let variable = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+            let query = antecedent_core::PanelDidQuery::augmented_panel(
+                variable(&outcome_post)?, variable(&outcome_pre)?, variable(&propensity)?,
+                variable(&untreated_change_prediction)?, treated,
+                subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>(),
+                clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>(),
+                predictions_cross_fitted,
+            );
+            query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Freeze one cohort-period comparison in a balanced staggered adoption panel.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, subjects, clusters, periods, cohorts,

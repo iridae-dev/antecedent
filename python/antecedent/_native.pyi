@@ -389,6 +389,7 @@ class PanelDidSection:
     uncertainty: str
     event_time_effects: list[tuple[int, int, int, float, int, int, float, int]]
 
+    augmented: tuple[float, float, float, bool] | None
 class SyntheticControlSection:
     effect: float
     pre_treatment_rmse: float
@@ -1295,6 +1296,14 @@ class PreparedAnalysis:
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
+    def prepare_augmented_panel_did(
+        names: list[str], columns: Sequence[Any], outcome_pre: str, outcome_post: str,
+        propensity: str, untreated_change_prediction: str, treated: list[bool],
+        subjects: list[str], clusters: list[str], predictions_cross_fitted: bool, *,
+        accepted: bool = False, seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     @staticmethod
     def prepare_staggered_event_study(
         names: list[str], columns: Sequence[Any], outcome: str,

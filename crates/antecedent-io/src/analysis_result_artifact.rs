@@ -484,6 +484,9 @@ pub struct SyntheticControlWire {
     /// Donor ridge prediction difference subtracted from the simplex gap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_model_correction: Option<f64>,
+    /// Propensity range, effective control count, and caller cross-fit declaration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmented: Option<(f64, f64, f64, bool)>,
     /// Positive donor outcome-model ridge penalty.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmentation_ridge: Option<f64>,
@@ -1390,9 +1393,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || (query.repeated_cross_section
                 && (duplicate_subject
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
-            || (!query.repeated_cross_section && query.staggered_target.is_none() && !query.staggered_event_study
+            || (!query.repeated_cross_section && query.staggered_target.is_none() && !query.staggered_event_study && query.augmented.is_none()
                 && group_clusters.iter().any(|members| members.len() < 2))
-            || did.uncertainty != "cluster_robust_standard_error_no_interval"
+            || (query.augmented.is_none() && did.uncertainty != "cluster_robust_standard_error_no_interval")
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
         {
@@ -1450,6 +1453,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 || fit.randomization_statistics.len() > 32
                 || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
                     != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
+        let augmented_valid = match (&query.augmented, &did.augmented) {
+            (Some((pre, propensity, prediction, declared)), Some((p_min, p_max, ess, recorded))) => {
+                let variables = [query.outcome, *pre, *propensity, *prediction];
+                variables.iter().collect::<std::collections::BTreeSet<_>>().len() == 4
+                    && !duplicate_subject && query.post.iter().all(|post| *post)
+                    && query.periods.is_empty() && query.cohorts.is_empty()
+                    && query.staggered_target.is_none() && !query.staggered_event_study
+                    && !query.repeated_cross_section
+                    && *declared == *recorded
+                    && p_min.is_finite() && p_max.is_finite()
+                    && *p_min > 0.0 && *p_min <= *p_max && *p_max < 1.0
+                    && ess.is_finite() && *ess > 0.0 && *ess <= comparison_subjects as f64 + 1e-9
+                    && did.standard_error == 0.0
+                    && did.uncertainty == "point_only_no_standard_error"
+            }
+            (None, None) => true,
+            _ => false,
+        };
                 || fit.randomization_statistics.iter().any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
                 || fit.randomization_p_value != fit.randomization_statistics.iter()
                     .find(|(unit, _)| unit == &query.treated_unit)
@@ -1459,6 +1480,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         {
             return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
         }
+            || !augmented_valid
     }
     if let Some(fit) = &result.synthetic_did {
         let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
@@ -2084,6 +2106,7 @@ mod tests {
                 periods.push(period);
                 cohorts.push(if unit < 4 { 0 } else if unit < 8 { 3 } else { 4 });
             }
+            augmented: None,
         }
         let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(
             antecedent_core::PanelDidQuery::staggered_group_time(
@@ -2121,6 +2144,7 @@ mod tests {
         result.interventional_distribution.as_mut().unwrap().atoms[0].probability = 0.2;
         assert!(validate_interventional_distribution(&result).is_err());
 
+            augmented: None,
         let mut result = distribution_fixture();
         result.interventional_distribution.as_mut().unwrap().atoms[1].outcomes[0].0 = 0;
         assert!(validate_interventional_distribution(&result).is_err());
@@ -2175,6 +2199,7 @@ mod tests {
         let names = vec!["x".into(), "y".into()];
         let artifact = encode_analysis_result_artifact(&result, names.clone(), "temporal").unwrap();
         let mut bytes = Vec::new();
+            augmented: None,
         artifact.write_to(&mut bytes).unwrap();
         let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
         assert_eq!(decoded, result);

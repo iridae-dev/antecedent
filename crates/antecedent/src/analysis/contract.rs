@@ -3291,6 +3291,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
                     (unit.to_string(), *statistic)).collect(),
                 unadjusted_effect: fit.unadjusted_effect,
+            augmented: did.augmented,
                 outcome_model_correction: fit.outcome_model_correction,
                 augmentation_ridge: fit.augmentation_ridge,
             }

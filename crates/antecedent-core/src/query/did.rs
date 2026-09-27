@@ -17,6 +17,18 @@ pub enum DidSamplingDesign {
     StaggeredGroupTime,
     /// All cohort-specific event-time contrasts relative to adoption period minus one.
     StaggeredEventStudy,
+    /// One row per subject with supplied propensity and untreated-change predictions.
+    AugmentedPanel,
+}
+
+/// Nuisance columns for the augmented two-period panel ATT.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AugmentedPanelNuisance {
+    pub outcome_pre: VariableId,
+    pub propensity: VariableId,
+    pub untreated_change_prediction: VariableId,
+    /// Caller declaration only; the engine does not certify model fitting.
+    pub predictions_cross_fitted: bool,
 }
 
 /// Difference in outcome changes for a two-period or selected group-time design.
@@ -43,6 +55,8 @@ pub struct PanelDidQuery {
     pub cohorts: Arc<[i64]>,
     /// Selected adoption cohort and post-adoption comparison period.
     pub target: Option<(i64, i64)>,
+    /// Supplied nuisance columns for the one-row-per-subject augmented design.
+    pub augmented: Option<AugmentedPanelNuisance>,
 }
 
 impl PanelDidQuery {
@@ -65,6 +79,7 @@ impl PanelDidQuery {
             periods: Arc::from([]),
             cohorts: Arc::from([]),
             target: None,
+            augmented: None,
         }
     }
 
@@ -95,6 +110,7 @@ impl PanelDidQuery {
             periods,
             cohorts,
             target: Some((target_cohort, target_period)),
+            augmented: None,
         }
     }
 
@@ -118,7 +134,30 @@ impl PanelDidQuery {
             design: DidSamplingDesign::StaggeredEventStudy,
             outcome, treated: treated.into(), post: post.into(), subjects,
             clusters: clusters.into(), periods, cohorts, target: None,
+            augmented: None,
         }
+    }
+
+    /// Construct an augmented panel ATT with supplied, row-aligned nuisance predictions.
+    #[must_use]
+    pub fn augmented_panel(
+        outcome_post: VariableId,
+        outcome_pre: VariableId,
+        propensity: VariableId,
+        untreated_change_prediction: VariableId,
+        treated: impl Into<Arc<[bool]>>,
+        subjects: impl Into<Arc<[Arc<str>]>>,
+        clusters: impl Into<Arc<[Arc<str>]>>,
+        predictions_cross_fitted: bool,
+    ) -> Self {
+        let treated = treated.into();
+        let post = vec![true; treated.len()];
+        let mut query = Self::new(outcome_post, treated, post, subjects, clusters);
+        query.design = DidSamplingDesign::AugmentedPanel;
+        query.augmented = Some(AugmentedPanelNuisance {
+            outcome_pre, propensity, untreated_change_prediction, predictions_cross_fitted,
+        });
+        query
     }
 
     /// Construct a repeated-cross-section design with one row per subject.
@@ -149,6 +188,22 @@ impl PanelDidQuery {
             return Err(QueryError::InvalidRandomizedEffect(
                 "subject and cluster labels must be non-empty".into(),
             ));
+        }
+        if self.design == DidSamplingDesign::AugmentedPanel {
+            let Some(nuisance) = &self.augmented else {
+                return Err(QueryError::InvalidRandomizedEffect("augmented panel DiD requires nuisance columns".into()));
+            };
+            let variables = [self.outcome, nuisance.outcome_pre, nuisance.propensity,
+                nuisance.untreated_change_prediction];
+            if variables.iter().collect::<std::collections::BTreeSet<_>>().len() != variables.len()
+                || self.subjects.iter().collect::<std::collections::BTreeSet<_>>().len() != n
+                || self.post.iter().any(|post| !post)
+                || !self.periods.is_empty() || !self.cohorts.is_empty() || self.target.is_some()
+            {
+                return Err(QueryError::InvalidRandomizedEffect("augmented panel DiD requires distinct columns and one unique subject per row".into()));
+            }
+        } else if self.augmented.is_some() {
+            return Err(QueryError::InvalidRandomizedEffect("nuisance columns require augmented panel DiD".into()));
         }
         if matches!(self.design, DidSamplingDesign::StaggeredGroupTime | DidSamplingDesign::StaggeredEventStudy) {
             let (cohort, period) = if self.design == DidSamplingDesign::StaggeredGroupTime {
