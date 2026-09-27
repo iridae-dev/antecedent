@@ -459,8 +459,22 @@ impl CheckedPolicyValueOperation {
             query.evaluation_subject_ids.clone(),
             ("control", "treated"),
         );
-        let (mut identification, estimand) = randomized_identification(&synthetic);
+        let (mut identification, mut estimand) = randomized_identification(&synthetic);
         identification.query = CausalQuery::PolicyValue(query.clone());
+        estimand.method = Arc::from(antecedent_expr::EstimandMethod::RandomizedPolicyValue);
+        identification.estimands = vec![estimand.clone()];
+        identification.arena.set_derivation(
+            estimand.functional,
+            antecedent_expr::DerivationMeta::rule(
+                "randomized.policy_value",
+                Some(Arc::from("known randomized action probabilities identify the value of a fixed policy")),
+            ),
+        );
+        identification.derivation = DerivationTrace::default();
+        identification.derivation.push(
+            "randomized.policy_value",
+            "known randomized action probabilities identify the value of fixed policy and reference recommendations",
+        );
         identification.required_assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("policy_fixed_without_evaluation_outcomes"),
