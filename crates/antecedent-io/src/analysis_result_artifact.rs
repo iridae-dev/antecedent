@@ -692,6 +692,9 @@ pub struct SurvivalWire {
     /// Supported arm-stratified subject-bootstrap replicates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bootstrap_replicates_ok: Option<u32>,
+    /// Caller-supplied fixed censoring function; absent for unweighted estimates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub censoring_survival_provenance: Option<String>,
 }
 
 /// Subject-owned sequential inverse-probability regime value.
@@ -1400,7 +1403,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                                 })
                         })
                 });
-                n >= 30 && policy_matches >= 10 && reference_matches >= 10
+                n >= (if query.multi_action.is_some() || !query.mu0.is_empty() { 300 } else { 120 })
+                    && policy_matches >= 10 && reference_matches >= 10
                     && !query.global_constraints_present && !multi_constraints_couple
                     && (query.multi_action.is_some() || query.mu0.is_empty() || query.disjoint_training_subjects)
                     && policy.policy_standard_error > 0.0 && policy.incremental_standard_error > 0.0
@@ -1707,6 +1711,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || result.standard_error.is_some()
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
+            || curve.censoring_survival_provenance.as_deref()
+                != (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
             || !(point_only || pointwise_bootstrap)
             || curve.tau != query.tau
             || curve.target_cause != query.target_cause

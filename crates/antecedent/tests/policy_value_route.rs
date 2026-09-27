@@ -97,7 +97,7 @@ fn policy_query_refuses_missing_ownership_or_overlap() {
 
 #[test]
 fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only() {
-    let n = 120;
+    let n = 300;
     let assignment = (0..n).map(|i| i % 2 == 1).collect::<Vec<_>>();
     let actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>();
     let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + (i % 5) as f64 / 10.0).collect::<Vec<_>>();
@@ -253,7 +253,7 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
 
 #[test]
 fn multi_action_intervals_require_nonbinding_global_constraints() {
-    let n = 90;
+    let n = 300;
     let assigned = (0..n).map(|i| i % 3).collect::<Vec<_>>();
     let y = (0..n).map(|i| [1.0, 2.0, 4.0][assigned[i]] + (i % 7) as f64 / 10.0).collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
@@ -290,7 +290,7 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.unwrap().policy_interval_95, value.policy_interval_95);
 
-    q.multi_action.as_mut().unwrap().budget = Some(10.0);
+    q.multi_action.as_mut().unwrap().budget = Some(40.0);
     let constrained = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let constrained_value = constrained.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().policy_value.unwrap();
     assert!(constrained_value.policy_interval_95.is_none());

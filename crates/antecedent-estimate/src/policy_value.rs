@@ -48,7 +48,7 @@ pub fn pointwise_intervals_95(
     policy_matches: usize,
     reference_matches: usize,
 ) -> Option<PolicyValueIntervals95> {
-    if evaluation_rows < 30 || policy_matches < 10 || reference_matches < 10
+    if evaluation_rows < 120 || policy_matches < 10 || reference_matches < 10
         || !scores.policy_standard_error.is_finite()
         || !scores.incremental_standard_error.is_finite()
         || scores.policy_standard_error <= 0.0
@@ -350,7 +350,7 @@ mod tests {
         assert!((intervals.policy[0] - (score.policy_value - z * score.policy_standard_error)).abs() < 1e-12);
         assert!((intervals.incremental[0] - (score.incremental_value - z * score.incremental_standard_error)).abs() < 1e-12);
         assert!(pointwise_intervals_95(&score, n, 9, reference_matches).is_none());
-        assert!(pointwise_intervals_95(&score, 29, policy_matches, reference_matches).is_none());
+        assert!(pointwise_intervals_95(&score, 119, policy_matches, reference_matches).is_none());
     }
 
     #[test]
@@ -358,8 +358,8 @@ mod tests {
         // Independently randomized evaluation subjects, fixed recommendations,
         // and a shared outcome shock for the two potential outcomes. A paired
         // difference score must retain the within-row covariance.
-        let n = 512;
-        let simulations = 600;
+        let n = 120;
+        let simulations = 2_000;
         let mut state = 0x9E37_79B9_7F4A_7C15_u64;
         let mut uniform = || {
             state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -368,15 +368,15 @@ mod tests {
             z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
             ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
         };
-        let actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>();
         let reference = vec![false; n];
-        let truth_policy = 1.0 + 2.0 * actions.iter().filter(|&&a| a).count() as f64 / n as f64 - 0.15 * actions.iter().filter(|&&a| a).count() as f64 / n as f64;
+        let truth_policy = 1.0 + 1.85 / 3.0;
         let truth_incremental = truth_policy - 1.0;
         let mut policy_hits_95 = 0;
         let mut incremental_hits_95 = 0;
         let mut policy_hits_90 = 0;
         let mut incremental_hits_90 = 0;
         for _ in 0..simulations {
+            let actions = (0..n).map(|_| uniform() < 1.0 / 3.0).collect::<Vec<_>>();
             let assignment = (0..n).map(|_| uniform() < 0.5).collect::<Vec<_>>();
             let outcomes = assignment.iter().map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0).collect::<Vec<_>>();
             let score = evaluate_policy_value_ipw_scores(&outcomes, &assignment, &actions, &[0.5], &reference, &[0.15], &[0.0]).unwrap();
@@ -389,18 +389,18 @@ mod tests {
             policy_hits_90 += usize::from((score.policy_value - truth_policy).abs() <= z90 * score.policy_standard_error);
             incremental_hits_90 += usize::from((score.incremental_value - truth_incremental).abs() <= z90 * score.incremental_standard_error);
         }
-        for (hits, target) in [(policy_hits_95, 0.95), (incremental_hits_95, 0.95), (policy_hits_90, 0.90), (incremental_hits_90, 0.90)] {
+        for (index, (hits, target)) in [(policy_hits_95, 0.95), (incremental_hits_95, 0.95), (policy_hits_90, 0.90), (incremental_hits_90, 0.90)].into_iter().enumerate() {
             let rate = hits as f64 / simulations as f64;
             let mcse = (target * (1.0 - target) / simulations as f64).sqrt();
-            assert!((rate - target).abs() <= 3.0 * mcse, "coverage {rate} missed target {target}");
+            assert!((rate - target).abs() <= 3.0 * mcse, "cell {index} coverage {rate} missed target {target}");
         }
     }
 
     #[test]
     fn held_out_aipw_and_constrained_multi_action_intervals_cover_known_values() {
         use std::sync::Arc;
-        let n = 600;
-        let simulations = 500;
+        let n = 300;
+        let simulations = 2_000;
         let mut state = 0xD1B5_4A32_4F6C_91E7_u64;
         let mut uniform = || {
             state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
