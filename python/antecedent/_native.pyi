@@ -354,6 +354,8 @@ class InterferenceSection:
     to_exposed_clusters: int | None
     clusters: int | None
     maximum_exposure_probability: float | None
+    pointwise_interval: tuple[float, float, float, float, int, int, str] | None
+    interval_unavailable_reason: str | None
 
 class RandomizedEffectSection:
     effect: float

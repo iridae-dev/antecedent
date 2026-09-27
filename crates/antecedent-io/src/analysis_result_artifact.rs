@@ -764,6 +764,42 @@ fn default_longitudinal_result_method() -> String {
     "ipw".into()
 }
 
+/// One independent-cluster 95% pointwise exposure-contrast interval.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InterferencePointwiseIntervalWire {
+    /// Lower and upper endpoints.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Cluster-level Neyman standard error and Welch degrees of freedom.
+    pub standard_error: f64,
+    /// Welch--Satterthwaite degrees of freedom.
+    pub degrees_of_freedom: f64,
+    /// Control/treated or low/high first-stage independent cluster counts.
+    pub first_stage_arm_clusters: [usize; 2],
+}
+
+/// Support and pointwise inference attached only to randomized interference.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InterferenceInferenceWire {
+    /// Construction identifier.
+    pub method: String,
+    /// Pointwise interval when support passes.
+    pub interval: Option<InterferencePointwiseIntervalWire>,
+    /// Reason the otherwise valid point estimate has no interval.
+    pub interval_unavailable_reason: Option<String>,
+    /// Realized exposure support by units and independent clusters.
+    pub from_exposed_units: usize,
+    /// Units observed at the active exposure.
+    pub to_exposed_units: usize,
+    /// Clusters observed at the baseline exposure.
+    pub from_exposed_clusters: usize,
+    /// Clusters observed at the active exposure.
+    pub to_exposed_clusters: usize,
+}
+
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
@@ -806,6 +842,9 @@ pub struct AnalysisResultWire {
     /// Subject-owned prespecified longitudinal regime point value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub longitudinal_regime: Option<LongitudinalRegimeWire>,
+    /// Independent-cluster exposure support and pointwise inference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interference_inference: Option<InterferenceInferenceWire>,
     /// Full atom result for an interventional-distribution query. Absent on older
     /// artifacts; such artifacts remain readable but cannot verify as a checked
     /// distribution execution.
@@ -1029,6 +1068,35 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     }
     validate_variable_names(variable_names)?;
     validate_query_ids(&result.query, variable_names.len())?;
+    if let Some(inference) = &result.interference_inference {
+        let crate::CausalQueryWire::Interference(query) = &result.query else {
+            return Err(IoError::Convert("interference inference is attached to a different query".into()));
+        };
+        let expected = match &query.assignment {
+            crate::AssignmentDesignWire::ClusterRandomization { .. } => "cluster_total_neyman_welch",
+            crate::AssignmentDesignWire::TwoStageSaturation { .. } => "saturation_cluster_neyman_welch",
+            _ => return Err(IoError::Convert("independent-cluster inference requires a randomized cluster interference design".into())),
+        };
+        if inference.method != expected || inference.from_exposed_units == 0
+            || inference.to_exposed_units == 0 || inference.from_exposed_clusters == 0
+            || inference.to_exposed_clusters == 0
+            || (inference.interval.is_some() == inference.interval_unavailable_reason.is_some())
+        {
+            return Err(IoError::Convert("interference inference method, support, or interval status is inconsistent".into()));
+        }
+        if let Some(interval) = &inference.interval {
+            if !interval.lower.is_finite() || !interval.upper.is_finite()
+                || interval.lower >= interval.upper
+                || !interval.standard_error.is_finite() || interval.standard_error <= 0.0
+                || !interval.degrees_of_freedom.is_finite() || interval.degrees_of_freedom <= 0.0
+                || interval.first_stage_arm_clusters.iter().any(|&count| count < 8)
+                || inference.from_exposed_clusters < 8 || inference.to_exposed_clusters < 8
+                || result.estimate.is_none_or(|effect| effect < interval.lower || effect > interval.upper)
+            {
+                return Err(IoError::Convert("interference pointwise interval violates its support or scalar claim".into()));
+            }
+        }
+    }
     if matches!(&result.query, crate::CausalQueryWire::RandomizedEffect(query)
         if matches!(query.design, crate::RandomizationDesignWire::Switchback))
         && result.randomized_effect.is_none()

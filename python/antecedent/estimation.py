@@ -74,6 +74,7 @@ from .interference import (
     ClusterRandomization,
     CompleteRandomization,
     InterferenceEstimate,
+    InterferencePointwiseInterval,
     InterferenceQuery,
     InterferenceSupport,
     RandomizationContrast,
@@ -296,15 +297,33 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
         return None
     estimator_id = getattr(raw, "estimator_id", "")
     observational = section.from_probability_method.startswith("supplied_")
+    native_interval = section.pointwise_interval
+    pointwise_interval = (
+        InterferencePointwiseInterval(
+            lower=native_interval[0], upper=native_interval[1],
+            standard_error=native_interval[2], degrees_of_freedom=native_interval[3],
+            first_stage_arm_clusters=(native_interval[4], native_interval[5]),
+            method=native_interval[6],
+        ) if native_interval is not None else None
+    )
     if observational:
         uncertainty = (
             "Descriptive cluster CR1 variance for the HT contrast, treating supplied exposure "
             "probabilities as fixed; no interval or calibration claim is made."
         )
     elif estimator_id == "interference.saturation_exact":
-        uncertainty = "Descriptive covariance-free saturation variance proxy; no interval or calibration claim is made."
+        uncertainty = (
+            "Independent-cluster Neyman pointwise 95% interval with Welch degrees of freedom; "
+            "conditional on the declared two-stage randomization and within-cluster exposure mapping."
+            if pointwise_interval is not None else
+            "Descriptive covariance-free saturation variance proxy; pointwise interval withheld because exposure or cluster support failed."
+        )
     elif estimator_id == "interference.cluster_neyman":
-        uncertainty = "Conservative cluster-level Neyman variance for the total effect; no interval claim is made."
+        uncertainty = (
+            "Independent-cluster Neyman pointwise 95% interval for the total effect with Welch degrees of freedom."
+            if pointwise_interval is not None else
+            "Conservative cluster-level Neyman variance for the total effect; pointwise interval withheld because cluster support failed."
+        )
     else:
         uncertainty = (
             "Conservative Young variance bound under the declared randomization; "
@@ -327,7 +346,7 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
                 True,
                 section.maximum_exposure_probability,
                 section.clusters,
-            ) if observational and section.from_exposed_units is not None else None
+            ) if section.from_exposed_units is not None else None
         ),
         uncertainty_semantics=uncertainty,
         provenance={"operation_ids": [
@@ -335,6 +354,8 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
             "estimate.interference.saturation_exact" if estimator_id == "interference.saturation_exact" else
             "stats.randomized_interference"
         ]},
+        pointwise_interval=pointwise_interval,
+        interval_unavailable_reason=section.interval_unavailable_reason,
     )
 
 

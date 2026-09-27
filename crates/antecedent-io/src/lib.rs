@@ -55,6 +55,7 @@ pub mod z_transport_artifact;
 pub use analysis_result_artifact::{
     AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterventionalDistributionWire,
+    InterferenceInferenceWire, InterferencePointwiseIntervalWire,
     LongitudinalRegimeWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire, UpliftBinWire,
     SyntheticControlWire, SyntheticDidWire, LocalPolynomialRatioWire,
     RandomizedEffectWire,

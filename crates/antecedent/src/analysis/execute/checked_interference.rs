@@ -246,32 +246,74 @@ impl CheckedInterferenceOperation {
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             self.query.functional;
         let started = Instant::now();
-        let (estimated, posterior, estimate, diagnostic) = match self.procedure {
+        let (estimated, interference_inference, posterior, estimate, diagnostic) = match self.procedure {
             InterferenceProcedure::DesignBasedYoung | InterferenceProcedure::SaturationExact => {
                 let seed =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Transport, 0x1F7E).next_u64();
                 let saturation = matches!(self.procedure, InterferenceProcedure::SaturationExact);
-                let estimated = if saturation {
-                    antecedent_estimate::estimate_saturation_interference(&self.query, &network, &self.assignment)
-                        .map(|value| value.estimate)
+                let (estimated, interference_inference) = if saturation {
+                    let value = antecedent_estimate::estimate_saturation_interference(&self.query, &network, &self.assignment)
+                        .map_err(CausalError::from)?;
+                    let interval = value.pointwise_interval.map(|interval| crate::result::InterferencePointwiseInterval {
+                        lower: interval.bounds[0], upper: interval.bounds[1],
+                        standard_error: interval.standard_error,
+                        degrees_of_freedom: interval.degrees_of_freedom,
+                        first_stage_arm_clusters: [interval.low_clusters, interval.high_clusters],
+                    });
+                    let inference = crate::result::InterferenceInference {
+                        method: "saturation_cluster_neyman_welch",
+                        interval,
+                        interval_unavailable_reason: value.interval_unavailable_reason,
+                        from_exposed_units: value.from_exposed_units,
+                        to_exposed_units: value.to_exposed_units,
+                        from_exposed_clusters: value.from_exposed_clusters,
+                        to_exposed_clusters: value.to_exposed_clusters,
+                    };
+                    (value.estimate, Some(inference))
                 } else if matches!(
                     self.query.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                 ) {
-                    antecedent_estimate::estimate_cluster_interference_total(
+                    let (value, interval) = antecedent_estimate::estimate_cluster_interference_total_with_inference(
                         &self.query,
                         &network,
                         &self.assignment,
-                    )
+                    ).map_err(CausalError::from)?;
+                    let (control_clusters, treated_clusters) = match &self.query.assignment {
+                        antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
+                            let independent = clusters.iter().copied().collect::<std::collections::BTreeSet<_>>().len();
+                            (independent - *treated_clusters, *treated_clusters)
+                        }
+                        _ => unreachable!(),
+                    };
+                    let interval_available = interval.is_some();
+                    let inference = crate::result::InterferenceInference {
+                        method: "cluster_total_neyman_welch",
+                        interval: interval.map(|interval| crate::result::InterferencePointwiseInterval {
+                            lower: interval.bounds[0], upper: interval.bounds[1],
+                            standard_error: interval.standard_error,
+                            degrees_of_freedom: interval.degrees_of_freedom,
+                            first_stage_arm_clusters: [interval.control_clusters, interval.treated_clusters],
+                        }),
+                        interval_unavailable_reason: if control_clusters < 8 || treated_clusters < 8 {
+                            Some("pointwise cluster-total inference requires eight independent clusters in each assignment arm")
+                        } else if !interval_available {
+                            Some("pointwise cluster-total inference requires positive finite between-cluster variation")
+                        } else { None },
+                        from_exposed_units: self.assignment.iter().filter(|&&assigned| !assigned).count(),
+                        to_exposed_units: self.assignment.iter().filter(|&&assigned| assigned).count(),
+                        from_exposed_clusters: control_clusters,
+                        to_exposed_clusters: treated_clusters,
+                    };
+                    (value, Some(inference))
                 } else {
-                    antecedent_estimate::estimate_interference(
+                    (antecedent_estimate::estimate_interference(
                         &self.query,
                         &network,
                         &self.assignment,
                         seed,
-                    )
-                }
-                .map_err(CausalError::from)?;
+                    ).map_err(CausalError::from)?, None)
+                };
                 let se = if saturation { f64::NAN } else { estimated.contrast.conservative_variance.sqrt() };
                 let cluster = matches!(
                     self.query.assignment,
@@ -279,6 +321,7 @@ impl CheckedInterferenceOperation {
                 );
                 (
                     Some(estimated.clone()),
+                    interference_inference,
                     None,
                     EffectEstimate::new(
                         estimated.contrast.horvitz_thompson,
@@ -297,9 +340,9 @@ impl CheckedInterferenceOperation {
                         DiagnosticKind::Scientific,
                         DiagnosticSeverity::Info,
                         if saturation {
-                            "Exact two-stage saturation exposure probabilities; covariance-free variance proxy is descriptive and no interval calibration is claimed"
+                            "Exact two-stage saturation exposure probabilities; independent-cluster pointwise 95% interval is reported only when first-stage and realized-exposure support pass"
                         } else if cluster {
-                            "cluster-level Neyman conservative variance for the total effect under partial interference; interval calibration is not claimed"
+                            "Cluster-level Neyman pointwise 95% interval for the total effect under partial interference, when independent-cluster support passes"
                         } else {
                             "conservative Young variance bound; not the Aronow–Samii joint-exposure variance"
                         },
@@ -338,6 +381,7 @@ impl CheckedInterferenceOperation {
                 ]);
                 (
                     Some(estimated),
+                    None,
                     None,
                     EffectEstimate::new(
                         summary.horvitz_thompson,
@@ -389,6 +433,7 @@ impl CheckedInterferenceOperation {
                 let estimate = effect_from_posterior(&posterior)?;
                 (
                     None,
+                    None,
                     Some(posterior),
                     estimate,
                     Diagnostic::new(
@@ -425,6 +470,7 @@ impl CheckedInterferenceOperation {
             },
         );
         result.interference = estimated;
+        result.interference_inference = interference_inference;
         result.posterior = posterior;
         Ok(result)
     }

@@ -457,12 +457,17 @@ pub(crate) struct InterferenceSection {
     clusters: Option<usize>,
     #[pyo3(get)]
     maximum_exposure_probability: Option<f64>,
+    #[pyo3(get)]
+    pointwise_interval: Option<(f64, f64, f64, f64, usize, usize, String)>,
+    #[pyo3(get)]
+    interval_unavailable_reason: Option<String>,
 }
 
 impl InterferenceSection {
     pub(crate) fn from_estimate(
         estimate: &antecedent::estimate::InterferenceEstimate,
         diagnostics: &[antecedent_core::Diagnostic],
+        inference: Option<&antecedent::result::InterferenceInference>,
     ) -> Self {
         let fields = diagnostics.iter()
             .find(|diagnostic| diagnostic.code.as_ref() == "estimate.interference.observational_ipw")
@@ -476,12 +481,17 @@ impl InterferenceSection {
             from_probability_method: probability_method(estimate.from_probability_method),
             to_probability_method: probability_method(estimate.to_probability_method),
             minimum_exposure_probability: estimate.minimum_exposure_probability,
-            from_exposed_units: field("from_exposed_units").and_then(|v| v.parse().ok()),
-            to_exposed_units: field("to_exposed_units").and_then(|v| v.parse().ok()),
-            from_exposed_clusters: field("from_exposed_clusters").and_then(|v| v.parse().ok()),
-            to_exposed_clusters: field("to_exposed_clusters").and_then(|v| v.parse().ok()),
-            clusters: field("clusters").and_then(|v| v.parse().ok()),
+            from_exposed_units: inference.map(|v| v.from_exposed_units).or_else(|| field("from_exposed_units").and_then(|v| v.parse().ok())),
+            to_exposed_units: inference.map(|v| v.to_exposed_units).or_else(|| field("to_exposed_units").and_then(|v| v.parse().ok())),
+            from_exposed_clusters: inference.map(|v| v.from_exposed_clusters).or_else(|| field("from_exposed_clusters").and_then(|v| v.parse().ok())),
+            to_exposed_clusters: inference.map(|v| v.to_exposed_clusters).or_else(|| field("to_exposed_clusters").and_then(|v| v.parse().ok())),
+            clusters: inference.and_then(|v| v.interval.as_ref().map(|interval| interval.first_stage_arm_clusters.iter().sum())).or_else(|| field("clusters").and_then(|v| v.parse().ok())),
             maximum_exposure_probability: field("maximum_exposure_probability").and_then(|v| v.parse().ok()),
+            pointwise_interval: inference.and_then(|v| v.interval.as_ref().map(|interval| (
+                interval.lower, interval.upper, interval.standard_error, interval.degrees_of_freedom,
+                interval.first_stage_arm_clusters[0], interval.first_stage_arm_clusters[1], v.method.to_string(),
+            ))),
+            interval_unavailable_reason: inference.and_then(|v| v.interval_unavailable_reason.map(str::to_string)),
         }
     }
 }

@@ -172,6 +172,7 @@ fn receipt_body(
         randomized_effect: None,
         survival: None,
         longitudinal_regime: None,
+        interference_inference: None,
         interventional_distribution: None,
         standard_error: None,
         interval_lower: None,
