@@ -33,6 +33,8 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
     let ctx = ExecutionContext::for_tests(41);
     let mut prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(first.estimand.method.as_ref(), "randomized.policy_value");
+    assert!(first.identification.derivation.steps.iter().all(|step| step.rule.as_ref() != "randomized.itt"));
     let answer = first.policy_value.as_ref().unwrap();
     assert!((answer.policy_value - 2.0).abs() < 1e-12);
     assert!((answer.reference_value - 1.0).abs() < 1e-12);
@@ -74,6 +76,7 @@ fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
     let ctx = ExecutionContext::for_tests(42);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.estimand.method.as_ref(), "randomized.policy_value");
     let answer = result.policy_value.as_ref().unwrap();
     assert!((answer.policy_value - 4.0).abs() < 1e-12);
     assert!((answer.reference_value - 1.0).abs() < 1e-12);
@@ -119,6 +122,8 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
     let ctx = ExecutionContext::for_tests(43);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.estimand.method.as_ref(), "randomized.policy_value");
+    assert_eq!(result.identification.derivation.steps[0].rule.as_ref(), "randomized.policy_value");
     let answer = result.policy_value.as_ref().unwrap();
     assert!((answer.policy_value - 7.0 / 3.0).abs() < 1e-12);
     assert!((answer.reference_value - 1.0).abs() < 1e-12);

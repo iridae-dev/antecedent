@@ -1188,7 +1188,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         }
         EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy
         | EstimatorId::RandomizedMultiActionIpwPolicy => {
-            matches!(method, EstimandMethod::RandomizedItt)
+            matches!(method, EstimandMethod::RandomizedPolicyValue)
         }
         EstimatorId::RandomizedSurvivalProductLimit => false,
         EstimatorId::LongitudinalIpwRegime => false,
