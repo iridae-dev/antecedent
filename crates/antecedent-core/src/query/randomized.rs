@@ -470,19 +470,18 @@ impl RandomizedEffectQuery {
                     ));
                 }
                 let mut pairs = std::collections::HashSet::new();
-                let mut sequences = std::collections::BTreeMap::<&str, [bool; 2]>::new();
+                let mut sequences = std::collections::BTreeSet::<&str>::new();
                 for i in 0..n {
                     if !pairs.insert((&*self.assignment_units[i], &*periods[i])) {
                         return Err(QueryError::InvalidRandomizedEffect(
                             "switchback periods must be unique within each sequence".into(),
                         ));
                     }
-                    sequences.entry(&self.assignment_units[i])
-                        .or_insert([false; 2])[usize::from(self.realized_assignment[i])] = true;
+                    sequences.insert(&self.assignment_units[i]);
                 }
-                if sequences.len() < 2 || sequences.values().any(|arms| !arms[0] || !arms[1]) {
+                if sequences.len() < 2 {
                     return Err(QueryError::InvalidRandomizedEffect(
-                        "switchback variance requires at least two independent sequences with both observed arms in each".into(),
+                        "switchback variance requires at least two independent sequences".into(),
                     ));
                 }
             }
@@ -540,6 +539,12 @@ mod tests {
             periods: ["p0", "p0", "p0", "p1"].map(Arc::<str>::from).into(),
         };
         assert!(query.validate().is_err());
+        query.design = RandomizationDesign::Switchback {
+            periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
+        };
+        query.realized_assignment = [true, true, false, false].into();
+        assert!(query.validate().is_ok(),
+            "global arm support suffices when one sequence happens to realize one arm");
     }
 
     #[test]
