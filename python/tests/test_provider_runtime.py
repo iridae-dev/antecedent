@@ -158,3 +158,64 @@ def test_entry_point_load_refuses_missing_duplicate_and_invalid_factories(monkey
         registry.load_entry_point("invalid")
     with pytest.raises(KeyError, match="not explicitly registered"):
         registry.get("invalid")
+
+
+def test_separately_installed_entry_point_loads_without_rebuilding(tmp_path, monkeypatch):
+    """Exercise real importlib distribution discovery, not a patched registry."""
+    import importlib
+
+    module = tmp_path / "antecedent_external_fixture.py"
+    module.write_text(
+        """\
+from antecedent.extensibility import CausalProviderSpec, ProviderExecution
+
+class ExternalProvider:
+    spec = CausalProviderSpec(
+        query_family="effect",
+        identification_requirements=("caller_identified",),
+        observed_distributions=("Y,T",),
+        nuisance_functions=(),
+        support_conditions=("overlap",),
+        data_dependence=("caller_supplied",),
+        inference_claims=("point_only",),
+        influence_function=None,
+        fold_policy="provider_owned",
+        output_shape=(1,),
+        uncertainty_semantics="point_only",
+        artifact_codec="provider_specific",
+        deterministic=True,
+        provenance={"package": "external-fixture"},
+    )
+
+    def execute(self, request):
+        return ProviderExecution(
+            estimate=[float(request["value"])], uncertainty=None,
+            assumptions=("caller_asserted",), support_status="caller_asserted",
+            provenance={"version": "0.1"}, artifact=b"external-receipt",
+        )
+
+def create_provider():
+    return ExternalProvider()
+""",
+        encoding="utf-8",
+    )
+    dist = tmp_path / "antecedent_external_fixture-0.1.dist-info"
+    dist.mkdir()
+    (dist / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: antecedent-external-fixture\nVersion: 0.1\n",
+        encoding="utf-8",
+    )
+    (dist / "entry_points.txt").write_text(
+        "[antecedent.providers]\nexternal-fixture = antecedent_external_fixture:create_provider\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    importlib.invalidate_caches()
+
+    registry = ProviderRegistry()
+    registry.load_entry_point("external-fixture")
+    result = registry.execute("external-fixture", {"value": 3.0})
+    assert result.estimate.tolist() == [3.0]
+    assert result.artifact == b"external-receipt"
+    assert result.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert result.provenance["entry_point"] == "antecedent_external_fixture:create_provider"
