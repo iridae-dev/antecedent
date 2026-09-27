@@ -159,7 +159,7 @@ def coerce_query(value: Any) -> Any:
     from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect
     from .interference import InterferenceQuery
     from .policy import MultiActionPolicyValue, PolicyValue
-    from .quasi import PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences
+    from .quasi import PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
     from .query import (
         AnomalyAttribution,
         AverageDerivative,
@@ -220,6 +220,8 @@ def coerce_query(value: Any) -> Any:
         StaggeredAdoption,
         SyntheticControl,
         SyntheticDifferenceInDifferences,
+        FuzzyRegressionDiscontinuity,
+        RegressionKink,
         LongitudinalRegimeQuery,
         SurvivalOutcome,
         CompetingRisksOutcome,

@@ -4031,6 +4031,7 @@ pub(crate) enum PreparedExecution {
     PolicyValue(super::execute::CheckedPolicyValueOperation),
     PanelDid(super::execute::CheckedPanelDidOperation),
     SyntheticControl(super::execute::CheckedSyntheticControlOperation),
+    LocalPolynomialRatio(super::execute::CheckedLocalPolynomialRatioOperation),
     Survival(super::execute::CheckedSurvivalOperation),
     LongitudinalRegime(super::execute::CheckedLongitudinalRegimeOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
@@ -4123,6 +4124,7 @@ impl PreparedExecution {
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_)
             | Self::TemporalClassEffect(_)
@@ -6811,6 +6813,10 @@ impl PreparedStudy {
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::SyntheticControl(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
+        if let PreparedExecution::LocalPolynomialRatio(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
@@ -10224,6 +10230,14 @@ impl Study {
             }
             _ => None,
         };
+        let checked_local_polynomial_ratio = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::LocalPolynomialRatio(_), GraphClass::RandomizedTrial)
+                if analysis.graph_posterior.is_none() && analysis.tiered.is_none() && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedLocalPolynomialRatioOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let checked_survival = match (&self.data, &self.query, analysis.graph.class()) {
             (DataInput::Tabular(data), CausalQuery::Survival(_), GraphClass::RandomizedTrial)
                 if analysis.structure_source
@@ -10821,6 +10835,8 @@ impl Study {
             PreparedExecution::PanelDid(operation)
         } else if let Some(operation) = checked_synthetic_control {
             PreparedExecution::SyntheticControl(operation)
+        } else if let Some(operation) = checked_local_polynomial_ratio {
+            PreparedExecution::LocalPolynomialRatio(operation)
         } else if let Some(operation) = checked_survival {
             PreparedExecution::Survival(operation)
         } else if let Some(operation) = checked_longitudinal_regime {
@@ -10919,6 +10935,10 @@ impl Study {
         }
         if let CausalQuery::SyntheticControl(query) = &self.query {
             let (identification, estimand) = super::execute::synthetic_control_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::LocalPolynomialRatio(query) = &self.query {
+            let (identification, estimand) = super::execute::local_polynomial_ratio_identification(query);
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if let CausalQuery::Survival(query) = &self.query {
@@ -11964,6 +11984,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
                 return Err(CausalError::Unsupported { message: "SyntheticControl requires a graphless balanced-panel design" });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::LocalPolynomialRatio(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported { message: "LocalPolynomialRatio requires a graphless fixed-cutoff design" });
             }
         }
         (DataInput::Tabular(_), CausalQuery::Survival(_)) => {

@@ -455,10 +455,10 @@ class LocalPolynomialRatioEstimate:
     observations_left: int
     observations_right: int
     standard_error: float
-    ci_lower: float
-    ci_upper: float
-    reduced_form_standard_error: float
-    first_stage_standard_error: float
+    ci_lower: float | None
+    ci_upper: float | None
+    reduced_form_standard_error: float | None
+    first_stage_standard_error: float | None
     uncertainty: str = "local_quadratic_rbc_hc0_delta_normal_unvalidated"
     design: str = "fuzzy_regression_discontinuity_local_quadratic"
     assumptions: tuple[str, ...] = (

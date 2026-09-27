@@ -301,6 +301,7 @@ mod checked_bayesian_static_mediation;
 mod checked_interference;
 mod checked_panel_did;
 mod checked_synthetic_control;
+mod checked_local_polynomial_ratio;
 mod checked_randomized;
 mod checked_static_mediation;
 mod checked_survival;
@@ -315,6 +316,7 @@ pub(crate) use checked_interference::CheckedInterferenceOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_identification;
 pub(crate) use checked_synthetic_control::{CheckedSyntheticControlOperation, synthetic_control_identification};
+pub(crate) use checked_local_polynomial_ratio::{CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification};
 pub(crate) use checked_randomized::{
     CheckedPolicyValueOperation, CheckedRandomizedOperation, randomized_identification,
 };

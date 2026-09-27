@@ -472,6 +472,26 @@ pub struct SyntheticDidWire {
     pub uncertainty: String,
 }
 
+/// Retained local ratio point result, without a calibrated interval.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LocalPolynomialRatioWire {
+    /// Ratio of local outcome and treatment contrasts.
+    pub effect: f64,
+    /// Local outcome contrast.
+    pub reduced_form: f64,
+    /// Local treatment contrast.
+    pub first_stage: f64,
+    /// Local observations below the cutoff.
+    pub n_left: usize,
+    /// Local observations on or above the cutoff.
+    pub n_right: usize,
+    /// Descriptive HC0 standard error.
+    pub standard_error: f64,
+    /// Point-only uncertainty semantics.
+    pub uncertainty: String,
+}
+
 /// Retained randomized ITT design metadata and design-aware variance.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -490,6 +510,12 @@ pub struct RandomizedEffectWire {
     /// Row-aligned observed receipt for CACE/LATE.
     #[serde(default)]
     pub received_treatment: Option<Vec<bool>>,
+    /// Exact two-sided Fisher sharp-null p-value, when requested.
+    #[serde(default)]
+    pub randomization_p_value: Option<f64>,
+    /// Number of complete-design allocations exhaustively enumerated.
+    #[serde(default)]
+    pub randomization_allocations: Option<u64>,
     /// Design variance estimate or conservative bound, as labeled by uncertainty.
     pub variance: f64,
     /// Assignment design name.
@@ -510,12 +536,6 @@ pub struct RandomizedEffectWire {
     pub treatment_units: usize,
     /// Smallest declared assignment probability.
     pub minimum_assignment_probability: f64,
-    /// Exact two-sided Fisher sharp-null p-value, when requested.
-    #[serde(default)]
-    pub randomization_p_value: Option<f64>,
-    /// Number of complete-design allocations exhaustively enumerated.
-    #[serde(default)]
-    pub randomization_allocations: Option<u64>,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
 }
@@ -602,6 +622,9 @@ pub struct AnalysisResultWire {
     /// Synthetic DiD point result and fitted simplex weights.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synthetic_did: Option<SyntheticDidWire>,
+    /// Fixed-window fuzzy RD or regression-kink ratio.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_polynomial_ratio: Option<LocalPolynomialRatioWire>,
     /// Retained randomized experiment design and variance semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub randomized_effect: Option<RandomizedEffectWire>,
@@ -838,43 +861,70 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         if matches!(query.design, crate::RandomizationDesignWire::Switchback))
         && result.randomized_effect.is_none()
     {
-        return Err(IoError::Convert("switchback artifact is missing its randomized result section".into()));
+        return Err(IoError::Convert(
+            "switchback artifact is missing its randomized result section".into(),
+        ));
     }
     if let Some(randomized) = &result.randomized_effect {
         let crate::CausalQueryWire::RandomizedEffect(query) = &result.query else {
-            return Err(IoError::Convert("randomized result section is attached to a different query".into()));
+            return Err(IoError::Convert(
+                "randomized result section is attached to a different query".into(),
+            ));
         };
         let (design, uncertainty) = match &query.design {
-            crate::RandomizationDesignWire::Bernoulli if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
-                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval"),
-            crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() =>
-                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"),
-            crate::RandomizationDesignWire::Bernoulli =>
-                ("bernoulli", "bernoulli_ht_design_variance_no_interval"),
-            crate::RandomizationDesignWire::Complete { .. } =>
-                ("complete", "complete_neyman_variance_upper_bound_no_interval"),
-            crate::RandomizationDesignWire::Cluster { .. } =>
-                ("cluster", "cluster_neyman_variance_upper_bound_no_interval"),
-            crate::RandomizationDesignWire::Stratified =>
-                ("stratified", "stratified_neyman_variance_upper_bound_no_interval"),
-            crate::RandomizationDesignWire::Switchback =>
-                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval"),
-        };
-        let (control, treated) = if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
-            let mut clusters = std::collections::BTreeMap::new();
-            for (unit, assignment) in query.assignment_units.iter().zip(&query.realized_assignment) {
-                clusters.insert(unit, *assignment);
+            crate::RandomizationDesignWire::Bernoulli
+                if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
+            {
+                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval")
             }
-            (clusters.values().filter(|assigned| !**assigned).count(),
-             clusters.values().filter(|assigned| **assigned).count())
-        } else {
-            (query.realized_assignment.iter().filter(|assigned| !**assigned).count(),
-             query.realized_assignment.iter().filter(|assigned| **assigned).count())
+            crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
+                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval")
+            }
+            crate::RandomizationDesignWire::Bernoulli => {
+                ("bernoulli", "bernoulli_ht_design_variance_no_interval")
+            }
+            crate::RandomizationDesignWire::Complete { .. } => {
+                ("complete", "complete_neyman_variance_upper_bound_no_interval")
+            }
+            crate::RandomizationDesignWire::Cluster { .. } => {
+                ("cluster", "cluster_neyman_variance_upper_bound_no_interval")
+            }
+            crate::RandomizationDesignWire::Stratified => {
+                ("stratified", "stratified_neyman_variance_upper_bound_no_interval")
+            }
+            crate::RandomizationDesignWire::Switchback => {
+                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval")
+            }
         };
-        let minimum_probability = query.assignment_probabilities.iter().copied()
-            .map(|p| if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
-                p.min(1.0 - p)
-            } else { p })
+        let (control, treated) =
+            if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
+                let mut clusters = std::collections::BTreeMap::new();
+                for (unit, assignment) in
+                    query.assignment_units.iter().zip(&query.realized_assignment)
+                {
+                    clusters.insert(unit, *assignment);
+                }
+                (
+                    clusters.values().filter(|assigned| !**assigned).count(),
+                    clusters.values().filter(|assigned| **assigned).count(),
+                )
+            } else {
+                (
+                    query.realized_assignment.iter().filter(|assigned| !**assigned).count(),
+                    query.realized_assignment.iter().filter(|assigned| **assigned).count(),
+                )
+            };
+        let minimum_probability = query
+            .assignment_probabilities
+            .iter()
+            .copied()
+            .map(|p| {
+                if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
+                    p.min(1.0 - p)
+                } else {
+                    p
+                }
+            })
             .fold(f64::INFINITY, f64::min);
         let expected_allocations = if query.exact_randomization_test {
             let n = query.realized_assignment.len() as u64;
@@ -890,7 +940,12 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || randomized.variance < 0.0
             || randomized.assignment_design != design
             || randomized.uncertainty != uncertainty
-            || randomized.estimand != if query.estimand == crate::RandomizedEstimandWire::CaceLate { "cace_late" } else { "itt" }
+            || randomized.estimand
+                != if query.estimand == crate::RandomizedEstimandWire::CaceLate {
+                    "cace_late"
+                } else {
+                    "itt"
+                }
             || randomized.received_treatment != query.received_treatment
             || randomized.randomization_allocations != expected_allocations
             || (query.exact_randomization_test
@@ -899,10 +954,17 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || (!query.exact_randomization_test && randomized.randomization_p_value.is_some())
             || (query.estimand == crate::RandomizedEstimandWire::CaceLate
                 && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
-                    || randomized.first_stage_effect.is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)
-                    || (randomized.effect - randomized.intention_to_treat_effect.unwrap() / randomized.first_stage_effect.unwrap()).abs() > 1e-10))
+                    || randomized
+                        .first_stage_effect
+                        .is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)
+                    || (randomized.effect
+                        - randomized.intention_to_treat_effect.unwrap()
+                            / randomized.first_stage_effect.unwrap())
+                    .abs()
+                        > 1e-10))
             || (query.estimand == crate::RandomizedEstimandWire::Itt
-                && (randomized.intention_to_treat_effect.is_some() || randomized.first_stage_effect.is_some()))
+                && (randomized.intention_to_treat_effect.is_some()
+                    || randomized.first_stage_effect.is_some()))
             || randomized.assignment_units != query.assignment_units
             || randomized.outcome_units != query.outcome_units
             || randomized.blocks != query.blocks
@@ -927,6 +989,30 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             }
         } else if result.synthetic_control.is_none() || result.synthetic_did.is_some() {
             return Err(IoError::Convert("synthetic-control artifact requires its donor-support result section".into()));
+        }
+    }
+    if matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
+        && result.local_polynomial_ratio.is_none()
+    {
+        return Err(IoError::Convert("local ratio artifact is missing its design-specific result section".into()));
+    }
+    if let Some(fit) = &result.local_polynomial_ratio {
+        if !matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
+            || result.estimate != Some(fit.effect)
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
+            || !fit.effect.is_finite()
+            || !fit.reduced_form.is_finite()
+            || !fit.first_stage.is_finite()
+            || fit.first_stage.abs() < 1e-12
+            || !fit.standard_error.is_finite()
+            || fit.standard_error < 0.0
+            || fit.n_left < 3
+            || fit.n_right < 3
+            || fit.uncertainty != "point_only_with_unvalidated_hc0_standard_error"
+        {
+            return Err(IoError::Convert("invalid local ratio support or fabricated interval".into()));
         }
     }
     if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {

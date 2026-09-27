@@ -733,6 +733,27 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::LocalPolynomialRatio(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                for variable in [q.outcome, q.treatment, q.running] {
+                    data.schema().get(variable).map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                }
+                let label = if q.kink { "regression_kink" } else { "fuzzy_rd" };
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(format!("quasi.{label}")),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None, graph_review_required: false,
+                        identifier: Some(Arc::from(format!("quasi.{label}.local_ratio"))),
+                        estimator: Some(Arc::from(format!("quasi.{label}.bias_corrected_local_polynomial"))),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome, q.treatment, q.running]),
+                    },
+                    query: self.query.clone(), split: None, row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Survival(q) = &self.query else { unreachable!() };
@@ -1031,6 +1052,9 @@ impl super::Study {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {

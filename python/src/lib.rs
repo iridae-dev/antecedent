@@ -1139,6 +1139,9 @@ pub(crate) struct AteAnalysisResult {
     /// Synthetic DiD point result and both fitted weight vectors.
     #[pyo3(get)]
     synthetic_did: Option<quasi_api::SyntheticDidSection>,
+    /// Fixed-bandwidth fuzzy RD or regression-kink point result.
+    #[pyo3(get)]
+    local_polynomial_ratio: Option<quasi_api::LocalPolynomialRatioSection>,
     /// Randomized survival or competing-risk curves with no interval claim.
     #[pyo3(get)]
     survival: Option<survival_api::SurvivalSection>,

@@ -7,7 +7,7 @@ pub use antecedent_core::{
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
     DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping, GridSpec,
     InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
-    LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
+    LongitudinalRegimeQuery, LocalPolynomialRatioQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
     OutcomeFunctional, PanelDidQuery,
     SyntheticControlQuery, SyntheticPanelMethod,
     PathSpecificEffectQuery, RandomizationDesign, RandomizedEffectQuery, ResponseFunctional,

@@ -96,6 +96,33 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
     }
 }
 
+/// Retained local ratio result with a descriptive HC0 standard error and no interval.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct LocalPolynomialRatioSection {
+    pub effect: f64,
+    pub reduced_form: f64,
+    pub first_stage: f64,
+    pub n_left: usize,
+    pub n_right: usize,
+    pub standard_error: f64,
+    pub uncertainty: String,
+}
+
+impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSection {
+    fn from(value: &antecedent::LocalPolynomialRatioEstimate) -> Self {
+        Self {
+            effect: value.effect,
+            reduced_form: value.reduced_form,
+            first_stage: value.first_stage,
+            n_left: value.n_left,
+            n_right: value.n_right,
+            standard_error: value.standard_error,
+            uncertainty: value.uncertainty.to_string(),
+        }
+    }
+}
+
 /// Repeated-cross-section 2x2 difference in differences, without interval claims.
 #[pyfunction]
 fn difference_in_differences(
@@ -633,6 +660,7 @@ fn local_polynomial_fuzzy_discontinuity(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PanelDidSection>()?;
     module.add_class::<SyntheticControlSection>()?;
+    module.add_class::<LocalPolynomialRatioSection>()?;
     module.add_class::<SyntheticDidSection>()?;
     module.add_function(wrap_pyfunction!(difference_in_differences, module)?)?;
     module.add_function(wrap_pyfunction!(panel_difference_in_differences, module)?)?;

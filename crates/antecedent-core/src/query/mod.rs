@@ -13,6 +13,7 @@ mod error;
 mod functional;
 mod interference;
 mod longitudinal_regime;
+mod local_polynomial_ratio;
 mod mediation;
 mod nested_counterfactual;
 mod policy_value;
@@ -38,6 +39,7 @@ pub use attribution::{
 pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
 pub use did::{DidSamplingDesign, PanelDidQuery};
+pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
@@ -118,6 +120,8 @@ pub enum CausalQuery {
     PanelDid(PanelDidQuery),
     /// Balanced-panel synthetic control with one treated unit and donor pool.
     SyntheticControl(SyntheticControlQuery),
+    /// Fixed-bandwidth local fuzzy discontinuity or regression kink ratio.
+    LocalPolynomialRatio(LocalPolynomialRatioQuery),
     /// Randomized right-censored survival or competing-risk functional.
     Survival(SurvivalQuery),
     /// Prespecified longitudinal regime value over subject histories.
@@ -239,6 +243,12 @@ impl CausalQuery {
         Self::SyntheticControl(query)
     }
 
+    /// Construct a local fuzzy-discontinuity or regression-kink query.
+    #[must_use]
+    pub fn local_polynomial_ratio(query: LocalPolynomialRatioQuery) -> Self {
+        Self::LocalPolynomialRatio(query)
+    }
+
     /// Construct a randomized survival or competing-risk query.
     #[must_use]
     pub fn survival(query: SurvivalQuery) -> Self {
@@ -355,7 +365,15 @@ impl From<PanelDidQuery> for CausalQuery {
 }
 
 impl From<SyntheticControlQuery> for CausalQuery {
-    fn from(query: SyntheticControlQuery) -> Self { Self::SyntheticControl(query) }
+    fn from(query: SyntheticControlQuery) -> Self {
+        Self::SyntheticControl(query)
+    }
+}
+
+impl From<LocalPolynomialRatioQuery> for CausalQuery {
+    fn from(query: LocalPolynomialRatioQuery) -> Self {
+        Self::LocalPolynomialRatio(query)
+    }
 }
 
 impl From<SurvivalQuery> for CausalQuery {
@@ -396,6 +414,7 @@ impl CausalQuery {
             Self::PolicyValue(_) => None,
             Self::PanelDid(_) => None,
             Self::SyntheticControl(_) => None,
+            Self::LocalPolynomialRatio(_) => None,
             Self::Survival(_) => None,
             Self::LongitudinalRegime(_) => None,
         }
@@ -423,6 +442,7 @@ impl CausalQuery {
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_) => None,
         }
@@ -496,6 +516,7 @@ impl CausalQuery {
             Self::PolicyValue(q) => q.validate(),
             Self::PanelDid(q) => q.validate(),
             Self::SyntheticControl(q) => q.validate(),
+            Self::LocalPolynomialRatio(q) => q.validate(),
             Self::Survival(q) => q.validate(),
             Self::LongitudinalRegime(q) => q.validate(),
         }

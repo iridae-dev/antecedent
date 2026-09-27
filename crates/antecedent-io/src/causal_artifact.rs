@@ -573,7 +573,10 @@ pub(crate) fn validate_query_ids(
                 ),
             );
             if let Some((covariate, coefficient)) = wire.fixed_cuped {
-                query = query.with_fixed_cuped(antecedent_core::VariableId::from_raw(covariate), coefficient);
+                query = query.with_fixed_cuped(
+                    antecedent_core::VariableId::from_raw(covariate),
+                    coefficient,
+                );
             }
             if let Some(receipt) = &wire.received_treatment {
                 query = query.with_received_treatment(receipt.clone());
@@ -584,11 +587,11 @@ pub(crate) fn validate_query_ids(
             if (wire.estimand == crate::RandomizedEstimandWire::CaceLate)
                 != wire.received_treatment.is_some()
             {
-                return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
+                return Err(IoError::Convert(
+                    "CACE/LATE estimand and treatment receipt must agree".into(),
+                ));
             }
-            query
-            .validate()
-            .map_err(|e| IoError::Convert(e.to_string()))
+            query.validate().map_err(|e| IoError::Convert(e.to_string()))
         }
         Q::PolicyValue(wire) => {
             validate_id(wire.outcome, variable_count)?;
@@ -645,6 +648,19 @@ pub(crate) fn validate_query_ids(
                 std::sync::Arc::<str>::from(wire.treated_unit.as_str()),
                 wire.intervention_period,
             ).validate().map_err(|error| IoError::Convert(error.to_string()))
+        }
+        Q::LocalPolynomialRatio(wire) => {
+            validate_ids([wire.outcome, wire.treatment, wire.running], variable_count)?;
+            antecedent_core::LocalPolynomialRatioQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                treatment: antecedent_core::VariableId::from_raw(wire.treatment),
+                running: antecedent_core::VariableId::from_raw(wire.running),
+                cutoff: wire.cutoff,
+                bandwidth: wire.bandwidth,
+                kink: wire.kink,
+            }
+            .validate()
+            .map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::Survival(wire) => {
             if wire.censoring_probability_floor.is_none()
@@ -1586,16 +1602,23 @@ mod tests {
     fn fixed_cuped_query_round_trips_with_covariate_identity() {
         let domain = antecedent_core::RandomizedEffectQuery::bernoulli_itt(
             antecedent_core::VariableId::from_raw(0),
-            [true, false, true, false], [0.5; 4],
+            [true, false, true, false],
+            [0.5; 4],
             ["a", "b", "c", "d"].map(std::sync::Arc::<str>::from),
             ["r0", "r1", "r2", "r3"].map(std::sync::Arc::<str>::from),
             ("control", "treated"),
-        ).with_fixed_cuped(antecedent_core::VariableId::from_raw(1), 4.0);
-        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
+        )
+        .with_fixed_cuped(antecedent_core::VariableId::from_raw(1), 4.0);
+        let query =
+            crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain))
+                .unwrap();
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
         let artifact = encode_causal_payload_artifact(
-            &payload, vec!["outcome".into(), "baseline".into()], "cuped-itt-query"
-        ).unwrap();
+            &payload,
+            vec!["outcome".into(), "baseline".into()],
+            "cuped-itt-query",
+        )
+        .unwrap();
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import analyze
+from antecedent.estimation import PreparedAnalysis
 from antecedent.errors import CausalValueError
 from antecedent.quasi import (
     FuzzyRegressionDiscontinuity,
@@ -58,6 +60,35 @@ def test_fuzzy_regression_kink_recovers_known_local_effect():
     assert result.design == "fuzzy_regression_kink_local_quadratic"
     assert "potential_outcome_derivatives_are_smooth_at_cutoff" in result.assumptions
     assert result.uncertainty == "local_quadratic_rbc_hc0_delta_normal_unvalidated"
+
+
+@pytest.mark.parametrize("kink", [False, True])
+def test_retained_local_ratio_uses_main_analyze_flow_without_interval(kink: bool):
+    running: list[float] = []
+    treatment: list[float] = []
+    outcome: list[float] = []
+    for step in range(1, 80):
+        for sign in (-1, 1):
+            score = sign * step / 80
+            for replicate in range(4):
+                dose = (1.0 + 0.2 * score + 0.8 * max(score, 0.0)) if kink else float(
+                    replicate == 0 if sign < 0 else replicate != 3
+                )
+                running.append(score)
+                treatment.append(dose)
+                outcome.append(1.0 + 2.0 * score + 0.5 * score**2 + 3.0 * dose)
+    rows = {"x": running, "t": treatment, "y": outcome}
+    query = (RegressionKink if kink else FuzzyRegressionDiscontinuity)("y", "t", "x", 0.0, 1.0)
+    result = analyze(rows, query=query)
+    fit = result.local_polynomial_ratio
+    assert fit is not None
+    assert fit.estimate == pytest.approx(3.0, abs=1e-7)
+    assert fit.ci_lower is None and fit.ci_upper is None
+    assert np.isnan(result.estimate.se_analytic)
+    assert fit.uncertainty == "point_only_with_unvalidated_hc0_standard_error"
+    assert fit.observations_left == fit.observations_right == 316
+    assert "no_calibrated_interval" in fit.diagnostics
+    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).local_polynomial_ratio == fit
 
 
 def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
