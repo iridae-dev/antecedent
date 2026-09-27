@@ -1,0 +1,102 @@
+//! Repeated-sampling evidence for retained two-period DiD cluster scores.
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent::prelude::ExecutionContext;
+use antecedent::{PanelDidQuery, Study};
+use antecedent_core::{CausalRng, VariableId};
+use antecedent_data::TabularData;
+use antecedent_kernels::standard_normal;
+
+const REPLICATIONS: usize = 2_000;
+const TRUTH: f64 = 2.0;
+const CRITICAL_95: f64 = 1.959_963_984_540_054;
+
+fn panel_fixture() -> (PanelDidQuery, Vec<f64>, Vec<bool>) {
+    let mut subjects = Vec::new();
+    let mut clusters = Vec::new();
+    let mut treated = Vec::new();
+    let mut post = Vec::new();
+    let mut baseline = Vec::new();
+    for cluster in 0..160 {
+        let active = cluster >= 80;
+        for subject in 0..2 {
+            for after in [false, true] {
+                subjects.push(Arc::<str>::from(format!("subject-{cluster}-{subject}")));
+                clusters.push(Arc::<str>::from(format!("cluster-{cluster}")));
+                treated.push(active);
+                post.push(after);
+                baseline.push(cluster as f64 * 0.01 + subject as f64 * 0.1);
+            }
+        }
+    }
+    (PanelDidQuery::new(VariableId::from_raw(0), treated.clone(), post,
+        subjects, clusters), baseline, treated)
+}
+
+#[test]
+fn retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth() {
+    let (query, baseline, treated) = panel_fixture();
+    let data = TabularData::from_f64_columns([("outcome", baseline.as_slice())]).unwrap();
+    let ctx = ExecutionContext::for_tests(20260927);
+    let prepared = Study::tabular(data).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let mut rng = CausalRng::from_seed(0x21_09_27_03);
+    let mut covered = 0;
+    for _ in 0..REPLICATIONS {
+        let mut outcome = baseline.clone();
+        for cluster in 0..160 {
+            let cluster_shock = standard_normal(&mut rng);
+            for subject in 0..2 {
+                let row = (cluster * 2 + subject) * 2;
+                outcome[row + 1] += 0.5 + if treated[row] { TRUTH } else { 0.0 }
+                    + cluster_shock + 0.5 * standard_normal(&mut rng);
+            }
+        }
+        let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+        let fit = prepared.estimate(&data, &ctx).unwrap().panel_did.unwrap();
+        covered += usize::from((fit.effect - TRUTH).abs() <= CRITICAL_95 * fit.standard_error);
+    }
+    let rate = covered as f64 / REPLICATIONS as f64;
+    eprintln!("panel DiD cluster score: {covered}/{REPLICATIONS} = {rate:.4}");
+    assert!((0.925..=0.975).contains(&rate), "panel DiD coverage {rate:.4}");
+}
+
+#[test]
+fn retained_repeated_cross_section_did_interval_covers_parallel_trends_truth() {
+    let mut treated = Vec::new();
+    let mut post = Vec::new();
+    let mut subjects = Vec::new();
+    let mut clusters = Vec::new();
+    for group in [false, true] {
+        for after in [false, true] {
+            for row in 0..100 {
+                treated.push(group);
+                post.push(after);
+                subjects.push(Arc::<str>::from(format!("subject-{group}-{after}-{row}")));
+                clusters.push(Arc::<str>::from(format!("cluster-{group}-{after}-{row}")));
+            }
+        }
+    }
+    let query = PanelDidQuery::repeated_cross_section(
+        VariableId::from_raw(0), treated.clone(), post.clone(), subjects, clusters,
+    );
+    let zeros = vec![0.0; treated.len()];
+    let ctx = ExecutionContext::for_tests(20260928);
+    let prepared = Study::tabular(TabularData::from_f64_columns([("outcome", zeros.as_slice())]).unwrap())
+        .query(query).build().unwrap().prepare(&ctx).unwrap();
+    let mut rng = CausalRng::from_seed(0x21_09_27_04);
+    let mut covered = 0;
+    for _ in 0..REPLICATIONS {
+        let outcome: Vec<f64> = treated.iter().zip(&post).map(|(&active, &after)| {
+            f64::from(active) + 0.5 * f64::from(after)
+                + TRUTH * f64::from(active && after) + standard_normal(&mut rng)
+        }).collect();
+        let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+        let fit = prepared.estimate(&data, &ctx).unwrap().panel_did.unwrap();
+        covered += usize::from((fit.effect - TRUTH).abs() <= CRITICAL_95 * fit.standard_error);
+    }
+    let rate = covered as f64 / REPLICATIONS as f64;
+    eprintln!("repeated cross-section DiD cluster score: {covered}/{REPLICATIONS} = {rate:.4}");
+    assert!((0.925..=0.975).contains(&rate), "repeated cross-section DiD coverage {rate:.4}");
+}
