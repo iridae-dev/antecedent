@@ -517,6 +517,14 @@ class ResultAPI:
                     "Point-only at this support level.")
         policy = getattr(self, "policy_value", None)
         if policy is not None:
+            if policy.finite_class_regret is not None:
+                regret = policy.finite_class_regret
+                return (
+                    f"Held-out randomized policy value {policy.policy_value:g}. Estimated gap to "
+                    f"the best member of the prespecified candidate class is {regret.regret:g}; "
+                    f"simultaneous 95% interval [{regret.interval_95[0]:g}, {regret.interval_95[1]:g}]. "
+                    "Candidate selection and randomization are caller-declared."
+                )
             return (
                 f"Held-out randomized policy value {policy.policy_value:g}; reference value "
                 f"{policy.reference_value:g}; incremental value {policy.incremental_value:g}; "

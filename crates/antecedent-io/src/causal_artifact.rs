@@ -653,6 +653,11 @@ pub(crate) fn validate_query_ids(
                 uplift_bins: wire.uplift_bins.clone().into(),
                 uplift_bin_count: wire.uplift_bin_count,
                 uplift_training_subject_ids: wire.uplift_training_subject_ids.iter().map(|x| std::sync::Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
+                regret: wire.regret.as_ref().map(|regret| antecedent_core::FixedCandidateRegretInputs {
+                    candidates: regret.candidates.iter().map(|actions| std::sync::Arc::<[bool]>::from(actions.clone())).collect::<Vec<_>>().into(),
+                    selected_index: regret.selected_index,
+                    training_subject_ids: regret.training_subject_ids.iter().map(|id| std::sync::Arc::<str>::from(id.as_str())).collect::<Vec<_>>().into(),
+                }),
             }
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))

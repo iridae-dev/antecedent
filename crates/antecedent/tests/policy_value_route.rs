@@ -26,7 +26,55 @@ fn query() -> PolicyValueQuery {
         uplift_bins: Arc::from([]),
         uplift_bin_count: 0,
         uplift_training_subject_ids: Arc::from([]),
+        regret: None,
     }
+}
+
+#[test]
+fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
+    let n = 400;
+    let assignment = (0..n).map(|i| i % 4 < 2).collect::<Vec<_>>();
+    let outcome = assignment.iter().enumerate().map(|(i, &assigned)| {
+        1.0 + if assigned { if i % 2 == 0 { 2.0 } else { -1.0 } } else { 0.0 }
+            + (i % 7) as f64 * 0.01
+    }).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let candidates = vec![
+        Arc::<[bool]>::from(vec![false; n]), Arc::<[bool]>::from(vec![true; n]),
+        Arc::<[bool]>::from((0..n).map(|i| i % 2 == 0).collect::<Vec<_>>()),
+        Arc::<[bool]>::from((0..n).map(|i| i % 2 == 1).collect::<Vec<_>>()),
+    ];
+    let mut q = query();
+    q.assignment = assignment.into();
+    q.propensity = Arc::from([0.5]);
+    q.actions = candidates[1].clone();
+    q.reference = Arc::from(vec![false; n]);
+    q.costs = Arc::from([0.2]);
+    q.mu0 = Arc::from([]);
+    q.mu1 = Arc::from([]);
+    q.disjoint_training_subjects = false;
+    q.evaluation_subject_ids = (0..n).map(|i| Arc::<str>::from(format!("eval-{i}"))).collect::<Vec<_>>().into();
+    q.regret = Some(antecedent_core::FixedCandidateRegretInputs {
+        candidates: candidates.into(), selected_index: 1,
+        training_subject_ids: Arc::from([Arc::<str>::from("selection-training")]),
+    });
+    let ctx = ExecutionContext::for_tests(82);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone()))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let policy = result.policy_value.as_ref().unwrap();
+    let regret = policy.regret.as_ref().unwrap();
+    assert!(regret.regret > 0.0);
+    assert!(regret.interval_95[0] <= regret.regret && regret.regret <= regret.interval_95[1]);
+    assert_eq!(result.support_status, None, "regret has no exact graphless row yet");
+    let bytes = prepared.encode_contracted_result(&result, "fixed-class-regret", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().regret.as_ref().unwrap().selected_index, 1);
+    body.policy_value.as_mut().unwrap().regret.as_mut().unwrap().interval_95[1] += 0.5;
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names,
+        "forged-regret-bound").is_err());
+    q.regret.as_mut().unwrap().training_subject_ids = Arc::from([Arc::<str>::from("eval-0")]);
+    assert!(q.validate().is_err());
 }
 
 #[test]

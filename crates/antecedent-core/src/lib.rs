@@ -113,7 +113,7 @@ pub use query::{
     ExposureLevel, ExposureMapping, ExposurePropensityProvenance, FactorNeed, GridSpec, InterferenceFunctional,
     InterferenceQuery, InterventionAssignment, InterventionalDistributionQuery,
     KnownCensoringSurvival, LicensedWeights, LongitudinalRegimeMethod, LongitudinalRegimeQuery, LocalPolynomialRatioQuery,
-    MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
+    FixedCandidateRegretInputs, MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
     PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,

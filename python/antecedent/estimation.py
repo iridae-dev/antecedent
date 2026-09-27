@@ -730,7 +730,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         return None
     ipw = section.prediction_ownership == "no_outcome_nuisance_predictions"
     multi_action = section.uncertainty.startswith("multi_action_")
-    from .policy import MultiActionCatePoint, UpliftBin
+    from .policy import FiniteClassRegretEvaluation, MultiActionCatePoint, UpliftBin
     return DoublyRobustPolicyEvaluation(
         policy_value=section.policy_value,
         reference_value=section.reference_value,
@@ -744,7 +744,8 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         policy_value_interval_95=section.policy_interval_95,
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=(section.graphless_support_status or
-                        ("off_axis_pointwise_95" if section.policy_interval_95 is not None
+                        ("off_axis_simultaneous_95" if section.regret is not None else
+                         "off_axis_pointwise_95" if section.policy_interval_95 is not None
                          or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
                          or any(interval is not None for *_, interval in section.multi_action_cate)
                          else "unlicensed_point_utility")),
@@ -756,6 +757,11 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         multi_action_cate=tuple(MultiActionCatePoint(group, action, float(effect), int(rows), int(action_rows), int(control_rows),
                                                  float(se), interval, "pointwise_95" if interval is not None else "point_only")
                                 for group, action, effect, rows, action_rows, control_rows, se, interval in section.multi_action_cate),
+        finite_class_regret=(FiniteClassRegretEvaluation(
+            float(section.regret[0]), tuple(section.regret[1]),
+            tuple(float(value) for value in section.regret[2]),
+            tuple(float(se) for se in section.regret[3]), int(section.regret[4]),
+        ) if section.regret is not None else None),
         uncertainty=section.uncertainty,
         evaluation_method=(
             "randomized_multi_action_ipw_fixed_policy" if multi_action else
@@ -784,6 +790,9 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
             + ((
                 "Baseline groups for conditional effects were fixed before evaluation outcomes were observed.",
             ) if section.multi_action_cate else ())
+            + ((
+                "The finite candidate class and selected member were fixed using declared training subjects disjoint from evaluation subjects.",
+            ) if section.regret is not None else ())
         ),
         diagnostics=((
             (
@@ -802,6 +811,9 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
             + ((
                 "multi-action conditional intervals require at least 300 independent evaluation subjects in each fixed baseline group, 50 observed subjects per compared arm, and each compared action probability at least 0.2",
             ) if section.multi_action_cate else ())
+            + ((
+                "finite-class regret uses simultaneous paired-score bounds for 2–16 fixed candidates; training ownership and randomization are caller-declared",
+            ) if section.regret is not None else ())
         ),
     )
 
@@ -2970,6 +2982,10 @@ class _PrepareRoute:
             uplift_bins=uplift_bin_ids,
             uplift_bin_count=query.uplift_bin_count,
             uplift_training_subject_ids=list(query.uplift_training_subject_ids or ()),
+            regret_candidates=[list(candidate.actions) for candidate in (query.regret_candidates or ())],
+            regret_selected_index=(next((index for index, candidate in enumerate(query.regret_candidates)
+                if candidate.actions == query.policy.actions), None) if query.regret_candidates is not None else None),
+            regret_training_subject_ids=list(query.regret_training_subject_ids or ()),
             global_constraints_present=(query.policy.capacity is not None or query.policy.budget is not None
                                         or reference.capacity is not None or reference.budget is not None),
             accepted=self.accepted, **self._common(),

@@ -1003,6 +1003,21 @@ pub struct PolicyValueQueryWire {
     /// Caller-declared ranking training subjects, disjoint from evaluation subjects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub uplift_training_subject_ids: Vec<String>,
+    /// Prespecified fixed candidate class and disjoint selection subjects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regret: Option<FixedCandidateRegretWire>,
+}
+
+/// Portable fixed-class regret ownership and action vectors.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FixedCandidateRegretWire {
+    /// Candidate recommendations in input order.
+    pub candidates: Vec<Vec<bool>>,
+    /// Selected candidate index.
+    pub selected_index: usize,
+    /// Disjoint construction and selection subject IDs.
+    pub training_subject_ids: Vec<String>,
 }
 
 /// Portable caller-supplied conditional continuous-dose response design.
@@ -1842,6 +1857,11 @@ pub fn causal_query_to_wire_with_registry(
             uplift_bins: q.uplift_bins.to_vec(),
             uplift_bin_count: q.uplift_bin_count,
             uplift_training_subject_ids: q.uplift_training_subject_ids.iter().map(ToString::to_string).collect(),
+            regret: q.regret.as_ref().map(|regret| FixedCandidateRegretWire {
+                candidates: regret.candidates.iter().map(|candidate| candidate.to_vec()).collect(),
+                selected_index: regret.selected_index,
+                training_subject_ids: regret.training_subject_ids.iter().map(ToString::to_string).collect(),
+            }),
         }),
         CausalQuery::ContinuousDoseResponse(q) => CausalQueryWire::ContinuousDoseResponse(ContinuousDoseResponseQueryWire {
             outcome: q.outcome.raw(), dose: q.dose.raw(), dose_density: q.dose_density.raw(),
@@ -2253,6 +2273,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 uplift_bins: w.uplift_bins.clone().into(),
                 uplift_bin_count: w.uplift_bin_count,
                 uplift_training_subject_ids: w.uplift_training_subject_ids.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
+                regret: w.regret.as_ref().map(|regret| antecedent_core::FixedCandidateRegretInputs {
+                    candidates: regret.candidates.iter().map(|actions| Arc::<[bool]>::from(actions.clone())).collect::<Vec<_>>().into(),
+                    selected_index: regret.selected_index,
+                    training_subject_ids: regret.training_subject_ids.iter().map(|id| Arc::<str>::from(id.as_str())).collect::<Vec<_>>().into(),
+                }),
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PolicyValue(q)
@@ -2915,6 +2940,7 @@ mod tests {
             uplift_bins: Arc::from([]),
             uplift_bin_count: 0,
             uplift_training_subject_ids: Arc::from([]),
+            regret: None,
         });
         let wire = causal_query_to_wire(&query).unwrap();
         let bytes = to_cbor(&wire).unwrap();

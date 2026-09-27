@@ -505,6 +505,7 @@ class PolicyValueSection:
     graphless_support_status: str | None
     uplift_bins: list[tuple[int, float, float, int, tuple[float, float] | None]]
     multi_action_cate: list[tuple[str, str, float, int, int, int, float, tuple[float, float] | None]]
+    regret: tuple[float, tuple[float, float], list[float], list[float], int] | None
 
 class ContinuousDoseResponseSection:
     points: list[tuple[str, float, float, int, float, float, float, float]]
@@ -1446,6 +1447,9 @@ class PreparedAnalysis:
         uplift_bin_count: int = 0,
         uplift_training_subject_ids: list[str] = ...,
         global_constraints_present: bool = False,
+        regret_candidates: list[list[bool]] = ...,
+        regret_selected_index: int | None = None,
+        regret_training_subject_ids: list[str] = ...,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

@@ -407,6 +407,25 @@ pub struct PolicyValueWire {
     /// Point-only action effects versus control within fixed baseline strata.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub multi_action_cate: Vec<MultiActionCateWire>,
+    /// Finite-class regret relative to a prespecified selected candidate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regret: Option<FixedCandidateRegretWire>,
+}
+
+/// Paired candidate contrasts and simultaneous regret endpoints.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FixedCandidateRegretWire {
+    /// Estimated net value of each fixed candidate.
+    pub candidate_values: Vec<f64>,
+    /// Paired candidate-minus-selected standard errors.
+    pub contrast_standard_errors: Vec<f64>,
+    /// Estimated best-in-class value gap.
+    pub regret: f64,
+    /// Bonferroni simultaneous 95% bounds.
+    pub interval_95: [f64; 2],
+    /// Selected candidate index.
+    pub selected_index: usize,
 }
 
 /// One conditional dose-response cell with explicit local support diagnostics.
@@ -1996,6 +2015,53 @@ fn validate_result(
         let crate::CausalQueryWire::PolicyValue(query) = &result.query else {
             return Err(IoError::Convert("policy uplift bins require a policy-value query".into()));
         };
+        if let Some(regret) = &policy.regret {
+            let Some(design) = &query.regret else {
+                return Err(IoError::Convert("finite-class regret requires its bound candidate query".into()));
+            };
+            let k = design.candidates.len();
+            let n = query.assignment.len();
+            if n < 400 || !(2..=16).contains(&k) || design.selected_index >= k
+                || regret.selected_index != design.selected_index
+                || regret.candidate_values.len() != k || regret.contrast_standard_errors.len() != k
+                || query.global_constraints_present || query.multi_action.is_some()
+                || !query.mu0.is_empty() || !query.uplift_bins.is_empty()
+                || query.propensity.iter().any(|p| !(0.2..=0.8).contains(p))
+                || design.training_subject_ids.is_empty()
+                || design.training_subject_ids.iter().any(|id| query.evaluation_subject_ids.contains(id))
+                || design.candidates.iter().any(|candidate| candidate.len() != n
+                    || query.assignment.iter().zip(candidate).filter(|(a, b)| a == b).count() < 50)
+                || design.candidates[design.selected_index] != query.actions
+                || policy.graphless_support_status.is_some()
+            {
+                return Err(IoError::Convert("finite-class regret support or ownership is invalid".into()));
+            }
+            let selected = regret.candidate_values[regret.selected_index];
+            let critical = antecedent_stats::normal_ppf(1.0 - 0.05 / (2.0 * (k - 1) as f64));
+            let mut lower: f64 = 0.0;
+            let mut upper: f64 = 0.0;
+            let mut point: f64 = 0.0;
+            for (j, (&value, &se)) in regret.candidate_values.iter()
+                .zip(&regret.contrast_standard_errors).enumerate() {
+                if !value.is_finite() || !se.is_finite() || se < 0.0
+                    || (j == regret.selected_index && se != 0.0) {
+                    return Err(IoError::Convert("finite-class regret candidate score is invalid".into()));
+                }
+                if j == regret.selected_index { continue; }
+                let difference = value - selected;
+                let span = critical * se;
+                point = point.max(difference);
+                lower = lower.max(difference - span);
+                upper = upper.max(difference + span);
+            }
+            let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
+            if !close(selected, policy.policy_value) || !close(point, regret.regret)
+                || !close(lower, regret.interval_95[0]) || !close(upper, regret.interval_95[1]) {
+                return Err(IoError::Convert("finite-class regret interval does not match paired candidate contrasts".into()));
+            }
+        } else if query.regret.is_some() {
+            return Err(IoError::Convert("finite-class regret query requires a regret result".into()));
+        }
         if policy.uplift_bins.len() != query.uplift_bin_count
             || (!query.uplift_bins.is_empty() && query.uplift_bins.len() != query.assignment.len())
             || policy.uplift_bins.iter().enumerate().any(|(rank, bin)| {

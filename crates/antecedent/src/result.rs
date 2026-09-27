@@ -347,6 +347,8 @@ pub struct PolicyValueEstimate {
     pub uplift_bins: Vec<antecedent_estimate::policy_value::UpliftBinScore>,
     /// Point-only action effects versus control within fixed baseline strata.
     pub multi_action_cate: Vec<antecedent_estimate::policy_value::MultiActionCatePoint>,
+    /// Simultaneous regret bound relative to the prespecified candidate class.
+    pub regret: Option<antecedent_estimate::policy_value::FixedCandidateRegret>,
 }
 
 /// Full-grid 95% difference band from randomized subject resampling.
