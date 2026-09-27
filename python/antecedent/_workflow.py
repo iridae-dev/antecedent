@@ -55,9 +55,11 @@ def prepare(
 ) -> PreparedAnalysis[_PreparedResult]:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
-    Every argument :func:`analyze` accepts is accepted here, with the same
-    meaning and the same refusals; ``analyze(...)`` is this call followed by
-    ``.estimate()`` (plus ``return_posterior_artifact``).
+    Every argument :func:`analyze` accepts for a native query is accepted here,
+    with the same meaning and the same refusals; ``analyze(...)`` is this call
+    followed by ``.estimate()`` (plus ``return_posterior_artifact``). The one
+    exception is ``extensibility.ProviderQuery``, which :func:`analyze` dispatches
+    directly to its registered provider (it retains no prepared study to stop at).
     """
     return PreparedAnalysis.prepare(
         data,
