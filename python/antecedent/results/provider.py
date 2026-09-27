@@ -27,7 +27,12 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
 
     @property
     def calibration(self) -> CalibrationInfo:
-        return CalibrationInfo(status="unavailable", reason="attested_not_reverifiable")
+        reason = (
+            "extension_fixture_verification_does_not_calibrate_inference"
+            if self.provider_result.trust.value == "verified_extension"
+            else "attested_not_reverifiable"
+        )
+        return CalibrationInfo(status="unavailable", reason=reason)
 
     @property
     def estimate(self) -> Any:

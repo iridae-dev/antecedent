@@ -947,12 +947,49 @@ package can be installed or upgraded independently. The caller loads it by
 name before submitting its `ProviderQuery`; an absent or ambiguous entry point
 is refused, and no plugin can declare itself native licensed through this path.
 
+A host can promote an externally attested provider to `verified_extension` by
+calling `ProviderRegistry.verify(name, fixtures, evidence_origin=...)`. Each
+`ProviderVerificationFixture` supplies an independent known-truth request,
+expected estimate and uncertainty, assumptions, support label, provenance,
+and an artifact SHA-256 digest. A caller-supplied decoder can check the artifact
+round trip. The host runs every fixture through the ordinary provider runtime,
+checks declared output shape and uncertainty semantics, and replays each
+fixture when the provider declares deterministic behavior. Only after every
+check passes does the registry record a `ProviderVerificationReport` and
+promote that provider. Subsequent results carry the evidence digest and origin;
+changing the provider's declared spec invalidates execution. An installed
+entry-point provider can use this route without rebuilding Python or Rust.
+The scientific truth and independence of the reference cases remain the
+caller's responsibility. Verification covers those cases and does not grant
+native licensing or interval calibration.
+
+```python
+from antecedent.extensibility import ProviderVerificationFixture, providers
+
+providers.load_entry_point("my_provider")
+report = providers.verify(
+    "my_provider",
+    [ProviderVerificationFixture(
+        name="known-effect-1",
+        request={"case": "known-effect-1"},
+        expected_estimate=[1.0],
+        expected_uncertainty=None,
+        expected_assumptions=("randomized assignment",),
+        expected_support_status="both_arms",
+        expected_provenance={"package": "my-provider", "version": "1.0"},
+        artifact_digest="<SHA-256 of expected provider artifact>",
+    )],
+    evidence_origin="independent-reference-suite/v1",
+)
+```
+
 `EconMLSpec.attach` accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
 identification and data-snapshot identities. It does not rerun the learner or
 verify its provenance, fold ownership, or uncertainty calibration. Loaded
-external results remain externally attested with calibration unavailable;
-they are not promoted to native or verified-extension support.
+external results start externally attested with calibration unavailable. They
+can become verified extensions only after the host runs independent fixtures;
+that bounded verification still does not calibrate intervals.
 
 ## Interventions and counterfactuals
 
