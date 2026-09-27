@@ -50,7 +50,9 @@ pub struct SaturationClusterInterval {
 /// marginalize the high/low allocation of each unit's own cluster and enumerate
 /// its incoming-neighbor assignments. Other cluster allocations cancel because
 /// partial interference forbids cross-cluster edges.
-/// The variance is a covariance-free plug-in bound, not a calibrated interval.
+/// The legacy covariance-free variance remains descriptive. An independent-cluster
+/// pointwise interval is supplied separately when both saturation arms and both
+/// exposure levels pass their support gates.
 ///
 /// # Errors
 ///
@@ -163,6 +165,23 @@ pub fn estimate_saturation_interference(
         pointwise_interval,
         interval_unavailable_reason,
     })
+}
+
+/// Require a pointwise interval for a two-stage saturation contrast.
+///
+/// This keeps a point estimate available through [`estimate_saturation_interference`]
+/// while giving callers that explicitly request interval inference an error with
+/// the precise support condition that failed.
+pub fn estimate_saturation_interference_pointwise(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+) -> Result<SaturationInterferenceEstimate, EstimationError> {
+    let result = estimate_saturation_interference(query, data, assignment)?;
+    if let Some(reason) = result.interval_unavailable_reason {
+        return Err(EstimationError::unsupported(reason));
+    }
+    Ok(result)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -307,7 +326,7 @@ mod tests {
     use antecedent_core::{AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, VariableId};
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
-    use super::estimate_saturation_interference;
+    use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
 
     #[test]
     fn local_mixture_matches_global_complete_allocation_enumeration() {
@@ -417,6 +436,9 @@ mod tests {
         let point = estimate_saturation_interference(&query, &network, &assignment).unwrap();
         assert!(point.pointwise_interval.is_none());
         assert!(point.interval_unavailable_reason.unwrap().contains("eight independent clusters"));
+        let refused = estimate_saturation_interference_pointwise(&query, &network, &assignment)
+            .unwrap_err();
+        assert!(refused.to_string().contains("eight independent clusters"));
         // Forty independent clusters would require over 10^11 global high/low
         // allocations; the exact marginal mixture needs only two states per unit.
         let clusters = (0..40).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
