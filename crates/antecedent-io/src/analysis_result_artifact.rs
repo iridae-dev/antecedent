@@ -2503,7 +2503,30 @@ fn validate_result(
         let did_design = if query.repeated_cross_section { "repeated_cross_section_2x2" } else { "panel_2x2" };
         let did_method = if query.repeated_cross_section { "four_cell_cluster_scores_cr1" } else { "cluster_change_scores_cr1" };
         let min_cell_clusters = cell_clusters.iter().flatten().map(std::collections::BTreeSet::len).min().unwrap_or(0);
-        let did_licensed = query.augmented.is_none() && query.staggered_target.is_none()
+        let did_licensed = if query.staggered_event_study {
+            // Post-adoption event-time intervals: license the representative
+            // group-time ATT interval when its adoption cohort and the
+            // never-treated controls each clear the independent-cluster gate.
+            let mut clusters_by_cohort = std::collections::BTreeMap::<i64, std::collections::BTreeSet<&str>>::new();
+            for (cohort, cluster) in query.cohorts.iter().zip(&query.clusters) {
+                clusters_by_cohort.entry(*cohort).or_default().insert(cluster);
+            }
+            let controls = clusters_by_cohort.get(&0).map_or(0, std::collections::BTreeSet::len);
+            let representative_treated = representative.map_or(0, |effect|
+                clusters_by_cohort.get(&effect.0).map_or(0, std::collections::BTreeSet::len));
+            let published_intervals = did.event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
+            interval_valid && event_intervals_valid && did.interval_95.is_some()
+                && graphless_data::LICENSES.iter().any(|row| {
+                    row.family == "difference_in_differences" && row.design == "staggered_event_study"
+                        && row.method == "never_treated_event_study_cluster_cr1"
+                        && row.inference_claim == "post_adoption_event_time_pointwise_95_normal_intervals"
+                        && row.assignment_unit == "cluster"
+                        && representative_treated >= row.min_assignment_units_per_arm
+                        && controls >= row.min_assignment_units_per_arm
+                        && published_intervals >= row.min_reported_intervals
+                })
+        } else {
+            query.augmented.is_none() && query.staggered_target.is_none()
             && !query.staggered_event_study && interval_valid && did.interval_95.is_some()
             && graphless_data::LICENSES.iter().any(|row| {
                 row.family == "difference_in_differences" && row.design == did_design
@@ -2514,7 +2537,8 @@ fn validate_result(
                     && (!query.repeated_cross_section || (!duplicate_subject
                         && 4 >= row.min_blocks && min_cell_clusters >= row.min_block_arm))
                     && 1 >= row.min_reported_intervals
-            });
+            })
+        };
         if result.estimate != Some(did.effect)
             || !interval_valid
             || !did.effect.is_finite()

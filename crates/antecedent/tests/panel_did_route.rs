@@ -466,6 +466,43 @@ fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelD
 }
 
 #[test]
+fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_license() {
+    // Supported cohort: 24 independent clusters per group publish the
+    // post-adoption interval and license the row.
+    let (data, query) = staggered_interval_fixture(24);
+    let context = ExecutionContext::for_tests(112);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let result = prepared.estimate(&data, &context).unwrap();
+    let did = result.panel_did.as_ref().unwrap();
+    assert_eq!(did.uncertainty.as_ref(), "event_time_pointwise_normal_intervals_independent_clusters");
+    let bounds = did.interval_95.expect("published representative post-adoption interval");
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let bytes = prepared.encode_contracted_result(&result, "supported-staggered-event", &context).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
+    // Fabricating the licensed representative interval is rejected.
+    let mut fabricated = body.clone();
+    let index = fabricated.panel_did.as_ref().unwrap().event_time_effects.iter()
+        .position(|effect| effect.2 >= 0).unwrap();
+    fabricated.panel_did.as_mut().unwrap().event_time_intervals_95[index] = Some([bounds[0] - 1.0, bounds[1]]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names.clone(), "fabricated-staggered-interval").is_err());
+
+    // Thin cohort: 8 clusters per group withholds the interval and the license;
+    // stamping "licensed" onto that unsupported result is refused.
+    let (thin_data, thin_query) = staggered_interval_fixture(8);
+    let thin_prepared = Study::tabular(thin_data.clone()).query(thin_query).build().unwrap().prepare(&context).unwrap();
+    let thin_result = thin_prepared.estimate(&thin_data, &context).unwrap();
+    assert_eq!(thin_result.support_status, None);
+    assert_eq!(thin_result.panel_did.as_ref().unwrap().interval_95, None);
+    let thin_bytes = thin_prepared.encode_contracted_result(&thin_result, "thin-staggered-event", &context).unwrap();
+    let (_, thin_header, mut thin_body) = antecedent_io::decode_analysis_result_artifact(&thin_bytes).unwrap();
+    assert_eq!(thin_body.panel_did.as_ref().unwrap().graphless_support_status, None);
+    thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(&thin_body, thin_header.variable_names, "forged-thin-staggered-license").is_err());
+}
+
+#[test]
 fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
     for clusters_per_group in [8, 24] {
         let (data, query) = staggered_interval_fixture(clusters_per_group);
