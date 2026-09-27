@@ -51,7 +51,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                             "boundary": False,
                         }
                     },
-                    {("Elasticity", "Dag", "explicit", "Frequentist", "none")},
+                    {("Elasticity", "Dag", "explicit", "Frequentist", "none"): ["new"]},
                 )
             finally:
                 collector.LICENSED = original
