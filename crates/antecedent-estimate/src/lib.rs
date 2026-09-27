@@ -59,6 +59,7 @@ pub mod se;
 pub mod serial_dependence;
 pub mod statistical_transport;
 pub mod survival;
+pub mod synthetic_control;
 pub mod temporal_adjustment;
 pub mod temporal_block;
 pub mod temporal_mediation;
