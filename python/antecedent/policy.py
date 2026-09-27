@@ -191,11 +191,11 @@ class DoublyRobustPolicyEvaluation:
     policy_value_standard_error: float
     reference_value_standard_error: float
     incremental_value_standard_error: float
-    policy_value_interval_95: tuple[float, float] | None
-    incremental_value_interval_95: tuple[float, float] | None
     prediction_ownership: str
     propensity_min: float
     propensity_max: float
+    policy_value_interval_95: tuple[float, float] | None = None
+    incremental_value_interval_95: tuple[float, float] | None = None
     uplift_bins: tuple[UpliftBin, ...] = ()
     multi_action_cate: tuple[MultiActionCatePoint, ...] = ()
     uncertainty: str = "row_score_standard_error_independent_subjects"
