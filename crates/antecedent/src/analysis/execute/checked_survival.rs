@@ -207,7 +207,7 @@ impl CheckedSurvivalOperation {
                 distribution: None,
                 mediation: None,
                 wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
+                bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
                 cancelled: false,
                 early_stopped: false,
                 extras: IdentifiedExecuteExtras::default(),
@@ -231,6 +231,7 @@ impl CheckedSurvivalOperation {
             difference_at_tau_interval: intervals.as_ref().map(|value| value.difference_at_tau),
             bootstrap_replicates_requested: intervals.as_ref().map(|value| value.replicates_requested),
             bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
+            censoring_survival_provenance: minimum_censoring_survival.map(|_| Arc::from("caller_supplied_fixed_not_fitted_or_verified")),
         });
         Ok(result)
     }

@@ -22,6 +22,7 @@ pub struct SurvivalSection {
     pub difference_at_tau_interval: Option<Vec<f64>>,
     pub bootstrap_replicates_requested: Option<u32>,
     pub bootstrap_replicates_ok: Option<u32>,
+    pub censoring_survival_provenance: Option<String>,
 }
 
 impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
@@ -40,6 +41,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             difference_at_tau_interval: value.difference_at_tau_interval.map(|interval| interval.to_vec()),
             bootstrap_replicates_requested: value.bootstrap_replicates_requested,
             bootstrap_replicates_ok: value.bootstrap_replicates_ok,
+            censoring_survival_provenance: value.censoring_survival_provenance.as_ref().map(ToString::to_string),
         }
     }
 }

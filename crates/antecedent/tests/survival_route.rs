@@ -53,6 +53,8 @@ fn known_censoring_survival_is_retained_and_refuses_positivity_violation() {
     let encoded = prepared.encode_contracted_result(&result, "ipcw-survival", &ctx).unwrap();
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert!(body.interval_lower.is_none());
+    assert_eq!(body.survival.as_ref().unwrap().censoring_survival_provenance.as_deref(),
+        Some("caller_supplied_fixed_not_fitted_or_verified"));
     assert!(matches!(body.query, antecedent_io::CausalQueryWire::Survival(ref wire) if wire.censoring_columns.len() == 3));
     let mut tampered = body.clone();
     if let antecedent_io::CausalQueryWire::Survival(ref mut wire) = tampered.query {
@@ -60,6 +62,11 @@ fn known_censoring_survival_is_retained_and_refuses_positivity_violation() {
     }
     assert!(antecedent_io::encode_analysis_result_artifact(
         &tampered, vec!["duration".into(), "event".into(), "treatment".into(), "g0".into(), "g1".into(), "g3".into()], "tampered",
+    ).is_err());
+    let mut forged = body.clone();
+    forged.survival.as_mut().unwrap().censoring_survival_provenance = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, vec!["duration".into(), "event".into(), "treatment".into(), "g0".into(), "g1".into(), "g3".into()], "forged",
     ).is_err());
     let bad_g1 = [1.0, 0.001, 0.5, 0.5];
     let bad = TabularData::from_f64_columns([

@@ -3400,6 +3400,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             difference_at_tau_interval: survival.difference_at_tau_interval,
             bootstrap_replicates_requested: survival.bootstrap_replicates_requested,
             bootstrap_replicates_ok: survival.bootstrap_replicates_ok,
+            censoring_survival_provenance: survival.censoring_survival_provenance.as_ref().map(ToString::to_string),
         }),
         longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
             antecedent_io::LongitudinalRegimeWire {

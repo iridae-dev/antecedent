@@ -28,6 +28,7 @@ def test_survival_analyze_retains_rmst_curve_and_artifact() -> None:
     assert result.survival.rmst_control == pytest.approx(1.5)
     assert result.survival.rmst_treated == pytest.approx(2.0)
     assert result.survival.uncertainty == "point_only_no_interval"
+    assert result.survival.censoring_survival_provenance is None
     assert result.estimate.ate is None
     assert prepared.refresh(data).survival == result.survival
     assert antecedent.analyze(data, query=query).survival == result.survival
@@ -79,6 +80,9 @@ def test_known_censoring_survival_analyze_matches_native_ipcw_and_artifact() -> 
     assert result.survival.treated_survival == pytest.approx((1.0, 0.5, 0.5))
     assert result.survival.rmst_difference == pytest.approx(-1 / 3)
     assert result.survival.uncertainty == "point_only_no_interval"
+    assert result.survival.censoring_survival_provenance == "caller_supplied_fixed_not_fitted_or_verified"
+    assert "correct_caller_supplied_conditional_censoring_survival" in result.survival.assumptions
+    assert "independent_right_censoring_within_arm" not in result.survival.assumptions
     assert result.estimate.ate is None
     assert prepared.refresh(data).survival == result.survival
     loaded = antecedent.load(prepared.export(artifact_id="ipcw-survival-study"))
@@ -146,6 +150,7 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
     assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
     assert section.bootstrap_replicates_requested == 399
     assert section.bootstrap_replicates_ok == 399
+    assert section.support_status == "unlicensed_pointwise_interval"
     assert section.rmst_difference_interval[0] <= section.rmst_difference <= section.rmst_difference_interval[1]
     assert section.survival_at_tau_difference_interval[0] <= 0.1 <= section.survival_at_tau_difference_interval[1]
     assert result.answer.detail == "randomized_survival_pointwise_bootstrap"

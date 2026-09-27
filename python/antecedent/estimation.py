@@ -527,6 +527,18 @@ def _survival_from_raw(
     times = tuple(section.times)
     control = tuple(section.control)
     treated = tuple(section.treated)
+    fixed_g = getattr(query, "known_censoring", None) is not None
+    has_interval = section.difference_at_tau_interval is not None
+    observation_assumptions = (
+        ("correct_caller_supplied_conditional_censoring_survival",
+         "independent_censoring_given_supplied_history",
+         "sequential_censoring_positivity")
+        if fixed_g else ("independent_right_censoring_within_arm",)
+    )
+    if getattr(query, "delayed_entry", None) is not None:
+        observation_assumptions += ("independent_delayed_entry_within_arm",)
+    provenance = section.censoring_survival_provenance
+    support_status = "unlicensed_pointwise_interval" if has_interval else "unlicensed_point_utility"
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
         return CumulativeIncidenceEstimate(
             target_cause=int(section.target_cause),
@@ -539,6 +551,10 @@ def _survival_from_raw(
             incidence_difference_interval=(tuple(section.difference_at_tau_interval) if section.difference_at_tau_interval is not None else None),
             bootstrap_replicates_requested=section.bootstrap_replicates_requested,
             bootstrap_replicates_ok=section.bootstrap_replicates_ok,
+            censoring_survival_provenance=provenance,
+            support_status=support_status,
+            assumptions=("individual_random_assignment", "all_event_causes_coded_distinctly",
+                         *observation_assumptions, "consistency", "no_interference"),
         )
     return SurvivalEstimate(
         times=times,
@@ -553,6 +569,10 @@ def _survival_from_raw(
         survival_at_tau_difference_interval=(tuple(section.difference_at_tau_interval) if section.difference_at_tau_interval is not None else None),
         bootstrap_replicates_requested=section.bootstrap_replicates_requested,
         bootstrap_replicates_ok=section.bootstrap_replicates_ok,
+        censoring_survival_provenance=provenance,
+        support_status=support_status,
+        assumptions=("individual_random_assignment", *observation_assumptions,
+                     "consistency", "no_interference"),
     )
 
 

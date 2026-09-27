@@ -447,6 +447,7 @@ class SurvivalSection:
     difference_at_tau_interval: list[float] | None
     bootstrap_replicates_requested: int | None
     bootstrap_replicates_ok: int | None
+    censoring_survival_provenance: str | None
 
 class LongitudinalRegimeSection:
     method: str
