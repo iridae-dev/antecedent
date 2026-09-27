@@ -78,10 +78,16 @@ requires marginal `IndependentGiven(())`; the retained IPCW route accepts
 caller-supplied censoring survival columns and an explicit conditional
 `IndependentGiven` claim. An explicit bootstrap count adds arm-stratified
 subject-resampling pointwise intervals for RMST and fixed-horizon survival or
-cause-specific incidence contrasts; full curves have no simultaneous bands.
+cause-specific incidence contrasts. For unweighted studies with at least 80
+subjects per arm and 399 bootstrap draws, the retained result also reports a
+simultaneous 95% band for the full survival or cause-specific incidence
+difference curve. This band is distinct from the scalar pointwise intervals.
 Known censoring probabilities stay fixed with their subjects and are not fit
-or independently verified. Delayed-entry intervals are refused. The queries
-remain outside the licensed support-matrix axes. See [Survival outcomes](survival-outcomes.md).
+or independently verified; simultaneous bands for this weighted path are
+refused. Marginal delayed-entry studies can report the scalar pointwise
+intervals after their separate repeated-sampling gate, but no simultaneous
+band. The queries remain outside the licensed support-matrix axes. See
+[Survival outcomes](survival-outcomes.md).
 
 ## Graph primitives
 
@@ -934,7 +940,13 @@ predictions to evaluate a prespecified regime through the same retained
 query, native estimator, result, and artifact path. The predictions and
 subject/fold ownership are frozen with the study. The caller owns the outcome
 model and must justify its predictions; Antecedent does not fit or verify it.
-This route reports a point value without an interval or support-matrix license.
+By default this route reports a point value. A two-period randomized study
+with at least 300 independent subjects can report a pointwise 95% subject-score
+interval when the caller explicitly declares the outcome predictions fixed and
+known with `known_fixed_outcome_predictions=True`. The interval is conditional
+on that declaration and excludes uncertainty from fitting an outcome model;
+fitted predictions remain point-only. A 2,000-study known-truth fixture covered
+the regime value in 1,897 studies. This route has no support-matrix license.
 Set `method="sequential_dr"` and provide cross-fitted Q predictions, aligned
 subject and prediction fold IDs, monotone observation histories, treatment
 probabilities, and conditional censoring probabilities to run the backward

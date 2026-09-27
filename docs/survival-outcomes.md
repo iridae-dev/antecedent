@@ -69,12 +69,32 @@ randomized arms and recomputes the complete risk-set estimator. The seed makes
 the draws repeatable. It requires at least eight subjects per arm, 199–100,000
 requested replicates, and at least 90% replicates satisfying the estimator's
 original support contract. A failed support gate refuses the interval instead
-of silently dropping it. The intervals cover the **two scalar contrasts**;
-they are not simultaneous bands for the survival curves. The result's
+of silently dropping it. The intervals cover the **two scalar contrasts**
+separately. The result's
 `uncertainty` string and artifact identify the method and valid replicate
 count. The support matrix still treats these survival queries as outside its
 licensed axes, so the Python result labels this interval available but
 unlicensed. Longitudinal or observational survival estimands remain unsupported.
+
+For the unweighted retained route, `bootstrap=399` also gives a **simultaneous**
+95% band across the full reported survival-difference curve when each arm has
+at least 80 subjects and at least 399 valid replicates satisfy the estimator's
+support contract (at least 90% of requested draws):
+
+```python
+band = result.survival.difference_band
+band.times, band.difference, band.lower, band.upper
+```
+
+The band resamples whole subjects within arms and uses a single critical
+radius from the bootstrap distribution of maximum curve deviations. Its grid,
+endpoints, and accepted replicate
+count are frozen in the artifact. In 400 repeated-sampling known-truth studies,
+the band covered the full survival-difference grid in 373. It is distinct from
+the pointwise RMST and fixed-horizon intervals. Fewer than 80 subjects per arm,
+delayed entry, or caller-supplied fixed censoring weights return an explicit
+`band_unavailable_reason`; these cases can still report eligible scalar
+intervals. The band remains outside the support-matrix axes.
 
 Repeated-sampling native fixtures exercise 400 uncensored two-arm studies and
 240 studies with fixed, heterogeneous known censoring probabilities. Each
@@ -164,7 +184,10 @@ point-only; the retained route offers a pointwise interval for the target-cause
 incidence difference at `tau` under `bootstrap=399`. A 240-study known-G,
 two-event-time, two-cause repeated-sampling fixture checks its nominal 95%
 interval against an analytic truth with a 90% empirical-coverage floor.
-Delayed entry is refused.
+Unweighted competing-risk incidence differences also expose the simultaneous
+`difference_band` under the 80-subject/399-draw gate. A 400-study fixture
+covered the complete incidence-difference grid in 382 studies. Fixed known-G
+weights and delayed entry have no simultaneous band.
 
 ## Delayed entry and left truncation
 
@@ -196,10 +219,18 @@ guards avoid presenting unsupported extrapolation from a left-truncated sample
 as an RMST from the origin.
 
 The empty `IndependentGiven(())` claim asserts marginal independent entry and
-right censoring; it does not verify either condition. Conditional delayed entry,
-interval censoring remain refused. Delayed-entry results remain point-only.
-The retained route explicitly refuses `bootstrap>0` for delayed entry because
-subject resampling with left truncation needs separate calibration evidence.
+right censoring; it does not verify either condition. Conditional delayed entry
+and interval censoring remain refused. The retained unweighted route accepts
+`bootstrap=299` for pointwise RMST and fixed-horizon survival or target-cause
+incidence contrasts: resampling keeps each subject's entry and exit together and
+recomputes counting-process risk sets. In a 400-study left-truncated survival
+fixture with independent entry, the RMST and survival-at-`tau` intervals covered
+known truth in 375 and 379 studies. A separate two-cause, 400-study fixture
+covered the target-cause incidence contrast in 380 studies. This evidence
+supports the declared marginal-entry design, not arbitrary dependent
+truncation. Delayed entry with caller-supplied fixed censoring weights remains
+refused, and delayed-entry
+curves have no simultaneous band.
 
 ## Competing risks
 
@@ -225,8 +256,8 @@ cif.incidence_difference
 ```
 
 The direct utility is **point-only**. The retained route can provide the
-pointwise incidence-difference interval described above; it does not report a
-simultaneous cumulative-incidence curve band. Its assumptions include
+pointwise incidence-difference interval and the unweighted simultaneous
+difference band described above. Its assumptions include
 individual random assignment, complete and
 distinct coding of competing causes, independent right censoring within each
 arm, consistency, and no interference. The implementation requires both arms
