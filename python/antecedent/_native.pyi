@@ -4595,9 +4595,9 @@ def conditional_dose_response(
     min_local_support: int = 3,
 ) -> list[tuple[str, float, float, int, float, float, float, float]]: ...
 
-def seal_provider_result(header_json: str, external_artifact: bytes | None = None) -> bytes: ...
+def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(
-    artifact: bytes,
+    bytes: bytes,
     *,
     verified_spec_digest: str | None = None,
     verified_request_digest: str | None = None,
