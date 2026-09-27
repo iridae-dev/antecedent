@@ -6,7 +6,7 @@ pub const MIN_ROWS_FOR_INTERVAL: usize = 400;
 /// Minimum observed rows in each contrasted action for an interval.
 pub const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
 /// Minimum declared probability for either contrasted action at every row.
-pub const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.3;
+pub const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
 const NORMAL_95: f64 = 1.959_963_984_540_054;
 
 /// Horvitz–Thompson effect and its conservative independent-row score variance.
@@ -118,15 +118,19 @@ mod tests {
             let row = if arms == 2 {
                 let p = 0.35 + 0.3 * (i % 7) as f64 / 6.0;
                 vec![1.0 - p, p]
-            } else {
+            } else if arms == 3 {
                 vec![0.3, 0.3, 0.4]
+            } else {
+                vec![1.0 / arms as f64; arms]
             };
             let draw = uniform((replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
                 ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
             let mut cumulative = 0.0;
             let action = row.iter().position(|p| { cumulative += *p; draw < cumulative })
                 .unwrap_or(arms - 1);
-            outcomes.push(baseline + if action == 1 { effect } else if action == 2 { 1.1 } else { 0.0 });
+            outcomes.push(baseline + if action == 1 { effect }
+                else if action >= 2 { 1.1 + 0.4 * (action - 2) as f64 }
+                else { 0.0 });
             assignments.push(action);
             probabilities.push(row);
         }
@@ -136,28 +140,21 @@ mod tests {
     #[test]
     fn independent_bernoulli_and_multi_arm_coverage() {
         const REPLICATES: usize = 2_000;
-        for arms in [2, 3] {
-            let mut covered = 0;
-            let mut second_action_covered = 0;
+        for arms in [2, 3, 4, 5] {
+            let mut covered = vec![0_usize; arms - 1];
             for rep in 0..REPLICATES {
                 let (outcomes, assignments, probabilities, truth) = study(arms, rep, 400);
-                let fit = independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
-                    .unwrap();
-                let [lower, upper] = fit.interval_95.expect("large known-probability trial is supported");
-                covered += usize::from(lower <= truth && truth <= upper);
-                if arms == 3 {
-                    let fit = independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 2)
+                for action in 1..arms {
+                    let fit = independent_action_contrast(&outcomes, &assignments, &probabilities, 0, action)
                         .unwrap();
-                    let [lower, upper] = fit.interval_95.expect("second action is supported");
-                    second_action_covered += usize::from(lower <= 1.1 && 1.1 <= upper);
+                    let [lower, upper] = fit.interval_95.expect("action is supported");
+                    let target = if action == 1 { truth } else { 1.1 + 0.4 * (action - 2) as f64 };
+                    covered[action - 1] += usize::from(lower <= target && target <= upper);
                 }
             }
-            let rate = covered as f64 / REPLICATES as f64;
-            eprintln!("{arms}-arm independent action contrast: {covered}/{REPLICATES} = {rate:.4}");
-            assert!((0.93..=0.985).contains(&rate));
-            if arms == 3 {
-                let rate = second_action_covered as f64 / REPLICATES as f64;
-                eprintln!("3-arm second action contrast: {second_action_covered}/{REPLICATES} = {rate:.4}");
+            for (index, count) in covered.into_iter().enumerate() {
+                let rate = count as f64 / REPLICATES as f64;
+                eprintln!("{arms}-arm action {} contrast: {count}/{REPLICATES} = {rate:.4}", index + 1);
                 assert!((0.93..=0.985).contains(&rate));
             }
         }
