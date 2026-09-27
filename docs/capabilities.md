@@ -702,8 +702,9 @@ multi_result = ant.analyze(
 contrasts = multi_result.randomized_effect.multi_arm_contrasts
 ```
 
-Multi-source meta-transport, cyclic/equilibrium models, and observational
-network interference remain outside the current contract.
+Multi-source meta-transport and cyclic/equilibrium models remain outside the
+current contract. Observational network exposure has the explicit, point-only
+retained route described above.
 
 ## Treatment policy evaluation
 
