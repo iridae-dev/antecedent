@@ -1494,6 +1494,11 @@ fn verify_claim_calibration(
     if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
         unresolved.push(Arc::from("claim.calibration"));
     }
+    if contract.reasoning.support.value.as_ref().is_some_and(|support| support.matrix_status == "off_axis")
+        && std::iter::once(slot).chain(slot.secondary.iter()).any(|entry| entry.status == "calibrated")
+    {
+        unresolved.push(Arc::from("claim.calibration.off_axis"));
+    }
     let consistent = std::iter::once(slot)
         .chain(slot.secondary.iter())
         .filter_map(|slot| slot.basis.as_ref())
@@ -4681,6 +4686,19 @@ mod tests {
             let unresolved = unresolved_after(&body, &names, &contract);
             assert!(unresolved.iter().any(|item| item == "claim.id"), "{unresolved:?}");
         }
+    }
+
+    #[test]
+    fn off_axis_claim_cannot_self_license_calibration() {
+        let (body, target, _) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        let support = contract.reasoning.support.value.as_mut().unwrap();
+        support.matrix_status = "off_axis".into();
+        support.matrix_coordinate = None;
+        contract.claim.as_mut().unwrap().calibration.status = "calibrated".into();
+        let mut unresolved = Vec::new();
+        verify_claim_calibration(&contract, contract.claim.as_ref().unwrap(), &mut unresolved);
+        assert!(unresolved.iter().any(|reason| reason.as_ref() == "claim.calibration.off_axis"));
     }
 
     #[test]
