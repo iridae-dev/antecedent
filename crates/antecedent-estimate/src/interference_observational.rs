@@ -56,12 +56,29 @@ pub struct ObservationalExposureEstimate {
     pub clusters: usize,
     /// Source of supplied exposure probabilities.
     pub propensity_provenance: ExposurePropensityProvenance,
+    /// Pointwise 95% cluster interval for HT when exposure probabilities are known.
+    pub pointwise_interval: Option<ObservationalExposureInterval>,
+    /// Why a pointwise interval was withheld, when one was not reported.
+    pub interval_unavailable_reason: Option<&'static str>,
+}
+
+/// Pointwise uncertainty for the HT contrast across independent network clusters.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObservationalExposureInterval {
+    /// Lower and upper pointwise 95% bounds.
+    pub bounds: [f64; 2],
+    /// Cluster score standard error of the Horvitz–Thompson contrast.
+    pub standard_error: f64,
+    /// Number of independent clusters minus one.
+    pub degrees_of_freedom: f64,
 }
 
 /// Estimate an observational exposure contrast with supplied marginal probabilities.
 /// Identification requires a caller-declared network exchangeability assumption;
 /// this kernel checks topology and positivity but cannot verify exchangeability.
-/// The CR1 variance treats probabilities as fixed and has no interval claim.
+/// A pointwise cluster interval is returned only for known probabilities with
+/// sufficient independent and exposed clusters. Externally fitted probabilities
+/// retain a descriptive variance because their fitting uncertainty is unknown.
 ///
 /// # Errors
 ///
@@ -112,6 +129,11 @@ pub fn estimate_observational_exposure(
     {
         return Err(EstimationError::data_msg(
             "observational exposure positivity failure: probabilities must lie in (0, 1]",
+        ));
+    }
+    if spec.propensity_from.iter().zip(spec.propensity_to).any(|(from, to)| from + to > 1.0 + 1e-12) {
+        return Err(EstimationError::data_msg(
+            "distinct exposure levels cannot have marginal probabilities summing above one",
         ));
     }
     let cluster_ids = spec.clusters.iter().copied().collect::<BTreeSet<_>>();
@@ -195,6 +217,32 @@ pub fn estimate_observational_exposure(
             "observational network estimate overflowed finite precision",
         ));
     }
+    let interval_unavailable_reason = if spec.propensity_provenance
+        != ExposurePropensityProvenance::Known
+    {
+        Some("pointwise observational inference requires known, fixed exposure probabilities")
+    } else if cluster_count < 30 || from_clusters.len() < 8 || to_clusters.len() < 8 {
+        Some("pointwise observational inference requires 30 independent clusters and eight exposed clusters at each level")
+    } else if cluster_robust_variance <= 0.0 {
+        Some("pointwise observational inference requires positive between-cluster score variation")
+    } else {
+        None
+    };
+    let pointwise_interval = if interval_unavailable_reason.is_none() {
+        let degrees_of_freedom = (cluster_count - 1) as f64;
+        let standard_error = cluster_robust_variance.sqrt();
+        let critical = antecedent_stats::student_t_ppf(0.975, degrees_of_freedom);
+        if !critical.is_finite() {
+            return Err(EstimationError::data_msg("pointwise observational critical value is unavailable"));
+        }
+        Some(ObservationalExposureInterval {
+            bounds: [horvitz_thompson - critical * standard_error, horvitz_thompson + critical * standard_error],
+            standard_error,
+            degrees_of_freedom,
+        })
+    } else {
+        None
+    };
     Ok(ObservationalExposureEstimate {
         horvitz_thompson,
         hajek,
@@ -207,6 +255,8 @@ pub fn estimate_observational_exposure(
         maximum_exposure_probability: maximum_probability,
         clusters: cluster_count,
         propensity_provenance: spec.propensity_provenance,
+        pointwise_interval,
+        interval_unavailable_reason,
     })
 }
 
@@ -246,6 +296,64 @@ mod tests {
         assert_eq!((result.from_exposed_clusters, result.to_exposed_clusters), (1, 1));
         assert_eq!(result.clusters, 2);
         assert_eq!(result.propensity_provenance, ExposurePropensityProvenance::ExternallyEstimated);
+        assert!(result.pointwise_interval.is_none());
+        assert!(result.interval_unavailable_reason.unwrap().contains("known, fixed"));
+    }
+
+    #[test]
+    fn known_probabilities_publish_pointwise_interval_with_cluster_support() {
+        let clusters = 60;
+        let mut outcomes = Vec::new();
+        let mut assignment = Vec::new();
+        let mut labels = Vec::new();
+        let mut edges = Vec::new();
+        for cluster in 0..clusters {
+            let treated = cluster % 2 == 1;
+            let residual = (cluster % 7) as f64 / 10.0;
+            for unit in 0..2 {
+                outcomes.push(1.0 + 2.0 * f64::from(treated) + residual);
+                assignment.push(treated);
+                labels.push(cluster as u32);
+                edges.push(NetworkEdge { from: (2 * cluster + 1 - unit) as u32, to: (2 * cluster + unit) as u32, weight: 1.0 });
+            }
+        }
+        let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+        let network = NetworkData::try_new(data, edges).unwrap();
+        let probabilities = vec![0.5; 2 * clusters];
+        let spec = ObservationalExposureSpec {
+            assignment: &assignment,
+            clusters: &labels,
+            exposure: &ExposureMapping::NeighborCount,
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            propensity_from: &probabilities,
+            propensity_to: &probabilities,
+            propensity_provenance: ExposurePropensityProvenance::Known,
+        };
+        let result = estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
+        let interval = result.pointwise_interval.unwrap();
+        assert!(interval.bounds[0] < 2.0 && 2.0 < interval.bounds[1]);
+        assert_eq!(interval.degrees_of_freedom, 59.0);
+        assert_eq!((result.from_exposed_clusters, result.to_exposed_clusters), (30, 30));
+        assert!(result.interval_unavailable_reason.is_none());
+    }
+
+    #[test]
+    fn impossible_marginal_probabilities_are_refused() {
+        let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
+        let network = NetworkData::try_new(data, vec![]).unwrap();
+        let spec = ObservationalExposureSpec {
+            assignment: &[false, false, true, true],
+            clusters: &[0, 0, 1, 1],
+            exposure: &ExposureMapping::NeighborCount,
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            propensity_from: &[0.7; 4],
+            propensity_to: &[0.7; 4],
+            propensity_provenance: ExposurePropensityProvenance::Known,
+        };
+        let error = estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap_err();
+        assert!(error.to_string().contains("summing above one"));
     }
 
     #[test]

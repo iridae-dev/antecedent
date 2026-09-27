@@ -351,6 +351,22 @@ impl CheckedInterferenceOperation {
             }
             InterferenceProcedure::ObservationalIpw => {
                 let summary = estimate_observed_exposure(&self.query, &network, &self.assignment)?;
+                let interval = summary.pointwise_interval.as_ref().map(|interval| crate::result::InterferencePointwiseInterval {
+                    lower: interval.bounds[0],
+                    upper: interval.bounds[1],
+                    standard_error: interval.standard_error,
+                    degrees_of_freedom: interval.degrees_of_freedom,
+                    first_stage_arm_clusters: [summary.from_exposed_clusters, summary.to_exposed_clusters],
+                });
+                let interference_inference = crate::result::InterferenceInference {
+                    method: "observational_known_exposure_cluster_t",
+                    interval,
+                    interval_unavailable_reason: summary.interval_unavailable_reason,
+                    from_exposed_units: summary.from_exposed_units,
+                    to_exposed_units: summary.to_exposed_units,
+                    from_exposed_clusters: summary.from_exposed_clusters,
+                    to_exposed_clusters: summary.to_exposed_clusters,
+                };
                 let method = match summary.propensity_provenance {
                     antecedent_core::ExposurePropensityProvenance::Known => antecedent_stats::ExposureProbabilityMethod::SuppliedKnown,
                     antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated,
@@ -369,7 +385,7 @@ impl CheckedInterferenceOperation {
                     "estimate.interference.observational_ipw",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "Observational network exposure contrast with supplied probabilities; cluster CR1 variance treats probabilities as fixed and is descriptive; no interval calibration is claimed",
+                    "Observational network exposure contrast with supplied probabilities; a pointwise cluster interval is reported only for known fixed probabilities and sufficient independent-cluster exposure support",
                 ).with_fields([
                     ("from_exposed_units", summary.from_exposed_units.to_string()),
                     ("to_exposed_units", summary.to_exposed_units.to_string()),
@@ -381,11 +397,11 @@ impl CheckedInterferenceOperation {
                 ]);
                 (
                     Some(estimated),
-                    None,
+                    Some(interference_inference),
                     None,
                     EffectEstimate::new(
                         summary.horvitz_thompson,
-                        f64::NAN,
+                        summary.pointwise_interval.as_ref().map_or(f64::NAN, |interval| interval.standard_error),
                         self.identification.required_assumptions.clone(),
                         OverlapPolicy::ExplicitOverride,
                     ),

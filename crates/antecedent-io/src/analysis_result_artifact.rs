@@ -1141,7 +1141,8 @@ fn validate_result(
         let expected = match &query.assignment {
             crate::AssignmentDesignWire::ClusterRandomization { .. } => "cluster_total_neyman_welch",
             crate::AssignmentDesignWire::TwoStageSaturation { .. } => "saturation_cluster_neyman_welch",
-            _ => return Err(IoError::Convert("independent-cluster inference requires a randomized cluster interference design".into())),
+            crate::AssignmentDesignWire::ObservedExposure { .. } => "observational_known_exposure_cluster_t",
+            _ => return Err(IoError::Convert("independent-cluster inference requires a cluster or supplied-exposure interference design".into())),
         };
         let minimum_first_stage_clusters = if matches!(&query.assignment,
             crate::AssignmentDesignWire::TwoStageSaturation { .. }) { 24 } else { 8 };
@@ -1153,6 +1154,14 @@ fn validate_result(
             return Err(IoError::Convert("interference inference method, support, or interval status is inconsistent".into()));
         }
         if let Some(interval) = &inference.interval {
+            if let crate::AssignmentDesignWire::ObservedExposure { provenance, .. } = &query.assignment {
+                if provenance != "known"
+                    || inference.from_exposed_clusters < 8 || inference.to_exposed_clusters < 8
+                    || interval.degrees_of_freedom < 29.0
+                {
+                    return Err(IoError::Convert("observational exposure interval requires known probabilities and independent-cluster support".into()));
+                }
+            }
             if !interval.lower.is_finite() || !interval.upper.is_finite()
                 || interval.lower >= interval.upper
                 || !interval.standard_error.is_finite() || interval.standard_error <= 0.0
