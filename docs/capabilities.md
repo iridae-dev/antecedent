@@ -749,8 +749,9 @@ contrasts = multi_result.randomized_effect.multi_arm_contrasts
 ```
 
 Multi-source meta-transport and cyclic/equilibrium models remain outside the
-current contract. Observational network exposure has the explicit, point-only
-retained route described above.
+current contract. Observational network exposure has a retained pointwise
+cluster interval only for known fixed propensities and measured cluster support;
+externally fitted propensities remain point-only, and the route is off-axis.
 
 ## Treatment policy evaluation
 
