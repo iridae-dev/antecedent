@@ -75,6 +75,33 @@ def test_retained_ipw_interval_on_independent_subject_histories_round_trips():
     assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
 
 
+def test_retained_msm_intercept_and_period_intervals_round_trip():
+    n = 300
+    treatment = [[bool((i % 4) // 2), bool((i % 4) % 2)] for i in range(n)]
+    y = [1.0 + 2.0 * int(a0) + 3.0 * int(a1) + (i % 7) / 10
+         for i, (a0, a1) in enumerate(treatment)]
+    query = LongitudinalRegimeQuery.marginal_structural_model(
+        outcome="y", treatment_history=treatment,
+        treatment_probabilities=[[0.5, 0.5]] * n,
+        stabilizing_numerator_probabilities=[0.5, 0.5],
+        subject_ids=[f"msm-{i}" for i in range(n)],
+        fold_ids=[i % 5 for i in range(n)],
+    )
+    result = antecedent.analyze({"y": y}, query=query)
+    value = result.longitudinal_regime
+    assert value.value_standard_error > 0.0
+    assert value.value_interval_95[0] < value.value < value.value_interval_95[1]
+    assert len(value.period_intervals_95) == 2
+    assert result.answer.detail == "longitudinal_msm_pointwise_cr1_interval"
+    assert "Pointwise 95% independent-subject CR1 intervals" in result.claim()
+    for interval, effect in zip(value.period_intervals_95, value.period_effects, strict=True):
+        assert interval[0] < effect < interval[1]
+    artifact = antecedent.load(result.export(artifact_id="msm-interval"))
+    for actual, expected in zip(artifact.artifact.payload["longitudinal_regime"]["period_intervals_95"],
+                                value.period_intervals_95, strict=True):
+        assert actual == pytest.approx(expected)
+
+
 def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_value():
     data, static = fixture()
     seen = []

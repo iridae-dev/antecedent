@@ -171,16 +171,21 @@ impl CheckedLongitudinalRegimeOperation {
         let ipw_interval = if self.query.method == LongitudinalRegimeMethod::Ipw {
             antecedent_estimate::longitudinal_regime::ipw_pointwise_interval_95(&summary, self.rows)
         } else { None };
+        let msm_intervals = msm.as_ref().and_then(|fit|
+            antecedent_estimate::marginal_structural_model::pointwise_intervals_95(fit, self.rows));
         let interval_reason = match self.query.method {
             LongitudinalRegimeMethod::Ipw if ipw_interval.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
             LongitudinalRegimeMethod::GFormula => Some("prediction_model_uncertainty_not_accounted"),
             LongitudinalRegimeMethod::SequentialDoublyRobust => Some("cross_fitted_nuisance_dependence_not_calibrated"),
-            LongitudinalRegimeMethod::MarginalStructuralModel => Some("msm_coefficient_intervals_not_calibrated"),
+            LongitudinalRegimeMethod::MarginalStructuralModel if msm_intervals.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
         };
         let (diagnostic, description) = if ipw_interval.is_some() {
             ("estimate.longitudinal.ipw_regime.pointwise_95",
              "sequential randomized regime value with independent-subject Horvitz--Thompson score SE and pointwise 95% interval; requires known treatment/censoring probabilities and calibrated subject support")
+        } else if msm_intervals.is_some() {
+            ("estimate.longitudinal.marginal_structural_model.pointwise_95",
+             "additive binary MSM intercept and period effects with independent-subject CR1 pointwise 95% intervals; requires known treatment/censoring probabilities and calibrated weighted support")
         } else { (diagnostic, description) };
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -224,15 +229,17 @@ impl CheckedLongitudinalRegimeOperation {
             rule_version: self.query.rule_version.clone(),
             rule_provenance: self.query.rule_provenance.clone(),
             value: summary.value,
-            value_standard_error: summary.score_standard_error,
-            value_interval_95: ipw_interval,
+            value_standard_error: msm.as_ref().map(|fit| fit.intercept_standard_error).or(summary.score_standard_error),
+            value_interval_95: ipw_interval.or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept)),
+            period_intervals_95: msm_intervals.as_ref().map(|intervals| Arc::from(intervals.period_effects.as_slice())),
             interval_reason: interval_reason.map(Arc::from),
             effective_sample_size: summary.effective_sample_size,
             matched_observed_fraction: summary.matched_observed_fraction,
             maximum_weight: summary.maximum_weight,
             minimum_action_probability: summary.minimum_action_probability,
             minimum_censoring_probability: summary.minimum_censoring_probability,
-            uncertainty: Arc::from(if msm.is_some() { "pointwise_subject_clustered_cr1_no_interval" }
+            uncertainty: Arc::from(if msm_intervals.is_some() { "pointwise_subject_clustered_cr1_95" }
+                else if msm.is_some() { "pointwise_subject_clustered_cr1_no_interval" }
                 else if ipw_interval.is_some() { "pointwise_subject_score_95" } else { "point_only_no_interval" }),
             probability_ownership: Arc::from("known_sequential_randomization"),
             period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),

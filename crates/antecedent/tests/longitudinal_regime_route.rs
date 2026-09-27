@@ -49,7 +49,7 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
     q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
     let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
     let ctx = ExecutionContext::for_tests(91);
-    let mut prepared = study.prepare(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
     let fit = first.longitudinal_regime.as_ref().unwrap();
     assert_eq!(&*fit.method, "marginal_structural_model");
@@ -71,6 +71,47 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
     q.stabilizing_numerator_probabilities = Some(Arc::from([0.0; 2]));
     assert!(q.validate().is_err());
+}
+
+#[test]
+fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
+    let n = 300;
+    let treatment = (0..n).flat_map(|i| match i % 4 {
+        0 => [false, false], 1 => [false, true], 2 => [true, false], _ => [true, true],
+    }).collect::<Vec<_>>();
+    let y = (0..n).map(|i| {
+        1.0 + 2.0 * f64::from(treatment[2 * i]) + 3.0 * f64::from(treatment[2 * i + 1])
+            + (i % 7) as f64 / 10.0
+    }).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
+    q.treatment_history = treatment.into();
+    q.regime_actions = vec![false; n * 2].into();
+    q.treatment_probabilities = vec![0.5; n * 2].into();
+    q.censoring_probabilities = vec![1.0; n * 2].into();
+    q.outcome_observed = vec![true; n].into();
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("msm-{i}"))).collect::<Vec<_>>().into();
+    q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
+    q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
+    let ctx = ExecutionContext::for_tests(106);
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime.as_ref().unwrap();
+    assert!(fit.value_standard_error.unwrap() > 0.0);
+    let intercept = fit.value_interval_95.unwrap();
+    assert!(intercept[0] < fit.value && fit.value < intercept[1]);
+    let periods = fit.period_intervals_95.as_ref().unwrap();
+    assert_eq!(periods.len(), 2);
+    for (interval, coefficient) in periods.iter().zip(fit.period_effects.as_ref().unwrap().iter()) {
+        assert!(interval[0] < *coefficient && *coefficient < interval[1]);
+    }
+    let bytes = prepared.encode_contracted_result(&result, "longitudinal-msm-interval", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(intercept));
+    body.longitudinal_regime.as_mut().unwrap().period_intervals_95[0] = [0.0, 0.0];
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-msm").is_err());
 }
 
 #[test]

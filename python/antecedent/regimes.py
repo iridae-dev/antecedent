@@ -281,6 +281,7 @@ class LongitudinalRegimeEstimate:
     minimum_censoring_probability: float
     value_standard_error: float | None = None
     value_interval_95: tuple[float, float] | None = None
+    period_intervals_95: tuple[tuple[float, float], ...] | None = None
     interval_reason: str | None = None
     method: str = "ipw"
     uncertainty: str = "point_only_no_interval"

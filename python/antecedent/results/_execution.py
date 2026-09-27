@@ -221,8 +221,18 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer("structured", detail=detail, structured=dict(survival))
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
-        detail = "longitudinal_msm_pointwise_cr1" if regime.get("method") == "marginal_structural_model" else "longitudinal_regime_point_only"
+        if regime.get("method") == "marginal_structural_model":
+            detail = ("longitudinal_msm_pointwise_cr1_interval" if regime.get("value_interval_95") is not None
+                      else "longitudinal_msm_pointwise_cr1")
+        else:
+            detail = ("longitudinal_regime_pointwise_interval" if regime.get("value_interval_95") is not None
+                      else "longitudinal_regime_point_only")
         return Answer("structured", detail=detail, structured=dict(regime))
+    panel = payload.get("panel_did")
+    if kind == "point" and isinstance(panel, Mapping):
+        detail = ("panel_did_independent_cluster_interval" if panel.get("interval_95") is not None
+                  else "panel_did_point_only")
+        return Answer("structured", detail=detail, structured=dict(panel))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
     bounds = None
@@ -381,8 +391,20 @@ class ResultAPI:
         if regime is not None:
             from dataclasses import asdict
 
-            detail = "longitudinal_msm_pointwise_cr1" if regime.method == "marginal_structural_model" else "longitudinal_regime_point_only"
+            if regime.method == "marginal_structural_model":
+                detail = ("longitudinal_msm_pointwise_cr1_interval" if regime.value_interval_95 is not None
+                          else "longitudinal_msm_pointwise_cr1")
+            else:
+                detail = ("longitudinal_regime_pointwise_interval" if regime.value_interval_95 is not None
+                          else "longitudinal_regime_point_only")
             return Answer("structured", detail=detail, structured=asdict(regime))
+        panel = getattr(self, "panel_did", None)
+        if panel is not None:
+            from dataclasses import asdict
+
+            detail = ("panel_did_independent_cluster_interval" if getattr(panel, "interval_95", None) is not None
+                      else "panel_did_point_only")
+            return Answer("structured", detail=detail, structured=asdict(panel))
         policy = getattr(self, "policy_value", None)
         if policy is not None:
             from dataclasses import asdict
@@ -435,11 +457,31 @@ class ResultAPI:
         if regime is not None:
             if regime.method == "marginal_structural_model":
                 effects = ", ".join(f"{effect:g}" for effect in (regime.period_effects or ()))
-                return f"Additive marginal structural model period effects: {effects}. Pointwise subject-clustered CR1 standard errors; no calibrated interval."
+                interval = regime.value_interval_95
+                if interval is not None:
+                    return (f"Additive marginal structural model period effects: {effects}. "
+                            f"Pointwise 95% independent-subject CR1 intervals for the intercept "
+                            f"[{interval[0]:g}, {interval[1]:g}] and each period effect; "
+                            "the intervals are separate, not simultaneous.")
+                return (f"Additive marginal structural model period effects: {effects}. "
+                        "Subject-clustered CR1 standard errors; no calibrated interval at this support level.")
+            interval = regime.value_interval_95
+            if interval is not None:
+                return (f"Sequential randomized regime value {regime.value:g}. "
+                        f"Pointwise 95% independent-subject interval [{interval[0]:g}, {interval[1]:g}].")
             return (
                 f"Sequential randomized regime value {regime.value:g}. "
                 "Point-only; no calibrated interval."
             )
+        panel = getattr(self, "panel_did", None)
+        if panel is not None and hasattr(panel, "estimate"):
+            interval = getattr(panel, "interval_95", None)
+            if interval is not None:
+                return (f"Difference-in-differences effect {panel.estimate:g}. "
+                        f"Pointwise 95% interval [{interval[0]:g}, {interval[1]:g}] "
+                        "requires independent sampling clusters and parallel untreated trends.")
+            return (f"Difference-in-differences effect {panel.estimate:g}. "
+                    "Point-only at this support level.")
         policy = getattr(self, "policy_value", None)
         if policy is not None:
             return (

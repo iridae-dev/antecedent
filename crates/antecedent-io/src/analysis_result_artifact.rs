@@ -718,12 +718,15 @@ pub struct LongitudinalRegimeWire {
     pub rule_provenance: Option<String>,
     /// Horvitz--Thompson regime value.
     pub value: f64,
-    /// Independent-subject IPW score SE, when available.
+    /// Independent-subject IPW score SE or subject-clustered MSM intercept SE.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value_standard_error: Option<f64>,
-    /// Pointwise 95% randomized IPW regime-value interval, when supported.
+    /// Pointwise 95% randomized IPW value or MSM intercept interval, when supported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% subject-clustered intervals for additive MSM period effects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub period_intervals_95: Vec<[f64; 2]>,
     /// Explicit reason an interval was withheld.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_reason: Option<String>,
@@ -1266,15 +1269,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             && regime.matched_observed_fraction * query.subject_ids.len() as f64 >= 50.0
             && regime.effective_sample_size >= 50.0
             && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0);
+        let eligible_msm = query.method == "marginal_structural_model"
+            && query.probabilities_known_by_design
+            && query.subject_ids.len() >= 300
+            && regime.observed_subjects >= 200
+            && regime.effective_sample_size >= 150.0
+            && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0)
+            && regime.standard_errors.len() == query.periods
+            && regime.standard_errors.iter().all(|se| se.is_finite() && *se > 0.0);
         let expected_reason = match query.method.as_str() {
             "ipw" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
             "g_formula" => Some("prediction_model_uncertainty_not_accounted"),
             "sequential_dr" => Some("cross_fitted_nuisance_dependence_not_calibrated"),
-            "marginal_structural_model" => Some("msm_coefficient_intervals_not_calibrated"),
+            "marginal_structural_model" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
         };
         let expected_uncertainty = if query.method == "marginal_structural_model" {
-            "pointwise_subject_clustered_cr1_no_interval"
+            if regime.value_interval_95.is_some() { "pointwise_subject_clustered_cr1_95" }
+            else { "pointwise_subject_clustered_cr1_no_interval" }
         } else if regime.value_interval_95.is_some() {
             "pointwise_subject_score_95"
         } else { "point_only_no_interval" };
@@ -1283,11 +1295,25 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 let se = regime.value_standard_error.unwrap_or(f64::NAN);
                 let span = antecedent_stats::normal_ppf(0.975) * se;
                 let tolerance = 1e-10 * (1.0 + regime.value.abs() + span.abs());
-                eligible_ipw && bounds[0].is_finite() && bounds[1].is_finite()
+                (eligible_ipw || eligible_msm) && bounds[0].is_finite() && bounds[1].is_finite()
                     && (bounds[0] - (regime.value - span)).abs() <= tolerance
                     && (bounds[1] - (regime.value + span)).abs() <= tolerance
             }
             None => true,
+        };
+        let period_intervals_valid = if regime.period_intervals_95.is_empty() {
+            regime.value_interval_95.is_none() || query.method != "marginal_structural_model"
+        } else {
+            eligible_msm && regime.value_interval_95.is_some()
+                && regime.period_intervals_95.len() == query.periods
+                && regime.period_intervals_95.iter().zip(&regime.period_effects)
+                    .zip(&regime.standard_errors).all(|((bounds, center), se)| {
+                        let span = antecedent_stats::normal_ppf(0.975) * se;
+                        let tolerance = 1e-10 * (1.0 + center.abs() + span.abs());
+                        bounds[0].is_finite() && bounds[1].is_finite()
+                            && (bounds[0] - (center - span)).abs() <= tolerance
+                            && (bounds[1] - (center + span)).abs() <= tolerance
+                    })
         };
         if regime.method != query.method
             || regime.rule_id != query.rule_id
@@ -1298,8 +1324,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
             || !regime.value.is_finite()
-            || regime.value_standard_error.is_some_and(|se| !se.is_finite() || se < 0.0 || query.method != "ipw")
+            || regime.value_standard_error.is_some_and(|se| !se.is_finite() || se < 0.0 || !matches!(query.method.as_str(), "ipw" | "marginal_structural_model"))
             || !interval_valid
+            || !period_intervals_valid
             || regime.interval_reason.as_deref().is_some_and(|reason| Some(reason) != expected_reason)
             || regime.value_interval_95.is_some() && regime.interval_reason.is_some()
             || !regime.effective_sample_size.is_finite()
