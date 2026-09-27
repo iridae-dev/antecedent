@@ -60,11 +60,15 @@ impl CheckedRandomizedOperation {
         data.schema()
             .get(query.outcome)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        if let Some((covariate, _)) = query.fixed_cuped {
+            data.schema().get(covariate)
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        }
         if physical.logical.query != study.query
             || physical.logical.record.identifier.as_deref()
                 != Some(IdentifierId::RandomizedDesign.as_str())
             || physical.logical.record.estimator.as_deref()
-                != Some(randomized_estimator_id(&query.design).as_str())
+                != Some(randomized_estimator_id(query).as_str())
         {
             return Err(CausalError::Compile {
                 message: "randomized target or design differs from its compiled plan".into(),
@@ -112,6 +116,25 @@ impl CheckedRandomizedOperation {
                 message: "randomized ITT requires complete finite outcomes",
             });
         }
+        let adjusted_outcomes;
+        let outcomes = if let Some((covariate, coefficient)) = self.query.fixed_cuped {
+            let values = match data.column(covariate).map_err(CausalError::from)? {
+                antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
+                _ => return Err(CausalError::Unsupported {
+                    message: "fixed CUPED pre-assignment covariate must be continuous",
+                }),
+            };
+            if values.len() != n || values.iter().any(|x| !x.is_finite()) {
+                return Err(CausalError::Unsupported {
+                    message: "fixed CUPED requires a complete finite pre-assignment covariate",
+                });
+            }
+            adjusted_outcomes = outcomes.iter().zip(values.iter())
+                .map(|(y, x)| y - coefficient * x).collect::<Vec<_>>();
+            adjusted_outcomes.as_slice()
+        } else {
+            outcomes
+        };
         let sample_variance = |values: &[f64]| -> f64 {
             let mean = values.iter().sum::<f64>() / values.len() as f64;
             values.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
@@ -132,6 +155,10 @@ impl CheckedRandomizedOperation {
                 let mut variance_sum = 0.0;
                 let mut control_units = 0;
                 let mut treatment_units = 0;
+                // With a fixed pre-assignment adjustment, E[observed y² / assignment²]
+                // equals Y(1)²/p + Y(0)²/(1-p). This exceeds the Bernoulli
+                // variance by (Y(1)-Y(0))² for each unit. No interval follows
+                // from the random bound estimate without calibration.
                 for ((&y, &treated), &p) in outcomes
                     .iter()
                     .zip(self.query.realized_assignment.iter())
@@ -140,11 +167,19 @@ impl CheckedRandomizedOperation {
                     if treated {
                         treatment_units += 1;
                         effect_sum += y / p;
-                        variance_sum += y * y * (1.0 - p) / (p * p);
+                        variance_sum += if self.query.fixed_cuped.is_some() {
+                            y * y / (p * p)
+                        } else {
+                            y * y * (1.0 - p) / (p * p)
+                        };
                     } else {
                         control_units += 1;
                         effect_sum -= y / (1.0 - p);
-                        variance_sum += y * y * p / ((1.0 - p) * (1.0 - p));
+                        variance_sum += if self.query.fixed_cuped.is_some() {
+                            y * y / ((1.0 - p) * (1.0 - p))
+                        } else {
+                            y * y * p / ((1.0 - p) * (1.0 - p))
+                        };
                     }
                 }
                 (
@@ -154,8 +189,16 @@ impl CheckedRandomizedOperation {
                     treatment_units,
                     Arc::from([]),
                     Arc::<str>::from("bernoulli"),
-                    Arc::<str>::from("bernoulli_ht_design_variance_no_interval"),
-                    "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval is reported",
+                    Arc::<str>::from(if self.query.fixed_cuped.is_some() {
+                        "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
+                    } else {
+                        "bernoulli_ht_design_variance_no_interval"
+                    }),
+                    if self.query.fixed_cuped.is_some() {
+                        "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation, no interval"
+                    } else {
+                        "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval is reported"
+                    },
                 )
             }
             antecedent_core::RandomizationDesign::Complete { treated_units } => {
@@ -277,7 +320,7 @@ impl CheckedRandomizedOperation {
                 estimand: self.estimand.clone(),
                 estimate,
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: randomized_estimator_id(&self.query.design),
+                estimator_id: randomized_estimator_id(&self.query),
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
@@ -568,6 +611,17 @@ pub(crate) fn randomized_identification(
         scope: AssumptionScope::Identification,
         status: AssumptionStatus::Declared,
     });
+    if query.fixed_cuped.is_some() {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("fixed_pre_assignment_cuped"),
+                description: Arc::from("the CUPED covariate was measured before randomization and its coefficient was fixed independently of these outcomes"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
@@ -613,9 +667,15 @@ pub(crate) fn randomized_identification(
     (result, estimand)
 }
 
-fn randomized_estimator_id(design: &antecedent_core::RandomizationDesign) -> EstimatorId {
-    match design {
-        antecedent_core::RandomizationDesign::Bernoulli => EstimatorId::RandomizedHt,
+fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> EstimatorId {
+    match &query.design {
+        antecedent_core::RandomizationDesign::Bernoulli => {
+            if query.fixed_cuped.is_some() {
+                EstimatorId::RandomizedFixedCupedHt
+            } else {
+                EstimatorId::RandomizedHt
+            }
+        },
         antecedent_core::RandomizationDesign::Complete { .. }
         | antecedent_core::RandomizationDesign::Stratified { .. }
         | antecedent_core::RandomizationDesign::Cluster { .. } => EstimatorId::RandomizedNeyman,

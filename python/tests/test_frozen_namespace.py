@@ -54,6 +54,7 @@ _EXPECTED_ALL = {
     "DirectionalDerivative",
     "Elasticity",
     "ExperimentDesign",
+    "FixedCUPED",
     "ANCOVAEstimate",
     "estimate_ancova_effect",
     "InterferenceQuery",
@@ -192,7 +193,7 @@ _EXPECTED_STAGE_ALL = {
     },
     "design": {"DecisionEvaluation", "DesignRanking", "evaluate_decision", "rank_designs"},
     "experiment": {
-        "ANCOVAEstimate", "ComplierEffectEstimate", "CUPEDEstimate", "ExperimentDesign",
+        "ANCOVAEstimate", "ComplierEffectEstimate", "CUPEDEstimate", "ExperimentDesign", "FixedCUPED",
         "MultiArmContrast", "MultiArmExperimentEstimate",
         "RandomizedEffect", "RandomizedExperimentEstimate", "RandomizationTest",
         "StratifiedRandomization",

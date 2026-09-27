@@ -277,6 +277,12 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 "treatment_arms".into(),
                 format!("{}->{}", query.treatment_arms.0, query.treatment_arms.1),
             ),
+            (
+                "precision_adjustment".into(),
+                query.fixed_cuped.map_or_else(|| "none".into(), |(id, coefficient)| {
+                    format!("fixed_cuped:{id}:{coefficient}")
+                }),
+            ),
             ("temporal_coordinates".into(), "none".into()),
         ],
         CausalQueryWire::PanelDid(query) => vec![

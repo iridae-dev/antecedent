@@ -904,6 +904,9 @@ pub struct RandomizedEffectQueryWire {
     /// Declared treated count for each row's block (stratified designs only).
     #[serde(default)]
     pub treated_per_row: Vec<usize>,
+    /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
+    #[serde(default)]
+    pub fixed_cuped: Option<(u32, f64)>,
 }
 
 /// Assignment mechanism serialized with a randomized ITT query.
@@ -1457,6 +1460,7 @@ pub fn causal_query_to_wire_with_registry(
                     }
                     _ => Vec::new(),
                 },
+                fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
             })
         }
         CausalQuery::PolicyValue(q) => CausalQueryWire::PolicyValue(PolicyValueQueryWire {
@@ -1722,7 +1726,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     treated_per_row: w.treated_per_row.clone().into(),
                 },
             };
-            let query = RandomizedEffectQuery::with_design(
+            let mut query = RandomizedEffectQuery::with_design(
                 design,
                 VariableId::from_raw(w.outcome),
                 Arc::<[bool]>::from(w.realized_assignment.clone()),
@@ -1734,6 +1738,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     Arc::<str>::from(w.treatment_arms.1.as_str()),
                 ),
             );
+            if let Some((id, coefficient)) = w.fixed_cuped {
+                query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
+            }
             query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::RandomizedEffect(query)
         }
@@ -2051,6 +2058,17 @@ mod tests {
         let wire = causal_query_to_wire(&query).unwrap();
         assert!(matches!(wire, CausalQueryWire::RandomizedEffect(_)));
         assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
+
+        let cuped = CausalQuery::RandomizedEffect(
+            RandomizedEffectQuery::bernoulli_itt(
+                VariableId::from_raw(0), [true, false], [0.5, 0.5],
+                [Arc::<str>::from("a"), Arc::<str>::from("b")],
+                [Arc::<str>::from("r0"), Arc::<str>::from("r1")],
+                ("control", "treated"),
+            ).with_fixed_cuped(VariableId::from_raw(1), 4.0),
+        );
+        let cuped_wire = causal_query_to_wire(&cuped).unwrap();
+        assert_eq!(causal_query_from_wire(&cuped_wire).unwrap(), cuped);
 
         let stratified = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
             RandomizationDesign::Stratified {
