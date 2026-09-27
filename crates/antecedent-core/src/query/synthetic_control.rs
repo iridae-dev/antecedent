@@ -92,9 +92,9 @@ impl SyntheticControlQuery {
                     "augmented synthetic control requires a finite positive ridge penalty".into(),
                 ));
             }
-            if self.method != SyntheticPanelMethod::Control || self.uniform_unit_randomization {
+            if self.method != SyntheticPanelMethod::Control {
                 return Err(QueryError::InvalidRandomizedEffect(
-                    "augmented synthetic control cannot be combined with synthetic DiD or exact unit randomization".into(),
+                    "augmented synthetic control cannot be combined with synthetic DiD".into(),
                 ));
             }
         }

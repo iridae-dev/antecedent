@@ -147,6 +147,14 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
     with pytest.raises(CausalValueError, match="positive"):
         SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=0.0)
-    with pytest.raises(CausalValueError, match="cannot be combined"):
-        SyntheticControl("y", "unit", "period", "treated", 4,
-                         uniform_unit_randomization=True, augmentation_ridge=1.0)
+    exact_query = SyntheticControl("y", "unit", "period", "treated", 4,
+                                   uniform_unit_randomization=True, augmentation_ridge=1.0)
+    exact = analyze(rows, query=exact_query).synthetic_control
+    assert exact is not None
+    assert exact.uncertainty == "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+    assert len(exact.randomization_statistics) == 4
+    assert dict(exact.randomization_statistics)["treated"] == pytest.approx(abs(exact.estimate))
+    assert exact.randomization_p_value == pytest.approx(
+        sum(statistic >= abs(exact.estimate) for _, statistic in exact.randomization_statistics) / 4
+    )
+    assert estimate_synthetic_control(rows, exact_query) == exact

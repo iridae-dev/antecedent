@@ -291,8 +291,6 @@ class SyntheticControl:
                 or isinstance(self.augmentation_ridge, (bool, np.bool_))
                 or not np.isfinite(self.augmentation_ridge) or self.augmentation_ridge <= 0):
                 raise CausalValueError("augmentation_ridge must be finite and positive")
-            if self.uniform_unit_randomization:
-                raise CausalValueError("augmentation cannot be combined with exact unit randomization")
         fields = (self.outcome, self.unit, self.period)
         if any(not isinstance(value, str) or not value.strip() for value in fields):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")

@@ -5,6 +5,7 @@ use super::*;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_test;
+use antecedent_estimate::synthetic_control::exact_augmented_synthetic_unit_randomization_test;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
 use antecedent_estimate::synthetic_control::exact_synthetic_did_unit_randomization_test;
 use antecedent_core::SyntheticPanelMethod;
@@ -82,8 +83,13 @@ impl CheckedSyntheticControlOperation {
         };
         let effect = augmentation.as_ref().map_or(fit.effect, |augmented| augmented.effect);
         let randomization = if self.query.uniform_unit_randomization {
-            Some(exact_synthetic_unit_randomization_test(y, &units, &self.query.periods,
-                &self.query.treated_unit, self.query.intervention_period)
+            Some(if let Some(ridge) = self.query.augmentation_ridge {
+                exact_augmented_synthetic_unit_randomization_test(y, &units, &self.query.periods,
+                    &self.query.treated_unit, self.query.intervention_period, ridge)
+            } else {
+                exact_synthetic_unit_randomization_test(y, &units, &self.query.periods,
+                    &self.query.treated_unit, self.query.intervention_period)
+            }
                 .map_err(|message| CausalError::Compile { message })?)
         } else { None };
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
@@ -126,7 +132,9 @@ impl CheckedSyntheticControlOperation {
             n_pre_periods: fit.n_pre_periods,
             n_post_periods: fit.n_post_periods,
             uncertainty: Arc::from(if augmentation.is_some() {
-                "point_only_augmented_no_interval"
+                if randomization.is_some() {
+                    "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+                } else { "point_only_augmented_no_interval" }
             } else if randomization.is_some() {
                 "point_only_with_exact_unit_randomization_p_value_no_interval"
             } else { "point_only_with_unlicensed_placebo_rank" }),

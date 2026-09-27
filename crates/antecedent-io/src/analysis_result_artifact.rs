@@ -2130,14 +2130,17 @@ fn validate_result(
                 fit.unadjusted_effect.is_some() || fit.outcome_model_correction.is_some()
                 || fit.augmentation_ridge.is_some()))
             || (query.augmentation_ridge.is_some() && (
-                fit.uncertainty != "point_only_augmented_no_interval"
+                (!query.uniform_unit_randomization && fit.uncertainty != "point_only_augmented_no_interval")
                 || fit.augmentation_ridge != query.augmentation_ridge
                 || !fit.unadjusted_effect.is_some_and(f64::is_finite)
                 || !fit.outcome_model_correction.is_some_and(f64::is_finite)
                 || (fit.unadjusted_effect.unwrap_or(f64::NAN)
                     - fit.outcome_model_correction.unwrap_or(f64::NAN) - fit.effect).abs() > 1e-8))
             || (query.uniform_unit_randomization && (
-                fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval"
+                (query.augmentation_ridge.is_none()
+                    && fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval")
+                || (query.augmentation_ridge.is_some()
+                    && fit.uncertainty != "point_only_augmented_with_exact_unit_randomization_p_value_no_interval")
                 || fit.randomization_statistics.len() != donors.len() + 1
                 || fit.randomization_statistics.len() > 32
                 || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
