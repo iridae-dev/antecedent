@@ -614,13 +614,18 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   sequences with both arms observed, assumes no carryover and no interference
   between sequences, and reports no interval. These design queries are off
   the support-matrix axis; results report `evidence_status="off_axis"`.
-  Multi-arm, factorial, and noncompliance remain explicit refusals on this
-  retained query route.
-  `experiment.estimate_complier_effect` provides randomized
-  noncompliance ITT and a Wald CACE/LATE point estimate with an
-  influence-function standard error under exclusion and monotonicity;
+  `experiment.ComplierEffect` uses the same retained randomized study path
+  for independent Bernoulli encouragement with row-aligned treatment receipt.
+  It reports the outcome ITT, positive receipt first stage, Wald CACE/LATE,
+  and independent-unit influence variance under exclusion and monotonicity;
+  it refuses zero or negative first stages and publishes no interval.
+  Multi-arm and factorial designs remain separate utilities or explicit
+  refusals on this retained route.
+  `experiment.estimate_complier_effect` also provides a direct randomized
+  noncompliance ITT and Wald CACE/LATE point estimate with an
+  influence-function standard error;
   `experiment.estimate_cuped_effect` provides one-covariate CUPED precision
-  adjustment with a standard error. They are direct utilities without new
+  adjustment with a standard error. These are direct utilities without new
   support-matrix licenses or calibrated interval claims. The native
   `factorial.estimate` utility handles independent-Bernoulli 2×2 factors and
   returns cell means, main effects, interaction, and variance upper bounds;
