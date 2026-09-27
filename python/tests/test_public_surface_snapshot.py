@@ -228,6 +228,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "mediation_grid",
         "performance",
         "panel_did",
+        "synthetic_control",
         "plan",
         "policy_value",
         "survival",
