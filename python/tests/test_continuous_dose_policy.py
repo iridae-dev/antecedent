@@ -18,8 +18,8 @@ def _data(rows: int = 800) -> dict[str, np.ndarray]:
     return {"outcome": outcome, "dose": dose, "density": np.ones(rows), "group": group}
 
 
-def _query(provenance: str = "known") -> ant.ConditionalDoseResponse:
-    return ant.ConditionalDoseResponse(
+def _query(provenance: str = "known") -> ant.policy.ConditionalDoseResponse:
+    return ant.policy.ConditionalDoseResponse(
         outcome="outcome", dose="dose", baseline_group="group", dose_density="density",
         target_doses=(), bandwidth=0.2, density_provenance=provenance,
         min_local_support=80,
@@ -49,12 +49,12 @@ def test_fixed_dose_policy_uses_retained_analyze_and_prepare():
 
 def test_fixed_dose_policy_refuses_malformed_rules_and_withholds_external_density_interval():
     with pytest.raises(CausalValueError, match="both policy_doses and reference_doses"):
-        ant.ConditionalDoseResponse(
+        ant.policy.ConditionalDoseResponse(
             "outcome", "dose", "group", "density", (), 0.2, "known",
             policy_doses={"a": 0.7},
         )
     with pytest.raises(Exception, match="every observed baseline group"):
-        ant.analyze(_data(), query=ant.ConditionalDoseResponse(
+        ant.analyze(_data(), query=ant.policy.ConditionalDoseResponse(
             "outcome", "dose", "group", "density", (), 0.2, "known",
             policy_doses={"a": 0.7}, reference_doses={"a": 0.3},
         ), refute="none")

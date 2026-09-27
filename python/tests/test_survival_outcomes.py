@@ -20,10 +20,10 @@ def _fixture() -> pd.DataFrame:
 
 
 def test_randomized_survival_known_truth_with_right_censoring():
-    query = antecedent.SurvivalOutcome(
+    query = antecedent.survival.SurvivalOutcome(
         duration="duration", event_observed="event", treatment="treated", tau=4, randomized=True
     )
-    result = antecedent.estimate_survival(_fixture(), query)
+    result = antecedent.survival.estimate_survival(_fixture(), query)
 
     assert result.rmst_control == pytest.approx(2.875)
     assert result.rmst_treated == pytest.approx(3.5)
@@ -38,36 +38,36 @@ def test_randomized_survival_known_truth_with_right_censoring():
 
 def test_survival_refuses_nonrandomized_and_invalid_inputs():
     data = _fixture()
-    query = antecedent.SurvivalOutcome("duration", "event", "treated", tau=4)
+    query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", tau=4)
     with pytest.raises(CausalValueError, match="require[s]? declared individual random assignment"):
-        antecedent.estimate_survival(data, query)
+        antecedent.survival.estimate_survival(data, query)
 
-    query = antecedent.SurvivalOutcome("duration", "event", "treated", tau=4, randomized=True)
+    query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", tau=4, randomized=True)
     invalid_event = data.copy()
     invalid_event["event"] = np.full(len(data), 2)
     with pytest.raises(CausalValueError, match="event_observed values"):
-        antecedent.estimate_survival(invalid_event, query)
+        antecedent.survival.estimate_survival(invalid_event, query)
 
     one_arm = data.assign(treated=0)
     with pytest.raises(CausalValueError, match="both treatment arms"):
-        antecedent.estimate_survival(one_arm, query)
+        antecedent.survival.estimate_survival(one_arm, query)
 
 
 def test_survival_rejects_invalid_horizon_and_duration():
     with pytest.raises(CausalValueError, match="tau must be finite and positive"):
-        antecedent.SurvivalOutcome("duration", "event", "treated", tau=float("inf"), randomized=True)
+        antecedent.survival.SurvivalOutcome("duration", "event", "treated", tau=float("inf"), randomized=True)
 
     data = _fixture()
     data.loc[0, "duration"] = -1
-    query = antecedent.SurvivalOutcome("duration", "event", "treated", tau=4, randomized=True)
+    query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", tau=4, randomized=True)
     with pytest.raises(CausalValueError, match="durations must be finite and non-negative"):
-        antecedent.estimate_survival(data, query)
+        antecedent.survival.estimate_survival(data, query)
 
     data = _fixture()
     data.loc[data["treated"] == 0, "duration"] = 2
-    query = antecedent.SurvivalOutcome("duration", "event", "treated", tau=4, randomized=True)
+    query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", tau=4, randomized=True)
     with pytest.raises(CausalValueError, match="observed follow-up horizon"):
-        antecedent.estimate_survival(data, query)
+        antecedent.survival.estimate_survival(data, query)
 
 
 def _competing_fixture() -> pd.DataFrame:

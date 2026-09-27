@@ -18,7 +18,7 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 87 names as of 2.1**.
+The root namespace (`import antecedent`) is **frozen at 64 names as of 2.1** (the specialized 2.1 families live on their stage modules, not at the root).
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
@@ -59,19 +59,20 @@ The licensed trial-IPW cell is
 See [the Python workflow](python-workflow.md) for lifetime and report semantics.
 The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
-`AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
+`AnalysisResult`); the ten typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
 `ConditionalEffect`, `MediationEffect`, `Counterfactual`,
-`TemporalMediationEffect`) plus the eight response-family queries
+`NestedCounterfactual`, `TemporalMediationEffect`) plus the eight
+response-family queries
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
 `InterventionResponse`) plus the two attribution queries
-(`AnomalyAttribution`, `ChangeAttribution`) plus the design query
-(`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+(`AnomalyAttribution` with its `AnomalyReference`, `ChangeAttribution`) plus the
+design query (`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
-error names most callers catch (`CausalError`, `ReviewRequired`); the seventeen stage
+error names most callers catch (`CausalError`, `ReviewRequired`); the eighteen stage
 modules themselves; and `__version__`.
 
 **The rule for where a name lives**: if it's part of the day-1 workflow — run an
@@ -87,10 +88,10 @@ the module path rather than importing it flat:
 ``antecedent.validation``.
 
 Each of those seventeen modules has an explicit, separately frozen `__all__`
-surface. The 86-name count is only the package-root contract; it does not add
+surface. The 64-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**18** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**17** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:

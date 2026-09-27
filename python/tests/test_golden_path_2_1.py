@@ -77,7 +77,9 @@ def _policy_query() -> Any:
 def _randomized_query() -> Any:
     a = [bool(v) for v in np.random.default_rng(0).uniform(size=400) < 0.5]
     ids = [f"u{i}" for i in range(400)]
-    return ant.RandomizedEffect("y", ant.ExperimentDesign(BernoulliAssignment(0.5), a, ids, ids))
+    return ant.experiment.RandomizedEffect(
+        "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), a, ids, ids)
+    )
 
 
 def _longitudinal_query() -> Any:

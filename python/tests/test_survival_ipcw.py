@@ -20,7 +20,7 @@ def _data():
 
 
 def test_ipcw_survival_known_truth_and_explicit_point_semantics():
-    query = antecedent.SurvivalOutcome("duration", "event", "treated", 3, randomized=True)
+    query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", 3, randomized=True)
     g = np.array([[1.0, 1.0, 1.0], [1.0, 0.5, 0.5],
                   [1.0, 0.5, 0.5], [1.0, 0.5, 0.5]])
     result = antecedent.survival.estimate_survival_ipcw(
@@ -40,7 +40,7 @@ def test_ipcw_survival_known_truth_and_explicit_point_semantics():
 
 
 def test_ipcw_survival_refuses_unsupported_or_positivity_violating_inputs():
-    query = antecedent.SurvivalOutcome("duration", "event", "treated", 3, randomized=True)
+    query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", 3, randomized=True)
     g = np.full((4, 3), 0.5)
     with pytest.raises(CausalValueError, match="include every observed duration"):
         antecedent.survival.estimate_survival_ipcw(
@@ -51,7 +51,7 @@ def test_ipcw_survival_refuses_unsupported_or_positivity_violating_inputs():
         antecedent.survival.estimate_survival_ipcw(
             _data(), query, times=[0.0, 1.0, 3.0], censoring_survival=g
         )
-    delayed = antecedent.SurvivalOutcome(
+    delayed = antecedent.survival.SurvivalOutcome(
         "duration", "event", "treated", 3, randomized=True,
         delayed_entry="entry", observation_assumption=IndependentGiven(())
     )

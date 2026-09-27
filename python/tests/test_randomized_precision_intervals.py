@@ -5,7 +5,7 @@ import numpy as np
 from antecedent import interference
 
 
-def _data(n: int) -> tuple[dict[str, np.ndarray], ant.ExperimentDesign]:
+def _data(n: int) -> tuple[dict[str, np.ndarray], ant.experiment.ExperimentDesign]:
     assigned = [i % 2 == 0 for i in range(n)]
     x1 = np.sin(0.17 * np.arange(n))
     x2 = np.cos(0.11 * np.arange(n))
@@ -13,7 +13,7 @@ def _data(n: int) -> tuple[dict[str, np.ndarray], ant.ExperimentDesign]:
         2.0 + 1.2 * x1 - 0.7 * x2 + 0.5 * np.sin(0.29 * np.arange(n))
         + 1.4 * np.asarray(assigned, dtype=float)
     )
-    design = ant.ExperimentDesign(
+    design = ant.experiment.ExperimentDesign(
         interference.BernoulliAssignment(0.5), assigned,
         [f"unit-{i}" for i in range(n)], [f"row-{i}" for i in range(n)],
     )
@@ -23,8 +23,8 @@ def _data(n: int) -> tuple[dict[str, np.ndarray], ant.ExperimentDesign]:
 def test_precision_adjusted_intervals_use_retained_public_flow():
     data, design = _data(400)
     for query in (
-        ant.RandomizedEffect("outcome", design, ancova_covariates=("baseline_a", "baseline_b")),
-        ant.RandomizedEffect("outcome", design, cuped=ant.FixedCUPED("baseline_a", 1.2)),
+        ant.experiment.RandomizedEffect("outcome", design, ancova_covariates=("baseline_a", "baseline_b")),
+        ant.experiment.RandomizedEffect("outcome", design, cuped=ant.experiment.FixedCUPED("baseline_a", 1.2)),
     ):
         result = ant.analyze(data, query=query, refute="none")
         fit = result.randomized_effect
@@ -40,8 +40,8 @@ def test_precision_adjusted_intervals_use_retained_public_flow():
 def test_sparse_precision_adjustment_reports_point_only():
     data, design = _data(40)
     for query in (
-        ant.RandomizedEffect("outcome", design, ancova_covariates=("baseline_a", "baseline_b")),
-        ant.RandomizedEffect("outcome", design, cuped=ant.FixedCUPED("baseline_a", 1.2)),
+        ant.experiment.RandomizedEffect("outcome", design, ancova_covariates=("baseline_a", "baseline_b")),
+        ant.experiment.RandomizedEffect("outcome", design, cuped=ant.experiment.FixedCUPED("baseline_a", 1.2)),
     ):
         result = ant.analyze(data, query=query, refute="none")
         assert result.randomized_effect.interval_95 is None

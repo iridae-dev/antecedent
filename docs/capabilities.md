@@ -754,7 +754,7 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   its supported interval has a separate exact graphless license.
 
 ```python
-design = ant.ExperimentDesign(
+design = ant.experiment.ExperimentDesign(
     assignment=ant.interference.BernoulliAssignment(0.5),
     realized_assignment=assigned,
     assignment_units=account_ids,
@@ -762,10 +762,10 @@ design = ant.ExperimentDesign(
 )
 result = ant.analyze(
     {"outcome": outcome},
-    query=ant.RandomizedEffect("outcome", design),
+    query=ant.experiment.RandomizedEffect("outcome", design),
 )
 
-multi_arm = ant.MultiArmExperimentDesign(
+multi_arm = ant.experiment.MultiArmExperimentDesign(
     realized_assignment=actions,
     action_labels=("control", "low", "high"),
     assignment_probabilities=probability_rows,
@@ -774,7 +774,7 @@ multi_arm = ant.MultiArmExperimentDesign(
 )
 multi_result = ant.analyze(
     {"outcome": outcome},
-    query=ant.RandomizedEffect("outcome", multi_arm),
+    query=ant.experiment.RandomizedEffect("outcome", multi_arm),
 )
 contrasts = multi_result.randomized_effect.multi_arm_contrasts
 ```
