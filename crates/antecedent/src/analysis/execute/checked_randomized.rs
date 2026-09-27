@@ -306,7 +306,9 @@ impl CheckedRandomizedOperation {
         };
         let estimate = EffectEstimate::new(
             effect,
-            variance.sqrt(),
+            // The retained design variance lives in randomized_effect. Passing
+            // it as a scalar SE would auto-publish an uncalibrated normal interval.
+            0.0,
             self.identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );

@@ -26,6 +26,7 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
     let estimate = result.randomized_effect.as_ref().unwrap();
     assert_eq!(estimate.effect, 3.0);
     assert_eq!(estimate.variance_upper_bound, 3.25);
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert_eq!(
         estimate.assignment_units.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["a", "b", "c", "d"]
