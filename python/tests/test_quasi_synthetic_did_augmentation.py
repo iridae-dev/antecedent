@@ -140,5 +140,8 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
     artifact = result.export()
     loaded = antecedent.load(artifact)
     assert loaded.export() == artifact
+    section = antecedent.artifacts.loads(artifact).payload["panel_did"]
+    assert "standard_error" not in section
+    assert section["uncertainty"] == "point_only_no_standard_error"
     with pytest.raises(CausalCompileError, match="overlap|strictly between"):
         antecedent.analyze({**data, "p": [0.0] + [0.5] * 5}, query=query)
