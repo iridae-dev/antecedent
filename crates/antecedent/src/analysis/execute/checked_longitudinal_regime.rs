@@ -113,6 +113,12 @@ impl CheckedLongitudinalRegimeOperation {
         };
         let mut msm: Option<MsmSummary> = None;
         let mut dr_scores: Option<Vec<f64>> = None;
+        // The `.expect()`s in the arms below are guaranteed by
+        // `LongitudinalRegimeQuery::validate`, run in the prepare pipeline: its
+        // per-method match refuses any query whose method-conditional fields
+        // (g-formula `period_outcome_predictions`, sequential-DR `q_predictions`
+        // and `observation_history`, MSM `stabilizing_numerator_probabilities`)
+        // are not `Some` and aligned, so each field is present in its own arm.
         let (summary, estimator_id, method, diagnostic, description) = match self.query.method {
             LongitudinalRegimeMethod::Ipw => (
                 evaluate_regime_value(outcome, &self.query.treatment_history, &self.query.regime_actions,
