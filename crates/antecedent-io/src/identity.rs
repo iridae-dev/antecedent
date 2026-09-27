@@ -263,6 +263,10 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         ],
         CausalQueryWire::RandomizedEffect(query) => vec![
             ("query_kind".into(), "randomized_effect".into()),
+            ("randomized_estimand".into(), match query.estimand {
+                crate::RandomizedEstimandWire::Itt => "itt".into(),
+                crate::RandomizedEstimandWire::CaceLate => "cace_late".into(),
+            }),
             ("outcome".into(), query.outcome.to_string()),
             (
                 "randomization_design".into(),

@@ -140,6 +140,7 @@ impl CheckedRandomizedOperation {
             values.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
                 / (values.len() - 1) as f64
         };
+        let mut complier_components = None;
         let (
             effect,
             variance,
@@ -150,7 +151,41 @@ impl CheckedRandomizedOperation {
             assignment_design,
             uncertainty,
             diagnostic,
-        ) = match &self.query.design {
+        ) = if let Some(received) = &self.query.received_treatment {
+            let mut outcome_scores = Vec::with_capacity(n);
+            let mut receipt_scores = Vec::with_capacity(n);
+            let mut controls = 0;
+            let mut treated = 0;
+            for i in 0..n {
+                let probability = self.query.assignment_probabilities[i];
+                let sign = if self.query.realized_assignment[i] {
+                    treated += 1;
+                    1.0 / probability
+                } else {
+                    controls += 1;
+                    -1.0 / (1.0 - probability)
+                };
+                outcome_scores.push(sign * outcomes[i]);
+                receipt_scores.push(sign * f64::from(received[i]));
+            }
+            let outcome_itt = outcome_scores.iter().sum::<f64>() / n as f64;
+            let first_stage = receipt_scores.iter().sum::<f64>() / n as f64;
+            if !first_stage.is_finite() || first_stage <= f64::EPSILON {
+                return Err(CausalError::Unsupported {
+                    message: "CACE/LATE requires a finite positive receipt first stage under monotonicity",
+                });
+            }
+            let cace = outcome_itt / first_stage;
+            let influence = outcome_scores.iter().zip(&receipt_scores)
+                .map(|(outcome, receipt)| (outcome - cace * receipt) / first_stage)
+                .collect::<Vec<_>>();
+            let variance = sample_variance(&influence) / n as f64;
+            complier_components = Some((outcome_itt, first_stage));
+            (cace, variance, controls, treated, Arc::from([]), Arc::from([]),
+                Arc::<str>::from("bernoulli"),
+                Arc::<str>::from("bernoulli_wald_cace_influence_variance_no_interval"),
+                "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval")
+        } else { match &self.query.design {
             antecedent_core::RandomizationDesign::Bernoulli => {
                 let mut effect_sum = 0.0;
                 let mut variance_sum = 0.0;
@@ -341,7 +376,7 @@ impl CheckedRandomizedOperation {
                     "Unit-period HT ITT with independent-sequence score sandwich variance; arbitrary within-sequence dependence, no interval",
                 )
             }
-        };
+        }};
         if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
             return Err(CausalError::Unsupported {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
@@ -371,6 +406,7 @@ impl CheckedRandomizedOperation {
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
                     match self.query.design {
+                        antecedent_core::RandomizationDesign::Bernoulli if self.query.received_treatment.is_some() => "estimate.randomized.wald_cace_late",
                         antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() => "estimate.randomized.fixed_cuped_ht_itt",
                         antecedent_core::RandomizationDesign::Bernoulli => "estimate.randomized.ht_itt",
                         antecedent_core::RandomizationDesign::Switchback { .. } => "estimate.randomized.switchback_ht_itt",
@@ -392,6 +428,10 @@ impl CheckedRandomizedOperation {
         );
         result.randomized_effect = Some(crate::RandomizedEffectEstimate {
             effect,
+            estimand: Arc::from(if complier_components.is_some() { "cace_late" } else { "itt" }),
+            intention_to_treat_effect: complier_components.map(|(itt, _)| itt),
+            first_stage_effect: complier_components.map(|(_, stage)| stage),
+            received_treatment: self.query.received_treatment.clone(),
             variance_upper_bound: variance,
             minimum_assignment_probability: self
                 .query
@@ -692,6 +732,20 @@ pub(crate) fn randomized_identification(
             status: AssumptionStatus::Declared,
         });
     }
+    if query.received_treatment.is_some() {
+        for (id, description) in [
+            ("exclusion_restriction", "encouragement affects the outcome only through treatment receipt"),
+            ("monotonicity_no_defiers", "encouragement does not reduce treatment receipt for any unit"),
+            ("nonzero_receipt_first_stage", "randomized encouragement changes the probability of treatment receipt"),
+        ] {
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+                source: AssumptionSource::UserDeclared,
+                scope: AssumptionScope::Identification,
+                status: AssumptionStatus::Declared,
+            });
+        }
+    }
     if matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. }) {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
@@ -768,15 +822,20 @@ pub(crate) fn randomized_identification(
         function: antecedent_expr::OutcomeExprId::identity(query.outcome),
         distribution,
     });
+    let (identification_rule, identification_note) = if query.received_treatment.is_some() {
+        ("randomized.wald_cace_late", "randomized encouragement identifies the Wald complier contrast under exclusion and monotonicity")
+    } else {
+        ("randomized.itt", "randomized assignment identifies the intention-to-treat contrast")
+    };
     arena.set_derivation(
         functional,
         antecedent_expr::DerivationMeta::rule(
-            "randomized.itt",
-            Some(Arc::from("randomized assignment identifies the intention-to-treat contrast")),
+            identification_rule,
+            Some(Arc::from(identification_note)),
         ),
     );
     let estimand = IdentifiedEstimand::new(
-        "randomized.itt",
+        identification_rule,
         Arc::from([]),
         Arc::from([]),
         Arc::from([]),
@@ -785,8 +844,8 @@ pub(crate) fn randomized_identification(
     );
     let mut trace = DerivationTrace::default();
     trace.push(
-        "randomized.itt",
-        "the declared randomized assignment identifies the ITT without a causal graph",
+        identification_rule,
+        identification_note,
     );
     let result = IdentificationResult::identified(
         CausalQuery::RandomizedEffect(query.clone()),
@@ -802,7 +861,9 @@ pub(crate) fn randomized_identification(
 fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> EstimatorId {
     match &query.design {
         antecedent_core::RandomizationDesign::Bernoulli => {
-            if query.fixed_cuped.is_some() {
+            if query.received_treatment.is_some() {
+                EstimatorId::RandomizedWaldCace
+            } else if query.fixed_cuped.is_some() {
                 EstimatorId::RandomizedFixedCupedHt
             } else {
                 EstimatorId::RandomizedHt

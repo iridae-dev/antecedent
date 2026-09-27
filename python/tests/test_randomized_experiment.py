@@ -342,6 +342,32 @@ def test_switchback_retained_route_refuses_duplicate_periods():
         )
 
 
+def test_complier_effect_runs_in_retained_analyze_with_first_stage():
+    assignment = [True, False] * 4
+    design = ant.ExperimentDesign(
+        ant.interference.BernoulliAssignment(0.5), assignment,
+        [f"u{i}" for i in range(8)], [f"y{i}" for i in range(8)],
+        treatment_arms=("control", "encouraged"),
+    )
+    receipt = [True, False, True, False, False, False, False, False]
+    query = ant.experiment.ComplierEffect("y", design, receipt)
+    result = ant.analyze({"y": [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]}, query=query, refute="none")
+    effect = result.randomized_effect
+    assert result.answer.value == pytest.approx(4.0)
+    assert effect.estimand == "cace_late"
+    assert effect.intention_to_treat_effect == pytest.approx(2.0)
+    assert effect.first_stage_effect == pytest.approx(0.5)
+    assert effect.variance == pytest.approx(16.0 / 7.0)
+    assert effect.received_treatment == tuple(receipt)
+    assert effect.uncertainty == "bernoulli_wald_cace_influence_variance_no_interval"
+    assert result.evidence_status == "off_axis"
+    assert any("exclusion_restriction" in item for item in result.assumptions or ())
+    with pytest.raises(CausalValueError, match="Bernoulli"):
+        ant.experiment.ComplierEffect("y", ant.ExperimentDesign(
+            ant.interference.CompleteRandomization(4), assignment,
+            [f"u{i}" for i in range(8)], [f"y{i}" for i in range(8)]), receipt)
+
+
 def test_switchback_refuses_unsupported_probability_and_single_sequence():
     with pytest.raises(CausalValueError, match="at least two independent sequences"):
         ant.SwitchbackDesign(

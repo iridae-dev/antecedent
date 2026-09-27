@@ -12,6 +12,14 @@ use pyo3::prelude::*;
 pub struct RandomizedEffectSection {
     /// ITT contrast under the declared assignment mechanism.
     pub effect: f64,
+    /// `itt` or `cace_late`.
+    pub estimand: String,
+    /// Outcome assignment effect for CACE/LATE.
+    pub intention_to_treat_effect: Option<f64>,
+    /// Treatment-receipt first stage for CACE/LATE.
+    pub first_stage_effect: Option<f64>,
+    /// Row-aligned observed receipt for CACE/LATE.
+    pub received_treatment: Option<Vec<bool>>,
     /// Design variance or conservative bound as labeled by uncertainty;
     /// switchback uses a sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
@@ -43,6 +51,10 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
     fn from(value: &antecedent::RandomizedEffectEstimate) -> Self {
         Self {
             effect: value.effect,
+            estimand: value.estimand.to_string(),
+            intention_to_treat_effect: value.intention_to_treat_effect,
+            first_stage_effect: value.first_stage_effect,
+            received_treatment: value.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
             variance_upper_bound: value.variance_upper_bound,
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),

@@ -575,6 +575,14 @@ pub(crate) fn validate_query_ids(
             if let Some((covariate, coefficient)) = wire.fixed_cuped {
                 query = query.with_fixed_cuped(antecedent_core::VariableId::from_raw(covariate), coefficient);
             }
+            if let Some(receipt) = &wire.received_treatment {
+                query = query.with_received_treatment(receipt.clone());
+            }
+            if (wire.estimand == crate::RandomizedEstimandWire::CaceLate)
+                != wire.received_treatment.is_some()
+            {
+                return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
+            }
             query
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))

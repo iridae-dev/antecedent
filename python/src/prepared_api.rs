@@ -3362,7 +3362,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, accepted=false, seed=1, threads=None,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, received_treatment=None, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3382,6 +3382,7 @@ impl PyPreparedAnalysis {
         treated_clusters: Option<usize>,
         fixed_cuped: Option<(String, f64)>,
         periods: Option<Vec<String>>,
+        received_treatment: Option<Vec<bool>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3436,6 +3437,9 @@ impl PyPreparedAnalysis {
             if let Some((covariate, coefficient)) = fixed_cuped {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
+            }
+            if let Some(received) = received_treatment {
+                query = query.with_received_treatment(received);
             }
             query
                 .validate()

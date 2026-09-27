@@ -605,7 +605,9 @@ impl super::Study {
                         identifier: Some(Arc::from("randomized.design")),
                         estimator: Some(Arc::from(match &q.design {
                             antecedent_core::RandomizationDesign::Bernoulli => {
-                                if q.fixed_cuped.is_some() {
+                                if q.received_treatment.is_some() {
+                                    "randomized.wald_cace_late"
+                                } else if q.fixed_cuped.is_some() {
                                     "randomized.fixed_cuped_ht_itt"
                                 } else {
                                     "randomized.ht_itt"

@@ -53,6 +53,7 @@ from .errors import (
 )
 from .experiment import (
     BernoulliAssignment,
+    ComplierEffect,
     RandomizedEffect,
     SwitchbackEffect,
     RandomizedExperimentEstimate,
@@ -289,6 +290,10 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         outcome_units=tuple(section.outcome_units),
         blocks=tuple(section.blocks) or None,
         periods=tuple(section.periods) or None,
+        estimand=section.estimand,
+        intention_to_treat_effect=section.intention_to_treat_effect,
+        first_stage_effect=section.first_stage_effect,
+        received_treatment=tuple(section.received_treatment) if section.received_treatment is not None else None,
         treatment_arms=(section.control_arm, section.treatment_arm),
         control_units=section.control_units,
         treatment_units=section.treatment_units,
@@ -1629,6 +1634,7 @@ _PreparedQuery = (
 
 @dataclass(frozen=True)
 class _Controls:
+    | ComplierEffect
     """Execution controls a study applies to every click unless overridden.
 
     In-process only: none of them is part of the contract, program, or claim.
@@ -1996,6 +2002,8 @@ class _PrepareRoute:
         temporal = isinstance(query, (PulseEffect, SustainedEffect, TemporalMediationEffect)) or (
             isinstance(query, (ResponseCurve, InterventionResponse))
             and getattr(query, "is_temporal", False)
+        if isinstance(query, ComplierEffect):
+            return self._complier_effect()
         )
         if self.frame is not None and not temporal:
             raise CausalUnsupportedError(
@@ -2583,6 +2591,32 @@ class _PrepareRoute:
         n = len(query.design.realized_assignment)
         blocks: list[str] = []
         treated_per_row: list[int] = []
+    def _complier_effect(self) -> tuple[Any, Literal["average"]]:
+        query = cast(ComplierEffect, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError("ComplierEffect carries its randomization design and does not accept graph= or discovery=", reason_code="option_not_applicable")
+        self._refuse_ids("ComplierEffect")
+        self._refuse_estimator_config("ComplierEffect")
+        if self._explicit_refute():
+            raise CausalUnsupportedError("ComplierEffect has no refutation route", reason_code="option_not_applicable")
+        assignment = cast(BernoulliAssignment, query.design.assignment)
+        n = len(query.design.realized_assignment)
+        probabilities = assignment.probabilities
+        if isinstance(probabilities, (float, int)):
+            probability_rows = [float(probabilities)] * n
+        else:
+            probability_rows = list(probabilities)
+            if len(probability_rows) == 1:
+                probability_rows *= n
+        native = _NativePreparedAnalysis.prepare_randomized_effect(
+            self.names, self.columns, query.outcome,
+            list(query.design.realized_assignment), probability_rows,
+            list(query.design.assignment_units), list(query.design.outcome_units),
+            tuple(query.design.treatment_arms), "bernoulli",
+            received_treatment=list(query.received_treatment), accepted=False, **self._common(),
+        )
+        return native, "average"
+
         treated_units: int | None = None
         treated_clusters: int | None = None
         if isinstance(assignment, BernoulliAssignment):

@@ -71,8 +71,16 @@ impl std::ops::DerefMut for PrimaryEstimate {
 /// Design metadata retained with a randomized ITT estimate.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RandomizedEffectEstimate {
-    /// ITT contrast under the declared assignment mechanism.
+    /// Assignment ITT or Wald CACE/LATE contrast under the declared mechanism.
     pub effect: f64,
+    /// Query target label.
+    pub estimand: Arc<str>,
+    /// Outcome assignment ITT when estimating CACE/LATE.
+    pub intention_to_treat_effect: Option<f64>,
+    /// Treatment-receipt first stage when estimating CACE/LATE.
+    pub first_stage_effect: Option<f64>,
+    /// Row-aligned treatment receipt when estimating CACE/LATE.
+    pub received_treatment: Option<Arc<[bool]>>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
     /// switchback uses an independent-sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,

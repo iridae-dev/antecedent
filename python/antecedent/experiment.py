@@ -442,11 +442,39 @@ class RandomizedExperimentEstimate:
     uncertainty: str
     support_status: str
     periods: tuple[str, ...] | None = None
+    estimand: Literal["itt", "cace_late"] = "itt"
+    intention_to_treat_effect: float | None = None
+    first_stage_effect: float | None = None
+    received_treatment: tuple[bool, ...] | None = None
 
     @property
     def variance(self) -> float:
         """Design-aware variance estimate or bound identified by ``uncertainty``."""
         return self.variance_upper_bound
+
+
+@dataclass(frozen=True, slots=True)
+class ComplierEffect:
+    """Wald CACE/LATE from Bernoulli encouragement and observed receipt.
+
+    Exclusion, monotonicity, and independent assignment units are declared
+    identifying assumptions. The retained result has no calibrated interval.
+    """
+
+    outcome: str
+    design: ExperimentDesign
+    received_treatment: Sequence[bool]
+    kind: Literal["complier_effect"] = field(default="complier_effect", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, str) or not self.outcome.strip():
+            raise CausalValueError("outcome must be a non-empty variable name")
+        if not isinstance(self.design.assignment, BernoulliAssignment):
+            raise CausalValueError("retained CACE/LATE requires Bernoulli randomization")
+        receipt = tuple(self.received_treatment)
+        if len(receipt) != len(self.design.realized_assignment) or any(type(value) is not bool for value in receipt):
+            raise CausalValueError("treatment receipt must be row-aligned booleans")
+        object.__setattr__(self, "received_treatment", receipt)
 
 
 @dataclass(frozen=True, slots=True)
