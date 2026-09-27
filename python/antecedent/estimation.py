@@ -431,6 +431,7 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         maximum_weight=section.maximum_weight,
         minimum_action_probability=section.minimum_action_probability,
         minimum_censoring_probability=section.minimum_censoring_probability,
+        method=section.method,
         uncertainty=section.uncertainty,
         probability_ownership=section.probability_ownership,
     )
@@ -2845,7 +2846,9 @@ class _PrepareRoute:
             flatten(query.treatment_probabilities), flatten(query.censoring_probabilities),
             list(query.outcome_observed), list(query.subject_ids), list(query.fold_ids),
             query.excluded_fold_predictions, query.probabilities_known_by_design,
-            query.minimum_probability, accepted=False, **self._common(),
+            query.minimum_probability, method=query.method,
+            period_outcome_predictions=flatten(query.period_outcome_predictions) if query.period_outcome_predictions is not None else [],
+            accepted=False, **self._common(),
         )
         return native, "average"
 

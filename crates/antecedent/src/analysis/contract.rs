@@ -3310,15 +3310,18 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             minimum_event_risk_set: survival.minimum_event_risk_set,
             uncertainty: survival.uncertainty.to_string(),
         }),
-        longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| antecedent_io::LongitudinalRegimeWire {
-            value: regime.value,
-            effective_sample_size: regime.effective_sample_size,
-            matched_observed_fraction: regime.matched_observed_fraction,
-            maximum_weight: regime.maximum_weight,
-            minimum_action_probability: regime.minimum_action_probability,
-            minimum_censoring_probability: regime.minimum_censoring_probability,
-            uncertainty: regime.uncertainty.to_string(),
-            probability_ownership: regime.probability_ownership.to_string(),
+        longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
+            antecedent_io::LongitudinalRegimeWire {
+                method: regime.method.to_string(),
+                value: regime.value,
+                effective_sample_size: regime.effective_sample_size,
+                matched_observed_fraction: regime.matched_observed_fraction,
+                maximum_weight: regime.maximum_weight,
+                minimum_action_probability: regime.minimum_action_probability,
+                minimum_censoring_probability: regime.minimum_censoring_probability,
+                uncertainty: regime.uncertainty.to_string(),
+                probability_ownership: regime.probability_ownership.to_string(),
+            }
         }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {
             antecedent_io::InterventionalDistributionWire {

@@ -9,6 +9,8 @@ use std::sync::Arc;
 fn query() -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
         outcome: VariableId::from_raw(0),
+        method: antecedent_core::LongitudinalRegimeMethod::Ipw,
+        period_outcome_predictions: None,
         periods: 2,
         treatment_history: Arc::from([true, true, true, false, false, true, false, false]),
         regime_actions: Arc::from([true; 8]),
@@ -54,14 +56,12 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
     assert_eq!(body.interval_lower, None);
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(3.0);
-    assert!(
-        antecedent_io::encode_analysis_result_artifact(
-            &fabricated,
-            header.variable_names,
-            "fabricated"
-        )
-        .is_err()
-    );
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &fabricated,
+        header.variable_names,
+        "fabricated"
+    )
+    .is_err());
     let refreshed = prepared.refresh(data, &ctx).unwrap();
     assert_eq!(first.longitudinal_regime, refreshed.longitudinal_regime);
 }
@@ -80,5 +80,50 @@ fn unsupported_ownership_and_sequential_positivity_refuse() {
     assert!(study.prepare(&ctx).is_err());
     let mut q = query();
     q.treatment_probabilities = Arc::from([0.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
+    assert!(q.validate().is_err());
+}
+
+#[test]
+fn known_truth_g_formula_is_retained_and_artifact_identifies_method() {
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::GFormula;
+    q.period_outcome_predictions = Some(Arc::from([1.0, 1.0, 2.0, 1.0, 3.0, 1.0, 4.0, 1.0]));
+    q.excluded_fold_predictions = true;
+    q.fold_ids = Arc::from([0, 1, 0, 1]);
+    let y = [2.0, 3.0, 4.0, 5.0];
+    let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
+    let ctx = ExecutionContext::for_tests(99);
+    let study =
+        Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let value = result.longitudinal_regime.as_ref().unwrap();
+    assert_eq!(value.value, 3.5);
+    assert_eq!(&*value.method, "g_formula");
+    assert_eq!(value.effective_sample_size, 4.0);
+    assert_eq!(&*value.uncertainty, "point_only_no_interval");
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| {
+        matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
+            if id.as_ref() == "conditional_period_reward_validity")
+    }));
+    let bytes = prepared.encode_contracted_result(&result, "g-formula-regime", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().method, "g_formula");
+    let mut fabricated = body.clone();
+    fabricated.longitudinal_regime.as_mut().unwrap().method = "ipw".into();
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &fabricated,
+        header.variable_names,
+        "fabricated"
+    )
+    .is_err());
+}
+
+#[test]
+fn g_formula_refuses_missing_or_nonfinite_predictions() {
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::GFormula;
+    assert!(q.validate().is_err());
+    q.period_outcome_predictions = Some(Arc::from([f64::NAN; 8]));
     assert!(q.validate().is_err());
 }

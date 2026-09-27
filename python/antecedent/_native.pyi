@@ -407,6 +407,7 @@ class SurvivalSection:
     uncertainty: str
 
 class LongitudinalRegimeSection:
+    method: str
     value: float
     effective_sample_size: float
     matched_observed_fraction: float
@@ -1269,7 +1270,7 @@ class PreparedAnalysis:
         treatment_probabilities: list[float], censoring_probabilities: list[float],
         outcome_observed: list[bool], subject_ids: list[str], fold_ids: list[int],
         excluded_fold_predictions: bool, probabilities_known_by_design: bool,
-        minimum_probability: float, *, accepted: bool = False, seed: int = 1,
+        minimum_probability: float, *, method: str = "ipw", period_outcome_predictions: list[float] = [], accepted: bool = False, seed: int = 1,
         threads: int | None = None, options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod

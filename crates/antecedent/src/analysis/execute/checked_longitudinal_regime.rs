@@ -2,10 +2,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
-use antecedent_estimate::longitudinal_regime::evaluate_regime_value;
+use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value};
 
 #[derive(Clone)]
 pub(crate) struct CheckedLongitudinalRegimeOperation {
@@ -57,11 +58,14 @@ impl CheckedLongitudinalRegimeOperation {
         data.schema()
             .get(query.outcome)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let estimator_id = match query.method {
+            LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
+            LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
+        };
         if physical.logical.query != study.query
             || physical.logical.record.identifier.as_deref()
                 != Some(IdentifierId::RandomizedDesign.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::LongitudinalIpwRegime.as_str())
+            || physical.logical.record.estimator.as_deref() != Some(estimator_id.as_str())
         {
             return Err(CausalError::Compile {
                 message: "longitudinal regime query differs from compiled plan".into(),
@@ -104,17 +108,24 @@ impl CheckedLongitudinalRegimeOperation {
                 });
             }
         };
-        let summary = evaluate_regime_value(
-            outcome,
-            &self.query.treatment_history,
-            &self.query.regime_actions,
-            &self.query.treatment_probabilities,
-            &self.query.outcome_observed,
-            &self.query.censoring_probabilities,
-            self.query.periods,
-            self.query.minimum_probability,
-        )
-        .map_err(|message| CausalError::Unsupported { message })?;
+        let (summary, estimator_id, method, diagnostic, description) = match self.query.method {
+            LongitudinalRegimeMethod::Ipw => (
+                evaluate_regime_value(outcome, &self.query.treatment_history, &self.query.regime_actions,
+                    &self.query.treatment_probabilities, &self.query.outcome_observed,
+                    &self.query.censoring_probabilities, self.query.periods, self.query.minimum_probability),
+                EstimatorId::LongitudinalIpwRegime, "ipw", "estimate.longitudinal.ipw_regime.point_only",
+                "sequential inverse-probability regime value under caller-declared known randomization and censoring probabilities; no interval or calibration claim",
+            ),
+            LongitudinalRegimeMethod::GFormula => (
+                evaluate_g_formula_value(self.query.period_outcome_predictions.as_deref().expect("validated g-formula predictions"),
+                    &self.query.regime_actions, &self.query.treatment_probabilities,
+                    &self.query.censoring_probabilities, self.rows, self.query.periods,
+                    self.query.minimum_probability),
+                EstimatorId::LongitudinalGFormulaRegime, "g_formula", "estimate.longitudinal.g_formula_regime.point_only",
+                "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
+            ),
+        };
+        let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -129,15 +140,15 @@ impl CheckedLongitudinalRegimeOperation {
                     OverlapPolicy::ExplicitOverride,
                 ),
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::LongitudinalIpwRegime,
+                estimator_id,
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.longitudinal.ipw_regime.point_only",
+                    diagnostic,
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "sequential inverse-probability regime value under caller-declared known randomization and censoring probabilities; no interval or calibration claim",
+                    description,
                 )],
                 refutations: Vec::new(),
                 distribution: None,
@@ -152,6 +163,7 @@ impl CheckedLongitudinalRegimeOperation {
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
         result.longitudinal_regime = Some(crate::LongitudinalRegimeEstimate {
+            method: Arc::from(method),
             value: summary.value,
             effective_sample_size: summary.effective_sample_size,
             matched_observed_fraction: summary.matched_observed_fraction,
@@ -213,6 +225,28 @@ fn longitudinal_identification(
             status: AssumptionStatus::Declared,
         });
     }
+    if query.method == LongitudinalRegimeMethod::GFormula {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("conditional_period_reward_validity"),
+                description: Arc::from("supplied period reward predictions equal conditional means under the prescribed regime given each predecision history"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+        if query.excluded_fold_predictions {
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::Custom {
+                    id: Arc::from("subject_excluded_fold_predictions"),
+                    description: Arc::from("caller declares that every outcome prediction excludes the subject's entire history fold"),
+                },
+                source: AssumptionSource::UserDeclared,
+                scope: AssumptionScope::Identification,
+                status: AssumptionStatus::Declared,
+            });
+        }
+    }
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
@@ -223,9 +257,13 @@ fn longitudinal_identification(
         function: OutcomeExprId::identity(query.outcome),
         distribution,
     });
-    arena.set_derivation(functional, DerivationMeta::rule("longitudinal.sequential_randomization", Some(Arc::from("known sequential assignment and independent censoring identify the prescribed regime mean"))));
+    let rule = match query.method {
+        LongitudinalRegimeMethod::Ipw => "longitudinal.sequential_randomization",
+        LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula",
+    };
+    arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from("known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean"))));
     let estimand = IdentifiedEstimand::new(
-        "longitudinal.sequential_randomization",
+        rule,
         Arc::from([]),
         Arc::from([]),
         Arc::from([]),
@@ -233,7 +271,7 @@ fn longitudinal_identification(
         None,
     );
     let mut derivation = DerivationTrace::default();
-    derivation.push("longitudinal.sequential_randomization", "prescribed regime value identified by known sequential treatment and censoring probabilities");
+    derivation.push(rule, "prescribed regime value identified by known sequential treatment and censoring probabilities and the method's declared nuisance contract");
     let identification = IdentificationResult::identified(
         CausalQuery::LongitudinalRegime(query.clone()),
         vec![estimand.clone()],

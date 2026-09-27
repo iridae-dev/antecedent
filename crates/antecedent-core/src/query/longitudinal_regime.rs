@@ -5,6 +5,15 @@ use super::QueryError;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
+/// Point estimator for a prescribed subject-history regime.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LongitudinalRegimeMethod {
+    /// Sequential inverse-probability value using realized trajectories.
+    Ipw,
+    /// Plug-in g-formula using supplied period reward predictions.
+    GFormula,
+}
+
 /// Prespecified binary static or history-dependent actions, resolved before
 /// analysis on the frozen subject histories. Nuisance probabilities are supplied
 /// by the caller and subject-level prediction ownership remains explicit.
@@ -12,6 +21,11 @@ use std::sync::Arc;
 pub struct LongitudinalRegimeQuery {
     /// Complete finite endpoint outcome column, one row per subject.
     pub outcome: VariableId,
+    /// Evaluation method; both routes are point-only.
+    pub method: LongitudinalRegimeMethod,
+    /// Prespecified conditional period rewards under the regime, subject-major.
+    /// Required for g-formula and absent for IPW.
+    pub period_outcome_predictions: Option<Arc<[f64]>>,
     /// Number of treatment decisions per subject.
     pub periods: usize,
     /// Realized binary actions, flattened subject-major.
@@ -57,6 +71,15 @@ impl LongitudinalRegimeQuery {
                 "histories, probabilities, outcomes, subjects, and folds must align".into(),
             ));
         }
+        match (self.method, &self.period_outcome_predictions) {
+            (LongitudinalRegimeMethod::Ipw, None) => {}
+            (LongitudinalRegimeMethod::GFormula, Some(q))
+                if q.len() == cells && q.iter().all(|v| v.is_finite()) => {}
+            _ => return Err(QueryError::InvalidLongitudinalRegime(
+                "g-formula requires finite subject-period predictions; IPW does not accept them"
+                    .into(),
+            )),
+        }
         if self.subject_ids.iter().any(|id| id.trim().is_empty())
             || self.subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != n
         {
@@ -100,6 +123,8 @@ mod tests {
     fn refuses_split_subject_ownership_and_bad_probability() {
         let mut q = LongitudinalRegimeQuery {
             outcome: VariableId::from_raw(0),
+            method: LongitudinalRegimeMethod::Ipw,
+            period_outcome_predictions: None,
             periods: 2,
             treatment_history: Arc::from([true, true, false, false]),
             regime_actions: Arc::from([true, true, true, true]),

@@ -11,6 +11,7 @@ use std::collections::HashSet;
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct LongitudinalRegimeSection {
+    pub method: String,
     pub value: f64,
     pub effective_sample_size: f64,
     pub matched_observed_fraction: f64,
@@ -24,6 +25,7 @@ pub struct LongitudinalRegimeSection {
 impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection {
     fn from(value: &antecedent::LongitudinalRegimeEstimate) -> Self {
         Self {
+            method: value.method.to_string(),
             value: value.value,
             effective_sample_size: value.effective_sample_size,
             matched_observed_fraction: value.matched_observed_fraction,
@@ -366,51 +368,22 @@ fn evaluate_sequential_gformula(
         ));
     }
 
-    let mut reward_total = 0.0;
-    let mut minimum_action_probability: f64 = 1.0;
-    let mut minimum_censoring_probability: f64 = 1.0;
-    for i in 0..n {
-        let mut subject_reward = 0.0;
-        for t in 0..periods {
-            let prediction = q[[i, t]];
-            let probability_treated = p[[i, t]];
-            let censor_probability = g[[i, t]];
-            if !prediction.is_finite() {
-                return Err(PyValueError::new_err("period_outcome_predictions must be finite"));
-            }
-            if !probability_treated.is_finite()
-                || probability_treated < minimum_probability
-                || probability_treated > 1.0 - minimum_probability
-            {
-                return Err(PyValueError::new_err(
-                    "sequential treatment positivity is violated at the declared probability floor",
-                ));
-            }
-            if !censor_probability.is_finite()
-                || censor_probability < minimum_probability
-                || censor_probability > 1.0
-            {
-                return Err(PyValueError::new_err(
-                    "sequential censoring positivity is violated at the declared probability floor",
-                ));
-            }
-            let action_probability =
-                if actions[[i, t]] { probability_treated } else { 1.0 - probability_treated };
-            minimum_action_probability = minimum_action_probability.min(action_probability);
-            minimum_censoring_probability = minimum_censoring_probability.min(censor_probability);
-            subject_reward += prediction;
-        }
-        if !subject_reward.is_finite() {
-            return Err(PyValueError::new_err("summed subject outcome prediction overflowed"));
-        }
-        reward_total += subject_reward;
-        if !reward_total.is_finite() {
-            return Err(PyValueError::new_err(
-                "summed outcome predictions overflowed across subjects",
-            ));
-        }
-    }
-    Ok((reward_total / n as f64, n, minimum_action_probability, minimum_censoring_probability))
+    let summary = antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+        &q.iter().copied().collect::<Vec<_>>(),
+        &actions.iter().copied().collect::<Vec<_>>(),
+        &p.iter().copied().collect::<Vec<_>>(),
+        &g.iter().copied().collect::<Vec<_>>(),
+        n,
+        periods,
+        minimum_probability,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        summary.value,
+        n,
+        summary.minimum_action_probability,
+        summary.minimum_censoring_probability,
+    ))
 }
 
 /// Sequentially augmented regime value from caller-supplied cross-fitted Q predictions.

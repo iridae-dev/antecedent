@@ -789,6 +789,12 @@ pub enum CausalQueryWire {
 pub struct LongitudinalRegimeQueryWire {
     /// Endpoint outcome variable.
     pub outcome: u32,
+    /// Point estimator. Defaults to IPW for older artifacts.
+    #[serde(default = "default_longitudinal_method")]
+    pub method: String,
+    /// Caller-supplied conditional period rewards for g-formula.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub period_outcome_predictions: Vec<f64>,
     /// Decisions per subject.
     pub periods: usize,
     /// Observed treatment history, subject-major.
@@ -811,6 +817,10 @@ pub struct LongitudinalRegimeQueryWire {
     pub probabilities_known_by_design: bool,
     /// Sequential positivity floor.
     pub minimum_probability: f64,
+}
+
+fn default_longitudinal_method() -> String {
+    "ipw".into()
 }
 
 /// Right-censored randomized survival query with explicit marginal observation assumption.
@@ -1676,19 +1686,41 @@ pub fn causal_query_to_wire_with_registry(
                     Some(target_cause)
                 }
             },
-            independent_observation: matches!(&q.observation_assumption,
-                antecedent_core::ObservationAssumption::IndependentGiven(_)),
+            independent_observation: matches!(
+                &q.observation_assumption,
+                antecedent_core::ObservationAssumption::IndependentGiven(_)
+            ),
             independent_given: match &q.observation_assumption {
-                antecedent_core::ObservationAssumption::IndependentGiven(vars) => vars.iter().map(|id| id.raw()).collect(),
+                antecedent_core::ObservationAssumption::IndependentGiven(vars) => {
+                    vars.iter().map(|id| id.raw()).collect()
+                }
                 _ => Vec::new(),
             },
-            censoring_times: q.known_censoring.as_ref().map_or_else(Vec::new, |known| known.times.to_vec()),
-            censoring_columns: q.known_censoring.as_ref().map_or_else(Vec::new, |known| known.columns.iter().map(|id| id.raw()).collect()),
-            censoring_probability_floor: q.known_censoring.as_ref().map(|known| known.minimum_probability),
+            censoring_times: q
+                .known_censoring
+                .as_ref()
+                .map_or_else(Vec::new, |known| known.times.to_vec()),
+            censoring_columns: q
+                .known_censoring
+                .as_ref()
+                .map_or_else(Vec::new, |known| known.columns.iter().map(|id| id.raw()).collect()),
+            censoring_probability_floor: q
+                .known_censoring
+                .as_ref()
+                .map(|known| known.minimum_probability),
         }),
-        CausalQuery::LongitudinalRegime(q) => CausalQueryWire::LongitudinalRegime(
-            LongitudinalRegimeQueryWire {
+        CausalQuery::LongitudinalRegime(q) => {
+            CausalQueryWire::LongitudinalRegime(LongitudinalRegimeQueryWire {
                 outcome: q.outcome.raw(),
+                method: match q.method {
+                    antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
+                    antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
+                }
+                .into(),
+                period_outcome_predictions: q
+                    .period_outcome_predictions
+                    .as_ref()
+                    .map_or_else(Vec::new, |q| q.to_vec()),
                 periods: q.periods,
                 treatment_history: q.treatment_history.to_vec(),
                 regime_actions: q.regime_actions.to_vec(),
@@ -2047,14 +2079,31 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::Survival(q)
         }
         CausalQueryWire::LongitudinalRegime(w) => {
+            let method = match w.method.as_str() {
+                "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
+                "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
+            };
             let q = antecedent_core::LongitudinalRegimeQuery {
-                outcome: VariableId::from_raw(w.outcome), periods: w.periods,
+                outcome: VariableId::from_raw(w.outcome),
+                periods: w.periods,
+                method,
+                period_outcome_predictions: if w.period_outcome_predictions.is_empty() {
+                    None
+                } else {
+                    Some(w.period_outcome_predictions.clone().into())
+                },
                 treatment_history: w.treatment_history.clone().into(),
                 regime_actions: w.regime_actions.clone().into(),
                 treatment_probabilities: w.treatment_probabilities.clone().into(),
                 censoring_probabilities: w.censoring_probabilities.clone().into(),
                 outcome_observed: w.outcome_observed.clone().into(),
-                subject_ids: w.subject_ids.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>().into(),
+                subject_ids: w
+                    .subject_ids
+                    .iter()
+                    .map(|s| Arc::<str>::from(s.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
                 fold_ids: w.fold_ids.clone().into(),
                 excluded_fold_predictions: w.excluded_fold_predictions,
                 probabilities_known_by_design: w.probabilities_known_by_design,

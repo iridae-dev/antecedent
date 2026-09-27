@@ -170,13 +170,15 @@ pub struct SyntheticDidEstimate {
 /// Point value of a prespecified treatment regime over subject histories.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LongitudinalRegimeEstimate {
+    /// Named point method, either `ipw` or `g_formula`.
+    pub method: Arc<str>,
     /// Horvitz--Thompson mean over all enrolled subjects.
     pub value: f64,
-    /// Effective sample size of observed matching histories.
+    /// Effective sample size: matching weighted histories for IPW, subject count for g-formula.
     pub effective_sample_size: f64,
-    /// Fraction of enrolled subjects with observed matching histories.
+    /// Fraction of enrolled subjects with observed matching histories for IPW; one for g-formula predictions.
     pub matched_observed_fraction: f64,
-    /// Largest cumulative inverse-probability weight.
+    /// Largest cumulative inverse-probability weight for IPW; one for g-formula.
     pub maximum_weight: f64,
     /// Minimum prescribed action probability across decisions.
     pub minimum_action_probability: f64,

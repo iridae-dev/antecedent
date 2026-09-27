@@ -21,6 +21,67 @@ pub struct RegimeValueSummary {
     pub minimum_censoring_probability: f64,
 }
 
+/// Evaluate supplied conditional period rewards under a prescribed regime.
+/// Predictions are subject-major and must be produced without reusing the
+/// subject's outcome when excluded-fold ownership is declared upstream.
+pub fn evaluate_g_formula_value(
+    predictions: &[f64],
+    actions: &[bool],
+    treatment_probability: &[f64],
+    censoring_probability: &[f64],
+    subjects: usize,
+    periods: usize,
+    minimum_probability: f64,
+) -> Result<RegimeValueSummary, &'static str> {
+    let cells = subjects.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
+    if subjects == 0
+        || periods == 0
+        || predictions.len() != cells
+        || actions.len() != cells
+        || treatment_probability.len() != cells
+        || censoring_probability.len() != cells
+    {
+        return Err("g-formula arrays must align by subject and period");
+    }
+    if !minimum_probability.is_finite()
+        || !(0.0 < minimum_probability && minimum_probability <= 0.5)
+    {
+        return Err("minimum probability must be finite and in (0, 0.5]");
+    }
+    let mut total = 0.0;
+    let mut minimum_action_probability: f64 = 1.0;
+    let mut minimum_censoring_probability: f64 = 1.0;
+    for j in 0..cells {
+        let q = predictions[j];
+        let p = treatment_probability[j];
+        let c = censoring_probability[j];
+        if !q.is_finite() {
+            return Err("period outcome predictions must be finite");
+        }
+        if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
+            return Err("sequential treatment positivity fails at the declared floor");
+        }
+        if !c.is_finite() || c < minimum_probability || c > 1.0 {
+            return Err("sequential censoring positivity fails at the declared floor");
+        }
+        minimum_action_probability =
+            minimum_action_probability.min(if actions[j] { p } else { 1.0 - p });
+        minimum_censoring_probability = minimum_censoring_probability.min(c);
+        total += q;
+        if !total.is_finite() {
+            return Err("summed outcome predictions overflowed");
+        }
+    }
+    Ok(RegimeValueSummary {
+        value: total / subjects as f64,
+        effective_sample_size: subjects as f64,
+        matched_observed_fraction: 1.0,
+        maximum_weight: 1.0,
+        minimum_action_probability,
+        minimum_censoring_probability,
+    })
+}
+
 /// Evaluate a caller-prescribed static or history-dependent regime on one row
 /// per subject. All two-dimensional inputs are flattened in subject-major order.
 ///
@@ -138,34 +199,30 @@ mod tests {
     #[test]
     fn refuses_missing_support_and_positivity() {
         let mut p = [0.5; 4];
-        assert!(
-            evaluate_regime_value(
-                &[1.0, 2.0],
-                &[false; 4],
-                &[true; 4],
-                &p,
-                &[true; 2],
-                &[1.0; 4],
-                2,
-                0.01
-            )
-            .unwrap_err()
-            .contains("no observed")
-        );
+        assert!(evaluate_regime_value(
+            &[1.0, 2.0],
+            &[false; 4],
+            &[true; 4],
+            &p,
+            &[true; 2],
+            &[1.0; 4],
+            2,
+            0.01
+        )
+        .unwrap_err()
+        .contains("no observed"));
         p[0] = 0.0;
-        assert!(
-            evaluate_regime_value(
-                &[1.0, 2.0],
-                &[false; 4],
-                &[true; 4],
-                &p,
-                &[true; 2],
-                &[1.0; 4],
-                2,
-                0.01
-            )
-            .unwrap_err()
-            .contains("positivity")
-        );
+        assert!(evaluate_regime_value(
+            &[1.0, 2.0],
+            &[false; 4],
+            &[true; 4],
+            &p,
+            &[true; 2],
+            &[1.0; 4],
+            2,
+            0.01
+        )
+        .unwrap_err()
+        .contains("positivity"));
     }
 }
