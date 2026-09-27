@@ -753,6 +753,7 @@ def _binary_assignment(values: Sequence[bool], n: int, name: str) -> list[bool]:
 
 __all__ = [
     "ANCOVAEstimate",
+    "ComplierEffect",
     "ComplierEffectEstimate",
     "CUPEDEstimate",
     "FixedCUPED",
