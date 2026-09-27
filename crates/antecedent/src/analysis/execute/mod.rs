@@ -57,7 +57,7 @@ pub(super) use crate::accepted::{AcceptedGraph, GraphClass};
 pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
-    anomaly_attribution_with, attribute_distribution_change, attribute_unit_change,
+    anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
     counterfactual_ite, fit_gcm, map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{

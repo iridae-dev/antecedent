@@ -735,6 +735,7 @@ impl ContinuousResponseEstimator {
                         warning.code.as_ref(),
                         "response.derivative_interval_withheld"
                             | "response.derivative_interval_bias_corrected"
+                            | "response.derivative_interval_delta_method"
                     )
                 });
                 let point_derivative =
@@ -1412,12 +1413,34 @@ impl ContinuousResponseEstimator {
         } else {
             corrected.robust_second_derivative_standard_error
         };
+        // A directly published coordinate SE (identity level/curvature, or the
+        // log-treatment order-1 scale-up `|at|·SE(m')`) versus a nonlinear
+        // transform of the coordinates that takes the full delta method.
+        let delta_transformed = !matches!(
+            (order, scale),
+            (1 | 2, DerivativeScale::Identity) | (1, DerivativeScale::LogTreatment)
+        );
         let standard_error = match (order, scale) {
             (1 | 2, DerivativeScale::Identity) => derivative_se,
             (1, DerivativeScale::LogTreatment) => at.abs() * derivative_se,
-            // Log-outcome scales and transformed second derivatives also need
-            // coefficient covariance; a partial delta interval would overclaim.
-            _ => f64::NAN,
+            // Every other order/scale is a nonlinear transform of the local
+            // coordinates θ = (m, m', m''); its interval is the full delta method
+            // on the joint coordinate covariance Σ_θ, not a partial one. The
+            // gradient is evaluated at the bias-corrected coordinates the interval
+            // is centred on; Σ_θ is the local-quadratic joint influence
+            // covariance (its diagonal is the robust per-coordinate SEs already
+            // published for the Identity/LogTreatment cases above).
+            _ => {
+                let gradient = transform_point_derivative_gradient(
+                    corrected.value,
+                    corrected.first_derivative,
+                    corrected.second_derivative,
+                    at,
+                    order,
+                    scale,
+                );
+                delta_method_standard_error(&local.coefficient_covariance, &gradient)
+            }
         };
         let mut support = support_report(
             &[at],
@@ -1432,21 +1455,27 @@ impl ContinuousResponseEstimator {
         );
         push_outcome_tail_diagnostic(&mut support, &sample.outcome);
         if !standard_error.is_finite() {
-            // Withholding the interval is deliberate, but a silently absent interval is
-            // indistinguishable from one the caller never asked for. Say why.
+            // The interval is published for every order and scale now; a
+            // non-finite delta-method variance is a degenerate local fit (a
+            // rank-deficient covariance or a transform singularity), not a
+            // deliberate withholding. Say why the one interval is absent.
             support.warnings.push(Diagnostic::new(
                 "response.derivative_interval_withheld",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                "no interval is reported for this derivative order and scale: the delta-method transform needs the full coefficient covariance, and a partial interval would understate uncertainty",
+                "no interval is reported: the delta-method variance of this transformed derivative is not finite at this coordinate (a degenerate local covariance or a transform singularity)",
             ));
         }
         let uncertainty = if standard_error.is_finite() {
-            support.warnings.push(bias_corrected_interval_note(
-                false,
-                estimate,
-                corrected_estimate,
-            ));
+            if delta_transformed {
+                support.warnings.push(delta_method_interval_note(estimate, corrected_estimate));
+            } else {
+                support.warnings.push(bias_corrected_interval_note(
+                    false,
+                    estimate,
+                    corrected_estimate,
+                ));
+            }
             let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
             ResponseUncertainty::Scalar {
                 standard_error,
@@ -3050,6 +3079,23 @@ fn intervention_plugin_warnings(target_fallback: Option<&str>) -> Vec<Diagnostic
     ]
 }
 
+/// Runtime disclosure attached whenever a transformed point-derivative interval
+/// (elasticity, semi-elasticity, or a transformed second derivative) is published
+/// from the delta method on the joint local-coordinate covariance.
+fn delta_method_interval_note(conventional: f64, interval_center: f64) -> Diagnostic {
+    let mut note = Diagnostic::new(
+        "response.derivative_interval_delta_method",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "the transformed-derivative interval is a delta-method interval: it is centred at the bias-corrected transform (a nonlinear function of the local level m and derivatives m', m'') and its standard_error is sqrt(∇τᵀ Σ_θ ∇τ), where Σ_θ is the heteroskedasticity-robust joint influence covariance of the local-quadratic coordinates and ∇τ the transform gradient at the bias-corrected coordinate. [lower, upper] is not a CI for the printed conventional point; it targets the true transformed derivative, conditions on the caller-fixed bandwidth, treats the cross-fitted pseudo-outcome as data, and its coverage carries the transform's linearization error in addition to the coordinate-covariance error",
+    );
+    note.fields = Arc::from(vec![
+        (Arc::from("conventional_point"), Arc::from(conventional.to_string())),
+        (Arc::from("interval_center"), Arc::from(interval_center.to_string())),
+    ]);
+    note
+}
+
 /// Runtime disclosure attached whenever a point-derivative interval is published.
 fn bias_corrected_interval_note(
     bayesian: bool,
@@ -3098,6 +3144,64 @@ fn transform_point_derivative(
                 + treatment * treatment * (second / response - (first / response).powi(2))
         }
     })
+}
+
+/// Gradient `∇τ = (∂τ/∂m, ∂τ/∂m', ∂τ/∂m'')` of the transformed point-derivative
+/// estimand `τ` with respect to the local-polynomial coordinates `θ = (m, m', m'')`
+/// (the level, first derivative, and second derivative), evaluated at `(m, first,
+/// second)` and treatment `at`.
+///
+/// These are the exact partials of [`transform_point_derivative`], used by the
+/// delta method to turn the joint coordinate covariance `Σ_θ` into a variance for
+/// `τ`. `m > 0` is a precondition for the log-outcome and log-log scales (their
+/// transform errors otherwise); the caller establishes it before calling.
+fn transform_point_derivative_gradient(
+    m: f64,
+    first: f64,
+    second: f64,
+    at: f64,
+    order: u8,
+    scale: DerivativeScale,
+) -> [f64; 3] {
+    if order == 1 {
+        // τ is a function of (m, m') only, so ∂τ/∂m'' = 0.
+        return match scale {
+            DerivativeScale::Identity => [0.0, 1.0, 0.0],
+            DerivativeScale::LogTreatment => [0.0, at, 0.0],
+            // s = m'/m
+            DerivativeScale::LogOutcome => [-first / (m * m), 1.0 / m, 0.0],
+            // η = at·m'/m
+            DerivativeScale::LogLog => [-at * first / (m * m), at / m, 0.0],
+        };
+    }
+    match scale {
+        DerivativeScale::Identity => [0.0, 0.0, 1.0],
+        // g = at·m' + at²·m''
+        DerivativeScale::LogTreatment => [0.0, at, at * at],
+        // g = m''/m − (m'/m)²
+        DerivativeScale::LogOutcome => {
+            [-second / (m * m) + 2.0 * first * first / (m * m * m), -2.0 * first / (m * m), 1.0 / m]
+        }
+        // g = at·m'/m + at²·(m''/m − (m'/m)²)
+        DerivativeScale::LogLog => [
+            -at * first / (m * m)
+                + at * at * (-second / (m * m) + 2.0 * first * first / (m * m * m)),
+            at / m - 2.0 * at * at * first / (m * m),
+            at * at / m,
+        ],
+    }
+}
+
+/// Delta-method standard error `sqrt(∇τᵀ Σ_θ ∇τ)` of a transformed point
+/// derivative, from the joint coordinate covariance `Σ_θ` and gradient `∇τ`.
+fn delta_method_standard_error(covariance: &[[f64; 3]; 3], gradient: &[f64; 3]) -> f64 {
+    let mut variance = 0.0;
+    for a in 0..3 {
+        for b in 0..3 {
+            variance += gradient[a] * covariance[a][b] * gradient[b];
+        }
+    }
+    variance.max(0.0).sqrt()
 }
 
 fn sort_finite(values: &[f64]) -> Vec<f64> {
@@ -4508,13 +4612,29 @@ mod tests {
             panic!("expected scalar");
         };
         assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
+        // The elasticity now publishes a delta-method interval on the joint
+        // local-coordinate covariance, disclosed as such, and no longer withholds.
+        let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = response.uncertainty
+        else {
+            panic!("expected a published scalar interval, got {:?}", response.uncertainty);
+        };
+        assert!(standard_error.is_finite() && standard_error > 0.0, "se={standard_error}");
+        assert!(lower <= upper, "interval must be ordered");
         assert!(
             response
                 .support
                 .warnings
                 .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_delta_method"),
+            "log-scale elasticity must disclose the delta-method interval"
+        );
+        assert!(
+            !response
+                .support
+                .warnings
+                .iter()
                 .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
-            "log-scale elasticity must say why the interval is withheld"
+            "log-scale elasticity no longer withholds its interval"
         );
     }
 

@@ -177,13 +177,14 @@ impl CheckedAttributionOperation {
             AttributionTarget::Anomaly(query) => {
                 let started = Instant::now();
                 let fitted = fit_gcm(self.graph.clone(), data)?;
-                let scores = anomaly_attribution_with(
-                    &fitted.model,
-                    data,
-                    query.targets.iter().copied(),
+                // Score all rows while honoring the query's reference (Empirical / Fixed).
+                let scorer_query = antecedent_core::AnomalyAttributionQuery::new(
+                    query.targets.clone(),
                     query.max_units,
-                    ctx,
-                )?;
+                )
+                .with_reference(query.reference);
+                let scores =
+                    anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
                 let outcome = *query.targets.first().ok_or_else(|| CausalError::Compile {
                     message: "checked anomaly target has no outcome variable".into(),
                 })?;
@@ -191,7 +192,11 @@ impl CheckedAttributionOperation {
                     self.anomaly_posterior(query, data, &fitted, &scores, outcome, ctx)?;
                 let mut extra_diagnostics = Vec::new();
                 if posterior.is_some() {
-                    extra_diagnostics.push(bayesian_attribution_diagnostic("Each draw refits all mechanisms under one shared Dirichlet(1,…,1) row-weight vector while holding observed marginal reference statistics fixed."));
+                    let disclosure = match query.reference {
+                        antecedent_core::AnomalyReference::Empirical => "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional.",
+                        antecedent_core::AnomalyReference::Fixed { .. } => "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)].",
+                    };
+                    extra_diagnostics.push(bayesian_attribution_diagnostic(disclosure));
                 }
                 Ok(finish_identified_execute_with_context(
                     &self.result_context,
@@ -316,6 +321,11 @@ impl CheckedAttributionOperation {
             })
             .collect::<Vec<_>>();
         let registry = crate::gcm::MechanismRegistry::standard();
+        let scorer_query = antecedent_core::AnomalyAttributionQuery::new(
+            query.targets.clone(),
+            query.max_units,
+        )
+        .with_reference(query.reference);
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xA110_7A7E);
         for _ in 0..draws {
             if ctx.cancellation.is_cancelled() {
@@ -328,11 +338,10 @@ impl CheckedAttributionOperation {
             let store = registry
                 .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
                 .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-            let draw_scores = anomaly_attribution_with(
+            let draw_scores = anomaly_attribution_query_with(
                 &fitted.model.clone().with_mechanisms(store),
                 data,
-                query.targets.iter().copied(),
-                query.max_units,
+                &scorer_query,
                 ctx,
             )?;
             if draw_scores.len() != columns.len() {
@@ -341,11 +350,15 @@ impl CheckedAttributionOperation {
                 });
             }
             for (column, score) in columns.iter_mut().zip(draw_scores) {
-                column.1.push(if score.scores.is_empty() {
-                    f64::NAN
-                } else {
-                    score.scores.iter().sum::<f64>() / score.scores.len() as f64
-                });
+                // Bayesian bootstrap of the mean anomaly score under the shared Dirichlet
+                // row weights, for both references: the factual scores do not depend on the
+                // mechanism refit, so an unweighted mean would be identical every draw (a
+                // degenerate posterior). See `execute_anomaly` for the full rationale.
+                column.1.push(super::attribution_path::dirichlet_weighted_mean(
+                    &score.scores,
+                    &score.rows,
+                    &weights,
+                ));
             }
         }
         let (identification, _) = parametric_scm_identification(

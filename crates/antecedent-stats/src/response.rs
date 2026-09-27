@@ -45,6 +45,17 @@ pub struct LocalPolynomialInfluence {
     pub robust_first_derivative_standard_error: f64,
     /// Heteroskedasticity-robust standard error for the second derivative.
     pub robust_second_derivative_standard_error: f64,
+    /// Heteroskedasticity-robust joint covariance of the local-quadratic
+    /// coordinates `(m, m', m'')` (the level, first derivative, and second
+    /// derivative), row/column ordered `[level, first, second]`.
+    ///
+    /// Formed as `Σ_i ψ_i ψ_iᵀ` from the per-observation linearized influence
+    /// vectors `ψ_i = (ψ_level, ψ_slope, ψ_curv)_i`, so its diagonal reproduces
+    /// `robust_standard_error²`, `robust_first_derivative_standard_error²`, and
+    /// `robust_second_derivative_standard_error²`. The off-diagonals are the
+    /// coordinate cross-covariances a delta-method transform of the coordinates
+    /// needs (e.g. an elasticity `η = at·m'/m`), which the diagonal SEs discard.
+    pub coefficient_covariance: [[f64; 3]; 3],
 }
 
 /// Scratch for a local-quadratic fit. Reuse across a treatment grid so kernel
@@ -405,6 +416,10 @@ fn fit_local_quadratic(
     let mut first_derivative_influence_ss = 0.0;
     let mut second_derivative_influence_ss = 0.0;
     let mut weighted_rss = 0.0;
+    // Joint influence covariance of (m, m', m''): Σ_i ψ_i ψ_iᵀ. Its diagonal is
+    // the three robust SS below; the off-diagonals are the coordinate
+    // cross-covariances a delta-method transform of the coordinates needs.
+    let mut covariance = [[0.0_f64; 3]; 3];
     for &(w, row, yi) in &workspace.weights {
         let residual = yi - row.iter().zip(beta).map(|(a, b)| a * b).sum::<f64>();
         weighted_rss += w * residual * residual;
@@ -415,6 +430,14 @@ fn fit_local_quadratic(
         let second_hat = inverse[2].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
         // The fitted quadratic coefficient is half the second derivative.
         second_derivative_influence_ss += (2.0 * w * second_hat * residual).powi(2);
+        // Per-observation linearized influence of each coordinate. The second
+        // derivative carries the same factor 2 as the SS above.
+        let psi = [w * hat * residual, w * first_hat * residual, 2.0 * w * second_hat * residual];
+        for a in 0..3 {
+            for b in 0..3 {
+                covariance[a][b] += psi[a] * psi[b];
+            }
+        }
     }
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
     let sigma2 = weighted_rss / (weight_sum - 3.0);
@@ -439,6 +462,7 @@ fn fit_local_quadratic(
         robust_standard_error,
         robust_first_derivative_standard_error: first_derivative_influence_ss.sqrt(),
         robust_second_derivative_standard_error: second_derivative_influence_ss.sqrt(),
+        coefficient_covariance: covariance,
     })
 }
 
@@ -943,6 +967,20 @@ mod tests {
                 > 1e-5,
             "heteroskedastic robust SE must not collapse to the common-sigma plug-in"
         );
+        // The joint covariance diagonal reproduces the three robust SEs exactly,
+        // and it is symmetric: it is the same Σ_i ψ_i ψ_iᵀ read on its diagonal.
+        let cov = fit.coefficient_covariance;
+        assert!((cov[0][0].sqrt() - fit.robust_standard_error).abs() < 1e-12);
+        assert!((cov[1][1].sqrt() - fit.robust_first_derivative_standard_error).abs() < 1e-12);
+        assert!((cov[2][2].sqrt() - fit.robust_second_derivative_standard_error).abs() < 1e-12);
+        for a in 0..3 {
+            for b in 0..3 {
+                assert!((cov[a][b] - cov[b][a]).abs() < 1e-18, "covariance must be symmetric");
+            }
+        }
+        // A positive-definite window has a nonzero level/slope cross-covariance;
+        // the diagonal-only SEs would discard it.
+        assert!(cov[0][1].abs() > 0.0, "level/slope cross-covariance must be retained");
     }
 
     #[test]

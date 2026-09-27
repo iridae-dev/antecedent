@@ -7,7 +7,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
+    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
+    AttributionComponents,
     AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
     CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId, ExposureLevel,
     ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
@@ -686,6 +687,10 @@ pub enum CausalQueryWire {
         unit_rows: Option<Vec<u64>>,
         /// Cap.
         max_units: u64,
+        /// Fixed IT-score reference `(center, scale)`; `None` = empirical
+        /// (default). Absent in older payloads.
+        #[serde(default)]
+        reference: Option<(f64, f64)>,
     },
     /// Change attribution.
     ChangeAttribution {
@@ -1357,6 +1362,12 @@ pub fn causal_query_to_wire_with_registry(
                 })
                 .transpose()?,
             max_units: u64::try_from(q.max_units).unwrap_or(u64::MAX),
+            reference: match q.reference {
+                AnomalyReference::Empirical => None,
+                AnomalyReference::Fixed { center, scale } => {
+                    Some((center.to_f64(), scale.to_f64()))
+                }
+            },
         },
         CausalQuery::ChangeAttribution(q) => CausalQueryWire::ChangeAttribution {
             outcome: q.outcome.raw(),
@@ -1586,7 +1597,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             .map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::NestedCounterfactual(query)
         }
-        CausalQueryWire::AnomalyAttribution { targets, unit_rows, max_units } => {
+        CausalQueryWire::AnomalyAttribution { targets, unit_rows, max_units, reference } => {
             CausalQuery::AnomalyAttribution(AnomalyAttributionQuery {
                 targets: vars_from_raw(targets),
                 unit_rows: unit_rows
@@ -1599,6 +1610,10 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     .transpose()?
                     .map(Arc::from),
                 max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
+                reference: match reference {
+                    None => AnomalyReference::Empirical,
+                    Some((center, scale)) => AnomalyReference::fixed(*center, *scale),
+                },
             })
         }
         CausalQueryWire::ChangeAttribution {
@@ -2486,6 +2501,10 @@ mod tests {
 
         assert_rt(&CausalQuery::AnomalyAttribution(
             AnomalyAttributionQuery::new([y, m], 64).with_unit_rows([0usize, 1, 2]),
+        ));
+        assert_rt(&CausalQuery::AnomalyAttribution(
+            AnomalyAttributionQuery::new([y], 64)
+                .with_reference(AnomalyReference::fixed(1.5, 2.25)),
         ));
         assert_rt(&CausalQuery::MechanismChange(MechanismChangeQuery::new(
             [t, y],

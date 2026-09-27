@@ -562,6 +562,21 @@ pub fn anomaly_attribution_with(
     score_anomalies_with(model, data, &q, ctx).map_err(map_attr)
 }
 
+/// [`anomaly_attribution_with`] against a full [`AnomalyAttributionQuery`], so the
+/// query's reference (`Empirical` / `Fixed`) is honored rather than reconstructed.
+///
+/// # Errors
+///
+/// Attribution failures.
+pub fn anomaly_attribution_query_with(
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &AnomalyAttributionQuery,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<AnomalyScores>, CausalError> {
+    score_anomalies_with(model, data, query, ctx).map_err(map_attr)
+}
+
 /// Distribution-change attribution (pinned baseline-GCM parity).
 ///
 /// # Errors

@@ -3677,7 +3677,7 @@ impl PyPreparedAnalysis {
     /// estimator here.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, targets, max_units, *, accepted=false, seed=1,
-        threads=None, options=None))]
+        threads=None, options=None, reference=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_anomaly_attribution(
         py: Python<'_>,
@@ -3690,6 +3690,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
+        reference: Option<(f64, f64)>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("an anomaly attribution query")?;
@@ -3700,7 +3701,11 @@ impl PyPreparedAnalysis {
                 .iter()
                 .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
                 .collect::<PyResult<Vec<_>>>()?;
-            let query = AnomalyAttributionQuery::new(target_ids, max_units);
+            let mut query = AnomalyAttributionQuery::new(target_ids, max_units);
+            if let Some((center, scale)) = reference {
+                query = query
+                    .with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
+            }
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =
                 with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())

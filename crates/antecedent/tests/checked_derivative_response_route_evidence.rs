@@ -179,11 +179,17 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                 ) => {
                     assert!(standard_error.is_finite() && *standard_error >= 0.0, "{case}");
                     assert_eq!(result.estimate.se_analytic, *standard_error, "{case}");
+                    // The elasticity and outcome-scale semi-elasticity now publish
+                    // a delta-method interval on the joint local-coordinate
+                    // covariance (previously withheld); the identity / treatment
+                    // scales keep their direct-SE interval.
                     assert!(matches!(
                         *case,
                         "AverageDerivative"
                             | "PointDerivative/identity"
                             | "SemiElasticity/treatment-scale"
+                            | "Elasticity"
+                            | "SemiElasticity/outcome-scale"
                     ));
                 }
                 (
@@ -198,11 +204,9 @@ fn all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_r
                     assert_eq!(lower.len(), count, "{case}");
                     assert_eq!(upper.len(), count, "{case}");
                 }
-                (1, ResponseUncertainty::None)
-                    if matches!(*case, "Elasticity" | "SemiElasticity/outcome-scale") =>
-                {
-                    assert!(result.estimate.se_analytic.is_nan(), "{case}");
-                }
+                // The multivariate GAM plug-in (Jacobian / directional) still
+                // withholds the Frequentist interval; it needs a coefficient
+                // covariance the additive-GAM plug-in does not yet expose.
                 (count, ResponseUncertainty::None) if count > 1 => {
                     assert!(result.estimate.se_analytic.is_nan(), "{case}");
                 }
