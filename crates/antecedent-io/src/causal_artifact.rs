@@ -610,16 +610,20 @@ pub(crate) fn validate_query_ids(
                 query = query.with_ancova(wire.ancova_covariates.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>());
             }
             if let Some(receipt) = &wire.received_treatment {
-                query = query.with_received_treatment(receipt.clone());
+                query = if wire.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated {
+                    query.with_treatment_on_treated(receipt.clone())
+                } else {
+                    query.with_received_treatment(receipt.clone())
+                };
             }
             if wire.exact_randomization_test {
                 query = query.with_exact_randomization_test();
             }
-            if (wire.estimand == crate::RandomizedEstimandWire::CaceLate)
+            if (wire.estimand != crate::RandomizedEstimandWire::Itt)
                 != wire.received_treatment.is_some()
             {
                 return Err(IoError::Convert(
-                    "CACE/LATE estimand and treatment receipt must agree".into(),
+                    "receipt-adjusted estimand and treatment receipt must agree".into(),
                 ));
             }
             query.validate().map_err(|e| IoError::Convert(e.to_string()))

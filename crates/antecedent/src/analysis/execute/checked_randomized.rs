@@ -197,7 +197,7 @@ impl CheckedRandomizedOperation {
             let first_stage = receipt_scores.iter().sum::<f64>() / n as f64;
             if !first_stage.is_finite() || first_stage <= f64::EPSILON {
                 return Err(CausalError::Unsupported {
-                    message: "CACE/LATE requires a finite positive receipt first stage under monotonicity",
+                    message: "receipt-adjusted randomized effects require a finite positive receipt first stage",
                 });
             }
             let cace = outcome_itt / first_stage;
@@ -208,8 +208,12 @@ impl CheckedRandomizedOperation {
             complier_components = Some((outcome_itt, first_stage));
             (cace, variance, controls, treated, Arc::from([]), Arc::from([]),
                 Arc::<str>::from("bernoulli"),
-                Arc::<str>::from("bernoulli_wald_cace_influence_variance_no_interval"),
-                "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval")
+                Arc::<str>::from(if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
+                    "bernoulli_one_sided_tot_influence_variance_no_interval"
+                } else { "bernoulli_wald_cace_influence_variance_no_interval" }),
+                if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
+                    "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
+                } else { "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval" })
         } else { match &self.query.design {
             antecedent_core::RandomizationDesign::MultiArm { assignment, probabilities, arms } => {
                 let fit = antecedent_estimate::multi_arm::estimate_multi_arm(outcomes, assignment, probabilities)
@@ -575,7 +579,7 @@ impl CheckedRandomizedOperation {
         );
         result.randomized_effect = Some(crate::RandomizedEffectEstimate {
             effect,
-            estimand: Arc::from(if complier_components.is_some() { "cace_late" } else if factorial_contrasts.is_some() { "factorial_primary_main_effect" } else if !multi_arm_values.is_empty() { "multi_arm_itt" } else { "itt" }),
+            estimand: Arc::from(if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated { "treatment_on_treated" } else if complier_components.is_some() { "cace_late" } else if factorial_contrasts.is_some() { "factorial_primary_main_effect" } else if !multi_arm_values.is_empty() { "multi_arm_itt" } else { "itt" }),
             intention_to_treat_effect: complier_components.map(|(itt, _)| itt),
             first_stage_effect: complier_components.map(|(_, stage)| stage),
             received_treatment: self.query.received_treatment.clone(),
@@ -677,6 +681,7 @@ impl CheckedRandomizedOperation {
                     fit.multi_arm_values.iter().map(|(_, _, _, count)| *count).min().unwrap_or(0)
                 },
                 min_probability, reported_intervals, all_reported_intervals,
+                ..Default::default()
             },
         ) {
             result.support_status = Some(crate::support::CellStatus::Licensed);
@@ -1005,6 +1010,17 @@ pub(crate) fn randomized_identification(
                 status: AssumptionStatus::Declared,
             });
         }
+        if query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::Custom {
+                    id: Arc::from("one_sided_noncompliance"),
+                    description: Arc::from("no control-assigned unit could receive treatment; the observed control-arm receipt check does not establish this counterfactual claim"),
+                },
+                source: AssumptionSource::UserDeclared,
+                scope: AssumptionScope::Identification,
+                status: AssumptionStatus::Declared,
+            });
+        }
     }
     if query.exact_randomization_test {
         assumptions.push(AssumptionRecord {
@@ -1110,6 +1126,8 @@ pub(crate) fn randomized_identification(
     });
     let (identification_rule, identification_note) = if matches!(query.design, antecedent_core::RandomizationDesign::MultiArm { .. }) {
         ("randomized.multi_arm_itt", "known randomized action probabilities identify all arm means and their assignment contrasts")
+    } else if query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
+        ("randomized.one_sided_treatment_on_treated", "one-sided noncompliance identifies the effect among recipients through the Wald ratio under exclusion and random encouragement")
     } else if query.received_treatment.is_some() {
         ("randomized.wald_cace_late", "randomized encouragement identifies the Wald complier contrast under exclusion and monotonicity")
     } else {

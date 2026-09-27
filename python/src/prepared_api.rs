@@ -3379,7 +3379,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, exact_randomization_test=false,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, treatment_on_treated=false, exact_randomization_test=false,
         second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None,
         multi_arm_labels=None, multi_arm_assignment=None, multi_arm_probabilities=None,
         accepted=false, seed=1, threads=None,
@@ -3404,6 +3404,7 @@ impl PyPreparedAnalysis {
         ancova_covariates: Option<Vec<String>>,
         periods: Option<Vec<String>>,
         received_treatment: Option<Vec<bool>>,
+        treatment_on_treated: bool,
         exact_randomization_test: bool,
         second_factor_assignment: Option<Vec<bool>>,
         factorial_cell_counts: Option<[usize; 4]>,
@@ -3488,7 +3489,13 @@ impl PyPreparedAnalysis {
                 }
             }
             if let Some(received) = received_treatment {
-                query = query.with_received_treatment(received);
+                query = if treatment_on_treated {
+                    query.with_treatment_on_treated(received)
+                } else {
+                    query.with_received_treatment(received)
+                };
+            } else if treatment_on_treated {
+                return Err(py_msg("treatment-on-treated requires observed treatment receipt"));
             }
             if exact_randomization_test {
                 query = query.with_exact_randomization_test();

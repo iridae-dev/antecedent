@@ -1306,6 +1306,7 @@ class PreparedAnalysis:
         ancova_covariates: list[str] | None = None,
         periods: list[str] | None = None,
         received_treatment: list[bool] | None = None,
+        treatment_on_treated: bool = False,
         exact_randomization_test: bool = False,
         second_factor_assignment: list[bool] | None = None,
         factorial_cell_counts: tuple[int, int, int, int] | None = None,

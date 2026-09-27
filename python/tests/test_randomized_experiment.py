@@ -555,6 +555,32 @@ def test_complier_effect_runs_in_retained_analyze_with_first_stage():
             [f"u{i}" for i in range(8)], [f"y{i}" for i in range(8)]), receipt)
 
 
+def test_one_sided_treatment_on_treated_retains_distinct_estimand_and_refuses_two_sided_receipt():
+    assignment = [True, False] * 4
+    design = ant.ExperimentDesign(
+        ant.interference.BernoulliAssignment(0.5), assignment,
+        [f"u{i}" for i in range(8)], [f"y{i}" for i in range(8)],
+        treatment_arms=("control", "encouraged"),
+    )
+    receipt = [True, False, True, False, False, False, False, False]
+    query = ant.experiment.TreatmentOnTreated("y", design, receipt)
+    result = ant.analyze({"y": [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]}, query=query)
+    effect = result.randomized_effect
+    assert effect.estimand == "treatment_on_treated"
+    assert effect.effect == pytest.approx(4.0)
+    assert effect.first_stage_effect == pytest.approx(0.5)
+    assert effect.interval_95 is None
+    assert effect.uncertainty == "bernoulli_one_sided_tot_influence_variance_no_interval"
+    assert result.evidence_status == "off_axis"
+    assert any("one_sided_noncompliance" in item for item in result.assumptions or ())
+    with pytest.raises(CausalValueError, match="no control-assigned treatment receipt"):
+        ant.experiment.TreatmentOnTreated("y", design, [True, True] + [False] * 6)
+    with pytest.raises(CausalValueError, match="Bernoulli"):
+        ant.experiment.TreatmentOnTreated("y", ant.ExperimentDesign(
+            ant.interference.CompleteRandomization(4), assignment,
+            [f"u{i}" for i in range(8)], [f"y{i}" for i in range(8)]), receipt)
+
+
 def test_exact_complete_randomization_inference_retains_fisher_p_value():
     design = ant.ExperimentDesign(
         ant.interference.CompleteRandomization(2), [True, True, False, False],

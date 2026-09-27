@@ -1194,6 +1194,11 @@ fn validate_result(
             {
                 ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval", None)
             }
+            crate::RandomizationDesignWire::Bernoulli
+                if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated =>
+            {
+                ("bernoulli", "bernoulli_one_sided_tot_influence_variance_no_interval", None)
+            }
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
                 ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval", None)
             }
@@ -1419,6 +1424,8 @@ fn validate_result(
             || randomized.estimand
                 != if query.estimand == crate::RandomizedEstimandWire::CaceLate {
                     "cace_late"
+                } else if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated {
+                    "treatment_on_treated"
                 } else if matches!(query.design, crate::RandomizationDesignWire::Factorial2x2) {
                     "factorial_primary_main_effect"
                 } else if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
@@ -1452,7 +1459,7 @@ fn validate_result(
                 && randomized.randomization_p_value.is_none_or(|p| !p.is_finite()
                     || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0))
             || (!query.exact_randomization_test && randomized.randomization_p_value.is_some())
-            || (query.estimand == crate::RandomizedEstimandWire::CaceLate
+            || (query.estimand != crate::RandomizedEstimandWire::Itt
                 && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
                     || randomized
                         .first_stage_effect

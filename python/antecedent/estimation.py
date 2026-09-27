@@ -54,6 +54,7 @@ from .errors import (
 from .experiment import (
     BernoulliAssignment,
     ComplierEffect,
+    TreatmentOnTreated,
     FactorialRandomization,
     MultiArmExperimentDesign,
     RandomizedEffect,
@@ -1928,6 +1929,7 @@ _PreparedQuery = (
     | InterferenceQuery
     | RandomizedEffect
     | ComplierEffect
+    | TreatmentOnTreated
     | SwitchbackEffect
     | PolicyValue
     | ConditionalDoseResponse
@@ -2355,7 +2357,7 @@ class _PrepareRoute:
             return self._continuous_dose_response()
         if isinstance(query, RandomizedEffect):
             return self._randomized_effect()
-        if isinstance(query, ComplierEffect):
+        if isinstance(query, (ComplierEffect, TreatmentOnTreated)):
             return self._complier_effect()
         if isinstance(query, SwitchbackEffect):
             return self._switchback_effect()
@@ -2970,7 +2972,7 @@ class _PrepareRoute:
         return native, "average"
 
     def _complier_effect(self) -> tuple[Any, Literal["average"]]:
-        query = cast(ComplierEffect, self.query)
+        query = cast(ComplierEffect | TreatmentOnTreated, self.query)
         if self.graph is not None or self.discovery is not None:
             raise CausalUnsupportedError("ComplierEffect carries its randomization design and does not accept graph= or discovery=", reason_code="option_not_applicable")
         self._refuse_ids("ComplierEffect")
@@ -2991,7 +2993,9 @@ class _PrepareRoute:
             list(query.design.realized_assignment), probability_rows,
             list(query.design.assignment_units), list(query.design.outcome_units),
             tuple(query.design.treatment_arms), "bernoulli",
-            received_treatment=list(query.received_treatment), accepted=False, **self._common(),
+            received_treatment=list(query.received_treatment),
+            treatment_on_treated=isinstance(query, TreatmentOnTreated),
+            accepted=False, **self._common(),
         )
         return native, "average"
 

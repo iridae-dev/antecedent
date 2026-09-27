@@ -156,7 +156,7 @@ def coerce_query(value: Any) -> Any:
     Every query dataclass in :mod:`antecedent.query` carries a ``kind``
     discriminator; anything without one is not a supported query type.
     """
-    from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect
+    from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
     from .interference import InterferenceQuery
     from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
     from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
@@ -216,6 +216,7 @@ def coerce_query(value: Any) -> Any:
         MultiActionPolicyValue,
         RandomizedEffect,
         ComplierEffect,
+        TreatmentOnTreated,
         SwitchbackEffect,
         PanelDifferenceInDifferences,
         AugmentedPanelDiD,

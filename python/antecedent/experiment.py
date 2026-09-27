@@ -536,7 +536,7 @@ class RandomizedExperimentEstimate:
     uncertainty: str
     support_status: str
     periods: tuple[str, ...] | None = None
-    estimand: Literal["itt", "cace_late", "factorial_primary_main_effect", "multi_arm_itt"] = "itt"
+    estimand: Literal["itt", "cace_late", "treatment_on_treated", "factorial_primary_main_effect", "multi_arm_itt"] = "itt"
     intention_to_treat_effect: float | None = None
     first_stage_effect: float | None = None
     received_treatment: tuple[bool, ...] | None = None
@@ -593,6 +593,29 @@ class ComplierEffect:
         receipt = tuple(self.received_treatment)
         if len(receipt) != len(self.design.realized_assignment) or any(type(value) is not bool for value in receipt):
             raise CausalValueError("treatment receipt must be row-aligned booleans")
+        object.__setattr__(self, "received_treatment", receipt)
+
+
+@dataclass(frozen=True, slots=True)
+class TreatmentOnTreated:
+    """Effect among treatment recipients under one-sided noncompliance.
+
+    Assignment is independent Bernoulli encouragement. The caller asserts
+    exclusion and that a control-assigned unit could never receive treatment;
+    observed control-arm receipt is checked. Under these claims recipients are
+    compliers, so the Wald ratio identifies their mean treatment effect.
+    """
+
+    outcome: str
+    design: ExperimentDesign
+    received_treatment: Sequence[bool]
+    kind: Literal["treatment_on_treated"] = field(default="treatment_on_treated", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        ComplierEffect(self.outcome, self.design, self.received_treatment)
+        receipt = tuple(self.received_treatment)
+        if any(received and not assigned for received, assigned in zip(receipt, self.design.realized_assignment, strict=True)):
+            raise CausalValueError("treatment-on-treated requires no control-assigned treatment receipt")
         object.__setattr__(self, "received_treatment", receipt)
 
 
@@ -875,6 +898,7 @@ __all__ = [
     "ANCOVAEstimate",
     "ComplierEffect",
     "ComplierEffectEstimate",
+    "TreatmentOnTreated",
     "CUPEDEstimate",
     "FixedCUPED",
     "FactorialRandomization",

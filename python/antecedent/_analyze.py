@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal, Protocol
 
 from ._api import describe_refusal
-from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect
+from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
 from .extensibility import ProviderQuery
 from .extensibility import providers as _providers
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
@@ -61,6 +61,7 @@ def analyze(
         | ProviderQuery
         | RandomizedEffect
         | ComplierEffect
+        | TreatmentOnTreated
         | SwitchbackEffect
         | PolicyValue
         | ConditionalDoseResponse
