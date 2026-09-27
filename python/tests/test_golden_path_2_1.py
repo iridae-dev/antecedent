@@ -37,7 +37,9 @@ def _panel(seed: int, n_units: int = 120) -> dict[str, np.ndarray]:
     for u in range(n_units):
         gg = u % 2
         for t in (0, 1):
-            ids.append(float(u)); g.append(float(gg)); post.append(float(t))
+            ids.append(float(u))
+            g.append(float(gg))
+            post.append(float(t))
             y.append(1.0 + 0.5 * gg + 0.3 * t + 2.0 * gg * t + rng.normal() * 0.2)
     return {"y": np.array(y), "id": np.array(ids), "g": np.array(g), "post": np.array(post)}
 
@@ -48,27 +50,42 @@ def _event(seed: int, n_units: int = 40) -> dict[str, np.ndarray]:
     for u in range(n_units):
         c = 0 if u < n_units // 2 else 3
         for t in range(1, 6):
-            ids.append(f"s{u}"); per.append(t); coh.append(c)
+            ids.append(f"s{u}")
+            per.append(t)
+            coh.append(c)
             y.append(float(u) + (5.0 if (c != 0 and t >= c) else 0.0) + rng.normal() * 0.1)
-    return {"y": np.array(y, float), "id": ids, "period": np.array(per, float), "cohort": np.array(coh, float)}
+    return {
+        "y": np.array(y, float),
+        "id": ids,
+        "period": np.array(per, float),
+        "cohort": np.array(coh, float),
+    }
 
 
 def _survival(seed: int, n: int = 400) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
     dur = rng.exponential(2.0, n)
-    return {"duration": dur, "event": (dur < 3).astype(float), "treated": (rng.uniform(size=n) < 0.5).astype(float)}
+    return {
+        "duration": dur,
+        "event": (dur < 3).astype(float),
+        "treated": (rng.uniform(size=n) < 0.5).astype(float),
+    }
 
 
 def _longitudinal(seed: int, n: int = 500) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
-    return {"y": np.array([4.0 if i % 4 == 0 else 0.0 for i in range(n)]) + rng.normal(size=n) * 0.0}
+    return {
+        "y": np.array([4.0 if i % 4 == 0 else 0.0 for i in range(n)]) + rng.normal(size=n) * 0.0
+    }
 
 
 def _policy_query() -> Any:
     n = 400
     a = [i % 2 == 1 for i in range(n)]
     return policy.PolicyValue(
-        outcome="y", assignment=a, propensity=0.5,
+        outcome="y",
+        assignment=a,
+        propensity=0.5,
         policy=policy.BinaryPolicy([i % 4 < 2 for i in range(n)]),
         evaluation_subject_ids=[f"e{i}" for i in range(n)],
     )
@@ -86,9 +103,12 @@ def _longitudinal_query() -> Any:
     n = 500
     history = [[(i % 4 in (0, 1)), (i % 4 in (0, 2))] for i in range(n)]
     return regimes.LongitudinalRegime(
-        outcome="y", treatment_history=history, actions=[True, True],
+        outcome="y",
+        treatment_history=history,
+        actions=[True, True],
         treatment_probabilities=[[0.5, 0.5]] * n,
-        subject_ids=[f"subject-{i}" for i in range(n)], fold_ids=[i % 5 for i in range(n)],
+        subject_ids=[f"subject-{i}" for i in range(n)],
+        fold_ids=[i % 5 for i in range(n)],
     )
 
 
@@ -104,15 +124,39 @@ class Case:
 
 CASES = [
     Case("randomized-bernoulli", _bernoulli, _randomized_query(), "point"),
-    Case("policy-value", lambda s: {"y": _bernoulli(s)["y"]}, _policy_query(), "policy_value",
-         refresh="refused"),
-    Case("panel-did", _panel, quasi.PanelDifferenceInDifferences("y", "id", "g", "post"), "structured"),
-    Case("staggered-event-study", _event,
-         quasi.StaggeredAdoption("y", "id", "period", "cohort", event_study=True), "structured"),
-    Case("survival-rmst", _survival,
-         survival.SurvivalOutcome("duration", "event", "treated", tau=2.0, randomized=True,
-                                  observation_assumption=IndependentGiven(())), "structured",
-         options={"bootstrap": 199}),
+    Case(
+        "policy-value",
+        lambda s: {"y": _bernoulli(s)["y"]},
+        _policy_query(),
+        "policy_value",
+        refresh="refused",
+    ),
+    Case(
+        "panel-did",
+        _panel,
+        quasi.PanelDifferenceInDifferences("y", "id", "g", "post"),
+        "structured",
+    ),
+    Case(
+        "staggered-event-study",
+        _event,
+        quasi.StaggeredAdoption("y", "id", "period", "cohort", event_study=True),
+        "structured",
+    ),
+    Case(
+        "survival-rmst",
+        _survival,
+        survival.SurvivalOutcome(
+            "duration",
+            "event",
+            "treated",
+            tau=2.0,
+            randomized=True,
+            observation_assumption=IndependentGiven(()),
+        ),
+        "structured",
+        options={"bootstrap": 199},
+    ),
     Case("longitudinal-regime", _longitudinal, _longitudinal_query(), "structured"),
 ]
 

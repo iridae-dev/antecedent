@@ -5,7 +5,7 @@ These utilities do not add a support-matrix license or interval guarantee.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -17,10 +17,14 @@ from ._native import group_time_att as _group_time_att
 from .errors import CausalValueError
 
 
-def _binary(values: Sequence[Any], name: str) -> list[bool]:
+def _binary(values: Iterable[Any], name: str) -> list[bool]:
     encoded: list[bool] = []
     for value in values:
-        if isinstance(value, (bool, np.bool_)) or isinstance(value, (int, float, np.integer, np.floating)) and value in (0, 1):
+        if (
+            isinstance(value, (bool, np.bool_))
+            or isinstance(value, (int, float, np.integer, np.floating))
+            and value in (0, 1)
+        ):
             encoded.append(bool(value))
         else:
             raise CausalValueError(f"{name} values must be bool or encoded as 0/1")
@@ -122,10 +126,14 @@ class PanelDifferenceInDifferences:
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.treated, self.post)
         if any(not isinstance(value, str) or not value.strip() for value in fields):
-            raise CausalValueError("outcome, subject, treated, and post must be non-empty column names")
+            raise CausalValueError(
+                "outcome, subject, treated, and post must be non-empty column names"
+            )
         if len(set(fields)) != len(fields):
             raise CausalValueError("outcome, subject, treated, and post must name distinct columns")
-        if self.cluster is not None and (not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields):
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields
+        ):
             raise CausalValueError("cluster must be a distinct non-empty column name")
         if self.sampling not in ("balanced_panel", "repeated_cross_section"):
             raise CausalValueError("sampling must be balanced_panel or repeated_cross_section")
@@ -172,20 +180,33 @@ class StaggeredAdoption:
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.period, self.cohort)
         if any(not isinstance(value, str) or not value.strip() for value in fields):
-            raise CausalValueError("outcome, subject, period, and cohort must be non-empty column names")
+            raise CausalValueError(
+                "outcome, subject, period, and cohort must be non-empty column names"
+            )
         if len(set(fields)) != len(fields):
-            raise CausalValueError("outcome, subject, period, and cohort must name distinct columns")
+            raise CausalValueError(
+                "outcome, subject, period, and cohort must name distinct columns"
+            )
         if self.event_study and (self.target_cohort is not None or self.target_period is not None):
-            raise CausalValueError("event study compares all cohorts and cannot select a single cohort-period target")
+            raise CausalValueError(
+                "event study compares all cohorts and cannot select a single cohort-period target"
+            )
         if (self.target_cohort is None) != (self.target_period is None):
             raise CausalValueError("target_cohort and target_period must be supplied together")
         if self.target_cohort is not None and (
-            isinstance(self.target_cohort, bool) or not isinstance(self.target_cohort, int)
-            or isinstance(self.target_period, bool) or not isinstance(self.target_period, int)
-            or self.target_cohort <= 1 or self.target_period < self.target_cohort
+            isinstance(self.target_cohort, bool)
+            or not isinstance(self.target_cohort, int)
+            or isinstance(self.target_period, bool)
+            or not isinstance(self.target_period, int)
+            or self.target_cohort <= 1
+            or self.target_period < self.target_cohort
         ):
-            raise CausalValueError("selected staggered comparison needs cohort > 1 and period >= cohort")
-        if self.cluster is not None and (not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields):
+            raise CausalValueError(
+                "selected staggered comparison needs cohort > 1 and period >= cohort"
+            )
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields
+        ):
             raise CausalValueError("cluster must be a distinct non-empty column name")
 
 
@@ -267,6 +288,8 @@ class StaggeredEventStudyEstimate:
         "post_adoption_intervals_are_pointwise_not_simultaneous",
         "pre_adoption_contrasts_have_no_intervals_or_pretrend_test",
     )
+
+
 @dataclass(frozen=True, slots=True)
 class SyntheticControl:
     """Balanced-panel synthetic control with one treated unit and donor pool."""
@@ -283,17 +306,20 @@ class SyntheticControl:
     def __post_init__(self) -> None:
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
-        if self.sharp_null_effect is not None:
-            if (not self.uniform_unit_randomization
-                or isinstance(self.sharp_null_effect, (bool, np.bool_))
-                or not isinstance(self.sharp_null_effect, (int, float, np.integer, np.floating))
-                or not np.isfinite(self.sharp_null_effect)):
-                raise CausalValueError("finite sharp_null_effect requires uniform_unit_randomization")
-        if self.augmentation_ridge is not None:
-            if (not isinstance(self.augmentation_ridge, (int, float, np.integer, np.floating))
-                or isinstance(self.augmentation_ridge, (bool, np.bool_))
-                or not np.isfinite(self.augmentation_ridge) or self.augmentation_ridge <= 0):
-                raise CausalValueError("augmentation_ridge must be finite and positive")
+        if self.sharp_null_effect is not None and (
+            not self.uniform_unit_randomization
+            or isinstance(self.sharp_null_effect, (bool, np.bool_))
+            or not isinstance(self.sharp_null_effect, (int, float, np.integer, np.floating))
+            or not np.isfinite(self.sharp_null_effect)
+        ):
+            raise CausalValueError("finite sharp_null_effect requires uniform_unit_randomization")
+        if self.augmentation_ridge is not None and (
+            not isinstance(self.augmentation_ridge, (int, float, np.integer, np.floating))
+            or isinstance(self.augmentation_ridge, (bool, np.bool_))
+            or not np.isfinite(self.augmentation_ridge)
+            or self.augmentation_ridge <= 0
+        ):
+            raise CausalValueError("augmentation_ridge must be finite and positive")
         fields = (self.outcome, self.unit, self.period)
         if any(not isinstance(value, str) or not value.strip() for value in fields):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")
@@ -356,21 +382,27 @@ class SyntheticDifferenceInDifferences:
     def __post_init__(self) -> None:
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
-        if self.sharp_null_effect is not None:
-            if (not self.uniform_unit_randomization
-                or isinstance(self.sharp_null_effect, (bool, np.bool_))
-                or not isinstance(self.sharp_null_effect, (int, float, np.integer, np.floating))
-                or not np.isfinite(self.sharp_null_effect)):
-                raise CausalValueError("finite sharp_null_effect requires uniform_unit_randomization")
-        if any(not isinstance(value, str) or not value.strip() for value in (self.outcome, self.unit, self.period)):
+        if self.sharp_null_effect is not None and (
+            not self.uniform_unit_randomization
+            or isinstance(self.sharp_null_effect, (bool, np.bool_))
+            or not isinstance(self.sharp_null_effect, (int, float, np.integer, np.floating))
+            or not np.isfinite(self.sharp_null_effect)
+        ):
+            raise CausalValueError("finite sharp_null_effect requires uniform_unit_randomization")
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in (self.outcome, self.unit, self.period)
+        ):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")
         if len({self.outcome, self.unit, self.period}) != 3:
             raise CausalValueError("outcome, unit, and period must name distinct columns")
         if not isinstance(self.treated_unit, str) or not self.treated_unit:
             raise CausalValueError("treated_unit must be a non-empty string unit ID")
-        if isinstance(self.intervention_period, (bool, np.bool_)) or not isinstance(
-            self.intervention_period, (int, np.integer)
-        ) or self.intervention_period <= 0:
+        if (
+            isinstance(self.intervention_period, (bool, np.bool_))
+            or not isinstance(self.intervention_period, (int, np.integer))
+            or self.intervention_period <= 0
+        ):
             raise CausalValueError("intervention_period must be a positive integer")
 
 
@@ -432,7 +464,9 @@ class AugmentedPanelDiD:
             raise CausalValueError("augmented panel DiD columns must be distinct")
         if not isinstance(self.predictions_cross_fitted, bool):
             raise CausalValueError("predictions_cross_fitted must be boolean")
-        if self.cluster is not None and (not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in names):
+        if self.cluster is not None and (
+            not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in names
+        ):
             raise CausalValueError("cluster must be a distinct non-empty column name")
 
 
@@ -590,15 +624,13 @@ def estimate_did(
     group_values = _binary(group, "treated")
     period_values = _binary(period, "post")
     try:
-        value = _difference_in_differences(
-            outcome, group_values, period_values
-        )
+        value = _difference_in_differences(outcome, group_values, period_values)
     except ValueError as error:
         raise CausalValueError(str(error)) from error
     return DifferenceInDifferencesEstimate(float(value))
 
 
-def _integer_column(values: Sequence[Any], name: str, *, minimum: int) -> list[int]:
+def _integer_column(values: Iterable[Any], name: str, *, minimum: int) -> list[int]:
     encoded: list[int] = []
     for value in values:
         if isinstance(value, (bool, np.bool_)) or not isinstance(
@@ -671,19 +703,26 @@ def estimate_group_time_att(
     return StaggeredAdoptionEstimate(effects)
 
 
-def _validate_rd_spec(outcome: str, treatment: str, running: str, cutoff: float, bandwidth: float) -> None:
+def _validate_rd_spec(
+    outcome: str, treatment: str, running: str, cutoff: float, bandwidth: float
+) -> None:
     fields = (outcome, treatment, running)
     if any(not isinstance(value, str) or not value.strip() for value in fields):
         raise CausalValueError("outcome, treatment, and running must be non-empty column names")
     if len(set(fields)) != len(fields):
         raise CausalValueError("outcome, treatment, and running must name distinct columns")
-    if isinstance(cutoff, (bool, np.bool_)) or not isinstance(
-        cutoff, (int, float, np.integer, np.floating)
-    ) or not np.isfinite(cutoff):
+    if (
+        isinstance(cutoff, (bool, np.bool_))
+        or not isinstance(cutoff, (int, float, np.integer, np.floating))
+        or not np.isfinite(cutoff)
+    ):
         raise CausalValueError("cutoff must be finite")
-    if isinstance(bandwidth, (bool, np.bool_)) or not isinstance(
-        bandwidth, (int, float, np.integer, np.floating)
-    ) or not np.isfinite(bandwidth) or bandwidth <= 0:
+    if (
+        isinstance(bandwidth, (bool, np.bool_))
+        or not isinstance(bandwidth, (int, float, np.integer, np.floating))
+        or not np.isfinite(bandwidth)
+        or bandwidth <= 0
+    ):
         raise CausalValueError("bandwidth must be finite and positive")
 
 

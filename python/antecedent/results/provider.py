@@ -127,7 +127,9 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             },
         )
 
-    def export(self) -> bytes:
+    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
+        # A provider result carries a single opaque artifact; artifact_id is
+        # accepted for API parity with the analysis result but does not select.
         if self.artifact is None:
             from ..errors import CausalUnsupportedError
 
