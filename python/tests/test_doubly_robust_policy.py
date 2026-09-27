@@ -178,6 +178,35 @@ def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
         )
 
 
+def test_retained_policy_reports_held_out_ranked_uplift_bins():
+    assignment = [True, False] * 4
+    query = policy.PolicyValue(
+        outcome="y", assignment=assignment, propensity=0.5,
+        policy=policy.BinaryPolicy([True] * 4 + [False] * 4),
+        evaluation_subject_ids=[f"eval-{i}" for i in range(8)],
+        uplift_scores=[8, 7, 6, 5, 4, 3, 2, 1],
+        uplift_bin_count=2,
+        uplift_training_subject_ids=["rank-train"],
+    )
+    result = ant.analyze({"y": [9, 5, 9, 5, 5, 5, 5, 5]}, query=query, refute="none")
+    bins = result.policy_value.uplift_bins
+    assert len(bins) == 2
+    assert [bin.effect for bin in bins] == pytest.approx([4.0, 0.0])
+    assert [bin.evaluation_rows for bin in bins] == [4, 4]
+    assert all(bin.standard_error >= 0 for bin in bins)
+    assert result.policy_value.support_status == "unlicensed_point_utility"
+    assert ant.load(result.export(artifact_id="ranked-policy")).answer.structured["uplift_bins"][0]["effect"] == pytest.approx(4.0)
+
+    with pytest.raises(CausalValueError, match="disjoint"):
+        policy.PolicyValue(
+            outcome="y", assignment=assignment, propensity=0.5,
+            policy=policy.BinaryPolicy([False] * 8),
+            evaluation_subject_ids=[f"eval-{i}" for i in range(8)],
+            uplift_scores=[8, 7, 6, 5, 4, 3, 2, 1], uplift_bin_count=2,
+            uplift_training_subject_ids=["eval-0"],
+        )
+
+
 def test_retained_multi_action_policy_matches_direct_native_value_and_artifact():
     labels = ("control", "A", "B")
     assigned = ["control", "A", "B"] * 3

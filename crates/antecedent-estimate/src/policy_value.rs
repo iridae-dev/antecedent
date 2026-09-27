@@ -28,6 +28,46 @@ pub struct PolicyValueScores {
     pub propensity_max: f64,
 }
 
+/// Held-out inverse-probability uplift for one descending score bin.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UpliftBinScore {
+    /// Zero-based descending score rank.
+    pub rank: usize,
+    /// Horvitz-Thompson treatment contrast in this bin.
+    pub effect: f64,
+    /// Independent-subject row-score standard error; no interval claim.
+    pub standard_error: f64,
+    /// Number of evaluation subjects in the bin.
+    pub evaluation_rows: usize,
+}
+
+/// Evaluate frozen held-out score bins using known binary randomization probabilities.
+pub fn evaluate_uplift_bins(
+    outcome: &[f64], assignment: &[bool], propensity: &[f64],
+    score_bins: &[usize], bin_count: usize,
+) -> Result<Vec<UpliftBinScore>, &'static str> {
+    let n = outcome.len();
+    if n < 2 || assignment.len() != n || score_bins.len() != n || bin_count == 0
+        || bin_count > n || !(propensity.len() == 1 || propensity.len() == n)
+    { return Err("uplift rows, probabilities, and bin count must align"); }
+    let mut groups = vec![Vec::<f64>::new(); bin_count];
+    for i in 0..n {
+        let p = propensity[if propensity.len() == 1 { 0 } else { i }];
+        if !outcome[i].is_finite() || !p.is_finite() || p <= 0.0 || p >= 1.0
+            || score_bins[i] >= bin_count
+        { return Err("uplift requires finite outcomes, strict overlap, and valid score bins"); }
+        groups[score_bins[i]].push(if assignment[i] { outcome[i] / p } else { -outcome[i] / (1.0 - p) });
+    }
+    groups.into_iter().enumerate().map(|(rank, scores)| {
+        let count = scores.len();
+        if count < 2 { return Err("every uplift score bin requires at least two evaluation rows for a row-score standard error"); }
+        let effect = scores.iter().sum::<f64>() / count as f64;
+        let standard_error = (scores.iter().map(|x| (x - effect).powi(2)).sum::<f64>()
+            / (count * (count - 1)) as f64).sqrt();
+        Ok(UpliftBinScore { rank, effect, standard_error, evaluation_rows: count })
+    }).collect()
+}
+
 /// Evaluate fixed held-out binary policy scores using randomized AIPW.
 ///
 /// Propensities and nuisance predictions are caller-supplied design inputs.
@@ -197,5 +237,18 @@ mod tests {
         assert!((result.reference_value - 1.0).abs() < 1e-12);
         assert!((result.incremental_value - 3.0).abs() < 1e-12);
         assert!(result.incremental_standard_error.is_finite());
+    }
+
+    #[test]
+    fn ranked_uplift_recovers_known_bin_contrasts_and_refuses_singletons() {
+        let bins = evaluate_uplift_bins(
+            &[9.0, 5.0, 9.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+            &[true, false, true, false, true, false, true, false],
+            &[0.5], &[0, 0, 0, 0, 1, 1, 1, 1], 2,
+        ).unwrap();
+        assert!((bins[0].effect - 4.0).abs() < 1e-12);
+        assert!(bins[1].effect.abs() < 1e-12);
+        assert!(bins.iter().all(|bin| bin.standard_error.is_finite()));
+        assert!(evaluate_uplift_bins(&[1.0, 2.0], &[false, true], &[0.5], &[0, 1], 2).is_err());
     }
 }

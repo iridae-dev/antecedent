@@ -9,6 +9,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Generic, Literal, TypeVar, cast
 
+import numpy as np
+
 from ._api import describe_refusal
 from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
@@ -407,6 +409,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         return None
     ipw = section.prediction_ownership == "no_outcome_nuisance_predictions"
     multi_action = section.uncertainty.startswith("multi_action_")
+    from .policy import UpliftBin
     return DoublyRobustPolicyEvaluation(
         policy_value=section.policy_value,
         reference_value=section.reference_value,
@@ -420,13 +423,15 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
+        uplift_bins=tuple(UpliftBin(int(rank), float(effect), float(se), int(rows))
+                          for rank, effect, se, rows in section.uplift_bins),
         uncertainty=section.uncertainty,
         evaluation_method=(
             "randomized_multi_action_ipw_fixed_policy" if multi_action else
             "randomized_ipw_fixed_policy" if ipw
             else "doubly_robust_randomized_heldout_or_cross_fitted"
         ),
-        assumptions=(
+        assumptions=((
             (
                 "Known randomized action probabilities with positive support for each declared action.",
                 "Consistency and no interference between evaluation subjects.",
@@ -441,9 +446,12 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
                 "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
                 "Consistency and no interference between evaluation subjects.",
                 "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
-            )
+            ))
+            + ((
+                "Rank scores were fitted on declared training subjects disjoint from evaluation subjects and frozen before outcome evaluation.",
+            ) if section.uplift_bins else ())
         ),
-        diagnostics=(
+        diagnostics=((
             (
                 "row-level standard errors assume independent evaluation subjects",
                 "randomization and policy selection claims are caller-declared",
@@ -452,7 +460,11 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
                 "row-level standard errors assume independent evaluation subjects",
                 "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
                 "nuisance predictions and randomization claims are not independently authenticated",
-            )
+            ))
+            + ((
+                "uplift bin row-score standard errors assume independent evaluation subjects; no interval coverage is licensed",
+                "ranking-model ownership is checked from caller-supplied subject IDs only",
+            ) if section.uplift_bins else ())
         ),
     )
 
@@ -2510,12 +2522,24 @@ class _PrepareRoute:
         costs = [float(query.policy.costs)] if isinstance(query.policy.costs, (int, float)) else list(query.policy.costs)
         reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
         reference_costs = [float(reference.costs)] if isinstance(reference.costs, (int, float)) else list(reference.costs)
+        uplift_bin_ids: list[int] = []
+        if query.uplift_scores is not None:
+            uplift_bin_ids = [0] * len(query.policy.actions)
+            ranked_rows = np.argsort(-np.asarray(query.uplift_scores, dtype=np.float64), kind="stable")
+            for rank, row in enumerate(ranked_rows):
+                uplift_bin_ids[int(row)] = min(
+                    query.uplift_bin_count - 1,
+                    rank * query.uplift_bin_count // len(query.policy.actions),
+                )
         native = _NativePreparedAnalysis.prepare_policy_value(
             self.names, self.columns, query.outcome, list(query.assignment), propensity,
             list(query.policy.actions), list(reference.actions), list(query.mu0), list(query.mu1),
             costs, reference_costs, list(query.evaluation_subject_ids),
             query._ownership == "held_out_disjoint_subject_ids",
             query._ownership == "caller_declared_cross_fitted_excluded_fold_ids",
+            uplift_bins=uplift_bin_ids,
+            uplift_bin_count=query.uplift_bin_count,
+            uplift_training_subject_ids=list(query.uplift_training_subject_ids or ()),
             accepted=self.accepted, **self._common(),
         )
         return native, "average"

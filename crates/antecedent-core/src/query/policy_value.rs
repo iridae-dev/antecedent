@@ -113,6 +113,12 @@ pub struct PolicyValueQuery {
     pub crossfit_fold_ownership_valid: bool,
     /// Multi-action randomized IPW inputs; binary fields are empty when present.
     pub multi_action: Option<MultiActionPolicyInputs>,
+    /// Frozen descending-score rank bin for each binary evaluation row.
+    pub uplift_bins: Arc<[usize]>,
+    /// Number of nonempty, descending-score uplift bins.
+    pub uplift_bin_count: usize,
+    /// Subjects used to train the ranking model, declared disjoint from evaluation subjects.
+    pub uplift_training_subject_ids: Arc<[Arc<str>]>,
 }
 
 impl PolicyValueQuery {
@@ -123,6 +129,8 @@ impl PolicyValueQuery {
                 || !self.reference.is_empty() || !self.mu0.is_empty() || !self.mu1.is_empty()
                 || !self.costs.is_empty() || !self.reference_costs.is_empty()
                 || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid
+                || !self.uplift_bins.is_empty() || self.uplift_bin_count != 0
+                || !self.uplift_training_subject_ids.is_empty()
                 || self.evaluation_subject_ids.len() != multi.assignment.len()
                 || self.evaluation_subject_ids.iter().any(|id| id.trim().is_empty())
                 || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != multi.assignment.len()
@@ -171,6 +179,21 @@ impl PolicyValueQuery {
                 "IPW has no nuisance prediction ownership metadata".into(),
             ));
         }
+        if self.uplift_bin_count == 0 {
+            if !self.uplift_bins.is_empty() || !self.uplift_training_subject_ids.is_empty() {
+                return Err(QueryError::InvalidPolicyValue("uplift bins and training subjects require a positive bin count".into()));
+            }
+        } else {
+            if self.uplift_bins.len() != n || self.uplift_bin_count > n
+                || self.uplift_training_subject_ids.is_empty()
+                || self.uplift_training_subject_ids.iter().any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+                || self.uplift_training_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != self.uplift_training_subject_ids.len()
+                || self.uplift_bins.iter().any(|&bin| bin >= self.uplift_bin_count)
+                || (0..self.uplift_bin_count).any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
+            {
+                return Err(QueryError::InvalidPolicyValue("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint".into()));
+            }
+        }
         if !ipw && !(self.disjoint_training_subjects || self.crossfit_fold_ownership_valid) {
             return Err(QueryError::InvalidPolicyValue(
                 "prediction ownership requires disjoint training IDs or matching excluded-fold metadata".into(),
@@ -199,6 +222,9 @@ mod tests {
             disjoint_training_subjects: true,
             crossfit_fold_ownership_valid: false,
             multi_action: None,
+            uplift_bins: Arc::from([]),
+            uplift_bin_count: 0,
+            uplift_training_subject_ids: Arc::from([]),
         }
     }
 

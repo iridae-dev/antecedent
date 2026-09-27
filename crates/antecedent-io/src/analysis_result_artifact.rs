@@ -389,6 +389,23 @@ pub struct PolicyValueWire {
     pub propensity_max: f64,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
+    /// Held-out randomized uplift by descending frozen score bin.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uplift_bins: Vec<UpliftBinWire>,
+}
+
+/// One retained uplift bin with descriptive row-score uncertainty.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpliftBinWire {
+    /// Zero-based descending score rank.
+    pub rank: usize,
+    /// Randomized inverse-probability contrast.
+    pub effect: f64,
+    /// Independent-subject row-score standard error, without an interval claim.
+    pub standard_error: f64,
+    /// Evaluation subjects in the bin.
+    pub evaluation_rows: usize,
 }
 
 /// Panel DiD result section; uncertainty is an SE only and carries no interval claim.

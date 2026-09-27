@@ -36,6 +36,8 @@ pub struct PolicyValueSection {
     pub propensity_max: f64,
     /// Native estimator uncertainty semantics.
     pub uncertainty: String,
+    /// Held-out randomized uplift by descending frozen score bin.
+    pub uplift_bins: Vec<(usize, f64, f64, usize)>,
 }
 
 impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
@@ -54,6 +56,9 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             propensity_min: value.propensity_min,
             propensity_max: value.propensity_max,
             uncertainty: value.uncertainty.to_string(),
+            uplift_bins: value.uplift_bins.iter().map(|bin| (
+                bin.rank, bin.effect, bin.standard_error, bin.evaluation_rows,
+            )).collect(),
         }
     }
 }

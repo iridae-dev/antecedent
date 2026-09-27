@@ -415,6 +415,7 @@ class PolicyValueSection:
     propensity_min: float
     propensity_max: float
     uncertainty: str
+    uplift_bins: list[tuple[int, float, float, int]]
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
@@ -1266,6 +1267,9 @@ class PreparedAnalysis:
         disjoint_training_subjects: bool,
         crossfit_fold_ownership_valid: bool,
         *,
+        uplift_bins: list[int] = ...,
+        uplift_bin_count: int = 0,
+        uplift_training_subject_ids: list[str] = ...,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
