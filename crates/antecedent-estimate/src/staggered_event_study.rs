@@ -126,16 +126,22 @@ pub fn estimate(
         }
         let treated: Vec<_> = units.values().filter(|unit| unit.0 == cohort).collect();
         for period in all_periods.iter().copied().filter(|period| *period != baseline) {
+            // Each unit's period-vs-baseline delta, computed once in the means
+            // pass (same iteration order) and reused in the score/cluster pass
+            // below rather than repeating the two BTreeMap lookups.
+            let deltas: [Vec<f64>; 2] = [
+                controls.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).collect(),
+                treated.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).collect(),
+            ];
             let means: [f64; 2] = [
-                controls.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>() / controls.len() as f64,
-                treated.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>() / treated.len() as f64,
+                deltas[0].iter().sum::<f64>() / controls.len() as f64,
+                deltas[1].iter().sum::<f64>() / treated.len() as f64,
             ];
             let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
             let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
             for (group, selected) in [(0usize, &controls), (1usize, &treated)] {
-                for unit in selected {
+                for (unit, &delta) in selected.iter().zip(deltas[group].iter()) {
                     group_clusters[group].insert(unit.1);
-                    let delta = unit.2[&period] - unit.2[&baseline];
                     *scores.entry(unit.1).or_default() += (if group == 1 { 1.0 } else { -1.0 })
                         * (delta - means[group]) / selected.len() as f64;
                 }

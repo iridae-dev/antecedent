@@ -130,10 +130,8 @@ impl CheckedSurvivalOperation {
                 }),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let assignment_counts = [
-            treated.iter().filter(|&&arm| !arm).count(),
-            treated.iter().filter(|&&arm| arm).count(),
-        ];
+        let treated_count = treated.iter().filter(|&&arm| arm).count();
+        let assignment_counts = [treated.len() - treated_count, treated_count];
         let endpoint = match self.query.functional {
             SurvivalFunctional::SurvivalAndRmst => SurvivalEndpoint::Survival,
             SurvivalFunctional::CumulativeIncidence { target_cause } => {
