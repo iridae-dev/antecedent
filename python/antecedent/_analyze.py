@@ -13,6 +13,7 @@ from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPa
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
+from .regimes import LongitudinalRegime
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink, SharpRegressionDiscontinuity
 from .query import (
@@ -96,6 +97,7 @@ def analyze(
         | TransportQuery
         | Transport
         | InterferenceQuery
+        | LongitudinalRegime
         | AnomalyAttribution
         | ChangeAttribution
     ),
