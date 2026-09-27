@@ -425,6 +425,8 @@ class SyntheticDidSection:
     n_pre_periods: int
     n_post_periods: int
     uncertainty: str
+    randomization_p_value: float | None
+    randomization_statistics: list[tuple[str, float]]
 
 class LocalPolynomialRatioSection:
     effect: float

@@ -17,8 +17,10 @@ pub enum SyntheticPanelMethod {
 
 /// A balanced unit-by-period panel with one treated unit and donor units.
 ///
-/// The causal interpretation requires a valid convex donor counterfactual,
-/// no anticipation, no interference, and no concurrent treated-unit shock.
+/// The causal interpretation requires a valid donor counterfactual or
+/// synthetic-DiD untreated trend, no anticipation, no interference, and no
+/// concurrent treated-unit shock. Exact unit-randomization inference further
+/// requires a declared uniform single-treated-unit assignment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SyntheticControlQuery {
     /// Continuous outcome column.
@@ -82,11 +84,6 @@ impl SyntheticControlQuery {
         {
             return Err(QueryError::InvalidRandomizedEffect(
                 "synthetic control requires aligned nonempty units, positive periods, and a treated unit with a positive intervention period".into(),
-            ));
-        }
-        if self.uniform_unit_randomization && self.method != SyntheticPanelMethod::Control {
-            return Err(QueryError::InvalidRandomizedEffect(
-                "unit-randomization inference currently applies only to synthetic control".into(),
             ));
         }
         if let Some(ridge) = self.augmentation_ridge {
