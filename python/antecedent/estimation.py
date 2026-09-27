@@ -478,8 +478,11 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
         standard_error=section.standard_error,
         ci_lower=None,
         ci_upper=None,
-        reduced_form_standard_error=None,
-        first_stage_standard_error=None,
+        reduced_form_standard_error=section.reduced_form_standard_error,
+        first_stage_standard_error=section.first_stage_standard_error,
+        cutoff=section.cutoff,
+        bandwidth=section.bandwidth,
+        kink=section.kink,
         uncertainty=section.uncertainty,
         design="regression_kink_local_polynomial" if isinstance(query, RegressionKink) else "fuzzy_regression_discontinuity_local_polynomial",
         assumptions=(
@@ -491,7 +494,8 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
             "independent_local_observations",
         ),
         support_status="unlicensed_point_utility",
-        diagnostics=("fixed_bandwidth_local_support_reported", "descriptive_hc0_standard_error", "no_calibrated_interval"),
+        diagnostics=("local_quadratic_triangular_kernel", "cubic_pilot_bias_correction_at_same_bandwidth",
+                     "fixed_bandwidth_local_support_reported", "descriptive_hc0_standard_error", "no_calibrated_interval"),
     )
 
 

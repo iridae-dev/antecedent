@@ -73,15 +73,18 @@ impl CheckedLocalPolynomialRatioOperation {
             treatment: self.query.treatment, outcome: self.query.outcome, identify_cached: false,
             extra_diagnostics: vec![Diagnostic::new("estimate.quasi.local_ratio.support", DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info, format!("{} left and {} right local observations; first stage {}; fixed bandwidth {}; HC0 standard error is descriptive; no calibrated interval",
-                    fit.n_left, fit.n_right, fit.first_stage, self.query.bandwidth))],
+                fit.n_left, fit.n_right, fit.first_stage, self.query.bandwidth))],
             refutations: Vec::new(), distribution: None, mediation: None,
             wall_time_ns: 0, bootstrap_replicates_ok: None, cancelled: false, early_stopped: false,
             extras: IdentifiedExecuteExtras::default(),
         });
         result.local_polynomial_ratio = Some(crate::LocalPolynomialRatioEstimate {
             effect: fit.estimate, reduced_form: fit.reduced_form, first_stage: fit.first_stage,
+            cutoff: self.query.cutoff, bandwidth: self.query.bandwidth, kink: self.query.kink,
             n_left: fit.n_left, n_right: fit.n_right, standard_error: fit.standard_error,
-            uncertainty: Arc::from("point_only_with_unvalidated_hc0_standard_error"),
+            reduced_form_standard_error: fit.reduced_form_standard_error,
+            first_stage_standard_error: fit.first_stage_standard_error,
+            uncertainty: Arc::from("rbc_point_with_unvalidated_hc0_standard_error_no_interval"),
         });
         Ok(result)
     }

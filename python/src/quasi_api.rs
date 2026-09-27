@@ -121,9 +121,14 @@ pub struct LocalPolynomialRatioSection {
     pub effect: f64,
     pub reduced_form: f64,
     pub first_stage: f64,
+    pub cutoff: f64,
+    pub bandwidth: f64,
+    pub kink: bool,
     pub n_left: usize,
     pub n_right: usize,
     pub standard_error: f64,
+    pub reduced_form_standard_error: f64,
+    pub first_stage_standard_error: f64,
     pub uncertainty: String,
 }
 
@@ -133,9 +138,14 @@ impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSec
             effect: value.effect,
             reduced_form: value.reduced_form,
             first_stage: value.first_stage,
+            cutoff: value.cutoff,
+            bandwidth: value.bandwidth,
+            kink: value.kink,
             n_left: value.n_left,
             n_right: value.n_right,
             standard_error: value.standard_error,
+            reduced_form_standard_error: value.reduced_form_standard_error,
+            first_stage_standard_error: value.first_stage_standard_error,
             uncertainty: value.uncertainty.to_string(),
         }
     }

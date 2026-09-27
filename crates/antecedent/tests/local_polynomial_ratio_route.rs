@@ -4,6 +4,7 @@ use antecedent::prelude::ExecutionContext;
 use antecedent::{LocalPolynomialRatioQuery, Study};
 use antecedent_core::{IntervalMethod, VariableId};
 use antecedent_data::{TableView, TabularData};
+use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
 fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
     let mut x = Vec::new();
@@ -41,13 +42,23 @@ fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
 fn retained_fuzzy_rd_recovers_truth_and_rejects_fabricated_interval() {
     let (data, query) = fixture(false);
     let ctx = ExecutionContext::for_tests(41);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(prepared.estimate(&data, &ctx).unwrap().local_polynomial_ratio, result.local_polynomial_ratio);
     let fit = result.local_polynomial_ratio.as_ref().unwrap();
     assert!((fit.effect - 3.0).abs() < 1e-8);
     assert_eq!((fit.n_left, fit.n_right), (316, 316));
-    assert_eq!(fit.uncertainty.as_ref(), "point_only_with_unvalidated_hc0_standard_error");
+    let direct = fit_local_polynomial_ratio(
+        match data.column(query.running).unwrap() { antecedent_data::ColumnView::Float64(c) => &c.values, _ => unreachable!() },
+        match data.column(query.outcome).unwrap() { antecedent_data::ColumnView::Float64(c) => &c.values, _ => unreachable!() },
+        match data.column(query.treatment).unwrap() { antecedent_data::ColumnView::Float64(c) => &c.values, _ => unreachable!() },
+        query.cutoff, query.bandwidth, query.kink,
+    ).unwrap();
+    assert_eq!(fit.standard_error, direct.standard_error);
+    assert_eq!(fit.reduced_form_standard_error, direct.reduced_form_standard_error);
+    assert_eq!(fit.first_stage_standard_error, direct.first_stage_standard_error);
+    assert_eq!((fit.cutoff, fit.bandwidth, fit.kink), (query.cutoff, query.bandwidth, query.kink));
+    assert_eq!(fit.uncertainty.as_ref(), "rbc_point_with_unvalidated_hc0_standard_error_no_interval");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
     assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record|
@@ -55,10 +66,14 @@ fn retained_fuzzy_rd_recovers_truth_and_rejects_fabricated_interval() {
     let bytes = prepared.encode_contracted_result(&result, "fuzzy-rd", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.local_polynomial_ratio.as_ref().unwrap().effect, fit.effect);
+    assert_eq!(body.local_polynomial_ratio.as_ref().unwrap().first_stage_standard_error, direct.first_stage_standard_error);
     assert!(body.standard_error.is_none());
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(2.0);
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    let mut mismatched = body.clone();
+    mismatched.local_polynomial_ratio.as_mut().unwrap().bandwidth = 0.5;
+    assert!(antecedent_io::encode_analysis_result_artifact(&mismatched, header.variable_names, "mismatched").is_err());
 }
 
 #[test]

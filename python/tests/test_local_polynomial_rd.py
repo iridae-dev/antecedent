@@ -85,9 +85,15 @@ def test_retained_local_ratio_uses_main_analyze_flow_without_interval(kink: bool
     assert fit.estimate == pytest.approx(3.0, abs=1e-7)
     assert fit.ci_lower is None and fit.ci_upper is None
     assert np.isnan(result.estimate.se_analytic)
-    assert fit.uncertainty == "point_only_with_unvalidated_hc0_standard_error"
+    direct = (estimate_regression_kink if kink else estimate_fuzzy_rd)(rows, query)
+    assert fit.standard_error == pytest.approx(direct.standard_error)
+    assert fit.reduced_form_standard_error == pytest.approx(direct.reduced_form_standard_error)
+    assert fit.first_stage_standard_error == pytest.approx(direct.first_stage_standard_error)
+    assert (fit.cutoff, fit.bandwidth, fit.kink) == (query.cutoff, query.bandwidth, kink)
+    assert fit.uncertainty == "rbc_point_with_unvalidated_hc0_standard_error_no_interval"
     assert fit.observations_left == fit.observations_right == 316
     assert "no_calibrated_interval" in fit.diagnostics
+    assert "cubic_pilot_bias_correction_at_same_bandwidth" in fit.diagnostics
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).local_polynomial_ratio == fit
 
 
