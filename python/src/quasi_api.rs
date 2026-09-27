@@ -511,18 +511,7 @@ fn fit_synthetic_weights(target: &[f64], donors: &[Vec<f64>]) -> (Vec<f64>, f64)
     (weights, rmse)
 }
 
-fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
-    if pre_rmse > 1e-12 {
-        gap.abs() / pre_rmse
-    } else if gap.abs() <= 1e-12 {
-        0.0
-    } else {
-        f64::INFINITY
-    }
-}
-
-/// Balanced-panel synthetic control with simplex donor weights and an
-/// uncalibrated leave-one-donor-out placebo rank.
+/// Balanced-panel synthetic control using the shared native estimator.
 #[pyfunction]
 fn synthetic_control(
     outcome: PyReadonlyArray1<'_, f64>,
@@ -531,129 +520,12 @@ fn synthetic_control(
     treated_unit: String,
     intervention_period: i64,
 ) -> PyResult<(f64, f64, Vec<(String, f64)>, Vec<f64>, f64, usize, usize)> {
-    use std::collections::{BTreeMap, BTreeSet};
-
-    let values = outcome.as_array();
-    let n = values.len();
-    if n == 0 || units.len() != n || periods.len() != n {
-        return Err(PyValueError::new_err(
-            "outcome, unit, and period vectors must have equal non-zero length",
-        ));
-    }
-    if values.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-    if treated_unit.is_empty() {
-        return Err(PyValueError::new_err("treated_unit must be a non-empty unit ID"));
-    }
-    let mut panel: BTreeMap<String, BTreeMap<i64, f64>> = BTreeMap::new();
-    let mut all_periods = BTreeSet::new();
-    for i in 0..n {
-        if units[i].is_empty() || periods[i] <= 0 {
-            return Err(PyValueError::new_err(
-                "unit IDs must be non-empty and periods must be positive integers",
-            ));
-        }
-        all_periods.insert(periods[i]);
-        if panel.entry(units[i].clone()).or_default().insert(periods[i], values[i]).is_some() {
-            return Err(PyValueError::new_err(
-                "each unit must have exactly one outcome per period",
-            ));
-        }
-    }
-    let period_list: Vec<i64> = all_periods.into_iter().collect();
-    if period_list.len() < 3 || !period_list.contains(&intervention_period) {
-        return Err(PyValueError::new_err(
-            "synthetic control requires at least two pre-periods and one observed post-period",
-        ));
-    }
-    let pre_periods: Vec<i64> =
-        period_list.iter().copied().filter(|period| *period < intervention_period).collect();
-    let post_periods: Vec<i64> =
-        period_list.iter().copied().filter(|period| *period >= intervention_period).collect();
-    if pre_periods.len() < 2 || post_periods.is_empty() {
-        return Err(PyValueError::new_err(
-            "synthetic control requires at least two pre-periods and one post-period",
-        ));
-    }
-    if panel.len() < 4 || !panel.contains_key(&treated_unit) {
-        return Err(PyValueError::new_err(
-            "synthetic control requires one observed treated unit and at least three donor units",
-        ));
-    }
-    if panel.values().any(|observed| {
-        observed.len() != period_list.len()
-            || period_list.iter().any(|period| !observed.contains_key(period))
-    }) {
-        return Err(PyValueError::new_err(
-            "synthetic control requires a balanced panel with identical periods for every unit",
-        ));
-    }
-
-    let treated = &panel[&treated_unit];
-    let donors: Vec<(&String, &BTreeMap<i64, f64>)> =
-        panel.iter().filter(|(unit, _)| unit.as_str() != treated_unit).collect();
-    let target_pre: Vec<f64> = pre_periods.iter().map(|period| treated[period]).collect();
-    let donor_pre: Vec<Vec<f64>> = donors
-        .iter()
-        .map(|(_, outcome)| pre_periods.iter().map(|period| outcome[period]).collect())
-        .collect();
-    let (weights, pre_rmse) = fit_synthetic_weights(&target_pre, &donor_pre);
-    let treated_post_mean =
-        post_periods.iter().map(|period| treated[period]).sum::<f64>() / post_periods.len() as f64;
-    let synthetic_post_mean: f64 = donors
-        .iter()
-        .zip(&weights)
-        .map(|((_, outcome), weight)| {
-            *weight * post_periods.iter().map(|period| outcome[period]).sum::<f64>()
-                / post_periods.len() as f64
-        })
-        .sum();
-    let effect = treated_post_mean - synthetic_post_mean;
-    let treated_ratio = placebo_ratio(effect, pre_rmse);
-
-    let mut placebo_effects = Vec::with_capacity(donors.len());
-    let mut placebo_as_extreme = 0usize;
-    for placebo_index in 0..donors.len() {
-        let pseudo_pre = &donor_pre[placebo_index];
-        let reference_pre: Vec<Vec<f64>> = donor_pre
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| *index != placebo_index)
-            .map(|(_, donor)| donor.clone())
-            .collect();
-        let (placebo_weights, placebo_rmse) = fit_synthetic_weights(pseudo_pre, &reference_pre);
-        let pseudo_post =
-            post_periods.iter().map(|period| donors[placebo_index].1[period]).sum::<f64>()
-                / post_periods.len() as f64;
-        let reference_post: f64 = donors
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| *index != placebo_index)
-            .zip(&placebo_weights)
-            .map(|((_, (_, outcome)), weight)| {
-                *weight * post_periods.iter().map(|period| outcome[period]).sum::<f64>()
-                    / post_periods.len() as f64
-            })
-            .sum();
-        let placebo_effect = pseudo_post - reference_post;
-        placebo_effects.push(placebo_effect);
-        if placebo_ratio(placebo_effect, placebo_rmse) >= treated_ratio {
-            placebo_as_extreme += 1;
-        }
-    }
-    let placebo_rank = (1 + placebo_as_extreme) as f64 / (1 + donors.len()) as f64;
-    let donor_weights =
-        donors.iter().zip(weights).map(|((unit, _), weight)| (unit.to_string(), weight)).collect();
-    Ok((
-        effect,
-        pre_rmse,
-        donor_weights,
-        placebo_effects,
-        placebo_rank,
-        pre_periods.len(),
-        post_periods.len(),
-    ))
+    let values: Vec<f64> = outcome.as_array().iter().copied().collect();
+    let fit = antecedent_estimate::synthetic_control::fit_synthetic_control(
+        &values, &units, &periods, &treated_unit, intervention_period,
+    ).map_err(PyValueError::new_err)?;
+    Ok((fit.effect, fit.pre_treatment_rmse, fit.donor_weights,
+        fit.placebo_effects, fit.placebo_rank, fit.n_pre_periods, fit.n_post_periods))
 }
 
 /// Synthetic difference-in-differences with simplex unit and pre-period weights.
