@@ -869,10 +869,23 @@ table columns. The direct `policy.estimate_continuous_dose_response` utility
 and retained Study route use the same triangular-kernel inverse-density
 estimator. For each group and target, the result reports the local response,
 row count, effective sample size, minimum density, maximum normalized weight,
-and descriptive local outcome SD. The result and artifact declare point-only
-uncertainty. This evaluates a response curve under conditional exchangeability,
-correct supplied density, consistency, no interference, and local positivity;
-it does not learn or evaluate a continuous-dose policy or license an interval.
+and descriptive local outcome SD. These target-grid points remain point-only.
+The response curve assumes conditional exchangeability, correct supplied
+density, consistency, no interference, and local positivity.
+
+The retained query can also evaluate a policy and reference that assign fixed
+doses to pre-treatment groups. It reports their kernel-smoothed intervention
+values and paired incremental value, with separate pointwise 95% normal
+intervals when the density is declared known and the exact graphless row's
+support gates hold: at least 600 evaluation rows, 300 per group, 80 in every
+local window, local effective sample size 50, maximum normalized weight 0.05,
+minimum density 0.2, and positive paired variance. The row and its artifact
+status require all three intervals. At the 600-row support boundary, 2,000
+redraws covered the three known kernel-smoothed values at rates 0.9805,
+0.9765, and 0.9535. The supplied density and fixed group rules are caller
+claims; neither learned policies, exact-dose potential outcomes, nor
+simultaneous coverage are licensed by this row. Estimated-density and sparse
+results stay off-axis and withhold these intervals.
 
 ## Quasi-experimental point utilities
 
