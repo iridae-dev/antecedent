@@ -3,6 +3,156 @@
 
 use std::collections::BTreeSet;
 
+/// Value of a fixed baseline-group dose rule under a kernel-smoothed intervention.
+/// The target is the average response over the prespecified kernel window,
+/// inverse weighted by the known observed-dose density; it is not `do(D=d)`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DosePolicyValue {
+    /// Kernel-smoothed value under the fixed policy rule.
+    pub policy_value: f64,
+    /// Kernel-smoothed value under the fixed reference rule.
+    pub reference_value: f64,
+    /// Paired policy-minus-reference value.
+    pub incremental_value: f64,
+    /// Independent-row variance of policy value.
+    pub policy_variance: f64,
+    /// Independent-row variance of reference value.
+    pub reference_variance: f64,
+    /// Paired independent-row variance of incremental value.
+    pub incremental_variance: f64,
+    /// Pointwise normal interval for policy value, when supported.
+    pub policy_interval_95: Option<[f64; 2]>,
+    /// Pointwise normal interval for reference value, when supported.
+    pub reference_interval_95: Option<[f64; 2]>,
+    /// Pointwise normal interval for incremental value, when supported.
+    pub incremental_interval_95: Option<[f64; 2]>,
+    /// Smallest number of observed rows in any requested local window.
+    pub minimum_local_rows: usize,
+    /// Smallest Kish effective sample size in any requested local window.
+    pub minimum_effective_sample_size: f64,
+    /// Largest normalized weight in any requested local window.
+    pub maximum_normalized_weight: f64,
+}
+
+/// Evaluate fixed group-to-dose policy and reference rules on the same rows.
+///
+/// Group labels and both rules must be set without using these outcomes. The
+/// group fractions are fixed at their observed values. Independent subjects,
+/// conditional exchangeability within the supplied groups, a correct known
+/// dose density, and local positivity are required for the pointwise intervals.
+pub fn fixed_dose_policy_value(
+    outcome: &[f64], dose: &[f64], groups: &[String], density: &[f64],
+    policy: &[(String, f64)], reference: &[(String, f64)], bandwidth: f64,
+    min_local_support: usize, density_known: bool,
+) -> Result<DosePolicyValue, String> {
+    use std::collections::BTreeMap;
+    let n = outcome.len();
+    if n < 2 || dose.len() != n || groups.len() != n || density.len() != n
+        || !bandwidth.is_finite() || bandwidth <= 0.0 || min_local_support < 2
+        || outcome.iter().chain(dose).any(|value| !value.is_finite())
+        || density.iter().any(|value| !value.is_finite() || *value <= 0.0)
+        || groups.iter().any(String::is_empty)
+    {
+        return Err("fixed dose policy requires aligned finite rows, positive density and bandwidth, and local support of at least two".into());
+    }
+    let observed = groups.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let mapping = |rule: &[(String, f64)]| -> Result<BTreeMap<String, f64>, String> {
+        let mut doses = BTreeMap::new();
+        for (group, target) in rule {
+            if !target.is_finite() || !observed.contains(group.as_str())
+                || doses.insert(group.clone(), *target).is_some()
+            {
+                return Err("dose rule must name every observed group exactly once with a finite target".into());
+            }
+        }
+        if doses.len() != observed.len() {
+            return Err("dose rule must name every observed group exactly once with a finite target".into());
+        }
+        Ok(doses)
+    };
+    let policy = mapping(policy)?;
+    let reference = mapping(reference)?;
+    let mut policy_score = vec![0.0; n];
+    let mut reference_score = vec![0.0; n];
+    let mut policy_value = 0.0;
+    let mut reference_value = 0.0;
+    let mut minimum_local_rows = usize::MAX;
+    let mut minimum_effective_sample_size = f64::INFINITY;
+    let mut maximum_normalized_weight: f64 = 0.0;
+    let mut minimum_density = f64::INFINITY;
+    let mut minimum_group_rows = usize::MAX;
+    for group in observed {
+        let indices = groups.iter().enumerate().filter_map(|(i, value)|
+            (value == group).then_some(i)).collect::<Vec<_>>();
+        let group_rows = indices.len();
+        minimum_group_rows = minimum_group_rows.min(group_rows);
+        let group_fraction = group_rows as f64 / n as f64;
+        for (target, value, score) in [
+            (policy[group], &mut policy_value, &mut policy_score),
+            (reference[group], &mut reference_value, &mut reference_score),
+        ] {
+            let mut weights = Vec::new();
+            for &i in &indices {
+                let scaled = (dose[i] - target) / bandwidth;
+                if scaled.abs() >= 1.0 { continue; }
+                let weight = 0.75 * (1.0 - scaled * scaled) / density[i];
+                if !weight.is_finite() || weight <= 0.0 {
+                    return Err("dose policy weights overflowed or lost positivity".into());
+                }
+                weights.push((i, weight));
+                minimum_density = minimum_density.min(density[i]);
+            }
+            if weights.len() < min_local_support {
+                return Err(format!("dose policy local support failure: group {group:?} at dose {target} has {} rows, below min_local_support={min_local_support}", weights.len()));
+            }
+            let sum_weight = weights.iter().map(|(_, weight)| weight).sum::<f64>();
+            let sum_squared = weights.iter().map(|(_, weight)| weight * weight).sum::<f64>();
+            if !sum_weight.is_finite() || sum_weight <= 0.0 || !sum_squared.is_finite() || sum_squared <= 0.0 {
+                return Err("dose policy weights overflowed finite precision".into());
+            }
+            let mean = weights.iter().map(|(i, weight)| weight * outcome[*i]).sum::<f64>() / sum_weight;
+            if !mean.is_finite() { return Err("dose policy value overflowed finite precision".into()); }
+            *value += group_fraction * mean;
+            for (i, weight) in weights.iter().copied() {
+                let normalized = weight / sum_weight;
+                score[i] = group_fraction * normalized * (outcome[i] - mean);
+                maximum_normalized_weight = maximum_normalized_weight.max(normalized);
+            }
+            minimum_local_rows = minimum_local_rows.min(weights.len());
+            minimum_effective_sample_size = minimum_effective_sample_size.min(sum_weight * sum_weight / sum_squared);
+        }
+    }
+    let variance = |scores: &[f64]| scores.iter().map(|score| score * score).sum::<f64>()
+        * minimum_group_rows as f64 / (minimum_group_rows - 1) as f64;
+    let policy_variance = variance(&policy_score);
+    let reference_variance = variance(&reference_score);
+    let differences = policy_score.iter().zip(&reference_score)
+        .map(|(policy, reference)| policy - reference).collect::<Vec<_>>();
+    let incremental_variance = variance(&differences);
+    let incremental_value = policy_value - reference_value;
+    if [policy_value, reference_value, incremental_value, policy_variance,
+        reference_variance, incremental_variance, minimum_effective_sample_size,
+        maximum_normalized_weight].iter().any(|value| !value.is_finite()) {
+        return Err("dose policy value or paired variance overflowed finite precision".into());
+    }
+    let interval_supported = density_known && n >= 600 && minimum_group_rows >= 300
+        && minimum_local_rows >= 80 && minimum_effective_sample_size >= 50.0
+        && maximum_normalized_weight <= 0.05 && minimum_density >= 0.2
+        && policy_variance > 0.0 && reference_variance > 0.0 && incremental_variance > 0.0;
+    let interval = |value: f64, variance: f64| interval_supported.then(|| {
+        let radius = 1.959_963_984_540_054 * variance.sqrt();
+        [value - radius, value + radius]
+    });
+    Ok(DosePolicyValue {
+        policy_value, reference_value, incremental_value,
+        policy_variance, reference_variance, incremental_variance,
+        policy_interval_95: interval(policy_value, policy_variance),
+        reference_interval_95: interval(reference_value, reference_variance),
+        incremental_interval_95: interval(incremental_value, incremental_variance),
+        minimum_local_rows, minimum_effective_sample_size, maximum_normalized_weight,
+    })
+}
+
 /// One baseline-group response at a prespecified target dose.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DoseResponsePoint {
@@ -120,4 +270,94 @@ pub fn conditional_dose_response(
         }
     }
     Ok(output)
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+
+    fn uniform(mut state: u64) -> f64 {
+        state ^= state >> 30;
+        state = state.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        state ^= state >> 27;
+        state = state.wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((state ^ (state >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    }
+
+    #[test]
+    fn fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth() {
+        const N: usize = 800;
+        const REPLICATES: usize = 2_000;
+        let groups = (0..N).map(|i| if i < N / 2 { "a" } else { "b" }.to_string())
+            .collect::<Vec<_>>();
+        let density = vec![1.0; N];
+        let policy = [("a".to_string(), 0.7), ("b".to_string(), 0.8)];
+        let reference = [("a".to_string(), 0.3), ("b".to_string(), 0.4)];
+        let baseline_mean = (0..N).map(|i| 1.0 + f64::from(i >= N / 2)
+            + 0.35 * (0.13 * i as f64).sin()).sum::<f64>() / N as f64;
+        let truth_policy = baseline_mean + (1.5 * 0.7 + 2.0 * 0.8) / 2.0;
+        let truth_reference = baseline_mean + (1.5 * 0.3 + 2.0 * 0.4) / 2.0;
+        let truths = [truth_policy, truth_reference, truth_policy - truth_reference];
+        let mut covered = [0_usize; 3];
+        for replicate in 0..REPLICATES {
+            let dose = (0..N).map(|i| uniform(
+                (replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
+            )).collect::<Vec<_>>();
+            let outcome = (0..N).map(|i| 1.0 + f64::from(i >= N / 2)
+                + 0.35 * (0.13 * i as f64).sin()
+                + if i < N / 2 { 1.5 * dose[i] } else { 2.0 * dose[i] })
+                .collect::<Vec<_>>();
+            let fit = fixed_dose_policy_value(
+                &outcome, &dose, &groups, &density, &policy, &reference,
+                0.2, 80, true,
+            ).unwrap();
+            if replicate == 0 {
+                let external = fixed_dose_policy_value(
+                    &outcome, &dose, &groups, &density, &policy, &reference,
+                    0.2, 80, false,
+                ).unwrap();
+                assert_eq!(external.incremental_value, fit.incremental_value);
+                assert!(external.policy_interval_95.is_none());
+                assert!(external.reference_interval_95.is_none());
+                assert!(external.incremental_interval_95.is_none());
+                let weak_density = vec![0.1; N];
+                let weak = fixed_dose_policy_value(
+                    &outcome, &dose, &groups, &weak_density, &policy, &reference,
+                    0.2, 80, true,
+                ).unwrap();
+                assert!(weak.incremental_interval_95.is_none());
+            }
+            let intervals = [fit.policy_interval_95.unwrap(), fit.reference_interval_95.unwrap(),
+                fit.incremental_interval_95.unwrap()];
+            for (j, [lower, upper]) in intervals.into_iter().enumerate() {
+                covered[j] += usize::from(lower <= truths[j] && truths[j] <= upper);
+            }
+        }
+        for (name, count) in ["policy", "reference", "incremental"].into_iter().zip(covered) {
+            let rate = count as f64 / REPLICATES as f64;
+            eprintln!("fixed dose {name} known-truth coverage: {count}/{REPLICATES} = {rate:.4}");
+            assert!((0.93..=0.985).contains(&rate));
+        }
+    }
+
+    #[test]
+    fn dose_policy_refuses_unmapped_and_unsupported_local_targets() {
+        let outcome = (0..40).map(|i| i as f64 / 40.0).collect::<Vec<_>>();
+        let dose = outcome.clone();
+        let groups = vec!["a".to_string(); 40];
+        let density = vec![1.0; 40];
+        let policy = [("a".to_string(), 0.7)];
+        let reference = [("a".to_string(), 0.3)];
+        assert!(fixed_dose_policy_value(&outcome, &dose, &groups, &density,
+            &[], &reference, 0.2, 2, true).is_err());
+        assert!(fixed_dose_policy_value(&outcome, &dose, &groups, &density,
+            &policy, &reference, 0.05, 10, true).is_err());
+        let fit = fixed_dose_policy_value(&outcome, &dose, &groups, &density,
+            &policy, &reference, 0.2, 2, true).unwrap();
+        assert!(fit.incremental_interval_95.is_none());
+        let fit = fixed_dose_policy_value(&outcome, &dose, &groups, &density,
+            &policy, &reference, 0.2, 2, false).unwrap();
+        assert!(fit.incremental_interval_95.is_none());
+    }
 }
