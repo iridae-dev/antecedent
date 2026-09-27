@@ -9,14 +9,14 @@ is required before the result is described as causal.
 ```python
 import antecedent
 
-query = antecedent.SurvivalOutcome(
+query = antecedent.survival.SurvivalOutcome(
     duration="follow_up_days",
     event_observed="event",
     treatment="treated",
     tau=180,
     randomized=True,
 )
-summary = antecedent.estimate_survival(data, query)
+summary = antecedent.survival.estimate_survival(data, query)
 summary.rmst_difference
 summary.times, summary.control_survival, summary.treated_survival
 ```
@@ -29,7 +29,7 @@ answer and a portable study artifact:
 ```python
 from antecedent.observation import IndependentGiven
 
-query = antecedent.SurvivalOutcome(
+query = antecedent.survival.SurvivalOutcome(
     duration="follow_up_days",
     event_observed="event",
     treatment="treated",
@@ -133,10 +133,10 @@ variables under which censoring is independent:
 ```python
 from antecedent.observation import IndependentGiven
 
-query = antecedent.SurvivalOutcome(
+query = antecedent.survival.SurvivalOutcome(
     "follow_up_days", "event", "treated", tau=180, randomized=True,
     observation_assumption=IndependentGiven(("baseline_risk",)),
-    known_censoring=antecedent.KnownCensoringSurvival(
+    known_censoring=antecedent.survival.KnownCensoringSurvival(
         times=(0, 30, 60, 180),
         columns=("g_0", "g_30", "g_60", "g_180"),
         minimum_probability=0.01,

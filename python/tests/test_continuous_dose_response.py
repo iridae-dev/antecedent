@@ -83,7 +83,7 @@ def test_continuous_dose_response_refuses_bad_density_source_and_bandwidth():
 
 def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
     data = _dose_data()
-    query = antecedent.ConditionalDoseResponse(
+    query = antecedent.policy.ConditionalDoseResponse(
         outcome="y", dose="dose", baseline_group="group", dose_density="density",
         target_doses=(0.0, 0.5), bandwidth=0.6, density_provenance="known",
     )
@@ -107,12 +107,12 @@ def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
 
 def test_retained_continuous_dose_refuses_support_and_row_rebinding():
     data = _dose_data()
-    query = antecedent.ConditionalDoseResponse(
+    query = antecedent.policy.ConditionalDoseResponse(
         "y", "dose", "group", "density", (4.0,), 0.1, "known",
     )
     with pytest.raises(Exception, match="support failure"):
         antecedent.analyze(data, query=query)
-    query = antecedent.ConditionalDoseResponse(
+    query = antecedent.policy.ConditionalDoseResponse(
         "y", "dose", "group", "density", (0.0,), 0.6, "known",
     )
     prepared = antecedent.prepare(data, query=query)

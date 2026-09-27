@@ -11,21 +11,26 @@ Day-1 surface::
 The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`, :func:`prepare`,
 :func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
-estimator selectors, and the two error names most callers catch. The seventeen
-root-exported stage modules are:
+estimator selectors, and the two error names most callers catch. The specialized
+2.1 families — randomized and factorial experiments, held-out policy value,
+difference-in-differences and other quasi-experimental designs, survival, and
+longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
+``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
+``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegimeQuery``),
+not at the root. The eighteen root-exported stage modules are:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.experiment``,
 ``antecedent.estimation``, ``antecedent.extensibility``, ``antecedent.factorial``,
 ``antecedent.gcm``, ``antecedent.graph``, ``antecedent.policy``,
-``antecedent.priors``, ``antecedent.quasi``, ``antecedent.state``,
-``antecedent.survival``, and ``antecedent.validation``.
+``antecedent.priors``, ``antecedent.quasi``, ``antecedent.regimes``,
+``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
-Eighteen narrower modules are reachable but deliberately outside ``__all__``:
+Seventeen narrower modules are reachable but deliberately outside ``__all__``:
 ``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``handoff``,
 ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
 ``model``, ``observation``, ``population``, ``prediction``, ``query``,
-``regimes``, ``results``, and ``transport``.
+``results``, and ``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -66,6 +71,7 @@ from . import (
     policy,
     priors,
     quasi,
+    regimes,
     state,
     survival,
     validation,
@@ -92,7 +98,6 @@ from . import observation as observation
 from . import population as population
 from . import prediction as prediction
 from . import query as query
-from . import regimes as regimes
 from . import results as results
 from . import transport as transport
 from ._analyze import analyze
@@ -103,7 +108,6 @@ from ._native import (
     Pag,
     TemporalDag,
 )
-from .regimes import LongitudinalRegimeEstimate, LongitudinalRegimeQuery
 
 if getattr(_native_module, "__build_optimized__", True) is False:
     import warnings as _warnings
@@ -119,23 +123,10 @@ if getattr(_native_module, "__build_optimized__", True) is False:
 from ._workflow import load, prepare
 from .accepted_graph import AcceptedGraph
 from .errors import CausalError, ReviewRequired
-from .experiment import (
-    ANCOVAEstimate,
-    ExperimentDesign,
-    FixedCUPED,
-    FactorialRandomization,
-    MultiArmExperimentDesign,
-    RandomizedEffect,
-    SwitchbackDesign,
-    SwitchbackEffect,
-    SwitchbackEstimate,
-    estimate_ancova_effect,
-)
 from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
-from .policy import BinaryPolicy, ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .query import (
     AnomalyAttribution,
     AnomalyReference,
@@ -160,16 +151,6 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import Analysis, AnalysisResult
-from .survival import (
-    IPCWCumulativeIncidenceEstimate,
-    IPCWSurvivalEstimate,
-    KnownCensoringSurvival,
-    SurvivalEstimate,
-    SurvivalOutcome,
-    estimate_cumulative_incidence_ipcw,
-    estimate_survival,
-    estimate_survival_ipcw,
-)
 
 __all__ = [
     # Verbs
@@ -194,30 +175,6 @@ __all__ = [
     "DirectionalDerivative",
     "Elasticity",
     "InterferenceQuery",
-    "BinaryPolicy",
-    "PolicyValue",
-    "ConditionalDoseResponse",
-    "MultiActionPolicyValue",
-    "ExperimentDesign",
-    "FixedCUPED",
-    "FactorialRandomization",
-    "MultiArmExperimentDesign",
-    "ANCOVAEstimate",
-    "estimate_ancova_effect",
-    "RandomizedEffect",
-    "LongitudinalRegimeQuery",
-    "LongitudinalRegimeEstimate",
-    "SwitchbackDesign",
-    "SwitchbackEffect",
-    "SwitchbackEstimate",
-    "SurvivalOutcome",
-    "SurvivalEstimate",
-    "IPCWSurvivalEstimate",
-    "KnownCensoringSurvival",
-    "IPCWCumulativeIncidenceEstimate",
-    "estimate_survival",
-    "estimate_survival_ipcw",
-    "estimate_cumulative_incidence_ipcw",
     "InterventionalDistribution",
     "InterventionResponse",
     "MediationEffect",
@@ -262,6 +219,7 @@ __all__ = [
     "policy",
     "quasi",
     "priors",
+    "regimes",
     "state",
     "survival",
     "validation",
