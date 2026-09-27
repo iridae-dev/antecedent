@@ -566,6 +566,14 @@ impl PreparedStudy {
                     });
             }
         }
+        if result.survival.is_some() {
+            contract.support_status = result.support_status;
+            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
+                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
+                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
+                    .then(|| Arc::from("graphless:survival/two_arm_individual_randomized/arm_stratified_subject_bootstrap_product_limit/rmst_and_horizon_survival_pointwise_95_percentile_intervals"));
+            }
+        }
         if let Some(randomized) = &result.randomized_effect {
             // Preparation cannot know the realized outcome variance. Keep the
             // program identity fixed, then bind the executed graphless license
@@ -3518,6 +3526,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             difference_at_tau_interval: survival.difference_at_tau_interval,
             bootstrap_replicates_requested: survival.bootstrap_replicates_requested,
             bootstrap_replicates_ok: survival.bootstrap_replicates_ok,
+            assignment_counts: Some(survival.assignment_counts),
+            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
             censoring_survival_provenance: survival.censoring_survival_provenance.as_ref().map(ToString::to_string),
             difference_band: survival.difference_band.as_ref().map(|band| antecedent_io::SurvivalDifferenceBandWire {
                 times: band.times.to_vec(), difference: band.difference.to_vec(),

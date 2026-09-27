@@ -613,8 +613,10 @@ def _survival_from_raw(
             if fixed_g else "independent_delayed_entry_within_arm",
         )
     provenance = section.censoring_survival_provenance
+    scalar_licensed = getattr(raw, "evidence_status", None) == "licensed"
     support_status = (
         "unlicensed_simultaneous_band" if difference_band is not None else
+        "licensed" if scalar_licensed else
         "unlicensed_pointwise_interval" if has_interval else "unlicensed_point_utility"
     )
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:

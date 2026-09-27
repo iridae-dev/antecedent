@@ -818,6 +818,12 @@ pub struct SurvivalWire {
     /// Supported arm-stratified subject-bootstrap replicates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bootstrap_replicates_ok: Option<u32>,
+    /// Realized control and treated subject counts for graphless support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assignment_counts: Option<[usize; 2]>,
+    /// Exact graphless scalar-interval license; absent for off-axis results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
     /// Caller-supplied fixed censoring function; absent for unweighted estimates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub censoring_survival_provenance: Option<String>,
@@ -2632,6 +2638,24 @@ fn validate_result(
             (None, None) => true,
             (Some(_), Some(_)) => false,
         };
+        let scalar_licensed = query.target_cause.is_none()
+            && query.delayed_entry.is_none()
+            && query.censoring_columns.is_empty()
+            && pointwise_bootstrap
+            && curve.bootstrap_replicates_ok.is_some_and(|ok| ok >= 299)
+            && curve.assignment_counts.is_some_and(|[control, treated]| {
+                graphless_data::LICENSES.iter().any(|row| {
+                    row.family == "survival"
+                        && row.design == "two_arm_individual_randomized"
+                        && row.method == "arm_stratified_subject_bootstrap_product_limit"
+                        && row.inference_claim == "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+                        && row.assignment_unit == "unit"
+                        && control >= row.min_assignment_units_per_arm
+                        && treated >= row.min_assignment_units_per_arm
+                        && control.saturating_add(treated) >= row.min_rows
+                        && row.min_reported_intervals <= 2
+                })
+            });
         if result.estimate.is_some()
             || result.standard_error.is_some()
             || result.interval_lower.is_some()
@@ -2639,6 +2663,8 @@ fn validate_result(
             || curve.censoring_survival_provenance.as_deref()
                 != (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
             || !(point_only || pointwise_bootstrap)
+            || curve.graphless_support_status.as_deref() != scalar_licensed.then_some("licensed")
+            || (curve.assignment_counts.is_some_and(|counts| counts.contains(&0)))
             || !band_valid
             || curve.tau != query.tau
             || curve.target_cause != query.target_cause

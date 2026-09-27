@@ -719,6 +719,45 @@ mod tests {
     }
 
     #[test]
+    fn randomized_survival_scalar_bootstrap_support_boundary_covers_known_truth() {
+        // Independent randomized subjects, 120 realized assignments per arm,
+        // and the minimum 299 bootstrap draws accepted by this matrix row.
+        // P(T=1)=.30 in control and .15 in treatment; all other T exceed
+        // tau=3. Thus the known truth for S(3) and RMST differences is
+        // .15 and .30 respectively.
+        const REPLICATIONS: usize = 2_000;
+        let mut state = 0xB0A1_DA7A_951A_0011_u64;
+        let mut covered_rmst = 0;
+        let mut covered_tau = 0;
+        for trial in 0..REPLICATIONS {
+            let mut duration = Vec::with_capacity(240);
+            let mut event = Vec::with_capacity(240);
+            let mut treated = Vec::with_capacity(240);
+            for arm in [false, true] {
+                for _ in 0..120 {
+                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let failed = u < if arm { 0.15 } else { 0.30 };
+                    duration.push(if failed { 1.0 } else { 3.0 });
+                    event.push(i64::from(failed));
+                    treated.push(arm);
+                }
+            }
+            let fit = randomized_survival_bootstrap_intervals(
+                &duration, &event, &treated, None, None, 3.0,
+                SurvivalEndpoint::Survival, 299, trial as u64 + 37_000,
+            ).unwrap();
+            assert_eq!(fit.replicates_ok, 299);
+            let rmst = fit.rmst_difference.unwrap();
+            let tau = fit.difference_at_tau;
+            covered_rmst += usize::from(rmst[0] <= 0.30 && 0.30 <= rmst[1]);
+            covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
+        }
+        eprintln!("graphless survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
+        assert!((1_860..=1_970).contains(&covered_rmst), "RMST coverage {covered_rmst}/2000");
+        assert!((1_860..=1_970).contains(&covered_tau), "S(3) coverage {covered_tau}/2000");
+    }
+
+    #[test]
     fn delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth() {
         // Entry is independent of the source-population event time. A subject
         // entering at one with an event at one is unobserved; those entering
