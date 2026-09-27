@@ -295,6 +295,11 @@ pub struct PolicyValueEstimate {
     pub reference_standard_error: f64,
     /// Paired incremental-value row-score standard error.
     pub incremental_standard_error: f64,
+    /// Calibrated pointwise 95% intervals when independent held-out evaluation
+    /// and empirical assignment support requirements are met.
+    pub policy_interval_95: Option<[f64; 2]>,
+    /// Paired policy-minus-reference pointwise 95% interval when supported.
+    pub incremental_interval_95: Option<[f64; 2]>,
     /// Prediction ownership declaration retained with the result.
     pub prediction_ownership: Arc<str>,
     /// Minimum known randomized propensity.
