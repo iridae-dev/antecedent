@@ -51,11 +51,23 @@ class FactorialRandomization:
     ``RandomizedEffect`` reports both marginal main effects and their interaction.
     """
 
-    second_factor_assignment: Sequence[bool]
+    second_factor_assignment: Sequence[bool] | str
     cell_counts: tuple[int, int, int, int]
     second_factor_arms: tuple[str, str] = ("off", "on")
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: The row-aligned second-factor arm may instead name a data column; ``cell_counts``
+    #: are four totals, not a per-row column, so they stay inline.
+    _COLUMN_FIELDS = {"second_factor_assignment": "bool"}
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
+            # design against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         object.__setattr__(self, "second_factor_assignment", tuple(self.second_factor_assignment))
         object.__setattr__(self, "cell_counts", tuple(self.cell_counts))
         object.__setattr__(self, "second_factor_arms", tuple(self.second_factor_arms))
@@ -71,13 +83,30 @@ class FactorialRandomization:
 class MultiArmExperimentDesign:
     """Independent randomized assignment among three or more named actions."""
 
-    realized_assignment: Sequence[str]
+    realized_assignment: Sequence[str] | str
     action_labels: Sequence[str]
     assignment_probabilities: Sequence[Sequence[float]]
-    assignment_units: Sequence[str]
-    outcome_units: Sequence[str]
+    assignment_units: Sequence[str] | str
+    outcome_units: Sequence[str] | str
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    #: ``realized_assignment`` is the per-row action label; ``assignment_probabilities``
+    #: is a per-action matrix, not a single column, so it stays inline.
+    _COLUMN_FIELDS = {
+        "realized_assignment": "str",
+        "assignment_units": "str",
+        "outcome_units": "str",
+    }
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names unvalidated; resolve_columns rebuilds this
+            # design against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         for name in ("realized_assignment", "action_labels", "assignment_units", "outcome_units"):
             object.__setattr__(self, name, tuple(getattr(self, name)))
         object.__setattr__(self, "assignment_probabilities", tuple(tuple(row) for row in self.assignment_probabilities))
@@ -105,13 +134,29 @@ class SwitchbackDesign:
     arbitrary dependence among periods within a sequence.
     """
 
-    realized_assignment: Sequence[bool]
-    sequence_ids: Sequence[str]
-    period_ids: Sequence[str]
-    assignment_probabilities: Sequence[float]
+    realized_assignment: Sequence[bool] | str
+    sequence_ids: Sequence[str] | str
+    period_ids: Sequence[str] | str
+    assignment_probabilities: Sequence[float] | str
     treatment_arms: tuple[str, str] = ("control", "treated")
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    _COLUMN_FIELDS = {
+        "realized_assignment": "bool",
+        "sequence_ids": "str",
+        "period_ids": "str",
+        "assignment_probabilities": "float",
+    }
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names unvalidated; resolve_columns rebuilds this
+            # design against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         for name in ("realized_assignment", "sequence_ids", "period_ids", "assignment_probabilities"):
             object.__setattr__(self, name, tuple(getattr(self, name)))
         n = len(self.realized_assignment)
@@ -141,6 +186,9 @@ class SwitchbackEffect:
     outcome: str
     design: SwitchbackDesign
     kind: Literal["switchback_effect"] = field(default="switchback_effect", init=False, repr=False)
+
+    #: Recurse into the carried design so its column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("design",)
 
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
@@ -235,6 +283,9 @@ class ExperimentDesign:
         "outcome_units": "str",
         "blocks": "str",
     }
+    #: Recurse into the assignment design so a FactorialRandomization second-factor
+    #: column (or any future opted-in assignment design) resolves at prepare.
+    _COLUMN_NESTED = ("assignment",)
 
     def __post_init__(self) -> None:
         from ._columns import defer_columns
@@ -605,10 +656,24 @@ class ComplierEffect:
 
     outcome: str
     design: ExperimentDesign
-    received_treatment: Sequence[bool]
+    received_treatment: Sequence[bool] | str
     kind: Literal["complier_effect"] = field(default="complier_effect", init=False, repr=False)
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: The row-aligned treatment receipt may instead name a data column.
+    _COLUMN_FIELDS = {"received_treatment": "bool"}
+    #: Recurse into the carried design so its column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("design",)
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name (and any deferred nested design)
+            # unvalidated; resolve_columns rebuilds this query against the data at
+            # prepare, re-running the checks below with arrays in hand.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty variable name")
         if not isinstance(self.design.assignment, BernoulliAssignment):

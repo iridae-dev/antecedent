@@ -27,13 +27,24 @@ class BinaryPolicy:
     Costs may be scalar or one per row.
     """
 
-    actions: Sequence[bool]
+    actions: Sequence[bool] | str
     capacity: int | None = None
     budget: float | None = None
     max_treatment_rate: float | None = None
     costs: float | Sequence[float] = 0.0
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    _COLUMN_FIELDS = {"actions": "bool"}
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
+            # policy against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         actions = tuple(self.actions)
         if any(not isinstance(action, (bool, np.bool_)) for action in actions):
             raise CausalValueError("policy actions must be bool values")
@@ -94,12 +105,23 @@ class MultiActionPolicy:
     """Fixed multi-action recommendations; the first label is the control action."""
 
     action_labels: Sequence[str]
-    recommendations: Sequence[str]
+    recommendations: Sequence[str] | str
     costs: Sequence[float] | None = None
     capacities: Sequence[int] | None = None
     budget: float | None = None
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: The per-row recommended action may instead name a data column (str labels).
+    _COLUMN_FIELDS = {"recommendations": "str"}
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
+            # policy against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         labels = tuple(self.action_labels)
         recommendations = tuple(self.recommendations)
         if len(labels) < 2 or any(not isinstance(v, str) or not v.strip() for v in labels):
@@ -238,23 +260,43 @@ class PolicyValue:
     """
 
     outcome: str
-    assignment: Sequence[bool]
-    propensity: float | Sequence[float]
+    assignment: Sequence[bool] | str
+    propensity: float | Sequence[float] | str
     policy: BinaryPolicy
-    evaluation_subject_ids: Sequence[str]
-    mu0: Sequence[float] | None = None
-    mu1: Sequence[float] | None = None
-    training_subject_ids: Sequence[str] | None = None
-    fold_ids: Sequence[int] | None = None
-    prediction_excluded_fold_ids: Sequence[int] | None = None
+    evaluation_subject_ids: Sequence[str] | str
+    mu0: Sequence[float] | str | None = None
+    mu1: Sequence[float] | str | None = None
+    training_subject_ids: Sequence[str] | str | None = None
+    fold_ids: Sequence[int] | str | None = None
+    prediction_excluded_fold_ids: Sequence[int] | str | None = None
     reference: BinaryPolicy | None = None
-    available: Sequence[bool] | None = None
-    uplift_scores: Sequence[float] | None = None
+    available: Sequence[bool] | str | None = None
+    uplift_scores: Sequence[float] | str | None = None
     uplift_bin_count: int = 0
-    uplift_training_subject_ids: Sequence[str] | None = None
+    uplift_training_subject_ids: Sequence[str] | str | None = None
     regret_candidates: Sequence[BinaryPolicy] | None = None
-    regret_training_subject_ids: Sequence[str] | None = None
+    regret_training_subject_ids: Sequence[str] | str | None = None
     _ownership: str = field(init=False, repr=False, compare=False)
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    #: ``propensity`` stays scalar when a float; a str names a per-row column.
+    _COLUMN_FIELDS = {
+        "assignment": "bool",
+        "propensity": "float",
+        "mu0": "float",
+        "mu1": "float",
+        "evaluation_subject_ids": "str",
+        "training_subject_ids": "str",
+        "fold_ids": "int",
+        "prediction_excluded_fold_ids": "int",
+        "available": "bool",
+        "uplift_scores": "float",
+        "uplift_training_subject_ids": "str",
+        "regret_training_subject_ids": "str",
+    }
+    #: Recurse into the carried policies so their column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("policy", "reference")
 
     @classmethod
     def top_k(
@@ -291,6 +333,15 @@ class PolicyValue:
         )
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names (and any deferred nested policy)
+            # unvalidated; resolve_columns rebuilds this query against the data at
+            # prepare, re-running every check below with arrays in hand.
+            object.__setattr__(self, "_deferred_columns", True)
+            object.__setattr__(self, "_ownership", "deferred")
+            return
         if not isinstance(self.outcome, str) or not self.outcome:
             raise CausalValueError("outcome must be a non-empty column name")
         if not isinstance(self.policy, BinaryPolicy):
@@ -395,15 +446,35 @@ class MultiActionPolicyValue:
     """
 
     outcome: str
-    assignment: Sequence[str]
+    assignment: Sequence[str] | str
     propensities: Sequence[Sequence[float]]
     policy: MultiActionPolicy
-    evaluation_subject_ids: Sequence[str]
+    evaluation_subject_ids: Sequence[str] | str
     reference: MultiActionPolicy | None = None
     available: Sequence[Sequence[bool]] | None = None
-    baseline_groups: Sequence[str] | None = None
+    baseline_groups: Sequence[str] | str | None = None
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    #: ``assignment`` is the per-row action label; ``propensities``/``available`` are
+    #: per-action matrices, not single columns, so they stay inline.
+    _COLUMN_FIELDS = {
+        "assignment": "str",
+        "evaluation_subject_ids": "str",
+        "baseline_groups": "str",
+    }
+    #: Recurse into the carried policies so their column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("policy", "reference")
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names (and any deferred nested policy)
+            # unvalidated; resolve_columns rebuilds this query against the data at
+            # prepare, re-running every check below with arrays in hand.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty column name")
         if not isinstance(self.policy, MultiActionPolicy):
