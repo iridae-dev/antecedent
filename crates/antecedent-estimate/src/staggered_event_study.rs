@@ -183,4 +183,64 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn shared_cluster_shocks_keep_supported_post_event_coverage() {
+        let clusters_per_group = 24;
+        let subjects_per_cluster = 2;
+        let simulations = 2_000;
+        let mut state = 0x7EC4_2A91_5D0F_B836_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let mut subjects = Vec::new();
+        let mut clusters = Vec::new();
+        let mut cohorts = Vec::new();
+        let mut periods = Vec::new();
+        for (group, cohort) in [("control", 0), ("treated", 3)] {
+            for cluster in 0..clusters_per_group {
+                let cluster_id = format!("{group}-{cluster}");
+                for subject in 0..subjects_per_cluster {
+                    let id = format!("{cluster_id}-{subject}");
+                    for period in 1..=4 {
+                        subjects.push(id.clone());
+                        clusters.push(cluster_id.clone());
+                        cohorts.push(cohort);
+                        periods.push(period);
+                    }
+                }
+            }
+        }
+        let mut covered = [0_usize; 2];
+        for _ in 0..simulations {
+            let mut outcomes = Vec::with_capacity(subjects.len());
+            for cohort in [0, 3] {
+                for _ in 0..clusters_per_group {
+                    let cluster_shock = (0..4).map(|_| (uniform() - 0.5) * 12.0_f64.sqrt())
+                        .collect::<Vec<_>>();
+                    for _ in 0..subjects_per_cluster {
+                        for period in 1..=4 {
+                            let noise = 0.5 * (uniform() - 0.5) * 12.0_f64.sqrt();
+                            outcomes.push(0.5 * period as f64 + cluster_shock[period - 1] + noise
+                                + if cohort == 3 && period >= 3 { 2.0 } else { 0.0 });
+                        }
+                    }
+                }
+            }
+            let effects = estimate(&outcomes, &subjects, &periods, &cohorts, &clusters).unwrap();
+            for (target, event_time) in [0_i64, 1].into_iter().enumerate() {
+                let fit = effects.iter().find(|effect| effect.event_time == event_time).unwrap();
+                let bounds = pointwise_interval_95(fit, clusters_per_group, clusters_per_group).unwrap();
+                covered[target] += usize::from(bounds[0] <= 2.0 && 2.0 <= bounds[1]);
+            }
+        }
+        let coverage = covered.map(|hits| hits as f64 / simulations as f64);
+        println!("staggered shared-cluster post-event 95% coverage: {coverage:?}");
+        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        assert!(coverage.iter().all(|rate| (rate - 0.95).abs() <= 3.0 * mcse));
+    }
 }
