@@ -107,18 +107,39 @@ def test_stratified_randomization_refuses_blocks_without_two_units_per_arm():
         )
 
 
-def test_cluster_assignment_remains_an_explicit_retained_analyze_refusal():
+def test_cluster_assignment_runs_through_retained_analyze_with_cluster_variance():
     query = ant.RandomizedEffect(
         "outcome",
         ant.ExperimentDesign(
-            interference.ClusterRandomization([0, 0, 1, 1], 1),
-            [True, True, False, False],
-            ["c0", "c0", "c1", "c1"],
-            ["y0", "y1", "y2", "y3"],
+            interference.ClusterRandomization([0, 0, 1, 1, 2, 2, 3, 3], 2),
+            [True, True, False, False, True, True, False, False],
+            ["c0", "c0", "c1", "c1", "c2", "c2", "c3", "c3"],
+            [f"y{i}" for i in range(8)],
         ),
     )
-    with pytest.raises(CausalUnsupportedError, match="cluster, multi-arm, factorial, and switchback"):
-        ant.analyze({"outcome": np.asarray([1.0, 2.0, 0.0, 1.0])}, query=query)
+    result = ant.analyze({"outcome": np.asarray([2.0, 2.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0])}, query=query)
+    assert result.randomized_effect.effect == pytest.approx(2.0)
+    assert result.randomized_effect.assignment_design == "cluster"
+    assert result.randomized_effect.control_units == 2
+    assert result.randomized_effect.treatment_units == 2
+    assert result.randomized_effect.variance_upper_bound == pytest.approx(0.0)
+    assert result.randomized_effect.uncertainty == "cluster_neyman_variance_upper_bound_no_interval"
+    assert result.evidence_status == "off_axis"
+
+
+def test_cluster_assignment_with_block_metadata_is_refused_on_retained_route():
+    query = ant.RandomizedEffect(
+        "outcome",
+        ant.ExperimentDesign(
+            interference.ClusterRandomization([0, 0, 1, 1, 2, 2, 3, 3], 2),
+            [True, True, False, False, True, True, False, False],
+            ["c0", "c0", "c1", "c1", "c2", "c2", "c3", "c3"],
+            [f"y{i}" for i in range(8)],
+            blocks=["north"] * 8,
+        ),
+    )
+    with pytest.raises(CausalUnsupportedError, match="does not combine with block metadata"):
+        ant.analyze({"outcome": np.zeros(8)}, query=query)
 
 
 @pytest.mark.parametrize("design_kind", ["complete", "cluster"])

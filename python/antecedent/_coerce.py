@@ -182,6 +182,7 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
+    from .regimes import LongitudinalRegimeQuery
     from .survival import CompetingRisksOutcome, SurvivalOutcome
     from .transport import Transport
     from .transport.advanced import TransportQuery
@@ -213,6 +214,7 @@ def coerce_query(value: Any) -> Any:
         PolicyValue,
         RandomizedEffect,
         PanelDifferenceInDifferences,
+        LongitudinalRegimeQuery,
         SurvivalOutcome,
         CompetingRisksOutcome,
     )

@@ -159,8 +159,8 @@ class ExperimentDesign:
     supplied outcome table. One assignment unit per outcome row is required
     for Bernoulli and complete randomization. Cluster assignment may repeat an
     assignment unit across outcome rows; its cluster IDs must match the design.
-    The retained ``analyze`` route supports Bernoulli, complete, and
-    stratified assignment. Cluster, factorial, switchback, and noncompliance
+    The retained ``analyze`` route supports Bernoulli, complete, stratified,
+    and cluster assignment. Factorial, switchback, and noncompliance
     workflows remain separate direct utilities or explicit refusals.
     """
 
@@ -296,7 +296,7 @@ class ExperimentDesign:
 class RandomizedEffect:
     """Intention-to-treat contrast carried through the ordinary analysis API.
 
-    Bernoulli, complete, and stratified designs use their corresponding
+    Bernoulli, complete, stratified, and cluster designs use their corresponding
     design-based point estimates and variance contracts. Other design families
     are explicitly refused by the retained analysis route.
     """
