@@ -137,6 +137,156 @@ pub fn randomized_survival_summary(
     })
 }
 
+/// Evaluate arm curves with a caller supplied, subject-specific censoring survival grid.
+///
+/// `censoring_survival` is row-major with one value per subject and time. The
+/// probabilities must be known independently of the outcomes used here; this
+/// point kernel does not fit or verify a censoring model. Delayed entry is not
+/// supported by this weighted estimator. No interval is constructed.
+pub fn randomized_survival_ipcw_summary(
+    duration: &[f64],
+    event_code: &[i64],
+    treated: &[bool],
+    times: &[f64],
+    censoring_survival: &[f64],
+    tau: f64,
+    minimum_probability: f64,
+    endpoint: SurvivalEndpoint,
+) -> Result<(RandomizedSurvivalSummary, f64), &'static str> {
+    let n = duration.len();
+    let m = times.len();
+    if n == 0
+        || event_code.len() != n
+        || treated.len() != n
+        || m < 2
+        || censoring_survival.len()
+            != n.checked_mul(m).ok_or("censoring grid dimensions overflow")?
+    {
+        return Err(
+            "duration, event, treatment, and censoring grid must have aligned nonzero rows",
+        );
+    }
+    if !tau.is_finite()
+        || tau <= 0.0
+        || !minimum_probability.is_finite()
+        || minimum_probability <= 0.0
+        || minimum_probability > 1.0
+    {
+        return Err("tau and censoring positivity floor must be finite and positive");
+    }
+    if times[0] != 0.0
+        || (times[m - 1] - tau).abs() > 1e-10
+        || times.iter().any(|time| !time.is_finite())
+        || times.windows(2).any(|pair| pair[1] <= pair[0])
+    {
+        return Err("censoring times must increase from zero through tau");
+    }
+    if duration.iter().any(|time| !time.is_finite() || *time < 0.0)
+        || duration.iter().any(|&time| {
+            time <= tau && times.binary_search_by(|grid| grid.total_cmp(&time)).is_err()
+        })
+    {
+        return Err("durations must be finite and represented on the censoring grid through tau");
+    }
+    match endpoint {
+        SurvivalEndpoint::Survival if event_code.iter().any(|code| *code != 0 && *code != 1) => {
+            return Err("survival events must be encoded as zero or one");
+        }
+        SurvivalEndpoint::CumulativeIncidence { target_cause } => {
+            let causes: BTreeSet<i64> =
+                event_code.iter().copied().filter(|code| *code > 0).collect();
+            if target_cause <= 0
+                || event_code.iter().any(|code| *code < 0)
+                || causes.len() < 2
+                || !causes.contains(&target_cause)
+            {
+                return Err(
+                    "cumulative incidence requires two observed causes including the positive target",
+                );
+            }
+        }
+        SurvivalEndpoint::Survival => {}
+    }
+    let mut minimum_g = 1.0_f64;
+    for row in censoring_survival.chunks_exact(m) {
+        if (row[0] - 1.0).abs() > 1e-10
+            || row
+                .iter()
+                .any(|value| !value.is_finite() || *value < minimum_probability || *value > 1.0)
+            || row.windows(2).any(|pair| pair[1] > pair[0] + 1e-10)
+        {
+            return Err(
+                "censoring survival must start at one, remain nonincreasing, and satisfy positivity",
+            );
+        }
+        minimum_g = minimum_g.min(row.iter().copied().fold(1.0_f64, f64::min));
+    }
+    for arm in [false, true] {
+        if !(0..n).any(|i| treated[i] == arm && duration[i] >= tau) {
+            return Err("both randomized arms require observed follow-up through tau");
+        }
+    }
+    let mut curves: [Vec<f64>; 2] = [Vec::with_capacity(m), Vec::with_capacity(m)];
+    let mut restricted_means = [0.0_f64; 2];
+    let mut minimum_risk_set: Option<usize> = None;
+    for (arm_index, arm) in [false, true].into_iter().enumerate() {
+        let mut survival = 1.0;
+        let mut incidence = 0.0;
+        let mut previous_time = 0.0;
+        for (j, &time) in times.iter().enumerate() {
+            restricted_means[arm_index] += (time - previous_time) * survival;
+            let at_risk =
+                (0..n).filter(|&i| treated[i] == arm && duration[i] >= time).collect::<Vec<_>>();
+            let event_rows = at_risk
+                .iter()
+                .copied()
+                .filter(|&i| event_code[i] > 0 && duration[i] == time)
+                .collect::<Vec<_>>();
+            if !event_rows.is_empty() {
+                let weight = |i: usize| 1.0 / censoring_survival[i * m + j];
+                let risk_weight = at_risk.iter().map(|&i| weight(i)).sum::<f64>();
+                let event_weight = event_rows.iter().map(|&i| weight(i)).sum::<f64>();
+                if !risk_weight.is_finite()
+                    || risk_weight <= 0.0
+                    || !event_weight.is_finite()
+                    || event_weight > risk_weight * (1.0 + 1e-10)
+                {
+                    return Err("IPCW event weight exceeds its finite positive weighted risk set");
+                }
+                let hazard = (event_weight / risk_weight).min(1.0);
+                if let SurvivalEndpoint::CumulativeIncidence { target_cause } = endpoint {
+                    let target_weight = event_rows
+                        .iter()
+                        .filter(|&&i| event_code[i] == target_cause)
+                        .map(|&i| weight(i))
+                        .sum::<f64>();
+                    incidence += survival * target_weight / risk_weight;
+                }
+                survival *= 1.0 - hazard;
+                minimum_risk_set =
+                    Some(minimum_risk_set.map_or(at_risk.len(), |old| old.min(at_risk.len())));
+            }
+            curves[arm_index].push(if endpoint == SurvivalEndpoint::Survival {
+                survival
+            } else {
+                incidence
+            });
+            previous_time = time;
+        }
+    }
+    Ok((
+        RandomizedSurvivalSummary {
+            times: times.to_vec(),
+            control: curves[0].clone(),
+            treated: curves[1].clone(),
+            rmst_control: (endpoint == SurvivalEndpoint::Survival).then_some(restricted_means[0]),
+            rmst_treated: (endpoint == SurvivalEndpoint::Survival).then_some(restricted_means[1]),
+            minimum_event_risk_set: minimum_risk_set,
+        },
+        minimum_g,
+    ))
+}
+
 type ArmCurve = (Vec<f64>, Vec<f64>, Option<f64>, Option<usize>);
 
 fn arm_curve(
@@ -220,6 +370,45 @@ fn arm_curve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn known_censoring_ipcw_survival_matches_unweighted_truth_when_g_is_one() {
+        let (summary, minimum_g) = randomized_survival_ipcw_summary(
+            &[1.0, 2.0, 2.0, 2.0],
+            &[1, 0, 0, 0],
+            &[false, false, true, true],
+            &[0.0, 1.0, 2.0],
+            &[1.0; 12],
+            2.0,
+            0.1,
+            SurvivalEndpoint::Survival,
+        )
+        .unwrap();
+        assert_eq!(summary.control, [1.0, 0.5, 0.5]);
+        assert_eq!(summary.treated, [1.0, 1.0, 1.0]);
+        assert_eq!(summary.rmst_control, Some(1.5));
+        assert_eq!(summary.rmst_treated, Some(2.0));
+        assert_eq!(minimum_g, 1.0);
+    }
+
+    #[test]
+    fn known_censoring_ipcw_refuses_positivity_failure() {
+        let mut g = [1.0; 12];
+        g[4] = 0.05;
+        assert!(
+            randomized_survival_ipcw_summary(
+                &[1.0, 2.0, 2.0, 2.0],
+                &[1, 0, 0, 0],
+                &[false, false, true, true],
+                &[0.0, 1.0, 2.0],
+                &g,
+                2.0,
+                0.1,
+                SurvivalEndpoint::Survival,
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn randomized_rmst_and_survival_known_truth() {
