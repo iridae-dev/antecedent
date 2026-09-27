@@ -760,8 +760,9 @@ deterministic top-k ranking. `evaluate_policy` uses known randomized assignment
 propensities to estimate value and value relative to a reference, while applying
 declared treatment costs, availability, capacity, and budget limits. The caller
 must supply evaluation rows held out from policy selection; the API cannot
-verify that separation. It publishes point estimates only, so policy intervals,
-learned-policy guarantees, and regret are not claimed. `uplift_by_score` also
+verify that separation. This direct utility publishes point estimates only;
+the retained `PolicyValue` interval route is described below. Learned-policy
+guarantees and regret are not claimed. `uplift_by_score` also
 reports held-out HT contrasts and standard errors over caller-supplied ranked
 score bins; it does not fit or verify cross-fitted CATE scores. These are
 point utilities and do not add licensed support-matrix cells. The same module

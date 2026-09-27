@@ -16,6 +16,122 @@ retained_route_test = "crates/antecedent/tests/randomized_trial_route.rs::calibr
 limitations = "Independent Bernoulli binary ITT with known probabilities at least 0.2 in both arms on every row, 400 rows, 30 realized assignments per arm, and a published positive-variance pointwise 95% score interval. Fixed CUPED, ANCOVA, CACE/LATE, and lower-probability designs are outside this license."
 
 [[license]]
+family = "policy_value"
+design = "binary_ipw"
+method = "fixed_randomized_ipw_scores"
+inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_rows = 120
+min_assignment_units_per_arm = 30
+min_probability = 0.5
+min_policy_matches = 10
+min_reference_matches = 10
+min_reported_intervals = 2
+all_reported_intervals = true
+requires_uncoupled_constraints = true
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::pointwise_policy_interval_repeated_sampling_coverage"
+retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only"
+limitations = "Fixed binary policy and reference on independent held-out subjects with known 0.5 Bernoulli assignment, at least 120 evaluation rows and 10 realized policy and reference matches, uncoupled recommendations, positive paired score variance, and both policy-value and incremental-value pointwise 95% intervals. No learned-policy inference or simultaneous claim."
+
+[[license]]
+family = "policy_value"
+design = "binary_aipw"
+method = "fixed_held_out_randomized_aipw_scores"
+inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_rows = 300
+min_assignment_units_per_arm = 30
+min_probability = 0.5
+min_policy_matches = 10
+min_reference_matches = 10
+min_reported_intervals = 2
+all_reported_intervals = true
+requires_uncoupled_constraints = true
+requires_disjoint_nuisance_training = true
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_aipw_and_constrained_multi_action_intervals_cover_known_values"
+retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only"
+limitations = "Fixed binary policy and reference on 300 independent evaluation subjects under known 0.5 Bernoulli assignment, outcome nuisance predictions trained on caller-declared disjoint subjects, at least 10 policy and reference matches, uncoupled recommendations, positive paired score variance, and both pointwise 95% intervals. Cross-fitted nuisance ownership and learned policies remain outside this row."
+
+[[license]]
+family = "policy_value"
+design = "binary_ipw_uplift"
+method = "fixed_randomized_ipw_frozen_rank_scores"
+inference_claim = "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_assignment_units_per_arm = 50
+min_probability = 0.5
+min_policy_matches = 10
+min_reference_matches = 10
+min_bin_rows = 300
+min_bin_arm_rows = 50
+min_reported_intervals = 3
+all_reported_intervals = true
+requires_uncoupled_constraints = true
+requires_rank_ownership = true
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_uplift_bin_intervals_cover_fixed_rank_truth"
+retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds"
+limitations = "Fixed binary IPW policy plus frozen ranked uplift bins, known 0.5 Bernoulli assignment, declared ranking training IDs disjoint from evaluation IDs, at least 300 independent subjects and 50 observed subjects per arm in every bin, and all scalar and bin pointwise 95% intervals published. No simultaneous top-k band or ranking-model guarantee."
+
+[[license]]
+family = "policy_value"
+design = "binary_aipw_uplift"
+method = "fixed_held_out_randomized_aipw_frozen_rank_scores"
+inference_claim = "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_assignment_units_per_arm = 50
+min_probability = 0.5
+min_policy_matches = 10
+min_reference_matches = 10
+min_bin_rows = 300
+min_bin_arm_rows = 50
+min_reported_intervals = 3
+all_reported_intervals = true
+requires_uncoupled_constraints = true
+requires_disjoint_nuisance_training = true
+requires_rank_ownership = true
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_uplift_bin_intervals_cover_fixed_rank_truth"
+retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds"
+limitations = "Fixed binary AIPW policy with disjoint nuisance training and frozen ranked uplift bins with separate declared ranking training IDs, known 0.5 Bernoulli assignment, at least 300 independent subjects and 50 observed subjects per arm in every bin, and all scalar and bin pointwise 95% intervals published. No cross-fitted or simultaneous guarantee."
+
+[[license]]
+family = "policy_value"
+design = "multi_action_ipw"
+method = "fixed_randomized_multi_action_ipw_scores"
+inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_rows = 300
+min_action_rows = 50
+min_probability = 0.2
+min_policy_matches = 10
+min_reference_matches = 10
+min_reported_intervals = 2
+all_reported_intervals = true
+requires_uncoupled_constraints = true
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_aipw_and_constrained_multi_action_intervals_cover_known_values"
+retained_route_test = "crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"
+limitations = "Fixed multi-action policy and reference on 300 independent randomized subjects with known action probabilities at least 0.2, 10 realized policy and reference matches, uncoupled capacities and budgets, positive paired score variance, and both pointwise 95% value intervals. No action-specific CATE claim in this row."
+
+[[license]]
+family = "policy_value"
+design = "multi_action_ipw_cate"
+method = "fixed_randomized_multi_action_ipw_fixed_group_scores"
+inference_claim = "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_rows = 300
+min_action_rows = 50
+min_probability = 0.2
+min_policy_matches = 10
+min_reference_matches = 10
+min_group_rows = 300
+min_group_arm_rows = 50
+min_reported_intervals = 3
+all_reported_intervals = true
+requires_uncoupled_constraints = true
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support"
+retained_route_test = "crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"
+limitations = "Fixed multi-action policy plus pre-treatment baseline groups declared before outcomes, known action probabilities at least 0.2, at least 300 independent subjects and 50 observed subjects in each compared arm per group, uncoupled constraints, and all scalar and group/action pointwise 95% intervals published. No fitted CATE model or simultaneous group coverage."
+
+[[license]]
 family = "randomized_effect"
 design = "complete"
 method = "neyman_difference_in_means"

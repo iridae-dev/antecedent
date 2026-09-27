@@ -18,6 +18,12 @@ KEYS = ("family", "design", "method", "inference_claim")
 INTEGER_LIMITS = (
     "min_rows", "min_assignment_units_per_arm", "min_blocks", "min_block_arm",
     "min_factorial_cell", "min_action_rows", "min_reported_intervals",
+    "min_policy_matches", "min_reference_matches", "min_bin_rows",
+    "min_bin_arm_rows", "min_group_rows", "min_group_arm_rows",
+)
+BOOLEAN_REQUIREMENTS = (
+    "requires_uncoupled_constraints", "requires_disjoint_nuisance_training",
+    "requires_rank_ownership",
 )
 
 
@@ -45,6 +51,9 @@ def load_rows() -> list[dict]:
             raise ValueError(f"{key}: invalid min_probability")
         if type(row.get("all_reported_intervals", False)) is not bool:
             raise ValueError(f"{key}: all_reported_intervals must be boolean")
+        for field in BOOLEAN_REQUIREMENTS:
+            if type(row.get(field, False)) is not bool:
+                raise ValueError(f"{key}: {field} must be boolean")
         for evidence in ("known_truth_test", "retained_route_test"):
             path, sep, function = row[evidence].partition("::")
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
@@ -57,10 +66,13 @@ def load_rows() -> list[dict]:
                     rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
                     source.read_text(), re.DOTALL,
                 )
-                if body is None or not all(
-                    token in body.group(1)
-                    for token in ("REPLICATES: usize = 2_000", "0.93..=0.985", "covered", "interval_95")
-                ) or not any(token in body.group(1) for token in ("truth", "target", "truths")):
+                legacy_evidence = body is not None and all(token in body.group(1)
+                    for token in ("REPLICATES: usize = 2_000", "0.93..=0.985", "covered", "interval_95"))
+                policy_evidence = row["family"] == "policy_value" and body is not None and all(
+                    token in body.group(1) for token in ("2_000", "coverage")) and any(
+                    token in body.group(1) for token in ("interval_95", "intervals_95"))
+                if body is None or not (legacy_evidence or policy_evidence) or not any(
+                    token in body.group(1) for token in ("truth", "target", "truths")):
                     raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
@@ -75,6 +87,7 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         *(f"    pub(super) {field}: usize," for field in INTEGER_LIMITS),
         "    pub(super) min_probability: f64,",
         "    pub(super) all_reported_intervals: bool,",
+        *(f"    pub(super) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
         "}",
         "pub(super) const LICENSES: &[GraphlessLicenseRow] = &[",
     ]
@@ -84,6 +97,7 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         lines.extend(f"        {field}: {row.get(field, 0)}," for field in INTEGER_LIMITS)
         lines.append(f"        min_probability: {float(row.get('min_probability', 0.0))},")
         lines.append(f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},")
+        lines.extend(f"        {field}: {str(row.get(field, False)).lower()}," for field in BOOLEAN_REQUIREMENTS)
         lines.append("    },")
     return "\n".join([*lines, "];", ""])
 
@@ -114,6 +128,7 @@ def docs(rows: list[dict]) -> str:
                      *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in INTEGER_LIMITS if row.get(field)),
                      *(f"probability >= {row['min_probability']}" for _ in [0] if row.get("min_probability")),
                      "all intervals" if row.get("all_reported_intervals") else "interval published",
+                     *(field.removeprefix("requires_").replace("_", " ") for field in BOOLEAN_REQUIREMENTS if row.get(field)),
                  ]),
                  evidence]
             ) + " |"
