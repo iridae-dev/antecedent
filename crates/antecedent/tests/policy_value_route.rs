@@ -147,6 +147,7 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
         reference_capacities: [9; 3].into(),
         budget: None,
         reference_budget: None,
+        cate_groups: Arc::from([]),
     });
     let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let ctx = ExecutionContext::for_tests(43);
@@ -164,6 +165,33 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().policy_value, answer.policy_value);
     assert_eq!(body.query, antecedent_io::causal_query_to_wire(&CausalQuery::PolicyValue(q.clone())).unwrap());
+    q.multi_action.as_mut().unwrap().cate_groups = ["x", "x", "x", "y", "y", "y", "z", "z", "z"]
+        .map(Arc::<str>::from).into();
+    let grouped = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
+    let grouped_prepared = grouped.prepare(&ctx).unwrap();
+    let grouped_result = grouped_prepared.estimate(&data, &ctx).unwrap();
+    let points = &grouped_result.policy_value.as_ref().unwrap().multi_action_cate;
+    assert_eq!(points.len(), 6);
+    for point in points {
+        assert_eq!(point.evaluation_rows, 3);
+        assert_eq!(point.observed_action_rows, 1);
+        assert_eq!(point.observed_control_rows, 1);
+        assert!((point.effect - if point.action == "A" { 1.0 } else { 3.0 }).abs() < 1e-12);
+    }
+    let grouped_artifact = grouped_prepared.encode_contracted_result(&grouped_result, "grouped-policy", &ctx).unwrap();
+    let (_, _, grouped_body) = antecedent_io::decode_analysis_result_artifact(&grouped_artifact).unwrap();
+    assert_eq!(grouped_body.policy_value.unwrap().multi_action_cate[0].effect, 1.0);
+    assert_eq!(grouped_body.query, antecedent_io::causal_query_to_wire(&CausalQuery::PolicyValue(q.clone())).unwrap());
+    q.multi_action.as_mut().unwrap().cate_groups = Arc::from([Arc::<str>::from("x")]);
+    assert!(q.validate().is_err());
+    q.multi_action.as_mut().unwrap().cate_groups = ["x", "y", "y", "x", "y", "y", "x", "y", "y"]
+        .map(Arc::<str>::from).into();
+    assert!(q.validate().is_ok());
+    let unsupported = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
+    let unsupported_prepared = unsupported.prepare(&ctx).unwrap();
+    assert!(unsupported_prepared.estimate(&data, &ctx).is_err(),
+        "a stratum without every observed action must refuse CATE estimation");
+    q.multi_action.as_mut().unwrap().cate_groups = Arc::from([]);
     q.multi_action.as_mut().unwrap().capacities = [9, 2, 9].into();
     assert!(q.validate().is_err());
     q.multi_action.as_mut().unwrap().capacities = [9; 3].into();

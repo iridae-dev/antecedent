@@ -456,6 +456,7 @@ class PolicyValueSection:
     propensity_max: float
     uncertainty: str
     uplift_bins: list[tuple[int, float, float, int]]
+    multi_action_cate: list[tuple[str, str, float, int, int, int]]
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
@@ -1360,6 +1361,7 @@ class PreparedAnalysis:
         reference_budget: float | None,
         evaluation_subject_ids: list[str],
         *,
+        cate_groups: list[str] = ...,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

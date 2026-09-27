@@ -195,6 +195,7 @@ class DoublyRobustPolicyEvaluation:
     propensity_min: float
     propensity_max: float
     uplift_bins: tuple[UpliftBin, ...] = ()
+    multi_action_cate: tuple[MultiActionCatePoint, ...] = ()
     uncertainty: str = "row_score_standard_error_independent_subjects"
     evaluation_method: str = "doubly_robust_randomized_heldout_or_cross_fitted"
     assumptions: tuple[str, ...] = (
@@ -350,6 +351,7 @@ class MultiActionPolicyValue:
     evaluation_subject_ids: Sequence[str]
     reference: MultiActionPolicy | None = None
     available: Sequence[Sequence[bool]] | None = None
+    baseline_groups: Sequence[str] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
@@ -384,6 +386,24 @@ class MultiActionPolicyValue:
             ):
                 raise CausalValueError("available must contain one bool per evaluation row and action")
             object.__setattr__(self, "available", tuple(tuple(bool(v) for v in row) for row in mask))
+        if self.baseline_groups is not None:
+            groups = tuple(self.baseline_groups)
+            if len(groups) != n or any(not isinstance(group, str) or not group.strip() for group in groups):
+                raise CausalValueError("baseline_groups must contain one non-empty pre-treatment label per row")
+            object.__setattr__(self, "baseline_groups", groups)
+
+
+@dataclass(frozen=True, slots=True)
+class MultiActionCatePoint:
+    """Point-only randomized action effect versus control in one baseline group."""
+
+    group: str
+    action: str
+    effect: float
+    evaluation_rows: int
+    observed_action_rows: int
+    observed_control_rows: int
+    uncertainty: str = "point_only"
 
 
 @dataclass(frozen=True, slots=True)

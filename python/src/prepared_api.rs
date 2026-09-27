@@ -3872,6 +3872,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, action_labels, assignment, propensities,
         actions, reference, costs, reference_costs, available, capacities,
         reference_capacities, budget, reference_budget, evaluation_subject_ids, *,
+        cate_groups=vec![],
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_multi_action_policy_value(
@@ -3892,6 +3893,7 @@ impl PyPreparedAnalysis {
         budget: Option<f64>,
         reference_budget: Option<f64>,
         evaluation_subject_ids: Vec<String>,
+        cate_groups: Vec<String>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3916,6 +3918,7 @@ impl PyPreparedAnalysis {
                 reference_capacities: reference_capacities.into(),
                 budget,
                 reference_budget,
+                cate_groups: cate_groups.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
             };
             let query = antecedent_core::PolicyValueQuery {
                 outcome: outcome_id,

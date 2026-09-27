@@ -530,7 +530,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         return None
     ipw = section.prediction_ownership == "no_outcome_nuisance_predictions"
     multi_action = section.uncertainty.startswith("multi_action_")
-    from .policy import UpliftBin
+    from .policy import MultiActionCatePoint, UpliftBin
     return DoublyRobustPolicyEvaluation(
         policy_value=section.policy_value,
         reference_value=section.reference_value,
@@ -546,6 +546,8 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         propensity_max=section.propensity_max,
         uplift_bins=tuple(UpliftBin(int(rank), float(effect), float(se), int(rows))
                           for rank, effect, se, rows in section.uplift_bins),
+        multi_action_cate=tuple(MultiActionCatePoint(group, action, float(effect), int(rows), int(action_rows), int(control_rows))
+                                for group, action, effect, rows, action_rows, control_rows in section.multi_action_cate),
         uncertainty=section.uncertainty,
         evaluation_method=(
             "randomized_multi_action_ipw_fixed_policy" if multi_action else
@@ -571,6 +573,9 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
             + ((
                 "Rank scores were fitted on declared training subjects disjoint from evaluation subjects and frozen before outcome evaluation.",
             ) if section.uplift_bins else ())
+            + ((
+                "Baseline groups for conditional effects were fixed before evaluation outcomes were observed.",
+            ) if section.multi_action_cate else ())
         ),
         diagnostics=((
             (
@@ -586,6 +591,9 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
                 "uplift bin row-score standard errors assume independent evaluation subjects; no interval coverage is licensed",
                 "ranking-model ownership is checked from caller-supplied subject IDs only",
             ) if section.uplift_bins else ())
+            + ((
+                "multi-action conditional effects are point-only; no interval coverage is licensed",
+            ) if section.multi_action_cate else ())
         ),
     )
 
@@ -2635,6 +2643,7 @@ class _PrepareRoute:
                 list(query.policy.capacities or [n] * len(labels)),
                 list(reference.capacities or [n] * len(labels)),
                 query.policy.budget, reference.budget, list(query.evaluation_subject_ids),
+                cate_groups=list(query.baseline_groups or ()),
                 accepted=self.accepted, **self._common(),
             )
             return native, "average"

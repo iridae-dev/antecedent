@@ -258,6 +258,27 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
     loaded = ant.load(result.export(artifact_id="retained-multi-policy"))
     assert loaded.answer.structured["policy_value"] == pytest.approx(7.0 / 3.0)
     assert loaded.answer.structured["uncertainty"] == result.policy_value.uncertainty
+    grouped = policy.MultiActionPolicyValue(
+        outcome="y", assignment=assigned, propensities=query.propensities,
+        policy=fixed, evaluation_subject_ids=query.evaluation_subject_ids,
+        baseline_groups=["x"] * 3 + ["y"] * 3 + ["z"] * 3,
+    )
+    grouped_result = ant.analyze({"y": outcomes}, query=grouped, refute="none")
+    points = grouped_result.policy_value.multi_action_cate
+    assert [(point.group, point.action, point.effect) for point in points] == [
+        (group, action, effect)
+        for group in ("x", "y", "z")
+        for action, effect in (("A", 1.0), ("B", 3.0))
+    ]
+    assert all(point.uncertainty == "point_only" for point in points)
+    grouped_artifact = ant.load(grouped_result.export(artifact_id="grouped-multi-policy"))
+    assert grouped_artifact.answer.structured["multi_action_cate"][0]["effect"] == pytest.approx(1.0)
+    with pytest.raises(CausalValueError, match="baseline_groups"):
+        policy.MultiActionPolicyValue(
+            outcome="y", assignment=assigned, propensities=query.propensities,
+            policy=fixed, evaluation_subject_ids=query.evaluation_subject_ids,
+            baseline_groups=["x"],
+        )
     with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
         result.refresh({"y": outcomes})
 

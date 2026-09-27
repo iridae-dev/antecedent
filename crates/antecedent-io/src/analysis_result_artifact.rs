@@ -392,6 +392,27 @@ pub struct PolicyValueWire {
     /// Held-out randomized uplift by descending frozen score bin.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub uplift_bins: Vec<UpliftBinWire>,
+    /// Point-only action effects versus control within fixed baseline strata.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_action_cate: Vec<MultiActionCateWire>,
+}
+
+/// One point-only randomized multi-action conditional effect.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MultiActionCateWire {
+    /// Pre-treatment group label.
+    pub group: String,
+    /// Action compared with control.
+    pub action: String,
+    /// Point estimate of the action minus control contrast.
+    pub effect: f64,
+    /// Total rows in the group.
+    pub evaluation_rows: usize,
+    /// Rows assigned the action.
+    pub observed_action_rows: usize,
+    /// Rows assigned control.
+    pub observed_control_rows: usize,
 }
 
 /// One retained uplift bin with descriptive row-score uncertainty.

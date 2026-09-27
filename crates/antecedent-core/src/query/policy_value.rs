@@ -35,6 +35,8 @@ pub struct MultiActionPolicyInputs {
     pub budget: Option<f64>,
     /// Maximum total reference spend.
     pub reference_budget: Option<f64>,
+    /// Frozen pre-treatment stratum for action-specific conditional effects.
+    pub cate_groups: Arc<[Arc<str>]>,
 }
 
 impl MultiActionPolicyInputs {
@@ -49,6 +51,8 @@ impl MultiActionPolicyInputs {
             || self.action_labels.iter().any(|x| x.trim().is_empty())
             || self.action_labels.iter().collect::<std::collections::HashSet<_>>().len() != k
             || self.assignment.iter().chain(self.actions.iter()).chain(self.reference.iter()).any(|&a| a >= k)
+            || (!self.cate_groups.is_empty() && (self.cate_groups.len() != n
+                || self.cate_groups.iter().any(|group| group.trim().is_empty())))
         {
             return Err(QueryError::InvalidPolicyValue("multi-action policy rows, labels, probabilities, and constraints must align".into()));
         }
