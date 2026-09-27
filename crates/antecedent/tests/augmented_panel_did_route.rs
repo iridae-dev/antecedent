@@ -1,4 +1,4 @@
-//! Retained augmented panel DiD known-truth, refusal, and artifact evidence.
+//! Retained augmented panel `DiD` known-truth, refusal, and artifact evidence.
 
 use std::sync::Arc;
 

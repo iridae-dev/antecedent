@@ -1,4 +1,5 @@
 //! Retained supplied-propensity observational network exposure through the study lifecycle.
+#![allow(clippy::float_cmp, clippy::cast_sign_loss, clippy::cast_lossless, reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts")]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;

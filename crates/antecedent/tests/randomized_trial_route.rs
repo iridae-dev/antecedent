@@ -1,4 +1,5 @@
 //! Focused coverage for graphless randomized ITT routing.
+#![allow(clippy::float_cmp, clippy::cast_lossless, clippy::too_many_lines, reason = "integration test asserts exact deterministic estimates and widens small integer fixtures to f64")]
 
 use std::sync::Arc;
 

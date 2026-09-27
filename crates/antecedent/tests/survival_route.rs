@@ -1,4 +1,5 @@
 //! End-to-end retained randomized survival and competing-risk execution.
+#![allow(clippy::float_cmp, clippy::redundant_locals, reason = "integration test asserts exact deterministic estimates; a rebinding keeps the fixture readable")]
 
 use std::sync::Arc;
 

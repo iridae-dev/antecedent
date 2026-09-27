@@ -49,6 +49,7 @@ pub struct GraphlessSupportKey<'a> {
 }
 
 /// Observed design and inference support for an exact graphless license.
+#[allow(clippy::struct_excessive_bools, reason = "each flag records a distinct observed support condition; they are not a state enum")]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphlessAssignmentSupport {
     /// `unit`, `cluster`, or independent `sequence`, matched to the licensed design.

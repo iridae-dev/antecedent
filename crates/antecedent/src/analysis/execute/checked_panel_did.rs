@@ -103,8 +103,10 @@ impl CheckedPanelDidOperation {
         if self.query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
             return self.execute_repeated_cross_section(data, y);
         }
+        #[allow(clippy::type_complexity, reason = "one-off per-subject accumulator tuple confined to this local map")]
         let mut subjects: BTreeMap<&str, (Option<f64>, Option<f64>, Option<bool>, Option<&str>)> =
             BTreeMap::new();
+        #[allow(clippy::needless_range_loop, reason = "index addresses multiple row-aligned query slices (y, subjects, treated)")]
         for i in 0..y.len() {
             if !y[i].is_finite() {
                 return Err(CausalError::Unsupported {

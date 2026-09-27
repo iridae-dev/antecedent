@@ -1,4 +1,5 @@
-//! Retained native balanced-panel DiD route.
+//! Retained native balanced-panel `DiD` route.
+#![allow(clippy::float_cmp, clippy::cast_lossless, reason = "integration test asserts exact deterministic estimates and widens small integer fixtures to f64")]
 
 use std::sync::Arc;
 

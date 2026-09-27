@@ -157,7 +157,7 @@ fn propensity_workspace_reused_estimate_into_overlap() {
         &data,
         &estimand,
         &query,
-        estimate.assumptions,
+        estimate.assumptions.clone(),
         0,
         None,
         None,

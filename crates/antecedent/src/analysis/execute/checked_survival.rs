@@ -107,6 +107,7 @@ impl CheckedSurvivalOperation {
         let event_raw = numeric_column(data, self.query.event)?;
         let treatment_raw = numeric_column(data, self.query.treatment)?;
         let entry = self.query.delayed_entry.map(|id| numeric_column(data, id)).transpose()?;
+        #[allow(clippy::cast_possible_truncation, reason = "each value is validated finite, integral, nonnegative, and within i64 range on the line above the cast")]
         let event = event_raw
             .iter()
             .map(|&v| {

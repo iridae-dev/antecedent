@@ -1035,6 +1035,8 @@ pub fn validate_class_response_pair(
 /// # Errors
 ///
 /// Unknown ids or incompatible pairs.
+// exhaustive identifier/estimator compatibility table; length is inherent, not decomposable
+#[allow(clippy::too_many_lines)]
 pub fn validate_static_pair(
     identifier: IdentifierId,
     estimator: EstimatorId,
@@ -1281,8 +1283,13 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceClusterNeyman
         | EstimatorId::InterferenceSaturationExact
         | EstimatorId::InterferenceObservationalIpw
-        | EstimatorId::InterferenceBayesianGaussian => false,
-        EstimatorId::ContinuousDoseKernel => false,
+        | EstimatorId::InterferenceBayesianGaussian
+        | EstimatorId::ContinuousDoseKernel
+        | EstimatorId::RandomizedSurvivalProductLimit
+        | EstimatorId::LongitudinalIpwRegime
+        | EstimatorId::LongitudinalGFormulaRegime
+        | EstimatorId::LongitudinalSequentialDrRegime
+        | EstimatorId::LongitudinalMarginalStructuralModel => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
         | EstimatorId::RandomizedAncova
@@ -1296,8 +1303,6 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::RandomizedMultiActionIpwPolicy => {
             matches!(method, EstimandMethod::RandomizedPolicyValue)
         }
-        EstimatorId::RandomizedSurvivalProductLimit => false,
-        EstimatorId::LongitudinalIpwRegime | EstimatorId::LongitudinalGFormulaRegime | EstimatorId::LongitudinalSequentialDrRegime | EstimatorId::LongitudinalMarginalStructuralModel => false,
     }
 }
 
