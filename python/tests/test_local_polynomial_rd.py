@@ -77,7 +77,8 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
                 )
                 running.append(score)
                 treatment.append(dose)
-                outcome.append(1.0 + 2.0 * score + 0.5 * score**2 + 3.0 * dose)
+                noise = (-0.02, -0.01, 0.01, 0.02)[replicate] if kink else 0.0
+                outcome.append(1.0 + 2.0 * score + 0.5 * score**2 + 3.0 * dose + noise)
     rows = {"x": running, "t": treatment, "y": outcome}
     query = (RegressionKink if kink else FuzzyRegressionDiscontinuity)("y", "t", "x", 0.0, 1.0)
     result = analyze(rows, query=query)
