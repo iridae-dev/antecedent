@@ -2410,7 +2410,12 @@ pub(crate) fn ate_result_from_analysis(
                 .map(str::to_string);
             section
         }),
-        panel_did: result.panel_did.as_ref().map(Into::into),
+        panel_did: result.panel_did.as_ref().map(|value| {
+            let mut section = crate::quasi_api::PanelDidSection::from(value);
+            section.graphless_support_status = result.support_status
+                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section
+        }),
         synthetic_control: result.synthetic_control.as_ref().map(Into::into),
         synthetic_did: result.synthetic_did.as_ref().map(Into::into),
         local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(Into::into),

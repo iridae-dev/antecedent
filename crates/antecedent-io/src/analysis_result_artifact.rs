@@ -506,6 +506,9 @@ pub struct PanelDidWire {
     pub clusters: usize,
     /// Explicit uncertainty semantics tag.
     pub uncertainty: String,
+    /// Exact graphless two-period DiD license, absent off-axis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
@@ -2230,6 +2233,21 @@ fn validate_result(
                 && (query.augmented.is_some() || did.uncertainty == "cluster_robust_standard_error_no_interval"),
             _ => false,
         }};
+        let did_design = if query.repeated_cross_section { "repeated_cross_section_2x2" } else { "panel_2x2" };
+        let did_method = if query.repeated_cross_section { "four_cell_cluster_scores_cr1" } else { "cluster_change_scores_cr1" };
+        let min_cell_clusters = cell_clusters.iter().flatten().map(std::collections::BTreeSet::len).min().unwrap_or(0);
+        let did_licensed = query.augmented.is_none() && query.staggered_target.is_none()
+            && !query.staggered_event_study && interval_valid && did.interval_95.is_some()
+            && graphless_data::LICENSES.iter().any(|row| {
+                row.family == "difference_in_differences" && row.design == did_design
+                    && row.method == did_method && row.inference_claim == "pointwise_95_normal_interval"
+                    && row.assignment_unit == "cluster"
+                    && group_clusters[0].len() >= row.min_assignment_units_per_arm
+                    && group_clusters[1].len() >= row.min_assignment_units_per_arm
+                    && (!query.repeated_cross_section || (!duplicate_subject
+                        && 4 >= row.min_blocks && min_cell_clusters >= row.min_block_arm))
+                    && 1 >= row.min_reported_intervals
+            });
         if result.estimate != Some(did.effect)
             || !interval_valid
             || !did.effect.is_finite()
@@ -2241,6 +2259,8 @@ fn validate_result(
             || !event_study_valid
             || !event_intervals_valid
             || !augmented_valid
+            || did.graphless_support_status.as_deref().is_some_and(|status|
+                Some(status) != did_licensed.then_some("licensed"))
             || (query.repeated_cross_section
                 && (duplicate_subject
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
@@ -2932,6 +2952,7 @@ mod tests {
             comparison_subjects: 2,
             clusters: 4,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
+            graphless_support_status: None,
             event_time_effects: vec![],
             event_time_intervals_95: vec![],
             augmented: None,
@@ -2972,6 +2993,7 @@ mod tests {
             comparison_subjects: 4,
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
+            graphless_support_status: None,
             event_time_effects: vec![],
             event_time_intervals_95: vec![],
             augmented: None,
@@ -3029,6 +3051,7 @@ mod tests {
             comparison_subjects: 4,
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
+            graphless_support_status: None,
             event_time_effects: vec![],
             event_time_intervals_95: vec![],
             augmented: None,

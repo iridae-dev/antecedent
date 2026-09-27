@@ -470,7 +470,8 @@ def _panel_did_from_raw(
             "no_interference",
             "independent_sampling_clusters",
         ),
-        support_status="off_axis_interval_evidence" if section.interval_95 is not None else "unlicensed_point_utility",
+        support_status=(section.graphless_support_status or
+                        ("off_axis_interval_evidence" if section.interval_95 is not None else "unlicensed_point_utility")),
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
     )

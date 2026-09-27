@@ -275,6 +275,24 @@ mod graphless_support_tests {
         assert_eq!(classify_graphless(cate, GraphlessAssignmentSupport { min_group_arm_rows: 49, ..groups }), GraphlessSupportStatus::Refused);
         assert_eq!(classify_graphless(cate, GraphlessAssignmentSupport { reported_intervals: 2, ..groups }), GraphlessSupportStatus::Refused);
     }
+
+    #[test]
+    fn exact_two_period_did_rows_require_independent_cluster_cells() {
+        let panel = GraphlessSupportKey { family: "difference_in_differences", design: "panel_2x2",
+            method: "cluster_change_scores_cr1", inference_claim: "pointwise_95_normal_interval" };
+        let observed = GraphlessAssignmentSupport { assignment_unit: "cluster", treated: 30, control: 30,
+            interval_95_published: true, reported_intervals: 1, ..Default::default() };
+        assert!(matches!(classify_graphless(panel, observed), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(panel, GraphlessAssignmentSupport { treated: 29, ..observed }), GraphlessSupportStatus::Refused);
+        let repeated = GraphlessSupportKey { design: "repeated_cross_section_2x2",
+            method: "four_cell_cluster_scores_cr1", ..panel };
+        let cells = GraphlessAssignmentSupport { treated: 60, control: 60,
+            blocks: 4, min_block_arm: 30, ..observed };
+        assert!(matches!(classify_graphless(repeated, cells), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(repeated, GraphlessAssignmentSupport { min_block_arm: 29, ..cells }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(repeated, GraphlessAssignmentSupport { blocks: 3, ..cells }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(GraphlessSupportKey { design: "staggered", ..panel }, cells), GraphlessSupportStatus::Refused);
+    }
 }
 
 /// Stable support-matrix refusal id.

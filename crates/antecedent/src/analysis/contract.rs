@@ -542,6 +542,22 @@ impl PreparedStudy {
                     });
             }
         }
+        if result.panel_did.is_some() {
+            contract.support_status = result.support_status;
+            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
+                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
+                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
+                    .then(|| {
+                        let CausalQuery::PanelDid(query) = self.query() else {
+                            unreachable!("licensed DiD result must retain its DiD query")
+                        };
+                        let (design, method) = if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
+                            ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
+                        } else { ("panel_2x2", "cluster_change_scores_cr1") };
+                        Arc::from(format!("graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"))
+                    });
+            }
+        }
         if let Some(randomized) = &result.randomized_effect {
             // Preparation cannot know the realized outcome variance. Keep the
             // program identity fixed, then bind the executed graphless license
@@ -3346,6 +3362,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             comparison_subjects: did.comparison_subjects,
             clusters: did.clusters,
             uncertainty: did.uncertainty.to_string(),
+            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
             event_time_effects: did.event_time_effects.iter().map(|effect| (
                 effect.cohort, effect.period, effect.event_time, effect.effect,
                 effect.treated_subjects, effect.comparison_subjects,
