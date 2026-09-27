@@ -622,23 +622,20 @@ fn run_elasticity_frequentist(
     data: &TabularData,
     accepted: bool,
     seed: u64,
+    level: f64,
 ) -> Result<(Study, StudyResult), String> {
     let dag = point_graph();
     let base = Study::tabular(data.clone());
-    let builder = if accepted {
-        base.graph(AcceptedGraph::from(dag))
-    } else {
-        base.graph(dag)
-    }
-    .query(CausalQuery::Response(ResponseQuery::new(point_query(DerivativeScale::LogLog))))
-    .response_options(ContinuousResponseOptions {
-        bandwidth: Some(BANDWIDTH),
-        confidence_level: LEVEL,
-        ..Default::default()
-    })
-    .refute(RefuteSuite::None)
-    .inference(InferenceMode::Frequentist)
-    .bootstrap_replicates(0);
+    let builder = if accepted { base.graph(AcceptedGraph::from(dag)) } else { base.graph(dag) }
+        .query(CausalQuery::Response(ResponseQuery::new(point_query(DerivativeScale::LogLog))))
+        .response_options(ContinuousResponseOptions {
+            bandwidth: Some(BANDWIDTH),
+            confidence_level: level,
+            ..Default::default()
+        })
+        .refute(RefuteSuite::None)
+        .inference(InferenceMode::Frequentist)
+        .bootstrap_replicates(0);
     let study = builder.build().map_err(|e| e.to_string())?;
     let ctx = ExecutionContext::for_tests(seed);
     let result = study.run(&ctx).map_err(|e| e.to_string())?;
@@ -654,15 +651,19 @@ fn run_elasticity_frequentist(
 /// The estimand is the true elasticity of the structural mean at `AT`:
 /// `m(a) = E[Y | do(A = a)] = 5 + 2 sin a` (E[X] = 0), so
 /// `η(AT) = AT · m'(AT) / m(AT) = AT · 2 cos AT / (5 + 2 sin AT)`.
-fn elasticity_frequentist_coverage(test: &'static str, accepted: bool) -> CoverageTally {
+fn elasticity_frequentist_coverage(
+    test: &'static str,
+    accepted: bool,
+    level: f64,
+) -> CoverageTally {
     let key = RecordKey { test, dgp: "point_data", interval: "analytic_se" };
-    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut tally = CoverageTally::for_record(key, level);
     // η(AT) = AT·m'(AT)/m(AT), derived from the DGP above.
     let truth = AT * mu_prime(AT) / mu(AT);
     let runs = map_replicates(n_sim(), |rep| {
         let seed = replicate_seed(0x0D1E, rep);
         let data = point_data(SampleGrid::HEAVY.n(N_POINT), seed);
-        run_elasticity_frequentist(&data, accepted, seed)
+        run_elasticity_frequentist(&data, accepted, seed, level)
     });
     for (rep, scored) in runs.iter().enumerate() {
         match scored {
@@ -673,10 +674,11 @@ fn elasticity_frequentist_coverage(test: &'static str, accepted: bool) -> Covera
                     // construction the Kennedy-DR point-derivative under analytic_se.
                     assert!(scalar_interval(response).is_some(), "{test}: interval must publish");
                     let contract = study.inspect().expect("inspect");
-                    let methods: Vec<_> = common::calibration_bind::constructions(&contract, result)
-                        .into_iter()
-                        .map(|(c, _)| c.interval_method)
-                        .collect();
+                    let methods: Vec<_> =
+                        common::calibration_bind::constructions(&contract, result)
+                            .into_iter()
+                            .map(|(c, _)| c.interval_method)
+                            .collect();
                     assert!(
                         methods.iter().any(|m| m == "analytic_se"),
                         "{test}: expected an analytic_se construction, got {methods:?}"
@@ -697,7 +699,7 @@ fn elasticity_frequentist_coverage(test: &'static str, accepted: bool) -> Covera
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn elasticity_dag_frequentist_nominal_90_coverage() {
-    elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_90_coverage", false)
+    elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_90_coverage", false, LEVEL)
         .assert();
 }
 
@@ -707,6 +709,25 @@ fn elasticity_dag_accepted_frequentist_nominal_90_coverage() {
     elasticity_frequentist_coverage(
         "elasticity_dag_accepted_frequentist_nominal_90_coverage",
         true,
+        LEVEL,
+    )
+    .assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn elasticity_dag_frequentist_nominal_95_coverage() {
+    elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_95_coverage", false, 0.95)
+        .assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
+    elasticity_frequentist_coverage(
+        "elasticity_dag_accepted_frequentist_nominal_95_coverage",
+        true,
+        0.95,
     )
     .assert();
 }
