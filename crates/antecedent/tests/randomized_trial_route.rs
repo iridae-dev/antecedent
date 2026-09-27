@@ -46,6 +46,34 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
 }
 
 #[test]
+fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
+    let baseline = [0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0];
+    let outcomes = [2.0, 0.0, 6.0, 4.0, 10.0, 8.0, 14.0, 12.0];
+    let data = TabularData::from_f64_columns([
+        ("outcome", &outcomes[..]), ("baseline", &baseline[..]),
+    ]).unwrap();
+    let query = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        [true, false, true, false, true, false, true, false],
+        [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    ).with_fixed_cuped(VariableId::from_raw(1), 4.0);
+    let result = Study::tabular(data).query(query).build().unwrap()
+        .run(&ExecutionContext::for_tests(47)).unwrap();
+    let adjusted = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(adjusted.effect, 2.0);
+    assert_eq!(adjusted.variance_upper_bound, 1.0);
+    assert_eq!(adjusted.uncertainty.as_ref(), "bernoulli_fixed_cuped_ht_conservative_variance_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "fixed_pre_assignment_cuped"
+    )));
+}
+
+#[test]
 fn graphless_complete_and_stratified_itt_use_neyman_variance() {
     let context = ExecutionContext::for_tests(4);
     let outcomes = [2.0, 0.0, 4.0, 2.0, 6.0, 4.0, 8.0, 6.0];
