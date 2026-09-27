@@ -462,6 +462,7 @@ class SurvivalSection:
     difference_at_tau_interval: list[float] | None
     bootstrap_replicates_requested: int | None
     bootstrap_replicates_ok: int | None
+    assignment_counts: tuple[int, int]
     censoring_survival_provenance: str | None
     difference_band: tuple[list[float], list[float], list[float], list[float], int] | None
     band_unavailable_reason: str | None
