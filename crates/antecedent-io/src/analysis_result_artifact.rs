@@ -785,6 +785,13 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         ));
     }
     if let Some(policy) = &result.policy_value {
+        let expected_uncertainty = match &result.query {
+            crate::CausalQueryWire::PolicyValue(query) if query.mu0.is_empty() && query.mu1.is_empty() => {
+                "ipw_row_score_standard_error_independent_subjects"
+            }
+            crate::CausalQueryWire::PolicyValue(_) => "row_score_standard_error_independent_subjects",
+            _ => "invalid_policy_value_query",
+        };
         if result.estimate.is_some()
             || ![
                 policy.policy_value,
@@ -810,7 +817,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || !(0.0..=1.0).contains(&policy.propensity_max)
             || policy.propensity_min > policy.propensity_max
             || policy.prediction_ownership.is_empty()
-            || policy.uncertainty != "row_score_standard_error_independent_subjects"
+            || policy.uncertainty != expected_uncertainty
         {
             return Err(IoError::Convert(
                 "invalid policy-value payload or fabricated scalar effect".into(),

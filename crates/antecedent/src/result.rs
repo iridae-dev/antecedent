@@ -160,6 +160,8 @@ pub struct PolicyValueEstimate {
     pub propensity_min: f64,
     /// Maximum known randomized propensity.
     pub propensity_max: f64,
+    /// Method-specific row-score uncertainty semantics.
+    pub uncertainty: Arc<str>,
 }
 
 /// Point-only randomized survival or competing-risk result on a shared time grid.

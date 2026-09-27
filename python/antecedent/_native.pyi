@@ -401,6 +401,7 @@ class PolicyValueSection:
     prediction_ownership: str
     propensity_min: float
     propensity_max: float
+    uncertainty: str
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
