@@ -407,6 +407,56 @@ mod tests {
     }
 
     #[test]
+    fn boundary_probability_multi_action_cate_intervals_cover_known_truth() {
+        use std::sync::Arc;
+        const N: usize = 300;
+        const DRAWS: usize = 2_000;
+        let mut state = 0xb41d_8ac3_67f0_2219_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let mut covered = [0_usize; 2];
+        let mut supported = [0_usize; 2];
+        for _ in 0..DRAWS {
+            let assignment = (0..N).map(|_| {
+                let u = uniform();
+                if u < 0.5 { 0 } else if u < 0.8 { 1 } else { 2 }
+            }).collect::<Vec<_>>();
+            let outcome = assignment.iter().map(|&action| {
+                [1.0, 3.0, 4.0][action] + 2.0 * (uniform() - 0.5)
+            }).collect::<Vec<_>>();
+            let policy = antecedent_core::MultiActionPolicyInputs {
+                action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
+                assignment: Arc::from(assignment), actions: Arc::from(vec![0; N]),
+                reference: Arc::from(vec![0; N]),
+                propensities: Arc::from((0..N).flat_map(|_| [0.5, 0.3, 0.2]).collect::<Vec<_>>()),
+                available: Arc::from(vec![true; N * 3]), costs: Arc::from([0.0; 3]),
+                reference_costs: Arc::from([0.0; 3]), capacities: Arc::from([N; 3]),
+                reference_capacities: Arc::from([N; 3]), budget: None, reference_budget: None,
+                cate_groups: Arc::from(vec![Arc::<str>::from("g0"); N]),
+            };
+            let points = evaluate_multi_action_cate(&outcome, &policy).unwrap();
+            for (index, point) in points.iter().enumerate() {
+                if let Some(bounds) = point.interval_95 {
+                    supported[index] += 1;
+                    let truth = [2.0, 3.0][index];
+                    covered[index] += usize::from(bounds[0] <= truth && truth <= bounds[1]);
+                }
+            }
+        }
+        for (index, hits) in covered.into_iter().enumerate() {
+            let coverage = hits as f64 / supported[index] as f64;
+            eprintln!("boundary CATE {index}: {hits}/{}, coverage={coverage:.4}", supported[index]);
+            assert!(supported[index] >= 1_700);
+            assert!((0.93..=0.985).contains(&coverage));
+        }
+    }
+
+    #[test]
     fn held_out_uplift_bin_intervals_cover_fixed_rank_truth() {
         const BIN_ROWS: usize = 300;
         const DRAWS: usize = 2_000;
@@ -570,7 +620,7 @@ mod tests {
         let multi_costs = [0.0, 0.1, 0.2];
         let multi_truth = (1.0 + 1.9 + 3.8) / 3.0;
         let binary_truth = 1.0 + 1.85 / 3.0;
-        let mut counts = [0_usize; 4];
+        let mut counts = [0_usize; 5];
         for _ in 0..simulations {
             // Baseline features and their fixed policy recommendations are
             // sampled independently for each evaluation subject.
@@ -586,6 +636,9 @@ mod tests {
             let ci = pointwise_intervals_95(&score, n, pm, rm).unwrap();
             counts[0] += usize::from(ci.policy[0] <= binary_truth && binary_truth <= ci.policy[1]);
             counts[1] += usize::from(ci.incremental[0] <= binary_truth - 1.0 && binary_truth - 1.0 <= ci.incremental[1]);
+            let uplift = evaluate_uplift_bins(&outcomes, &assignment, &[0.5], &vec![0; n], 1).unwrap();
+            let uplift_ci = uplift[0].interval_95.expect("one held-out randomized bin of 300 subjects");
+            counts[4] += usize::from(uplift_ci[0] <= 2.0 && 2.0 <= uplift_ci[1]);
 
             let multi_actions = (0..n).map(|_| (uniform() * 3.0).floor() as usize).collect::<Vec<_>>();
             let multi_assignment = (0..n).map(|_| { let u = uniform(); if u < 0.5 { 0 } else if u < 0.8 { 1 } else { 2 } }).collect::<Vec<_>>();

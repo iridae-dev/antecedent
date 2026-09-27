@@ -398,6 +398,9 @@ pub struct PolicyValueWire {
     pub propensity_max: f64,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
+    /// Exact graphless policy license, absent when no policy row matches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
     /// Held-out randomized uplift by descending frozen score bin.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub uplift_bins: Vec<UpliftBinWire>,
@@ -1950,6 +1953,92 @@ fn validate_result(
             }
         } else if !policy.multi_action_cate.is_empty() {
             return Err(IoError::Convert("multi-action CATE requires a multi-action query".into()));
+        }
+        let (design, method, claim) = match (query.multi_action.is_some(), query.mu0.is_empty(),
+            !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty()) {
+            (true, _, _, true) => ("multi_action_ipw_cate", "fixed_randomized_multi_action_ipw_fixed_group_scores",
+                "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"),
+            (true, _, _, false) => ("multi_action_ipw", "fixed_randomized_multi_action_ipw_scores",
+                "paired_policy_incremental_pointwise_95_normal_intervals"),
+            (false, true, true, _) => ("binary_ipw_uplift", "fixed_randomized_ipw_frozen_rank_scores",
+                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
+            (false, false, true, _) => ("binary_aipw_uplift", "fixed_held_out_randomized_aipw_frozen_rank_scores",
+                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
+            (false, true, false, _) => ("binary_ipw", "fixed_randomized_ipw_scores",
+                "paired_policy_incremental_pointwise_95_normal_intervals"),
+            (false, false, false, _) => ("binary_aipw", "fixed_held_out_randomized_aipw_scores",
+                "paired_policy_incremental_pointwise_95_normal_intervals"),
+        };
+        let (treated, control, min_action_rows, min_probability, policy_matches, reference_matches, uncoupled) =
+            if let Some(multi) = &query.multi_action {
+                let n = multi.assignment.len();
+                let k = multi.action_labels.len();
+                let treated = multi.assignment.iter().filter(|&&action| action != 0).count();
+                let policy_matches = multi.assignment.iter().zip(&multi.actions).filter(|(a, b)| a == b).count();
+                let reference_matches = multi.assignment.iter().zip(&multi.reference).filter(|(a, b)| a == b).count();
+                let coupled = [(&multi.capacities, &multi.costs, multi.budget),
+                    (&multi.reference_capacities, &multi.reference_costs, multi.reference_budget)]
+                    .into_iter().any(|(capacities, costs, budget)| {
+                        capacities.iter().any(|&limit| limit < n)
+                            || budget.is_some_and(|limit| limit + 1e-12 < n as f64
+                                * costs.iter().copied().fold(0.0_f64, f64::max))
+                    });
+                (treated, n - treated,
+                 (0..k).map(|action| multi.assignment.iter().filter(|&&a| a == action).count()).min().unwrap_or(0),
+                 multi.propensities.iter().copied().fold(f64::INFINITY, f64::min),
+                 policy_matches, reference_matches, !query.global_constraints_present && !coupled)
+            } else {
+                let n = query.assignment.len();
+                let treated = query.assignment.iter().filter(|&&assigned| assigned).count();
+                (treated, n - treated, treated.min(n - treated),
+                 query.propensity.iter().copied().map(|p| p.min(1.0 - p)).fold(f64::INFINITY, f64::min),
+                 query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
+                 query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count(),
+                 !query.global_constraints_present)
+            };
+        let min_bin_rows = policy.uplift_bins.iter().map(|bin| bin.evaluation_rows).min().unwrap_or(0);
+        let min_bin_arm_rows = if policy.uplift_bins.is_empty() { 0 } else {
+            (0..policy.uplift_bins.len()).flat_map(|bin| {
+                let treated = query.uplift_bins.iter().enumerate()
+                    .filter(|&(row, &rank)| rank == bin && query.assignment[row]).count();
+                [treated, policy.uplift_bins[bin].evaluation_rows - treated]
+            }).min().unwrap_or(0)
+        };
+        let scalar_intervals = usize::from(policy.policy_interval_95.is_some())
+            + usize::from(policy.incremental_interval_95.is_some());
+        let reported_intervals = scalar_intervals
+            + policy.uplift_bins.iter().filter(|bin| bin.interval_95.is_some()).count()
+            + policy.multi_action_cate.iter().filter(|point| point.interval_95.is_some()).count();
+        let all_reported_intervals = scalar_intervals == 2
+            && policy.uplift_bins.iter().all(|bin| bin.interval_95.is_some())
+            && policy.multi_action_cate.iter().all(|point| point.interval_95.is_some());
+        let min_group_rows = policy.multi_action_cate.iter().map(|point| point.evaluation_rows).min().unwrap_or(0);
+        let min_group_arm_rows = policy.multi_action_cate.iter()
+            .flat_map(|point| [point.observed_action_rows, point.observed_control_rows]).min().unwrap_or(0);
+        let licensed = graphless_data::LICENSES.iter().any(|row| {
+            row.family == "policy_value" && row.design == design && row.method == method
+                && row.inference_claim == claim && row.assignment_unit == "unit"
+                && query.evaluation_subject_ids.len() >= row.min_rows
+                && treated >= row.min_assignment_units_per_arm
+                && control >= row.min_assignment_units_per_arm
+                && min_action_rows >= row.min_action_rows
+                && min_probability + 1e-12 >= row.min_probability
+                && policy_matches >= row.min_policy_matches
+                && reference_matches >= row.min_reference_matches
+                && min_bin_rows >= row.min_bin_rows && min_bin_arm_rows >= row.min_bin_arm_rows
+                && min_group_rows >= row.min_group_rows && min_group_arm_rows >= row.min_group_arm_rows
+                && reported_intervals >= row.min_reported_intervals
+                && (!row.all_reported_intervals || all_reported_intervals)
+                && (!row.requires_uncoupled_constraints || uncoupled)
+                && (!row.requires_disjoint_nuisance_training || query.disjoint_training_subjects)
+                && (!row.requires_rank_ownership || (!query.uplift_training_subject_ids.is_empty()
+                    && query.uplift_training_subject_ids.iter()
+                        .all(|id| !query.evaluation_subject_ids.contains(id))))
+                && scalar_intervals == 2
+        });
+        if policy.graphless_support_status.as_deref().is_some_and(|status|
+            Some(status) != licensed.then_some("licensed")) {
+            return Err(IoError::Convert("policy graphless support status does not match exact design and interval evidence".into()));
         }
     }
     if let Some(did) = &result.panel_did {

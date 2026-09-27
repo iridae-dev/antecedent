@@ -96,7 +96,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
     let mut ranked = query();
     ranked.assignment = assignment.into();
-    ranked.actions = vec![false; n].into();
+    ranked.actions = (0..n).map(|i| i < 300).collect::<Vec<_>>().into();
     ranked.reference = vec![false; n].into();
     ranked.mu0 = Arc::from([]);
     ranked.mu1 = Arc::from([]);
@@ -106,7 +106,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     ranked.uplift_bin_count = 2;
     ranked.uplift_training_subject_ids = Arc::from([Arc::<str>::from("rank-train")]);
     let ctx = ExecutionContext::for_tests(61);
-    let prepared = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(ranked))
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(ranked.clone()))
         .build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bins = &result.policy_value.as_ref().unwrap().uplift_bins;
@@ -119,8 +119,23 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     let artifact = prepared.encode_contracted_result(&result, "ranked-interval", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().uplift_bins[0].interval_95, bins[0].interval_95);
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
     body.policy_value.as_mut().unwrap().uplift_bins[0].interval_95 = Some([0.0, 0.0]);
     assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-uplift").is_err());
+
+    ranked.mu0 = vec![1.0; n].into();
+    ranked.mu1 = vec![3.0; n].into();
+    ranked.disjoint_training_subjects = true;
+    let aipw = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(ranked))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let aipw_result = aipw.estimate(&data, &ctx).unwrap();
+    assert_eq!(aipw_result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert!(aipw_result.policy_value.as_ref().unwrap().uplift_bins.iter()
+        .all(|bin| bin.interval_95.is_some()));
+    let aipw_artifact = aipw.encode_contracted_result(&aipw_result, "aipw-ranked-interval", &ctx).unwrap();
+    let (_, _, aipw_body) = antecedent_io::decode_analysis_result_artifact(&aipw_artifact).unwrap();
+    assert_eq!(aipw_body.policy_value.unwrap().graphless_support_status.as_deref(), Some("licensed"));
 }
 
 #[test]
@@ -156,10 +171,12 @@ fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only()
     let incremental_ci = value.incremental_interval_95.unwrap();
     assert!(policy_ci[0] < value.policy_value && value.policy_value < policy_ci[1]);
     assert!(incremental_ci[0] < value.incremental_value && value.incremental_value < incremental_ci[1]);
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "policy-interval", &ctx).unwrap();
     let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, Some(policy_ci));
     assert_eq!(body.policy_value.as_ref().unwrap().incremental_interval_95, Some(incremental_ci));
+    assert_eq!(body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
     body.policy_value.as_mut().unwrap().incremental_interval_95 = Some([0.0, 0.0]);
     assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-policy").is_err());
 
@@ -167,6 +184,7 @@ fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only()
     q.crossfit_fold_ownership_valid = true;
     let crossfit = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q)).build().unwrap();
     let crossfit_result = crossfit.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    assert_eq!(crossfit_result.support_status, None);
     let point_only = crossfit_result.policy_value.unwrap();
     assert!(point_only.policy_interval_95.is_none());
     assert!(point_only.incremental_interval_95.is_none());
@@ -270,8 +288,10 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
         assert!(point.interval_95.is_none());
     }
     let grouped_artifact = grouped_prepared.encode_contracted_result(&grouped_result, "grouped-policy", &ctx).unwrap();
-    let (_, _, grouped_body) = antecedent_io::decode_analysis_result_artifact(&grouped_artifact).unwrap();
-    assert_eq!(grouped_body.policy_value.unwrap().multi_action_cate[0].effect, 1.0);
+    let (_, _, mut grouped_body) = antecedent_io::decode_analysis_result_artifact(&grouped_artifact).unwrap();
+    assert_eq!(grouped_body.policy_value.as_ref().unwrap().multi_action_cate[0].effect, 1.0);
+    grouped_body.policy_value.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(&grouped_body, vec!["outcome".into()], "forged-policy-license").is_err());
     assert_eq!(grouped_body.query, antecedent_io::causal_query_to_wire(&CausalQuery::PolicyValue(q.clone())).unwrap());
     q.multi_action.as_mut().unwrap().cate_groups = Arc::from([Arc::<str>::from("x")]);
     assert!(q.validate().is_err());
@@ -325,6 +345,7 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     let value = result.policy_value.as_ref().unwrap();
     assert!(value.policy_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(value.multi_action_cate.len(), 2);
     for (point, truth) in value.multi_action_cate.iter().zip([1.0, 3.0]) {
         let bounds = point.interval_95.expect("300 randomized subjects and 100 observed per arm");

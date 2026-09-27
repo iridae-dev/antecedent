@@ -89,7 +89,7 @@ all_reported_intervals = true
 requires_uncoupled_constraints = true
 requires_disjoint_nuisance_training = true
 requires_rank_ownership = true
-known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_uplift_bin_intervals_cover_fixed_rank_truth"
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::held_out_aipw_and_constrained_multi_action_intervals_cover_known_values"
 retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds"
 limitations = "Fixed binary AIPW policy with disjoint nuisance training and frozen ranked uplift bins with separate declared ranking training IDs, known 0.5 Bernoulli assignment, at least 300 independent subjects and 50 observed subjects per arm in every bin, and all scalar and bin pointwise 95% intervals published. No cross-fitted or simultaneous guarantee."
 
@@ -127,7 +127,7 @@ min_group_arm_rows = 50
 min_reported_intervals = 3
 all_reported_intervals = true
 requires_uncoupled_constraints = true
-known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support"
+known_truth_test = "crates/antecedent-estimate/src/policy_value.rs::boundary_probability_multi_action_cate_intervals_cover_known_truth"
 retained_route_test = "crates/antecedent/tests/policy_value_route.rs::multi_action_intervals_require_nonbinding_global_constraints"
 limitations = "Fixed multi-action policy plus pre-treatment baseline groups declared before outcomes, known action probabilities at least 0.2, at least 300 independent subjects and 50 observed subjects in each compared arm per group, uncoupled constraints, and all scalar and group/action pointwise 95% intervals published. No fitted CATE model or simultaneous group coverage."
 
