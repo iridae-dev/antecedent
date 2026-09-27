@@ -159,6 +159,7 @@ class SurvivalEstimate:
     survival_at_tau_difference_interval: tuple[float, float] | None = None
     bootstrap_replicates_requested: int | None = None
     bootstrap_replicates_ok: int | None = None
+    censoring_survival_provenance: str | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
@@ -290,6 +291,7 @@ class CumulativeIncidenceEstimate:
     incidence_difference_interval: tuple[float, float] | None = None
     bootstrap_replicates_requested: int | None = None
     bootstrap_replicates_ok: int | None = None
+    censoring_survival_provenance: str | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",

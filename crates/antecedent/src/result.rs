@@ -347,6 +347,8 @@ pub struct SurvivalEstimate {
     pub bootstrap_replicates_requested: Option<u32>,
     /// Draws satisfying the estimator's original support contract.
     pub bootstrap_replicates_ok: Option<u32>,
+    /// Caller-supplied fixed censoring function, when the IPCW route was used.
+    pub censoring_survival_provenance: Option<Arc<str>>,
 }
 
 /// Identification certificate retained from the actual execution, including class atoms.
