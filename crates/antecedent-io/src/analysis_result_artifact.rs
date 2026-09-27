@@ -521,12 +521,22 @@ pub struct LocalPolynomialRatioWire {
     pub reduced_form: f64,
     /// Local treatment contrast.
     pub first_stage: f64,
+    /// Prespecified running-variable cutoff.
+    pub cutoff: f64,
+    /// Prespecified triangular-kernel bandwidth.
+    pub bandwidth: f64,
+    /// Whether the contrast is a regression kink.
+    pub kink: bool,
     /// Local observations below the cutoff.
     pub n_left: usize,
     /// Local observations on or above the cutoff.
     pub n_right: usize,
     /// Descriptive HC0 standard error.
     pub standard_error: f64,
+    /// Descriptive HC0 reduced-form standard error.
+    pub reduced_form_standard_error: f64,
+    /// Descriptive HC0 first-stage standard error.
+    pub first_stage_standard_error: f64,
     /// Point-only uncertainty semantics.
     pub uncertainty: String,
 }
@@ -1100,7 +1110,13 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         return Err(IoError::Convert("local ratio artifact is missing its design-specific result section".into()));
     }
     if let Some(fit) = &result.local_polynomial_ratio {
-        if !matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
+        let query = match &result.query {
+            crate::CausalQueryWire::LocalPolynomialRatio(query) => query,
+            _ => return Err(IoError::Convert("local ratio result requires matching query".into())),
+        };
+        if fit.cutoff != query.cutoff
+            || fit.bandwidth != query.bandwidth
+            || fit.kink != query.kink
             || result.estimate != Some(fit.effect)
             || result.standard_error.is_some()
             || result.interval_lower.is_some()
@@ -1111,9 +1127,13 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || fit.first_stage.abs() < 1e-12
             || !fit.standard_error.is_finite()
             || fit.standard_error < 0.0
+            || !fit.reduced_form_standard_error.is_finite()
+            || fit.reduced_form_standard_error < 0.0
+            || !fit.first_stage_standard_error.is_finite()
+            || fit.first_stage_standard_error < 0.0
             || fit.n_left < 3
             || fit.n_right < 3
-            || fit.uncertainty != "point_only_with_unvalidated_hc0_standard_error"
+            || fit.uncertainty != "rbc_point_with_unvalidated_hc0_standard_error_no_interval"
         {
             return Err(IoError::Convert("invalid local ratio support or fabricated interval".into()));
         }

@@ -202,12 +202,22 @@ pub struct LocalPolynomialRatioEstimate {
     pub reduced_form: f64,
     /// Local treatment jump or slope change.
     pub first_stage: f64,
+    /// Prespecified running-variable cutoff retained with the result.
+    pub cutoff: f64,
+    /// Prespecified triangular-kernel bandwidth retained with the result.
+    pub bandwidth: f64,
+    /// True for a slope-kink contrast; false for a level discontinuity.
+    pub kink: bool,
     /// Observations inside the window strictly below the cutoff.
     pub n_left: usize,
     /// Observations inside the window on or above the cutoff.
     pub n_right: usize,
     /// Descriptive HC0 standard error without a licensed interval.
     pub standard_error: f64,
+    /// Descriptive HC0 standard error for the bias-corrected outcome contrast.
+    pub reduced_form_standard_error: f64,
+    /// Descriptive HC0 standard error for the bias-corrected first stage.
+    pub first_stage_standard_error: f64,
     /// Explicit point-only uncertainty semantics.
     pub uncertainty: Arc<str>,
 }

@@ -419,9 +419,14 @@ class LocalPolynomialRatioSection:
     effect: float
     reduced_form: float
     first_stage: float
+    cutoff: float
+    bandwidth: float
+    kink: bool
     n_left: int
     n_right: int
     standard_error: float
+    reduced_form_standard_error: float
+    first_stage_standard_error: float
     uncertainty: str
 
 class SurvivalSection:

@@ -478,6 +478,9 @@ class LocalPolynomialRatioEstimate:
     ci_upper: float | None
     reduced_form_standard_error: float | None
     first_stage_standard_error: float | None
+    cutoff: float | None = None
+    bandwidth: float | None = None
+    kink: bool | None = None
     uncertainty: str = "local_quadratic_rbc_hc0_delta_normal_unvalidated"
     design: str = "fuzzy_regression_discontinuity_local_quadratic"
     assumptions: tuple[str, ...] = (
@@ -898,6 +901,9 @@ def _estimate_local_polynomial_ratio(data: Any, query: Any, *, kink: bool) -> Lo
         ci_upper=float(ci_upper),
         reduced_form_standard_error=float(reduced_se),
         first_stage_standard_error=float(first_stage_se),
+        cutoff=float(query.cutoff),
+        bandwidth=float(query.bandwidth),
+        kink=bool(kink),
         design=(
             "fuzzy_regression_kink_local_quadratic"
             if kink
