@@ -224,6 +224,8 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         if regime.get("method") == "marginal_structural_model":
             detail = ("longitudinal_msm_pointwise_cr1_interval" if regime.get("value_interval_95") is not None
                       else "longitudinal_msm_pointwise_cr1")
+        elif regime.get("method") == "sequential_dr" and regime.get("value_interval_95") is not None:
+            detail = "longitudinal_sequential_dr_pointwise_interval_conditional_q"
         else:
             detail = ("longitudinal_regime_pointwise_interval" if regime.get("value_interval_95") is not None
                       else "longitudinal_regime_point_only")
@@ -394,6 +396,8 @@ class ResultAPI:
             if regime.method == "marginal_structural_model":
                 detail = ("longitudinal_msm_pointwise_cr1_interval" if regime.value_interval_95 is not None
                           else "longitudinal_msm_pointwise_cr1")
+            elif regime.method == "sequential_dr" and regime.value_interval_95 is not None:
+                detail = "longitudinal_sequential_dr_pointwise_interval_conditional_q"
             else:
                 detail = ("longitudinal_regime_pointwise_interval" if regime.value_interval_95 is not None
                           else "longitudinal_regime_point_only")
@@ -467,6 +471,11 @@ class ResultAPI:
                         "Subject-clustered CR1 standard errors; no calibrated interval at this support level.")
             interval = regime.value_interval_95
             if interval is not None:
+                if regime.method == "sequential_dr":
+                    return (f"Sequential randomized regime value {regime.value:g}. "
+                            f"Pointwise 95% independent-subject interval [{interval[0]:g}, {interval[1]:g}] "
+                            "conditional on caller-declared Q predictions trained outside each subject's fold; "
+                            "Q training is not independently verified.")
                 return (f"Sequential randomized regime value {regime.value:g}. "
                         f"Pointwise 95% independent-subject interval [{interval[0]:g}, {interval[1]:g}].")
             return (

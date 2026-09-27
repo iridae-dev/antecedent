@@ -129,6 +129,30 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
         score_standard_error: None }, scores))
 }
 
+/// Calibrated two-period pointwise interval for a prespecified regime under
+/// known randomization and genuinely subject-excluded Q predictions. The
+/// caller must establish those ownership conditions; this kernel can check
+/// only the score and support inputs. The support floor is deliberately
+/// limited to the randomized designs tested in repeated samples.
+pub fn sequential_dr_pointwise_interval_95(
+    summary: &RegimeValueSummary, scores: &[f64], periods: usize,
+    observed_subjects: usize, observed_matching_subjects: usize,
+) -> Option<(f64, [f64; 2])> {
+    let n = scores.len();
+    if periods != 2 || n < 300 || observed_subjects < 200
+        || observed_matching_subjects < 50
+        || summary.minimum_action_probability < 0.4
+        || summary.minimum_censoring_probability < 0.85
+        || scores.iter().any(|score| !score.is_finite())
+    { return None; }
+    let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
+        / (n * (n - 1)) as f64).sqrt();
+    if !se.is_finite() || se <= 0.0 { return None; }
+    let span = antecedent_stats::normal_ppf(0.975) * se;
+    let bounds = [summary.value - span, summary.value + span];
+    bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
+}
+
 /// Evaluate supplied conditional period rewards under a prescribed regime.
 /// Predictions are subject-major and must be produced without reusing the
 /// subject's outcome when excluded-fold ownership is declared upstream.
@@ -317,6 +341,8 @@ mod tests {
         let c = vec![0.9; n * 2];
         let mut covered_90 = 0;
         let mut covered_95 = 0;
+        let mut gated_total = 0;
+        let mut gated_covered = 0;
         for _ in 0..simulations {
             let mut treatment = Vec::with_capacity(n * 2);
             let mut history = Vec::with_capacity(n * 2);
@@ -336,6 +362,14 @@ mod tests {
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
                 &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
             ).unwrap();
+            let matched = (0..n).filter(|&i| observed[i] && treatment[2 * i]
+                && treatment[2 * i + 1]).count();
+            if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
+                &summary, &scores, 2, observed.iter().filter(|&&x| x).count(), matched,
+            ) {
+                gated_total += 1;
+                gated_covered += usize::from(bounds[0] <= 4.0 && 4.0 <= bounds[1]);
+            }
             assert_eq!(scores.len(), n);
             let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
                 / (n * (n - 1)) as f64).sqrt();
@@ -352,6 +386,10 @@ mod tests {
             assert!((coverage - nominal).abs() <= 3.0 * mcse,
                 "fixed-Q sequential DR coverage {coverage} at {nominal}");
         }
+        assert!(gated_total >= 1_600);
+        let coverage = gated_covered as f64 / gated_total as f64;
+        println!("fixed Q supported DR interval: accepted={gated_total}, coverage={coverage}");
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / gated_total as f64).sqrt());
     }
 
     #[test]
@@ -371,6 +409,8 @@ mod tests {
         let c = vec![0.85; n * 2];
         let mut covered_90 = 0;
         let mut covered_95 = 0;
+        let mut gated_total = 0;
+        let mut gated_covered = 0;
         for _ in 0..simulations {
             let mut treatment = Vec::with_capacity(n * 2);
             let mut history = Vec::with_capacity(n * 2);
@@ -403,6 +443,14 @@ mod tests {
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
                 &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
             ).unwrap();
+            let matched = (0..n).filter(|&i| observed[i] && treatment[2 * i]
+                && treatment[2 * i + 1]).count();
+            if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
+                &summary, &scores, 2, observed.iter().filter(|&&x| x).count(), matched,
+            ) {
+                gated_total += 1;
+                gated_covered += usize::from(bounds[0] <= 4.0 && 4.0 <= bounds[1]);
+            }
             let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
                 / (n * (n - 1)) as f64).sqrt();
             assert!(se.is_finite() && se > 0.0);
@@ -418,6 +466,10 @@ mod tests {
             assert!((coverage - nominal).abs() <= 3.0 * mcse,
                 "subject-excluded Q sequential DR coverage {coverage} at {nominal}");
         }
+        assert!(gated_total >= 1_400);
+        let coverage = gated_covered as f64 / gated_total as f64;
+        println!("excluded-fold Q supported DR interval: accepted={gated_total}, coverage={coverage}");
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / gated_total as f64).sqrt());
     }
 
     #[test]
