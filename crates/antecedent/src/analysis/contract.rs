@@ -3396,6 +3396,9 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
             antecedent_io::LongitudinalRegimeWire {
                 method: regime.method.to_string(),
+                rule_id: regime.rule_id.as_ref().map(ToString::to_string),
+                rule_version: regime.rule_version.as_ref().map(ToString::to_string),
+                rule_provenance: regime.rule_provenance.as_ref().map(ToString::to_string),
                 value: regime.value,
                 effective_sample_size: regime.effective_sample_size,
                 matched_observed_fraction: regime.matched_observed_fraction,

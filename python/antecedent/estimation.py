@@ -564,6 +564,9 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         standard_errors=tuple(section.standard_errors) if section.standard_errors is not None else None,
         stabilizing_numerator_probabilities=tuple(section.stabilizing_numerator_probabilities) if section.stabilizing_numerator_probabilities is not None else None,
         observed_subjects=section.observed_subjects,
+        rule_id=section.rule_id,
+        rule_version=section.rule_version,
+        rule_provenance=section.rule_provenance,
     )
 
 
@@ -3146,6 +3149,8 @@ class _PrepareRoute:
             q_predictions=flatten(query.q_predictions) if query.q_predictions is not None else [],
             observation_history=flatten(query.observation_history) if query.observation_history is not None else [],
             prediction_fold_ids=list(query.prediction_fold_ids) if query.prediction_fold_ids is not None else [],
+            rule_id=query.rule_id, rule_version=query.rule_version,
+            rule_provenance=query.rule_provenance,
             accepted=False, **self._common(),
         )
         return native, "average"

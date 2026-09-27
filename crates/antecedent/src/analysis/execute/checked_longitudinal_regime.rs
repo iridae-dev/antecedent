@@ -205,6 +205,9 @@ impl CheckedLongitudinalRegimeOperation {
         result.treatment = None;
         result.longitudinal_regime = Some(crate::LongitudinalRegimeEstimate {
             method: Arc::from(method),
+            rule_id: self.query.rule_id.clone(),
+            rule_version: self.query.rule_version.clone(),
+            rule_provenance: self.query.rule_provenance.clone(),
             value: summary.value,
             effective_sample_size: summary.effective_sample_size,
             matched_observed_fraction: summary.matched_observed_fraction,

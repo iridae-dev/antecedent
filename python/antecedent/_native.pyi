@@ -444,6 +444,9 @@ class SurvivalSection:
 
 class LongitudinalRegimeSection:
     method: str
+    rule_id: str | None
+    rule_version: str | None
+    rule_provenance: str | None
     value: float
     effective_sample_size: float
     matched_observed_fraction: float
@@ -1367,6 +1370,7 @@ class PreparedAnalysis:
         minimum_probability: float, *, method: str = "ipw", period_outcome_predictions: list[float] = [],
         stabilizing_numerator_probabilities: list[float] = [],
         q_predictions: list[float] = [], observation_history: list[bool] = [], prediction_fold_ids: list[int] = [],
+        rule_id: str | None = None, rule_version: str | None = None, rule_provenance: str | None = None,
         accepted: bool = False, seed: int = 1,
         threads: int | None = None, options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...

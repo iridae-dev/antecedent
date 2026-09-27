@@ -26,6 +26,9 @@ fn query() -> LongitudinalRegimeQuery {
         excluded_fold_predictions: false,
         probabilities_known_by_design: true,
         minimum_probability: 0.01,
+        rule_id: None,
+        rule_version: None,
+        rule_provenance: None,
     }
 }
 
@@ -109,6 +112,37 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
     .is_err());
     let refreshed = prepared.refresh(data, &ctx).unwrap();
     assert_eq!(first.longitudinal_regime, refreshed.longitudinal_regime);
+}
+
+#[test]
+fn materialized_dynamic_rule_identity_survives_native_query_and_result_artifacts() {
+    let data = TabularData::from_f64_columns([("outcome", &[4.0, 0.0, 0.0, 0.0][..])]).unwrap();
+    let mut q = query();
+    q.regime_actions = Arc::from([true, true, true, true, false, false, false, false]);
+    q.rule_id = Some(Arc::from("adaptive-threshold"));
+    q.rule_version = Some(Arc::from("v1"));
+    q.rule_provenance = Some(Arc::from("study-protocol-7"));
+    let ctx = ExecutionContext::for_tests(99);
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime.as_ref().unwrap();
+    assert_eq!(fit.value, 4.0);
+    assert_eq!(fit.rule_id.as_deref(), Some("adaptive-threshold"));
+    assert_eq!(&*fit.uncertainty, "point_only_no_interval");
+    let bytes = prepared.encode_contracted_result(&result, "dynamic-regime", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.longitudinal_regime.as_ref().unwrap();
+    assert_eq!(wire.rule_version.as_deref(), Some("v1"));
+    assert_eq!(wire.rule_provenance.as_deref(), Some("study-protocol-7"));
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &body.query else { panic!("wrong query") };
+    assert_eq!(query_wire.rule_id.as_deref(), Some("adaptive-threshold"));
+    assert_eq!(query_wire.regime_actions, q.regime_actions.as_ref());
+    let mut fabricated = body.clone();
+    fabricated.longitudinal_regime.as_mut().unwrap().rule_version = Some("v2".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    q.rule_version = None;
+    assert!(q.validate().is_err());
 }
 
 #[test]

@@ -782,6 +782,9 @@ pub(crate) fn validate_query_ids(
                 excluded_fold_predictions: wire.excluded_fold_predictions,
                 probabilities_known_by_design: wire.probabilities_known_by_design,
                 minimum_probability: wire.minimum_probability,
+                rule_id: wire.rule_id.as_deref().map(std::sync::Arc::<str>::from),
+                rule_version: wire.rule_version.as_deref().map(std::sync::Arc::<str>::from),
+                rule_provenance: wire.rule_provenance.as_deref().map(std::sync::Arc::<str>::from),
             }
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
