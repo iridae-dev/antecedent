@@ -662,6 +662,14 @@ impl PreparedStudy {
         // `interference_inference.graphless_support_status`, wired to the
         // artifact and revalidated by `validate_result`, so it is never a
         // separate matrix coordinate that would break calibration verification.
+        //
+        // `local_polynomial_ratio` is deliberately treated the same way and has
+        // no arm here. Its execute license surfaces on the per-fit
+        // `LocalPolynomialRatioWire.graphless_support_status` field, which
+        // `validate_result` independently rechecks against the published
+        // interval, mirroring the interference precedent. It carries no
+        // `graphless:local_polynomial_ratio/...` matrix coordinate (no route or
+        // Python assertion expects one), so it stays off the matrix axis.
         Ok((contract, payloads))
     }
 
