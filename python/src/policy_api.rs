@@ -28,6 +28,10 @@ pub struct PolicyValueSection {
     pub reference_standard_error: f64,
     /// Paired incremental standard error.
     pub incremental_standard_error: f64,
+    /// Pointwise 95% policy value interval, if supported.
+    pub policy_interval_95: Option<(f64, f64)>,
+    /// Paired pointwise 95% incremental-value interval, if supported.
+    pub incremental_interval_95: Option<(f64, f64)>,
     /// Caller-declared prediction ownership.
     pub prediction_ownership: String,
     /// Propensity support range.
@@ -84,6 +88,8 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             policy_standard_error: value.policy_standard_error,
             reference_standard_error: value.reference_standard_error,
             incremental_standard_error: value.incremental_standard_error,
+            policy_interval_95: value.policy_interval_95.map(|bounds| (bounds[0], bounds[1])),
+            incremental_interval_95: value.incremental_interval_95.map(|bounds| (bounds[0], bounds[1])),
             prediction_ownership: value.prediction_ownership.to_string(),
             propensity_min: value.propensity_min,
             propensity_max: value.propensity_max,

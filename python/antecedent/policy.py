@@ -180,7 +180,7 @@ class PolicyEvaluation:
 
 @dataclass(frozen=True, slots=True)
 class DoublyRobustPolicyEvaluation:
-    """Doubly robust value estimates and row-level score standard errors."""
+    """Held-out randomized policy value and supported pointwise intervals."""
 
     policy_value: float
     reference_value: float
@@ -191,6 +191,8 @@ class DoublyRobustPolicyEvaluation:
     policy_value_standard_error: float
     reference_value_standard_error: float
     incremental_value_standard_error: float
+    policy_value_interval_95: tuple[float, float] | None
+    incremental_value_interval_95: tuple[float, float] | None
     prediction_ownership: str
     propensity_min: float
     propensity_max: float

@@ -381,6 +381,12 @@ pub struct PolicyValueWire {
     pub reference_standard_error: f64,
     /// Paired incremental value SE.
     pub incremental_standard_error: f64,
+    /// Pointwise 95% interval for policy value when licensed by the retained route.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_interval_95: Option<[f64; 2]>,
+    /// Paired pointwise 95% interval for policy minus reference value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incremental_interval_95: Option<[f64; 2]>,
     /// Prediction ownership declaration.
     pub prediction_ownership: String,
     /// Propensity support range.
@@ -1340,6 +1346,31 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::CausalQueryWire::PolicyValue(_) => "row_score_standard_error_independent_subjects",
             _ => "invalid_policy_value_query",
         };
+        let expected_interval = match &result.query {
+            crate::CausalQueryWire::PolicyValue(query) => {
+                let (n, policy_matches, reference_matches) = if let Some(multi) = &query.multi_action {
+                    (multi.assignment.len(),
+                     multi.assignment.iter().zip(&multi.actions).filter(|(a, b)| a == b).count(),
+                     multi.assignment.iter().zip(&multi.reference).filter(|(a, b)| a == b).count())
+                } else {
+                    (query.assignment.len(),
+                     query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
+                     query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count())
+                };
+                n >= 30 && policy_matches >= 10 && reference_matches >= 10
+                    && (query.multi_action.is_some() || query.mu0.is_empty() || query.disjoint_training_subjects)
+                    && policy.policy_standard_error > 0.0 && policy.incremental_standard_error > 0.0
+            }
+            _ => false,
+        };
+        let z = antecedent_stats::normal_ppf(0.975);
+        let bounds_match = |bounds: Option<[f64; 2]>, center: f64, se: f64| {
+            let Some(bounds) = bounds else { return true; };
+            let span = z * se;
+            let tolerance = 1e-10 * (1.0 + center.abs() + span.abs());
+            expected_interval && (bounds[0] - (center - span)).abs() <= tolerance
+                && (bounds[1] - (center + span)).abs() <= tolerance
+        };
         if result.estimate.is_some()
             || ![
                 policy.policy_value,
@@ -1361,6 +1392,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || policy.policy_standard_error < 0.0
             || policy.reference_standard_error < 0.0
             || policy.incremental_standard_error < 0.0
+            || policy.policy_interval_95.is_some() != policy.incremental_interval_95.is_some()
+            || policy.policy_interval_95.iter().chain(policy.incremental_interval_95.iter())
+                .any(|bounds| !bounds.iter().all(|value| value.is_finite()) || bounds[0] > bounds[1])
+            || !bounds_match(policy.policy_interval_95, policy.policy_value, policy.policy_standard_error)
+            || !bounds_match(policy.incremental_interval_95, policy.incremental_value, policy.incremental_standard_error)
             || !(0.0..=1.0).contains(&policy.propensity_min)
             || !(0.0..=1.0).contains(&policy.propensity_max)
             || policy.propensity_min > policy.propensity_max

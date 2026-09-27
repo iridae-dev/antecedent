@@ -3243,6 +3243,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         policy_standard_error: policy.policy_standard_error,
         reference_standard_error: policy.reference_standard_error,
         incremental_standard_error: policy.incremental_standard_error,
+        policy_interval_95: policy.policy_interval_95,
+        incremental_interval_95: policy.incremental_interval_95,
         prediction_ownership: policy.prediction_ownership.to_string(),
         propensity_min: policy.propensity_min,
         propensity_max: policy.propensity_max,

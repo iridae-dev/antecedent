@@ -730,6 +730,25 @@ impl CheckedPolicyValueOperation {
             )
         }
         .map_err(|message| CausalError::Unsupported { message })?;
+        let (policy_matches, reference_matches) = if let Some(policy) = multi {
+            (
+                policy.assignment.iter().zip(policy.actions.iter()).filter(|(a, b)| a == b).count(),
+                policy.assignment.iter().zip(policy.reference.iter()).filter(|(a, b)| a == b).count(),
+            )
+        } else {
+            (
+                self.query.assignment.iter().zip(self.query.actions.iter()).filter(|(a, b)| a == b).count(),
+                self.query.assignment.iter().zip(self.query.reference.iter()).filter(|(a, b)| a == b).count(),
+            )
+        };
+        // Cross-fitted predictions can share training outcomes across evaluation
+        // rows. Their row-score SE remains descriptive until that covariance is
+        // accounted for; IPW and disjoint held-out AIPW have fixed score rules.
+        let intervals = if ipw || self.query.disjoint_training_subjects {
+            antecedent_estimate::policy_value::pointwise_intervals_95(
+                &score, y.len(), policy_matches, reference_matches,
+            )
+        } else { None };
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -785,6 +804,8 @@ impl CheckedPolicyValueOperation {
             policy_standard_error: score.policy_standard_error,
             reference_standard_error: score.reference_standard_error,
             incremental_standard_error: score.incremental_standard_error,
+            policy_interval_95: intervals.map(|value| value.policy),
+            incremental_interval_95: intervals.map(|value| value.incremental),
             prediction_ownership: Arc::from(if ipw {
                 "no_outcome_nuisance_predictions"
             } else if self.query.disjoint_training_subjects {
