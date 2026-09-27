@@ -237,6 +237,71 @@ fn delayed_entry_subject_bootstrap_retains_interval_and_refuses_forgery() {
 }
 
 #[test]
+fn delayed_entry_fixed_censoring_competing_risk_interval_is_retained() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    let mut entry = Vec::new();
+    for arm in [false, true] {
+        for i in 0..80 {
+            let left = if i % 3 == 0 { 1.0 } else { 0.0 };
+            let (exit, cause) = if left == 0.0 && i % 7 == 0 { (1.0, 1.0) }
+                else if i % 11 == 0 { (1.5, 0.0) }
+                else if i % 5 == 0 { (2.0, 2.0) }
+                else if i % (if arm { 4 } else { 3 }) == 0 { (2.0, 1.0) }
+                else { (3.0, 0.0) };
+            duration.push(exit);
+            event.push(cause);
+            treatment.push(f64::from(arm));
+            entry.push(left);
+        }
+    }
+    let g0 = vec![1.0; duration.len()];
+    let g2 = vec![0.8; duration.len()];
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()), ("entry", entry.as_slice()),
+        ("g0", g0.as_slice()), ("g1", g0.as_slice()),
+        ("g15", g0.as_slice()), ("g2", g2.as_slice()), ("g3", g2.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::CumulativeIncidence { target_cause: 1 });
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    q.known_censoring = Some(KnownCensoringSurvival {
+        times: Arc::from([0.0, 1.0, 1.5, 2.0, 3.0]),
+        columns: Arc::from([
+            VariableId::from_raw(4), VariableId::from_raw(5), VariableId::from_raw(6),
+            VariableId::from_raw(7), VariableId::from_raw(8),
+        ]),
+        minimum_probability: 0.01,
+    });
+    let ctx = ExecutionContext::for_tests(297);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q.clone()))
+        .bootstrap_replicates(299).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let curve = result.survival.as_ref().unwrap();
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.rmst_difference_interval.is_none());
+    assert_eq!(curve.censoring_survival_provenance.as_deref(),
+        Some("caller_supplied_fixed_not_fitted_or_verified"));
+    assert!(curve.difference_band.is_none());
+    let encoded = prepared.encode_contracted_result(&result, "delayed-entry-fixed-g", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().difference_at_tau_interval,
+        curve.difference_at_tau_interval);
+    let mut forged = body.clone();
+    if let antecedent_io::CausalQueryWire::Survival(ref mut wire) = forged.query {
+        wire.independent_given.push(VariableId::from_raw(2).raw());
+    }
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-conditional-entry",
+    ).is_err());
+    q.observation_assumption = ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(2)]));
+    assert!(Study::tabular(data).query(CausalQuery::Survival(q)).build().unwrap()
+        .prepare(&ctx).is_err());
+}
+
+#[test]
 fn simultaneous_curve_band_is_retained_and_artifact_checked() {
     let mut duration = Vec::new();
     let mut event = Vec::new();
