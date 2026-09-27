@@ -87,6 +87,14 @@ impl SyntheticControlQuery {
     }
 
     /// Validate frozen metadata before compiling the analysis.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidRandomizedEffect`] when the units and
+    /// periods are misaligned or empty, the treated unit is blank, the
+    /// intervention period is not positive, an augmentation ridge is not finite
+    /// and positive or is combined with synthetic `DiD`, or a sharp-null effect is
+    /// non-finite or declared without uniform single-unit randomization.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.units.is_empty() || self.units.len() != self.periods.len()
             || self.treated_unit.trim().is_empty() || self.intervention_period <= 0

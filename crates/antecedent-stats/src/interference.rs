@@ -345,10 +345,10 @@ fn validate_design(design: &AssignmentDesign, n: usize) -> Result<(), StatsError
             }
         }
         AssignmentDesign::TwoStageSaturation { .. } => {
-            return Err(StatsError::Backend("use the exact two-stage saturation estimator".into()));
+            Err(StatsError::Backend("use the exact two-stage saturation estimator".into()))
         }
         AssignmentDesign::ObservedExposure { .. } => {
-            return Err(StatsError::Backend("use the supplied-propensity observational estimator".into()));
+            Err(StatsError::Backend("use the supplied-propensity observational estimator".into()))
         }
         _ => Ok(()),
     }
@@ -444,9 +444,9 @@ impl AssignmentSampler {
         let key_capacity = match design {
             AssignmentDesign::CompleteRandomization { .. } => n,
             AssignmentDesign::ClusterRandomization { .. } => cluster_ids.len(),
-            AssignmentDesign::Bernoulli { .. } => 0,
-            AssignmentDesign::TwoStageSaturation { .. } => 0,
-            AssignmentDesign::ObservedExposure { .. } => 0,
+            AssignmentDesign::Bernoulli { .. }
+            | AssignmentDesign::TwoStageSaturation { .. }
+            | AssignmentDesign::ObservedExposure { .. } => 0,
         };
         let chosen = vec![false; cluster_ids.len()];
         Self { cluster_ids, unit_cluster_pos, keys: Vec::with_capacity(key_capacity), chosen }
@@ -611,6 +611,10 @@ mod tests {
                     let chosen =
                         keys.iter().take(*treated_clusters).map(|x| x.1).collect::<Vec<_>>();
                     clusters.iter().map(|id| chosen.contains(id)).collect()
+                }
+                AssignmentDesign::TwoStageSaturation { .. }
+                | AssignmentDesign::ObservedExposure { .. } => {
+                    unreachable!("reference sampler covers only the three MC-sampled designs")
                 }
             }
         }

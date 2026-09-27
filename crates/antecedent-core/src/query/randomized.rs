@@ -183,6 +183,16 @@ impl RandomizedEffectQuery {
     }
 
     /// Validate row alignment, allocations, and assignment probabilities.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidRandomizedEffect`] when any design's row
+    /// alignment, arm allocations, block or factorial structure, adjustment
+    /// covariates, or assignment probabilities are malformed or inconsistent
+    /// with the declared estimand.
+    // One match over every randomization design; each arm's alignment,
+    // allocation, and probability checks are cohesive and share local state.
+    #[allow(clippy::too_many_lines)]
     pub fn validate(&self) -> Result<(), QueryError> {
         if let RandomizationDesign::MultiArm { assignment, probabilities, arms } = &self.design {
             let n = assignment.len();

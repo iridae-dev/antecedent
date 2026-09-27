@@ -74,6 +74,14 @@ pub struct LongitudinalRegimeQuery {
 
 impl LongitudinalRegimeQuery {
     /// Validate shape, subject ownership, and sequential positivity metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidLongitudinalRegime`] when the rule identity
+    /// is partially specified or attached to an MSM, the trajectory shapes or
+    /// subject ownership are misaligned, excluded-fold prediction ownership
+    /// lacks at least two subject folds, or the positivity floor and declared
+    /// treatment or censoring probabilities are non-finite or out of range.
     pub fn validate(&self) -> Result<(), QueryError> {
         let identity = [&self.rule_id, &self.rule_version, &self.rule_provenance];
         if identity.iter().any(|value| value.is_some())
@@ -159,8 +167,7 @@ impl LongitudinalRegimeQuery {
             ));
         }
         let floor = self.minimum_probability;
-        if !floor.is_finite()
-            || !(0.0 < floor && floor <= 0.5)
+        if !(floor.is_finite() && 0.0 < floor && floor <= 0.5)
             || self
                 .treatment_probabilities
                 .iter()

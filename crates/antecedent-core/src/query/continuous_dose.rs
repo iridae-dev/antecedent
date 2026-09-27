@@ -17,8 +17,14 @@ pub struct FixedGroupDosePolicy {
 
 impl FixedGroupDosePolicy {
     /// Check that both rules cover the frozen pre-treatment groups exactly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidPolicyValue`] when no baseline groups are
+    /// observed, or a rule fails to name every observed group exactly once with
+    /// finite targets.
     pub fn validate(&self, baseline_groups: &[Arc<str>]) -> Result<(), QueryError> {
-        let observed = baseline_groups.iter().map(|group| group.as_ref())
+        let observed = baseline_groups.iter().map(|group| &**group)
             .collect::<std::collections::BTreeSet<_>>();
         if observed.is_empty() { return Err(QueryError::InvalidPolicyValue(
             "fixed dose rules require observed baseline groups".into())); }
@@ -61,6 +67,15 @@ pub struct ContinuousDoseResponseQuery {
 
 impl ContinuousDoseResponseQuery {
     /// Validate frozen columns, grid, and density provenance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidPolicyValue`] when the columns are not
+    /// distinct, baseline groups are empty or blank, no target grid or fixed
+    /// policy is supplied, a target is non-finite, the bandwidth is not
+    /// positive, local support is below two, the density provenance is neither
+    /// `known` nor `externally_estimated`, or an attached fixed policy fails to
+    /// validate.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.outcome == self.dose
             || self.outcome == self.dose_density

@@ -23,6 +23,12 @@ pub struct LocalPolynomialRatioQuery {
 
 impl LocalPolynomialRatioQuery {
     /// Validate the declared local design before compiling a study.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`QueryError::InvalidLocalPolynomialRatio`] when the outcome,
+    /// treatment, and running variables are not distinct, or the cutoff is
+    /// non-finite or the bandwidth is not positive.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.outcome == self.treatment || self.outcome == self.running || self.treatment == self.running {
             return Err(QueryError::InvalidLocalPolynomialRatio("outcome, treatment, and running variable must be distinct".into()));

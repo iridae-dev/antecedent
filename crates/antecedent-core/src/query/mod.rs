@@ -236,7 +236,7 @@ impl CausalQuery {
         Self::PolicyValue(query)
     }
 
-    /// Construct a balanced-panel DiD query.
+    /// Construct a balanced-panel `DiD` query.
     #[must_use]
     pub fn panel_did(query: PanelDidQuery) -> Self {
         Self::PanelDid(query)
@@ -414,15 +414,15 @@ impl CausalQuery {
             | Self::MechanismChange(_)
             | Self::UnitChange(_)
             | Self::Transport(_)
-            | Self::Interference(_) => None,
-            Self::RandomizedEffect(_) => None,
-            Self::PolicyValue(_) => None,
-            Self::ContinuousDoseResponse(_) => None,
-            Self::PanelDid(_) => None,
-            Self::SyntheticControl(_) => None,
-            Self::LocalPolynomialRatio(_) => None,
-            Self::Survival(_) => None,
-            Self::LongitudinalRegime(_) => None,
+            | Self::Interference(_)
+            | Self::RandomizedEffect(_)
+            | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
+            | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 
@@ -443,8 +443,8 @@ impl CausalQuery {
             | Self::MechanismChange(_)
             | Self::UnitChange(_)
             | Self::Transport(_)
-            | Self::Interference(_) => None,
-            Self::RandomizedEffect(_)
+            | Self::Interference(_)
+            | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::ContinuousDoseResponse(_)
             | Self::PanelDid(_)
