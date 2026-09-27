@@ -96,6 +96,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         unit_change: args.unit_change,
         transport: None,
         interference: None,
+        interference_inference: None,
         randomized_effect: None,
         panel_did: None,
         synthetic_control: None,

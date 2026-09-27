@@ -3427,6 +3427,21 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 observed_subjects: regime.observed_subjects.unwrap_or(0),
             }
         }),
+        interference_inference: result.interference_inference.as_ref().map(|inference| antecedent_io::InterferenceInferenceWire {
+            method: inference.method.into(),
+            interval: inference.interval.as_ref().map(|interval| antecedent_io::InterferencePointwiseIntervalWire {
+                lower: interval.lower,
+                upper: interval.upper,
+                standard_error: interval.standard_error,
+                degrees_of_freedom: interval.degrees_of_freedom,
+                first_stage_arm_clusters: interval.first_stage_arm_clusters,
+            }),
+            interval_unavailable_reason: inference.interval_unavailable_reason.map(str::to_string),
+            from_exposed_units: inference.from_exposed_units,
+            to_exposed_units: inference.to_exposed_units,
+            from_exposed_clusters: inference.from_exposed_clusters,
+            to_exposed_clusters: inference.to_exposed_clusters,
+        }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {
             antecedent_io::InterventionalDistributionWire {
                 atoms: distribution

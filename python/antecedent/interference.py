@@ -295,6 +295,24 @@ class RandomizationContrast:
 
 
 @dataclass(frozen=True, slots=True)
+class InterferencePointwiseInterval:
+    """A 95% interval for one declared exposure contrast across independent clusters.
+
+    ``first_stage_arm_clusters`` counts control/treated clusters for complete
+    cluster randomization and low/high clusters for two-stage saturation.
+    The interval applies only to this contrast, not to an exposure-response curve.
+    """
+
+    lower: float
+    upper: float
+    standard_error: float
+    degrees_of_freedom: float
+    first_stage_arm_clusters: tuple[int, int]
+    method: str
+    level: float = 0.95
+
+
+@dataclass(frozen=True, slots=True)
 class InterferenceEstimate:
     contrast: RandomizationContrast
     from_probability_method: str
@@ -308,6 +326,8 @@ class InterferenceEstimate:
     provenance: Mapping[str, Any] = field(
         default_factory=lambda: {"operation_ids": ["stats.randomized_interference"]}
     )
+    pointwise_interval: InterferencePointwiseInterval | None = None
+    interval_unavailable_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

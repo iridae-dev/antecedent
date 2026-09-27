@@ -3754,6 +3754,7 @@ mod tests {
             randomized_effect: None,
             survival: None,
             longitudinal_regime: None,
+            interference_inference: None,
             interventional_distribution: None,
             standard_error: Some(0.1),
             interval_lower: None,

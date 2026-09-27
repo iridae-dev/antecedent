@@ -65,10 +65,16 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         assert!((result.interference.as_ref().unwrap().contrast.hajek - truth).abs() < 1e-12);
         assert!(result.interference.as_ref().unwrap().contrast.conservative_variance > 0.0);
         assert!(result.estimate.se_analytic.is_nan());
+        let inference = result.interference_inference.as_ref().unwrap();
+        assert!(inference.interval.is_none());
+        assert!(inference.interval_unavailable_reason.unwrap().contains("eight independent clusters"));
         assert!(result.estimate.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
         let artifact = prepared.encode_contracted_result(&result, "saturation-exact", &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
         assert_eq!(consumed.body.query, antecedent_io::CausalQueryWire::Interference(wire));
+        let wire_inference = consumed.body.interference_inference.as_ref().unwrap();
+        assert!(wire_inference.interval.is_none());
+        assert_eq!(wire_inference.interval_unavailable_reason.as_deref(), inference.interval_unavailable_reason);
         let mut tampered = artifact.clone();
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x40;
@@ -88,4 +94,58 @@ fn saturation_rejects_cross_cluster_edges_at_prepare() {
         .refute(RefuteSuite::None)
         .build().unwrap();
     assert!(study.prepare(&ExecutionContext::for_tests(241)).is_err());
+}
+
+#[test]
+fn supported_saturation_interval_survives_retained_artifact_round_trip() {
+    let clusters = (0..80).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
+    let patterns = [[false, false, false], [true, false, false], [true, true, false], [true, true, true]];
+    let assignment = (0..80).flat_map(|cluster| patterns[cluster % 4]).collect::<Vec<_>>();
+    let realized = (0..80).flat_map(|cluster| [if cluster < 40 { 0.2 } else { 0.8 }; 3]).collect::<Vec<_>>();
+    let edges = (0..80).flat_map(|cluster| {
+        let first = cluster * 3;
+        (first..first + 3).flat_map(move |from| {
+            (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
+                from: from as u32, to: to as u32, weight: 1.0,
+            })
+        })
+    }).collect::<Vec<_>>();
+    let outcomes = (0..assignment.len()).map(|unit| {
+        let first = unit / 3 * 3;
+        let neighbor_fraction = (first..first + 3).filter(|&other| other != unit && assignment[other]).count() as f64 / 2.0;
+        5.0 + 0.1 * (unit / 3 % 9) as f64 + 2.0 * f64::from(assignment[unit]) + 3.0 * neighbor_fraction
+    }).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+    let network = NetworkData::try_new(data.clone(), edges).unwrap();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::TwoStageSaturation {
+            clusters: Arc::from(clusters), low_probability: 0.2, high_probability: 0.8,
+            high_clusters: 40, realized_saturation: Arc::from(realized),
+        },
+        ExposureMapping::NeighborFraction,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 0.5 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.5 },
+        },
+    );
+    let ctx = ExecutionContext::for_tests(241);
+    let study = Study::tabular(data.clone())
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(query))
+        .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
+        .refute(RefuteSuite::None)
+        .build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let inference = result.interference_inference.as_ref().unwrap();
+    let interval = inference.interval.as_ref().expect("adequate independent cluster and exposure support");
+    assert_eq!(interval.first_stage_arm_clusters, [40, 40]);
+    assert!(interval.lower < result.interference.as_ref().unwrap().contrast.horvitz_thompson);
+    assert!(result.interference.as_ref().unwrap().contrast.horvitz_thompson < interval.upper);
+    let artifact = prepared.encode_contracted_result(&result, "saturation-pointwise", &ctx).unwrap();
+    let consumed = consume_analysis_result(&artifact).unwrap();
+    let wire = consumed.body.interference_inference.unwrap();
+    assert_eq!(wire.method, "saturation_cluster_neyman_welch");
+    assert_eq!(wire.interval.unwrap().lower, interval.lower);
 }

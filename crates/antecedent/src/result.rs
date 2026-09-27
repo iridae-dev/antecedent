@@ -538,6 +538,40 @@ pub struct StructuralResponseMixture {
     pub truncated_atoms: usize,
 }
 
+/// One 95% pointwise interval for a declared interference exposure contrast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InterferencePointwiseInterval {
+    /// Lower endpoint.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Independent-cluster Neyman standard error.
+    pub standard_error: f64,
+    /// Welch--Satterthwaite degrees of freedom.
+    pub degrees_of_freedom: f64,
+    /// Control/treated clusters or low/high saturation clusters.
+    pub first_stage_arm_clusters: [usize; 2],
+}
+
+/// Observed support and uncertainty status for a retained interference query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InterferenceInference {
+    /// Construction identifier.
+    pub method: &'static str,
+    /// Pointwise interval, when its support conditions pass.
+    pub interval: Option<InterferencePointwiseInterval>,
+    /// Reason a point estimate has no interval.
+    pub interval_unavailable_reason: Option<&'static str>,
+    /// Units observed at the baseline exposure.
+    pub from_exposed_units: usize,
+    /// Units observed at the active exposure.
+    pub to_exposed_units: usize,
+    /// Clusters observed at the baseline exposure.
+    pub from_exposed_clusters: usize,
+    /// Clusters observed at the active exposure.
+    pub to_exposed_clusters: usize,
+}
+
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -589,6 +623,8 @@ pub struct StudyResult {
     pub transport: Option<TransportEffectEstimate>,
     /// Design-based interference estimate when the query was interference.
     pub interference: Option<InterferenceEstimate>,
+    /// Independent-cluster pointwise inference and observed exposure support.
+    pub interference_inference: Option<InterferenceInference>,
     /// Design-based intention-to-treat result for a randomized experiment query.
     pub randomized_effect: Option<RandomizedEffectEstimate>,
     /// Balanced two-period panel difference-in-differences result.
