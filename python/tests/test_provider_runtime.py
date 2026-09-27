@@ -73,6 +73,29 @@ def test_registry_rejects_native_self_promotion_and_wrong_shape():
         registry.execute("y", {})
 
 
+def test_provider_reported_support_cannot_become_the_host_trust_status():
+    class SelfPromoting(_Provider):
+        def execute(self, request):
+            return ProviderExecution(
+                [1.0, 2.0], None, ("caller_asserted",), "native_licensed", {"version": "x"}
+            )
+
+    registry = ProviderRegistry()
+    registry.register("self-promoting", SelfPromoting())
+    from antecedent.results.provider import ProviderAnalysisResult
+
+    result = ProviderAnalysisResult(
+        provider_name="self-promoting",
+        query_family="effect",
+        provider_result=registry.execute("self-promoting", {}),
+    )
+    assert result.support == ("externally_attested",)
+    assert result.inspect().support.summary == "externally_attested"
+    dumped = result.to_dict()["provider_result"]
+    assert dumped["support_status"] == "externally_attested"
+    assert dumped["provider_reported_support_status"] == "native_licensed"
+
+
 def test_analyze_dispatches_explicit_provider_query_to_shared_result_envelope():
     name = "runtime-test-analyze-provider"
     providers.register(name, _Provider())
@@ -84,6 +107,9 @@ def test_analyze_dispatches_explicit_provider_query_to_shared_result_envelope():
     assert result.query_family == "effect"
     assert result.provider_result.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert result.provenance["registry_name"] == name
+    assert result.support == ("externally_attested",)
+    assert result.inspect().support.summary == "externally_attested"
+    assert result.to_dict()["provider_result"]["support_status"] == "externally_attested"
     assert "native licensed causal claim" in result.claim()
     assert result.calibration.reason == "attested_not_reverifiable"
 

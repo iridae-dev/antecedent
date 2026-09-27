@@ -43,7 +43,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
 
     @property
     def support(self) -> tuple[str, ...]:
-        return (self.provider_result.support_status,)
+        return (self.provider_result.trust.value,)
 
     @property
     def provenance(self) -> dict[str, Any]:
@@ -77,8 +77,11 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             ),
             support=SlotModel(
                 available=True,
-                summary=provider.support_status,
-                payload={"status": provider.support_status},
+                summary=provider.trust.value,
+                payload={
+                    "trust": provider.trust.value,
+                    "provider_reported_status": provider.support_status,
+                },
             ),
             uncertainty=SlotModel(
                 available=provider.uncertainty is not None,
@@ -117,7 +120,8 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             "estimate": _portable_value(result.estimate),
             "uncertainty": _portable_value(result.uncertainty),
             "assumptions": list(result.assumptions),
-            "support_status": result.support_status,
+            "support_status": result.trust.value,
+            "provider_reported_support_status": result.support_status,
             "provenance": dict(result.provenance),
             "trust": result.trust.value,
             "uncertainty_semantics": result.uncertainty_semantics,
