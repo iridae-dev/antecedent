@@ -56,6 +56,92 @@ pub struct SurvivalBootstrapIntervals {
     pub replicates_ok: u32,
 }
 
+/// Simultaneous 95% band for the randomized treatment-minus-control curve.
+///
+/// The band is evaluated on the observed event-time grid, including zero and
+/// the requested horizon. Its common radius comes from the 95th percentile
+/// of bootstrap suprema of centered curve differences. This construction is
+/// currently restricted to independent randomized subjects without delayed
+/// entry or fitted or fixed censoring weights.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurvivalDifferenceBand {
+    /// Observed event-time grid used to evaluate every bootstrap curve.
+    pub times: Vec<f64>,
+    /// Estimated treatment-minus-control curve on that grid.
+    pub difference: Vec<f64>,
+    /// Simultaneous lower endpoints aligned with `times`.
+    pub lower: Vec<f64>,
+    /// Simultaneous upper endpoints aligned with `times`.
+    pub upper: Vec<f64>,
+    /// Bootstrap draws whose estimator satisfied the support contract.
+    pub replicates_ok: u32,
+}
+
+/// Build a simultaneous curve-difference band by subject resampling within arms.
+///
+/// At least 80 subjects per arm and 399 valid replicates are required. The
+/// pointwise scalar intervals remain a separate construction with their own
+/// support and calibration. No full-curve claim follows for delayed entry,
+/// conditional censoring, or observational treatment assignment.
+pub fn randomized_survival_bootstrap_difference_band(
+    duration: &[f64], event_code: &[i64], treated: &[bool], tau: f64,
+    endpoint: SurvivalEndpoint, replicates: u32, seed: u64,
+) -> Result<SurvivalDifferenceBand, &'static str> {
+    if replicates < 399 || replicates > 100_000 {
+        return Err("survival simultaneous band requires 399 to 100000 replicates");
+    }
+    if duration.len() != event_code.len() || duration.len() != treated.len() {
+        return Err("survival band subject arrays must be row-aligned");
+    }
+    let arms = [false, true].map(|arm| {
+        treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
+    });
+    if arms.iter().any(|arm| arm.len() < 80) {
+        return Err("survival simultaneous band requires at least 80 subjects in each randomized arm");
+    }
+    let original = randomized_survival_summary(duration, event_code, treated, None, tau, endpoint)?;
+    let difference = original.treated.iter().zip(&original.control)
+        .map(|(active, control)| active - control).collect::<Vec<_>>();
+    let mut rng = seed ^ 0x7D0C_0B41_5752_5A3D;
+    let mut suprema = Vec::with_capacity(replicates as usize);
+    for _ in 0..replicates {
+        let mut d = Vec::with_capacity(duration.len());
+        let mut e = Vec::with_capacity(duration.len());
+        let mut a = Vec::with_capacity(duration.len());
+        for (arm_index, arm) in arms.iter().enumerate() {
+            for _ in 0..arm.len() {
+                let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
+                d.push(duration[i]);
+                e.push(event_code[i]);
+                a.push(arm_index == 1);
+            }
+        }
+        let Ok(sample) = randomized_survival_summary(&d, &e, &a, None, tau, endpoint) else { continue };
+        let sup = original.times.iter().zip(&difference).map(|(&time, &point)| {
+            let position = sample.times.partition_point(|event_time| *event_time <= time);
+            let j = position.saturating_sub(1);
+            (sample.treated[j] - sample.control[j] - point).abs()
+        }).fold(0.0_f64, f64::max);
+        suprema.push(sup);
+    }
+    let ok = u32::try_from(suprema.len()).map_err(|_| "too many survival band draws")?;
+    if ok < 399 || ok < replicates.saturating_sub(replicates / 10) {
+        return Err("survival simultaneous band lost more than 10% of subject draws to support failures");
+    }
+    suprema.sort_by(f64::total_cmp);
+    let index = ((suprema.len() as f64 + 1.0) * 0.95).ceil() as usize;
+    let radius = suprema[index.saturating_sub(1).min(suprema.len() - 1)];
+    let lower = difference.iter().map(|point| (point - radius).max(-1.0)).collect();
+    let upper = difference.iter().map(|point| (point + radius).min(1.0)).collect();
+    Ok(SurvivalDifferenceBand {
+        times: original.times,
+        difference,
+        lower,
+        upper,
+        replicates_ok: ok,
+    })
+}
+
 /// Resample individual subjects within randomized arms and recompute the
 /// complete product-limit or Aalen-Johansen estimator on each draw.
 ///
@@ -651,6 +737,81 @@ mod tests {
         eprintln!("left-truncated survival coverage: RMST {covered_rmst}/400, S(tau) {covered_tau}/400");
         assert!(covered_rmst >= 360, "left-truncated RMST coverage: {covered_rmst}/400");
         assert!(covered_tau >= 360, "left-truncated S(tau) coverage: {covered_tau}/400");
+    }
+
+    #[test]
+    fn simultaneous_survival_difference_band_covers_entire_event_grid() {
+        let mut state = 0xB41D_95A1_5EED_2026;
+        let mut covered = 0;
+        for trial in 0..400 {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            for arm in [false, true] {
+                for _ in 0..160 {
+                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let (first, second) = if arm { (0.15, 0.10) } else { (0.30, 0.20) };
+                    let (exit, event) = if u < first { (1.0, 1) }
+                        else if u < first + second { (2.0, 1) }
+                        else { (3.0, 0) };
+                    durations.push(exit);
+                    events.push(event);
+                    treated.push(arm);
+                }
+            }
+            let band = randomized_survival_bootstrap_difference_band(
+                &durations, &events, &treated, 3.0,
+                SurvivalEndpoint::Survival, 399, trial + 4_400,
+            ).unwrap();
+            let covers = band.times.iter().enumerate().all(|(i, &time)| {
+                let truth = if time < 1.0 { 0.0 } else if time < 2.0 { 0.15 } else { 0.25 };
+                band.lower[i] <= truth && truth <= band.upper[i]
+            });
+            covered += u32::from(covers);
+        }
+        eprintln!("simultaneous survival-grid band coverage: {covered}/400");
+        assert!(covered >= 360, "simultaneous survival-grid coverage: {covered}/400");
+        assert!(randomized_survival_bootstrap_difference_band(
+            &[1.0, 3.0, 1.0, 3.0], &[1, 0, 1, 0], &[false, false, true, true],
+            3.0, SurvivalEndpoint::Survival, 399, 7,
+        ).unwrap_err().contains("80 subjects"));
+    }
+
+    #[test]
+    fn simultaneous_competing_incidence_band_covers_entire_event_grid() {
+        let mut state = 0xC1F0_95A1_5EED_2026;
+        let mut covered = 0;
+        for trial in 0..400 {
+            let mut durations = Vec::with_capacity(320);
+            let mut causes = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            for arm in [false, true] {
+                for _ in 0..160 {
+                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let (first_target, second_target) = if arm { (0.30, 0.15) } else { (0.20, 0.10) };
+                    let (exit, cause) = if u < first_target { (1.0, 1) }
+                        else if u < first_target + 0.10 { (1.0, 2) }
+                        else if u < first_target + 0.10 + second_target { (2.0, 1) }
+                        else if u < first_target + 0.20 + second_target { (2.0, 2) }
+                        else { (3.0, 0) };
+                    durations.push(exit);
+                    causes.push(cause);
+                    treated.push(arm);
+                }
+            }
+            let band = randomized_survival_bootstrap_difference_band(
+                &durations, &causes, &treated, 3.0,
+                SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
+                399, trial + 6_400,
+            ).unwrap();
+            let covers = band.times.iter().enumerate().all(|(i, &time)| {
+                let truth = if time < 1.0 { 0.0 } else if time < 2.0 { 0.10 } else { 0.15 };
+                band.lower[i] <= truth && truth <= band.upper[i]
+            });
+            covered += u32::from(covers);
+        }
+        eprintln!("simultaneous competing-incidence grid band coverage: {covered}/400");
+        assert!(covered >= 360, "simultaneous competing-incidence coverage: {covered}/400");
     }
 
     #[test]
