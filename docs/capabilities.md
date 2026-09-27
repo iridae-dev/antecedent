@@ -606,10 +606,14 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   variance. Cluster assignment uses unit-weighted cluster totals and a
   conservative cluster-level Neyman variance, requiring at least two clusters
   in each arm. The result retains design type, arm counts, block labels and unit
-  IDs, and labels uncertainty without claiming a confidence interval. These
-  design queries are off the support-matrix axis and do not imply a license;
-  results report `evidence_status="off_axis"`. Multi-arm,
-  factorial, switchback, and noncompliance remain explicit refusals on this
+  IDs, and labels uncertainty without claiming a confidence interval.
+  `SwitchbackEffect` also runs through retained `analyze` with row-aligned
+  sequence and period labels, known marginal assignment probabilities, and
+  a sequence-clustered sandwich variance. It requires two independent
+  sequences with both arms observed, assumes no carryover and no interference
+  between sequences, and reports no interval. These design queries are off
+  the support-matrix axis; results report `evidence_status="off_axis"`.
+  Multi-arm, factorial, and noncompliance remain explicit refusals on this
   retained query route.
   `experiment.estimate_complier_effect` provides randomized
   noncompliance ITT and a Wald CACE/LATE point estimate with an
@@ -623,8 +627,9 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `experiment.SwitchbackEffect` utility estimates unit-period ITT with a
   sequence-clustered standard error, requires at least two independent
   sequences with both arms observed in each, and assumes no carryover. It is
-  point-only and unlicensed. This is an API wrapper over the existing
-  `InterferenceQuery` support-matrix row, not a new licensed coordinate.
+  point-only and unlicensed. The retained `SwitchbackEffect` route uses the
+  randomized study path and preserves period identity in result artifacts;
+  it adds no licensed coordinate.
 
 ```python
 design = ant.ExperimentDesign(

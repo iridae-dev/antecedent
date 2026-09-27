@@ -36,7 +36,7 @@ queries = [
 ]
 
 # Public workflow query or utility types without geometric support cells.
-# Retained routes report off_axis; SwitchbackEffect is a direct utility.
+# Retained experiment routes, including SwitchbackEffect, report off_axis.
 off_axis_public_queries = [
   "LongitudinalRegimeQuery",
   "MultiActionPolicyValue",
