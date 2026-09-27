@@ -164,7 +164,9 @@ impl CheckedPanelDidOperation {
         let assumptions = identification.required_assumptions.clone();
         let estimate = EffectEstimate::new(
             effect,
-            variance.sqrt(),
+            // The cluster SE is disclosed in `panel_did` only. A positive scalar
+            // analytic SE would publish an uncalibrated normal interval.
+            f64::NAN,
             assumptions,
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
         );
@@ -286,7 +288,8 @@ impl CheckedPanelDidOperation {
         let se = variance.sqrt();
         let estimate = EffectEstimate::new(
             effect,
-            se,
+            // The selected group-time SE is pointwise and has no calibrated interval.
+            f64::NAN,
             self.identification.required_assumptions.clone(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
         );
@@ -386,7 +389,8 @@ impl CheckedPanelDidOperation {
         let identification = self.identification.clone();
         let estimate = EffectEstimate::new(
             effect,
-            variance.sqrt(),
+            // Keep the cluster SE in `panel_did` without implying a normal interval.
+            f64::NAN,
             identification.required_assumptions.clone(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
         );

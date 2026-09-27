@@ -47,6 +47,8 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.clusters, 8);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
     )));
@@ -104,6 +106,8 @@ fn repeated_cross_section_did_runs_through_study_and_prepared_routes() {
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.clusters, 8);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     for required in ["parallel_trends", "repeated_cross_section"] {
         assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
             &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required
@@ -193,6 +197,8 @@ fn staggered_group_time_runs_as_retained_native_study() {
     assert_eq!(estimate.treated_subjects, 4);
     assert_eq!(estimate.comparison_subjects, 4);
     assert_eq!(estimate.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     for required in
         ["cohort_specific_parallel_untreated_trends", "never_treated_controls_are_valid"]
     {
