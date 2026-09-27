@@ -4439,6 +4439,150 @@ calibration_sha = "689900f58b3c5672164997128dfcc4fe336571ff"
 surface_list_blob = "46e59198f0ced3d3c392b45408b253fdeb40c07f"
 
 [[record]]
+id = "cov.elasticity.dag.frequentist.analytic_se.l90.elasticity_dag_accepted_frequentist_nominal_90_coverage"
+query = "Elasticity"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8955
+mcse = 0.006840312492861713
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.8955, mcse = 0.006840312492861713, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9055, mcse = 0.006541014829519959, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9015, mcse = 0.0066632480818291625, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::point_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::elasticity_dag_accepted_frequentist_nominal_90_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "206dc5f2707ee40ffc26658c3f0df381504ef782"
+surface_list_blob = "05371cfc2f229cf7a01ba69e70ab697522e7d57d"
+
+[[record]]
+id = "cov.elasticity.dag.frequentist.analytic_se.l90.elasticity_dag_frequentist_nominal_90_coverage"
+query = "Elasticity"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8955
+mcse = 0.006840312492861713
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.8955, mcse = 0.006840312492861713, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9055, mcse = 0.006541014829519959, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9015, mcse = 0.0066632480818291625, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::point_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::elasticity_dag_frequentist_nominal_90_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "206dc5f2707ee40ffc26658c3f0df381504ef782"
+surface_list_blob = "05371cfc2f229cf7a01ba69e70ab697522e7d57d"
+
+[[record]]
+id = "cov.elasticity.dag.frequentist.analytic_se.l95.elasticity_dag_accepted_frequentist_nominal_95_coverage"
+query = "Elasticity"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.944
+mcse = 0.005141206084179083
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.944, mcse = 0.005141206084179083, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9525, mcse = 0.00475624589355933, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9525, mcse = 0.00475624589355933, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::point_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::elasticity_dag_accepted_frequentist_nominal_95_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "206dc5f2707ee40ffc26658c3f0df381504ef782"
+surface_list_blob = "05371cfc2f229cf7a01ba69e70ab697522e7d57d"
+
+[[record]]
+id = "cov.elasticity.dag.frequentist.analytic_se.l95.elasticity_dag_frequentist_nominal_95_coverage"
+query = "Elasticity"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.944
+mcse = 0.005141206084179083
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.944, mcse = 0.005141206084179083, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9525, mcse = 0.00475624589355933, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9525, mcse = 0.00475624589355933, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::point_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::elasticity_dag_frequentist_nominal_95_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "206dc5f2707ee40ffc26658c3f0df381504ef782"
+surface_list_blob = "05371cfc2f229cf7a01ba69e70ab697522e7d57d"
+
+[[record]]
 id = "cov.interference_query.dag.frequentist.analytic_se.l90.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary"
 query = "InterferenceQuery"
 graph_class = "Dag"
