@@ -61,6 +61,11 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let refreshed = prepared.estimate(&data, &context).unwrap();
     assert_eq!(refreshed.panel_did, result.panel_did);
+    assert_eq!(refreshed.support_status, None);
+    let bytes = prepared.encode_contracted_result(&refreshed, "thin-panel-did", &context).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-thin-did-license").is_err());
 }
 
 #[test]
@@ -93,12 +98,49 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
     assert!(bounds[0] <= did.effect && did.effect <= bounds[1]);
     assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::AnalyticSe);
     assert_eq!(result.interval.as_ref().unwrap().dependence, "cluster");
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
+    assert_eq!(body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().interval_95 = Some([bounds[0] - 1.0, bounds[1]]);
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+}
+
+#[test]
+fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication() {
+    let mut ids = Vec::new();
+    let mut clusters = Vec::new();
+    let mut treated = Vec::new();
+    let mut post = Vec::new();
+    let mut outcome = Vec::new();
+    for group in [false, true] {
+        for after in [false, true] {
+            for cell_cluster in 0..30 {
+                ids.push(Arc::<str>::from(format!("subject-{group}-{after}-{cell_cluster}")));
+                clusters.push(Arc::<str>::from(format!("cluster-{group}-{after}-{cell_cluster}")));
+                treated.push(group);
+                post.push(after);
+                outcome.push(f64::from(group) + 0.5 * f64::from(after)
+                    + 2.0 * f64::from(group && after) + cell_cluster as f64 * 0.1);
+            }
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let query = PanelDidQuery::repeated_cross_section(VariableId::from_raw(0), treated, post, ids, clusters);
+    let context = ExecutionContext::for_tests(93);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let result = prepared.estimate(&data, &context).unwrap();
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let did = result.panel_did.as_ref().unwrap();
+    assert!((did.effect - 2.0).abs() < 1e-12);
+    let interval = did.interval_95.expect("30 independent clusters in every cell");
+    let bytes = prepared.encode_contracted_result(&result, "repeated-did-license", &context).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    body.panel_did.as_mut().unwrap().interval_95 = Some([interval[0] - 1.0, interval[1]]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-repeated-did").is_err());
 }
 
 #[test]

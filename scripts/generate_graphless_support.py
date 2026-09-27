@@ -74,8 +74,11 @@ def load_rows() -> list[dict]:
                 policy_evidence = row["family"] == "policy_value" and body is not None and all(
                     token in body.group(1) for token in ("2_000", "coverage")) and any(
                     token in body.group(1) for token in ("interval_95", "intervals_95"))
-                if body is None or not (legacy_evidence or policy_evidence) or not any(
-                    token in body.group(1) for token in ("truth", "target", "truths")):
+                did_evidence = row["family"] == "difference_in_differences" and body is not None \
+                    and "const REPLICATIONS: usize = 2_000" in source.read_text() \
+                    and all(token in body.group(1) for token in ("covered", "interval_95", "0.925..=0.975"))
+                if body is None or not (legacy_evidence or policy_evidence or did_evidence) or not any(
+                    token in body.group(1) for token in ("truth", "target", "truths", "TRUTH")):
                     raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 

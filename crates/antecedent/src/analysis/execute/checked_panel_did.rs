@@ -241,6 +241,19 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
+        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "difference_in_differences", design: "panel_2x2",
+                method: "cluster_change_scores_cr1", inference_claim: "pointwise_95_normal_interval",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "cluster", treated: clusters[1].len(), control: clusters[0].len(),
+                interval_95_published: interval_95.is_some(), reported_intervals: usize::from(interval_95.is_some()),
+                ..Default::default()
+            },
+        ) {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         result.treatment = None;
         result.rebind_interval(false);
         Ok(result)
@@ -649,6 +662,20 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: Arc::from([]),
             augmented: None,
         });
+        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "difference_in_differences", design: "repeated_cross_section_2x2",
+                method: "four_cell_cluster_scores_cr1", inference_claim: "pointwise_95_normal_interval",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "cluster", treated: group_clusters[1].len(), control: group_clusters[0].len(),
+                blocks: 4, min_block_arm: cell_clusters.iter().flatten().map(BTreeSet::len).min().unwrap_or(0),
+                interval_95_published: interval_95.is_some(), reported_intervals: usize::from(interval_95.is_some()),
+                ..Default::default()
+            },
+        ) {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         result.treatment = None;
         result.rebind_interval(false);
         Ok(result)

@@ -23,6 +23,8 @@ pub struct PanelDidSection {
     pub clusters: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
+    /// Exact graphless two-period DiD support license, when matched.
+    pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
     pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
     pub event_time_intervals_95: Vec<Option<(f64, f64)>>,
@@ -40,6 +42,7 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
             comparison_subjects: value.comparison_subjects,
             clusters: value.clusters,
             uncertainty: value.uncertainty.to_string(),
+            graphless_support_status: None,
             event_time_effects: value.event_time_effects.iter().map(|effect| (
                 effect.cohort, effect.period, effect.event_time, effect.effect,
                 effect.treated_subjects, effect.comparison_subjects,

@@ -99,7 +99,7 @@ def test_direct_panel_did_inherits_retained_interval_and_support_status():
     direct = estimate_panel_did(data, query)
     assert direct == antecedent.analyze(data, query=query).panel_did
     assert direct.interval_95 is not None
-    assert direct.support_status == "off_axis_interval_evidence"
+    assert direct.support_status == "licensed"
 
 
 def test_panel_did_refuses_too_few_clusters_or_cluster_changes_within_subject():
@@ -168,8 +168,33 @@ def test_supported_panel_did_reports_interval_through_public_analyze():
     assert did.interval_95 is not None
     assert did.interval_95[0] < 2.0 < did.interval_95[1]
     assert did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
-    assert did.support_status == "off_axis_interval_evidence"
+    assert did.support_status == "licensed"
     assert result.estimate.se_analytic == pytest.approx(did.standard_error)
+
+
+def test_supported_repeated_cross_section_did_has_exact_graphless_license():
+    import antecedent
+
+    ids, clusters, groups, periods, outcomes = [], [], [], [], []
+    for group in (False, True):
+        for after in (False, True):
+            for cell_cluster in range(30):
+                ids.append(f"subject-{group}-{after}-{cell_cluster}")
+                clusters.append(f"cluster-{group}-{after}-{cell_cluster}")
+                groups.append(group)
+                periods.append(after)
+                outcomes.append(float(group) + 0.5 * float(after)
+                                + 2.0 * float(group and after) + 0.1 * cell_cluster)
+    data = {"y": outcomes, "id": ids, "group": groups, "after": periods, "cluster": clusters}
+    query = PanelDifferenceInDifferences.repeated_cross_section(
+        "y", "id", "group", "after", cluster="cluster",
+    )
+    result = antecedent.analyze(data, query=query, refute="none")
+    assert result.panel_did.estimate == pytest.approx(2.0)
+    assert result.panel_did.interval_95 is not None
+    assert result.panel_did.support_status == "licensed"
+    loaded = antecedent.load(result.export(artifact_id="licensed-repeated-did"))
+    assert loaded.answer.structured["panel_did"]["graphless_support_status"] == "licensed"
 
 
 def test_repeated_cross_section_did_runs_through_public_flow_and_direct_utility():

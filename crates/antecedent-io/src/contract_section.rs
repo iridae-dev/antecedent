@@ -1537,6 +1537,18 @@ fn calibration_basis_matches_contract(
                 && structure == key.structure
                 && inference == key.inference
         }) || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
+            // Exact graphless DiD licenses are bound to the executed result.
+            // The calibration key still names the compiled query because the
+            // geometric support registry does not contain graphless rows.
+            slot.matrix_status == "licensed"
+                && slot.matrix_coordinate.as_deref().is_some_and(|coordinate| {
+                    coordinate.starts_with("graphless:difference_in_differences/")
+                })
+                && matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
+                && key.query == "Unknown"
+                && key.graph_class == contract.graph_class
+                && key.structure == "fixed"
+        }) || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Off-axis design results retain their interval construction in
             // the claim even though the support matrix has no licensed cell.
             // The query-specific payload validator verifies its support and

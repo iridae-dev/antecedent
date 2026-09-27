@@ -63,6 +63,32 @@ retained_route_test = "crates/antecedent/tests/policy_value_route.rs::retained_h
 limitations = "Fixed binary policy and reference on independent held-out subjects with known 0.5 Bernoulli assignment, at least 120 evaluation rows and 10 realized policy and reference matches, uncoupled recommendations, positive paired score variance, and both policy-value and incremental-value pointwise 95% intervals. No learned-policy inference or simultaneous claim."
 
 [[license]]
+family = "difference_in_differences"
+design = "panel_2x2"
+method = "cluster_change_scores_cr1"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 30
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent/tests/panel_did_interval_calibration.rs::retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth"
+retained_route_test = "crates/antecedent/tests/panel_did_route.rs::supported_panel_did_interval_round_trips_and_rejects_fabrication"
+limitations = "Balanced two-period panel DiD with stable treatment, one pre and post outcome per subject, clusters nested within treatment arms, at least 30 independent clusters per arm, positive CR1 score variation, and a published pointwise 95% normal interval. Parallel untreated trends and no anticipation are declared, not tested by two periods. No staggered or augmented DiD inherits this row."
+
+[[license]]
+family = "difference_in_differences"
+design = "repeated_cross_section_2x2"
+method = "four_cell_cluster_scores_cr1"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 30
+min_blocks = 4
+min_block_arm = 30
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent/tests/panel_did_interval_calibration.rs::retained_repeated_cross_section_did_interval_covers_parallel_trends_truth"
+retained_route_test = "crates/antecedent/tests/panel_did_route.rs::supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication"
+limitations = "Repeated cross-section 2×2 DiD with unique subjects, clusters nested within treatment groups, at least 30 distinct independent clusters in every group-by-period cell, positive CR1 score variation, and a published pointwise 95% normal interval. Parallel untreated trends and no anticipation are declared. No panel, staggered, or augmented DiD inherits this row."
+
+[[license]]
 family = "policy_value"
 design = "binary_aipw"
 method = "fixed_held_out_randomized_aipw_scores"

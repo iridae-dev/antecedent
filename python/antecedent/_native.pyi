@@ -397,6 +397,7 @@ class PanelDidSection:
     comparison_subjects: int
     clusters: int
     uncertainty: str
+    graphless_support_status: str | None
     event_time_effects: list[tuple[int, int, int, float, int, int, float, int]]
     event_time_intervals_95: list[tuple[float, float] | None]
     augmented: tuple[float, float, float, bool] | None
