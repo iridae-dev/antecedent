@@ -309,7 +309,7 @@ def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
     assert value.support_status == "unlicensed_point_utility"
     assert result.answer.detail == "longitudinal_regime_point_only"
     artifact = antecedent.load(result.export(artifact_id="sequential-dr-interval"))
-    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] is None
+    assert artifact.artifact.payload["longitudinal_regime"].get("value_interval_95") is None
     query_wire = artifact.artifact.payload["query"]["longitudinal_regime"]
     assert query_wire["prediction_fold_ids"] == query_wire["fold_ids"] == folds
     assert query_wire["excluded_fold_predictions"] is True
@@ -335,7 +335,7 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     assert value.value_interval_95[0] < 5.0 < value.value_interval_95[1]
     assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
     assert value.support_status == "licensed"
-    assert result.support_status == "licensed"
+    assert result.longitudinal_regime.support_status == "licensed"
     assert result.reasoning.support.payload["matrix_coordinate"].startswith("graphless:longitudinal_regime/")
     assert "sequential_q_validity" in " ".join(result.assumptions or [])
     artifact = antecedent.load(result.export(artifact_id="three-period-dr"))
@@ -375,7 +375,7 @@ def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_
     value = result.longitudinal_regime
     assert value.value_interval_95 is not None
     assert value.support_status == "licensed"
-    assert result.support_status == "licensed"
+    assert result.longitudinal_regime.support_status == "licensed"
     artifact = antecedent.load(result.export(artifact_id="two-period-dr-license"))
     assert artifact.artifact.payload["longitudinal_regime"]["graphless_support_status"] == "licensed"
     args["subject_ids"] = args["subject_ids"][:499]
