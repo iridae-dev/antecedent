@@ -466,7 +466,7 @@ class SurvivalSection:
     bootstrap_replicates_ok: int | None
     assignment_counts: tuple[int, int]
     censoring_survival_provenance: str | None
-    difference_band: tuple[list[float], list[float], list[float], list[float], int] | None
+    difference_band: tuple[list[float], list[float], list[float], list[float], int, str | None] | None
     band_unavailable_reason: str | None
 
 class LongitudinalRegimeSection:

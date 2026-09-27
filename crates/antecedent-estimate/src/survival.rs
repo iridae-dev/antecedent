@@ -773,6 +773,170 @@ mod tests {
     }
 
     #[test]
+    fn delayed_entry_scalar_bootstrap_support_boundary_covers_known_truth() {
+        // Delayed-entry (left-truncated) known-truth coverage gate for the
+        // graphless license. Entry is independent of the source event time; a
+        // subject entering at one with an event at one is unobserved. The two
+        // arm laws imply S(3) and RMST differences of .15 and .25. Sampling is
+        // repeated at the licensed 160 observed subjects per arm and the
+        // minimum 299 accepted subject-bootstrap draws.
+        const REPLICATIONS: usize = 2_000;
+        let mut state = 0xD3E1_A7E0_2000_6B63_u64;
+        let mut covered_rmst = 0;
+        let mut covered_tau = 0;
+        for trial in 0..REPLICATIONS {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            let mut entries = Vec::with_capacity(320);
+            for arm in [false, true] {
+                let mut observed = 0;
+                while observed < 160 {
+                    let entry = (splitmix64(&mut state) & 1) as f64;
+                    let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
+                    let (exit, event) = if event_u < first {
+                        (1.0, 1)
+                    } else if event_u < first + second {
+                        (2.0, 1)
+                    } else {
+                        (3.0, 0)
+                    };
+                    if entry >= exit { continue; }
+                    durations.push(exit);
+                    events.push(event);
+                    treated.push(arm);
+                    entries.push(entry);
+                    observed += 1;
+                }
+            }
+            let fit = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, Some(&entries), None, 3.0,
+                SurvivalEndpoint::Survival, 299, trial as u64 + 41_000,
+            ).unwrap();
+            assert_eq!(fit.replicates_ok, 299);
+            let rmst = fit.rmst_difference.unwrap();
+            let tau = fit.difference_at_tau;
+            covered_rmst += usize::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
+            covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
+        }
+        eprintln!("delayed-entry survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
+        assert!((1_860..=1_970).contains(&covered_rmst), "delayed-entry RMST coverage {covered_rmst}/2000");
+        assert!((1_860..=1_970).contains(&covered_tau), "delayed-entry S(3) coverage {covered_tau}/2000");
+    }
+
+    #[test]
+    fn fixed_g_ipcw_scalar_bootstrap_support_boundary_covers_known_truth() {
+        // Fixed-known-G IPCW known-truth coverage gate for the graphless
+        // license, with no delayed entry. Event risk is randomized and
+        // independent of the heterogeneous, subject-fixed censoring survival G.
+        // The source-population S(3) and RMST differences are .15 and .30.
+        // Sampling is repeated at 160 subjects per arm and the minimum 299
+        // accepted subject-bootstrap draws.
+        const REPLICATIONS: usize = 2_000;
+        let mut state = 0xE043_DA75_2000_9839_u64;
+        let mut covered_rmst = 0;
+        let mut covered_tau = 0;
+        for trial in 0..REPLICATIONS {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            let mut g = Vec::with_capacity(320 * 4);
+            for i in 0..320 {
+                let arm = i >= 160;
+                let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
+                let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let censored = censor_u >= keep_probability;
+                let failed = event_u < if arm { 0.15 } else { 0.30 };
+                durations.push(if censored { 0.5 } else if failed { 1.0 } else { 3.0 });
+                events.push(i64::from(!censored && failed));
+                treated.push(arm);
+                g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
+            }
+            let fit = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, None,
+                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)), 3.0,
+                SurvivalEndpoint::Survival, 299, trial as u64 + 43_000,
+            ).unwrap();
+            assert_eq!(fit.replicates_ok, 299);
+            let rmst = fit.rmst_difference.unwrap();
+            let tau = fit.difference_at_tau;
+            covered_rmst += usize::from(rmst[0] <= 0.30 && 0.30 <= rmst[1]);
+            covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
+        }
+        eprintln!("fixed-G IPCW survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
+        assert!((1_860..=1_970).contains(&covered_rmst), "fixed-G RMST coverage {covered_rmst}/2000");
+        assert!((1_860..=1_970).contains(&covered_tau), "fixed-G S(3) coverage {covered_tau}/2000");
+    }
+
+    #[test]
+    fn delayed_entry_fixed_g_scalar_bootstrap_support_boundary_covers_known_truth() {
+        // Combined delayed-entry and fixed-known-G IPCW known-truth coverage
+        // gate. Independent entry, randomized treatment, and subject-fixed
+        // stratum-specific censoring survival. The source-population S(3) and
+        // RMST differences are .15 and .25. Sampling is repeated at 200
+        // observed subjects per arm and the minimum 299 accepted draws.
+        const REPLICATIONS: usize = 2_000;
+        let mut state = 0xD3E1_F1E0_2000_6B63_u64;
+        let times = [0.0, 1.0, 1.5, 2.0, 2.5, 3.0];
+        let mut covered_rmst = 0;
+        let mut covered_tau = 0;
+        for trial in 0..REPLICATIONS {
+            let mut durations = Vec::with_capacity(400);
+            let mut events = Vec::with_capacity(400);
+            let mut treated = Vec::with_capacity(400);
+            let mut entries = Vec::with_capacity(400);
+            let mut g = Vec::with_capacity(400 * times.len());
+            for arm in [false, true] {
+                let mut observed = 0;
+                while observed < 200 {
+                    let entry = (splitmix64(&mut state) & 1) as f64;
+                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
+                    let (event_time, event): (f64, i64) = if u < first {
+                        (1.0, 1)
+                    } else if u < first + second {
+                        (2.0, 1)
+                    } else {
+                        (3.0, 0)
+                    };
+                    let high_censoring = splitmix64(&mut state) & 1 == 1;
+                    let censor_hazard = if high_censoring { 0.20 } else { 0.10 };
+                    let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let censor_time = if c1 < censor_hazard { 1.5 }
+                        else if c2 < censor_hazard { 2.5 } else { 3.0 };
+                    let exit = event_time.min(censor_time);
+                    if entry >= exit { continue; }
+                    durations.push(exit);
+                    events.push(if event_time <= censor_time { event } else { 0 });
+                    treated.push(arm);
+                    entries.push(entry);
+                    g.extend_from_slice(&[
+                        1.0, 1.0, 1.0, 1.0 - censor_hazard,
+                        1.0 - censor_hazard, (1.0 - censor_hazard).powi(2),
+                    ]);
+                    observed += 1;
+                }
+            }
+            let fit = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, Some(&entries),
+                Some((&times, &g, 0.01)), 3.0, SurvivalEndpoint::Survival,
+                299, trial as u64 + 45_000,
+            ).unwrap();
+            assert_eq!(fit.replicates_ok, 299);
+            let rmst = fit.rmst_difference.unwrap();
+            let tau = fit.difference_at_tau;
+            covered_rmst += usize::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
+            covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
+        }
+        eprintln!("delayed-entry fixed-G survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
+        assert!((1_860..=1_970).contains(&covered_rmst), "delayed-entry fixed-G RMST coverage {covered_rmst}/2000");
+        assert!((1_860..=1_970).contains(&covered_tau), "delayed-entry fixed-G S(3) coverage {covered_tau}/2000");
+    }
+
+    #[test]
     fn delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth() {
         // Entry is independent of the source-population event time. A subject
         // entering at one with an event at one is unobserved; those entering

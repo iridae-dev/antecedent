@@ -425,3 +425,311 @@ fn simultaneous_band_withholds_small_arms_without_erasing_scalar_interval() {
     assert!(curve.band_unavailable_reason.as_deref().unwrap().contains("80 subjects"));
     assert!(curve.rmst_difference_interval.is_some());
 }
+
+#[test]
+fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    let mut entry = Vec::new();
+    for arm in [false, true] {
+        for i in 0..170 {
+            let left = if i % 4 == 0 { 1.0 } else { 0.0 };
+            let mut exit = if i % (if arm { 6 } else { 4 }) == 0 { 2.0 }
+                else if i % 5 == 0 { 1.0 } else { 3.0 };
+            if left >= exit { exit = 3.0; }
+            duration.push(exit);
+            event.push(if exit < 3.0 { 1.0 } else { 0.0 });
+            treatment.push(f64::from(arm));
+            entry.push(left);
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()), ("entry", entry.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(5_161);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(320).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let curve = result.survival.as_ref().unwrap();
+    assert_eq!(curve.assignment_counts, [170, 170]);
+    assert!(curve.bootstrap_replicates_ok.unwrap() >= 299);
+    assert!(curve.rmst_difference_interval.is_some());
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.difference_band.is_none());
+    let encoded = prepared.encode_contracted_result(&result, "licensed-delayed-entry", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body.clone();
+    forged.survival.as_mut().unwrap().assignment_counts = Some([120, 120]);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-thin-delayed-entry",
+    ).is_err());
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().uncertainty = "point_only_no_interval".into();
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names, "forged-delayed-entry-point",
+    ).is_err());
+}
+
+#[test]
+fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    for arm in [false, true] {
+        for i in 0..170 {
+            let time = if i % (if arm { 6 } else { 3 }) == 0 { 1.0 } else { 3.0 };
+            duration.push(time);
+            event.push(if time < 3.0 { 1.0 } else { 0.0 });
+            treatment.push(f64::from(arm));
+        }
+    }
+    let g0 = vec![1.0; duration.len()];
+    let g1 = vec![0.9; duration.len()];
+    let g3 = vec![0.9; duration.len()];
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+        ("g0", g0.as_slice()), ("g1", g1.as_slice()), ("g3", g3.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    q.known_censoring = Some(KnownCensoringSurvival {
+        times: Arc::from([0.0, 1.0, 3.0]),
+        columns: Arc::from([
+            VariableId::from_raw(3), VariableId::from_raw(4), VariableId::from_raw(5),
+        ]),
+        minimum_probability: 0.01,
+    });
+    let ctx = ExecutionContext::for_tests(5_162);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(320).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let curve = result.survival.as_ref().unwrap();
+    assert_eq!(curve.assignment_counts, [170, 170]);
+    assert_eq!(curve.censoring_survival_provenance.as_deref(),
+        Some("caller_supplied_fixed_not_fitted_or_verified"));
+    assert!(curve.rmst_difference_interval.is_some());
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.difference_band.is_none());
+    let encoded = prepared.encode_contracted_result(&result, "licensed-fixed-g", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body.clone();
+    forged.survival.as_mut().unwrap().graphless_support_status = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-drop-license",
+    ).is_err());
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().censoring_survival_provenance = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names, "forged-fixed-g-provenance",
+    ).is_err());
+}
+
+#[test]
+fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    let mut entry = Vec::new();
+    for arm in [false, true] {
+        for i in 0..210 {
+            let left = if i % 4 == 0 { 1.0 } else { 0.0 };
+            let mut exit = if i % (if arm { 6 } else { 3 }) == 0 { 2.0 }
+                else if i % 9 == 0 { 1.5 } else { 3.0 };
+            if left >= exit { exit = 3.0; }
+            duration.push(exit);
+            event.push(if exit < 3.0 { 1.0 } else { 0.0 });
+            treatment.push(f64::from(arm));
+            entry.push(left);
+        }
+    }
+    let g0 = vec![1.0; duration.len()];
+    let g_late = vec![0.85; duration.len()];
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()), ("entry", entry.as_slice()),
+        ("g0", g0.as_slice()), ("g1", g0.as_slice()), ("g15", g0.as_slice()),
+        ("g2", g_late.as_slice()), ("g3", g_late.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    q.known_censoring = Some(KnownCensoringSurvival {
+        times: Arc::from([0.0, 1.0, 1.5, 2.0, 3.0]),
+        columns: Arc::from([
+            VariableId::from_raw(4), VariableId::from_raw(5), VariableId::from_raw(6),
+            VariableId::from_raw(7), VariableId::from_raw(8),
+        ]),
+        minimum_probability: 0.01,
+    });
+    let ctx = ExecutionContext::for_tests(5_163);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(320).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let curve = result.survival.as_ref().unwrap();
+    assert_eq!(curve.assignment_counts, [210, 210]);
+    assert!(curve.rmst_difference_interval.is_some());
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.difference_band.is_none());
+    let encoded = prepared.encode_contracted_result(&result, "licensed-delayed-entry-fixed-g", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().assignment_counts = Some([160, 160]);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names, "forged-combined-thin",
+    ).is_err());
+}
+
+#[test]
+fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    for arm in [false, true] {
+        for i in 0..100 {
+            let time = if i % (if arm { 4 } else { 5 }) == 0 { 1.0 }
+                else if i % 7 == 0 { 2.0 } else { 3.0 };
+            duration.push(time);
+            event.push(if time < 3.0 { 1.0 } else { 0.0 });
+            treatment.push(f64::from(arm));
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    let ctx = ExecutionContext::for_tests(5_164);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(399).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    // Only 100 subjects per arm: the scalar row needs 120, so the scalar route
+    // is off-axis while the band's own 80-per-arm license applies.
+    assert!(result.support_status.is_none());
+    let curve = result.survival.as_ref().unwrap();
+    let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
+    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let encoded = prepared.encode_contracted_result(&result, "licensed-survival-band", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);
+    assert_eq!(body.survival.as_ref().unwrap().difference_band.as_ref().unwrap()
+        .graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body.clone();
+    forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap()
+        .graphless_support_status = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-drop-band-license",
+    ).is_err());
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap().difference[1] += 0.1;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names, "forged-band-curve",
+    ).is_err());
+}
+
+#[test]
+fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    for arm in [false, true] {
+        for i in 0..100 {
+            let (time, cause) = if i % (if arm { 3 } else { 4 }) == 0 { (1.0, 1.0) }
+                else if i % 5 == 0 { (1.0, 2.0) }
+                else if i % 7 == 0 { (2.0, 1.0) }
+                else { (3.0, 0.0) };
+            duration.push(time);
+            event.push(cause);
+            treatment.push(f64::from(arm));
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::CumulativeIncidence { target_cause: 1 });
+    q.tau = 3.0;
+    let ctx = ExecutionContext::for_tests(5_165);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(399).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    // Cumulative incidence never carries the scalar RMST+horizon license.
+    assert!(result.support_status.is_none());
+    let curve = result.survival.as_ref().unwrap();
+    assert!(curve.rmst_difference_interval.is_none());
+    assert!(curve.difference_at_tau_interval.is_some());
+    let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
+    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let encoded = prepared.encode_contracted_result(&result, "licensed-incidence-band", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);
+    assert_eq!(body.survival.as_ref().unwrap().difference_band.as_ref().unwrap()
+        .graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap()
+        .graphless_support_status = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names, "forged-drop-incidence-band-license",
+    ).is_err());
+}
+
+#[test]
+fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() {
+    // Cause-specific cumulative incidence has a single scalar and no RMST
+    // companion, so the RMST-shaped graphless survival evidence gate cannot
+    // certify it. The estimator still publishes the calibrated interval, but it
+    // stays off the graphless axis. Delayed entry suppresses the band so the
+    // scalar decision is isolated.
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    let mut entry = Vec::new();
+    for arm in [false, true] {
+        for i in 0..170 {
+            let left = if i % 4 == 0 { 1.0 } else { 0.0 };
+            let (mut exit, cause) = if i % (if arm { 5 } else { 3 }) == 0 { (2.0, 1.0) }
+                else if i % 7 == 0 { (2.0, 2.0) }
+                else { (3.0, 0.0) };
+            if left >= exit { exit = 3.0; }
+            duration.push(exit);
+            event.push(if exit < 3.0 { cause } else { 0.0 });
+            treatment.push(f64::from(arm));
+            entry.push(left);
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()), ("entry", entry.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::CumulativeIncidence { target_cause: 1 });
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(5_166);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(320).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.support_status.is_none());
+    let curve = result.survival.as_ref().unwrap();
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.rmst_difference_interval.is_none());
+    assert!(curve.difference_band.is_none());
+    let encoded = prepared.encode_contracted_result(&result, "incidence-off-axis", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);
+    body.survival.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &body, header.variable_names, "forged-incidence-license",
+    ).is_err());
+}

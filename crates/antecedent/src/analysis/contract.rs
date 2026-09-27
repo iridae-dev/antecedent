@@ -567,7 +567,29 @@ impl PreparedStudy {
             if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
                 support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
                 support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| Arc::from("graphless:survival/two_arm_individual_randomized/arm_stratified_subject_bootstrap_product_limit/rmst_and_horizon_survival_pointwise_95_percentile_intervals"));
+                    .then(|| {
+                        // The licensed scalar route is fixed by the query's entry
+                        // and censoring facets. Cumulative incidence never reaches
+                        // this arm; only the paired RMST + horizon survival scalar
+                        // intervals carry a graphless matrix coordinate. The
+                        // simultaneous band is a separate claim carried on the
+                        // band's own `graphless_support_status`, never a matrix
+                        // coordinate, matching the interference precedent.
+                        let CausalQuery::Survival(query) = self.query() else {
+                            unreachable!("licensed survival result must retain its survival query")
+                        };
+                        let design = if query.delayed_entry.is_some() {
+                            "delayed_entry_two_arm_individual_randomized"
+                        } else {
+                            "two_arm_individual_randomized"
+                        };
+                        let method = if query.known_censoring.is_some() {
+                            "arm_stratified_subject_bootstrap_ipcw_product_limit"
+                        } else {
+                            "arm_stratified_subject_bootstrap_product_limit"
+                        };
+                        Arc::from(format!("graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"))
+                    });
             }
         }
         if let Some(randomized) = &result.randomized_effect {
@@ -3564,6 +3586,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 times: band.times.to_vec(), difference: band.difference.to_vec(),
                 lower: band.lower.to_vec(), upper: band.upper.to_vec(),
                 replicates_ok: band.replicates_ok,
+                graphless_support_status: band.support_status.map(CellStatus::as_str).map(str::to_string),
             }),
             band_unavailable_reason: survival.band_unavailable_reason.as_ref().map(ToString::to_string),
         }),
