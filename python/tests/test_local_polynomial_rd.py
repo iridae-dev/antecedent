@@ -44,7 +44,7 @@ def test_fuzzy_rd_local_quadratic_recovers_known_local_effect():
     assert result.support_status == "off_axis_interval_evidence"
     assert "exclusion_restriction_for_threshold_instrument" in result.assumptions
     assert "cubic_pilot_bias_correction_at_same_bandwidth" in result.diagnostics
-    assert "normal_approximation_interval_not_calibrated_or_licensed" in result.diagnostics
+    assert "nominal_95_interval_calibrated_on_strong_first_stage_fixtures" in result.diagnostics
 
 
 def test_fuzzy_regression_kink_recovers_known_local_effect():
