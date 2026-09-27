@@ -154,21 +154,35 @@ def analyze(
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:
+        A typed query object. The graph-estimand queries live at the root:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
-        ``InterventionalDistribution``, ``PathSpecificEffect``,
-        ``MediationEffect``, ``NestedCounterfactual``, ``Counterfactual``, ``TemporalMediationEffect``,
-        ``transport.Transport`` (T5–T9 compiler on an ``Admg``, with
-        ``provider=`` / ``TransportInference`` / ``controls=``),
-        ``experiment.RandomizedEffect`` (a design-carrying two-arm ITT query),
-        ``transport.advanced.TransportQuery`` (the licensed trial-IPW cell on
-        an ``Admg`` selection diagram, with its trial columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
-        network and realized assignment), ``AnomalyAttribution`` /
-        ``ChangeAttribution`` (on a ``Dag`` or edge list; GCM parametric /
-        ``gcm.fit``), or a response-family query.
-        ``extensibility.ProviderQuery`` explicitly dispatches ``data`` and its
-        request mapping to a registered Python provider. Its family-shaped
-        output remains externally attested and is not translated into a native
-        point or interval claim.
+        ``InterventionalDistribution``, ``PathSpecificEffect``, ``MediationEffect``,
+        ``ConditionalEffect``, ``Counterfactual``, ``NestedCounterfactual``,
+        ``TemporalMediationEffect``, the response family (``ResponseCurve`` /
+        ``AverageDerivative`` / ...), ``AnomalyAttribution`` / ``ChangeAttribution``
+        (on a ``Dag`` or edge list; GCM parametric / ``gcm.fit``), and
+        ``InterferenceQuery`` (with its network and realized assignment).
+
+        The specialized 2.1 families are on their stage modules and carry their
+        own design, so they take no ``graph=``:
+
+        - ``experiment.RandomizedEffect`` / ``ComplierEffect`` / ``SwitchbackEffect``
+          (randomized designs, CUPED, ANCOVA, factorial, multi-arm),
+        - ``policy.PolicyValue`` / ``MultiActionPolicyValue`` / ``ConditionalDoseResponse``,
+        - ``quasi.PanelDifferenceInDifferences`` / ``StaggeredAdoption`` /
+          ``SyntheticControl`` / ``SyntheticDifferenceInDifferences`` /
+          ``AugmentedPanelDiD`` / ``FuzzyRegressionDiscontinuity`` /
+          ``SharpRegressionDiscontinuity`` / ``RegressionKink``,
+        - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
+        - ``regimes.LongitudinalRegime``.
+
+        Transport: ``transport.Transport`` (the 2.0 compiler on an ``Admg``, with
+        ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed
+        ``transport.advanced.TransportQuery`` trial-IPW cell.
+        ``extensibility.ProviderQuery`` dispatches ``data`` and its request mapping
+        to a registered Python provider; its family-shaped output stays externally
+        attested and is not translated into a native point or interval claim.
+
         ``analyze`` returns :data:`antecedent.Analysis`: consume
         ``result.answer`` / ``result.claim()``. ``as_point()`` / ``as_response()``
         narrow when the kind must be exact.
