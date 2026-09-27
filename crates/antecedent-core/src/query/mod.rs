@@ -20,6 +20,7 @@ mod population;
 mod randomized;
 mod response;
 mod survival;
+mod synthetic_control;
 mod target;
 mod temporal;
 mod transport;
@@ -57,6 +58,7 @@ pub use response::{
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
 pub use survival::{SurvivalFunctional, SurvivalQuery};
+pub use synthetic_control::SyntheticControlQuery;
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
@@ -114,6 +116,8 @@ pub enum CausalQuery {
     PolicyValue(PolicyValueQuery),
     /// Balanced two-period panel difference in differences.
     PanelDid(PanelDidQuery),
+    /// Balanced-panel synthetic control with one treated unit and donor pool.
+    SyntheticControl(SyntheticControlQuery),
     /// Randomized right-censored survival or competing-risk functional.
     Survival(SurvivalQuery),
     /// Prespecified longitudinal regime value over subject histories.
@@ -227,6 +231,12 @@ impl CausalQuery {
     #[must_use]
     pub fn panel_did(query: PanelDidQuery) -> Self {
         Self::PanelDid(query)
+    }
+
+    /// Construct a synthetic-control query.
+    #[must_use]
+    pub fn synthetic_control(query: SyntheticControlQuery) -> Self {
+        Self::SyntheticControl(query)
     }
 
     /// Construct a randomized survival or competing-risk query.
@@ -344,6 +354,10 @@ impl From<PanelDidQuery> for CausalQuery {
     }
 }
 
+impl From<SyntheticControlQuery> for CausalQuery {
+    fn from(query: SyntheticControlQuery) -> Self { Self::SyntheticControl(query) }
+}
+
 impl From<SurvivalQuery> for CausalQuery {
     fn from(query: SurvivalQuery) -> Self {
         Self::Survival(query)
@@ -381,6 +395,7 @@ impl CausalQuery {
             Self::RandomizedEffect(_) => None,
             Self::PolicyValue(_) => None,
             Self::PanelDid(_) => None,
+            Self::SyntheticControl(_) => None,
             Self::Survival(_) => None,
             Self::LongitudinalRegime(_) => None,
         }
@@ -407,6 +422,7 @@ impl CausalQuery {
             Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_) => None,
         }
@@ -479,6 +495,7 @@ impl CausalQuery {
             Self::RandomizedEffect(q) => q.validate(),
             Self::PolicyValue(q) => q.validate(),
             Self::PanelDid(q) => q.validate(),
+            Self::SyntheticControl(q) => q.validate(),
             Self::Survival(q) => q.validate(),
             Self::LongitudinalRegime(q) => q.validate(),
         }

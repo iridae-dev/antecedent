@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from antecedent.errors import CausalValueError
+from antecedent import analyze
+from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.estimation import PreparedAnalysis
 from antecedent.quasi import SyntheticControl, estimate_synthetic_control
 
 
@@ -69,3 +71,35 @@ def test_synthetic_control_refuses_unbalanced_panel_and_no_pre_support():
         estimate_synthetic_control(
             rows, SyntheticControl("y", "unit", "period", "treated", 1)
         )
+
+
+def test_retained_analyze_and_prepare_match_direct_point_result():
+    rows = _synthetic_truth()
+    query = SyntheticControl("y", "unit", "period", "treated", 5)
+    direct = estimate_synthetic_control(rows, query)
+    result = analyze(rows, query=query)
+    fit = result.synthetic_control
+    assert fit is not None
+    assert fit.estimate == pytest.approx(direct.estimate, abs=1e-5)
+    assert dict(fit.donor_weights) == pytest.approx(dict(direct.donor_weights))
+    assert fit.placebo_effects == pytest.approx(direct.placebo_effects)
+    assert fit.support_status == "unlicensed_point_utility"
+    assert fit.uncertainty == "point_only_with_unlicensed_placebo_rank"
+    assert result.estimate.interval is None
+    prepared = PreparedAnalysis.prepare(rows, query=query)
+    refreshed = prepared.estimate(rows)
+    assert refreshed.synthetic_control == fit
+
+
+def test_retained_synthetic_control_refuses_changed_design_and_bad_donors():
+    rows = _synthetic_truth()
+    query = SyntheticControl("y", "unit", "period", "treated", 5)
+    prepared = PreparedAnalysis.prepare(rows, query=query)
+    changed = {key: list(value) for key, value in rows.items()}
+    changed["unit"][0] = "different"
+    with pytest.raises(CausalUnsupportedError, match="prepared unit and period row order"):
+        prepared.estimate(changed)
+    short = {key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
+             for key, values in rows.items()}
+    with pytest.raises((CausalValueError, CausalUnsupportedError), match="at least three donor units"):
+        analyze(short, query=query)

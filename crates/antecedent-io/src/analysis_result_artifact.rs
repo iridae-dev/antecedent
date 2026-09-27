@@ -409,6 +409,30 @@ pub struct PanelDidWire {
     pub uncertainty: String,
 }
 
+/// Synthetic-control point result and donor-support diagnostics.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SyntheticControlWire {
+    /// Average post-intervention treated-minus-synthetic outcome.
+    pub effect: f64,
+    /// Root mean squared pre-treatment fit gap.
+    pub pre_treatment_rmse: f64,
+    /// Donor weights in stable unit-name order.
+    pub donor_weights: Vec<(String, f64)>,
+    /// Leave-one-donor-out placebo effects in donor order.
+    pub placebo_effects: Vec<f64>,
+    /// Uncalibrated descriptive placebo rank.
+    pub placebo_rank: f64,
+    /// Effective donor count from the weight concentration.
+    pub effective_donors: f64,
+    /// Number of observed pre-treatment periods.
+    pub n_pre_periods: usize,
+    /// Number of observed post-treatment periods.
+    pub n_post_periods: usize,
+    /// Explicit point-only uncertainty statement.
+    pub uncertainty: String,
+}
+
 /// Randomized arm event-time curves with an explicit point-only uncertainty contract.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -506,6 +530,9 @@ pub struct AnalysisResultWire {
     /// Response axis.
     pub response: Option<CausalResponseWire>,
     /// Nested canonical posterior artifact bytes, including draws when requested.
+    /// Synthetic-control result with donor and placebo diagnostics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synthetic_control: Option<SyntheticControlWire>,
     pub posterior_artifact: Option<Vec<u8>>,
     /// Horizon-indexed mediation axis.
     pub mediation_grid: Option<TemporalMediationGridWire>,
@@ -831,6 +858,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         let crate::CausalQueryWire::PanelDid(query) = &result.query else {
             return Err(IoError::Convert(
                 "panel DiD result section is attached to a different query".into(),
+    if matches!(result.query, crate::CausalQueryWire::SyntheticControl(_))
+        && result.synthetic_control.is_none()
+    {
+        return Err(IoError::Convert("synthetic-control artifact is missing its donor-support result section".into()));
+    }
             ));
         };
         let mut subjects = std::collections::BTreeMap::<&str, (bool, &str)>::new();
@@ -1021,6 +1053,38 @@ fn validate_interventional_distribution(result: &AnalysisResultWire) -> Result<(
                 "interventional distribution atom contains a non-finite value".into(),
             ));
         }
+    if let Some(fit) = &result.synthetic_control {
+        let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
+            return Err(IoError::Convert("synthetic-control result is attached to a different query".into()));
+        };
+        let donors: std::collections::BTreeSet<&str> = query.units.iter()
+            .map(String::as_str).filter(|unit| *unit != query.treated_unit.as_str()).collect();
+        let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
+            .filter(|period| *period < query.intervention_period).collect();
+        let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
+            .filter(|period| *period >= query.intervention_period).collect();
+        let weight_names: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
+        let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
+        if result.estimate != Some(fit.effect)
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some() || result.interval_upper.is_some()
+            || !fit.effect.is_finite()
+            || !fit.pre_treatment_rmse.is_finite() || fit.pre_treatment_rmse < 0.0
+            || !fit.placebo_rank.is_finite() || !(0.0..=1.0).contains(&fit.placebo_rank)
+            || !fit.effective_donors.is_finite() || fit.effective_donors < 1.0
+            || fit.donor_weights.len() != donors.len() || donors.len() < 3
+            || weight_names != donors.iter().copied().collect::<Vec<_>>()
+            || fit.donor_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
+            || (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
+            || (fit.effective_donors - 1.0 / squared_mass).abs() > 1e-8
+            || fit.placebo_effects.len() != donors.len()
+            || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
+            || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
+            || fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
+        {
+            return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
+        }
+    }
         if expected_outcomes.len() == 1 {
             if let Some(value) = atom.outcomes[0].1.to_value().as_f64() {
                 numeric_mean += value * atom.probability;

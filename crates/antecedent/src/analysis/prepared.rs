@@ -4030,6 +4030,7 @@ pub(crate) enum PreparedExecution {
     Randomized(super::execute::CheckedRandomizedOperation),
     PolicyValue(super::execute::CheckedPolicyValueOperation),
     PanelDid(super::execute::CheckedPanelDidOperation),
+    SyntheticControl(super::execute::CheckedSyntheticControlOperation),
     Survival(super::execute::CheckedSurvivalOperation),
     LongitudinalRegime(super::execute::CheckedLongitudinalRegimeOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
@@ -4121,6 +4122,7 @@ impl PreparedExecution {
             | Self::Randomized(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_)
             | Self::TemporalClassEffect(_)
@@ -6805,6 +6807,10 @@ impl PreparedStudy {
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
         if let PreparedExecution::PanelDid(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
+        if let PreparedExecution::SyntheticControl(operation) = &self.execution {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
@@ -10208,6 +10214,16 @@ impl Study {
             }
             _ => None,
         };
+        let checked_synthetic_control = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::SyntheticControl(_), GraphClass::RandomizedTrial)
+                if analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedSyntheticControlOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let checked_survival = match (&self.data, &self.query, analysis.graph.class()) {
             (DataInput::Tabular(data), CausalQuery::Survival(_), GraphClass::RandomizedTrial)
                 if analysis.structure_source
@@ -10803,6 +10819,8 @@ impl Study {
             PreparedExecution::PolicyValue(operation)
         } else if let Some(operation) = checked_panel_did {
             PreparedExecution::PanelDid(operation)
+        } else if let Some(operation) = checked_synthetic_control {
+            PreparedExecution::SyntheticControl(operation)
         } else if let Some(operation) = checked_survival {
             PreparedExecution::Survival(operation)
         } else if let Some(operation) = checked_longitudinal_regime {
@@ -10897,6 +10915,10 @@ impl Study {
         }
         if let CausalQuery::PanelDid(query) = &self.query {
             let (identification, estimand) = super::execute::panel_did_identification(query);
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if let CausalQuery::SyntheticControl(query) = &self.query {
+            let (identification, estimand) = super::execute::synthetic_control_identification(query);
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if let CausalQuery::Survival(query) = &self.query {
@@ -11935,6 +11957,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported {
                     message: "PanelDid requires a graphless two-period panel design",
                 });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::SyntheticControl(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported { message: "SyntheticControl requires a graphless balanced-panel design" });
             }
         }
         (DataInput::Tabular(_), CausalQuery::Survival(_)) => {

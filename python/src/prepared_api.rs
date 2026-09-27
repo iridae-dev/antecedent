@@ -3541,6 +3541,36 @@ impl PyPreparedAnalysis {
     }
 
     /// Freeze a known-randomization longitudinal regime value over whole subjects.
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze one treated unit and its balanced donor pool for native synthetic control.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
+        intervention_period, *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_synthetic_control(
+        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
+        outcome: String, units: Vec<String>, periods: Vec<i64>, treated_unit: String,
+        intervention_period: i64, accepted: bool, seed: u64, threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("synthetic control")?;
+        opts.refuse_population("synthetic control")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let unit_arc: Vec<Arc<str>> = units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect();
+            let query = antecedent_core::SyntheticControlQuery::new(
+                outcome_id, unit_arc, periods, Arc::<str>::from(treated_unit), intervention_period,
+            );
+            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,

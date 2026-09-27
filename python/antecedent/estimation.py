@@ -76,7 +76,7 @@ from .policy import (
     PolicyValue, evaluate_multi_action_policy, evaluate_policy,
 )
 from .population import coerce_target_population
-from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate, StaggeredAdoption
+from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate, StaggeredAdoption, SyntheticControl, SyntheticControlEstimate
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -337,6 +337,23 @@ def _panel_did_from_raw(
 
 def _survival_from_raw(
     raw: Any, query: Any = None
+def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
+    section = getattr(raw, "synthetic_control", None)
+    if section is None:
+        return None
+    return SyntheticControlEstimate(
+        estimate=section.effect,
+        pre_treatment_rmse=section.pre_treatment_rmse,
+        donor_weights=tuple((str(unit), float(weight)) for unit, weight in section.donor_weights),
+        placebo_effects=tuple(section.placebo_effects),
+        placebo_rank_p_value=section.placebo_rank,
+        effective_donors=section.effective_donors,
+        n_donors=len(section.donor_weights),
+        n_pre_periods=section.n_pre_periods,
+        n_post_periods=section.n_post_periods,
+    )
+
+
 ) -> SurvivalEstimate | CumulativeIncidenceEstimate | None:
     section = getattr(raw, "survival", None)
     if section is None:
@@ -758,6 +775,7 @@ def _wrap_ate(
         panel_did=_panel_did_from_raw(raw, query),
         policy_value=_policy_value_from_raw(raw),
         survival=_survival_from_raw(raw, query),
+        synthetic_control=_synthetic_control_from_raw(raw),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
@@ -1590,6 +1608,7 @@ _PreparedQuery = (
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegimeQuery
+    | SyntheticControl
 )
 
 
@@ -1747,6 +1766,25 @@ def _staggered_payload(
 def _longitudinal_regime_payload(
     data: Any, query: LongitudinalRegimeQuery
 ) -> tuple[list[str], list[Any]]:
+def _synthetic_control_payload(
+    data: Any, query: SyntheticControl
+) -> tuple[list[str], list[Any], dict[str, Any]]:
+    from .quasi import _integer_column, _raw_columns
+
+    raw_names, raw_columns = _raw_columns(data)
+    raw = dict(zip(raw_names, raw_columns, strict=True))
+    required = (query.outcome, query.unit, query.period)
+    missing = [name for name in required if name not in raw]
+    if missing:
+        raise CausalValueError(f"required synthetic-control columns are missing: {missing}")
+    units = tuple(str(value) for value in raw[query.unit])
+    if any(not value.strip() for value in units):
+        raise CausalValueError("unit IDs must be non-empty")
+    periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
+    names, columns = ingest_columns({query.outcome: raw[query.outcome]})
+    return names, columns, {"units": units, "periods": periods}
+
+
     """Send the numeric endpoint to Rust; histories remain frozen query metadata."""
     from .quasi import _raw_columns
 
@@ -1933,6 +1971,8 @@ class _PrepareRoute:
         if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
             return self._survival()
         if self.discovery is not None:
+        if isinstance(query, SyntheticControl):
+            return self._synthetic_control()
             return self._graph_posterior()
         if self.graph is None:
             raise CausalValueError("PreparedAnalysis.prepare requires graph= or discovery=")
@@ -2603,6 +2643,27 @@ class _PrepareRoute:
                 reason_code="route_not_supported",
             )
         assumption = query.observation_assumption
+    def _synthetic_control(self) -> tuple[Any, Literal["average"]]:
+        query = cast(SyntheticControl, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", "SyntheticControl")
+        self._refuse_ids("SyntheticControl")
+        self._refuse_estimator_config("SyntheticControl")
+        if self._explicit_refute() or self.bootstrap:
+            raise _not_applicable("refute/bootstrap", "SyntheticControl")
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise _not_applicable("inference", "SyntheticControl")
+        design = self.design_columns
+        if design is None:
+            raise CausalValueError("synthetic-control design columns were not bound at prepare")
+        native = _NativePreparedAnalysis.prepare_synthetic_control(
+            self.names, self.columns, query.outcome,
+            list(design["units"]), list(design["periods"]),
+            query.treated_unit, query.intervention_period,
+            accepted=False, **self._common()
+        )
+        return native, "average"
+
         if not isinstance(assumption, IndependentGiven) or tuple(assumption.variables):
             raise CausalUnsupportedError(
                 "the unadjusted survival route requires an explicit marginal IndependentGiven(()) censoring and entry assumption",
@@ -3851,7 +3912,7 @@ class PreparedAnalysis(Generic[ResultT]):
         rd_args = (running_variable, cutoff, bandwidth)
 
         design_columns = None
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl)):
             if isinstance(query, StaggeredAdoption):
                 names, columns, design_columns = _staggered_payload(data, query)
             else:
@@ -3881,6 +3942,8 @@ class PreparedAnalysis(Generic[ResultT]):
             names=names,
             columns=columns,
             frame=frame,
+            elif isinstance(query, SyntheticControl):
+                names, columns, design_columns = _synthetic_control_payload(data, query)
             query=query,
             graph=graph,
             discovery=discovery,
@@ -4151,14 +4214,14 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         query = self._query
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl)):
             names, columns, design = (
                 _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
                 else _panel_did_payload(data, query)
             )
             if design != self._design_columns:
                 raise CausalUnsupportedError(
-                    "panel DiD refresh requires the prepared subject, cluster, treatment, and period row order",
+                    "design refresh requires the prepared unit and period row order",
                     reason_code="invalid_argument",
                 )
             return names, columns, None
@@ -4181,6 +4244,7 @@ class PreparedAnalysis(Generic[ResultT]):
         | CausalResponseView
         | StatisticalTransportDistribution
         | TransportResponseGrid
+                else _synthetic_control_payload(data, query) if isinstance(query, SyntheticControl)
     ):
         if self._kind in ("response_curve", "intervention_response"):
             query = self._query if isinstance(self._query, _RESPONSE_FAMILY) else None

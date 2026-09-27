@@ -165,6 +165,7 @@ fn receipt_body(
         estimate: attach.scalar_value,
         policy_value: None,
         panel_did: None,
+        synthetic_control: None,
         survival: None,
         longitudinal_regime: None,
         interventional_distribution: None,

@@ -14,6 +14,7 @@ use antecedent_core::{
     ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
     InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
     MediationQuery, OrderedFloatBits, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery,
+    SyntheticControlQuery,
     PolicyValueQuery, PopulationRegistry, PopulationSelector, PredicateExpr, RandomizationDesign,
     RandomizedEffectQuery, SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy,
     TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery, UnitChangeQuery, Value,
@@ -774,6 +775,8 @@ pub enum CausalQueryWire {
     PolicyValue(PolicyValueQueryWire),
     /// Balanced two-period panel difference-in-differences.
     PanelDid(PanelDidQueryWire),
+    /// Balanced-panel synthetic-control design.
+    SyntheticControl(SyntheticControlQueryWire),
     /// Randomized survival or competing-risk query.
     Survival(SurvivalQueryWire),
     /// Prespecified longitudinal treatment regime value.
@@ -856,6 +859,22 @@ pub struct PanelDidQueryWire {
     pub subjects: Vec<String>,
     /// Cluster identity by row.
     pub clusters: Vec<String>,
+}
+
+/// Row-aligned synthetic-control design frozen in query identity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SyntheticControlQueryWire {
+    /// Continuous outcome variable.
+    pub outcome: u32,
+    /// Unit labels in row order.
+    pub units: Vec<String>,
+    /// Calendar periods in row order.
+    pub periods: Vec<i64>,
+    /// Unit receiving treatment.
+    pub treated_unit: String,
+    /// First treated period.
+    pub intervention_period: i64,
 }
 
 /// Frozen policy value inputs retained as part of query identity.
@@ -1048,6 +1067,7 @@ impl CausalQueryWire {
         }
     }
 
+            | Self::SyntheticControl(_)
     /// Target population of a population-scoped query.
     ///
     /// The wire mirror of [`antecedent_core::CausalQuery::target_population`],
@@ -1080,6 +1100,7 @@ impl CausalQueryWire {
         }
     }
 }
+            | Self::SyntheticControl(_)
 
 /// Structural transportability query wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1584,6 +1605,13 @@ pub fn causal_query_to_wire_with_registry(
                 antecedent_core::SurvivalFunctional::SurvivalAndRmst => None,
                 antecedent_core::SurvivalFunctional::CumulativeIncidence { target_cause } => {
                     Some(target_cause)
+        CausalQuery::SyntheticControl(q) => CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
+            outcome: q.outcome.raw(),
+            units: q.units.iter().map(ToString::to_string).collect(),
+            periods: q.periods.to_vec(),
+            treated_unit: q.treated_unit.to_string(),
+            intervention_period: q.intervention_period,
+        }),
                 }
             },
             independent_observation: matches!(&q.observation_assumption,
@@ -1904,6 +1932,17 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     return Err(IoError::Convert(
                         "survival requires marginal independent observation declaration".into(),
                     ));
+        CausalQueryWire::SyntheticControl(w) => {
+            let q = SyntheticControlQuery::new(
+                VariableId::from_raw(w.outcome),
+                w.units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
+                w.periods.clone(),
+                Arc::<str>::from(w.treated_unit.as_str()),
+                w.intervention_period,
+            );
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::SyntheticControl(q)
+        }
                 },
                 functional: w.target_cause.map_or(
                     antecedent_core::SurvivalFunctional::SurvivalAndRmst,

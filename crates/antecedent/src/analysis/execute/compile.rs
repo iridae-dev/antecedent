@@ -700,6 +700,28 @@ impl super::Study {
             (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Survival(q) = &self.query else { unreachable!() };
+            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::SyntheticControl(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                if q.units.len() != data.row_count() {
+                    return Err(CausalError::Compile { message: "synthetic-control metadata must align with table rows".into() });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("quasi.synthetic_control"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("quasi.convex_donor_counterfactual")),
+                        estimator: Some(Arc::from("quasi.synthetic_control_simplex")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(), split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
                     .into_iter()
@@ -981,6 +1003,9 @@ impl super::Study {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {

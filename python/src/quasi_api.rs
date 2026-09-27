@@ -36,6 +36,37 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
     }
 }
 
+/// Retained synthetic-control point result; placebo rank is descriptive only.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct SyntheticControlSection {
+    pub effect: f64,
+    pub pre_treatment_rmse: f64,
+    pub donor_weights: Vec<(String, f64)>,
+    pub placebo_effects: Vec<f64>,
+    pub placebo_rank: f64,
+    pub effective_donors: f64,
+    pub n_pre_periods: usize,
+    pub n_post_periods: usize,
+    pub uncertainty: String,
+}
+
+impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
+    fn from(value: &antecedent::SyntheticControlEstimate) -> Self {
+        Self {
+            effect: value.effect,
+            pre_treatment_rmse: value.pre_treatment_rmse,
+            donor_weights: value.donor_weights.iter().map(|(unit, weight)| (unit.to_string(), *weight)).collect(),
+            placebo_effects: value.placebo_effects.to_vec(),
+            placebo_rank: value.placebo_rank,
+            effective_donors: value.effective_donors,
+            n_pre_periods: value.n_pre_periods,
+            n_post_periods: value.n_post_periods,
+            uncertainty: value.uncertainty.to_string(),
+        }
+    }
+}
+
 /// Repeated-cross-section 2x2 difference in differences, without interval claims.
 #[pyfunction]
 fn difference_in_differences(
@@ -1079,6 +1110,7 @@ fn local_polynomial_fuzzy_discontinuity(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PanelDidSection>()?;
+    module.add_class::<SyntheticControlSection>()?;
     module.add_function(wrap_pyfunction!(difference_in_differences, module)?)?;
     module.add_function(wrap_pyfunction!(panel_difference_in_differences, module)?)?;
     module.add_function(wrap_pyfunction!(group_time_att, module)?)?;

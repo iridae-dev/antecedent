@@ -692,6 +692,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     interference: InterferenceEstimate | None = None
     randomized_effect: Any | None = None
     panel_did: Any | None = None
+    synthetic_control: Any | None = None
     policy_value: DoublyRobustPolicyEvaluation | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
     longitudinal_regime: Any | None = None

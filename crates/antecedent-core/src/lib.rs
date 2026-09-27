@@ -121,6 +121,7 @@ pub use query::{
     PopulationSelector, PredicateExpr, QueryError, RandomizationDesign, RandomizedEffectQuery,
     RegimeBinding, RegimeKind, ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig,
     ShapleyMode, SurvivalFunctional, SurvivalQuery, TEMPORAL_OBSERVATION_UNLICENSED,
+    SyntheticControlQuery,
     TargetPopulation, TargetSampling, TemporalEffectQuery, TemporalResponseLicense,
     TemporalResponseSpec, TheoremFamily, TheoremScope, TransportEvaluateSupport,
     TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
