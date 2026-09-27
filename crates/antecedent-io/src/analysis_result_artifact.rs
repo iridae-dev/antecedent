@@ -996,18 +996,15 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                     query.realized_assignment.iter().filter(|assigned| **assigned).count(),
                 )
             };
-        let minimum_probability = query
-            .assignment_probabilities
-            .iter()
-            .copied()
-            .map(|p| {
-                if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
+        let minimum_probability = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+            query.multi_arm_probabilities.iter().flat_map(|row| row.iter().copied()).fold(f64::INFINITY, f64::min)
+        } else {
+            query.assignment_probabilities.iter().copied()
+                .map(|p| if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
                     p.min(1.0 - p)
-                } else {
-                    p
-                }
-            })
-            .fold(f64::INFINITY, f64::min);
+                } else { p })
+                .fold(f64::INFINITY, f64::min)
+        };
         let expected_allocations = if query.exact_randomization_test {
             let n = query.realized_assignment.len() as u64;
             let k = treated as u64;
