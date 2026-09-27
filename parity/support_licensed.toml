@@ -7436,7 +7436,7 @@ known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
 evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
 checked_execution = [
-  { estimator = "functional.effect", test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs", assertion = "admg_response_curve_explicit_frequentist_none" },
+  { estimator = "functional.effect", test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs", assertion = "admg_response_curve_explicit_frequentist_publishes_bootstrap_band" },
 ]
 limitations = "general.id on the supplied ADMG plus the functional.effect plug-in at each grid level. Bidirected edges stay bidirected; this is not g-computation on a coerced DAG and not transport. MeanCurve is the identified P(Y|do(X=x)) grid. Validation none only; cheap/full are n/a (function-valued). graph-posterior ADMG response stays closed. Accepted shares this evaluator."
 calibration_reason = "estimator_grid_not_measured"
@@ -7454,7 +7454,7 @@ known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
 evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
 evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
 checked_execution = [
-  { estimator = "functional.effect", test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs", assertion = "admg_response_curve_accepted_frequentist_none" },
+  { estimator = "functional.effect", test = "crates/antecedent/tests/admg_response_curve_route_evidence.rs", assertion = "admg_response_curve_accepted_frequentist_publishes_bootstrap_band" },
 ]
 limitations = "Accepted ADMG shares the explicit general.id + functional.effect response evaluator. Not gcomp; not transport. Validation none only."
 calibration_reason = "estimator_grid_not_measured"

@@ -92,7 +92,10 @@ lic_doc = load("parity/support_licensed.toml")
 
 queries = list(axes.get("queries") or [])
 stage_queries = list(axes.get("stage_queries") or [])
+off_axis_public_queries = list(axes.get("off_axis_public_queries") or [])
+public_query_companions = list(axes.get("public_query_companions") or [])
 graph_classes = list(axes.get("graph_classes") or [])
+off_axis_graph_classes = list(axes.get("off_axis_graph_classes") or [])
 structures = list(axes.get("structures") or [])
 inferences = list(axes.get("inferences") or [])
 validations = list(axes.get("validations") or [])
@@ -133,11 +136,16 @@ root_queries = [q for q in queries if q != "TransportQuery"]
 # rename support cells or their evidence records.
 query_axis_aliases = {"NestedCounterfactual": "NestedCounterfactualEffect"}
 mapped_live_queries = [query_axis_aliases.get(q, q) for q in live_queries]
-if sorted(root_queries) != sorted(mapped_live_queries):
+expected_public_queries = root_queries + off_axis_public_queries + public_query_companions
+if sorted(expected_public_queries) != sorted(mapped_live_queries):
     fail.append(
-        "parity/support_axes.toml queries != python __all__ query names: "
-        f"axes={sorted(root_queries)} live={sorted(mapped_live_queries)}"
+        "parity/support_axes.toml public query exports != python __all__ query names: "
+        f"axes={sorted(expected_public_queries)} live={sorted(mapped_live_queries)}"
     )
+if set(off_axis_public_queries) & set(queries):
+    fail.append("off_axis_public_queries overlaps geometric queries")
+if set(public_query_companions) & (set(queries) | set(off_axis_public_queries)):
+    fail.append("public_query_companions overlaps query kinds")
 
 for name in ["Frequentist", "Bayesian"]:
     if name not in public:
@@ -163,7 +171,7 @@ else:
 # GraphClass must be on the axis. Classification-only extras (tier-rule
 # backgrounds) may appear in addition; they are not GraphClass variants.
 TIER_EXTRAS = {"CoDetermined", "Unknown"}
-if not set(live_graphs) <= set(graph_classes):
+if not set(live_graphs) <= set(graph_classes) | set(off_axis_graph_classes):
     fail.append(
         "parity/support_axes.toml graph_classes must contain GraphClass: "
         f"axes={sorted(graph_classes)} live={sorted(live_graphs)}"
@@ -179,6 +187,10 @@ if not TIER_EXTRAS <= set(graph_classes):
         "parity/support_axes.toml graph_classes must include "
         f"{sorted(TIER_EXTRAS)} (classification-only tier-rule axes)"
     )
+if set(off_axis_graph_classes) - set(live_graphs):
+    fail.append("off_axis_graph_classes includes names absent from GraphClass")
+if set(off_axis_graph_classes) & set(graph_classes):
+    fail.append("off_axis_graph_classes overlaps geometric graph_classes")
 
 expected_structures = {"explicit", "accepted", "graph_posterior"}
 if set(structures) != expected_structures:
@@ -193,7 +205,10 @@ if set(validations) != expected_validations:
 for seq, label in (
     (queries, "queries"),
     (stage_queries, "stage_queries"),
+    (off_axis_public_queries, "off_axis_public_queries"),
+    (public_query_companions, "public_query_companions"),
     (graph_classes, "graph_classes"),
+    (off_axis_graph_classes, "off_axis_graph_classes"),
     (structures, "structures"),
     (inferences, "inferences"),
     (validations, "validations"),

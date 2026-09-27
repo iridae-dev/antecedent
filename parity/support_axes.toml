@@ -35,6 +35,34 @@ queries = [
   "InterferenceQuery",
 ]
 
+# Public workflow query or utility types without geometric support cells.
+# Retained routes report off_axis; SwitchbackEffect is a direct utility.
+off_axis_public_queries = [
+  "LongitudinalRegimeQuery",
+  "PolicyValue",
+  "RandomizedEffect",
+  "SurvivalOutcome",
+  "SwitchbackEffect",
+]
+
+# Types exported beside queries for constructing designs or reading results.
+public_query_companions = [
+  "ANCOVAEstimate",
+  "AnomalyReference",
+  "BinaryPolicy",
+  "ExperimentDesign",
+  "IPCWCumulativeIncidenceEstimate",
+  "IPCWSurvivalEstimate",
+  "LongitudinalRegimeEstimate",
+  "SurvivalEstimate",
+  "SwitchbackDesign",
+  "SwitchbackEstimate",
+]
+
+# RandomizedTrial is used by retained experiment routes and does not classify
+# geometric query cells.
+off_axis_graph_classes = ["RandomizedTrial"]
+
 graph_classes = [
   "Dag",
   "Admg",
