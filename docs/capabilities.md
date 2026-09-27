@@ -696,8 +696,9 @@ The balanced-panel route reports the same pointwise uncertainty with an
 optional higher-level cluster column. Neither retained design reports a
 p-value or interval. Both are marked `unlicensed_point_utility` and add no
 support-matrix license.
-Staggered adoption, event studies, synthetic-control, and regression-discontinuity
-extensions are separate utilities.
+Staggered adoption and synthetic-panel designs also run through the retained
+`prepare` / `analyze` flow. Event studies and regression-discontinuity
+extensions have separate utility entry points.
 
 `antecedent.quasi.StaggeredAdoption` adds a balanced-panel group-time ATT
 utility. Cohort 0 is explicitly never treated; for each adoption cohort and
@@ -714,6 +715,18 @@ at least two distinct clusters must contribute to each cohort/control
 comparison. Event-study pre-adoption contrasts are descriptive only. Neither
 utility reports p-values or intervals, validates assumptions, or adds a
 support-matrix license; both remain `unlicensed_point_utility`.
+
+`antecedent.quasi.SyntheticControl` and
+`SyntheticDifferenceInDifferences` use the same graphless, row-aligned
+synthetic-panel preparation path. The first fits convex donor weights and
+reports pre-fit error, effective donor count, and descriptive, uncalibrated
+leave-one-donor-out placebos. The second fits convex donor and pre-period
+weights for a difference-in-differences contrast. Both freeze unit and period
+identity, execute in native Rust, and export separate result sections in
+portable artifacts. They require a balanced panel, explicit treatment timing,
+no anticipation or interference, and a defensible donor counterfactual or
+untreated trend. Results are point-only, remain `unlicensed_point_utility`,
+and add no support-matrix license or calibrated interval claim.
 
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no
