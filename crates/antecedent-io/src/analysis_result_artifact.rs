@@ -1297,12 +1297,14 @@ fn validate_result(
             crate::RandomizationDesignWire::Bernoulli
                 if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
             {
-                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval", None)
+                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval",
+                    Some("bernoulli_wald_cace_influence_normal_interval"))
             }
             crate::RandomizationDesignWire::Bernoulli
                 if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated =>
             {
-                ("bernoulli", "bernoulli_one_sided_tot_influence_variance_no_interval", None)
+                ("bernoulli", "bernoulli_one_sided_tot_influence_variance_no_interval",
+                    Some("bernoulli_one_sided_tot_influence_normal_interval"))
             }
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
                 ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval", Some("bernoulli_fixed_cuped_ht_score_normal_interval"))
@@ -1371,7 +1373,9 @@ fn validate_result(
         } else { None };
         let interval_supported = match &query.design {
             crate::RandomizationDesignWire::Bernoulli =>
-                query.estimand == crate::RandomizedEstimandWire::Itt
+                matches!(query.estimand, crate::RandomizedEstimandWire::Itt
+                    | crate::RandomizedEstimandWire::CaceLate
+                    | crate::RandomizedEstimandWire::TreatmentOnTreated)
                     && query.ancova_covariates.len() <= 2
                     && query.realized_assignment.len() >= 400
                     && control >= 30 && treated >= 30
@@ -1411,18 +1415,24 @@ fn validate_result(
         };
         let has_interval = randomized.interval_95.is_some();
         let graphless_method = match query.design {
+            crate::RandomizationDesignWire::Bernoulli
+                if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated =>
+                Some(("complier_effect", "bernoulli_one_sided", "wald_ratio_influence", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Bernoulli
+                if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
+                Some(("complier_effect", "bernoulli", "wald_ratio_influence", "unit", "pointwise_95_normal_interval")),
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() =>
-                Some(("bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval")),
+                Some(("randomized_effect", "bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval")),
             crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() =>
-                Some(("bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval")),
-            crate::RandomizationDesignWire::Bernoulli => Some(("bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval")),
-            crate::RandomizationDesignWire::Complete { .. } => Some(("complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
-            crate::RandomizationDesignWire::Cluster { .. } => Some(("cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval")),
-            crate::RandomizationDesignWire::Stratified => Some(("stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
-            crate::RandomizationDesignWire::Factorial2x2 => Some(("factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals")),
-            crate::RandomizationDesignWire::MultiArm => Some(("multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals")),
+                Some(("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Bernoulli => Some(("randomized_effect", "bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Complete { .. } => Some(("randomized_effect", "complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Cluster { .. } => Some(("randomized_effect", "cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Stratified => Some(("randomized_effect", "stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Factorial2x2 => Some(("randomized_effect", "factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals")),
+            crate::RandomizationDesignWire::MultiArm => Some(("randomized_effect", "multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals")),
             crate::RandomizationDesignWire::Switchback =>
-                Some(("switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval")),
+                Some(("randomized_effect", "switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval")),
         };
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
         let support_blocks = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
@@ -1466,9 +1476,9 @@ fn validate_result(
                     && reported_intervals + 1 == query.multi_arm_labels.len(),
             _ => has_interval,
         };
-        let graphless_licensed = graphless_method.is_some_and(|(design_key, method, assignment_unit, claim)| {
+        let graphless_licensed = graphless_method.is_some_and(|(family, design_key, method, assignment_unit, claim)| {
             graphless_data::LICENSES.iter().any(|row| {
-                row.family == "randomized_effect"
+                row.family == family
                     && row.design == design_key
                     && row.method == method
                     && row.inference_claim == claim
