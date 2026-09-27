@@ -451,6 +451,94 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
 }
 
 #[test]
+fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
+    let subjects = 400;
+    let predictions = (0..subjects).flat_map(|subject| {
+        let x = if subject % 2 == 0 { -1.0 } else { 1.0 };
+        [2.0 + 0.3 * x, 3.0 + 0.2 * x]
+    }).collect::<Vec<_>>();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::GFormula;
+    q.period_outcome_predictions = Some(Arc::from(predictions));
+    q.known_fixed_outcome_predictions = true;
+    q.treatment_history = Arc::from(vec![false; subjects * 2]);
+    q.regime_actions = Arc::from(vec![true; subjects * 2]);
+    q.treatment_probabilities = Arc::from(vec![0.5; subjects * 2]);
+    q.censoring_probabilities = Arc::from(vec![1.0; subjects * 2]);
+    q.outcome_observed = Arc::from(vec![true; subjects]);
+    q.subject_ids = Arc::from((0..subjects).map(|subject| Arc::<str>::from(format!("gf-{subject}"))).collect::<Vec<_>>());
+    q.fold_ids = Arc::from(vec![0; subjects]);
+    q.probabilities_known_by_design = true;
+    let outcome = vec![0.0; subjects];
+    let data = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
+    let ctx = ExecutionContext::for_tests(271);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime.as_ref().unwrap();
+    assert_eq!(&*fit.method, "g_formula");
+    assert!(fit.value_interval_95.is_some());
+    assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let bytes = prepared.encode_contracted_result(&result, "g-formula-license", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    // Stripping the earned license from a still-published interval is rejected.
+    let mut cleared = body.clone();
+    cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(&cleared,
+        header.variable_names.clone(), "g-formula-cleared").is_err());
+    body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body,
+        header.variable_names, "forged-g-formula-interval").is_err());
+}
+
+#[test]
+fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
+    let n = 300;
+    let treatment = (0..n).flat_map(|i| match i % 4 {
+        0 => [false, false], 1 => [false, true], 2 => [true, false], _ => [true, true],
+    }).collect::<Vec<_>>();
+    let y = (0..n).map(|i| {
+        1.0 + 2.0 * f64::from(treatment[2 * i]) + 3.0 * f64::from(treatment[2 * i + 1])
+            + (i % 7) as f64 / 10.0
+    }).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
+    q.treatment_history = treatment.into();
+    q.regime_actions = vec![false; n * 2].into();
+    q.treatment_probabilities = vec![0.5; n * 2].into();
+    q.censoring_probabilities = vec![1.0; n * 2].into();
+    q.outcome_observed = vec![true; n].into();
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("msm-{i}"))).collect::<Vec<_>>().into();
+    q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
+    q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
+    let ctx = ExecutionContext::for_tests(287);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime.as_ref().unwrap();
+    assert!(fit.value_interval_95.is_some());
+    assert_eq!(fit.period_intervals_95.as_ref().unwrap().len(), 2);
+    assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_clustered_cr1_95");
+    assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let bytes = prepared.encode_contracted_result(&result, "msm-license", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    // The license cannot survive without every published coefficient interval.
+    let mut cleared = body.clone();
+    cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(&cleared,
+        header.variable_names.clone(), "msm-cleared").is_err());
+    body.longitudinal_regime.as_mut().unwrap().period_intervals_95[0] = [0.0, 0.0];
+    assert!(antecedent_io::encode_analysis_result_artifact(&body,
+        header.variable_names, "forged-msm-license").is_err());
+}
+
+#[test]
 fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_horizon() {
     let n = 800;
     let treatment = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0])
