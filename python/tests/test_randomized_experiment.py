@@ -131,7 +131,7 @@ def test_factorial_randomization_retains_main_effects_interaction_and_no_interva
     assert result.randomized_effect.uncertainty == "factorial_cell_neyman_variance_upper_bound_no_interval"
     assert result.evidence_status == "off_axis"
     assert any("known_random_assignment" in assumption for assumption in result.assumptions or ())
-    with pytest.raises(CausalUnsupportedError, match="through analyze or prepare"):
+    with pytest.raises(CausalUnsupportedError, match="require analyze or prepare"):
         query.estimate(data)
     with pytest.raises(CausalValueError, match="at least two"):
         ant.FactorialRandomization(second, (2, 3, 1, 2))
