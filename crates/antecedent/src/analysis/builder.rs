@@ -1570,13 +1570,16 @@ impl StudyBuilder {
                     message: "design-based queries have no refutation suite or custom validator route",
                 });
             }
-            if self.bootstrap_explicit && bootstrap_replicates != 0 {
+            if self.bootstrap_explicit && bootstrap_replicates != 0
+                && !matches!(query, CausalQuery::Survival(_)) {
                 return Err(CausalError::Unsupported {
-                    message: "design-based queries do not support bootstrap intervals",
+                    message: "this design-based query does not support bootstrap intervals",
                 });
             }
             refute = RefuteSuite::None;
-            bootstrap_replicates = 0;
+            if !matches!(query, CausalQuery::Survival(_)) || !self.bootstrap_explicit {
+                bootstrap_replicates = 0;
+            }
             if self.split.is_some()
                 || self.tiered.is_some()
                 || self.selection_targets.is_some()

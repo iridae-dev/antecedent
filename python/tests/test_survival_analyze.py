@@ -125,3 +125,55 @@ def test_known_censoring_competing_risk_retained_incidence() -> None:
     assert result.survival.control_incidence[-1] == pytest.approx(1 / 7)
     assert result.survival.treated_incidence[-1] == pytest.approx(1 / 4)
     assert result.survival.uncertainty == "point_only_no_interval"
+
+
+def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws() -> None:
+    data = {
+        "duration": [1.0 if i % 5 == 0 else 3.0 for i in range(40)]
+        + [1.0 if i % 10 == 0 else 3.0 for i in range(40)],
+        "event": [float(i % 5 == 0) for i in range(40)]
+        + [float(i % 10 == 0) for i in range(40)],
+        "treatment": [0.0] * 40 + [1.0] * 40,
+    }
+    query = SurvivalOutcome(
+        "duration", "event", "treatment", 3.0,
+        randomized=True, observation_assumption=IndependentGiven(()),
+    )
+    prepared = antecedent.prepare(data, query=query, bootstrap=399, seed=17)
+    result = prepared.estimate()
+    section = result.survival
+    assert section is not None
+    assert section.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
+    assert section.bootstrap_replicates_requested == 399
+    assert section.bootstrap_replicates_ok == 399
+    assert section.rmst_difference_interval[0] <= section.rmst_difference <= section.rmst_difference_interval[1]
+    assert section.survival_at_tau_difference_interval[0] <= 0.1 <= section.survival_at_tau_difference_interval[1]
+    assert prepared.refresh(data).survival == section
+    loaded = antecedent.load(prepared.export(artifact_id="survival-pointwise-interval"))
+    assert loaded.answer.structured["rmst_difference_interval"] == list(section.rmst_difference_interval)
+    assert loaded.answer.structured["bootstrap_replicates_ok"] == 399
+    with pytest.raises(Exception, match="199"):
+        antecedent.analyze(data, query=query, bootstrap=198)
+
+
+def test_retained_competing_risk_known_g_pointwise_interval() -> None:
+    n = 40
+    duration = [1.0 if i % 5 == 0 or i % 7 == 0 else 3.0 for i in range(n)] * 2
+    causes = [1.0 if i % 5 == 0 else 2.0 if i % 7 == 0 else 0.0 for i in range(n)] * 2
+    data = {
+        "duration": duration,
+        "cause": causes,
+        "treatment": [0.0] * n + [1.0] * n,
+        "g0": [1.0] * (2 * n),
+        "g1": [0.8] * (2 * n),
+        "g3": [0.7] * (2 * n),
+    }
+    query = CompetingRisksOutcome(
+        "duration", "cause", "treatment", 1, 3.0,
+        randomized=True, observation_assumption=IndependentGiven(()),
+        known_censoring=KnownCensoringSurvival((0.0, 1.0, 3.0), ("g0", "g1", "g3")),
+    )
+    section = antecedent.analyze(data, query=query, bootstrap=399, seed=19).survival
+    assert section is not None
+    assert section.incidence_difference_interval[0] <= 0.0 <= section.incidence_difference_interval[1]
+    assert section.bootstrap_replicates_ok == 399

@@ -151,3 +151,38 @@ fn competing_risk_incidence_and_unsupported_observation_contract() {
     let unsupported = Study::tabular(data).query(CausalQuery::Survival(invalid)).build().unwrap();
     assert!(unsupported.prepare(&ctx).is_err());
 }
+
+#[test]
+fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
+    let n = 40;
+    let duration = (0..n).map(|i| if i % 5 == 0 { 1.0 } else { 3.0 })
+        .chain((0..n).map(|i| if i % 10 == 0 { 1.0 } else { 3.0 }))
+        .collect::<Vec<_>>();
+    let event = duration.iter().map(|&time| if time == 1.0 { 1.0 } else { 0.0 }).collect::<Vec<_>>();
+    let treatment = [vec![0.0; n], vec![1.0; n]].concat();
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    let study = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(399).build().unwrap();
+    let ctx = ExecutionContext::for_tests(17);
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let section = first.survival.as_ref().unwrap();
+    assert_eq!(section.uncertainty.as_ref(), "subject_stratified_percentile_bootstrap_pointwise_95");
+    assert_eq!(section.bootstrap_replicates_requested, Some(399));
+    assert_eq!(section.bootstrap_replicates_ok, Some(399));
+    let rmst = section.rmst_difference_interval.unwrap();
+    assert!(rmst[0] <= 0.2 && 0.2 <= rmst[1]);
+    assert_eq!(section.difference_at_tau_interval.unwrap().len(), 2);
+    assert_eq!(prepared.refresh(data, &ctx).unwrap().survival, first.survival);
+    let artifact = prepared.encode_contracted_result(&first, "survival-bootstrap", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().rmst_difference_interval, Some(rmst));
+    let mut tampered = body;
+    tampered.survival.as_mut().unwrap().uncertainty = "point_only_no_interval".into();
+    assert!(antecedent_io::encode_analysis_result_artifact(&tampered, header.variable_names, "tampered").is_err());
+}
