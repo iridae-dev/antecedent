@@ -740,6 +740,57 @@ mod tests {
     }
 
     #[test]
+    fn delayed_entry_competing_risk_bootstrap_covers_cif_truth() {
+        // Entry at zero or one is independent of event time and cause. People
+        // entering at one after a time-one event are absent from the observed
+        // sample. Target-cause masses are .15 + .15 in control and .10 + .10
+        // in treatment, so the source-population CIF difference at three is
+        // -.10; the competing-cause masses are .10 at each event time.
+        let mut state = 0xD3E1_C1F0_95D2_6B63;
+        let mut covered = 0;
+        for trial in 0..400 {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            let mut entries = Vec::with_capacity(320);
+            for arm in [false, true] {
+                let mut observed = 0;
+                while observed < 160 {
+                    let entry = (splitmix64(&mut state) & 1) as f64;
+                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let first_target = if arm { 0.10 } else { 0.15 };
+                    let second_target = if arm { 0.10 } else { 0.15 };
+                    let (exit, event) = if u < first_target {
+                        (1.0, 1)
+                    } else if u < first_target + 0.10 {
+                        (1.0, 2)
+                    } else if u < first_target + 0.10 + second_target {
+                        (2.0, 1)
+                    } else if u < first_target + 0.20 + second_target {
+                        (2.0, 2)
+                    } else {
+                        (3.0, 0)
+                    };
+                    if entry >= exit { continue; }
+                    durations.push(exit);
+                    events.push(event);
+                    treated.push(arm);
+                    entries.push(entry);
+                    observed += 1;
+                }
+            }
+            let interval = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, Some(&entries), None, 3.0,
+                SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
+                299, trial + 8_100,
+            ).unwrap().difference_at_tau;
+            covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
+        }
+        eprintln!("left-truncated competing-risk CIF coverage: {covered}/400");
+        assert!(covered >= 360, "left-truncated CIF coverage: {covered}/400");
+    }
+
+    #[test]
     fn simultaneous_survival_difference_band_covers_entire_event_grid() {
         let mut state = 0xB41D_95A1_5EED_2026;
         let mut covered = 0;
