@@ -38,8 +38,14 @@ def test_backdoor_ate_emits_adjustment_set() -> None:
 
 
 def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monkeypatch) -> None:
+    import hashlib
+
     import antecedent.extensibility as extension
-    from antecedent.extensibility import ProviderRegistry, ProviderTrust
+    from antecedent.extensibility import (
+        ProviderRegistry,
+        ProviderTrust,
+        ProviderVerificationFixture,
+    )
 
     data = _backdoor_data()
     identified = antecedent.identify(
@@ -82,6 +88,41 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monk
     assert executed.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert executed.provenance["adapter"] == "antecedent.handoff.EconMLProviderAdapter"
     assert executed.provenance["entry_point"] == EconMLEntryPoint.value
+
+    # Reference receipt is prepared independently of the provider execution.
+    expected_artifact = spec.attach(
+        learner="econml.dml.CausalForestDML",
+        learner_config={"n_estimators": 5},
+        effect=2.0,
+        interval=[1.5, 2.5],
+        data=data,
+        label="ate",
+    ).export()
+    report = registry.verify(
+        "econml",
+        [
+            ProviderVerificationFixture(
+                name="independent-known-effect",
+                request={"data": data},
+                expected_estimate=2.0,
+                expected_uncertainty=None,
+                expected_assumptions=spec.spec.identification_requirements,
+                expected_support_status=spec.status,
+                expected_provenance={
+                    "adapter": "antecedent.handoff.EconMLProviderAdapter",
+                    "entry_point": EconMLEntryPoint.value,
+                },
+                artifact_digest=hashlib.sha256(expected_artifact).hexdigest(),
+                artifact_decoder=lambda encoded: antecedent.load(encoded).claim_id,
+                expected_decoded_artifact=antecedent.load(expected_artifact).claim_id,
+            )
+        ],
+        evidence_origin="independent-econml-fixture/v1",
+    )
+    verified = registry.execute("econml", {"data": data})
+    assert verified.trust is ProviderTrust.VERIFIED_EXTENSION
+    assert verified.provenance["verification_evidence_digest"] == report.evidence_digest
+    assert antecedent.load(verified.artifact).claim_id == loaded.claim_id
 
 
 def test_analyze_result_handoff_matches_identify() -> None:
