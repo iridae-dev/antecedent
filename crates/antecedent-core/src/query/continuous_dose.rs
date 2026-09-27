@@ -55,6 +55,8 @@ pub struct ContinuousDoseResponseQuery {
     pub min_local_support: usize,
     /// How the caller obtained the density values.
     pub density_provenance: Arc<str>,
+    /// Optional fixed policy and reference group-dose rules evaluated on these rows.
+    pub fixed_policy: Option<FixedGroupDosePolicy>,
 }
 
 impl ContinuousDoseResponseQuery {
@@ -65,7 +67,7 @@ impl ContinuousDoseResponseQuery {
             || self.dose == self.dose_density
             || self.baseline_groups.is_empty()
             || self.baseline_groups.iter().any(|group| group.trim().is_empty())
-            || self.target_doses.is_empty()
+            || (self.target_doses.is_empty() && self.fixed_policy.is_none())
             || self.target_doses.iter().any(|dose| !dose.is_finite())
             || !self.bandwidth.is_finite()
             || self.bandwidth <= 0.0
@@ -75,6 +77,9 @@ impl ContinuousDoseResponseQuery {
             return Err(QueryError::InvalidPolicyValue(
                 "continuous-dose response requires distinct columns, aligned non-empty baseline groups, finite targets, positive bandwidth, local support of at least two, and known or externally_estimated density provenance".into(),
             ));
+        }
+        if let Some(policy) = &self.fixed_policy {
+            policy.validate(&self.baseline_groups)?;
         }
         Ok(())
     }

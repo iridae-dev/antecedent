@@ -1025,6 +1025,9 @@ pub struct ContinuousDoseResponseQueryWire {
     pub min_local_support: usize,
     /// Known or externally estimated density.
     pub density_provenance: String,
+    /// Frozen policy and reference group-dose maps, when policy value is requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixed_policy: Option<(Vec<(String, f64)>, Vec<(String, f64)>)>,
 }
 
 fn is_zero(value: &usize) -> bool { *value == 0 }
@@ -1846,6 +1849,10 @@ pub fn causal_query_to_wire_with_registry(
             target_doses: q.target_doses.to_vec(), bandwidth: q.bandwidth,
             min_local_support: q.min_local_support,
             density_provenance: q.density_provenance.to_string(),
+            fixed_policy: q.fixed_policy.as_ref().map(|rule| (
+                rule.policy_doses.iter().map(|(group, dose)| (group.to_string(), *dose)).collect(),
+                rule.reference_doses.iter().map(|(group, dose)| (group.to_string(), *dose)).collect(),
+            )),
         }),
         CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
             outcome: q.outcome.raw(),
@@ -2259,6 +2266,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 target_doses: w.target_doses.clone().into(), bandwidth: w.bandwidth,
                 min_local_support: w.min_local_support,
                 density_provenance: Arc::from(w.density_provenance.as_str()),
+                fixed_policy: w.fixed_policy.as_ref().map(|(policy, reference)|
+                    antecedent_core::FixedGroupDosePolicy {
+                        policy_doses: policy.iter().map(|(group, dose)| (Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
+                        reference_doses: reference.iter().map(|(group, dose)| (Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
+                    }),
             };
             q.validate().map_err(|error| IoError::Convert(error.to_string()))?;
             CausalQuery::ContinuousDoseResponse(q)

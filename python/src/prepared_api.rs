@@ -3720,13 +3720,16 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, dose, dose_density, baseline_groups,
         target_doses, bandwidth, density_provenance, *, min_local_support=3,
+        policy_doses=None, reference_doses=None,
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_continuous_dose_response(
         py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
         outcome: String, dose: String, dose_density: String, baseline_groups: Vec<String>,
         target_doses: Vec<f64>, bandwidth: f64, density_provenance: String,
-        min_local_support: usize, accepted: bool, seed: u64, threads: Option<u32>,
+        min_local_support: usize, policy_doses: Option<Vec<(String, f64)>>,
+        reference_doses: Option<Vec<(String, f64)>>,
+        accepted: bool, seed: u64, threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3734,6 +3737,16 @@ impl PyPreparedAnalysis {
         opts.refuse_population("continuous-dose response")?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
+            let fixed_policy = match (policy_doses, reference_doses) {
+                (None, None) => None,
+                (Some(policy), Some(reference)) => Some(antecedent_core::FixedGroupDosePolicy {
+                    policy_doses: policy.into_iter().map(|(group, dose)| (Arc::from(group), dose)).collect::<Vec<_>>().into(),
+                    reference_doses: reference.into_iter().map(|(group, dose)| (Arc::from(group), dose)).collect::<Vec<_>>().into(),
+                }),
+                _ => return Err(py_err(antecedent::CausalError::Compile {
+                    message: "fixed dose policy requires both policy_doses and reference_doses".into(),
+                })),
+            };
             let query = antecedent_core::ContinuousDoseResponseQuery {
                 outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                 dose: crate::graph_build::schema_var_id(data.schema(), &dose)?,
@@ -3741,6 +3754,7 @@ impl PyPreparedAnalysis {
                 baseline_groups: baseline_groups.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
                 target_doses: target_doses.into(), bandwidth, min_local_support,
                 density_provenance: Arc::from(density_provenance),
+                fixed_policy,
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
             let _ = accepted;

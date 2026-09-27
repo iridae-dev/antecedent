@@ -443,6 +443,45 @@ pub struct ContinuousDoseResponseWire {
     pub density_provenance: String,
     /// Explicit absence of interval inference.
     pub uncertainty: String,
+    /// Fixed group-to-dose policy value, when requested by the query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixed_policy: Option<DosePolicyValueWire>,
+}
+
+/// Portable paired value of a fixed kernel-smoothed dose policy.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DosePolicyValueWire {
+    /// Frozen policy group-dose map in group order.
+    pub policy_doses: Vec<(String, f64)>,
+    /// Frozen reference group-dose map in group order.
+    pub reference_doses: Vec<(String, f64)>,
+    /// Kernel-smoothed value under the fixed policy.
+    pub policy_value: f64,
+    /// Kernel-smoothed value under the fixed reference.
+    pub reference_value: f64,
+    /// Paired value difference.
+    pub incremental_value: f64,
+    /// Independent-row policy variance.
+    pub policy_variance: f64,
+    /// Independent-row reference variance.
+    pub reference_variance: f64,
+    /// Paired independent-row incremental variance.
+    pub incremental_variance: f64,
+    /// Policy pointwise interval, when supported.
+    pub policy_interval_95: Option<[f64; 2]>,
+    /// Reference pointwise interval, when supported.
+    pub reference_interval_95: Option<[f64; 2]>,
+    /// Incremental pointwise interval, when supported.
+    pub incremental_interval_95: Option<[f64; 2]>,
+    /// Smallest local window row count across requested doses.
+    pub minimum_local_rows: usize,
+    /// Smallest local effective sample size across requested doses.
+    pub minimum_effective_sample_size: f64,
+    /// Largest local normalized weight across requested doses.
+    pub maximum_normalized_weight: f64,
+    /// Smallest supplied observed-dose density across requested local windows.
+    pub minimum_dose_density: f64,
 }
 
 /// One randomized multi-action conditional effect.
@@ -1791,13 +1830,21 @@ fn validate_result(
             return Err(IoError::Convert("continuous-dose result is attached to a different query".into()));
         };
         let groups: std::collections::BTreeSet<&str> = query.baseline_groups.iter().map(String::as_str).collect();
+        let policy_requested = query.fixed_policy.is_some();
+        let policy_interval = fit.fixed_policy.as_ref().is_some_and(|value| value.incremental_interval_95.is_some());
+        let expected_uncertainty = if policy_interval {
+            "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
+        } else if policy_requested {
+            "fixed_group_kernel_smoothed_paired_variance_no_interval"
+        } else { "point_only_no_interval" };
         if result.estimate.is_some() || result.standard_error.is_some()
             || result.interval_lower.is_some() || result.interval_upper.is_some()
             || fit.bandwidth != query.bandwidth || fit.density_provenance != query.density_provenance
-            || fit.uncertainty != "point_only_no_interval"
+            || fit.uncertainty != expected_uncertainty
+            || fit.fixed_policy.is_some() != policy_requested
             || fit.points.len() != groups.len() * query.target_doses.len()
         {
-            return Err(IoError::Convert("continuous-dose result must match its query and carry point-only uncertainty".into()));
+            return Err(IoError::Convert("continuous-dose result must match its query and uncertainty".into()));
         }
         for (index, point) in fit.points.iter().enumerate() {
             let group = groups.iter().nth(index / query.target_doses.len()).copied().unwrap_or("");
@@ -1811,6 +1858,52 @@ fn validate_result(
                 || point.local_outcome_sd < 0.0
             {
                 return Err(IoError::Convert("continuous-dose point or local support is invalid".into()));
+            }
+        }
+        if let Some(value) = &fit.fixed_policy {
+            let Some((policy_doses, reference_doses)) = &query.fixed_policy else {
+                return Err(IoError::Convert("continuous-dose policy maps are missing".into()));
+            };
+            let mut expected_policy = policy_doses.clone();
+            let mut expected_reference = reference_doses.clone();
+            expected_policy.sort_by(|a, b| a.0.cmp(&b.0));
+            expected_reference.sort_by(|a, b| a.0.cmp(&b.0));
+            let minimum_group_rows = groups.iter().map(|group| query.baseline_groups.iter()
+                .filter(|observed| observed.as_str() == *group).count()).min().unwrap_or(0);
+            let intervals = [value.policy_interval_95, value.reference_interval_95,
+                value.incremental_interval_95];
+            let variances = [value.policy_variance, value.reference_variance,
+                value.incremental_variance];
+            let centers = [value.policy_value, value.reference_value, value.incremental_value];
+            let supported = query.density_provenance == "known"
+                && query.baseline_groups.len() >= 600 && minimum_group_rows >= 300
+                && value.minimum_local_rows >= 80
+                && value.minimum_effective_sample_size >= 50.0
+                && value.maximum_normalized_weight <= 0.05
+                && value.minimum_dose_density >= 0.2
+                && variances.iter().all(|variance| *variance > 0.0);
+            if value.policy_doses != expected_policy || value.reference_doses != expected_reference
+                || !centers.iter().chain(&variances).all(|number| number.is_finite())
+                || (value.policy_value - value.reference_value - value.incremental_value).abs() > 1e-8
+                || variances.iter().any(|variance| *variance < 0.0)
+                || value.minimum_local_rows < query.min_local_support
+                || !value.minimum_effective_sample_size.is_finite()
+                || value.minimum_effective_sample_size <= 0.0
+                || !value.maximum_normalized_weight.is_finite()
+                || !(0.0..=1.0).contains(&value.maximum_normalized_weight)
+                || !value.minimum_dose_density.is_finite() || value.minimum_dose_density <= 0.0
+                || policy_interval != supported
+                || intervals.iter().any(|interval| interval.is_some() != policy_interval)
+                || intervals.iter().zip(centers).zip(variances).any(|((interval, center), variance)| {
+                    interval.is_some_and(|[lower, upper]| {
+                        let radius = 1.959_963_984_540_054 * variance.sqrt();
+                        !lower.is_finite() || !upper.is_finite()
+                            || (lower - (center - radius)).abs() > 1e-8
+                            || (upper - (center + radius)).abs() > 1e-8
+                    })
+                })
+            {
+                return Err(IoError::Convert("continuous-dose policy value or paired interval is invalid".into()));
             }
         }
     }

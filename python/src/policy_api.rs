@@ -48,7 +48,28 @@ pub struct PolicyValueSection {
     pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize, f64, Option<(f64, f64)>)>,
 }
 
-/// Retained conditional continuous-dose grid; no interval or policy value.
+/// Fixed group-dose policy value under a kernel-smoothed intervention.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct DosePolicyValueSection {
+    pub policy_doses: Vec<(String, f64)>,
+    pub reference_doses: Vec<(String, f64)>,
+    pub policy_value: f64,
+    pub reference_value: f64,
+    pub incremental_value: f64,
+    pub policy_variance: f64,
+    pub reference_variance: f64,
+    pub incremental_variance: f64,
+    pub policy_interval_95: Option<(f64, f64)>,
+    pub reference_interval_95: Option<(f64, f64)>,
+    pub incremental_interval_95: Option<(f64, f64)>,
+    pub minimum_local_rows: usize,
+    pub minimum_effective_sample_size: f64,
+    pub maximum_normalized_weight: f64,
+    pub minimum_dose_density: f64,
+}
+
+/// Retained conditional continuous-dose grid and optional fixed policy value.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct ContinuousDoseResponseSection {
@@ -61,6 +82,8 @@ pub struct ContinuousDoseResponseSection {
     pub density_provenance: String,
     /// Point-only uncertainty semantics.
     pub uncertainty: String,
+    /// Kernel-smoothed policy and reference value when group-dose rules were supplied.
+    pub fixed_policy: Option<DosePolicyValueSection>,
 }
 
 impl From<&antecedent::ContinuousDoseResponseEstimate> for ContinuousDoseResponseSection {
@@ -74,6 +97,23 @@ impl From<&antecedent::ContinuousDoseResponseEstimate> for ContinuousDoseRespons
             bandwidth: value.bandwidth,
             density_provenance: value.density_provenance.to_string(),
             uncertainty: value.uncertainty.to_string(),
+            fixed_policy: value.fixed_policy.as_ref().map(|policy| DosePolicyValueSection {
+                policy_doses: policy.policy_doses.clone(),
+                reference_doses: policy.reference_doses.clone(),
+                policy_value: policy.policy_value,
+                reference_value: policy.reference_value,
+                incremental_value: policy.incremental_value,
+                policy_variance: policy.policy_variance,
+                reference_variance: policy.reference_variance,
+                incremental_variance: policy.incremental_variance,
+                policy_interval_95: policy.policy_interval_95.map(|[a, b]| (a, b)),
+                reference_interval_95: policy.reference_interval_95.map(|[a, b]| (a, b)),
+                incremental_interval_95: policy.incremental_interval_95.map(|[a, b]| (a, b)),
+                minimum_local_rows: policy.minimum_local_rows,
+                minimum_effective_sample_size: policy.minimum_effective_sample_size,
+                maximum_normalized_weight: policy.maximum_normalized_weight,
+                minimum_dose_density: policy.minimum_dose_density,
+            }),
         }
     }
 }
@@ -535,6 +575,7 @@ fn uplift_by_score(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PolicyValueSection>()?;
     module.add_class::<ContinuousDoseResponseSection>()?;
+    module.add_class::<DosePolicyValueSection>()?;
     module.add_function(wrap_pyfunction!(evaluate_binary_policy, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_binary_policy_doubly_robust, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_multi_action_policy, module)?)?;

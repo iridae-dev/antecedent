@@ -36,6 +36,7 @@ fn fixture() -> (TabularData, ContinuousDoseResponseQuery) {
         bandwidth: 0.6,
         min_local_support: 3,
         density_provenance: Arc::from("known"),
+        fixed_policy: None,
     };
     (data, query)
 }

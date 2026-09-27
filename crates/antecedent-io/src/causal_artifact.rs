@@ -669,6 +669,11 @@ pub(crate) fn validate_query_ids(
                 target_doses: wire.target_doses.clone().into(),
                 bandwidth: wire.bandwidth, min_local_support: wire.min_local_support,
                 density_provenance: std::sync::Arc::from(wire.density_provenance.as_str()),
+                fixed_policy: wire.fixed_policy.as_ref().map(|(policy, reference)|
+                    antecedent_core::FixedGroupDosePolicy {
+                        policy_doses: policy.iter().map(|(group, dose)| (std::sync::Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
+                        reference_doses: reference.iter().map(|(group, dose)| (std::sync::Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
+                    }),
             }.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::PanelDid(wire) => {

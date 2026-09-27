@@ -8,6 +8,10 @@ use std::collections::BTreeSet;
 /// inverse weighted by the known observed-dose density; it is not `do(D=d)`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DosePolicyValue {
+    /// Frozen policy group-dose map in group order.
+    pub policy_doses: Vec<(String, f64)>,
+    /// Frozen reference group-dose map in group order.
+    pub reference_doses: Vec<(String, f64)>,
     /// Kernel-smoothed value under the fixed policy rule.
     pub policy_value: f64,
     /// Kernel-smoothed value under the fixed reference rule.
@@ -32,6 +36,8 @@ pub struct DosePolicyValue {
     pub minimum_effective_sample_size: f64,
     /// Largest normalized weight in any requested local window.
     pub maximum_normalized_weight: f64,
+    /// Smallest supplied observed-dose density in any requested local window.
+    pub minimum_dose_density: f64,
 }
 
 /// Evaluate fixed group-to-dose policy and reference rules on the same rows.
@@ -132,7 +138,7 @@ pub fn fixed_dose_policy_value(
     let incremental_value = policy_value - reference_value;
     if [policy_value, reference_value, incremental_value, policy_variance,
         reference_variance, incremental_variance, minimum_effective_sample_size,
-        maximum_normalized_weight].iter().any(|value| !value.is_finite()) {
+        maximum_normalized_weight, minimum_density].iter().any(|value| !value.is_finite()) {
         return Err("dose policy value or paired variance overflowed finite precision".into());
     }
     let interval_supported = density_known && n >= 600 && minimum_group_rows >= 300
@@ -144,12 +150,15 @@ pub fn fixed_dose_policy_value(
         [value - radius, value + radius]
     });
     Ok(DosePolicyValue {
+        policy_doses: policy.into_iter().collect(),
+        reference_doses: reference.into_iter().collect(),
         policy_value, reference_value, incremental_value,
         policy_variance, reference_variance, incremental_variance,
         policy_interval_95: interval(policy_value, policy_variance),
         reference_interval_95: interval(reference_value, reference_variance),
         incremental_interval_95: interval(incremental_value, incremental_variance),
         minimum_local_rows, minimum_effective_sample_size, maximum_normalized_weight,
+        minimum_dose_density: minimum_density,
     })
 }
 

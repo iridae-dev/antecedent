@@ -433,6 +433,27 @@ class ConditionalDoseResponsePoint:
 
 
 @dataclass(frozen=True, slots=True)
+class FixedDosePolicyValueEstimate:
+    """Paired value of fixed group-dose rules under kernel-smoothed interventions."""
+
+    policy_doses: tuple[tuple[str, float], ...]
+    reference_doses: tuple[tuple[str, float], ...]
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    policy_variance: float
+    reference_variance: float
+    incremental_variance: float
+    policy_interval_95: tuple[float, float] | None
+    reference_interval_95: tuple[float, float] | None
+    incremental_interval_95: tuple[float, float] | None
+    minimum_local_rows: int
+    minimum_effective_sample_size: float
+    maximum_normalized_weight: float
+    minimum_dose_density: float
+
+
+@dataclass(frozen=True, slots=True)
 class ConditionalDoseResponseEstimate:
     points: tuple[ConditionalDoseResponsePoint, ...]
     bandwidth: float
@@ -440,6 +461,7 @@ class ConditionalDoseResponseEstimate:
     uncertainty: str = "point_only"
     evaluation_method: str = "stratified_triangular_kernel_inverse_density"
     policy_value_estimated: bool = False
+    fixed_policy: FixedDosePolicyValueEstimate | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "Conditional exchangeability of continuous dose given the supplied baseline groups.",
@@ -469,6 +491,8 @@ class ConditionalDoseResponse:
     bandwidth: float
     density_provenance: str
     min_local_support: int = 3
+    policy_doses: Mapping[str, float] | Sequence[tuple[str, float]] | None = None
+    reference_doses: Mapping[str, float] | Sequence[tuple[str, float]] | None = None
 
     def __post_init__(self) -> None:
         names = (self.outcome, self.dose, self.baseline_group, self.dose_density)
@@ -478,8 +502,8 @@ class ConditionalDoseResponse:
             targets = tuple(float(value) for value in self.target_doses)
         except (TypeError, ValueError) as error:
             raise CausalValueError("target_doses must be numeric") from error
-        if not targets or any(not isfinite(value) for value in targets):
-            raise CausalValueError("target_doses must be non-empty and finite")
+        if (not targets and self.policy_doses is None) or any(not isfinite(value) for value in targets):
+            raise CausalValueError("target_doses must be finite and non-empty unless fixed policy doses are supplied")
         object.__setattr__(self, "target_doses", targets)
         if not isfinite(self.bandwidth) or self.bandwidth <= 0.0:
             raise CausalValueError("bandwidth must be finite and positive")
@@ -488,6 +512,19 @@ class ConditionalDoseResponse:
         object.__setattr__(self, "min_local_support", int(self.min_local_support))
         if self.density_provenance not in ("known", "externally_estimated"):
             raise CausalValueError("density_provenance must be known or externally_estimated")
+        if (self.policy_doses is None) != (self.reference_doses is None):
+            raise CausalValueError("fixed dose policy requires both policy_doses and reference_doses")
+        for name in ("policy_doses", "reference_doses"):
+            rule = getattr(self, name)
+            if rule is None:
+                continue
+            pairs = tuple(rule.items()) if isinstance(rule, Mapping) else tuple(rule)
+            if not pairs or any(not isinstance(group, str) or not group.strip()
+                                or not isfinite(float(dose)) for group, dose in pairs):
+                raise CausalValueError(f"{name} must contain finite doses for non-empty baseline groups")
+            if len({group for group, _ in pairs}) != len(pairs):
+                raise CausalValueError(f"{name} must name each baseline group once")
+            object.__setattr__(self, name, tuple(sorted((group, float(dose)) for group, dose in pairs)))
 
 
 def uplift_by_score(
@@ -916,6 +953,7 @@ __all__ = [
     "UpliftBin",
     "ConditionalDoseResponsePoint",
     "ConditionalDoseResponseEstimate",
+    "FixedDosePolicyValueEstimate",
     "ConditionalDoseResponse",
     "evaluate_multi_action_policy",
     "evaluate_policy",

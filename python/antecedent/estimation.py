@@ -54,13 +54,13 @@ from .errors import (
 from .experiment import (
     BernoulliAssignment,
     ComplierEffect,
-    TreatmentOnTreated,
     FactorialRandomization,
     MultiArmExperimentDesign,
     RandomizedEffect,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
     SwitchbackEffect,
+    TreatmentOnTreated,
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
@@ -86,6 +86,7 @@ from .policy import (
     ConditionalDoseResponseEstimate,
     ConditionalDoseResponsePoint,
     DoublyRobustPolicyEvaluation,
+    FixedDosePolicyValueEstimate,
     MultiActionPolicy,
     MultiActionPolicyValue,
     PolicyValue,
@@ -690,6 +691,24 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
     section = getattr(raw, "continuous_dose_response", None)
     if section is None:
         return None
+    policy = getattr(section, "fixed_policy", None)
+    fixed_policy = None if policy is None else FixedDosePolicyValueEstimate(
+        policy_doses=tuple((str(group), float(dose)) for group, dose in policy.policy_doses),
+        reference_doses=tuple((str(group), float(dose)) for group, dose in policy.reference_doses),
+        policy_value=float(policy.policy_value),
+        reference_value=float(policy.reference_value),
+        incremental_value=float(policy.incremental_value),
+        policy_variance=float(policy.policy_variance),
+        reference_variance=float(policy.reference_variance),
+        incremental_variance=float(policy.incremental_variance),
+        policy_interval_95=tuple(policy.policy_interval_95) if policy.policy_interval_95 is not None else None,
+        reference_interval_95=tuple(policy.reference_interval_95) if policy.reference_interval_95 is not None else None,
+        incremental_interval_95=tuple(policy.incremental_interval_95) if policy.incremental_interval_95 is not None else None,
+        minimum_local_rows=int(policy.minimum_local_rows),
+        minimum_effective_sample_size=float(policy.minimum_effective_sample_size),
+        maximum_normalized_weight=float(policy.maximum_normalized_weight),
+        minimum_dose_density=float(policy.minimum_dose_density),
+    )
     return ConditionalDoseResponseEstimate(
         points=tuple(ConditionalDoseResponsePoint(
             str(group), float(target), float(response), int(local_rows),
@@ -698,6 +717,10 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
         bandwidth=float(section.bandwidth),
         density_provenance=str(section.density_provenance),
         uncertainty=str(section.uncertainty),
+        policy_value_estimated=fixed_policy is not None,
+        fixed_policy=fixed_policy,
+        evaluation_method=("fixed_group_kernel_smoothed_inverse_density_policy" if fixed_policy is not None
+                           else "stratified_triangular_kernel_inverse_density"),
     )
 
 
@@ -2860,6 +2883,8 @@ class _PrepareRoute:
             self.names, self.columns, query.outcome, query.dose, query.dose_density,
             list(design["baseline_groups"]), list(query.target_doses), query.bandwidth,
             query.density_provenance, min_local_support=query.min_local_support,
+            policy_doses=list(query.policy_doses) if query.policy_doses is not None else None,
+            reference_doses=list(query.reference_doses) if query.reference_doses is not None else None,
             accepted=self.accepted, **self._common(),
         )
         return native, "average"
