@@ -562,17 +562,23 @@ cells are 51 of 323 unmeasured. Most records are on Dag and TemporalDag (468 of
 measured designs, not a shortage of calibration runs.
 
 **Current 2.1 branch inventory.** The checked-in registry now contains 472
-licensed cells and the generated `parity/calibration_backlog.md` lists 172
-unmeasured cells across 92 distinct coordinates. This supersedes the 2.0
+licensed cells and the generated `parity/calibration_backlog.md` lists 170
+unmeasured cells across 90 distinct coordinates. This supersedes the 2.0
 baseline counts for current planning; new 2.1 rows add calibration obligations.
 The coordinate inventory is generated and checked without running calibration.
 Run measurements and update records only after implementation and subsequent
 cleanup/refactoring are complete, so their attestations bind the stabilized code.
 The static readiness audit currently finds runnable, ignored record-emitting
-designs for 31 of the 92 coordinates (65 of 172 cells). The other 61
-coordinates (107 cells) still need exact-truth designs or matching record
-emitters before the post-refactor calibration pass; these readiness counts do
-not change the 172 unmeasured cells.
+designs for 86 of the 90 coordinates; the remaining 4 coordinates still need
+exact-truth designs or matching record emitters before the post-refactor
+calibration pass; these readiness counts do not change the 170 unmeasured cells.
+The 2.1 graphless interval licenses (complier CACE/LATE and treatment-on-treated,
+finite-class regret, cross-fitted policy value, staggered event studies, fuzzy RD
+and regression kink, sequential DR / g-formula / MSM longitudinal regimes,
+delayed-entry / fixed-known-G / simultaneous-band survival, and cluster /
+saturation / observational interference) are certified by in-repo 2,000-rep
+known-truth coverage tests under `gate_graphless_support.sh` and do not add
+geometric calibration-record obligations.
 
 - [x] Publish the current distinct coordinates as a tracked list generated from
       the registry, with the count of cells behind each. Ratchet it: the count of
