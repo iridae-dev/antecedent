@@ -351,48 +351,18 @@ fn estimate_switchback_effect(
             "switchback outcome, assignment, sequence, and propensity arrays must align",
         ));
     }
-    let mut labels = sequences.clone();
-    if labels.iter().any(|label| label.trim().is_empty()) {
+    if sequences.iter().any(|label| label.trim().is_empty()) {
         return Err(PyValueError::new_err("sequence labels must be non-empty"));
     }
-    labels.sort();
-    labels.dedup();
-    if labels.len() < 2 {
-        return Err(PyValueError::new_err(
-            "switchback variance requires at least two independent sequences",
-        ));
-    }
-    let mut cluster_scores = vec![0.0; labels.len()];
-    let mut observed_arms = vec![[false; 2]; labels.len()];
-    let mut minimum_probability: f64 = 1.0;
-    for i in 0..n {
-        if !y[i].is_finite() {
-            return Err(PyValueError::new_err("outcomes must be finite"));
-        }
-        let pi = p[i];
-        if !pi.is_finite() || pi <= 0.0 || pi >= 1.0 {
-            return Err(PyValueError::new_err(
-                "switchback assignment probabilities must be strictly between zero and one",
-            ));
-        }
-        let cluster = labels.binary_search(&sequences[i]).expect("label was collected");
-        let treated = assignment[i];
-        observed_arms[cluster][usize::from(treated)] = true;
-        let score = if treated { y[i] / pi } else { -y[i] / (1.0 - pi) };
-        cluster_scores[cluster] += score;
-        minimum_probability = minimum_probability.min(pi.min(1.0 - pi));
-    }
-    if observed_arms.iter().any(|arms| !arms[0] || !arms[1]) {
-        return Err(PyValueError::new_err(
-            "each sequence must contain observed treated and control periods",
-        ));
-    }
-    let effect = cluster_scores.iter().sum::<f64>() / n as f64;
-    let mean = cluster_scores.iter().sum::<f64>() / labels.len() as f64;
-    let variance = labels.len() as f64 / (labels.len() - 1) as f64
-        * cluster_scores.iter().map(|score| (score - mean).powi(2)).sum::<f64>()
-        / (n as f64).powi(2);
-    Ok((effect, variance.sqrt(), minimum_probability, labels.len()))
+    let ids = sequences.iter().map(String::as_str).collect::<Vec<_>>();
+    let fit = antecedent_estimate::switchback::switchback_itt(
+        &y.to_vec(), &assignment, &p.to_vec(), &ids,
+    ).ok_or_else(|| PyValueError::new_err(
+        "switchback requires finite outcomes, valid probabilities, at least two independent sequences, and global support for both arms",
+    ))?;
+    let minimum_probability = p.iter().copied()
+        .map(|pi| pi.min(1.0 - pi)).fold(f64::INFINITY, f64::min);
+    Ok((fit.effect, fit.variance.sqrt(), minimum_probability, fit.sequences))
 }
 
 /// OLS ANCOVA treatment coefficient with an HC0 independent-row sandwich SE.

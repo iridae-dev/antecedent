@@ -3,6 +3,21 @@
 
 [[license]]
 family = "randomized_effect"
+design = "switchback"
+method = "independent_sequence_ht_score"
+inference_claim = "pointwise_95_student_interval"
+assignment_unit = "sequence"
+min_blocks = 30
+min_action_rows = 30
+min_probability = 0.2
+min_reported_intervals = 1
+requires_balanced_sequences = true
+known_truth_test = "crates/antecedent-estimate/tests/switchback_calibration.rs::switchback_student_interval_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/switchback_interval_route.rs::supported_switchback_interval_round_trips_and_rejects_forgery"
+limitations = "Switchback unit-period HT ITT with at least 30 independent assignment sequences of equal observed period count, at least 30 realized periods in each arm globally, known marginal probabilities at least 0.2 for each arm on every row, positive independent-sequence sandwich variance, and a published pointwise 95% Student interval. No carryover and no between-sequence interference are declared, untestable identification assumptions. Six unconditional 2,000-allocation known-truth fixtures include probability boundaries, varying probabilities, and serial assignment within sequences. Unequal schedules and sparse or weak arm support remain point-only."
+
+[[license]]
+family = "randomized_effect"
 design = "bernoulli"
 method = "independent_action_ht_score"
 inference_claim = "pointwise_95_normal_interval"

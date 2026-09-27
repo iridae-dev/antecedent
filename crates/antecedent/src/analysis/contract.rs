@@ -579,6 +579,7 @@ impl PreparedStudy {
                             "stratified" => ("blocked_neyman_difference_in_means", "pointwise_95_normal_interval"),
                             "factorial_2x2" => ("fixed_cell_neyman_contrasts", "three_pointwise_95_normal_intervals"),
                             "multi_arm" => ("independent_action_ht_scores", "all_action_pointwise_95_normal_intervals"),
+                            "switchback" => ("independent_sequence_ht_score", "pointwise_95_student_interval"),
                             _ => unreachable!("only exact graphless randomized rows can be licensed"),
                         };
                         Arc::from(format!("graphless:randomized_effect/{}/{method}/{claim}",

@@ -23,7 +23,7 @@ INTEGER_LIMITS = (
 )
 BOOLEAN_REQUIREMENTS = (
     "requires_uncoupled_constraints", "requires_disjoint_nuisance_training",
-    "requires_rank_ownership",
+    "requires_rank_ownership", "requires_balanced_sequences",
 )
 
 
@@ -38,7 +38,7 @@ def load_rows() -> list[dict]:
         for field in (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations"):
             if not isinstance(row.get(field), str) or not row[field].strip():
                 raise ValueError(f"{key}: missing {field}")
-        if row["assignment_unit"] not in ("unit", "cluster"):
+        if row["assignment_unit"] not in ("unit", "cluster", "sequence"):
             raise ValueError(f"{key}: unsupported assignment unit")
         if not any(field in row for field in INTEGER_LIMITS):
             raise ValueError(f"{key}: missing support threshold")
@@ -64,7 +64,10 @@ def load_rows() -> list[dict]:
             source = ROOT / path
             if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text()):
                 raise ValueError(f"{key}: missing {evidence} function")
-            if evidence == "known_truth_test" and "95_normal_interval" in row["inference_claim"]:
+            if evidence == "known_truth_test" and (
+                "95_normal_interval" in row["inference_claim"]
+                or "95_student_interval" in row["inference_claim"]
+            ):
                 body = re.search(
                     rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
                     source.read_text(), re.DOTALL,
@@ -77,8 +80,12 @@ def load_rows() -> list[dict]:
                 did_evidence = row["family"] == "difference_in_differences" and body is not None \
                     and "const REPLICATIONS: usize = 2_000" in source.read_text() \
                     and all(token in body.group(1) for token in ("covered", "interval_95", "0.925..=0.975"))
-                if body is None or not (legacy_evidence or policy_evidence or did_evidence) or not any(
-                    token in body.group(1) for token in ("truth", "target", "truths", "TRUTH")):
+                switchback_evidence = row["design"] == "switchback" and body is not None \
+                    and all(token in body.group(1) for token in ("2_000", "covered", "assert_eq!(rejected, 0")) \
+                    and all(token in source.read_text() for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
+                if body is None or not (legacy_evidence or policy_evidence or did_evidence or switchback_evidence) or not (
+                    switchback_evidence or any(token in body.group(1)
+                        for token in ("truth", "target", "truths", "TRUTH"))):
                     raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
@@ -161,6 +168,8 @@ def main() -> None:
             path, function = citation.split("::")
             if path.startswith("crates/antecedent-estimate/src/"):
                 print(f"antecedent-estimate\tlib\t-\t{function}")
+            elif path.startswith("crates/antecedent-estimate/tests/"):
+                print(f"antecedent-estimate\ttest\t{Path(path).stem}\t{function}")
             elif path.startswith("crates/antecedent/tests/"):
                 print(f"antecedent\ttest\t{Path(path).stem}\t{function}")
             else:

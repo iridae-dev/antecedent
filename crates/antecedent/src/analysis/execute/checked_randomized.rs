@@ -446,31 +446,21 @@ impl CheckedRandomizedOperation {
                 )
             }
             antecedent_core::RandomizationDesign::Switchback { periods } => {
-                let mut by_sequence = std::collections::BTreeMap::<&str, f64>::new();
-                let mut control_periods = 0;
-                let mut treatment_periods = 0;
-                for i in 0..n {
-                    let p = self.query.assignment_probabilities[i];
-                    let score = if self.query.realized_assignment[i] {
-                        treatment_periods += 1;
-                        outcomes[i] / p
-                    } else {
-                        control_periods += 1;
-                        -outcomes[i] / (1.0 - p)
-                    };
-                    *by_sequence.entry(&self.query.assignment_units[i]).or_default() += score;
-                }
-                let scores = by_sequence.values().copied().collect::<Vec<_>>();
-                let sequences = scores.len();
-                let mean = scores.iter().sum::<f64>() / sequences as f64;
-                let variance = sequences as f64 / (sequences - 1) as f64
-                    * scores.iter().map(|score| (score - mean).powi(2)).sum::<f64>()
-                    / (n * n) as f64;
+                let sequence_ids = self.query.assignment_units.iter()
+                    .map(AsRef::as_ref).collect::<Vec<&str>>();
+                let fit = antecedent_estimate::switchback::switchback_itt(
+                    outcomes, &self.query.realized_assignment,
+                    &self.query.assignment_probabilities, &sequence_ids,
+                ).ok_or(CausalError::Unsupported {
+                    message: "switchback ITT requires valid outcomes, probabilities, and independent sequences with global arm support",
+                })?;
+                interval_95 = fit.interval_95;
+                if interval_95.is_some() { interval_standard_error = Some(fit.variance.sqrt()); }
                 (
-                    scores.iter().sum::<f64>() / n as f64,
-                    variance,
-                    control_periods,
-                    treatment_periods,
+                    fit.effect,
+                    fit.variance,
+                    self.query.realized_assignment.iter().filter(|&&a| !a).count(),
+                    self.query.realized_assignment.iter().filter(|&&a| a).count(),
                     Arc::from([]),
                     Arc::clone(periods),
                     Arc::<str>::from("switchback"),
@@ -496,7 +486,7 @@ impl CheckedRandomizedOperation {
                 antecedent_core::RandomizationDesign::Stratified { .. } => "stratified_neyman_normal_interval",
                 antecedent_core::RandomizationDesign::Factorial2x2 { .. } => "factorial_cell_neyman_pointwise_normal_intervals",
                 antecedent_core::RandomizationDesign::MultiArm { .. } => "multi_arm_ht_score_pointwise_normal_intervals",
-                antecedent_core::RandomizationDesign::Switchback { .. } => unreachable!(),
+                antecedent_core::RandomizationDesign::Switchback { .. } => "switchback_independent_sequence_student_interval",
             })
         } else { uncertainty };
         let diagnostic = if interval_95.is_some() {
@@ -517,7 +507,8 @@ impl CheckedRandomizedOperation {
                     "Fixed-cell factorial main effects and interaction with separate conservative cellwise variances and pointwise 95% normal intervals; simultaneous coverage is not claimed",
                 antecedent_core::RandomizationDesign::MultiArm { .. } =>
                     "Independent multi-arm HT effects with known probabilities; the retained variance is a covariance-free bound, while separate score-sandwich pointwise 95% intervals cover each action versus reference; simultaneous coverage is not claimed",
-                antecedent_core::RandomizationDesign::Switchback { .. } => unreachable!(),
+                antecedent_core::RandomizationDesign::Switchback { .. } =>
+                    "Unit-period HT ITT with independent-sequence sandwich variance and a pointwise 95% Student interval; no carryover and no between-sequence interference are declared assumptions",
             }
         } else { diagnostic };
         let exact_test = if self.query.exact_randomization_test {
@@ -547,7 +538,7 @@ impl CheckedRandomizedOperation {
             OverlapPolicy::ExplicitOverride,
         );
         if interval_95.is_some() && matches!(self.query.design,
-            antecedent_core::RandomizationDesign::Cluster { .. }) {
+            antecedent_core::RandomizationDesign::Cluster { .. } | antecedent_core::RandomizationDesign::Switchback { .. }) {
             estimate = estimate.with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
         }
         let started = Instant::now();
@@ -647,15 +638,23 @@ impl CheckedRandomizedOperation {
             antecedent_core::RandomizationDesign::MultiArm { .. } =>
                 ("multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
             antecedent_core::RandomizationDesign::Switchback { .. } =>
-                ("switchback", "unlicensed", "unit", "point_only"),
+                ("switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval"),
         };
         let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
-        for (block, assigned) in fit.blocks.iter().zip(self.query.realized_assignment.iter()) {
+        let support_blocks = if matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
+            &self.query.assignment_units
+        } else { &fit.blocks };
+        for (block, assigned) in support_blocks.iter().zip(self.query.realized_assignment.iter()) {
             let counts = block_counts.entry(block).or_default();
             if *assigned { counts.1 += 1; } else { counts.0 += 1; }
         }
         let min_block_arm = block_counts.values().flat_map(|(control, treated)| [*control, *treated]).min().unwrap_or(0);
+        let balanced_sequences = matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. })
+            && block_counts.values().next().is_some_and(|first| {
+                let size = first.0 + first.1;
+                size > 0 && block_counts.values().all(|counts| counts.0 + counts.1 == size)
+            });
         let min_factorial_cell = if let antecedent_core::RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } = &self.query.design {
             let mut counts = [0_usize; 4];
             for (primary, secondary) in self.query.realized_assignment.iter().zip(second_factor_assignment.iter()) {
@@ -697,6 +696,7 @@ impl CheckedRandomizedOperation {
                 },
                 min_probability, reported_intervals, all_reported_intervals,
                 covariates: self.query.ancova_covariates.len(),
+                balanced_sequences,
                 ..Default::default()
             },
         ) {
