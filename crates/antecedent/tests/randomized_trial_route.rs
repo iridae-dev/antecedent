@@ -15,12 +15,16 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
     let query = RandomizedEffectQuery::with_design(
         antecedent_core::RandomizationDesign::MultiArm {
             assignment: assignment.clone(),
-            probabilities: vec![vec![1.0 / 3.0; 3]; 6].into(),
+            probabilities: {
+                let mut rows = vec![vec![1.0 / 3.0; 3]; 6];
+                rows[0] = vec![0.5, 0.1, 0.4];
+                rows.into()
+            },
             arms: ["control", "low", "high"].map(Arc::<str>::from).into(),
         },
         VariableId::from_raw(0),
         assignment.iter().map(|&arm| arm != 0).collect::<Vec<_>>(),
-        [1.0 / 3.0; 6],
+        [0.5, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0],
         (0..6).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect::<Vec<_>>(),
         (0..6).map(|i| Arc::<str>::from(format!("row-{i}"))).collect::<Vec<_>>(),
         ("control", "low"),
@@ -32,6 +36,7 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
     assert_eq!(fit.effect, 2.0);
     assert_eq!(fit.estimand.as_ref(), "multi_arm_itt");
     assert_eq!(fit.assignment_design.as_ref(), "multi_arm");
+    assert!((fit.minimum_assignment_probability - 0.1).abs() < 1e-12);
     assert_eq!(fit.uncertainty.as_ref(), "multi_arm_covariance_free_variance_bound_no_interval");
     assert_eq!(fit.multi_arm_values.iter().map(|(_, mean, _, _)| *mean).collect::<Vec<_>>(), [0.0, 2.0, 5.0]);
     assert_eq!(fit.multi_arm_values.iter().map(|(_, _, _, support)| *support).collect::<Vec<_>>(), [2, 2, 2]);
@@ -44,6 +49,10 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
     let bytes = prepared.encode_contracted_result(&result, "multi-arm", &ctx).unwrap();
     let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(artifact.randomized_effect.as_ref().unwrap().multi_arm_values[2].1, 5.0);
+    assert!((artifact.randomized_effect.as_ref().unwrap().minimum_assignment_probability - 0.1).abs() < 1e-12);
+    let mut wrong_support = artifact.clone();
+    wrong_support.randomized_effect.as_mut().unwrap().minimum_assignment_probability = 1.0 / 3.0;
+    assert!(antecedent_io::encode_analysis_result_artifact(&wrong_support, header.variable_names.clone(), "wrong-support").is_err());
     let mut wrong_arm = artifact.clone();
     // The serialized result must retain a coherent primary contrast.
     wrong_arm.randomized_effect.as_mut().unwrap().multi_arm_values[1].1 = 6.0;

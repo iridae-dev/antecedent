@@ -520,15 +520,15 @@ impl CheckedRandomizedOperation {
             factorial_interaction_variance: factorial_contrasts.map(|(_, _, _, variance)| variance),
             multi_arm_values,
             variance_upper_bound: variance,
-            minimum_assignment_probability: self
-                .query
-                .assignment_probabilities
-                .iter()
-                .copied()
-                .map(|p| if matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
-                    p.min(1.0 - p)
-                } else { p })
-                .fold(f64::INFINITY, f64::min),
+            minimum_assignment_probability: if let antecedent_core::RandomizationDesign::MultiArm { probabilities, .. } = &self.query.design {
+                probabilities.iter().flat_map(|row| row.iter().copied()).fold(f64::INFINITY, f64::min)
+            } else {
+                self.query.assignment_probabilities.iter().copied()
+                    .map(|p| if matches!(self.query.design, antecedent_core::RandomizationDesign::Switchback { .. }) {
+                        p.min(1.0 - p)
+                    } else { p })
+                    .fold(f64::INFINITY, f64::min)
+            },
             assignment_design,
             blocks,
             periods,
