@@ -613,9 +613,38 @@ pub fn fit_synthetic_did(
     Ok(SyntheticDidFit { effect: estimate, pre_treatment_rmse: pre_rmse, donor_weights: weights, time_weights, n_donors: donors.len(), n_pre_periods: n_pre, n_post_periods: n_post })
 }
 
+/// Exact sharp-null assignment test for a uniformly selected synthetic-DiD treated unit.
+///
+/// Refit both unit and time weights for every possible assignment on the
+/// unchanged outcome panel. This is valid for a declared uniform one-unit
+/// randomization under the sharp null; it does not calibrate an interval or
+/// turn observational donor placebos into a randomization test.
+pub fn exact_synthetic_did_unit_randomization_test(
+    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    intervention_period: i64,
+) -> Result<SyntheticUnitRandomizationTest, String> {
+    fit_synthetic_did(outcome, units, periods, treated_unit, intervention_period)?;
+    let candidates: BTreeSet<&str> = units.iter().map(String::as_str).collect();
+    if candidates.len() > 32 {
+        return Err("exact synthetic DiD unit randomization currently supports at most 32 candidate units".into());
+    }
+    let mut statistics = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        let fit = fit_synthetic_did(outcome, units, periods, candidate, intervention_period)?;
+        statistics.push((candidate.to_string(), fit.effect.abs()));
+    }
+    let observed = statistics.iter().find(|(unit, _)| unit == treated_unit)
+        .ok_or_else(|| "treated unit is absent from exact synthetic DiD randomization distribution".to_string())?.1;
+    let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
+    Ok(SyntheticUnitRandomizationTest {
+        p_value: extreme as f64 / statistics.len() as f64,
+        statistics,
+    })
+}
+
 #[cfg(test)]
 mod synthetic_did_tests {
-    use super::fit_synthetic_did;
+    use super::{exact_synthetic_did_unit_randomization_test, fit_synthetic_did};
 
     #[test]
     fn additive_unit_and_time_effects_recover_known_treatment_and_refuse_sparse_pre_support() {
@@ -634,5 +663,35 @@ mod synthetic_did_tests {
         assert!((fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8);
         assert!(fit_synthetic_did(&outcome, &units, &periods, "treated", 2)
             .unwrap_err().contains("at least two pre-periods"));
+    }
+
+    #[test]
+    fn exact_assignment_p_values_are_superuniform_under_sharp_null() {
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        let mut outcome = Vec::new();
+        for unit in 0..8 {
+            for period in 1..=5 {
+                units.push(format!("unit-{unit}"));
+                periods.push(period);
+                outcome.push(unit as f64 * 0.31 + period as f64 * 0.17
+                    + ((unit * 7 + period as usize * 3) % 11) as f64 * 0.13);
+            }
+        }
+        let fits: Vec<_> = (0..8).map(|unit| {
+            exact_synthetic_did_unit_randomization_test(
+                &outcome, &units, &periods, &format!("unit-{unit}"), 5,
+            ).unwrap()
+        }).collect();
+        for fit in &fits[1..] {
+            assert_eq!(fit.statistics, fits[0].statistics);
+        }
+        for alpha in [0.125, 0.25, 0.5] {
+            let rejects = fits.iter().filter(|fit| fit.p_value <= alpha).count();
+            assert!(rejects as f64 / 8.0 <= alpha);
+        }
+        assert!(exact_synthetic_did_unit_randomization_test(
+            &outcome, &units, &periods, "missing", 5,
+        ).is_err());
     }
 }
