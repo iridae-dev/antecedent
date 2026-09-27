@@ -885,7 +885,7 @@ matrix and carries that identity through the query, result, and artifacts.
 The callback itself is caller code and cannot be replayed or verified from an
 artifact. A declared dropout skips later callback calls and permits absent
 later covariates. The retained estimator uses the same subject-level folds,
-dropout, positivity, and point-only contracts as an explicit action matrix.
+dropout, positivity, and interval support floors as an explicit action matrix.
 A change to the callback requires a new version and a new prepared study.
 
 Set `method="g_formula"` and provide subject-by-period conditional reward
@@ -902,6 +902,16 @@ caller owns nuisance fitting and the sequential exchangeability claim. The
 result and artifact preserve the fold and dropout contract and weight
 diagnostics; the value remains point-only without a calibrated interval or
 support-matrix license.
+
+For retained IPW with known sequential randomization and one independent row
+per subject, the native result also reports a whole-history subject-score
+standard error. A pointwise 95% regime-value interval requires at least 500
+subjects, 50 observed matching histories, 50 effective matching histories,
+and a positive score standard error. Below those floors it gives a specific
+interval refusal. A 2,000-replicate randomized two-period calibration with
+independent censoring checks coverage at the reported level. This route
+remains outside the current support-matrix axes; the direct
+`evaluate_regime_value` utility still returns a point value.
 
 `antecedent.regimes.evaluate_regime_value` evaluates a prespecified static or
 history-adaptive binary regime from subject-level treatment histories. It uses
@@ -931,8 +941,7 @@ from the evaluation sample. Optional conditional censoring survival enters as
 an unstabilized inverse probability. The native fit refuses positivity-floor
 violations, overflow, insufficient observed subjects, or a rank-deficient
 weighted design. Its CR1 subject-clustered sandwich standard errors are
-pointwise only; it makes no confidence-interval, simultaneous-coverage, or
-calibration claim. Fold IDs are preserved as subject ownership metadata when
+pointwise. Fold IDs are preserved as subject ownership metadata when
 provided, but propensity fitting and out-of-fold status are not verified. The
 same native MSM kernel now also runs through the retained Study route:
 `LongitudinalRegimeQuery.marginal_structural_model(...)` can be passed to
@@ -940,10 +949,16 @@ same native MSM kernel now also runs through the retained Study route:
 numerator positivity checks, assumptions, coefficients, pointwise CR1
 standard errors, and query/result artifact identity preserved. Its concise
 factory does not ask for a regime action because the MSM fits period
-coefficients rather than evaluating one policy. The direct and retained paths
-remain off the support-matrix axis, report no interval, and do not verify
-whether caller-supplied probabilities were trained out of fold. Each row is
-one subject, so repeated periods cannot be split across analysis units.
+coefficients rather than evaluating one policy. With known treatment and
+censoring probabilities, at least 300 independent subjects, 200 observed
+subjects, 150 effective weighted subjects, and positive coefficient standard
+errors, the retained route reports pointwise 95% intervals for the intercept
+and every period effect. A 2,000-replicate randomized two-period calibration
+checks all three coefficients at 95% coverage. Below those floors it reports
+a specific refusal. The intervals are separate, not simultaneous. Both paths
+remain off the support-matrix axis; the direct fit exposes standard errors
+without intervals. Caller-supplied probability fitting is not verified. Each
+row is one subject, so repeated periods cannot be split across analysis units.
 
 ```python
 summary = ant.regimes.evaluate_regime_value(
