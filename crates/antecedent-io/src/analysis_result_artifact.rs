@@ -1203,10 +1203,10 @@ fn validate_result(
                 ("bernoulli", "bernoulli_one_sided_tot_influence_variance_no_interval", None)
             }
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
-                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval", None)
+                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval", Some("bernoulli_fixed_cuped_ht_score_normal_interval"))
             }
             crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => {
-                ("bernoulli", "bernoulli_ancova_hc0_variance_no_interval", None)
+                ("bernoulli", "bernoulli_ancova_hc0_variance_no_interval", Some("bernoulli_ancova_hc0_normal_interval"))
             }
             crate::RandomizationDesignWire::Bernoulli => {
                 ("bernoulli", "bernoulli_ht_design_variance_no_interval", Some("bernoulli_ht_score_normal_interval"))
@@ -1270,10 +1270,13 @@ fn validate_result(
         let interval_supported = match &query.design {
             crate::RandomizationDesignWire::Bernoulli =>
                 query.estimand == crate::RandomizedEstimandWire::Itt
-                    && query.fixed_cuped.is_none() && query.ancova_covariates.is_empty()
+                    && query.ancova_covariates.len() <= 2
                     && query.realized_assignment.len() >= 400
                     && control >= 30 && treated >= 30
-                    && query.assignment_probabilities.iter().all(|p| *p + 1e-12 >= 0.2 && *p <= 0.8 + 1e-12),
+                    && query.assignment_probabilities.iter().all(|p| *p + 1e-12 >= 0.2 && *p <= 0.8 + 1e-12)
+                    && (query.ancova_covariates.is_empty()
+                        || query.assignment_probabilities.iter().all(|p|
+                            (*p - query.assignment_probabilities[0]).abs() <= 1e-12)),
             crate::RandomizationDesignWire::Complete { .. } => control >= 30 && treated >= 30,
             crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
             crate::RandomizationDesignWire::Stratified => {
@@ -1297,6 +1300,10 @@ fn validate_result(
         };
         let has_interval = randomized.interval_95.is_some();
         let graphless_method = match query.design {
+            crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() =>
+                Some(("bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() =>
+                Some(("bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval")),
             crate::RandomizationDesignWire::Bernoulli => Some(("bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval")),
             crate::RandomizationDesignWire::Complete { .. } => Some(("complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
             crate::RandomizationDesignWire::Cluster { .. } => Some(("cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval")),
@@ -1355,6 +1362,7 @@ fn validate_result(
                     && min_action_rows >= row.min_action_rows
                     && min_probability + 1e-12 >= row.min_probability
                     && reported_intervals >= row.min_reported_intervals
+                    && (row.max_covariates == 0 || query.ancova_covariates.len() <= row.max_covariates)
                     && (!row.all_reported_intervals || all_reported_intervals)
                     && has_interval
             })

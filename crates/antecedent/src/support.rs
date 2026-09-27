@@ -73,6 +73,8 @@ pub struct GraphlessAssignmentSupport {
     pub min_probability: f64,
     /// Number of distinct published pointwise intervals.
     pub reported_intervals: usize,
+    /// Number of fitted pre-assignment ANCOVA covariates.
+    pub covariates: usize,
     /// Whether every contrast named by the query has an interval.
     pub all_reported_intervals: bool,
     /// Realized matches for the evaluated policy and reference.
@@ -136,6 +138,7 @@ pub fn classify_graphless(
                 && observed.min_action_rows >= row.min_action_rows
                 && observed.min_probability + 1e-12 >= row.min_probability
                 && observed.reported_intervals >= row.min_reported_intervals
+                && (row.max_covariates == 0 || observed.covariates <= row.max_covariates)
                 && (!row.all_reported_intervals || observed.all_reported_intervals)
                 && observed.policy_matches >= row.min_policy_matches
                 && observed.reference_matches >= row.min_reference_matches
@@ -214,6 +217,25 @@ mod graphless_support_tests {
         assert!(matches!(classify_graphless(multi, actions), GraphlessSupportStatus::Licensed { .. }));
         assert_eq!(classify_graphless(multi, GraphlessAssignmentSupport { all_reported_intervals: false, ..actions }), GraphlessSupportStatus::Refused);
         assert_eq!(classify_graphless(multi, GraphlessAssignmentSupport { min_action_rows: 29, ..actions }), GraphlessSupportStatus::Refused);
+    }
+
+    #[test]
+    fn precision_adjusted_bernoulli_rows_are_exact_and_cap_ancova_covariates() {
+        let observed = GraphlessAssignmentSupport {
+            assignment_unit: "unit", treated: 200, control: 200, rows: 400,
+            min_probability: 0.2, interval_95_published: true,
+            reported_intervals: 1, covariates: 2, ..Default::default()
+        };
+        let ancova = GraphlessSupportKey {
+            family: "randomized_effect", design: "bernoulli", method: "ancova_hc0",
+            inference_claim: "pointwise_95_normal_interval",
+        };
+        assert!(matches!(classify_graphless(ancova, observed), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(ancova, GraphlessAssignmentSupport { covariates: 3, ..observed }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(ancova, GraphlessAssignmentSupport { rows: 399, ..observed }), GraphlessSupportStatus::Refused);
+        let cuped = GraphlessSupportKey { method: "fixed_cuped_ht_score", ..ancova };
+        assert!(matches!(classify_graphless(cuped, observed), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(GraphlessSupportKey { method: "wald_cace", ..ancova }, observed), GraphlessSupportStatus::Refused);
     }
 
     #[test]

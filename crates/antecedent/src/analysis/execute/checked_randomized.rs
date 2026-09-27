@@ -172,6 +172,11 @@ impl CheckedRandomizedOperation {
             let refs = covariates.iter().map(Vec::as_slice).collect::<Vec<_>>();
             let fit = antecedent_estimate::ancova::fit_ancova(outcomes, &self.query.realized_assignment, &refs)
                 .map_err(|message| CausalError::Unsupported { message })?;
+            interval_95 = antecedent_estimate::ancova::calibrated_bernoulli_interval_95(
+                &fit, self.query.assignment_probabilities[0]);
+            if interval_95.is_some() {
+                interval_standard_error = Some(fit.hc0_variance.sqrt());
+            }
             (fit.effect, fit.hc0_variance, fit.control, fit.treated, Arc::from([]), Arc::from([]),
                 Arc::<str>::from("bernoulli"),
                 Arc::<str>::from("bernoulli_ancova_hc0_variance_no_interval"),
@@ -281,14 +286,12 @@ impl CheckedRandomizedOperation {
                     usize::from(*assigned)).collect::<Vec<_>>();
                 let probabilities = self.query.assignment_probabilities.iter().map(|p|
                     vec![1.0 - p, *p]).collect::<Vec<_>>();
-                if self.query.fixed_cuped.is_none() {
-                    if let Some(contrast) = antecedent_estimate::randomized_scores::independent_action_contrast(
-                        outcomes, &assignments, &probabilities, 0, 1,
-                    ) {
-                        interval_95 = contrast.interval_95;
-                        if interval_95.is_some() {
-                            interval_standard_error = Some(contrast.variance_upper_bound.sqrt());
-                        }
+                if let Some(contrast) = antecedent_estimate::randomized_scores::independent_action_contrast(
+                    outcomes, &assignments, &probabilities, 0, 1,
+                ) {
+                    interval_95 = contrast.interval_95;
+                    if interval_95.is_some() {
+                        interval_standard_error = Some(contrast.variance_upper_bound.sqrt());
                     }
                 }
                 (
@@ -483,6 +486,10 @@ impl CheckedRandomizedOperation {
         }
         let uncertainty = if interval_95.is_some() {
             Arc::<str>::from(match self.query.design {
+                antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() =>
+                    "bernoulli_fixed_cuped_ht_score_normal_interval",
+                antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
+                    "bernoulli_ancova_hc0_normal_interval",
                 antecedent_core::RandomizationDesign::Bernoulli => "bernoulli_ht_score_normal_interval",
                 antecedent_core::RandomizationDesign::Complete { .. } => "complete_neyman_normal_interval",
                 antecedent_core::RandomizationDesign::Cluster { .. } => "cluster_neyman_normal_interval",
@@ -494,6 +501,10 @@ impl CheckedRandomizedOperation {
         } else { uncertainty };
         let diagnostic = if interval_95.is_some() {
             match self.query.design {
+                antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() =>
+                    "Bernoulli ITT with an externally fixed pre-assignment CUPED coefficient and independent-unit score-sandwich pointwise 95% interval",
+                antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
+                    "Bernoulli ANCOVA with pre-assignment covariates and independent-unit HC0 pointwise 95% interval",
                 antecedent_core::RandomizationDesign::Bernoulli =>
                     "Bernoulli Horvitz-Thompson ITT with known probabilities and an independent-unit score-sandwich pointwise 95% interval",
                 antecedent_core::RandomizationDesign::Complete { .. } =>
@@ -619,6 +630,10 @@ impl CheckedRandomizedOperation {
         // published interval alone is insufficient: sparse or other designs
         // must not inherit a geometric matrix coordinate by analogy.
         let (design, method, assignment_unit, claim) = match self.query.design {
+            antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() =>
+                ("bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval"),
+            antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
+                ("bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Bernoulli =>
                 ("bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Complete { .. } =>
@@ -681,6 +696,7 @@ impl CheckedRandomizedOperation {
                     fit.multi_arm_values.iter().map(|(_, _, _, count)| *count).min().unwrap_or(0)
                 },
                 min_probability, reported_intervals, all_reported_intervals,
+                covariates: self.query.ancova_covariates.len(),
                 ..Default::default()
             },
         ) {
