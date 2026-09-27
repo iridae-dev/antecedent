@@ -517,6 +517,14 @@ impl PreparedStudy {
             });
         }
         let (mut contract, payloads) = compiled;
+        if result.continuous_dose_response.is_some() {
+            contract.support_status = result.support_status;
+            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
+                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
+                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
+                    .then(|| Arc::from("graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals"));
+            }
+        }
         if result.policy_value.is_some() {
             contract.support_status = result.support_status;
             if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
@@ -3361,6 +3369,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             }).collect(),
             bandwidth: fit.bandwidth, density_provenance: fit.density_provenance.to_string(),
             uncertainty: fit.uncertainty.to_string(),
+            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
             fixed_policy: fit.fixed_policy.as_ref().map(|value| antecedent_io::analysis_result_artifact::DosePolicyValueWire {
                 policy_doses: value.policy_doses.clone(), reference_doses: value.reference_doses.clone(),
                 policy_value: value.policy_value, reference_value: value.reference_value,

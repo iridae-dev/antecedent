@@ -19,11 +19,13 @@ INTEGER_LIMITS = (
     "min_rows", "min_assignment_units_per_arm", "min_blocks", "min_block_arm",
     "min_factorial_cell", "min_action_rows", "min_reported_intervals",
     "min_policy_matches", "min_reference_matches", "min_bin_rows",
-    "min_bin_arm_rows", "min_group_rows", "min_group_arm_rows",
+    "min_bin_arm_rows", "min_group_rows", "min_group_arm_rows", "min_local_rows",
 )
+FLOAT_LOWER_LIMITS = ("min_effective_sample_size", "min_dose_density")
+FLOAT_UPPER_LIMITS = ("max_normalized_weight",)
 BOOLEAN_REQUIREMENTS = (
     "requires_uncoupled_constraints", "requires_disjoint_nuisance_training",
-    "requires_rank_ownership", "requires_balanced_sequences",
+    "requires_rank_ownership", "requires_balanced_sequences", "requires_known_density",
 )
 
 
@@ -45,6 +47,10 @@ def load_rows() -> list[dict]:
         for field in INTEGER_LIMITS:
             threshold = row.get(field, 0)
             if type(threshold) is not int or threshold < 0:
+                raise ValueError(f"{key}: invalid {field}")
+        for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS):
+            threshold = row.get(field, 0.0)
+            if type(threshold) not in (float, int) or not 0 <= threshold <= 1_000_000:
                 raise ValueError(f"{key}: invalid {field}")
         maximum_covariates = row.get("max_covariates", 0)
         if type(maximum_covariates) is not int or maximum_covariates < 0:
@@ -98,6 +104,7 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         "pub(super) struct GraphlessLicenseRow {",
         *(f"    pub(super) {field}: &'static str," for field in fields),
         *(f"    pub(super) {field}: usize," for field in INTEGER_LIMITS),
+        *(f"    pub(super) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
         "    pub(super) max_covariates: usize,",
         "    pub(super) min_probability: f64,",
         "    pub(super) all_reported_intervals: bool,",
@@ -109,6 +116,7 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         lines.append("    GraphlessLicenseRow {")
         lines.extend(f"        {field}: {json.dumps(row[field], ensure_ascii=False)}," for field in fields)
         lines.extend(f"        {field}: {row.get(field, 0)}," for field in INTEGER_LIMITS)
+        lines.extend(f"        {field}: {float(row.get(field, 0.0))}," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS))
         lines.append(f"        max_covariates: {row.get('max_covariates', 0)},")
         lines.append(f"        min_probability: {float(row.get('min_probability', 0.0))},")
         lines.append(f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},")
@@ -124,11 +132,11 @@ def docs(rows: list[dict]) -> str:
         "This table is separate from the graph/structure support axes in",
         "[the geometric matrix](support-matrix.md). A query is licensed only when",
         "its exact family, design, method, inference claim, and observed",
-        "assignment-unit counts match a row. All other combinations are refused.",
+        "support thresholds match a row. All other combinations are refused.",
         "That refusal means no matrix license; off-axis point results may still",
         "execute. The route must validate its stated design and assumptions.",
         "",
-        "| Family | Design | Method | Inference claim | Assignment support | Evidence |",
+        "| Family | Design | Method | Inference claim | Observed support | Evidence |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
     for row in rows:
@@ -141,6 +149,8 @@ def docs(rows: list[dict]) -> str:
                 [*(f"`{row[field]}`" for field in KEYS),
                  ", ".join([
                      *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in INTEGER_LIMITS if row.get(field)),
+                     *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in FLOAT_LOWER_LIMITS if row.get(field)),
+                     *(f"<= {row[field]} {field.removeprefix('max_').replace('_', ' ')}" for field in FLOAT_UPPER_LIMITS if row.get(field)),
                      *(f"<= {row['max_covariates']} covariates" for _ in [0] if row.get("max_covariates")),
                      *(f"probability >= {row['min_probability']}" for _ in [0] if row.get("min_probability")),
                      "all intervals" if row.get("all_reported_intervals") else "interval published",

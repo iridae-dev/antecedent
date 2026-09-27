@@ -465,6 +465,9 @@ pub struct ContinuousDoseResponseWire {
     /// Fixed group-to-dose policy value, when requested by the query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fixed_policy: Option<DosePolicyValueWire>,
+    /// Exact graphless fixed-dose policy license, absent for off-axis results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
 }
 
 /// Portable paired value of a fixed kernel-smoothed dose policy.
@@ -1883,6 +1886,7 @@ fn validate_result(
             || fit.uncertainty != expected_uncertainty
             || fit.fixed_policy.is_some() != policy_requested
             || fit.points.len() != groups.len() * query.target_doses.len()
+            || (!policy_requested && fit.graphless_support_status.is_some())
         {
             return Err(IoError::Convert("continuous-dose result must match its query and uncertainty".into()));
         }
@@ -1915,13 +1919,23 @@ fn validate_result(
             let variances = [value.policy_variance, value.reference_variance,
                 value.incremental_variance];
             let centers = [value.policy_value, value.reference_value, value.incremental_value];
-            let supported = query.density_provenance == "known"
-                && query.baseline_groups.len() >= 600 && minimum_group_rows >= 300
-                && value.minimum_local_rows >= 80
-                && value.minimum_effective_sample_size >= 50.0
-                && value.maximum_normalized_weight <= 0.05
-                && value.minimum_dose_density >= 0.2
-                && variances.iter().all(|variance| *variance > 0.0);
+            let supported = graphless_data::LICENSES.iter().any(|row| {
+                row.family == "continuous_dose_policy"
+                    && row.design == "fixed_group_kernel"
+                    && row.method == "inverse_density_kernel_paired_scores"
+                    && row.inference_claim == "policy_reference_incremental_pointwise_95_normal_intervals"
+                    && row.assignment_unit == "unit"
+                    && query.baseline_groups.len() >= row.min_rows
+                    && minimum_group_rows >= row.min_group_rows
+                    && value.minimum_local_rows >= row.min_local_rows
+                    && value.minimum_effective_sample_size + 1e-12 >= row.min_effective_sample_size
+                    && (row.max_normalized_weight == 0.0
+                        || value.maximum_normalized_weight <= row.max_normalized_weight + 1e-12)
+                    && value.minimum_dose_density + 1e-12 >= row.min_dose_density
+                    && (!row.requires_known_density || query.density_provenance == "known")
+                    && row.min_reported_intervals == 3 && row.all_reported_intervals
+                    && variances.iter().all(|variance| *variance > 0.0)
+            });
             if value.policy_doses != expected_policy || value.reference_doses != expected_reference
                 || !centers.iter().chain(&variances).all(|number| number.is_finite())
                 || (value.policy_value - value.reference_value - value.incremental_value).abs() > 1e-8
@@ -1933,6 +1947,8 @@ fn validate_result(
                 || !(0.0..=1.0).contains(&value.maximum_normalized_weight)
                 || !value.minimum_dose_density.is_finite() || value.minimum_dose_density <= 0.0
                 || policy_interval != supported
+                || (fit.graphless_support_status.as_deref() != supported.then_some("licensed")
+                    && !(allow_legacy_graphless_missing && fit.graphless_support_status.is_none()))
                 || intervals.iter().any(|interval| interval.is_some() != policy_interval)
                 || intervals.iter().zip(centers).zip(variances).any(|((interval, center), variance)| {
                     interval.is_some_and(|[lower, upper]| {

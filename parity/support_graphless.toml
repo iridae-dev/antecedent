@@ -2,6 +2,25 @@
 # threshold is refused. These rows do not inherit geometric support cells.
 
 [[license]]
+family = "continuous_dose_policy"
+design = "fixed_group_kernel"
+method = "inverse_density_kernel_paired_scores"
+inference_claim = "policy_reference_incremental_pointwise_95_normal_intervals"
+assignment_unit = "unit"
+min_rows = 600
+min_group_rows = 300
+min_local_rows = 80
+min_effective_sample_size = 50.0
+max_normalized_weight = 0.05
+min_dose_density = 0.2
+min_reported_intervals = 3
+all_reported_intervals = true
+requires_known_density = true
+known_truth_test = "crates/antecedent-estimate/src/continuous_dose.rs::fixed_group_dose_policy_support_boundary_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/continuous_dose_policy_route.rs::retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering"
+limitations = "Fixed pre-outcome group-to-dose policy and reference with known correct observed-dose density, independent subjects, conditional exchangeability, at least 600 evaluation rows and 300 per group, 80 local rows, effective sample size at least 50, maximum normalized local weight 0.05, minimum density 0.2, positive paired score variance, and all three pointwise 95% intervals. Values are for the stated kernel-smoothed interventions, not exact-dose potential outcomes or simultaneous coverage."
+
+[[license]]
 family = "randomized_effect"
 design = "switchback"
 method = "independent_sequence_ht_score"

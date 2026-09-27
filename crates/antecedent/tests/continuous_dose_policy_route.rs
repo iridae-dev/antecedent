@@ -46,14 +46,50 @@ fn retained_fixed_dose_policy_intervals_round_trip_and_refuse_tampering() {
     assert!(value.policy_interval_95.is_some());
     assert!(value.reference_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(response.uncertainty.as_ref(),
         "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals");
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "fixed_group_dose_policy"
     )));
+    let executed_contract = prepared.contract_for_result(&result).unwrap();
+    assert_eq!(executed_contract.support_status, result.support_status);
+    let support = executed_contract.reasoning.support.as_ref().unwrap();
+    assert_eq!(support.matrix_status.as_ref(), "licensed");
+    assert_eq!(support.matrix_coordinate.as_deref(), Some(
+        "graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals"));
     let bytes = prepared.encode_contracted_result(&result, "fixed-dose-policy", &ctx).unwrap();
-    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let (encoded, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.continuous_dose_response.as_ref().unwrap()
+        .graphless_support_status.as_deref(), Some("licensed"));
+    let mut legacy_body = artifact.clone();
+    legacy_body.continuous_dose_response.as_mut().unwrap().graphless_support_status = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &legacy_body, header.variable_names.clone(), "legacy-new-encode").is_err());
+    let mut legacy_container = encoded.clone();
+    let body_index = legacy_container.sections.iter().position(|section|
+        section.id == "analysis_result.body").unwrap();
+    let body_bytes = antecedent_io::to_cbor(&legacy_body).unwrap();
+    let (descriptor, section) = antecedent_io::pack_section_shared(
+        "analysis_result.body", "application/cbor", body_bytes.into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    legacy_container.sections[body_index] = section;
+    legacy_container.manifest.sections[body_index] = descriptor;
+    let mut old_bytes = Vec::new();
+    legacy_container.write_to(&mut old_bytes).unwrap();
+    let (_, _, old_body) = antecedent_io::decode_analysis_result_artifact(&old_bytes).unwrap();
+    assert!(old_body.continuous_dose_response.unwrap().graphless_support_status.is_none());
+    let mut forged = artifact.clone();
+    forged.continuous_dose_response.as_mut().unwrap().graphless_support_status = Some("refused".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "forged-dose-support").is_err());
+    let mut forged = artifact.clone();
+    forged.continuous_dose_response.as_mut().unwrap().fixed_policy.as_mut().unwrap()
+        .reference_interval_95 = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &forged, header.variable_names.clone(), "omitted-dose-interval").is_err());
     let mut forged = artifact.clone();
     forged.continuous_dose_response.as_mut().unwrap().fixed_policy.as_mut().unwrap()
         .incremental_interval_95.as_mut().unwrap()[1] += 0.5;
@@ -73,12 +109,14 @@ fn externally_estimated_density_keeps_fixed_dose_value_point_only() {
     let prepared = Study::tabular(data.clone()).query(CausalQuery::ContinuousDoseResponse(query))
         .build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.support_status, None);
     let value = result.continuous_dose_response.as_ref().unwrap().fixed_policy.as_ref().unwrap();
     assert!(value.incremental_interval_95.is_none());
     assert!(value.policy_interval_95.is_none());
     assert!(value.reference_interval_95.is_none());
     let bytes = prepared.encode_contracted_result(&result, "external-dose-density", &ctx).unwrap();
     let (_, _, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert!(artifact.continuous_dose_response.as_ref().unwrap().graphless_support_status.is_none());
     assert!(artifact.continuous_dose_response.unwrap().fixed_policy.unwrap()
         .incremental_interval_95.is_none());
 }

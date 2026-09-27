@@ -719,6 +719,10 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
         uncertainty=str(section.uncertainty),
         policy_value_estimated=fixed_policy is not None,
         fixed_policy=fixed_policy,
+        support_status=(section.graphless_support_status or
+                        ("off_axis_pointwise_95" if fixed_policy is not None
+                         and fixed_policy.incremental_interval_95 is not None
+                         else "unlicensed_point_utility")),
         evaluation_method=("fixed_group_kernel_smoothed_inverse_density_policy" if fixed_policy is not None
                            else "stratified_triangular_kernel_inverse_density"),
     )

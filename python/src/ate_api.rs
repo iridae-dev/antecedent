@@ -2241,7 +2241,12 @@ pub(crate) fn ate_result_from_analysis(
                 .map(antecedent::support::CellStatus::as_str).map(str::to_string);
             section
         }),
-        continuous_dose_response: result.continuous_dose_response.as_ref().map(Into::into),
+        continuous_dose_response: result.continuous_dose_response.as_ref().map(|value| {
+            let mut section = crate::policy_api::ContinuousDoseResponseSection::from(value);
+            section.graphless_support_status = result.support_status
+                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section
+        }),
         assumption_count: result.identification.required_assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
         method,
