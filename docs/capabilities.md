@@ -798,8 +798,11 @@ policy needs at least 10 realized assignment matches for policy and reference.
 Cross-fitted nuisance predictions, potentially binding global capacity or
 budget selection, smaller samples, and degenerate score variance remain
 point-only. Direct `evaluate_policy` and `evaluate_policy_doubly_robust`
-remain point utilities. These retained intervals are off-axis in the support
-matrix and do not create a licensed support cell. The 2,000-replicate binary
+remain point utilities. Exact generated graphless matrix rows license paired
+policy-value and incremental-value intervals only for known 0.5 Bernoulli
+binary assignment (IPW or disjoint held-out AIPW), the published interval
+pair, sufficient realized assignment support, and uncoupled recommendations.
+Other executed interval designs remain off-axis. The 2,000-replicate binary
 IPW (90% and 95%) and held-out AIPW (95%) calibration tests are in
 `crates/antecedent-estimate/src/policy_value.rs`; route and artifact checks
 are in `crates/antecedent/tests/policy_value_route.rs`.
@@ -821,6 +824,13 @@ cannot couple recommendations across rows. The 2,000-replicate known-truth
 calibration is in `crates/antecedent-estimate/src/policy_value.rs`. A
 120-subject multi-action probe covered only 0.932 at nominal 0.95, so the
 runtime withholds that interval below 300 subjects.
+The multi-action IPW matrix row further requires every action probability at
+least 0.2 and 50 observed assignments to each action. A separate fixed-group
+CATE row requires all requested group/action intervals together with the
+policy-value interval pair. At the measured 0.2 action-probability boundary,
+the conditional CATE coverage rates were 1,896/2,000 and 1,828/1,880
+supported draws; the other 120 draws lacked the required 50 observed action
+assignments and remained point-only.
 
 Retained `PolicyValue.top_k(...)` also reports pointwise 95% intervals for
 fixed uplift score bins when the declared ranking-training subject IDs are
@@ -830,9 +840,13 @@ and its row-score variance is positive. The two 2,000-draw known-truth bin
 coverage rates were 0.9425 and 0.9515. Each bin interval is separate; there
 is no simultaneous top-k band or learned-ranking guarantee. Direct
 `uplift_by_score` remains point-only because its API does not retain ranking
-training ownership. These retained uplift and CATE interval routes are
-currently off-axis in the generated support matrix and do not create licensed
-matrix cells.
+training ownership. Exact generated graphless rows license all requested
+uplift-bin intervals together with the paired policy-value intervals for a
+fixed precomputed binary policy with disjoint declared ranking training IDs.
+`PolicyValue.top_k(...)` retains its valid bin intervals but its global
+capacity selection keeps scalar policy-value intervals point-only, so this
+combined row does not license that construction. Neither row authenticates
+the caller's held-out split or claims simultaneous coverage.
 
 `policy.ConditionalDoseResponse(...)` carries a fixed target-dose grid through
 `prepare` / `analyze`. Baseline group labels remain bound to the prepared row
