@@ -244,12 +244,25 @@ def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
         ranking_training_subject_ids=["rank-train"], uplift_bins=2,
     )
     result = ant.analyze({"y": outcome}, query=query, refute="none")
-    assert result.policy_value.support_status == "licensed"
+    assert result.policy_value.support_status == "off_axis_pointwise_95"
+    assert result.policy_value.policy_value_interval_95 is None
+    assert result.policy_value.incremental_value_interval_95 is None
     bins = result.policy_value.uplift_bins
     assert [bin.evaluation_rows for bin in bins] == [300, 300]
     for point, truth in zip(bins, (2.0, 0.5), strict=True):
         assert point.interval_95 is not None
         assert point.interval_95[0] < truth < point.interval_95[1]
+    fixed_query = policy.PolicyValue(
+        outcome="y", assignment=assignment, propensity=0.5,
+        policy=policy.BinaryPolicy([i < 300 for i in range(rows)]),
+        evaluation_subject_ids=[f"fixed-eval-{i}" for i in range(rows)],
+        uplift_scores=list(range(rows, 0, -1)), uplift_bin_count=2,
+        uplift_training_subject_ids=["fixed-rank-train"],
+    )
+    fixed_result = ant.analyze({"y": outcome}, query=fixed_query, refute="none")
+    assert fixed_result.policy_value.support_status == "licensed"
+    assert fixed_result.policy_value.policy_value_interval_95 is not None
+    assert all(point.interval_95 is not None for point in fixed_result.policy_value.uplift_bins)
     loaded = ant.load(result.export(artifact_id="top-k-uplift-interval"))
     assert loaded.answer.structured["uplift_bins"][0]["interval_95"] == pytest.approx(bins[0].interval_95)
 
