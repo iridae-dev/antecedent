@@ -315,11 +315,11 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
         kwargs["query"] = AverageEffect("t", "y", target_population=CustomDistribution(3))
         kwargs["estimator"] = "propensity.weighting"
     if options == "rd":
-        from antecedent.estimators import SharpRd
+        from antecedent.quasi import SharpRegressionDiscontinuity
 
-        # The sharp design as a graph: the running variable is the treatment's only cause.
-        kwargs["graph"] = [("r", "t"), ("t", "y"), ("r", "y")]
-        kwargs["estimator"] = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
+        # Sharp RD is a graphless query that synthesizes its own design.
+        kwargs.pop("graph", None)
+        kwargs["query"] = SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5)
     return kwargs
 
 

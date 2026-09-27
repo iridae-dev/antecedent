@@ -14,7 +14,7 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
-from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
+from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink, SharpRegressionDiscontinuity
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -73,6 +73,7 @@ def analyze(
         | SyntheticDifferenceInDifferences
         | FuzzyRegressionDiscontinuity
         | RegressionKink
+        | SharpRegressionDiscontinuity
         | SurvivalOutcome
         | CompetingRisksOutcome
         | PulseEffect
@@ -122,9 +123,6 @@ def analyze(
     bootstrap: int | None = None,
     threads: int | None = None,
     regimes: Sequence[int] | None = None,
-    running_variable: str | None = None,
-    cutoff: float | None = None,
-    bandwidth: float | None = None,
     population_registry: Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
@@ -245,9 +243,6 @@ def analyze(
                 bootstrap,
                 threads,
                 regimes,
-                running_variable,
-                cutoff,
-                bandwidth,
                 population_registry,
                 estimator_config,
                 latency,
@@ -319,9 +314,6 @@ def analyze(
         validators=validators,
         accept_discovered=accept_discovered,
         regimes=regimes,
-        running_variable=running_variable,
-        cutoff=cutoff,
-        bandwidth=bandwidth,
         provider=provider,
         controls=controls,
     )

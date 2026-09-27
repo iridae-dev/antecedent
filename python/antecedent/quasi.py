@@ -482,6 +482,45 @@ class FuzzyRegressionDiscontinuity:
 
 
 @dataclass(frozen=True, slots=True)
+class SharpRegressionDiscontinuity:
+    """Sharp regression-discontinuity: treatment is a deterministic threshold rule.
+
+    The design (the running variable is the treatment's only cause, and both act on
+    the outcome) is fixed, so ``analyze`` needs neither a graph nor estimator/kwargs::
+
+        ant.analyze(data, query=ant.quasi.SharpRegressionDiscontinuity(
+            "outcome", "treatment", "running", cutoff=0.0, bandwidth=1.5))
+
+    The effect is the local jump at the cutoff, reported as a
+    ``local_at_cutoff`` target, not a population average. A treatment column that is
+    not the threshold rule is refused rather than estimated as an ITT contrast (use
+    :class:`FuzzyRegressionDiscontinuity` for imperfect compliance).
+
+    ``se`` selects the analytic standard error of the jump coefficient: ``None``
+    keeps the ``hc1`` residual-sandwich default; ``hc0`` / ``hc2`` / ``hc3`` are the
+    other heteroskedasticity-robust variants and ``homoskedastic`` opts into the
+    classical constant-variance formula.
+    """
+
+    _SE_KINDS = ("hc1", "homoskedastic", "hc0", "hc2", "hc3")
+
+    outcome: str
+    treatment: str
+    running: str
+    cutoff: float
+    bandwidth: float
+    se: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_rd_spec(self.outcome, self.treatment, self.running, self.cutoff, self.bandwidth)
+        if self.se is not None and self.se not in self._SE_KINDS:
+            raise CausalValueError(
+                f"SharpRegressionDiscontinuity se must be one of {', '.join(self._SE_KINDS)}; "
+                f"got {self.se!r}"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class RegressionKink:
     outcome: str
     treatment: str
@@ -996,6 +1035,7 @@ __all__ = [
     "AugmentedPanelDiDEstimate",
     "FuzzyRegressionDiscontinuity",
     "RegressionKink",
+    "SharpRegressionDiscontinuity",
     "LocalPolynomialRatioEstimate",
     "estimate_did",
     "estimate_panel_did",

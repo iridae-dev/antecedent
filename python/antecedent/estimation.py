@@ -102,6 +102,7 @@ from .quasi import (
     PanelDifferenceInDifferences,
     PanelDifferenceInDifferencesEstimate,
     RegressionKink,
+    SharpRegressionDiscontinuity,
     StaggeredAdoption,
     StaggeredEventStudyEstimate,
     StaggeredEventTimeEffect,
@@ -2008,6 +2009,7 @@ _PreparedQuery = (
     | SyntheticDifferenceInDifferences
     | FuzzyRegressionDiscontinuity
     | RegressionKink
+    | SharpRegressionDiscontinuity
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegimeQuery
@@ -2382,7 +2384,6 @@ class _PrepareRoute:
     seed: int
     class_prior: ClassPrior | None
     max_completions: int | None
-    rd_args: tuple[str | None, float | None, float | None]
     accepted: bool
     options: dict[str, Any]
     design_columns: dict[str, tuple[Any, ...]] | None = None
@@ -2392,12 +2393,6 @@ class _PrepareRoute:
     # -- shared -----------------------------------------------------------
     def _common(self) -> dict[str, Any]:
         return {"seed": self.seed, "threads": self.threads, "options": self.options}
-
-    def _refuse_rd(self, route: str) -> None:
-        if any(value is not None for value in self.rd_args):
-            raise _not_applicable(
-                "running_variable / cutoff / bandwidth", f"{route} (rd.sharp needs a Dag)"
-            )
 
     def _refuse_estimator_config(self, route: str) -> None:
         if self.estimator_config:
@@ -2416,12 +2411,6 @@ class _PrepareRoute:
 
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
-        # running_variable / cutoff / bandwidth belong to the sharp-RD AverageEffect
-        # cell alone. Refuse them for every other query up front so the graphless
-        # families (which return before the AverageEffect fall-through) can never
-        # accept and silently drop them.
-        if not isinstance(query, AverageEffect):
-            self._refuse_rd(f"{type(query).__name__}")
         if isinstance(query, (PolicyValue, MultiActionPolicyValue)):
             return self._policy_value()
         if isinstance(query, ConditionalDoseResponse):
@@ -2436,6 +2425,8 @@ class _PrepareRoute:
             return self._panel_did()
         if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
             return self._synthetic_control()
+        if isinstance(query, SharpRegressionDiscontinuity):
+            return self._sharp_rd()
         if isinstance(query, (FuzzyRegressionDiscontinuity, RegressionKink)):
             return self._local_polynomial_ratio()
         if isinstance(query, LongitudinalRegimeQuery):
@@ -2519,7 +2510,6 @@ class _PrepareRoute:
     # -- graph posterior ------------------------------------------------------
     def _graph_posterior(self) -> tuple[Any, Any]:
         query, discovery = self.query, self.discovery
-        self._refuse_rd("a graph-posterior mixture")
         self._refuse_ids("PreparedAnalysis graph-posterior discovery (per posterior atom)")
         if self.frame is not None and self.frame["kind"] != "events":
             raise CausalUnsupportedError(
@@ -2707,7 +2697,6 @@ class _PrepareRoute:
     # -- temporal -------------------------------------------------------------
     def _temporal(self) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
-        self._refuse_rd(f"{type(query).__name__}")
         self._refuse_estimator_config(f"{type(query).__name__} (fixed temporal estimator)")
         class_graph = graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None
         lagged = (
@@ -2850,9 +2839,15 @@ class _PrepareRoute:
         from .query import coerce_outcome_functional
 
         query, graph = self.query, self.graph
+        if str(self.estimator) in ("rd.sharp", "Estimator.SHARP_RD"):
+            raise CausalUnsupportedError(
+                "Sharp regression discontinuity is a query, not an estimator: "
+                "analyze(data, query=antecedent.quasi.SharpRegressionDiscontinuity("
+                "outcome, treatment, running, cutoff=, bandwidth=)); it needs no graph.",
+                reason_code="option_not_applicable",
+            )
         functional = coerce_outcome_functional(getattr(query, "outcome_functional", None))
         if isinstance(graph, TieredBackground):
-            self._refuse_rd("a TieredBackground")
             if self.identifier is not None:
                 raise CausalUnsupportedError(
                     "TieredBackground selects its own identifier; omit identifier",
@@ -2874,7 +2869,6 @@ class _PrepareRoute:
             )
             return native, "average"
         if isinstance(graph, (Pag, Cpdag, Admg)):
-            self._refuse_rd(f"a {type(graph).__name__}")
             native = _NativePreparedAnalysis.prepare_class_ate(
                 self.names,
                 self.columns,
@@ -2891,7 +2885,7 @@ class _PrepareRoute:
                 **self._common(),
             )
             return native, "average"
-        running_variable, cutoff, bandwidth = self.rd_args
+        running_variable = cutoff = bandwidth = None
         native = _NativePreparedAnalysis.prepare(
             self.names,
             self.columns,
@@ -2918,7 +2912,6 @@ class _PrepareRoute:
             raise _not_applicable("graph/discovery", "ConditionalDoseResponse")
         self._refuse_ids("ConditionalDoseResponse")
         self._refuse_estimator_config("ConditionalDoseResponse")
-        self._refuse_rd("ConditionalDoseResponse")
         if self._explicit_refute() or self.bootstrap:
             raise _not_applicable("refute/bootstrap", "ConditionalDoseResponse")
         if self.inference is not None and not isinstance(self.inference, Frequentist):
@@ -3238,6 +3231,42 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _sharp_rd(self) -> tuple[Any, Literal["average"]]:
+        from .query import coerce_outcome_functional
+
+        query = cast(SharpRegressionDiscontinuity, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", "SharpRegressionDiscontinuity")
+        self._refuse_ids("SharpRegressionDiscontinuity")
+        self._refuse_estimator_config("SharpRegressionDiscontinuity")
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise _not_applicable("inference", "SharpRegressionDiscontinuity")
+        # The sharp-RD design is fixed: the running variable is the treatment's only
+        # cause, and both act on the outcome. Synthesize it so the caller supplies
+        # neither a graph nor an estimator.
+        edges = [
+            (query.running, query.treatment),
+            (query.treatment, query.outcome),
+            (query.running, query.outcome),
+        ]
+        native = _NativePreparedAnalysis.prepare(
+            self.names,
+            self.columns,
+            _static_edges(edges),
+            query.treatment,
+            query.outcome,
+            identifier="rd.sharp",
+            estimator="rd.sharp",
+            estimator_config={"se_kind": query.se} if query.se is not None else None,
+            outcome_functional=coerce_outcome_functional(None),
+            running_variable=query.running,
+            cutoff=query.cutoff,
+            bandwidth=query.bandwidth,
+            accepted=self.accepted,
+            **self._common(),
+        )
+        return native, "average"
+
     def _local_polynomial_ratio(self) -> tuple[Any, Literal["average"]]:
         query = cast(FuzzyRegressionDiscontinuity | RegressionKink, self.query)
         if self.graph is not None or self.discovery is not None:
@@ -3453,7 +3482,6 @@ class _PrepareRoute:
     # -- design-based cells -----------------------------------------------------
     def _refuse_design_options(self, route: str, identifier: str, estimator: str) -> None:
         """The design cells fix their identifier, estimator and interval construction."""
-        self._refuse_rd(route)
         self._refuse_estimator_config(route)
         if self.identifier not in (None, identifier) or self.estimator not in (None, estimator):
             raise CausalUnsupportedError(
@@ -3603,7 +3631,6 @@ class _PrepareRoute:
     def _attribution(self) -> tuple[Any, Any]:
         query = self.query
         route = type(query).__name__
-        self._refuse_rd(route)
         self._refuse_ids(route)
         self._refuse_estimator_config(route)
         if self.bootstrap:
@@ -4206,9 +4233,6 @@ class PreparedAnalysis(Generic[ResultT]):
         validators: Sequence[Any] | Mapping[str, Any] | None = None,
         accept_discovered: bool = True,
         regimes: Sequence[int] | None = None,
-        running_variable: str | None = None,
-        cutoff: float | None = None,
-        bandwidth: float | None = None,
         provider: Any | None = None,
         controls: TransportControls | None = None,
     ) -> PreparedAnalysis[_PreparedResult]:
@@ -4316,9 +4340,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         on_stage,
                         validators,
                         regimes,
-                        running_variable,
-                        cutoff,
-                        bandwidth,
                     )
                 )
                 or seed != 1
@@ -4363,9 +4384,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         on_stage,
                         validators,
                         regimes,
-                        running_variable,
-                        cutoff,
-                        bandwidth,
                     )
                 )
                 or seed != 1
@@ -4414,9 +4432,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         on_stage,
                         validators,
                         regimes,
-                        running_variable,
-                        cutoff,
-                        bandwidth,
                     )
                 )
                 or not accept_discovered
@@ -4466,9 +4481,6 @@ class PreparedAnalysis(Generic[ResultT]):
                         on_stage,
                         validators,
                         regimes,
-                        running_variable,
-                        cutoff,
-                        bandwidth,
                     )
                 )
                 or seed != 1
@@ -4561,7 +4573,6 @@ class PreparedAnalysis(Generic[ResultT]):
             )
         if max_completions is not None and not isinstance(graph, (TemporalCpdag, TemporalPag)):
             raise _not_applicable("max_completions", "a structure without class completions")
-        rd_args = (running_variable, cutoff, bandwidth)
 
         design_columns = None
         if isinstance(query, (PanelDifferenceInDifferences, AugmentedPanelDiD, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
@@ -4614,7 +4625,6 @@ class PreparedAnalysis(Generic[ResultT]):
             seed=seed,
             class_prior=class_prior,
             max_completions=max_completions,
-            rd_args=rd_args,
             accepted=structure_accepted,
             options=options,
             design_columns=design_columns,
