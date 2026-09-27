@@ -3779,7 +3779,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
-        *, method="ipw", period_outcome_predictions=Vec::new(), stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
+        *, method="ipw", period_outcome_predictions=Vec::new(), known_fixed_outcome_predictions=false, stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
@@ -3799,6 +3799,7 @@ impl PyPreparedAnalysis {
         minimum_probability: f64,
         method: &str,
         period_outcome_predictions: Vec<f64>,
+        known_fixed_outcome_predictions: bool,
         stabilizing_numerator_probabilities: Vec<f64>,
         q_predictions: Vec<f64>,
         observation_history: Vec<bool>,
@@ -3836,6 +3837,7 @@ impl PyPreparedAnalysis {
                 } else {
                     Some(period_outcome_predictions.into())
                 },
+                known_fixed_outcome_predictions,
                 stabilizing_numerator_probabilities: if stabilizing_numerator_probabilities.is_empty() { None } else { Some(stabilizing_numerator_probabilities.into()) },
                 q_predictions: if q_predictions.is_empty() { None } else { Some(q_predictions.into()) },
                 observation_history: if observation_history.is_empty() { None } else { Some(observation_history.into()) },

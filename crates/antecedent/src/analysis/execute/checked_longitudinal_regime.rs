@@ -6,7 +6,7 @@ use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
-use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value_with_subject_scores, sequential_dr_pointwise_interval_95, RegimeValueSummary};
+use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value_with_subject_scores, g_formula_fixed_q_pointwise_interval_95, sequential_dr_pointwise_interval_95, RegimeValueSummary};
 use antecedent_estimate::marginal_structural_model::{fit_binary_msm, MsmSummary};
 
 #[derive(Clone)]
@@ -170,6 +170,13 @@ impl CheckedLongitudinalRegimeOperation {
             },
         };
         let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
+        let g_formula_interval = if self.query.method == LongitudinalRegimeMethod::GFormula
+            && self.query.known_fixed_outcome_predictions
+            && self.query.probabilities_known_by_design {
+            g_formula_fixed_q_pointwise_interval_95(&summary,
+                self.query.period_outcome_predictions.as_deref().expect("validated g-formula predictions"),
+                self.rows, self.query.periods)
+        } else { None };
         let ipw_interval = if self.query.method == LongitudinalRegimeMethod::Ipw {
             antecedent_estimate::longitudinal_regime::ipw_pointwise_interval_95(&summary, self.rows)
         } else { None };
@@ -187,7 +194,9 @@ impl CheckedLongitudinalRegimeOperation {
         });
         let interval_reason = match self.query.method {
             LongitudinalRegimeMethod::Ipw if ipw_interval.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
-            LongitudinalRegimeMethod::GFormula => Some("prediction_model_uncertainty_not_accounted"),
+            LongitudinalRegimeMethod::GFormula if !self.query.known_fixed_outcome_predictions => Some("prediction_model_uncertainty_not_accounted"),
+            LongitudinalRegimeMethod::GFormula if !self.query.probabilities_known_by_design => Some("known_sequential_randomization_required_for_fixed_q_interval"),
+            LongitudinalRegimeMethod::GFormula if g_formula_interval.is_none() => Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score"),
             LongitudinalRegimeMethod::SequentialDoublyRobust if dr_interval.is_none() => Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"),
             LongitudinalRegimeMethod::MarginalStructuralModel if msm_intervals.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
@@ -198,6 +207,9 @@ impl CheckedLongitudinalRegimeOperation {
         } else if msm_intervals.is_some() {
             ("estimate.longitudinal.marginal_structural_model.pointwise_95",
              "additive binary MSM intercept and period effects with independent-subject CR1 pointwise 95% intervals; requires known treatment/censoring probabilities and calibrated weighted support")
+        } else if g_formula_interval.is_some() {
+            ("estimate.longitudinal.g_formula_regime.pointwise_95_conditional_fixed_q",
+             "two-period g-formula value with independent-subject pointwise 95% interval conditional on the caller-declared fixed known Q law; no fitted-Q uncertainty is included")
         } else if dr_interval.is_some() {
             ("estimate.longitudinal.sequential_dr_regime.pointwise_95_conditional_q",
              "sequential DR value with pointwise 95% independent-subject score interval conditional on caller-declared subject-excluded Q fitting and known randomization; Q training is not verified")
@@ -245,9 +257,11 @@ impl CheckedLongitudinalRegimeOperation {
             rule_provenance: self.query.rule_provenance.clone(),
             value: summary.value,
             value_standard_error: msm.as_ref().map(|fit| fit.intercept_standard_error)
-                .or(summary.score_standard_error).or_else(|| dr_interval.map(|(se, _)| se)),
+                .or(summary.score_standard_error).or_else(|| dr_interval.map(|(se, _)| se))
+                .or_else(|| g_formula_interval.map(|(se, _)| se)),
             value_interval_95: ipw_interval.or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept))
-                .or_else(|| dr_interval.map(|(_, bounds)| bounds)),
+                .or_else(|| dr_interval.map(|(_, bounds)| bounds))
+                .or_else(|| g_formula_interval.map(|(_, bounds)| bounds)),
             period_intervals_95: msm_intervals.as_ref().map(|intervals| Arc::from(intervals.period_effects.as_slice())),
             interval_reason: interval_reason.map(Arc::from),
             effective_sample_size: summary.effective_sample_size,
@@ -258,6 +272,7 @@ impl CheckedLongitudinalRegimeOperation {
             uncertainty: Arc::from(if msm_intervals.is_some() { "pointwise_subject_clustered_cr1_95" }
                 else if msm.is_some() { "pointwise_subject_clustered_cr1_no_interval" }
                 else if dr_interval.is_some() { "pointwise_subject_score_conditional_excluded_fold_q_95" }
+                else if g_formula_interval.is_some() { "pointwise_subject_score_conditional_fixed_known_q_95" }
                 else if ipw_interval.is_some() { "pointwise_subject_score_95" } else { "point_only_no_interval" }),
             probability_ownership: Arc::from("known_sequential_randomization"),
             period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),
@@ -318,6 +333,17 @@ fn longitudinal_identification(
         });
     }
     if query.method == LongitudinalRegimeMethod::GFormula {
+        if query.known_fixed_outcome_predictions {
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::Custom {
+                    id: Arc::from("fixed_known_outcome_predictions"),
+                    description: Arc::from("caller declares the conditional period reward law fixed and known before this study, with no fitted or selected Q uncertainty"),
+                },
+                source: AssumptionSource::UserDeclared,
+                scope: AssumptionScope::Identification,
+                status: AssumptionStatus::Declared,
+            });
+        }
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("conditional_period_reward_validity"),

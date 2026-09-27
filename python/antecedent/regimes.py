@@ -39,6 +39,7 @@ class LongitudinalRegimeQuery:
     subject_ids: Sequence[str]
     method: Literal["ipw", "g_formula", "sequential_dr", "marginal_structural_model"] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
+    known_fixed_outcome_predictions: bool = False
     stabilizing_numerator_probabilities: Sequence[float] | None = None
     q_predictions: Sequence[Sequence[float]] | None = None
     observation_history: Sequence[Sequence[bool]] | None = None
@@ -81,6 +82,10 @@ class LongitudinalRegimeQuery:
                 raise ValueError("g_formula requires finite subject-by-period outcome predictions")
         elif predictions is not None:
             raise ValueError("ipw does not accept period_outcome_predictions")
+        if not isinstance(self.known_fixed_outcome_predictions, bool) or (
+            self.known_fixed_outcome_predictions and self.method != "g_formula"
+        ):
+            raise ValueError("known_fixed_outcome_predictions requires g_formula and a bool declaration")
         q = None if self.q_predictions is None else np.asarray(self.q_predictions, dtype=np.float64)
         observation = None if self.observation_history is None else np.asarray(self.observation_history)
         if self.method == "sequential_dr":
@@ -169,6 +174,7 @@ class LongitudinalRegimeQuery:
         subject_ids: Sequence[str],
         method: Literal["ipw", "g_formula", "sequential_dr"] = "ipw",
         period_outcome_predictions: Sequence[Sequence[float]] | None = None,
+        known_fixed_outcome_predictions: bool = False,
         q_predictions: Sequence[Sequence[float]] | None = None,
         observation_history: Sequence[Sequence[bool]] | None = None,
         prediction_fold_ids: Sequence[int] | None = None,
@@ -223,6 +229,7 @@ class LongitudinalRegimeQuery:
             outcome=outcome, treatment_history=treatment_history, actions=actions,
             treatment_probabilities=treatment_probabilities, subject_ids=subject_ids,
             method=method, period_outcome_predictions=period_outcome_predictions,
+            known_fixed_outcome_predictions=known_fixed_outcome_predictions,
             q_predictions=q_predictions, observation_history=observation_history,
             prediction_fold_ids=prediction_fold_ids,
             censoring_probabilities=censoring_probabilities, outcome_observed=outcome_observed,

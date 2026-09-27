@@ -763,6 +763,7 @@ pub(crate) fn validate_query_ids(
                 } else {
                     Some(wire.period_outcome_predictions.clone().into())
                 },
+                known_fixed_outcome_predictions: wire.known_fixed_outcome_predictions,
                 stabilizing_numerator_probabilities: if wire.stabilizing_numerator_probabilities.is_empty() { None } else { Some(wire.stabilizing_numerator_probabilities.clone().into()) },
                 q_predictions: if wire.q_predictions.is_empty() { None } else { Some(wire.q_predictions.clone().into()) },
                 observation_history: if wire.observation_history.is_empty() { None } else { Some(wire.observation_history.clone().into()) },

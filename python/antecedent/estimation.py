@@ -3239,7 +3239,7 @@ class _PrepareRoute:
             )
         if self.inference is not None and not isinstance(self.inference, Frequentist):
             raise CausalUnsupportedError(
-                "LongitudinalRegimeQuery reports a point-only value",
+                "LongitudinalRegimeQuery supports frequentist inference only",
                 reason_code="option_not_applicable",
             )
         if not query.probabilities_known_by_design:
@@ -3257,6 +3257,7 @@ class _PrepareRoute:
             query.excluded_fold_predictions, query.probabilities_known_by_design,
             query.minimum_probability, method=query.method,
             period_outcome_predictions=flatten(query.period_outcome_predictions) if query.period_outcome_predictions is not None else [],
+            known_fixed_outcome_predictions=query.known_fixed_outcome_predictions,
             stabilizing_numerator_probabilities=list(query.stabilizing_numerator_probabilities) if query.stabilizing_numerator_probabilities is not None else [],
             q_predictions=flatten(query.q_predictions) if query.q_predictions is not None else [],
             observation_history=flatten(query.observation_history) if query.observation_history is not None else [],

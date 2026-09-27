@@ -799,6 +799,9 @@ pub struct LongitudinalRegimeQueryWire {
     /// Caller-supplied conditional period rewards for g-formula.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_outcome_predictions: Vec<f64>,
+    /// Caller declaration that g-formula predictions come from a fixed known law.
+    #[serde(default)]
+    pub known_fixed_outcome_predictions: bool,
     /// Stabilizing treatment-one probabilities, one per period for MSM.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stabilizing_numerator_probabilities: Vec<f64>,
@@ -1926,6 +1929,7 @@ pub fn causal_query_to_wire_with_registry(
                     .period_outcome_predictions
                     .as_ref()
                     .map_or_else(Vec::new, |q| q.to_vec()),
+                known_fixed_outcome_predictions: q.known_fixed_outcome_predictions,
                 stabilizing_numerator_probabilities: q.stabilizing_numerator_probabilities.as_ref().map_or_else(Vec::new, |p| p.to_vec()),
                 q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
                 observation_history: q.observation_history.as_ref().map_or_else(Vec::new, |o| o.to_vec()),
@@ -2391,6 +2395,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 } else {
                     Some(w.period_outcome_predictions.clone().into())
                 },
+                known_fixed_outcome_predictions: w.known_fixed_outcome_predictions,
                 stabilizing_numerator_probabilities: if w.stabilizing_numerator_probabilities.is_empty() { None } else { Some(w.stabilizing_numerator_probabilities.clone().into()) },
                 q_predictions: if w.q_predictions.is_empty() { None } else { Some(w.q_predictions.clone().into()) },
                 observation_history: if w.observation_history.is_empty() { None } else { Some(w.observation_history.clone().into()) },

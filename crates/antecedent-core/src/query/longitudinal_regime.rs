@@ -30,6 +30,9 @@ pub struct LongitudinalRegimeQuery {
     /// Prespecified conditional period rewards under the regime, subject-major.
     /// Required for g-formula and absent for IPW.
     pub period_outcome_predictions: Option<Arc<[f64]>>,
+    /// Caller declaration that the g-formula reward law is prespecified,
+    /// fixed, and known rather than fitted or selected on these subjects.
+    pub known_fixed_outcome_predictions: bool,
     /// One marginal treatment-one numerator probability per period for MSM.
     pub stabilizing_numerator_probabilities: Option<Arc<[f64]>>,
     /// Period Q scores for sequential augmentation.
@@ -118,6 +121,9 @@ impl LongitudinalRegimeQuery {
                     .into(),
             )),
         }
+        if self.known_fixed_outcome_predictions && self.method != LongitudinalRegimeMethod::GFormula {
+            return Err(QueryError::InvalidLongitudinalRegime("known fixed outcome predictions require g_formula".into()));
+        }
         if self.method != LongitudinalRegimeMethod::SequentialDoublyRobust
             && (self.q_predictions.is_some() || self.observation_history.is_some() || self.prediction_fold_ids.is_some()) {
             return Err(QueryError::InvalidLongitudinalRegime("sequential DR fields require the sequential doubly robust method".into()));
@@ -179,6 +185,7 @@ mod tests {
             outcome: VariableId::from_raw(0),
             method: LongitudinalRegimeMethod::Ipw,
             period_outcome_predictions: None,
+            known_fixed_outcome_predictions: false,
             stabilizing_numerator_probabilities: None,
             q_predictions: None,
             observation_history: None,
