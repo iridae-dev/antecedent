@@ -665,6 +665,15 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   design-specific support gates and every claimed pointwise interval pass.
   Sparse and degenerate results remain off-axis; no simultaneous coverage is
   licensed.
+  Bernoulli ANCOVA now reports a pointwise HC0 interval with one or two
+  pre-assignment covariates, a common assignment probability from 0.2 through
+  0.8, 400 rows, and 30 observed assignments per arm. Fixed CUPED reports a
+  pointwise score interval under the same row and arm support with a
+  coefficient set independently of the trial outcomes; its known probabilities
+  may vary by row. Both are exact separate graphless licenses, backed by
+  2,000-allocation known-truth calibration at the probability boundaries and
+  artifact checks. Three or more ANCOVA covariates, sparse allocations, and
+  zero realized variance retain point and labeled variance without an interval.
   `SwitchbackEffect` also runs through retained `analyze` with row-aligned
   sequence and period labels, known marginal assignment probabilities, and
   a sequence-clustered sandwich variance. It requires two independent
