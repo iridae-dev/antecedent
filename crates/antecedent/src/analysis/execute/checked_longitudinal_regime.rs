@@ -6,7 +6,7 @@ use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
-use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value, RegimeValueSummary};
+use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value_with_subject_scores, sequential_dr_pointwise_interval_95, RegimeValueSummary};
 use antecedent_estimate::marginal_structural_model::{fit_binary_msm, MsmSummary};
 
 #[derive(Clone)]
@@ -112,6 +112,7 @@ impl CheckedLongitudinalRegimeOperation {
             }
         };
         let mut msm: Option<MsmSummary> = None;
+        let mut dr_scores: Option<Vec<f64>> = None;
         let (summary, estimator_id, method, diagnostic, description) = match self.query.method {
             LongitudinalRegimeMethod::Ipw => (
                 evaluate_regime_value(outcome, &self.query.treatment_history, &self.query.regime_actions,
@@ -128,17 +129,18 @@ impl CheckedLongitudinalRegimeOperation {
                 EstimatorId::LongitudinalGFormulaRegime, "g_formula", "estimate.longitudinal.g_formula_regime.point_only",
                 "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
             ),
-            LongitudinalRegimeMethod::SequentialDoublyRobust => (
-                evaluate_sequential_dr_value(outcome, &self.query.outcome_observed,
+            LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                let result = evaluate_sequential_dr_value_with_subject_scores(outcome, &self.query.outcome_observed,
                     self.query.observation_history.as_deref().expect("validated observation history"),
                     &self.query.treatment_history, &self.query.regime_actions,
                     self.query.q_predictions.as_deref().expect("validated Q predictions"),
                     &self.query.treatment_probabilities, &self.query.censoring_probabilities,
-                    self.query.periods, self.query.minimum_probability),
-                EstimatorId::LongitudinalSequentialDrRegime, "sequential_dr",
-                "estimate.longitudinal.sequential_dr_regime.point_only",
-                "backward-recursive augmented regime value from caller-supplied subject-owned Q scores and known sequential probabilities; no interval or calibration claim",
-            ),
+                    self.query.periods, self.query.minimum_probability)
+                    .map(|(summary, scores)| { dr_scores = Some(scores); summary });
+                (result, EstimatorId::LongitudinalSequentialDrRegime, "sequential_dr",
+                    "estimate.longitudinal.sequential_dr_regime.point_only",
+                    "backward-recursive augmented regime value from caller-declared subject-excluded Q predictions and known sequential probabilities; point-only below calibrated support")
+            },
             LongitudinalRegimeMethod::MarginalStructuralModel => {
                 let fit = fit_binary_msm(outcome, &self.query.treatment_history,
                     &self.query.treatment_probabilities,
@@ -173,10 +175,20 @@ impl CheckedLongitudinalRegimeOperation {
         } else { None };
         let msm_intervals = msm.as_ref().and_then(|fit|
             antecedent_estimate::marginal_structural_model::pointwise_intervals_95(fit, self.rows));
+        let dr_interval = dr_scores.as_ref().and_then(|scores| {
+            let matched = (0..self.rows).filter(|&i| {
+                self.query.outcome_observed[i] && (0..self.query.periods).all(|t| {
+                    let j = i * self.query.periods + t;
+                    self.query.treatment_history[j] == self.query.regime_actions[j]
+                })
+            }).count();
+            sequential_dr_pointwise_interval_95(&summary, scores, self.query.periods,
+                self.query.outcome_observed.iter().filter(|&&observed| observed).count(), matched)
+        });
         let interval_reason = match self.query.method {
             LongitudinalRegimeMethod::Ipw if ipw_interval.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
             LongitudinalRegimeMethod::GFormula => Some("prediction_model_uncertainty_not_accounted"),
-            LongitudinalRegimeMethod::SequentialDoublyRobust => Some("cross_fitted_nuisance_dependence_not_calibrated"),
+            LongitudinalRegimeMethod::SequentialDoublyRobust if dr_interval.is_none() => Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"),
             LongitudinalRegimeMethod::MarginalStructuralModel if msm_intervals.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
         };
@@ -186,6 +198,9 @@ impl CheckedLongitudinalRegimeOperation {
         } else if msm_intervals.is_some() {
             ("estimate.longitudinal.marginal_structural_model.pointwise_95",
              "additive binary MSM intercept and period effects with independent-subject CR1 pointwise 95% intervals; requires known treatment/censoring probabilities and calibrated weighted support")
+        } else if dr_interval.is_some() {
+            ("estimate.longitudinal.sequential_dr_regime.pointwise_95_conditional_q",
+             "sequential DR value with pointwise 95% independent-subject score interval conditional on caller-declared subject-excluded Q fitting and known randomization; Q training is not verified")
         } else { (diagnostic, description) };
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -229,8 +244,10 @@ impl CheckedLongitudinalRegimeOperation {
             rule_version: self.query.rule_version.clone(),
             rule_provenance: self.query.rule_provenance.clone(),
             value: summary.value,
-            value_standard_error: msm.as_ref().map(|fit| fit.intercept_standard_error).or(summary.score_standard_error),
-            value_interval_95: ipw_interval.or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept)),
+            value_standard_error: msm.as_ref().map(|fit| fit.intercept_standard_error)
+                .or(summary.score_standard_error).or_else(|| dr_interval.map(|(se, _)| se)),
+            value_interval_95: ipw_interval.or_else(|| msm_intervals.as_ref().map(|intervals| intervals.intercept))
+                .or_else(|| dr_interval.map(|(_, bounds)| bounds)),
             period_intervals_95: msm_intervals.as_ref().map(|intervals| Arc::from(intervals.period_effects.as_slice())),
             interval_reason: interval_reason.map(Arc::from),
             effective_sample_size: summary.effective_sample_size,
@@ -240,6 +257,7 @@ impl CheckedLongitudinalRegimeOperation {
             minimum_censoring_probability: summary.minimum_censoring_probability,
             uncertainty: Arc::from(if msm_intervals.is_some() { "pointwise_subject_clustered_cr1_95" }
                 else if msm.is_some() { "pointwise_subject_clustered_cr1_no_interval" }
+                else if dr_interval.is_some() { "pointwise_subject_score_conditional_excluded_fold_q_95" }
                 else if ipw_interval.is_some() { "pointwise_subject_score_95" } else { "point_only_no_interval" }),
             probability_ownership: Arc::from("known_sequential_randomization"),
             period_effects: msm.as_ref().map(|fit| Arc::from(fit.period_effects.as_slice())),

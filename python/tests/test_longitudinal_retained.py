@@ -279,12 +279,41 @@ def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
     assert result.longitudinal_regime.value == pytest.approx(direct.value)
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
     assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert result.longitudinal_regime.interval_reason == "insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"
     assert "subject_excluded_fold_predictions" in " ".join(result.assumptions or [])
     assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
     artifact = antecedent.load(prepared.export()).artifact
     assert artifact.payload["longitudinal_regime"]["method"] == "sequential_dr"
     query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
     assert query_artifact.payload["longitudinal_regime"]["q_predictions"] == [1.0, 3.0, 5.0, 4.0, 2.0, 6.0, 1.0, 1.0]
+
+
+def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
+    n = 300
+    treatment = [[bool((i % 4) // 2), bool((i % 4) % 2)] for i in range(n)]
+    outcomes = [2.0 + int(a0) + int(a1) + ((i % 7) - 3) / 10
+                for i, (a0, a1) in enumerate(treatment)]
+    folds = [i % 5 for i in range(n)]
+    query = LongitudinalRegimeQuery(
+        outcome="y", method="sequential_dr", treatment_history=treatment,
+        actions=[True, True], treatment_probabilities=[[0.5, 0.5]] * n,
+        q_predictions=[[4.0, 4.0]] * n, observation_history=[[True, True]] * n,
+        subject_ids=[f"dr-{i}" for i in range(n)], fold_ids=folds,
+        prediction_fold_ids=folds, excluded_fold_predictions=True,
+    )
+    result = antecedent.analyze({"y": outcomes}, query=query)
+    value = result.longitudinal_regime
+    assert value.value_standard_error > 0.0
+    assert value.value_interval_95[0] < 4.0 < value.value_interval_95[1]
+    assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
+    assert value.support_status == "off_axis_pointwise_95"
+    assert result.answer.detail == "longitudinal_sequential_dr_pointwise_interval_conditional_q"
+    assert "Pointwise 95% independent-subject interval" in result.claim()
+    artifact = antecedent.load(result.export(artifact_id="sequential-dr-interval"))
+    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
+    query_wire = artifact.artifact.payload["query"]["longitudinal_regime"]
+    assert query_wire["prediction_fold_ids"] == query_wire["fold_ids"] == folds
+    assert query_wire["excluded_fold_predictions"] is True
 
 
 def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation():

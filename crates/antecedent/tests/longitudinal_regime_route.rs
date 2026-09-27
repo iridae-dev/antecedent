@@ -308,6 +308,9 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
     assert!((value.value - 46.5 / 4.0).abs() < 1e-12);
     assert_eq!(value.maximum_weight, 6.25);
     assert_eq!(&*value.uncertainty, "point_only_no_interval");
+    assert_eq!(value.value_interval_95, None);
+    assert_eq!(value.interval_reason.as_deref(),
+        Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"));
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
             if id.as_ref() == "subject_excluded_fold_predictions")
@@ -316,6 +319,53 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.longitudinal_regime.as_ref().unwrap().method, "sequential_dr");
     assert_eq!(body.interval_lower, None);
+}
+
+#[test]
+fn sequential_dr_conditional_interval_binds_subject_folds_and_artifact() {
+    let n = 300;
+    let treatment = (0..n).flat_map(|i| match i % 4 {
+        0 => [false, false], 1 => [false, true], 2 => [true, false], _ => [true, true],
+    }).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 2.0 + f64::from(treatment[2 * i])
+        + f64::from(treatment[2 * i + 1]) + ((i % 7) as f64 - 3.0) / 10.0)
+        .collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust;
+    q.treatment_history = treatment.into();
+    q.regime_actions = vec![true; n * 2].into();
+    q.treatment_probabilities = vec![0.5; n * 2].into();
+    q.censoring_probabilities = vec![1.0; n * 2].into();
+    q.outcome_observed = vec![true; n].into();
+    q.observation_history = Some(vec![true; n * 2].into());
+    q.q_predictions = Some(vec![4.0; n * 2].into());
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("dr-{i}"))).collect::<Vec<_>>().into();
+    q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
+    q.prediction_fold_ids = Some(q.fold_ids.clone());
+    q.excluded_fold_predictions = true;
+    let ctx = ExecutionContext::for_tests(121);
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime.as_ref().unwrap();
+    assert!(fit.value_standard_error.unwrap() > 0.0);
+    let bounds = fit.value_interval_95.unwrap();
+    assert!(bounds[0] < 4.0 && 4.0 < bounds[1]);
+    assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_excluded_fold_q_95");
+    let bytes = prepared.encode_contracted_result(&result, "sequential-dr-interval", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &body.query else { panic!("wrong query") };
+    assert_eq!(query_wire.prediction_fold_ids, query_wire.fold_ids);
+    assert!(query_wire.excluded_fold_predictions);
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(bounds));
+    let mut fabricated_ownership = body.clone();
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &mut fabricated_ownership.query else { panic!("wrong query") };
+    query_wire.prediction_fold_ids[0] = 99;
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated_ownership,
+        header.variable_names.clone(), "forged-dr-ownership").is_err());
+    body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-dr").is_err());
 }
 
 #[test]
