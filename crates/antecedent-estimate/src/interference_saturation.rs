@@ -466,4 +466,41 @@ mod tests {
         let result = estimate_saturation_interference(&query, &expanded, &expanded_assignment);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn pointwise_interval_refuses_sparse_exposure_despite_adequate_cluster_arms() {
+        let clusters = (0..20).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
+        let realized = [vec![0.2; 30], vec![0.8; 30]].concat();
+        let mut assignment = vec![false; 60];
+        assignment[30..33].fill(true);
+        let edges = (0..20).flat_map(|cluster| {
+            let first = cluster * 3;
+            (first..first + 3).flat_map(move |from| {
+                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
+                    from: from as u32, to: to as u32, weight: 1.0,
+                })
+            })
+        }).collect::<Vec<_>>();
+        let outcomes = (0..60).map(|unit| 1.0 + f64::from(assignment[unit])).collect::<Vec<_>>();
+        let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+        let network = NetworkData::try_new(data, edges).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::TwoStageSaturation {
+                clusters: Arc::from(clusters), low_probability: 0.2, high_probability: 0.8,
+                high_clusters: 10, realized_saturation: Arc::from(realized),
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let point = estimate_saturation_interference(&query, &network, &assignment).unwrap();
+        assert_eq!(point.to_exposed_clusters, 1);
+        assert!(point.pointwise_interval.is_none());
+        let refused = estimate_saturation_interference_pointwise(&query, &network, &assignment)
+            .unwrap_err();
+        assert!(refused.to_string().contains("eight exposed clusters"));
+    }
 }
