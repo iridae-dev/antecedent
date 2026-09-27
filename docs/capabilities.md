@@ -698,8 +698,8 @@ score bins; it does not fit or verify cross-fitted CATE scores. These are
 point utilities and do not add licensed support-matrix cells. The same module
 provides fixed multi-action recommendations with randomized
 Horvitz–Thompson evaluation, per-action capacity, availability, cost, and
-budget checks. It requires known positive action probabilities and still does
-not fit CATEs or validate the held-out split.
+  budget checks. It requires known positive action probabilities and does not
+  validate the held-out split.
 
 `antecedent.policy.PolicyValue` runs a fixed binary policy through retained
 `prepare` / `analyze` using each evaluation subject's outcome, known
@@ -710,6 +710,12 @@ rows. A new evaluation sample requires a new prepare; `refresh(new_data)` is
 refused because those row-bound inputs cannot be verified against replacement
 rows. The result reports paired row-score standard errors under independent
 evaluation subjects but no interval or licensed support-matrix cell.
+`MultiActionPolicyValue(..., baseline_groups=...)` also retains pre-treatment
+group labels and reports each action-versus-control contrast within each group
+as a point-only multi-action CATE. Every group needs observed control and each
+action, with known positive assignment probabilities. These conditional
+contrasts are frozen in the result artifact; they do not fit a CATE model or
+claim an interval or licensed support-matrix cell.
 
 ## Quasi-experimental point utilities
 
@@ -774,7 +780,8 @@ the adjusted effect remains point-only and off the support-matrix axis.
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no
 interval. The retained `analyze` route supports Bernoulli, complete,
-stratified, and cluster designs; other design families still refuse there.
+stratified, cluster, and fixed-cell 2×2 factorial designs; unsupported
+combinations refuse there.
 
 ## Longitudinal regime value
 
@@ -795,6 +802,14 @@ query, native estimator, result, and artifact path. The predictions and
 subject/fold ownership are frozen with the study. The caller owns the outcome
 model and must justify its predictions; Antecedent does not fit or verify it.
 This route reports a point value without an interval or support-matrix license.
+Set `method="sequential_dr"` and provide cross-fitted Q predictions, aligned
+subject and prediction fold IDs, monotone observation histories, treatment
+probabilities, and conditional censoring probabilities to run the backward
+recursive doubly robust score through the same retained Study path. The
+caller owns nuisance fitting and the sequential exchangeability claim. The
+result and artifact preserve the fold and dropout contract and weight
+diagnostics; the value remains point-only without a calibrated interval or
+support-matrix license.
 
 `antecedent.regimes.evaluate_regime_value` evaluates a prespecified static or
 history-adaptive binary regime from subject-level treatment histories. It uses
