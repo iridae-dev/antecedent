@@ -788,6 +788,17 @@ def identify_z_transport(
     )
 
 
+class _ReplayLimits(TypedDict):
+    """Validated replay limits, keeping the mandatory bounds int and the rest optional."""
+
+    max_operations: int
+    max_depth: int
+    max_support_rows: int | None
+    max_laws: int | None
+    max_law_cells: int | None
+    memory_bytes: int | None
+
+
 def _consume_limits(
     max_operations: int,
     max_depth: int,
@@ -795,7 +806,7 @@ def _consume_limits(
     max_laws: int | None,
     max_law_cells: int | None,
     memory_bytes: int | None,
-) -> dict[str, int | None]:
+) -> _ReplayLimits:
     """Validated consumer-side replay limits; ``None`` keeps the native default."""
     return {
         "max_operations": _non_negative("max_operations", max_operations),

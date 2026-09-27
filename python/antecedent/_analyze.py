@@ -13,9 +13,17 @@ from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPa
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
-from .regimes import LongitudinalRegime
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
-from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink, SharpRegressionDiscontinuity
+from .quasi import (
+    AugmentedPanelDiD,
+    FuzzyRegressionDiscontinuity,
+    PanelDifferenceInDifferences,
+    RegressionKink,
+    SharpRegressionDiscontinuity,
+    StaggeredAdoption,
+    SyntheticControl,
+    SyntheticDifferenceInDifferences,
+)
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -38,6 +46,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
+from .regimes import LongitudinalRegime
 from .results import Analysis, ProviderAnalysisResult
 from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport import Transport, TransportControls, TransportInference
@@ -246,31 +255,36 @@ def analyze(
     from .estimation import PreparedAnalysis
 
     if isinstance(query, ProviderQuery):
-        if any(
-            value is not None
-            for value in (
-                graph,
-                discovery,
-                inference,
-                identifier,
-                estimator,
-                refute,
-                validators,
-                bootstrap,
-                threads,
-                regimes,
-                population_registry,
-                estimator_config,
-                latency,
-                cancel,
-                on_progress,
-                on_stage,
-                provider,
-                controls,
-                class_prior,
-                max_completions,
+        if (
+            any(
+                value is not None
+                for value in (
+                    graph,
+                    discovery,
+                    inference,
+                    identifier,
+                    estimator,
+                    refute,
+                    validators,
+                    bootstrap,
+                    threads,
+                    regimes,
+                    population_registry,
+                    estimator_config,
+                    latency,
+                    cancel,
+                    on_progress,
+                    on_stage,
+                    provider,
+                    controls,
+                    class_prior,
+                    max_completions,
+                )
             )
-        ) or seed != 1 or not accept_discovered or return_posterior_artifact:
+            or seed != 1
+            or not accept_discovered
+            or return_posterior_artifact
+        ):
             from .errors import CausalUnsupportedError
 
             raise CausalUnsupportedError(
@@ -287,11 +301,11 @@ def analyze(
             )
         registered = _providers.get(query.provider)
         request = {"data": data, **query.request}
-        result = _providers.execute(query.provider, request)
+        provider_result = _providers.execute(query.provider, request)
         return ProviderAnalysisResult(
             provider_name=query.provider,
             query_family=registered.spec.query_family,
-            provider_result=result,
+            provider_result=provider_result,
             query=query,
         )
 

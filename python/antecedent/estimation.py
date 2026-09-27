@@ -13,6 +13,7 @@ import numpy as np
 
 from ._api import describe_refusal
 from ._coerce import coerce_latency, coerce_query, coerce_refute
+from ._columns import resolved, resolved_opt, resolved_scalar
 from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import (
     AnalysisResult as TemporalAnalysisResult,
@@ -133,7 +134,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .regimes import LongitudinalRegimeEstimate, LongitudinalRegime
+from .regimes import LongitudinalRegime, LongitudinalRegimeEstimate
 from .results import (
     AnalysisResult,
     CausalResponseView,
@@ -304,32 +305,36 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
     native_interval = section.pointwise_interval
     pointwise_interval = (
         InterferencePointwiseInterval(
-            lower=native_interval[0], upper=native_interval[1],
-            standard_error=native_interval[2], degrees_of_freedom=native_interval[3],
+            lower=native_interval[0],
+            upper=native_interval[1],
+            standard_error=native_interval[2],
+            degrees_of_freedom=native_interval[3],
             first_stage_arm_clusters=(native_interval[4], native_interval[5]),
             method=native_interval[6],
-        ) if native_interval is not None else None
+        )
+        if native_interval is not None
+        else None
     )
     if observational:
         uncertainty = (
             "Pointwise 95% cluster t interval for the HT contrast under known fixed exposure "
             "probabilities, independent clusters, and declared network exchangeability."
-            if pointwise_interval is not None else
-            "no interval: descriptive cluster CR1 variance for the HT contrast; pointwise interval withheld "
+            if pointwise_interval is not None
+            else "no interval: descriptive cluster CR1 variance for the HT contrast; pointwise interval withheld "
             "because exposure probabilities were fitted or cluster support failed."
         )
     elif estimator_id == "interference.saturation_exact":
         uncertainty = (
             "Independent-cluster Neyman pointwise 95% interval with Welch degrees of freedom; "
             "conditional on the declared two-stage randomization and within-cluster exposure mapping."
-            if pointwise_interval is not None else
-            "Descriptive covariance-free saturation variance proxy; pointwise interval withheld because exposure or cluster support failed."
+            if pointwise_interval is not None
+            else "Descriptive covariance-free saturation variance proxy; pointwise interval withheld because exposure or cluster support failed."
         )
     elif estimator_id == "interference.cluster_neyman":
         uncertainty = (
             "Independent-cluster Neyman pointwise 95% interval for the total effect with Welch degrees of freedom."
-            if pointwise_interval is not None else
-            "Conservative cluster-level Neyman variance for the total effect; pointwise interval withheld because cluster support failed."
+            if pointwise_interval is not None
+            else "Conservative cluster-level Neyman variance for the total effect; pointwise interval withheld because cluster support failed."
         )
     else:
         uncertainty = (
@@ -353,18 +358,25 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
                 True,
                 section.maximum_exposure_probability,
                 section.clusters,
-            ) if section.from_exposed_units is not None else None
+            )
+            if section.from_exposed_units is not None
+            else None
         ),
         uncertainty_semantics=uncertainty,
-        provenance={"operation_ids": [
-            "estimate.interference.observational_ipw" if observational else
-            "estimate.interference.saturation_exact" if estimator_id == "interference.saturation_exact" else
-            "stats.randomized_interference"
-        ]},
+        provenance={
+            "operation_ids": [
+                "estimate.interference.observational_ipw"
+                if observational
+                else "estimate.interference.saturation_exact"
+                if estimator_id == "interference.saturation_exact"
+                else "stats.randomized_interference"
+            ]
+        },
         pointwise_interval=pointwise_interval,
         interval_unavailable_reason=section.interval_unavailable_reason,
         support_status=(
-            "licensed" if section.graphless_support_status == "licensed"
+            "licensed"
+            if section.graphless_support_status == "licensed"
             else "unlicensed_point_utility"
         ),
     )
@@ -385,7 +397,9 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         estimand=section.estimand,
         intention_to_treat_effect=section.intention_to_treat_effect,
         first_stage_effect=section.first_stage_effect,
-        received_treatment=tuple(section.received_treatment) if section.received_treatment is not None else None,
+        received_treatment=tuple(section.received_treatment)
+        if section.received_treatment is not None
+        else None,
         randomization_p_value=section.randomization_p_value,
         randomization_allocations=section.randomization_allocations,
         second_factor_effect=section.second_factor_effect,
@@ -403,15 +417,25 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         treatment_units=section.treatment_units,
         minimum_assignment_probability=section.minimum_assignment_probability,
         uncertainty=section.uncertainty,
-        support_status=(section.graphless_support_status
-                        or ("off_axis_interval_evidence" if section.interval_95 is not None
-                            else "unlicensed_off_matrix")),
+        support_status=(
+            section.graphless_support_status
+            or (
+                "off_axis_interval_evidence"
+                if section.interval_95 is not None
+                else "unlicensed_off_matrix"
+            )
+        ),
     )
 
 
 def _panel_did_from_raw(
     raw: Any, query: Any = None
-) -> PanelDifferenceInDifferencesEstimate | StaggeredEventStudyEstimate | AugmentedPanelDiDEstimate | None:
+) -> (
+    PanelDifferenceInDifferencesEstimate
+    | StaggeredEventStudyEstimate
+    | AugmentedPanelDiDEstimate
+    | None
+):
     section = getattr(raw, "panel_did", None)
     if section is None:
         return None
@@ -420,10 +444,14 @@ def _panel_did_from_raw(
             raise CausalValueError("augmented panel DiD result is missing overlap diagnostics")
         p_min, p_max, ess, declared = section.augmented
         return AugmentedPanelDiDEstimate(
-            estimate=section.effect, treated_subjects=section.treated_subjects,
-            control_subjects=section.comparison_subjects, propensity_min=p_min,
-            propensity_max=p_max, effective_control_sample_size=ess,
-            nuisance_predictions_cross_fitted=declared, clusters=section.clusters,
+            estimate=section.effect,
+            treated_subjects=section.treated_subjects,
+            control_subjects=section.comparison_subjects,
+            propensity_min=p_min,
+            propensity_max=p_max,
+            effective_control_sample_size=ess,
+            nuisance_predictions_cross_fitted=declared,
+            clusters=section.clusters,
             uncertainty=section.uncertainty,
         )
     if isinstance(query, StaggeredAdoption) and query.event_study:
@@ -432,29 +460,59 @@ def _panel_did_from_raw(
             raise CausalValueError("event-time intervals must align with cohort contrasts")
         effects = tuple(
             StaggeredEventTimeEffect(
-                int(cohort), int(period), int(event_time), float(effect), float(se),
-                int(treated), int(controls), int(clusters),
+                int(cohort),
+                int(period),
+                int(event_time),
+                float(effect),
+                float(se),
+                int(treated),
+                int(controls),
+                int(clusters),
                 tuple(interval) if interval is not None else None,
             )
-            for (cohort, period, event_time, effect, treated, controls, se, clusters), interval
-            in zip(section.event_time_effects, intervals, strict=True)
+            for (
+                cohort,
+                period,
+                event_time,
+                effect,
+                treated,
+                controls,
+                se,
+                clusters,
+            ), interval in zip(section.event_time_effects, intervals, strict=True)
         )
         supported = any(effect.interval_95 is not None for effect in effects)
         return StaggeredEventStudyEstimate(
             effects,
-            uncertainty=("event_time_pointwise_normal_intervals_independent_clusters" if supported
-                         else "cluster_robust_se_only_pointwise_cr1_unlicensed"),
-            support_status=("licensed" if section.graphless_support_status == "licensed" else
-                            "off_axis_pointwise_95" if supported else "unlicensed_point_utility"),
+            uncertainty=(
+                "event_time_pointwise_normal_intervals_independent_clusters"
+                if supported
+                else "cluster_robust_se_only_pointwise_cr1_unlicensed"
+            ),
+            support_status=(
+                "licensed"
+                if section.graphless_support_status == "licensed"
+                else "off_axis_pointwise_95"
+                if supported
+                else "unlicensed_point_utility"
+            ),
         )
-    repeated = isinstance(query, PanelDifferenceInDifferences) and query.sampling == "repeated_cross_section"
+    repeated = (
+        isinstance(query, PanelDifferenceInDifferences)
+        and query.sampling == "repeated_cross_section"
+    )
     staggered = isinstance(query, StaggeredAdoption)
     return PanelDifferenceInDifferencesEstimate(
-        estimate=section.effect, standard_error=section.standard_error,
-        treated_subjects=section.treated_subjects, control_subjects=section.comparison_subjects,
-        clusters=section.clusters, uncertainty=section.uncertainty,
+        estimate=section.effect,
+        standard_error=section.standard_error,
+        treated_subjects=section.treated_subjects,
+        control_subjects=section.comparison_subjects,
+        clusters=section.clusters,
+        uncertainty=section.uncertainty,
         interval_95=section.interval_95,
-        design="balanced_staggered_adoption_group_time_att" if staggered else ("repeated_cross_section_2x2" if repeated else "balanced_two_period_panel"),
+        design="balanced_staggered_adoption_group_time_att"
+        if staggered
+        else ("repeated_cross_section_2x2" if repeated else "balanced_two_period_panel"),
         assumptions=(
             "cohort_specific_parallel_untreated_trends",
             "no_anticipation",
@@ -463,13 +521,17 @@ def _panel_did_from_raw(
             "no_interference",
             "balanced_panel",
             "independent_sampling_clusters",
-        ) if staggered else (
+        )
+        if staggered
+        else (
             "parallel_untreated_trends",
             "no_anticipation",
             "stable_group_definition",
             "no_interference",
             "independent_sampling_clusters",
-        ) if repeated else (
+        )
+        if repeated
+        else (
             "parallel_untreated_trends",
             "no_anticipation",
             "stable_treatment_assignment_within_subject",
@@ -477,8 +539,14 @@ def _panel_did_from_raw(
             "no_interference",
             "independent_sampling_clusters",
         ),
-        support_status=(section.graphless_support_status or
-                        ("off_axis_interval_evidence" if section.interval_95 is not None else "unlicensed_point_utility")),
+        support_status=(
+            section.graphless_support_status
+            or (
+                "off_axis_interval_evidence"
+                if section.interval_95 is not None
+                else "unlicensed_point_utility"
+            )
+        ),
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
     )
@@ -500,23 +568,41 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
         n_post_periods=section.n_post_periods,
         randomization_p_value=section.randomization_p_value,
         randomization_null_effect=section.randomization_null_effect,
-        randomization_statistics=tuple((str(unit), float(statistic)) for unit, statistic in section.randomization_statistics),
+        randomization_statistics=tuple(
+            (str(unit), float(statistic)) for unit, statistic in section.randomization_statistics
+        ),
         unadjusted_effect=section.unadjusted_effect,
         outcome_model_correction=section.outcome_model_correction,
         augmentation_ridge=section.augmentation_ridge,
         uncertainty=section.uncertainty,
         assumptions=(
-            "no_anticipation", "stable_treatment_after_intervention",
+            "no_anticipation",
+            "stable_treatment_after_intervention",
             "convex_donor_combination_is_a_valid_counterfactual",
-            "no_interference_between_units", "no_concurrent_treated_unit_specific_shock",
-        ) + (("donor_ridge_outcome_model_transports", "donor_outcome_model_correction_is_valid")
-             if section.augmentation_ridge is not None else ()) + (("uniform_single_treated_unit_assignment",)
-             if section.randomization_p_value is not None else ()),
-        diagnostics=("donor_ridge_outcome_model_correction", "unadjusted_placebo_rank_is_descriptive", "no_confidence_interval")
-            if section.augmentation_ridge is not None else
-            (("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
+            "no_interference_between_units",
+            "no_concurrent_treated_unit_specific_shock",
+        )
+        + (
+            ("donor_ridge_outcome_model_transports", "donor_outcome_model_correction_is_valid")
+            if section.augmentation_ridge is not None
+            else ()
+        )
+        + (
+            ("uniform_single_treated_unit_assignment",)
             if section.randomization_p_value is not None
-            else ("placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",)),
+            else ()
+        ),
+        diagnostics=(
+            "donor_ridge_outcome_model_correction",
+            "unadjusted_placebo_rank_is_descriptive",
+            "no_confidence_interval",
+        )
+        if section.augmentation_ridge is not None
+        else (
+            ("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
+            if section.randomization_p_value is not None
+            else ("placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",)
+        ),
     )
 
 
@@ -534,20 +620,34 @@ def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimat
         n_post_periods=section.n_post_periods,
         randomization_p_value=section.randomization_p_value,
         randomization_null_effect=section.randomization_null_effect,
-        randomization_statistics=tuple((str(unit), float(statistic)) for unit, statistic in section.randomization_statistics),
-        uncertainty=(section.uncertainty if section.randomization_p_value is not None else "point_only"),
+        randomization_statistics=tuple(
+            (str(unit), float(statistic)) for unit, statistic in section.randomization_statistics
+        ),
+        uncertainty=(
+            section.uncertainty if section.randomization_p_value is not None else "point_only"
+        ),
         assumptions=(
-            "no_anticipation", "stable_treatment_after_intervention",
+            "no_anticipation",
+            "stable_treatment_after_intervention",
             "convex_unit_and_time_weights_represent_untreated_counterfactual_trends",
-            "no_interference_between_units", "no_concurrent_treated_unit_specific_shock",
-        ) + (("uniform_single_treated_unit_assignment",)
-             if section.randomization_p_value is not None else ()),
-        diagnostics=(("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
-                     if section.randomization_p_value is not None else
-                     ("balanced_panel_and_two_pre_periods_required",
-                      "unit_and_time_weights_are_simplex_constrained",
-                      "pre_fit_rmse_reported_without_acceptance_threshold",
-                      "no_interval_or_calibrated_inference")),
+            "no_interference_between_units",
+            "no_concurrent_treated_unit_specific_shock",
+        )
+        + (
+            ("uniform_single_treated_unit_assignment",)
+            if section.randomization_p_value is not None
+            else ()
+        ),
+        diagnostics=(
+            ("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
+            if section.randomization_p_value is not None
+            else (
+                "balanced_panel_and_two_pre_periods_required",
+                "unit_and_time_weights_are_simplex_constrained",
+                "pre_fit_rmse_reported_without_acceptance_threshold",
+                "no_interval_or_calibrated_inference",
+            )
+        ),
     )
 
 
@@ -570,22 +670,32 @@ def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRat
         bandwidth=section.bandwidth,
         kink=section.kink,
         uncertainty=section.uncertainty,
-        design="regression_kink_local_polynomial" if isinstance(query, RegressionKink) else "fuzzy_regression_discontinuity_local_polynomial",
+        design="regression_kink_local_polynomial"
+        if isinstance(query, RegressionKink)
+        else "fuzzy_regression_discontinuity_local_polynomial",
         assumptions=(
-            "continuous_untreated_potential_outcome_and_treatment_derivatives_at_cutoff" if isinstance(query, RegressionKink)
+            "continuous_untreated_potential_outcome_and_treatment_derivatives_at_cutoff"
+            if isinstance(query, RegressionKink)
             else "continuous_untreated_potential_outcomes_at_cutoff",
             "no_precise_running_variable_manipulation",
             "exclusion_restriction",
             "local_monotonicity",
             "independent_local_observations",
         ),
-        support_status=("licensed" if getattr(section, "graphless_support_status", None) == "licensed"
-                        else "off_axis_interval_evidence"),
-        diagnostics=("local_quadratic_triangular_kernel",
-                     "quartic_pilot_bias_correction_at_same_bandwidth" if isinstance(query, RegressionKink)
-                     else "cubic_pilot_bias_correction_at_same_bandwidth",
-                     "fixed_bandwidth_local_support_reported", "hc0_delta_method_standard_error",
-                     "calibrated_strong_first_stage_fixture"),
+        support_status=(
+            "licensed"
+            if getattr(section, "graphless_support_status", None) == "licensed"
+            else "off_axis_interval_evidence"
+        ),
+        diagnostics=(
+            "local_quadratic_triangular_kernel",
+            "quartic_pilot_bias_correction_at_same_bandwidth"
+            if isinstance(query, RegressionKink)
+            else "cubic_pilot_bias_correction_at_same_bandwidth",
+            "fixed_bandwidth_local_support_reported",
+            "hc0_delta_method_standard_error",
+            "calibrated_strong_first_stage_fixture",
+        ),
     )
 
 
@@ -603,27 +713,33 @@ def _survival_from_raw(
     native_band = section.difference_band
     # The band license is the sixth tuple element on builds that carry it; older
     # builds return a five-element tuple, so read it defensively.
-    band_status = (
-        native_band[5] if native_band is not None and len(native_band) > 5 else None
-    )
+    band_status = native_band[5] if native_band is not None and len(native_band) > 5 else None
     difference_band = (
         SurvivalDifferenceBand(
-            times=tuple(native_band[0]), difference=tuple(native_band[1]),
-            lower=tuple(native_band[2]), upper=tuple(native_band[3]),
+            times=tuple(native_band[0]),
+            difference=tuple(native_band[1]),
+            lower=tuple(native_band[2]),
+            upper=tuple(native_band[3]),
             replicates_ok=native_band[4],
             support_status=band_status or "unlicensed_simultaneous_band",
-        ) if native_band is not None else None
+        )
+        if native_band is not None
+        else None
     )
-    observation_assumptions = (
-        ("correct_caller_supplied_conditional_censoring_survival",
-         "independent_censoring_given_supplied_history",
-         "sequential_censoring_positivity")
-        if fixed_g else ("independent_right_censoring_within_arm",)
+    observation_assumptions: tuple[str, ...] = (
+        (
+            "correct_caller_supplied_conditional_censoring_survival",
+            "independent_censoring_given_supplied_history",
+            "sequential_censoring_positivity",
+        )
+        if fixed_g
+        else ("independent_right_censoring_within_arm",)
     )
     if getattr(query, "delayed_entry", None) is not None:
         observation_assumptions += (
             "marginal_independent_delayed_entry_and_censoring_within_arm"
-            if fixed_g else "independent_delayed_entry_within_arm",
+            if fixed_g
+            else "independent_delayed_entry_within_arm",
         )
     provenance = section.censoring_survival_provenance
     scalar_licensed = getattr(raw, "evidence_status", None) == "licensed"
@@ -634,10 +750,15 @@ def _survival_from_raw(
     # an off-axis competing-incidence scalar) is reported as such; the band's own
     # license is always carried on ``difference_band.support_status``.
     support_status = (
-        "licensed" if scalar_licensed else
-        "licensed_simultaneous_band" if band_licensed else
-        "unlicensed_simultaneous_band" if difference_band is not None else
-        "unlicensed_pointwise_interval" if has_interval else "unlicensed_point_utility"
+        "licensed"
+        if scalar_licensed
+        else "licensed_simultaneous_band"
+        if band_licensed
+        else "unlicensed_simultaneous_band"
+        if difference_band is not None
+        else "unlicensed_pointwise_interval"
+        if has_interval
+        else "unlicensed_point_utility"
     )
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
         return CumulativeIncidenceEstimate(
@@ -648,15 +769,24 @@ def _survival_from_raw(
             incidence_difference=treated[-1] - control[-1],
             tau=section.tau,
             uncertainty=section.uncertainty,
-            incidence_difference_interval=(tuple(section.difference_at_tau_interval) if section.difference_at_tau_interval is not None else None),
+            incidence_difference_interval=(
+                tuple(section.difference_at_tau_interval)
+                if section.difference_at_tau_interval is not None
+                else None
+            ),
             bootstrap_replicates_requested=section.bootstrap_replicates_requested,
             bootstrap_replicates_ok=section.bootstrap_replicates_ok,
             censoring_survival_provenance=provenance,
             difference_band=difference_band,
             band_unavailable_reason=section.band_unavailable_reason,
             support_status=support_status,
-            assumptions=("individual_random_assignment", "all_event_causes_coded_distinctly",
-                         *observation_assumptions, "consistency", "no_interference"),
+            assumptions=(
+                "individual_random_assignment",
+                "all_event_causes_coded_distinctly",
+                *observation_assumptions,
+                "consistency",
+                "no_interference",
+            ),
         )
     return SurvivalEstimate(
         times=times,
@@ -667,16 +797,28 @@ def _survival_from_raw(
         rmst_difference=float(section.rmst_treated - section.rmst_control),
         tau=section.tau,
         uncertainty=section.uncertainty,
-        rmst_difference_interval=(tuple(section.rmst_difference_interval) if section.rmst_difference_interval is not None else None),
-        survival_at_tau_difference_interval=(tuple(section.difference_at_tau_interval) if section.difference_at_tau_interval is not None else None),
+        rmst_difference_interval=(
+            tuple(section.rmst_difference_interval)
+            if section.rmst_difference_interval is not None
+            else None
+        ),
+        survival_at_tau_difference_interval=(
+            tuple(section.difference_at_tau_interval)
+            if section.difference_at_tau_interval is not None
+            else None
+        ),
         bootstrap_replicates_requested=section.bootstrap_replicates_requested,
         bootstrap_replicates_ok=section.bootstrap_replicates_ok,
         censoring_survival_provenance=provenance,
         difference_band=difference_band,
         band_unavailable_reason=section.band_unavailable_reason,
         support_status=support_status,
-        assumptions=("individual_random_assignment", *observation_assumptions,
-                     "consistency", "no_interference"),
+        assumptions=(
+            "individual_random_assignment",
+            *observation_assumptions,
+            "consistency",
+            "no_interference",
+        ),
     )
 
 
@@ -688,12 +830,19 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         value=section.value,
         value_standard_error=section.value_standard_error,
         value_interval_95=section.value_interval_95,
-        period_intervals_95=(tuple(tuple(bounds) for bounds in section.period_intervals_95)
-                             if section.period_intervals_95 is not None else None),
+        period_intervals_95=(
+            tuple(tuple(bounds) for bounds in section.period_intervals_95)
+            if section.period_intervals_95 is not None
+            else None
+        ),
         interval_reason=section.interval_reason,
-        support_status=("licensed" if section.graphless_support_status == "licensed" else
-                        "off_axis_pointwise_95" if section.value_interval_95 is not None
-                        else "unlicensed_point_utility"),
+        support_status=(
+            "licensed"
+            if section.graphless_support_status == "licensed"
+            else "off_axis_pointwise_95"
+            if section.value_interval_95 is not None
+            else "unlicensed_point_utility"
+        ),
         effective_sample_size=section.effective_sample_size,
         matched_observed_fraction=section.matched_observed_fraction,
         maximum_weight=section.maximum_weight,
@@ -702,9 +851,15 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         method=section.method,
         uncertainty=section.uncertainty,
         probability_ownership=section.probability_ownership,
-        period_effects=tuple(section.period_effects) if section.period_effects is not None else None,
-        standard_errors=tuple(section.standard_errors) if section.standard_errors is not None else None,
-        stabilizing_numerator_probabilities=tuple(section.stabilizing_numerator_probabilities) if section.stabilizing_numerator_probabilities is not None else None,
+        period_effects=tuple(section.period_effects)
+        if section.period_effects is not None
+        else None,
+        standard_errors=tuple(section.standard_errors)
+        if section.standard_errors is not None
+        else None,
+        stabilizing_numerator_probabilities=tuple(section.stabilizing_numerator_probabilities)
+        if section.stabilizing_numerator_probabilities is not None
+        else None,
         observed_subjects=section.observed_subjects,
         rule_id=section.rule_id,
         rule_version=section.rule_version,
@@ -717,39 +872,67 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
     if section is None:
         return None
     policy = getattr(section, "fixed_policy", None)
-    fixed_policy = None if policy is None else FixedDosePolicyValueEstimate(
-        policy_doses=tuple((str(group), float(dose)) for group, dose in policy.policy_doses),
-        reference_doses=tuple((str(group), float(dose)) for group, dose in policy.reference_doses),
-        policy_value=float(policy.policy_value),
-        reference_value=float(policy.reference_value),
-        incremental_value=float(policy.incremental_value),
-        policy_variance=float(policy.policy_variance),
-        reference_variance=float(policy.reference_variance),
-        incremental_variance=float(policy.incremental_variance),
-        policy_interval_95=tuple(policy.policy_interval_95) if policy.policy_interval_95 is not None else None,
-        reference_interval_95=tuple(policy.reference_interval_95) if policy.reference_interval_95 is not None else None,
-        incremental_interval_95=tuple(policy.incremental_interval_95) if policy.incremental_interval_95 is not None else None,
-        minimum_local_rows=int(policy.minimum_local_rows),
-        minimum_effective_sample_size=float(policy.minimum_effective_sample_size),
-        maximum_normalized_weight=float(policy.maximum_normalized_weight),
-        minimum_dose_density=float(policy.minimum_dose_density),
+    fixed_policy = (
+        None
+        if policy is None
+        else FixedDosePolicyValueEstimate(
+            policy_doses=tuple((str(group), float(dose)) for group, dose in policy.policy_doses),
+            reference_doses=tuple(
+                (str(group), float(dose)) for group, dose in policy.reference_doses
+            ),
+            policy_value=float(policy.policy_value),
+            reference_value=float(policy.reference_value),
+            incremental_value=float(policy.incremental_value),
+            policy_variance=float(policy.policy_variance),
+            reference_variance=float(policy.reference_variance),
+            incremental_variance=float(policy.incremental_variance),
+            policy_interval_95=tuple(policy.policy_interval_95)
+            if policy.policy_interval_95 is not None
+            else None,
+            reference_interval_95=tuple(policy.reference_interval_95)
+            if policy.reference_interval_95 is not None
+            else None,
+            incremental_interval_95=tuple(policy.incremental_interval_95)
+            if policy.incremental_interval_95 is not None
+            else None,
+            minimum_local_rows=int(policy.minimum_local_rows),
+            minimum_effective_sample_size=float(policy.minimum_effective_sample_size),
+            maximum_normalized_weight=float(policy.maximum_normalized_weight),
+            minimum_dose_density=float(policy.minimum_dose_density),
+        )
     )
     return ConditionalDoseResponseEstimate(
-        points=tuple(ConditionalDoseResponsePoint(
-            str(group), float(target), float(response), int(local_rows),
-            float(effective_n), float(min_density), float(max_weight), float(local_sd),
-        ) for group, target, response, local_rows, effective_n, min_density, max_weight, local_sd in section.points),
+        points=tuple(
+            ConditionalDoseResponsePoint(
+                str(group),
+                float(target),
+                float(response),
+                int(local_rows),
+                float(effective_n),
+                float(min_density),
+                float(max_weight),
+                float(local_sd),
+            )
+            for group, target, response, local_rows, effective_n, min_density, max_weight, local_sd in section.points
+        ),
         bandwidth=float(section.bandwidth),
         density_provenance=str(section.density_provenance),
         uncertainty=str(section.uncertainty),
         policy_value_estimated=fixed_policy is not None,
         fixed_policy=fixed_policy,
-        support_status=(section.graphless_support_status or
-                        ("off_axis_pointwise_95" if fixed_policy is not None
-                         and fixed_policy.incremental_interval_95 is not None
-                         else "unlicensed_point_utility")),
-        evaluation_method=("fixed_group_kernel_smoothed_inverse_density_policy" if fixed_policy is not None
-                           else "stratified_triangular_kernel_inverse_density"),
+        support_status=(
+            section.graphless_support_status
+            or (
+                "off_axis_pointwise_95"
+                if fixed_policy is not None and fixed_policy.incremental_interval_95 is not None
+                else "unlicensed_point_utility"
+            )
+        ),
+        evaluation_method=(
+            "fixed_group_kernel_smoothed_inverse_density_policy"
+            if fixed_policy is not None
+            else "stratified_triangular_kernel_inverse_density"
+        ),
     )
 
 
@@ -760,6 +943,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
     ipw = section.prediction_ownership == "no_outcome_nuisance_predictions"
     multi_action = section.uncertainty.startswith("multi_action_")
     from .policy import FiniteClassRegretEvaluation, MultiActionCatePoint, UpliftBin
+
     return DoublyRobustPolicyEvaluation(
         policy_value=section.policy_value,
         reference_value=section.reference_value,
@@ -772,77 +956,138 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_standard_error=section.incremental_standard_error,
         policy_value_interval_95=section.policy_interval_95,
         incremental_value_interval_95=section.incremental_interval_95,
-        support_status=(section.graphless_support_status or
-                        ("off_axis_simultaneous_95" if section.regret is not None else
-                         "off_axis_pointwise_95" if section.policy_interval_95 is not None
-                         or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
-                         or any(interval is not None for *_, interval in section.multi_action_cate)
-                         else "unlicensed_point_utility")),
+        support_status=(
+            section.graphless_support_status
+            or (
+                "off_axis_simultaneous_95"
+                if section.regret is not None
+                else "off_axis_pointwise_95"
+                if section.policy_interval_95 is not None
+                or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
+                or any(interval is not None for *_, interval in section.multi_action_cate)
+                else "unlicensed_point_utility"
+            )
+        ),
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
-        uplift_bins=tuple(UpliftBin(int(rank), float(effect), float(se), int(rows), interval)
-                          for rank, effect, se, rows, interval in section.uplift_bins),
-        multi_action_cate=tuple(MultiActionCatePoint(group, action, float(effect), int(rows), int(action_rows), int(control_rows),
-                                                 float(se), interval, "pointwise_95" if interval is not None else "point_only")
-                                for group, action, effect, rows, action_rows, control_rows, se, interval in section.multi_action_cate),
-        finite_class_regret=(FiniteClassRegretEvaluation(
-            float(section.regret[0]), tuple(section.regret[1]),
-            tuple(float(value) for value in section.regret[2]),
-            tuple(float(se) for se in section.regret[3]), int(section.regret[4]),
-        ) if section.regret is not None else None),
+        uplift_bins=tuple(
+            UpliftBin(int(rank), float(effect), float(se), int(rows), interval)
+            for rank, effect, se, rows, interval in section.uplift_bins
+        ),
+        multi_action_cate=tuple(
+            MultiActionCatePoint(
+                group,
+                action,
+                float(effect),
+                int(rows),
+                int(action_rows),
+                int(control_rows),
+                float(se),
+                interval,
+                "pointwise_95" if interval is not None else "point_only",
+            )
+            for group, action, effect, rows, action_rows, control_rows, se, interval in section.multi_action_cate
+        ),
+        finite_class_regret=(
+            FiniteClassRegretEvaluation(
+                float(section.regret[0]),
+                tuple(section.regret[1]),
+                tuple(float(value) for value in section.regret[2]),
+                tuple(float(se) for se in section.regret[3]),
+                int(section.regret[4]),
+            )
+            if section.regret is not None
+            else None
+        ),
         uncertainty=section.uncertainty,
         evaluation_method=(
-            "randomized_multi_action_ipw_fixed_policy" if multi_action else
-            "randomized_ipw_fixed_policy" if ipw
+            "randomized_multi_action_ipw_fixed_policy"
+            if multi_action
+            else "randomized_ipw_fixed_policy"
+            if ipw
             else "doubly_robust_randomized_heldout_or_cross_fitted"
         ),
-        assumptions=((
+        assumptions=(
             (
-                "Known randomized action probabilities with positive support for each declared action.",
-                "Consistency and no interference between evaluation subjects.",
-                "The multi-action policy and reference were fixed without using evaluation outcomes.",
-                "The first action label is the control action for treatment-rate reporting.",
-            ) if multi_action else (
-                "Known randomized treatment propensities with strict treatment overlap.",
-                "Consistency and no interference between evaluation subjects.",
-                "The policy and reference were fixed without using evaluation outcomes.",
-            ) if ipw else (
-                "Known randomized treatment propensities with strict treatment overlap.",
-                "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
-                "Consistency and no interference between evaluation subjects.",
-                "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
-            ))
-            + ((
-                "Rank scores were fitted on declared training subjects disjoint from evaluation subjects and frozen before outcome evaluation.",
-            ) if section.uplift_bins else ())
-            + ((
-                "Baseline groups for conditional effects were fixed before evaluation outcomes were observed.",
-            ) if section.multi_action_cate else ())
-            + ((
-                "The finite candidate class and selected member were fixed using declared training subjects disjoint from evaluation subjects.",
-            ) if section.regret is not None else ())
+                (
+                    "Known randomized action probabilities with positive support for each declared action.",
+                    "Consistency and no interference between evaluation subjects.",
+                    "The multi-action policy and reference were fixed without using evaluation outcomes.",
+                    "The first action label is the control action for treatment-rate reporting.",
+                )
+                if multi_action
+                else (
+                    "Known randomized treatment propensities with strict treatment overlap.",
+                    "Consistency and no interference between evaluation subjects.",
+                    "The policy and reference were fixed without using evaluation outcomes.",
+                )
+                if ipw
+                else (
+                    "Known randomized treatment propensities with strict treatment overlap.",
+                    "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
+                    "Consistency and no interference between evaluation subjects.",
+                    "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
+                )
+            )
+            + (
+                (
+                    "Rank scores were fitted on declared training subjects disjoint from evaluation subjects and frozen before outcome evaluation.",
+                )
+                if section.uplift_bins
+                else ()
+            )
+            + (
+                (
+                    "Baseline groups for conditional effects were fixed before evaluation outcomes were observed.",
+                )
+                if section.multi_action_cate
+                else ()
+            )
+            + (
+                (
+                    "The finite candidate class and selected member were fixed using declared training subjects disjoint from evaluation subjects.",
+                )
+                if section.regret is not None
+                else ()
+            )
         ),
-        diagnostics=((
+        diagnostics=(
             (
-                "row-level standard errors assume independent evaluation subjects",
-                "randomization and policy selection claims are caller-declared",
-                "action availability, capacities, budgets, and positive probability rows were checked",
-            ) if ipw else (
-                "row-level standard errors assume independent evaluation subjects",
-                "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
-                "nuisance predictions and randomization claims are not independently authenticated",
-            ))
-            + ((
-                "uplift-bin pointwise 95% intervals require at least 300 independent evaluation subjects and 50 observed treated and control subjects per bin",
-                "ranking-model ownership is checked from caller-supplied subject IDs only",
-            ) if section.uplift_bins else ())
-            + ((
-                "multi-action conditional intervals require at least 300 independent evaluation subjects in each fixed baseline group, 50 observed subjects per compared arm, and each compared action probability at least 0.2",
-            ) if section.multi_action_cate else ())
-            + ((
-                "finite-class regret uses simultaneous paired-score bounds for 2–16 fixed candidates; training ownership and randomization are caller-declared",
-            ) if section.regret is not None else ())
+                (
+                    "row-level standard errors assume independent evaluation subjects",
+                    "randomization and policy selection claims are caller-declared",
+                    "action availability, capacities, budgets, and positive probability rows were checked",
+                )
+                if ipw
+                else (
+                    "row-level standard errors assume independent evaluation subjects",
+                    "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
+                    "nuisance predictions and randomization claims are not independently authenticated",
+                )
+            )
+            + (
+                (
+                    "uplift-bin pointwise 95% intervals require at least 300 independent evaluation subjects and 50 observed treated and control subjects per bin",
+                    "ranking-model ownership is checked from caller-supplied subject IDs only",
+                )
+                if section.uplift_bins
+                else ()
+            )
+            + (
+                (
+                    "multi-action conditional intervals require at least 300 independent evaluation subjects in each fixed baseline group, 50 observed subjects per compared arm, and each compared action probability at least 0.2",
+                )
+                if section.multi_action_cate
+                else ()
+            )
+            + (
+                (
+                    "finite-class regret uses simultaneous paired-score bounds for 2–16 fixed candidates; training ownership and randomization are caller-declared",
+                )
+                if section.regret is not None
+                else ()
+            )
         ),
     )
 
@@ -2107,20 +2352,22 @@ def _frame_payload(data: Any) -> tuple[list[str], list[Any], dict[str, Any] | No
 
 def _panel_did_payload(
     data: Any, query: PanelDifferenceInDifferences
-) -> tuple[list[str], list[Any], dict[str, tuple[Any, ...]]]:
+) -> tuple[list[str], list[Any], dict[str, Any]]:
     """Keep panel IDs as query metadata and send only numeric outcomes to Rust."""
     from .quasi import _binary, _raw_columns
 
     raw_names, raw_columns = _raw_columns(data)
     raw = dict(zip(raw_names, raw_columns, strict=True))
-    required = (query.outcome, query.subject, query.treated, query.post)
+    required: tuple[str, ...] = (query.outcome, query.subject, query.treated, query.post)
     if query.cluster is not None:
         required += (query.cluster,)
     missing = [name for name in required if name not in raw]
     if missing:
         raise CausalValueError(f"required panel DiD columns are missing: {missing}")
     subjects = tuple(str(value) for value in raw[query.subject])
-    clusters = subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    clusters = (
+        subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    )
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
     design = {
@@ -2142,9 +2389,13 @@ def _augmented_panel_did_payload(
 
     raw_names, raw_columns = _raw_columns(data)
     raw = dict(zip(raw_names, raw_columns, strict=True))
-    numeric = (query.outcome_pre, query.outcome_post, query.propensity,
-               query.untreated_change_prediction)
-    required = (*numeric, query.subject, query.treated)
+    numeric = (
+        query.outcome_pre,
+        query.outcome_post,
+        query.propensity,
+        query.untreated_change_prediction,
+    )
+    required: tuple[str, ...] = (*numeric, query.subject, query.treated)
     if query.cluster is not None:
         required += (query.cluster,)
     missing = [name for name in required if name not in raw]
@@ -2157,7 +2408,8 @@ def _augmented_panel_did_payload(
     if len(set(subjects)) != len(subjects):
         raise CausalValueError("augmented panel DiD requires one unique row per subject")
     design = {
-        "subjects": subjects, "clusters": clusters,
+        "subjects": subjects,
+        "clusters": clusters,
         "treated": tuple(_binary(raw[query.treated], query.treated)),
     }
     names, columns = ingest_columns({name: raw[name] for name in numeric})
@@ -2170,17 +2422,21 @@ def _staggered_payload(
     from .quasi import _integer_column, _raw_columns
 
     if not query.event_study and (query.target_cohort is None or query.target_period is None):
-        raise CausalValueError("analyze with StaggeredAdoption requires target_cohort and target_period")
+        raise CausalValueError(
+            "analyze with StaggeredAdoption requires target_cohort and target_period"
+        )
     raw_names, raw_columns = _raw_columns(data)
     raw = dict(zip(raw_names, raw_columns, strict=True))
-    required = (query.outcome, query.subject, query.period, query.cohort)
+    required: tuple[str, ...] = (query.outcome, query.subject, query.period, query.cohort)
     if query.cluster is not None:
         required += (query.cluster,)
     missing = [name for name in required if name not in raw]
     if missing:
         raise CausalValueError(f"required staggered DiD columns are missing: {missing}")
     subjects = tuple(str(value) for value in raw[query.subject])
-    clusters = subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    clusters = (
+        subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    )
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
     periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
@@ -2230,7 +2486,9 @@ def _continuous_dose_payload(
     groups = tuple(raw[query.baseline_group])
     if any(not isinstance(group, str) or not group for group in groups):
         raise CausalValueError("baseline group labels must be non-empty strings")
-    names, columns = ingest_columns({name: raw[name] for name in (query.outcome, query.dose, query.dose_density)})
+    names, columns = ingest_columns(
+        {name: raw[name] for name in (query.outcome, query.dose, query.dose_density)}
+    )
     return names, columns, {"baseline_groups": groups}
 
 
@@ -2386,7 +2644,7 @@ class _PrepareRoute:
     max_completions: int | None
     accepted: bool
     options: dict[str, Any]
-    design_columns: dict[str, tuple[Any, ...]] | None = None
+    design_columns: dict[str, Any] | None = None
     #: Suite a route defers to the estimate's second click (see `_response`).
     deferred_suite: str | None = None
 
@@ -2918,12 +3176,32 @@ class _PrepareRoute:
             raise _not_applicable("inference", "ConditionalDoseResponse")
         design = self.design_columns or {}
         native = _NativePreparedAnalysis.prepare_continuous_dose_response(
-            self.names, self.columns, query.outcome, query.dose, query.dose_density,
-            list(design["baseline_groups"]), list(query.target_doses), query.bandwidth,
-            query.density_provenance, min_local_support=query.min_local_support,
-            policy_doses=list(query.policy_doses) if query.policy_doses is not None else None,
-            reference_doses=list(query.reference_doses) if query.reference_doses is not None else None,
-            accepted=self.accepted, **self._common(),
+            self.names,
+            self.columns,
+            query.outcome,
+            query.dose,
+            query.dose_density,
+            list(design["baseline_groups"]),
+            list(query.target_doses),
+            query.bandwidth,
+            query.density_provenance,
+            min_local_support=query.min_local_support,
+            policy_doses=(
+                None
+                if query.policy_doses is None
+                else list(query.policy_doses.items())
+                if isinstance(query.policy_doses, Mapping)
+                else list(query.policy_doses)
+            ),
+            reference_doses=(
+                None
+                if query.reference_doses is None
+                else list(query.reference_doses.items())
+                if isinstance(query.reference_doses, Mapping)
+                else list(query.reference_doses)
+            ),
+            accepted=self.accepted,
+            **self._common(),
         )
         return native, "average"
 
@@ -2942,6 +3220,7 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         from .inference import Frequentist
+
         if self.inference is not None and not isinstance(self.inference, Frequentist):
             raise CausalUnsupportedError(
                 "PolicyValue supports row-score frequentist uncertainty only",
@@ -2951,28 +3230,40 @@ class _PrepareRoute:
             labels = tuple(query.policy.action_labels)
             n = len(query.assignment)
             evaluate_multi_action_policy(
-                dict(zip(self.names, self.columns, strict=True)), outcome=query.outcome,
-                assignment=query.assignment, propensities=query.propensities,
-                policy=query.policy, reference=query.reference, available=query.available,
+                dict(zip(self.names, self.columns, strict=True)),
+                outcome=query.outcome,
+                assignment=query.assignment,
+                propensities=query.propensities,
+                policy=query.policy,
+                reference=query.reference,
+                available=query.available,
             )
-            reference = query.reference or MultiActionPolicy(
-                labels, [labels[0]] * n, costs=query.policy.costs,
+            multi_reference = query.reference or MultiActionPolicy(
+                labels,
+                [labels[0]] * n,
+                costs=query.policy.costs,
             )
-            available = query.available or [[True] * len(labels) for _ in range(n)]
+            multi_available = query.available or [[True] * len(labels) for _ in range(n)]
             native = _NativePreparedAnalysis.prepare_multi_action_policy_value(
-                self.names, self.columns, query.outcome, list(labels),
+                self.names,
+                self.columns,
+                query.outcome,
+                list(labels),
                 [labels.index(action) for action in query.assignment],
                 [float(p) for row in query.propensities for p in row],
                 [labels.index(action) for action in query.policy.recommendations],
-                [labels.index(action) for action in reference.recommendations],
+                [labels.index(action) for action in multi_reference.recommendations],
                 list(query.policy.costs or [0.0] * len(labels)),
-                list(reference.costs or [0.0] * len(labels)),
-                [bool(value) for row in available for value in row],
+                list(multi_reference.costs or [0.0] * len(labels)),
+                [bool(value) for row in multi_available for value in row],
                 list(query.policy.capacities or [n] * len(labels)),
-                list(reference.capacities or [n] * len(labels)),
-                query.policy.budget, reference.budget, list(query.evaluation_subject_ids),
+                list(multi_reference.capacities or [n] * len(labels)),
+                query.policy.budget,
+                multi_reference.budget,
+                list(query.evaluation_subject_ids),
                 cate_groups=list(query.baseline_groups or ()),
-                accepted=self.accepted, **self._common(),
+                accepted=self.accepted,
+                **self._common(),
             )
             return native, "average"
         # The direct randomized evaluator owns the constraint checks. Apply
@@ -2980,41 +3271,81 @@ class _PrepareRoute:
         evaluate_policy(
             dict(zip(self.names, self.columns, strict=True)),
             outcome=query.outcome,
-            assignment=query.assignment,
-            propensity=query.propensity,
+            assignment=resolved(query.assignment),
+            propensity=resolved_scalar(query.propensity),
             policy=query.policy,
             reference=query.reference,
-            available=query.available,
+            available=resolved_opt(query.available),
         )
-        propensity = [float(query.propensity)] if isinstance(query.propensity, (int, float)) else list(query.propensity)
-        costs = [float(query.policy.costs)] if isinstance(query.policy.costs, (int, float)) else list(query.policy.costs)
+        propensity = (
+            [float(query.propensity)]
+            if isinstance(query.propensity, (int, float))
+            else list(resolved(query.propensity))
+        )
+        costs = (
+            [float(query.policy.costs)]
+            if isinstance(query.policy.costs, (int, float))
+            else list(query.policy.costs)
+        )
         reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
-        reference_costs = [float(reference.costs)] if isinstance(reference.costs, (int, float)) else list(reference.costs)
+        reference_costs = (
+            [float(reference.costs)]
+            if isinstance(reference.costs, (int, float))
+            else list(reference.costs)
+        )
         uplift_bin_ids: list[int] = []
         if query.uplift_scores is not None:
             uplift_bin_ids = [0] * len(query.policy.actions)
-            ranked_rows = np.argsort(-np.asarray(query.uplift_scores, dtype=np.float64), kind="stable")
+            ranked_rows = np.argsort(
+                -np.asarray(query.uplift_scores, dtype=np.float64), kind="stable"
+            )
             for rank, row in enumerate(ranked_rows):
                 uplift_bin_ids[int(row)] = min(
                     query.uplift_bin_count - 1,
                     rank * query.uplift_bin_count // len(query.policy.actions),
                 )
         native = _NativePreparedAnalysis.prepare_policy_value(
-            self.names, self.columns, query.outcome, list(query.assignment), propensity,
-            list(query.policy.actions), list(reference.actions), list(query.mu0), list(query.mu1),
-            costs, reference_costs, list(query.evaluation_subject_ids),
+            self.names,
+            self.columns,
+            query.outcome,
+            list(resolved(query.assignment)),
+            propensity,
+            list(resolved(query.policy.actions)),
+            list(resolved(reference.actions)),
+            list(resolved_opt(query.mu0) or ()),
+            list(resolved_opt(query.mu1) or ()),
+            costs,
+            reference_costs,
+            list(resolved(query.evaluation_subject_ids)),
             query._ownership == "held_out_disjoint_subject_ids",
             query._ownership == "caller_declared_cross_fitted_excluded_fold_ids",
             uplift_bins=uplift_bin_ids,
             uplift_bin_count=query.uplift_bin_count,
             uplift_training_subject_ids=list(query.uplift_training_subject_ids or ()),
-            regret_candidates=[list(candidate.actions) for candidate in (query.regret_candidates or ())],
-            regret_selected_index=(next((index for index, candidate in enumerate(query.regret_candidates)
-                if candidate.actions == query.policy.actions), None) if query.regret_candidates is not None else None),
+            regret_candidates=[
+                list(resolved(candidate.actions)) for candidate in (query.regret_candidates or ())
+            ],
+            regret_selected_index=(
+                next(
+                    (
+                        index
+                        for index, candidate in enumerate(query.regret_candidates)
+                        if candidate.actions == query.policy.actions
+                    ),
+                    None,
+                )
+                if query.regret_candidates is not None
+                else None
+            ),
             regret_training_subject_ids=list(query.regret_training_subject_ids or ()),
-            global_constraints_present=(query.policy.capacity is not None or query.policy.budget is not None
-                                        or reference.capacity is not None or reference.budget is not None),
-            accepted=self.accepted, **self._common(),
+            global_constraints_present=(
+                query.policy.capacity is not None
+                or query.policy.budget is not None
+                or reference.capacity is not None
+                or reference.budget is not None
+            ),
+            accepted=self.accepted,
+            **self._common(),
         )
         return native, "average"
 
@@ -3028,26 +3359,40 @@ class _PrepareRoute:
         self._refuse_ids("SwitchbackEffect")
         self._refuse_estimator_config("SwitchbackEffect")
         if self._explicit_refute():
-            raise CausalUnsupportedError("SwitchbackEffect has no refutation route", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "SwitchbackEffect has no refutation route", reason_code="option_not_applicable"
+            )
         design = query.design
         n = len(design.realized_assignment)
         native = _NativePreparedAnalysis.prepare_randomized_effect(
-            self.names, self.columns, query.outcome,
-            list(design.realized_assignment), list(design.assignment_probabilities),
-            list(design.sequence_ids), [f"switchback-row-{i}" for i in range(n)],
-            tuple(design.treatment_arms), "switchback",
-            periods=list(design.period_ids), accepted=False, **self._common(),
+            self.names,
+            self.columns,
+            query.outcome,
+            list(resolved(design.realized_assignment)),
+            list(resolved(design.assignment_probabilities)),
+            list(design.sequence_ids),
+            [f"switchback-row-{i}" for i in range(n)],
+            design.treatment_arms,
+            "switchback",
+            periods=list(design.period_ids),
+            accepted=False,
+            **self._common(),
         )
         return native, "average"
 
     def _complier_effect(self) -> tuple[Any, Literal["average"]]:
         query = cast(ComplierEffect | TreatmentOnTreated, self.query)
         if self.graph is not None or self.discovery is not None:
-            raise CausalUnsupportedError("ComplierEffect carries its randomization design and does not accept graph= or discovery=", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "ComplierEffect carries its randomization design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
         self._refuse_ids("ComplierEffect")
         self._refuse_estimator_config("ComplierEffect")
         if self._explicit_refute():
-            raise CausalUnsupportedError("ComplierEffect has no refutation route", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "ComplierEffect has no refutation route", reason_code="option_not_applicable"
+            )
         assignment = cast(BernoulliAssignment, query.design.assignment)
         n = len(query.design.realized_assignment)
         probabilities = assignment.probabilities
@@ -3058,13 +3403,19 @@ class _PrepareRoute:
             if len(probability_rows) == 1:
                 probability_rows *= n
         native = _NativePreparedAnalysis.prepare_randomized_effect(
-            self.names, self.columns, query.outcome,
-            list(query.design.realized_assignment), probability_rows,
-            list(query.design.assignment_units), list(query.design.outcome_units),
-            tuple(query.design.treatment_arms), "bernoulli",
-            received_treatment=list(query.received_treatment),
+            self.names,
+            self.columns,
+            query.outcome,
+            list(resolved(query.design.realized_assignment)),
+            probability_rows,
+            list(query.design.assignment_units),
+            list(query.design.outcome_units),
+            query.design.treatment_arms,
+            "bernoulli",
+            received_treatment=list(resolved(query.received_treatment)),
             treatment_on_treated=isinstance(query, TreatmentOnTreated),
-            accepted=False, **self._common(),
+            accepted=False,
+            **self._common(),
         )
         return native, "average"
 
@@ -3079,28 +3430,51 @@ class _PrepareRoute:
             self._refuse_ids("RandomizedEffect")
             self._refuse_estimator_config("RandomizedEffect")
             if self._explicit_refute():
-                raise CausalUnsupportedError("RandomizedEffect has no refutation route", reason_code="option_not_applicable")
+                raise CausalUnsupportedError(
+                    "RandomizedEffect has no refutation route", reason_code="option_not_applicable"
+                )
             design = query.design
             indices = [design.action_labels.index(action) for action in design.realized_assignment]
             native = _NativePreparedAnalysis.prepare_randomized_effect(
-                self.names, self.columns, query.outcome,
+                self.names,
+                self.columns,
+                query.outcome,
                 [index != 0 for index in indices],
-                [float(design.assignment_probabilities[i][index]) for i, index in enumerate(indices)],
-                list(design.assignment_units), list(design.outcome_units),
-                (design.action_labels[0], design.action_labels[1]), "multi_arm",
+                [
+                    float(design.assignment_probabilities[i][index])
+                    for i, index in enumerate(indices)
+                ],
+                list(design.assignment_units),
+                list(design.outcome_units),
+                (design.action_labels[0], design.action_labels[1]),
+                "multi_arm",
                 multi_arm_labels=list(design.action_labels),
                 multi_arm_assignment=indices,
                 multi_arm_probabilities=[list(row) for row in design.assignment_probabilities],
-                accepted=False, **self._common(),
+                accepted=False,
+                **self._common(),
             )
             return native, "average"
         assignment = query.design.assignment
-        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization, FactorialRandomization)):
-            raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")
+        if not isinstance(
+            assignment,
+            (
+                BernoulliAssignment,
+                CompleteRandomization,
+                StratifiedRandomization,
+                ClusterRandomization,
+                FactorialRandomization,
+            ),
+        ):
+            raise CausalUnsupportedError(
+                "unsupported randomized assignment design", reason_code="route_not_supported"
+            )
         self._refuse_ids("RandomizedEffect")
         self._refuse_estimator_config("RandomizedEffect")
         if self._explicit_refute():
-            raise CausalUnsupportedError("RandomizedEffect has no refutation route", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "RandomizedEffect has no refutation route", reason_code="option_not_applicable"
+            )
         n = len(query.design.realized_assignment)
         blocks: list[str] = []
         treated_per_row: list[int] = []
@@ -3120,7 +3494,10 @@ class _PrepareRoute:
             treated_units = assignment.treated
             probabilities = [treated_units / n] * n
             if query.design.blocks is not None:
-                raise CausalUnsupportedError("complete design does not use block metadata; choose StratifiedRandomization", reason_code="route_not_supported")
+                raise CausalUnsupportedError(
+                    "complete design does not use block metadata; choose StratifiedRandomization",
+                    reason_code="route_not_supported",
+                )
         elif isinstance(assignment, ClusterRandomization):
             design_kind = "cluster"
             treated_clusters = assignment.treated_clusters
@@ -3140,16 +3517,18 @@ class _PrepareRoute:
             blocks = list(query.design.blocks or ())
             treated_per_row = [assignment.treated_per_block[block] for block in blocks]
             block_sizes = {block: blocks.count(block) for block in set(blocks)}
-            probabilities = [assignment.treated_per_block[block] / block_sizes[block] for block in blocks]
+            probabilities = [
+                assignment.treated_per_block[block] / block_sizes[block] for block in blocks
+            ]
         native = _NativePreparedAnalysis.prepare_randomized_effect(
             self.names,
             self.columns,
             query.outcome,
-            list(query.design.realized_assignment),
+            list(resolved(query.design.realized_assignment)),
             [float(value) for value in probabilities],
             list(query.design.assignment_units),
             list(query.design.outcome_units),
-            tuple(query.design.treatment_arms),
+            query.design.treatment_arms,
             design_kind,
             treated_units,
             blocks,
@@ -3158,51 +3537,103 @@ class _PrepareRoute:
             fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
             ancova_covariates=list(query.ancova_covariates),
             exact_randomization_test=query.exact_randomization_test,
-            second_factor_assignment=list(assignment.second_factor_assignment) if isinstance(assignment, FactorialRandomization) else None,
-            factorial_cell_counts=assignment.cell_counts if isinstance(assignment, FactorialRandomization) else None,
-            second_factor_arms=assignment.second_factor_arms if isinstance(assignment, FactorialRandomization) else None,
+            second_factor_assignment=list(resolved(assignment.second_factor_assignment))
+            if isinstance(assignment, FactorialRandomization)
+            else None,
+            factorial_cell_counts=assignment.cell_counts
+            if isinstance(assignment, FactorialRandomization)
+            else None,
+            second_factor_arms=assignment.second_factor_arms
+            if isinstance(assignment, FactorialRandomization)
+            else None,
             accepted=False,
             **self._common(),
         )
         return native, "average"
 
     def _panel_did(self) -> tuple[Any, Literal["average"]]:
-        query = cast(PanelDifferenceInDifferences | StaggeredAdoption | AugmentedPanelDiD, self.query)
+        query = cast(
+            PanelDifferenceInDifferences | StaggeredAdoption | AugmentedPanelDiD, self.query
+        )
         if self.graph is not None or self.discovery is not None:
-            raise CausalUnsupportedError("PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
         self._refuse_ids("PanelDifferenceInDifferences")
         self._refuse_estimator_config("PanelDifferenceInDifferences")
         if self._explicit_refute() or self.bootstrap:
-            raise CausalUnsupportedError("PanelDifferenceInDifferences has no refutation or bootstrap route", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "PanelDifferenceInDifferences has no refutation or bootstrap route",
+                reason_code="option_not_applicable",
+            )
         if self.inference is not None and not isinstance(self.inference, Frequentist):
-            raise CausalUnsupportedError("PanelDifferenceInDifferences supports a cluster standard error only", reason_code="option_not_applicable")
+            raise CausalUnsupportedError(
+                "PanelDifferenceInDifferences supports a cluster standard error only",
+                reason_code="option_not_applicable",
+            )
         names, columns = self.names, self.columns
         design = self.design_columns
         if design is None:
             raise CausalValueError("panel DiD design columns were not bound at prepare")
         if isinstance(query, AugmentedPanelDiD):
             native = _NativePreparedAnalysis.prepare_augmented_panel_did(
-                names, columns, query.outcome_pre, query.outcome_post, query.propensity,
-                query.untreated_change_prediction, list(design["treated"]),
-                list(design["subjects"]), list(design["clusters"]),
-                query.predictions_cross_fitted, accepted=False, **self._common(),
+                names,
+                columns,
+                query.outcome_pre,
+                query.outcome_post,
+                query.propensity,
+                query.untreated_change_prediction,
+                list(design["treated"]),
+                list(design["subjects"]),
+                list(design["clusters"]),
+                query.predictions_cross_fitted,
+                accepted=False,
+                **self._common(),
             )
         elif isinstance(query, StaggeredAdoption):
-            prepare = (_NativePreparedAnalysis.prepare_staggered_event_study
-                       if query.event_study else _NativePreparedAnalysis.prepare_staggered_group_time)
-            arguments = [
-                names, columns, query.outcome, list(design["subjects"]),
-                list(design["clusters"]), list(design["periods"]), list(design["cohorts"]),
-            ]
-            if not query.event_study:
-                arguments.extend((design["target_cohort"], design["target_period"]))
-            native = prepare(*arguments, accepted=False, **self._common())
+            subjects = list(design["subjects"])
+            clusters = list(design["clusters"])
+            periods = list(design["periods"])
+            cohorts = list(design["cohorts"])
+            if query.event_study:
+                native = _NativePreparedAnalysis.prepare_staggered_event_study(
+                    names,
+                    columns,
+                    query.outcome,
+                    subjects,
+                    clusters,
+                    periods,
+                    cohorts,
+                    accepted=False,
+                    **self._common(),
+                )
+            else:
+                native = _NativePreparedAnalysis.prepare_staggered_group_time(
+                    names,
+                    columns,
+                    query.outcome,
+                    subjects,
+                    clusters,
+                    periods,
+                    cohorts,
+                    design["target_cohort"],
+                    design["target_period"],
+                    accepted=False,
+                    **self._common(),
+                )
         else:
             native = _NativePreparedAnalysis.prepare_panel_did(
-                names, columns, query.outcome, list(design["treated"]), list(design["post"]),
-                list(design["subjects"]), list(design["clusters"]),
+                names,
+                columns,
+                query.outcome,
+                list(design["treated"]),
+                list(design["post"]),
+                list(design["subjects"]),
+                list(design["clusters"]),
                 repeated_cross_section=bool(design["repeated_cross_section"]),
-                accepted=False, **self._common()
+                accepted=False,
+                **self._common(),
             )
         return native, "average"
 
@@ -3220,14 +3651,21 @@ class _PrepareRoute:
         if design is None:
             raise CausalValueError("synthetic-control design columns were not bound at prepare")
         native = _NativePreparedAnalysis.prepare_synthetic_control(
-            self.names, self.columns, query.outcome,
-            list(design["units"]), list(design["periods"]),
-            query.treated_unit, query.intervention_period,
+            self.names,
+            self.columns,
+            query.outcome,
+            list(design["units"]),
+            list(design["periods"]),
+            query.treated_unit,
+            query.intervention_period,
             difference_in_differences=isinstance(query, SyntheticDifferenceInDifferences),
             uniform_unit_randomization=query.uniform_unit_randomization,
             sharp_null_effect=query.sharp_null_effect,
-            augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
-            accepted=False, **self._common()
+            augmentation_ridge=query.augmentation_ridge
+            if isinstance(query, SyntheticControl)
+            else None,
+            accepted=False,
+            **self._common(),
         )
         return native, "average"
 
@@ -3278,9 +3716,16 @@ class _PrepareRoute:
         if self.inference is not None and not isinstance(self.inference, Frequentist):
             raise _not_applicable("inference", "local polynomial ratio")
         native = _NativePreparedAnalysis.prepare_local_polynomial_ratio(
-            self.names, self.columns, query.outcome, query.treatment, query.running,
-            query.cutoff, query.bandwidth,
-            kink=isinstance(query, RegressionKink), accepted=False, **self._common(),
+            self.names,
+            self.columns,
+            query.outcome,
+            query.treatment,
+            query.running,
+            query.cutoff,
+            query.bandwidth,
+            kink=isinstance(query, RegressionKink),
+            accepted=False,
+            **self._common(),
         )
         return native, "average"
 
@@ -3311,20 +3756,26 @@ class _PrepareRoute:
                 reason_code="route_not_supported",
             )
         assumption = query.observation_assumption
-        if not isinstance(assumption, IndependentGiven) or (query.known_censoring is None and tuple(assumption.variables)):
+        if not isinstance(assumption, IndependentGiven) or (
+            query.known_censoring is None and tuple(assumption.variables)
+        ):
             raise CausalUnsupportedError(
                 "survival requires IndependentGiven; conditional censoring also requires known censoring survival",
                 reason_code="route_not_supported",
             )
         known = query.known_censoring
         if known is not None:
-            missing = [name for name in (*known.columns, *assumption.variables) if name not in self.names]
+            missing = [
+                name for name in (*known.columns, *assumption.variables) if name not in self.names
+            ]
             if missing:
                 raise CausalUnsupportedError(
                     f"known censoring or conditioning columns are missing: {missing}",
                     reason_code="route_not_supported",
                 )
-        event = query.event_cause if isinstance(query, CompetingRisksOutcome) else query.event_observed
+        event = (
+            query.event_cause if isinstance(query, CompetingRisksOutcome) else query.event_observed
+        )
         target_cause = query.target_cause if isinstance(query, CompetingRisksOutcome) else None
         native = _NativePreparedAnalysis.prepare_survival(
             self.names,
@@ -3368,24 +3819,45 @@ class _PrepareRoute:
                 "retained longitudinal regime value requires known sequential randomization probabilities",
                 reason_code="route_not_supported",
             )
+
         def flatten(matrix: Any) -> list[Any]:
             return [value for row in matrix for value in row]
+
         native = _NativePreparedAnalysis.prepare_longitudinal_regime(
-            self.names, self.columns, query.outcome, query.periods,
-            flatten(query.treatment_history), flatten(query.actions),
-            flatten(query.treatment_probabilities), flatten(query.censoring_probabilities),
-            list(query.outcome_observed), list(query.subject_ids), list(query.fold_ids),
-            query.excluded_fold_predictions, query.probabilities_known_by_design,
-            query.minimum_probability, method=query.method,
-            period_outcome_predictions=flatten(query.period_outcome_predictions) if query.period_outcome_predictions is not None else [],
+            self.names,
+            self.columns,
+            query.outcome,
+            query.periods,
+            flatten(query.treatment_history),
+            flatten(query.actions),
+            flatten(query.treatment_probabilities),
+            flatten(query.censoring_probabilities),
+            list(resolved_opt(query.outcome_observed) or ()),
+            list(resolved(query.subject_ids)),
+            list(resolved_opt(query.fold_ids) or ()),
+            query.excluded_fold_predictions,
+            query.probabilities_known_by_design,
+            query.minimum_probability,
+            method=query.method,
+            period_outcome_predictions=flatten(query.period_outcome_predictions)
+            if query.period_outcome_predictions is not None
+            else [],
             known_fixed_outcome_predictions=query.known_fixed_outcome_predictions,
-            stabilizing_numerator_probabilities=list(query.stabilizing_numerator_probabilities) if query.stabilizing_numerator_probabilities is not None else [],
+            stabilizing_numerator_probabilities=list(query.stabilizing_numerator_probabilities)
+            if query.stabilizing_numerator_probabilities is not None
+            else [],
             q_predictions=flatten(query.q_predictions) if query.q_predictions is not None else [],
-            observation_history=flatten(query.observation_history) if query.observation_history is not None else [],
-            prediction_fold_ids=list(query.prediction_fold_ids) if query.prediction_fold_ids is not None else [],
-            rule_id=query.rule_id, rule_version=query.rule_version,
+            observation_history=flatten(query.observation_history)
+            if query.observation_history is not None
+            else [],
+            prediction_fold_ids=list(resolved(query.prediction_fold_ids))
+            if query.prediction_fold_ids is not None
+            else [],
+            rule_id=query.rule_id,
+            rule_version=query.rule_version,
             rule_provenance=query.rule_provenance,
-            accepted=False, **self._common(),
+            accepted=False,
+            **self._common(),
         )
         return native, "average"
 
@@ -3549,10 +4021,14 @@ class _PrepareRoute:
 
         query = cast(InterferenceQuery, self.query)
         self._refuse_design_options(
-            "InterferenceQuery", "interference.design",
-            "interference.observational_ipw" if isinstance(query.assignment, ObservedExposureDesign)
-            else "interference.saturation_exact" if isinstance(query.assignment, SaturationDesign)
-            else "interference.cluster_neyman" if isinstance(query.assignment, ClusterRandomization)
+            "InterferenceQuery",
+            "interference.design",
+            "interference.observational_ipw"
+            if isinstance(query.assignment, ObservedExposureDesign)
+            else "interference.saturation_exact"
+            if isinstance(query.assignment, SaturationDesign)
+            else "interference.cluster_neyman"
+            if isinstance(query.assignment, ClusterRandomization)
             else "interference.ht_hajek",
         )
         if query.network is None or query.realized_assignment is None:
@@ -3561,15 +4037,16 @@ class _PrepareRoute:
                 "exposure edges) and realized_assignment="
             )
         if query.partial_interference is not None:
-            if not isinstance(query.assignment, (ClusterRandomization, SaturationDesign, ObservedExposureDesign)):
+            if not isinstance(
+                query.assignment, (ClusterRandomization, SaturationDesign, ObservedExposureDesign)
+            ):
                 raise CausalValueError(
                     "partial_interference requires cluster or saturation randomization so cluster assignment is explicit"
                 )
             partial_clusters = list(query.partial_interference.clusters)
             assignment_clusters = list(query.assignment.clusters)
-            if (
-                len(partial_clusters) != len(assignment_clusters)
-                or len(partial_clusters) != len(self.columns[0])
+            if len(partial_clusters) != len(assignment_clusters) or len(partial_clusters) != len(
+                self.columns[0]
             ):
                 raise CausalValueError(
                     "partial-interference and assignment clusters must match data rows"
@@ -3588,13 +4065,14 @@ class _PrepareRoute:
                     "partial-interference clusters must match the cluster-randomization partition"
                 )
             if any(
-                partial_clusters[source] != partial_clusters[target]
-                for source, target, _ in edges
+                partial_clusters[source] != partial_clusters[target] for source, target, _ in edges
             ):
                 raise CausalValueError(
                     "partial-interference assumption violated: network edge crosses cluster boundary"
                 )
-        elif isinstance(query.assignment, (ClusterRandomization, SaturationDesign, ObservedExposureDesign)):
+        elif isinstance(
+            query.assignment, (ClusterRandomization, SaturationDesign, ObservedExposureDesign)
+        ):
             raise CausalValueError(
                 "cluster interference requires partial_interference=PartialInterference(clusters)"
             )
@@ -4148,7 +4626,7 @@ class PreparedAnalysis(Generic[ResultT]):
         controls: _Controls | None = None,
         deferred_suite: str | None = None,
         snapshot_data: Any = None,
-        design_columns: dict[str, tuple[Any, ...]] | None = None,
+        design_columns: dict[str, Any] | None = None,
     ) -> None:
         self._native = native
         self._kind = kind
@@ -4581,7 +5059,16 @@ class PreparedAnalysis(Generic[ResultT]):
             raise _not_applicable("max_completions", "a structure without class completions")
 
         design_columns = None
-        if isinstance(query, (PanelDifferenceInDifferences, AugmentedPanelDiD, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
+        if isinstance(
+            query,
+            (
+                PanelDifferenceInDifferences,
+                AugmentedPanelDiD,
+                StaggeredAdoption,
+                SyntheticControl,
+                SyntheticDifferenceInDifferences,
+            ),
+        ):
             if isinstance(query, AugmentedPanelDiD):
                 names, columns, design_columns = _augmented_panel_did_payload(data, query)
             elif isinstance(query, StaggeredAdoption):
@@ -4890,13 +5377,28 @@ class PreparedAnalysis(Generic[ResultT]):
         if isinstance(query, ConditionalDoseResponse):
             names, columns, design = _continuous_dose_payload(data, query)
             if design != self._design_columns:
-                raise CausalUnsupportedError("continuous-dose refresh requires prepared baseline-group row order", reason_code="invalid_argument")
+                raise CausalUnsupportedError(
+                    "continuous-dose refresh requires prepared baseline-group row order",
+                    reason_code="invalid_argument",
+                )
             return names, columns, None
-        if isinstance(query, (PanelDifferenceInDifferences, AugmentedPanelDiD, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
+        if isinstance(
+            query,
+            (
+                PanelDifferenceInDifferences,
+                AugmentedPanelDiD,
+                StaggeredAdoption,
+                SyntheticControl,
+                SyntheticDifferenceInDifferences,
+            ),
+        ):
             names, columns, design = (
-                _augmented_panel_did_payload(data, query) if isinstance(query, AugmentedPanelDiD)
-                else _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
-                else _synthetic_control_payload(data, query) if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences))
+                _augmented_panel_did_payload(data, query)
+                if isinstance(query, AugmentedPanelDiD)
+                else _staggered_payload(data, query)
+                if isinstance(query, StaggeredAdoption)
+                else _synthetic_control_payload(data, query)
+                if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences))
                 else _panel_did_payload(data, query)
             )
             if design != self._design_columns:

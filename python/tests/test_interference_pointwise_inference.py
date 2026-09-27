@@ -23,10 +23,12 @@ def _network(clusters: int = 80) -> tuple[list[int], list[tuple[int, int]]]:
 def test_cluster_total_interval_is_retained_and_sealed() -> None:
     labels, edges = _network()
     assignment = [cluster >= 40 for cluster in labels]
-    outcome = np.array([
-        5.0 + 0.2 * (cluster % 11) + (2.0 + 0.1 * (cluster % 7)) * assigned
-        for cluster, assigned in zip(labels, assignment, strict=True)
-    ])
+    outcome = np.array(
+        [
+            5.0 + 0.2 * (cluster % 11) + (2.0 + 0.1 * (cluster % 7)) * assigned
+            for cluster, assigned in zip(labels, assignment, strict=True)
+        ]
+    )
     query = interference.InterferenceQuery(
         interference.ClusterRandomization(labels, treated_clusters=40),
         interference.NeighborFraction(),
@@ -61,12 +63,19 @@ def test_cluster_total_interval_is_retained_and_sealed() -> None:
 )
 @pytest.mark.parametrize("cluster_count", [48, 80])
 def test_saturation_interval_and_support_round_trip(
-    name: str, from_level: tuple[float, float], to_level: tuple[float, float], truth: float,
+    name: str,
+    from_level: tuple[float, float],
+    to_level: tuple[float, float],
+    truth: float,
     cluster_count: int,
 ) -> None:
     labels, edges = _network(cluster_count)
-    patterns = ([False, False, False], [True, False, False],
-                [True, True, False], [True, True, True])
+    patterns = (
+        [False, False, False],
+        [True, False, False],
+        [True, True, False],
+        [True, True, True],
+    )
     assignment = [value for cluster in range(cluster_count) for value in patterns[cluster % 4]]
     realized = [0.2 if cluster < cluster_count // 2 else 0.8 for cluster in labels]
     outcome = []
@@ -98,7 +107,7 @@ def test_saturation_interval_and_support_round_trip(
     assert body["interference_inference"]["interval"]["lower"] == pytest.approx(interval.lower)
     tampered = bytearray(result.export())
     tampered[len(tampered) // 2] ^= 0x40
-    with pytest.raises(Exception):
+    with pytest.raises(ant.CausalError, match="checksum mismatch"):
         ant.load(bytes(tampered))
 
 
@@ -108,11 +117,17 @@ def test_saturation_interval_and_support_round_trip(
 )
 @pytest.mark.parametrize("cluster_count", [4, 40])
 def test_saturation_thin_arms_remain_explicitly_point_only(
-    from_level: tuple[float, float], to_level: tuple[float, float], cluster_count: int,
+    from_level: tuple[float, float],
+    to_level: tuple[float, float],
+    cluster_count: int,
 ) -> None:
     labels, edges = _network(cluster_count)
-    patterns = ([False, False, False], [True, False, False],
-                [True, True, False], [True, True, True])
+    patterns = (
+        [False, False, False],
+        [True, False, False],
+        [True, True, False],
+        [True, True, True],
+    )
     assignment = [value for cluster in range(cluster_count) for value in patterns[cluster % 4]]
     realized = [0.2 if cluster < cluster_count // 2 else 0.8 for cluster in labels]
     query = interference.InterferenceQuery(

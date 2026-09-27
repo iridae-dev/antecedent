@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from importlib import metadata
 from types import MappingProxyType
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -238,6 +238,14 @@ class ProviderExecution:
             raise TypeError("provider artifact must be bytes")
 
 
+@runtime_checkable
+class ExecutableProvider(CausalProvider, Protocol):
+    """A :class:`CausalProvider` the registry can run; ``register`` requires this."""
+
+    def execute(self, request: Mapping[str, Any]) -> ProviderExecution:
+        """Return an untrusted execution result for the given request."""
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderResult:
     """Validated output envelope; extensions cannot self-assign native status."""
@@ -329,7 +337,7 @@ class ProviderRegistry:
     """Small explicit registry for separately installed Python providers."""
 
     def __init__(self) -> None:
-        self._providers: dict[str, tuple[CausalProvider, ProviderTrust]] = {}
+        self._providers: dict[str, tuple[ExecutableProvider, ProviderTrust]] = {}
         self._entry_points: dict[str, str] = {}
         self._verification: dict[str, ProviderVerificationReport] = {}
 
@@ -376,6 +384,7 @@ class ProviderRegistry:
             raise TypeError("provider.spec must be a CausalProviderSpec")
         if not callable(getattr(provider, "execute", None)):
             raise TypeError("provider must implement execute(request)")
+        executable = cast(ExecutableProvider, provider)
         if trust is ProviderTrust.NATIVE_LICENSED:
             raise ValueError("Python extensions cannot register as native licensed providers")
         if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
@@ -383,7 +392,7 @@ class ProviderRegistry:
                 "Python provider registration defaults to externally attested; "
                 "verified and native status require the separate evidence gate"
             )
-        self._providers[name] = (provider, trust)
+        self._providers[name] = (executable, trust)
 
     def get(self, name: str) -> CausalProvider:
         try:

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from ._columns import resolved, resolved_opt
 from ._data import as_columns
 from ._native import evaluate_binary_policy as _evaluate_binary_policy
 from ._native import evaluate_binary_policy_doubly_robust as _evaluate_binary_policy_doubly_robust
@@ -181,7 +182,10 @@ class MultiActionPolicy:
             mask = raw_mask.astype(bool)
         if mask.shape != matrix.shape or (~mask).all(axis=1).any():
             raise CausalValueError("each row must have at least one available action")
-        picks = [labels[int(np.argmax(np.where(mask[i], matrix[i], -np.inf)))] for i in range(len(matrix))]
+        picks = [
+            labels[int(np.argmax(np.where(mask[i], matrix[i], -np.inf)))]
+            for i in range(len(matrix))
+        ]
         return cls(labels, picks, costs, capacities, budget)
 
 
@@ -223,8 +227,8 @@ class DoublyRobustPolicyEvaluation:
     uncertainty: str = "row_score_standard_error_independent_subjects"
     evaluation_method: str = "doubly_robust_randomized_heldout_or_cross_fitted"
     assumptions: tuple[str, ...] = (
-    "Known randomized treatment propensities with strict treatment overlap.",
-    "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
+        "Known randomized treatment propensities with strict treatment overlap.",
+        "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
         "Consistency and no interference between evaluation subjects.",
         "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
     )
@@ -321,13 +325,21 @@ class PolicyValue:
         bins; its row-score standard errors make no interval coverage claim.
         """
         selected = BinaryPolicy.top_k(
-            scores, k, available=available, costs=costs, budget=budget,
+            scores,
+            k,
+            available=available,
+            costs=costs,
+            budget=budget,
         )
         bin_count = min(10, len(selected.actions) // 2) if uplift_bins is None else uplift_bins
         return cls(
-            outcome=outcome, assignment=assignment, propensity=propensity,
-            policy=selected, evaluation_subject_ids=evaluation_subject_ids,
-            available=available, uplift_scores=scores,
+            outcome=outcome,
+            assignment=assignment,
+            propensity=propensity,
+            policy=selected,
+            evaluation_subject_ids=evaluation_subject_ids,
+            available=available,
+            uplift_scores=scores,
             uplift_bin_count=bin_count,
             uplift_training_subject_ids=ranking_training_subject_ids,
         )
@@ -357,31 +369,55 @@ class PolicyValue:
         if (self.mu0 is None) != (self.mu1 is None):
             raise CausalValueError("mu0 and mu1 must be supplied together")
         if self.mu0 is not None:
+            # The exclusive-or check above guarantees mu1 is present whenever mu0 is.
+            assert self.mu1 is not None
             n = len(self.policy.actions)
-            if len(self.mu0) != n or len(self.mu1) != n or not all(
-                isfinite(float(value)) for value in (*self.mu0, *self.mu1)
+            if (
+                len(self.mu0) != n
+                or len(self.mu1) != n
+                or not all(isfinite(float(value)) for value in (*self.mu0, *self.mu1))
             ):
-                raise CausalValueError("mu0 and mu1 must have one finite prediction per evaluation row")
+                raise CausalValueError(
+                    "mu0 and mu1 must have one finite prediction per evaluation row"
+                )
         if self.mu0 is None:
             ids = list(self.evaluation_subject_ids)
-            if len(ids) != len(self.policy.actions) or any(
-                not isinstance(value, str) or not value for value in ids
-            ) or len(set(ids)) != len(ids):
-                raise CausalValueError("evaluation_subject_ids must be unique non-empty IDs for every row")
-            if any(value is not None for value in (
-                self.training_subject_ids, self.fold_ids, self.prediction_excluded_fold_ids,
-            )):
+            if (
+                len(ids) != len(self.policy.actions)
+                or any(not isinstance(value, str) or not value for value in ids)
+                or len(set(ids)) != len(ids)
+            ):
+                raise CausalValueError(
+                    "evaluation_subject_ids must be unique non-empty IDs for every row"
+                )
+            if any(
+                value is not None
+                for value in (
+                    self.training_subject_ids,
+                    self.fold_ids,
+                    self.prediction_excluded_fold_ids,
+                )
+            ):
                 raise CausalValueError("prediction ownership metadata requires mu0 and mu1")
             ownership = "no_outcome_nuisance_predictions"
         else:
             ownership = _prediction_ownership(
-                self.evaluation_subject_ids, len(self.policy.actions), self.training_subject_ids,
-                self.fold_ids, self.prediction_excluded_fold_ids,
+                resolved(self.evaluation_subject_ids),
+                len(self.policy.actions),
+                resolved_opt(self.training_subject_ids),
+                resolved_opt(self.fold_ids),
+                resolved_opt(self.prediction_excluded_fold_ids),
             )
         object.__setattr__(self, "assignment", tuple(bool(v) for v in self.assignment))
-        object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0) if self.mu0 is not None else ())
-        object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1) if self.mu1 is not None else ())
-        object.__setattr__(self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids))
+        object.__setattr__(
+            self, "mu0", tuple(float(v) for v in self.mu0) if self.mu0 is not None else ()
+        )
+        object.__setattr__(
+            self, "mu1", tuple(float(v) for v in self.mu1) if self.mu1 is not None else ()
+        )
+        object.__setattr__(
+            self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids)
+        )
         if self.regret_candidates is None:
             if self.regret_training_subject_ids is not None:
                 raise CausalValueError("regret training IDs require a fixed candidate class")
@@ -389,47 +425,92 @@ class PolicyValue:
             candidates = tuple(self.regret_candidates)
             n = len(self.policy.actions)
             training = tuple(self.regret_training_subject_ids or ())
-            if (bool(self.mu0) or self.uplift_scores is not None
+            if (
+                bool(self.mu0)
+                or self.uplift_scores is not None
                 or not 2 <= len(candidates) <= 16
-                or any(not isinstance(candidate, BinaryPolicy) or len(candidate.actions) != n
-                    or candidate.capacity is not None or candidate.budget is not None
-                    or candidate.max_treatment_rate is not None for candidate in candidates)
-                or self.policy.capacity is not None or self.policy.budget is not None
-                or self.policy.max_treatment_rate is not None):
-                raise CausalValueError("finite-class regret requires 2–16 fixed unconstrained binary IPW candidates")
+                or any(
+                    not isinstance(candidate, BinaryPolicy)
+                    or len(candidate.actions) != n
+                    or candidate.capacity is not None
+                    or candidate.budget is not None
+                    or candidate.max_treatment_rate is not None
+                    for candidate in candidates
+                )
+                or self.policy.capacity is not None
+                or self.policy.budget is not None
+                or self.policy.max_treatment_rate is not None
+            ):
+                raise CausalValueError(
+                    "finite-class regret requires 2–16 fixed unconstrained binary IPW candidates"
+                )
+
             def cost(candidate: BinaryPolicy) -> tuple[float, ...]:
                 if isinstance(candidate.costs, (int, float)):
                     return (float(candidate.costs),) * n
                 return tuple(float(value) for value in candidate.costs)
+
             if any(cost(candidate) != cost(self.policy) for candidate in candidates):
-                raise CausalValueError("finite-class regret candidates must use the selected policy's treatment costs")
+                raise CausalValueError(
+                    "finite-class regret candidates must use the selected policy's treatment costs"
+                )
             if self.available is not None and any(
                 action and not self.available[i]
-                for candidate in candidates for i, action in enumerate(candidate.actions)
+                for candidate in candidates
+                for i, action in enumerate(candidate.actions)
             ):
-                raise CausalValueError("finite-class regret candidates must respect action availability")
+                raise CausalValueError(
+                    "finite-class regret candidates must respect action availability"
+                )
             if sum(candidate.actions == self.policy.actions for candidate in candidates) != 1:
-                raise CausalValueError("selected policy must occur exactly once in the fixed candidate class")
-            if (not training or any(not isinstance(value, str) or not value for value in training)
-                or len(set(training)) != len(training) or set(training) & set(self.evaluation_subject_ids)):
-                raise CausalValueError("regret training IDs must be unique, nonempty, and disjoint from evaluation subjects")
+                raise CausalValueError(
+                    "selected policy must occur exactly once in the fixed candidate class"
+                )
+            if (
+                not training
+                or any(not isinstance(value, str) or not value for value in training)
+                or len(set(training)) != len(training)
+                or set(training) & set(self.evaluation_subject_ids)
+            ):
+                raise CausalValueError(
+                    "regret training IDs must be unique, nonempty, and disjoint from evaluation subjects"
+                )
             object.__setattr__(self, "regret_candidates", candidates)
             object.__setattr__(self, "regret_training_subject_ids", training)
         if self.available is not None:
             object.__setattr__(self, "available", tuple(self.available))
         if self.uplift_scores is None:
             if self.uplift_bin_count != 0 or self.uplift_training_subject_ids is not None:
-                raise CausalValueError("uplift_bin_count and uplift_training_subject_ids require uplift_scores")
+                raise CausalValueError(
+                    "uplift_bin_count and uplift_training_subject_ids require uplift_scores"
+                )
         else:
             scores = np.asarray(self.uplift_scores, dtype=np.float64)
             n = len(self.policy.actions)
             if scores.shape != (n,) or not np.isfinite(scores).all():
                 raise CausalValueError("uplift_scores must be finite and match evaluation rows")
-            if isinstance(self.uplift_bin_count, bool) or not isinstance(self.uplift_bin_count, Integral) or not 1 <= self.uplift_bin_count <= n // 2:
-                raise CausalValueError("uplift_bin_count requires at least two evaluation rows in every bin")
-            training = tuple(self.uplift_training_subject_ids) if self.uplift_training_subject_ids is not None else ()
-            if not training or any(not isinstance(value, str) or not value for value in training) or len(set(training)) != len(training) or set(training) & set(self.evaluation_subject_ids):
-                raise CausalValueError("uplift_training_subject_ids must be unique, non-empty, and disjoint from evaluation subjects")
+            if (
+                isinstance(self.uplift_bin_count, bool)
+                or not isinstance(self.uplift_bin_count, Integral)
+                or not 1 <= self.uplift_bin_count <= n // 2
+            ):
+                raise CausalValueError(
+                    "uplift_bin_count requires at least two evaluation rows in every bin"
+                )
+            training = (
+                tuple(self.uplift_training_subject_ids)
+                if self.uplift_training_subject_ids is not None
+                else ()
+            )
+            if (
+                not training
+                or any(not isinstance(value, str) or not value for value in training)
+                or len(set(training)) != len(training)
+                or set(training) & set(self.evaluation_subject_ids)
+            ):
+                raise CausalValueError(
+                    "uplift_training_subject_ids must be unique, non-empty, and disjoint from evaluation subjects"
+                )
             object.__setattr__(self, "uplift_scores", tuple(float(v) for v in scores))
             object.__setattr__(self, "uplift_bin_count", int(self.uplift_bin_count))
             object.__setattr__(self, "uplift_training_subject_ids", training)
@@ -488,29 +569,56 @@ class MultiActionPolicyValue:
         if len(self.assignment) != n or any(value not in labels for value in self.assignment):
             raise CausalValueError("assignment must name one declared action per evaluation row")
         ids = tuple(self.evaluation_subject_ids)
-        if len(ids) != n or any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != n:
-            raise CausalValueError("evaluation_subject_ids must be unique non-empty IDs for every row")
+        if (
+            len(ids) != n
+            or any(not isinstance(value, str) or not value for value in ids)
+            or len(set(ids)) != n
+        ):
+            raise CausalValueError(
+                "evaluation_subject_ids must be unique non-empty IDs for every row"
+            )
         probabilities = np.asarray(self.propensities, dtype=np.float64)
         if probabilities.shape != (n, len(labels)) or not np.isfinite(probabilities).all():
-            raise CausalValueError("propensities must be finite with one row and column per subject and action")
-        if (probabilities <= 0).any() or (probabilities > 1).any() or not np.allclose(
-            probabilities.sum(axis=1), 1.0, rtol=0.0, atol=1e-8,
+            raise CausalValueError(
+                "propensities must be finite with one row and column per subject and action"
+            )
+        if (
+            (probabilities <= 0).any()
+            or (probabilities > 1).any()
+            or not np.allclose(
+                probabilities.sum(axis=1),
+                1.0,
+                rtol=0.0,
+                atol=1e-8,
+            )
         ):
-            raise CausalValueError("each randomized action probability must be positive and rows must sum to one")
+            raise CausalValueError(
+                "each randomized action probability must be positive and rows must sum to one"
+            )
         object.__setattr__(self, "assignment", tuple(self.assignment))
         object.__setattr__(self, "evaluation_subject_ids", ids)
-        object.__setattr__(self, "propensities", tuple(tuple(map(float, row)) for row in probabilities))
+        object.__setattr__(
+            self, "propensities", tuple(tuple(map(float, row)) for row in probabilities)
+        )
         if self.available is not None:
             mask = np.asarray(self.available, dtype=object)
             if mask.shape != (n, len(labels)) or any(
                 not isinstance(value, (bool, np.bool_)) for value in mask.flat
             ):
-                raise CausalValueError("available must contain one bool per evaluation row and action")
-            object.__setattr__(self, "available", tuple(tuple(bool(v) for v in row) for row in mask))
+                raise CausalValueError(
+                    "available must contain one bool per evaluation row and action"
+                )
+            object.__setattr__(
+                self, "available", tuple(tuple(bool(v) for v in row) for row in mask)
+            )
         if self.baseline_groups is not None:
             groups = tuple(self.baseline_groups)
-            if len(groups) != n or any(not isinstance(group, str) or not group.strip() for group in groups):
-                raise CausalValueError("baseline_groups must contain one non-empty pre-treatment label per row")
+            if len(groups) != n or any(
+                not isinstance(group, str) or not group.strip() for group in groups
+            ):
+                raise CausalValueError(
+                    "baseline_groups must contain one non-empty pre-treatment label per row"
+                )
             object.__setattr__(self, "baseline_groups", groups)
 
 
@@ -532,6 +640,7 @@ class MultiActionCatePoint:
 @dataclass(frozen=True, slots=True)
 class UpliftBin:
     """Held-out randomized uplift for one fixed descending score bin."""
+
     rank: int
     effect: float
     standard_error: float
@@ -615,35 +724,54 @@ class ConditionalDoseResponse:
 
     def __post_init__(self) -> None:
         names = (self.outcome, self.dose, self.baseline_group, self.dose_density)
-        if any(not isinstance(name, str) or not name.strip() for name in names) or len(set(names)) != 4:
+        if (
+            any(not isinstance(name, str) or not name.strip() for name in names)
+            or len(set(names)) != 4
+        ):
             raise CausalValueError("continuous-dose columns must be distinct non-empty names")
         try:
             targets = tuple(float(value) for value in self.target_doses)
         except (TypeError, ValueError) as error:
             raise CausalValueError("target_doses must be numeric") from error
-        if (not targets and self.policy_doses is None) or any(not isfinite(value) for value in targets):
-            raise CausalValueError("target_doses must be finite and non-empty unless fixed policy doses are supplied")
+        if (not targets and self.policy_doses is None) or any(
+            not isfinite(value) for value in targets
+        ):
+            raise CausalValueError(
+                "target_doses must be finite and non-empty unless fixed policy doses are supplied"
+            )
         object.__setattr__(self, "target_doses", targets)
         if not isfinite(self.bandwidth) or self.bandwidth <= 0.0:
             raise CausalValueError("bandwidth must be finite and positive")
-        if isinstance(self.min_local_support, bool) or not isinstance(self.min_local_support, Integral) or self.min_local_support < 2:
+        if (
+            isinstance(self.min_local_support, bool)
+            or not isinstance(self.min_local_support, Integral)
+            or self.min_local_support < 2
+        ):
             raise CausalValueError("min_local_support must be an integer of at least two")
         object.__setattr__(self, "min_local_support", int(self.min_local_support))
         if self.density_provenance not in ("known", "externally_estimated"):
             raise CausalValueError("density_provenance must be known or externally_estimated")
         if (self.policy_doses is None) != (self.reference_doses is None):
-            raise CausalValueError("fixed dose policy requires both policy_doses and reference_doses")
+            raise CausalValueError(
+                "fixed dose policy requires both policy_doses and reference_doses"
+            )
         for name in ("policy_doses", "reference_doses"):
             rule = getattr(self, name)
             if rule is None:
                 continue
             pairs = tuple(rule.items()) if isinstance(rule, Mapping) else tuple(rule)
-            if not pairs or any(not isinstance(group, str) or not group.strip()
-                                or not isfinite(float(dose)) for group, dose in pairs):
-                raise CausalValueError(f"{name} must contain finite doses for non-empty baseline groups")
+            if not pairs or any(
+                not isinstance(group, str) or not group.strip() or not isfinite(float(dose))
+                for group, dose in pairs
+            ):
+                raise CausalValueError(
+                    f"{name} must contain finite doses for non-empty baseline groups"
+                )
             if len({group for group, _ in pairs}) != len(pairs):
                 raise CausalValueError(f"{name} must name each baseline group once")
-            object.__setattr__(self, name, tuple(sorted((group, float(dose)) for group, dose in pairs)))
+            object.__setattr__(
+                self, name, tuple(sorted((group, float(dose)) for group, dose in pairs))
+            )
 
 
 def uplift_by_score(
@@ -666,7 +794,9 @@ def uplift_by_score(
     try:
         values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
     except ValueError as error:
-        raise CausalValueError(f"outcome column {outcome!r} is missing from evaluation_data") from error
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
     score_values = np.asarray(scores, dtype=np.float64)
     if score_values.shape != values.shape or not np.isfinite(score_values).all():
         raise CausalValueError("scores must be finite and match evaluation rows")
@@ -682,11 +812,16 @@ def uplift_by_score(
         bin_ids[row] = min(bins - 1, rank * bins // len(values))
     propensity_values = [float(propensity)] if np.isscalar(propensity) else list(propensity)
     raw = _uplift_by_score(
-        values, [bool(value) for value in assignment], bin_ids.tolist(),
-        np.asarray(propensity_values, dtype=np.float64), int(bins),
+        values,
+        [bool(value) for value in assignment],
+        bin_ids.tolist(),
+        np.asarray(propensity_values, dtype=np.float64),
+        int(bins),
     )
-    return tuple(UpliftBin(int(rank), float(effect), float(se), int(count))
-                 for rank, effect, se, count in raw)
+    return tuple(
+        UpliftBin(int(rank), float(effect), float(se), int(count))
+        for rank, effect, se, count in raw
+    )
 
 
 def evaluate_policy(
@@ -717,11 +852,13 @@ def evaluate_policy(
     try:
         values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
     except ValueError as error:
-        raise CausalValueError(f"outcome column {outcome!r} is missing from evaluation_data") from error
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
     n = len(values)
     if len(policy.actions) != n or len(assignment) != n:
         raise CausalValueError("policy actions and assignment must match evaluation row count")
-    reference_actions = list(reference.actions) if reference else [False] * n
+    reference_actions = list(resolved(reference.actions)) if reference else [False] * n
     if len(reference_actions) != n:
         raise CausalValueError("reference policy actions must match evaluation row count")
     if any(not isinstance(value, (bool, np.bool_)) for value in assignment):
@@ -730,8 +867,12 @@ def evaluate_policy(
         not isinstance(value, (bool, np.bool_)) for value in available
     ):
         raise CausalValueError("available entries must be bool values")
-    probability_values = [float(propensity)] if np.isscalar(propensity) else list(propensity)
-    cost_values = [float(policy.costs)] if np.isscalar(policy.costs) else list(policy.costs)
+    probability_values = (
+        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity)
+    )
+    cost_values = (
+        [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
+    )
     capacity = policy.capacity
     if policy.max_treatment_rate is not None:
         rate_capacity = floor(policy.max_treatment_rate * n)
@@ -740,14 +881,12 @@ def evaluate_policy(
     if reference is not None and reference.max_treatment_rate is not None:
         rate_capacity = floor(reference.max_treatment_rate * n)
         reference_capacity = (
-            rate_capacity
-            if reference_capacity is None
-            else min(reference_capacity, rate_capacity)
+            rate_capacity if reference_capacity is None else min(reference_capacity, rate_capacity)
         )
     raw = _evaluate_binary_policy(
         values,
         [bool(value) for value in assignment],
-        list(policy.actions),
+        list(resolved(policy.actions)),
         np.asarray(probability_values, dtype=np.float64),
         reference=reference_actions,
         costs=cost_values,
@@ -755,7 +894,7 @@ def evaluate_policy(
             None
             if reference is None
             else [float(reference.costs)]
-            if np.isscalar(reference.costs)
+            if isinstance(reference.costs, (int, float))
             else list(reference.costs)
         ),
         available=None if available is None else [bool(value) for value in available],
@@ -764,7 +903,7 @@ def evaluate_policy(
         reference_capacity=reference_capacity,
         reference_budget=None if reference is None else reference.budget,
     )
-    return PolicyEvaluation(*map(float, raw))
+    return PolicyEvaluation(*raw)
 
 
 def _prediction_ownership(
@@ -775,19 +914,29 @@ def _prediction_ownership(
     prediction_excluded_fold_ids: Sequence[int] | None,
 ) -> str:
     evaluation_ids = list(evaluation_subject_ids)
-    if len(evaluation_ids) != n or any(not isinstance(value, str) or not value for value in evaluation_ids):
-        raise CausalValueError("evaluation_subject_ids must contain one non-empty ID per evaluation row")
+    if len(evaluation_ids) != n or any(
+        not isinstance(value, str) or not value for value in evaluation_ids
+    ):
+        raise CausalValueError(
+            "evaluation_subject_ids must contain one non-empty ID per evaluation row"
+        )
     if len(set(evaluation_ids)) != n:
-        raise CausalValueError("evaluation_subject_ids must be unique for row-level standard errors")
+        raise CausalValueError(
+            "evaluation_subject_ids must be unique for row-level standard errors"
+        )
     if training_subject_ids is not None:
         if fold_ids is not None or prediction_excluded_fold_ids is not None:
             raise CausalValueError("supply held-out training IDs or fold metadata, not both")
         training_ids = list(training_subject_ids)
-        if not training_ids or any(not isinstance(value, str) or not value for value in training_ids):
+        if not training_ids or any(
+            not isinstance(value, str) or not value for value in training_ids
+        ):
             raise CausalValueError("training_subject_ids must contain non-empty IDs")
         overlap = set(evaluation_ids).intersection(training_ids)
         if overlap:
-            raise CausalValueError("held-out ownership failure: training and evaluation subject IDs overlap")
+            raise CausalValueError(
+                "held-out ownership failure: training and evaluation subject IDs overlap"
+            )
         return "held_out_disjoint_subject_ids"
     if fold_ids is None or prediction_excluded_fold_ids is None:
         raise CausalValueError(
@@ -840,8 +989,11 @@ def evaluate_policy_doubly_robust(
     if reference is not None and not isinstance(reference, BinaryPolicy):
         raise CausalTypeError("reference must be a BinaryPolicy or None")
     ownership = _prediction_ownership(
-        evaluation_subject_ids, len(policy.actions), training_subject_ids,
-        fold_ids, prediction_excluded_fold_ids,
+        evaluation_subject_ids,
+        len(policy.actions),
+        training_subject_ids,
+        fold_ids,
+        prediction_excluded_fold_ids,
     )
     # Reuse the native HT path for the established recommendation, availability,
     # capacity, and budget validation contract.
@@ -858,7 +1010,9 @@ def evaluate_policy_doubly_robust(
     try:
         values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
     except ValueError as error:
-        raise CausalValueError(f"outcome column {outcome!r} is missing from evaluation_data") from error
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
     n = len(values)
     mu0_values = np.asarray(mu0, dtype=np.float64)
     mu1_values = np.asarray(mu1, dtype=np.float64)
@@ -867,25 +1021,38 @@ def evaluate_policy_doubly_robust(
     if not np.isfinite(mu0_values).all() or not np.isfinite(mu1_values).all():
         raise CausalValueError("mu0 and mu1 predictions must be finite")
     probability_values = np.asarray(
-        [float(propensity)] if np.isscalar(propensity) else list(propensity), dtype=np.float64
+        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity),
+        dtype=np.float64,
     )
     raw = _evaluate_binary_policy_doubly_robust(
         values,
         [bool(value) for value in assignment],
-        list(policy.actions),
+        list(resolved(policy.actions)),
         probability_values,
         mu0_values,
         mu1_values,
-        reference=list(reference.actions) if reference is not None else None,
-        costs=[float(policy.costs)] if np.isscalar(policy.costs) else list(policy.costs),
+        reference=list(resolved(reference.actions)) if reference is not None else None,
+        costs=(
+            [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
+        ),
         reference_costs=(
-            None if reference is None else
-            [float(reference.costs)] if np.isscalar(reference.costs) else list(reference.costs)
+            None
+            if reference is None
+            else [float(reference.costs)]
+            if isinstance(reference.costs, (int, float))
+            else list(reference.costs)
         ),
     )
     return DoublyRobustPolicyEvaluation(
-        *map(float, raw[:6]),
-        *map(float, raw[6:9]),
+        float(raw[0]),
+        float(raw[1]),
+        float(raw[2]),
+        float(raw[3]),
+        float(raw[4]),
+        float(raw[5]),
+        float(raw[6]),
+        float(raw[7]),
+        float(raw[8]),
         prediction_ownership=ownership,
         propensity_min=float(raw[9]),
         propensity_max=float(raw[10]),
@@ -919,23 +1086,25 @@ def evaluate_multi_action_policy(
     try:
         values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
     except ValueError as error:
-        raise CausalValueError(f"outcome column {outcome!r} is missing from evaluation_data") from error
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
     n = len(values)
     labels = tuple(policy.action_labels)
     if len(assignment) != n or len(policy.recommendations) != n:
         raise CausalValueError("assignment and recommendations must match evaluation row count")
     if any(action not in labels for action in assignment):
         raise CausalValueError("assignment contains an undeclared action label")
-    reference_actions = (
-        [labels[0]] * n if reference is None else list(reference.recommendations)
-    )
+    reference_actions = [labels[0]] * n if reference is None else list(reference.recommendations)
     if len(reference_actions) != n:
         raise CausalValueError("reference recommendations must match evaluation row count")
     probs = np.asarray(propensities, dtype=np.float64)
     if probs.shape != (n, len(labels)):
         raise CausalValueError("propensities must have one column per action and one row per unit")
     availability = (
-        [[True] * len(labels) for _ in range(n)] if available is None else [list(row) for row in available]
+        [[True] * len(labels) for _ in range(n)]
+        if available is None
+        else [list(row) for row in available]
     )
     if len(availability) != n or any(
         len(row) != len(labels) or any(not isinstance(v, (bool, np.bool_)) for v in row)
@@ -959,9 +1128,7 @@ def evaluate_multi_action_policy(
         reference=encoded_reference,
         costs=list(policy.costs or [0.0] * len(labels)),
         reference_costs=(
-            None
-            if reference is None
-            else list(reference.costs or [0.0] * len(labels))
+            None if reference is None else list(reference.costs or [0.0] * len(labels))
         ),
         available=availability,
         capacities=policy_capacities,

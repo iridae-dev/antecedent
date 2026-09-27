@@ -18,13 +18,52 @@ class validates exactly as before, so the inline-array path is untouched.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import is_dataclass, replace
-from typing import Any
+from typing import Any, TypeVar, overload
 
 import numpy as np
 
 from .errors import CausalValueError
+
+_T = TypeVar("_T")
+
+
+def resolved(value: Sequence[_T] | str) -> Sequence[_T]:
+    """Narrow a column-name field to its array once :func:`resolve_columns` has run.
+
+    A design query accepts a row-aligned input either inline or as the name of a
+    data column (a ``str``). :func:`resolve_columns` rebuilds the query with the
+    named column's array before the native study is prepared, so by the time a
+    prepared study reads the field the ``str`` branch is gone. This asserts that
+    invariant and hands the caller (and the type checker) the sequence.
+    """
+    assert not isinstance(value, str), "column-name input must be resolved before prepare"
+    return value
+
+
+@overload
+def resolved_opt(value: None) -> None: ...
+@overload
+def resolved_opt(value: Sequence[_T] | str) -> Sequence[_T]: ...
+def resolved_opt(value: Sequence[_T] | str | None) -> Sequence[_T] | None:
+    """Like :func:`resolved`, but pass ``None`` through for optional fields."""
+    if value is None:
+        return None
+    assert not isinstance(value, str), "column-name input must be resolved before prepare"
+    return value
+
+
+def resolved_scalar(value: float | Sequence[float] | str) -> float | Sequence[float]:
+    """Narrow a scalar-or-column field (e.g. a per-row propensity) once resolved.
+
+    The field is either a scalar, an inline sequence, or the name of a data column
+    that :func:`resolve_columns` has already turned into a sequence, so the ``str``
+    branch is gone by prepare.
+    """
+    assert not isinstance(value, str), "column-name input must be resolved before prepare"
+    return value
+
 
 _KIND_CAST = {
     "bool": lambda arr: tuple(bool(v) for v in arr),
@@ -60,9 +99,7 @@ def collect_column_names(obj: Any) -> set[str]:
     names: set[str] = set()
     spec = getattr(type(obj), "_COLUMN_FIELDS", None)
     if spec and getattr(obj, "_deferred_columns", False):
-        names |= {
-            getattr(obj, field) for field in spec if isinstance(getattr(obj, field), str)
-        }
+        names |= {getattr(obj, field) for field in spec if isinstance(getattr(obj, field), str)}
     for nested in getattr(type(obj), "_COLUMN_NESTED", ()):
         names |= collect_column_names(getattr(obj, nested, None))
     return names
