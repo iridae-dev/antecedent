@@ -86,6 +86,8 @@ pub struct ContinuousDoseResponseSection {
     pub uncertainty: String,
     /// Kernel-smoothed policy and reference value when group-dose rules were supplied.
     pub fixed_policy: Option<DosePolicyValueSection>,
+    /// Exact graphless support license, absent for off-axis dose results.
+    pub graphless_support_status: Option<String>,
 }
 
 impl From<&antecedent::ContinuousDoseResponseEstimate> for ContinuousDoseResponseSection {
@@ -99,6 +101,7 @@ impl From<&antecedent::ContinuousDoseResponseEstimate> for ContinuousDoseRespons
             bandwidth: value.bandwidth,
             density_provenance: value.density_provenance.to_string(),
             uncertainty: value.uncertainty.to_string(),
+            graphless_support_status: None,
             fixed_policy: value.fixed_policy.as_ref().map(|policy| DosePolicyValueSection {
                 policy_doses: policy.policy_doses.clone(),
                 reference_doses: policy.reference_doses.clone(),

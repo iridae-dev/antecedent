@@ -122,6 +122,35 @@ impl CheckedContinuousDoseOperation {
                 self.query.density_provenance.as_ref() == "known",
             ).map_err(|message| CausalError::Compile { message })
         }).transpose()?;
+        let licensed_fixed_policy = fixed_policy.as_ref().is_some_and(|value| {
+            let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
+            for group in &groups {
+                *group_rows.entry(group.as_str()).or_default() += 1;
+            }
+            let intervals = [value.policy_interval_95, value.reference_interval_95,
+                value.incremental_interval_95];
+            matches!(crate::support::classify_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "continuous_dose_policy",
+                    design: "fixed_group_kernel",
+                    method: "inverse_density_kernel_paired_scores",
+                    inference_claim: "policy_reference_incremental_pointwise_95_normal_intervals",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit", rows: self.rows,
+                    min_group_rows: group_rows.values().copied().min().unwrap_or(0),
+                    min_local_rows: value.minimum_local_rows,
+                    min_effective_sample_size: value.minimum_effective_sample_size,
+                    max_normalized_weight: value.maximum_normalized_weight,
+                    min_dose_density: value.minimum_dose_density,
+                    interval_95_published: intervals.iter().all(Option::is_some),
+                    reported_intervals: intervals.iter().filter(|interval| interval.is_some()).count(),
+                    all_reported_intervals: intervals.iter().all(Option::is_some),
+                    known_density: self.query.density_provenance.as_ref() == "known",
+                    ..Default::default()
+                },
+            ), crate::support::GraphlessSupportStatus::Licensed { .. })
+        });
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -173,6 +202,9 @@ impl CheckedContinuousDoseOperation {
             }),
             fixed_policy,
         });
+        if licensed_fixed_policy {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         result.treatment = None;
         Ok(result)
     }

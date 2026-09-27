@@ -35,6 +35,7 @@ def test_fixed_dose_policy_uses_retained_analyze_and_prepare():
     response = result.continuous_dose_response
     assert response is not None
     assert response.policy_value_estimated
+    assert response.support_status == "licensed"
     assert response.points == ()
     value = response.fixed_policy
     assert value is not None
@@ -58,6 +59,7 @@ def test_fixed_dose_policy_refuses_malformed_rules_and_withholds_external_densit
             policy_doses={"a": 0.7}, reference_doses={"a": 0.3},
         ), refute="none")
     result = ant.analyze(_data(), query=_query("externally_estimated"), refute="none")
+    assert result.continuous_dose_response.support_status == "unlicensed_point_utility"
     value = result.continuous_dose_response.fixed_policy
     assert value is not None
     assert value.incremental_interval_95 is None

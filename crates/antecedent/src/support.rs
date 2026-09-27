@@ -48,7 +48,7 @@ pub struct GraphlessSupportKey<'a> {
     pub inference_claim: &'a str,
 }
 
-/// Observed independent assignment units in a binary randomized contrast.
+/// Observed design and inference support for an exact graphless license.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphlessAssignmentSupport {
     /// `unit`, `cluster`, or independent `sequence`, matched to the licensed design.
@@ -89,6 +89,16 @@ pub struct GraphlessAssignmentSupport {
     pub min_group_rows: usize,
     /// Smallest compared-arm count within a fixed baseline group.
     pub min_group_arm_rows: usize,
+    /// Smallest local kernel window across fixed dose-policy targets.
+    pub min_local_rows: usize,
+    /// Smallest effective sample size across fixed dose-policy windows.
+    pub min_effective_sample_size: f64,
+    /// Largest normalized kernel weight across fixed dose-policy windows.
+    pub max_normalized_weight: f64,
+    /// Smallest observed-dose density across fixed dose-policy windows.
+    pub min_dose_density: f64,
+    /// Caller declares the supplied observed-dose density known, not fitted here.
+    pub known_density: bool,
     /// Global action constraints do not couple subject recommendations.
     pub uncoupled_constraints: bool,
     /// Outcome nuisance predictions use declared disjoint training subjects.
@@ -148,10 +158,16 @@ pub fn classify_graphless(
                 && observed.min_bin_arm_rows >= row.min_bin_arm_rows
                 && observed.min_group_rows >= row.min_group_rows
                 && observed.min_group_arm_rows >= row.min_group_arm_rows
+                && observed.min_local_rows >= row.min_local_rows
+                && observed.min_effective_sample_size + 1e-12 >= row.min_effective_sample_size
+                && (row.max_normalized_weight == 0.0
+                    || observed.max_normalized_weight <= row.max_normalized_weight + 1e-12)
+                && observed.min_dose_density + 1e-12 >= row.min_dose_density
                 && (!row.requires_uncoupled_constraints || observed.uncoupled_constraints)
                 && (!row.requires_disjoint_nuisance_training || observed.disjoint_nuisance_training)
                 && (!row.requires_rank_ownership || observed.rank_ownership)
                 && (!row.requires_balanced_sequences || observed.balanced_sequences)
+                && (!row.requires_known_density || observed.known_density)
         })
         .map_or(GraphlessSupportStatus::Refused, |row| GraphlessSupportStatus::Licensed {
             limitations: row.limitations,
@@ -163,6 +179,41 @@ pub fn classify_graphless(
 #[cfg(test)]
 mod graphless_support_tests {
     use super::*;
+
+    #[test]
+    fn fixed_dose_policy_requires_every_local_and_provenance_gate() {
+        let key = GraphlessSupportKey {
+            family: "continuous_dose_policy",
+            design: "fixed_group_kernel",
+            method: "inverse_density_kernel_paired_scores",
+            inference_claim: "policy_reference_incremental_pointwise_95_normal_intervals",
+        };
+        let support = GraphlessAssignmentSupport {
+            assignment_unit: "unit", rows: 600, min_group_rows: 300,
+            min_local_rows: 80, min_effective_sample_size: 50.0,
+            max_normalized_weight: 0.05, min_dose_density: 0.2,
+            interval_95_published: true, reported_intervals: 3,
+            all_reported_intervals: true, known_density: true,
+            ..Default::default()
+        };
+        assert!(matches!(classify_graphless(key, support), GraphlessSupportStatus::Licensed { .. }));
+        for weaker in [
+            GraphlessAssignmentSupport { rows: 599, ..support },
+            GraphlessAssignmentSupport { min_group_rows: 299, ..support },
+            GraphlessAssignmentSupport { min_local_rows: 79, ..support },
+            GraphlessAssignmentSupport { min_effective_sample_size: 49.0, ..support },
+            GraphlessAssignmentSupport { max_normalized_weight: 0.051, ..support },
+            GraphlessAssignmentSupport { min_dose_density: 0.19, ..support },
+            GraphlessAssignmentSupport { reported_intervals: 2, ..support },
+            GraphlessAssignmentSupport { all_reported_intervals: false, ..support },
+            GraphlessAssignmentSupport { known_density: false, ..support },
+            GraphlessAssignmentSupport { interval_95_published: false, ..support },
+        ] {
+            assert_eq!(classify_graphless(key, weaker), GraphlessSupportStatus::Refused);
+        }
+        assert_eq!(classify_graphless(GraphlessSupportKey { design: "exact_dose", ..key }, support),
+            GraphlessSupportStatus::Refused);
+    }
 
     #[test]
     fn exact_randomized_design_claims_require_measured_assignment_support() {

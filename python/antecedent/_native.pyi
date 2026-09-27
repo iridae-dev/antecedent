@@ -513,6 +513,7 @@ class ContinuousDoseResponseSection:
     density_provenance: str
     uncertainty: str
     fixed_policy: DosePolicyValueSection | None
+    graphless_support_status: str | None
 
 class DosePolicyValueSection:
     policy_doses: list[tuple[str, float]]
