@@ -15,8 +15,9 @@ the result's support, uncertainty, and assumptions.
 
 Calibration has the same discipline: a reported interval is `calibrated` only
 when a matching coverage record still attests the current code and the
-execution lies inside that record's measured scope. The 2.0 calibration
-measurement program has run, and the committed records attest this tree.
+execution lies inside that record's measured scope. The committed 2.0
+measurements remain available for audit, but the current 2.1.0 source changes
+owe remeasurement before those records can attest this build.
 
 Licensed does not mean measured. Of the 472 licensed cells, 297 cite coverage
 records, 170 have no coverage measurement for their estimator
