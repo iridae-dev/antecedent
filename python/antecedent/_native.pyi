@@ -1251,6 +1251,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        reference: tuple[float, float] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_change_attribution(

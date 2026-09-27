@@ -2793,6 +2793,11 @@ class _PrepareRoute:
         else:
             raise CausalTypeError(f"{route} requires graph=Dag(...) or an edge list")
         if isinstance(query, AnomalyAttribution):
+            reference = (
+                (float(query.reference.center), float(query.reference.scale))
+                if query.reference is not None
+                else None
+            )
             native = _NativePreparedAnalysis.prepare_anomaly_attribution(
                 self.names,
                 self.columns,
@@ -2800,6 +2805,7 @@ class _PrepareRoute:
                 list(query.targets),
                 int(query.max_units),
                 accepted=self.accepted,
+                reference=reference,
                 **self._common(),
             )
         else:

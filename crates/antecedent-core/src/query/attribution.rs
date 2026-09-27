@@ -8,6 +8,42 @@ use crate::ids::VariableId;
 
 use super::error::QueryError;
 
+/// Reference location/scale for the anomaly IT score's marginal tail.
+///
+/// The IT anomaly score is `−log 2Φ(−|y − center|/scale)` evaluated against a
+/// reference `(center, scale)`. [`AnomalyReference::Empirical`] (the default)
+/// estimates the reference from the target's observed marginal (robust median /
+/// `1.4826·MAD`), so the score — and any mean of it — depends on the realized
+/// sample's median/MAD nuisance. [`AnomalyReference::Fixed`] injects a known
+/// `(center, scale)` instead, so the population mean anomaly score is a fixed
+/// functional of the target's law, `μ_A = E_Y[−log 2Φ(−|Y − center|/scale)]`,
+/// rather than of the sample.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AnomalyReference {
+    /// Robust median / `1.4826·MAD` of the observed target column (default).
+    #[default]
+    Empirical,
+    /// A fixed reference location and scale, stored as bit patterns so the query
+    /// stays `Eq`/`Hash`. `scale` must be finite and strictly positive.
+    Fixed {
+        /// Reference location `center`.
+        center: OrderedFloatBits,
+        /// Reference scale `scale`.
+        scale: OrderedFloatBits,
+    },
+}
+
+impl AnomalyReference {
+    /// A fixed reference at `(center, scale)`.
+    #[must_use]
+    pub fn fixed(center: f64, scale: f64) -> Self {
+        Self::Fixed {
+            center: OrderedFloatBits::from_f64(center),
+            scale: OrderedFloatBits::from_f64(scale),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 /// Anomaly attribution query for observed units.
 pub struct AnomalyAttributionQuery {
@@ -17,19 +53,33 @@ pub struct AnomalyAttributionQuery {
     pub unit_rows: Option<Arc<[usize]>>,
     /// Maximum number of units to score (hard size limit).
     pub max_units: usize,
+    /// Reference location/scale for the IT anomaly score (default `Empirical`).
+    pub reference: AnomalyReference,
 }
 
 impl AnomalyAttributionQuery {
     /// Score all complete rows for `targets`, capped at `max_units`.
     #[must_use]
     pub fn new(targets: impl Into<Arc<[VariableId]>>, max_units: usize) -> Self {
-        Self { targets: targets.into(), unit_rows: None, max_units }
+        Self {
+            targets: targets.into(),
+            unit_rows: None,
+            max_units,
+            reference: AnomalyReference::Empirical,
+        }
     }
 
     /// Restrict to explicit row indices.
     #[must_use]
     pub fn with_unit_rows(mut self, rows: impl Into<Arc<[usize]>>) -> Self {
         self.unit_rows = Some(rows.into());
+        self
+    }
+
+    /// Inject a reference location/scale for the IT anomaly score.
+    #[must_use]
+    pub fn with_reference(mut self, reference: AnomalyReference) -> Self {
+        self.reference = reference;
         self
     }
 
@@ -44,6 +94,12 @@ impl AnomalyAttributionQuery {
         }
         if self.max_units == 0 {
             return Err(QueryError::NonPositiveAnomalyLimit);
+        }
+        if let AnomalyReference::Fixed { center, scale } = self.reference {
+            let (center, scale) = (center.to_f64(), scale.to_f64());
+            if !center.is_finite() || !scale.is_finite() || scale <= 0.0 {
+                return Err(QueryError::InvalidAnomalyReference);
+            }
         }
         Ok(())
     }

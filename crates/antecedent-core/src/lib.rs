@@ -105,8 +105,9 @@ pub use plan::{
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use query::{
-    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
-    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
+    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
+    AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
+    ConditionalEffectQuery,
     ContinuousDomain, CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting,
     DidSamplingDesign, DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment,
     EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime,

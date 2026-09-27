@@ -45,6 +45,7 @@ _EXPECTED_ALL = {
     "LongitudinalRegimeEstimate",
     # Queries
     "AnomalyAttribution",
+    "AnomalyReference",
     "AverageDerivative",
     "AverageEffect",
     "ChangeAttribution",

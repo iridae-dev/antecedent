@@ -125,6 +125,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "TemporalDag",
         # Queries
         "AnomalyAttribution",
+        "AnomalyReference",
         "AverageDerivative",
         "AverageEffect",
         "ChangeAttribution",

@@ -135,6 +135,7 @@ from .interference import InterferenceQuery
 from .policy import BinaryPolicy, PolicyValue
 from .query import (
     AnomalyAttribution,
+    AnomalyReference,
     AverageDerivative,
     AverageEffect,
     ChangeAttribution,
@@ -180,6 +181,7 @@ __all__ = [
     "AnalysisResult",
     # Queries
     "AnomalyAttribution",
+    "AnomalyReference",
     "AverageDerivative",
     "AverageEffect",
     "ChangeAttribution",

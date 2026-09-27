@@ -72,6 +72,9 @@ pub enum QueryError {
     /// Anomaly `max_units` must be ≥ 1.
     #[error("anomaly max_units must be >= 1")]
     NonPositiveAnomalyLimit,
+    /// Anomaly fixed reference scale must be finite and strictly positive.
+    #[error("anomaly fixed reference requires a finite center and a finite positive scale")]
+    InvalidAnomalyReference,
     /// Mediation query has no mediators.
     #[error("mediation query requires mediators")]
     EmptyMediators,

@@ -461,13 +461,15 @@ impl super::Study {
                 ))
             })?;
         let fitted = fit_gcm(graph.clone(), data)?;
-        let scores = anomaly_attribution_with(
-            &fitted.model,
-            data,
-            query.targets.iter().copied(),
+        // Score all rows (preserving the prior facade behavior of ignoring `unit_rows`
+        // for the published mean) while honoring the query's reference. Fixing the
+        // reference is what gives the mean anomaly score a sample-independent truth.
+        let scorer_query = antecedent_core::AnomalyAttributionQuery::new(
+            query.targets.clone(),
             query.max_units,
-            ctx,
-        )?;
+        )
+        .with_reference(query.reference);
+        let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
         let mut result = self.finish_gcm(
             physical,
             CausalQuery::AnomalyAttribution(query.clone()),
@@ -502,11 +504,10 @@ impl super::Study {
                 let store = registry
                     .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                let draw_scores = anomaly_attribution_with(
+                let draw_scores = anomaly_attribution_query_with(
                     &fitted.model.clone().with_mechanisms(store),
                     data,
-                    query.targets.iter().copied(),
-                    query.max_units,
+                    &scorer_query,
                     ctx,
                 )?;
                 if draw_scores.len() != columns.len() {
@@ -515,12 +516,15 @@ impl super::Study {
                     });
                 }
                 for (column, score) in columns.iter_mut().zip(draw_scores) {
-                    let mean = if score.scores.is_empty() {
-                        f64::NAN
-                    } else {
-                        score.scores.iter().sum::<f64>() / score.scores.len() as f64
-                    };
-                    column.1.push(mean);
+                    // The per-draw mean anomaly score is the Bayesian bootstrap of the
+                    // population mean: the shared Dirichlet(1,…,1) row weights reweight the
+                    // per-row scores. This holds for both references — the factual scores
+                    // depend only on the data and the reference, not the mechanism refit, so
+                    // an *unweighted* mean would be identical every draw (a degenerate,
+                    // zero-width posterior). With a fixed reference the target of that
+                    // posterior is the fixed functional μ_A; with the empirical reference it
+                    // is the observed-sample-reference mean.
+                    column.1.push(dirichlet_weighted_mean(&score.scores, &score.rows, &weights));
                 }
             }
             let (identification, _) = parametric_scm_identification(
@@ -535,9 +539,19 @@ impl super::Study {
                 "gcm.attribution.shared_dirichlet_row_weights",
                 false,
             )?);
+            let disclosure = match scorer_query.reference {
+                antecedent_core::AnomalyReference::Empirical => {
+                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector (mechanisms are also refit under those weights for the accompanying attributions), conditional on mechanism-family selection from the original unweighted data. The anomaly marginal reference (median / 1.4826·MAD) is held at the observed data values, so the interval is a credible interval for the mean anomaly score relative to that realized sample's reference, not for a fixed population functional; inject a fixed reference for the latter."
+                }
+                antecedent_core::AnomalyReference::Fixed { .. } => {
+                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference (center, scale): each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector (mechanisms are also refit under those weights for the accompanying attributions). Because the reference is held at the injected values rather than estimated from the sample, the mean anomaly score is a fixed functional of the target's law, μ_A = E_Y[−log 2Φ(−|Y − center|/scale)], and the interval is a credible interval for that functional over the observed units."
+                }
+            };
             result.diagnostics.push(Diagnostic::new(
-                "gcm.attribution.bayesian", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                "Posterior is conditional on mechanism-family selection from the original unweighted data. Every draw uses one shared Dirichlet(1,…,1) weight vector for the full row law and refits all mechanisms; anomaly marginal reference statistics are held at the observed data values.",
+                "gcm.attribution.bayesian",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                disclosure,
             ));
         }
         Ok(result)
@@ -773,6 +787,20 @@ impl super::Study {
 
 pub(super) fn dirichlet_row_weights(n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
     (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect()
+}
+
+/// Bayesian-bootstrap mean of per-row `scores` under the draw's Dirichlet `weights`:
+/// `Σ_k weights[rows[k]]·scores[k] / Σ_k weights[rows[k]]`. Indexing by `rows`
+/// keeps the weights aligned even when only a subset of rows was scored. `NaN`
+/// when no positive weight lands on a scored row.
+pub(super) fn dirichlet_weighted_mean(scores: &[f64], rows: &[usize], weights: &[f64]) -> f64 {
+    let (mut num, mut den) = (0.0_f64, 0.0_f64);
+    for (score, &row) in scores.iter().zip(rows.iter()) {
+        let w = weights.get(row).copied().unwrap_or(0.0);
+        num += w * score;
+        den += w;
+    }
+    if den > 0.0 { num / den } else { f64::NAN }
 }
 
 pub(super) fn attribution_posterior(

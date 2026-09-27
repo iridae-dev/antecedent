@@ -30,9 +30,9 @@ mod transport_delta;
 pub use crate::intervention::TemporalPolicy;
 
 pub use attribution::{
-    AllocationMethod, AnomalyAttributionQuery, AttributionComponents, ChangeAttributionQuery,
-    MechanismChangeQuery, OrderedFloatBits, PopulationSelector, ShapleyConfig, ShapleyMode,
-    UnitChangeQuery,
+    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AttributionComponents,
+    ChangeAttributionQuery, MechanismChangeQuery, OrderedFloatBits, PopulationSelector,
+    ShapleyConfig, ShapleyMode, UnitChangeQuery,
 };
 pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;

@@ -356,18 +356,44 @@ class MediationEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class AnomalyReference:
+    """Fixed location/scale for the anomaly IT score's marginal tail.
+
+    The IT anomaly score is ``-log 2Φ(-|y - center|/scale)``. By default the
+    reference is estimated from the target's observed marginal (robust median /
+    ``1.4826·MAD``), so the score depends on the realized sample. Injecting a
+    fixed ``(center, scale)`` makes the population mean anomaly score a fixed
+    functional of the target's law, ``μ_A = E_Y[-log 2Φ(-|Y - center|/scale)]``.
+    """
+
+    center: float
+    scale: float
+
+    def __post_init__(self) -> None:
+        center = float(self.center)
+        scale = float(self.scale)
+        if not isfinite(center) or not isfinite(scale) or scale <= 0.0:
+            raise CausalValueError(
+                "anomaly reference requires a finite center and a finite positive scale"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class AnomalyAttribution:
     """GCM anomaly scores on a supplied explicit Dag.
 
     Licensed ``analyze(data, graph=Dag, query=AnomalyAttribution(...))`` at
     validation ``none``. Identification is parametric (``gcm.parametric``);
-    estimator ``gcm.fit``. cheap/full, Bayesian, accepted, graph-posterior,
-    and non-Dag graphs remain refused.
+    estimator ``gcm.fit``. accepted, graph-posterior, and non-Dag graphs remain
+    refused. A Bayesian run publishes a shared-Dirichlet-row-weight posterior of
+    the target mean anomaly score; with a fixed ``reference`` that posterior is
+    the Bayesian bootstrap of a fixed population functional.
     """
 
     targets: Sequence[str]
     _: KW_ONLY
     max_units: int = 100
+    reference: AnomalyReference | None = None
     kind: Literal["anomaly_attribution"] = field(
         default="anomaly_attribution", init=False, repr=False
     )
@@ -376,6 +402,8 @@ class AnomalyAttribution:
         _require_names("targets", self.targets)
         if int(self.max_units) <= 0:
             raise CausalValueError("max_units must be positive")
+        if self.reference is not None and not isinstance(self.reference, AnomalyReference):
+            raise CausalValueError("reference must be an AnomalyReference or None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -719,6 +747,7 @@ class InterventionResponse:
 
 __all__ = [
     "AnomalyAttribution",
+    "AnomalyReference",
     "AverageDerivative",
     "AverageEffect",
     "ChangeAttribution",
