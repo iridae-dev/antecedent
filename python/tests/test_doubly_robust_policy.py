@@ -301,7 +301,7 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
 
 
 def test_retained_held_out_policy_intervals_and_crossfit_refusal():
-    n = 120
+    n = 300
     assignment = [i % 2 == 1 for i in range(n)]
     actions = [i % 3 == 0 for i in range(n)]
     y = [1.0 + 2.0 * int(assignment[i]) + (i % 5) / 10 for i in range(n)]
@@ -343,7 +343,7 @@ def test_retained_held_out_policy_intervals_and_crossfit_refusal():
 
 
 def test_retained_multi_action_policy_interval_and_global_constraint_refusal():
-    n = 90
+    n = 300
     labels = ("control", "A", "B")
     assigned = [labels[i % 3] for i in range(n)]
     y = [[1.0, 2.0, 4.0][i % 3] + (i % 7) / 10 for i in range(n)]
@@ -366,7 +366,7 @@ def test_retained_multi_action_policy_interval_and_global_constraint_refusal():
     constrained = policy.MultiActionPolicyValue(
         **common,
         policy=policy.MultiActionPolicy(labels, assigned, costs=[0, 0.1, 0.2],
-                                        capacities=[n] * 3, budget=10.0),
+                                        capacities=[n] * 3, budget=40.0),
     )
     point_only = ant.analyze({"y": y}, query=constrained, refute="none").policy_value
     assert point_only.policy_value_interval_95 is None

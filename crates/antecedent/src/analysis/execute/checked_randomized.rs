@@ -746,7 +746,9 @@ impl CheckedPolicyValueOperation {
         // accounted for; IPW and disjoint held-out AIPW have fixed score rules.
         let independent_policy_rows = !self.query.global_constraints_present
             && multi.is_none_or(|policy| !policy.global_constraints_couple_rows());
-        let intervals = if independent_policy_rows && (ipw || self.query.disjoint_training_subjects) {
+        let minimum_calibrated_rows = if multi.is_some() || !ipw { 300 } else { 120 };
+        let intervals = if y.len() >= minimum_calibrated_rows
+            && independent_policy_rows && (ipw || self.query.disjoint_training_subjects) {
             antecedent_estimate::policy_value::pointwise_intervals_95(
                 &score, y.len(), policy_matches, reference_matches,
             )
