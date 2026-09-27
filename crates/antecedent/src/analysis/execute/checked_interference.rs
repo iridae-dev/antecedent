@@ -6,6 +6,7 @@ use super::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum InterferenceProcedure {
     DesignBasedYoung,
+    SaturationExact,
     ConjugateGaussian { draws: usize, prior_sd: f64 },
 }
 
@@ -83,9 +84,11 @@ impl CheckedInterferenceOperation {
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                 ) && query.exposure
                     == antecedent_core::ExposureMapping::NeighborFraction;
-                if !bernoulli && !cluster {
+                let saturation = matches!(query.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. })
+                    && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure);
+                if !bernoulli && !cluster && !saturation {
                     return Err(CausalError::Unsupported {
-                        message: "design based interference requires Bernoulli/NeighborCount or cluster-randomized/NeighborFraction total effects",
+                        message: "design based interference requires Bernoulli/NeighborCount, cluster total, or exact two-stage saturation with built-in neighbor exposure",
                     });
                 }
                 if cluster {
@@ -98,9 +101,15 @@ impl CheckedInterferenceOperation {
                     )
                     .map_err(CausalError::from)?;
                 }
+                if saturation {
+                    antecedent_estimate::estimate_saturation_interference(query, &design.network, &design.assignment)
+                        .map_err(CausalError::from)?;
+                }
                 (
-                    InterferenceProcedure::DesignBasedYoung,
-                    if cluster {
+                    if saturation { InterferenceProcedure::SaturationExact } else { InterferenceProcedure::DesignBasedYoung },
+                    if saturation {
+                        EstimatorId::InterferenceSaturationExact
+                    } else if cluster {
                         EstimatorId::InterferenceClusterNeyman
                     } else {
                         EstimatorId::InterferenceHtHajek
@@ -164,6 +173,7 @@ impl CheckedInterferenceOperation {
             matches!(
                 query.assignment,
                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                    | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
             ),
         );
         Ok(Self {
@@ -228,10 +238,14 @@ impl CheckedInterferenceOperation {
             self.query.functional;
         let started = Instant::now();
         let (estimated, posterior, estimate, diagnostic) = match self.procedure {
-            InterferenceProcedure::DesignBasedYoung => {
+            InterferenceProcedure::DesignBasedYoung | InterferenceProcedure::SaturationExact => {
                 let seed =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Transport, 0x1F7E).next_u64();
-                let estimated = if matches!(
+                let saturation = matches!(self.procedure, InterferenceProcedure::SaturationExact);
+                let estimated = if saturation {
+                    antecedent_estimate::estimate_saturation_interference(&self.query, &network, &self.assignment)
+                        .map(|value| value.estimate)
+                } else if matches!(
                     self.query.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                 ) {
@@ -249,7 +263,7 @@ impl CheckedInterferenceOperation {
                     )
                 }
                 .map_err(CausalError::from)?;
-                let se = estimated.contrast.conservative_variance.sqrt();
+                let se = if saturation { f64::NAN } else { estimated.contrast.conservative_variance.sqrt() };
                 let cluster = matches!(
                     self.query.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
@@ -264,14 +278,18 @@ impl CheckedInterferenceOperation {
                         OverlapPolicy::ExplicitOverride,
                     ),
                     Diagnostic::new(
-                        if cluster {
+                        if saturation {
+                            "estimate.interference.saturation_exact"
+                        } else if cluster {
                             "estimate.interference.cluster_neyman"
                         } else {
                             "estimate.interference.young_bound"
                         },
                         DiagnosticKind::Scientific,
                         DiagnosticSeverity::Info,
-                        if cluster {
+                        if saturation {
+                            "Exact two-stage saturation exposure probabilities; covariance-free variance proxy is descriptive and no interval calibration is claimed"
+                        } else if cluster {
                             "cluster-level Neyman conservative variance for the total effect under partial interference; interval calibration is not claimed"
                         } else {
                             "conservative Young variance bound; not the Aronow–Samii joint-exposure variance"
@@ -377,6 +395,11 @@ fn interference_identification(
             },
             design_identification_assumptions(cluster),
         ),
+        InterferenceProcedure::SaturationExact => (
+            "interference.design",
+            "Identification is the declared complete allocation of clusters to low/high saturation followed by within-cluster Bernoulli treatment and the fixed partial-interference exposure mapping.",
+            saturation_identification_assumptions(),
+        ),
         InterferenceProcedure::ConjugateGaussian { prior_sd, .. } => (
             "interference.bayesian_gaussian",
             "Finite-network contrast under the declared additive Gaussian potential-outcome model and shared unit disturbance.",
@@ -451,6 +474,21 @@ fn design_identification_assumptions(cluster: bool) -> antecedent_core::Assumpti
             status: AssumptionStatus::Declared,
         });
     }
+    assumptions
+}
+
+fn saturation_identification_assumptions() -> antecedent_core::AssumptionSet {
+    use antecedent_core::{Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus};
+    let mut assumptions = design_identification_assumptions(true);
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::Custom {
+            id: Arc::from("interference.two_stage_saturation"),
+            description: Arc::from("Clusters are completely randomized to low/high saturation counts; units are independently Bernoulli assigned at their cluster's declared probability; the fixed network has no cross-cluster edges."),
+        },
+        source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("interference.saturation_exact") },
+        scope: AssumptionScope::Identification,
+        status: AssumptionStatus::Declared,
+    });
     assumptions
 }
 

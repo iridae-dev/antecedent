@@ -574,6 +574,8 @@ impl super::Study {
                                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                             ) {
                                 "interference.cluster_neyman"
+                            } else if matches!(q.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. }) {
+                                "interference.saturation_exact"
                             } else {
                                 "interference.ht_hajek"
                             },

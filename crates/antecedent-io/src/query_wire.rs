@@ -1222,6 +1222,19 @@ pub enum AssignmentDesignWire {
         /// Number of treated clusters.
         treated_clusters: u64,
     },
+    /// Complete cluster allocation followed by within-cluster Bernoulli assignment.
+    TwoStageSaturation {
+        /// Cluster id per unit.
+        clusters: Vec<u32>,
+        /// Lower treatment probability.
+        low_probability: f64,
+        /// Higher treatment probability.
+        high_probability: f64,
+        /// Number of clusters assigned the higher probability.
+        high_clusters: u64,
+        /// Realized cluster probability repeated per unit.
+        realized_saturation: Vec<f64>,
+    },
 }
 
 /// Built-in exposure mapping wire form.
@@ -2230,6 +2243,14 @@ pub fn interference_query_to_wire(q: &InterferenceQuery) -> Result<InterferenceQ
                     .map_err(|_| IoError::TooLarge)?,
             }
         }
+        AssignmentDesign::TwoStageSaturation { clusters, low_probability, high_probability, high_clusters, realized_saturation } => {
+            AssignmentDesignWire::TwoStageSaturation {
+                clusters: clusters.to_vec(), low_probability: *low_probability,
+                high_probability: *high_probability,
+                high_clusters: u64::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
+                realized_saturation: realized_saturation.to_vec(),
+            }
+        }
     };
     let exposure = match &q.exposure {
         ExposureMapping::OwnTreatment => ExposureMappingWire::OwnTreatment,
@@ -2273,6 +2294,14 @@ pub fn interference_query_from_wire(
                 clusters: clusters.clone().into(),
                 treated_clusters: usize::try_from(*treated_clusters)
                     .map_err(|_| IoError::TooLarge)?,
+            }
+        }
+        AssignmentDesignWire::TwoStageSaturation { clusters, low_probability, high_probability, high_clusters, realized_saturation } => {
+            AssignmentDesign::TwoStageSaturation {
+                clusters: clusters.clone().into(), low_probability: *low_probability,
+                high_probability: *high_probability,
+                high_clusters: usize::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
+                realized_saturation: realized_saturation.clone().into(),
             }
         }
     };

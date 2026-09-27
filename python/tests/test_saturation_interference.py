@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import antecedent as ant
 from antecedent import interference
 
 
@@ -65,6 +66,54 @@ def test_two_stage_saturation_recovers_direct_spillover_and_total_effects() -> N
         assert estimate.minimum_exposure_probability > 0.0
     assert "independently Bernoulli assigned" in result.assumptions[1]
     assert "no confidence interval" in result.uncertainty_semantics
+
+
+@pytest.mark.parametrize(
+    ("from_level", "to_level", "truth", "utility_field"),
+    [
+        ((0.0, 0.5), (1.0, 0.5), 4.0, "direct"),
+        ((0.0, 0.0), (0.0, 1.0), 3.0, "spillover"),
+        ((0.0, 0.0), (1.0, 1.0), 9.0, "total"),
+    ],
+)
+def test_saturation_analyze_matches_native_utility_and_reports_point_only(
+    from_level, to_level, truth, utility_field
+) -> None:
+    data, assignment, edges, design, partial = _fixture()
+    query = interference.InterferenceQuery(
+        design,
+        interference.NeighborFraction(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(*from_level), interference.ExposureLevel(*to_level)
+        ),
+        network=edges,
+        realized_assignment=assignment,
+        partial_interference=partial,
+    )
+    result = ant.analyze(data, graph=[], query=query)
+    utility = getattr(_estimate(), utility_field)
+    assert result.interference.contrast.hajek == pytest.approx(truth)
+    assert result.interference.contrast.hajek == pytest.approx(utility.hajek)
+    assert result.interference.contrast.conservative_variance == pytest.approx(
+        utility.conservative_variance
+    )
+    assert any("two-stage" in value.lower() or "saturation" in value.lower() for value in result.assumptions)
+    assert result.estimate.se_analytic != result.estimate.se_analytic
+
+
+def test_saturation_analyze_refuses_cross_cluster_edge() -> None:
+    data, assignment, edges, design, partial = _fixture()
+    query = interference.InterferenceQuery(
+        design, interference.NeighborFraction(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0, 0.5), interference.ExposureLevel(1.0, 0.5)
+        ),
+        network=[*edges, (0, 3)],
+        realized_assignment=assignment,
+        partial_interference=partial,
+    )
+    with pytest.raises(ValueError, match="crosses cluster boundary"):
+        ant.analyze(data, graph=[], query=query)
 
 
 def test_saturation_refuses_cross_cluster_interference_edges() -> None:

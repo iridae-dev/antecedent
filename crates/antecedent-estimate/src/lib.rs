@@ -41,6 +41,7 @@ pub mod gcomp;
 pub mod glm_adjustment;
 pub mod identified_set;
 pub mod interference;
+pub mod interference_saturation;
 pub mod iv;
 pub mod joint_if;
 mod learn_nuisance;
@@ -156,6 +157,7 @@ pub use interference::{
     BayesianInterferenceEstimate, InterferenceEstimate, estimate_cluster_interference_total,
     estimate_interference, estimate_interference_bayesian, own_treatment_level,
 };
+pub use interference_saturation::{SaturationInterferenceEstimate, estimate_saturation_interference};
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
     TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,

@@ -208,7 +208,10 @@ class InterferenceQuery:
     bound. A separate unlicensed construction accepts cluster randomization,
     NeighborFraction, an explicit partial-interference partition, and the
     total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
-    has no interval claim. Both paths need the keyword-only design facts:
+    has no interval claim. ``SaturationDesign`` also supports exact two-stage
+    direct, spillover, and total exposure contrasts as separate point queries;
+    its covariance-free variance proxy is not a confidence interval. These
+    paths need the keyword-only design facts:
     ``network``, the fixed
     directed exposure edges between unit rows (``NetworkEdge`` or
     ``(from, to[, weight])``; an empty sequence is a network without edges),
@@ -289,6 +292,17 @@ class InterferenceSupport:
 
 
 def _assignment_args(design: object) -> dict[str, Any]:
+    if isinstance(design, SaturationDesign):
+        return {
+            "assignment_kind": "saturation",
+            "assignment_probabilities": [],
+            "treated": 0,
+            "clusters": list(design.clusters),
+            "treated_clusters": design.high_clusters,
+            "low_probability": design.low_probability,
+            "high_probability": design.high_probability,
+            "realized_saturation": list(design.realized_saturation),
+        }
     if isinstance(design, BernoulliAssignment):
         probabilities = (
             [float(design.probabilities)]
