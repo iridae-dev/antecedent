@@ -257,3 +257,105 @@ def create_provider():
     assert result.artifact == b"external-receipt"
     assert result.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert result.provenance["entry_point"] == "antecedent_external_fixture:create_provider"
+
+
+def test_separately_packaged_provider_upgrades_in_place_without_rebuilding(tmp_path, monkeypatch):
+    """A separately packaged provider is installed, exercised with a host-artifact
+    round-trip, then upgraded in place to a new version that changes the estimate
+    and now reports uncertainty -- all without rebuilding Antecedent. The upgrade's
+    estimate, version/provenance, uncertainty, and provider-owned fold policy are
+    reflected in the fresh result and the round-tripped host envelope."""
+    import importlib
+    import json
+    import sys
+
+    module_name = "antecedent_upgrade_fixture"
+
+    def install(version: str, *, multiplier: int, with_uncertainty: bool) -> None:
+        inference = '("pointwise_95",)' if with_uncertainty else '("point_only",)'
+        semantics = "subject_score_standard_error" if with_uncertainty else "point_only"
+        uncertainty = "[abs(value) * 0.1 + 0.5]" if with_uncertainty else "None"
+        (tmp_path / f"{module_name}.py").write_text(
+            f"""\
+from antecedent.extensibility import CausalProviderSpec, ProviderExecution
+
+class UpgradeProvider:
+    spec = CausalProviderSpec(
+        query_family="effect",
+        identification_requirements=("caller_identified",),
+        observed_distributions=("Y,T",),
+        nuisance_functions=(),
+        support_conditions=("overlap",),
+        data_dependence=("caller_supplied",),
+        inference_claims={inference},
+        influence_function=None,
+        fold_policy="provider_owned",
+        output_shape=(1,),
+        uncertainty_semantics="{semantics}",
+        artifact_codec="provider_specific",
+        deterministic=True,
+        provenance={{"package": "upgrade-fixture", "version": "{version}"}},
+    )
+
+    def execute(self, request):
+        value = float(request["effect"]) * {multiplier}
+        return ProviderExecution(
+            estimate=[value], uncertainty={uncertainty},
+            assumptions=("caller_asserted",), support_status="caller_asserted",
+            provenance={{"version": "{version}"}}, artifact=b"upgrade-receipt-{version}",
+        )
+
+def create_provider():
+    return UpgradeProvider()
+""",
+            encoding="utf-8",
+        )
+        for stale in tmp_path.glob(f"{module_name}-*.dist-info"):
+            for child in stale.iterdir():
+                child.unlink()
+            stale.rmdir()
+        dist = tmp_path / f"{module_name}-{version}.dist-info"
+        dist.mkdir()
+        (dist / "METADATA").write_text(
+            f"Metadata-Version: 2.1\nName: {module_name.replace('_', '-')}\nVersion: {version}\n",
+            encoding="utf-8",
+        )
+        (dist / "entry_points.txt").write_text(
+            f"[antecedent.providers]\nupgrade-fixture = {module_name}:create_provider\n",
+            encoding="utf-8",
+        )
+        sys.modules.pop(module_name, None)
+        importlib.invalidate_caches()
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    # v0.1 -- installed as a separate distribution, point-only, loaded without a rebuild.
+    install("0.1", multiplier=1, with_uncertainty=False)
+    first_registry = ProviderRegistry()
+    first_registry.load_entry_point("upgrade-fixture")
+    first = first_registry.execute("upgrade-fixture", {"effect": 3.0})
+    assert first.estimate.tolist() == [3.0]
+    assert first.uncertainty is None
+    assert first.provenance["version"] == "0.1"
+    assert first.provenance["entry_point"] == f"{module_name}:create_provider"
+    assert first.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert first_registry.get("upgrade-fixture").spec.fold_policy == "provider_owned"
+    assert first.artifact == b"upgrade-receipt-0.1"
+    host_first = json.loads(antecedent._native.open_provider_result(first.host_artifact)[0])
+    assert host_first["provenance"]["version"] == "0.1"
+
+    # v0.2 -- upgraded in place: new version, doubled estimate, now reports a standard
+    # error. A fresh registry over the reinstalled distribution needs no Antecedent rebuild.
+    install("0.2", multiplier=2, with_uncertainty=True)
+    second_registry = ProviderRegistry()
+    second_registry.load_entry_point("upgrade-fixture")
+    second = second_registry.execute("upgrade-fixture", {"effect": 3.0})
+    assert second.estimate.tolist() == [6.0]
+    assert second.uncertainty is not None
+    assert second.uncertainty_semantics == "subject_score_standard_error"
+    assert second.provenance["version"] == "0.2"
+    assert second.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert second_registry.get("upgrade-fixture").spec.fold_policy == "provider_owned"
+    assert second.artifact == b"upgrade-receipt-0.2"
+    host_second = json.loads(antecedent._native.open_provider_result(second.host_artifact)[0])
+    assert host_second["provenance"]["version"] == "0.2"
