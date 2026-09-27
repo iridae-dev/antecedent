@@ -116,36 +116,47 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         5.0 + 0.1 * (unit / 3 % 9) as f64 + 2.0 * f64::from(assignment[unit]) + 3.0 * neighbor_fraction
     }).collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
-    let network = NetworkData::try_new(data.clone(), edges).unwrap();
-    let query = InterferenceQuery::new(
-        AssignmentDesign::TwoStageSaturation {
-            clusters: Arc::from(clusters), low_probability: 0.2, high_probability: 0.8,
-            high_clusters: 40, realized_saturation: Arc::from(realized),
-        },
-        ExposureMapping::NeighborFraction,
-        InterferenceFunctional::ExposureContrast {
-            outcome: VariableId::from_raw(0),
-            from: ExposureLevel { own: 0.0, neighbors: 0.5 },
-            to: ExposureLevel { own: 1.0, neighbors: 0.5 },
-        },
-    );
     let ctx = ExecutionContext::for_tests(241);
-    let study = Study::tabular(data.clone())
-        .graph(Dag::with_variables(1))
-        .query(CausalQuery::Interference(query))
-        .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
-        .refute(RefuteSuite::None)
-        .build().unwrap();
-    let prepared = study.prepare(&ctx).unwrap();
-    let result = prepared.estimate(&data, &ctx).unwrap();
-    let inference = result.interference_inference.as_ref().unwrap();
-    let interval = inference.interval.as_ref().expect("adequate independent cluster and exposure support");
-    assert_eq!(interval.first_stage_arm_clusters, [40, 40]);
-    assert!(interval.lower < result.interference.as_ref().unwrap().contrast.horvitz_thompson);
-    assert!(result.interference.as_ref().unwrap().contrast.horvitz_thompson < interval.upper);
-    let artifact = prepared.encode_contracted_result(&result, "saturation-pointwise", &ctx).unwrap();
-    let consumed = consume_analysis_result(&artifact).unwrap();
-    let wire = consumed.body.interference_inference.unwrap();
-    assert_eq!(wire.method, "saturation_cluster_neyman_welch");
-    assert_eq!(wire.interval.unwrap().lower, interval.lower);
+    for (name, from, to, truth) in [
+        ("direct", (0.0, 0.5), (1.0, 0.5), 2.0),
+        ("spillover", (0.0, 0.0), (0.0, 1.0), 3.0),
+        ("total", (0.0, 0.0), (1.0, 1.0), 5.0),
+    ] {
+        let network = NetworkData::try_new(data.clone(), edges.clone()).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::TwoStageSaturation {
+                clusters: Arc::from(clusters.clone()), low_probability: 0.2, high_probability: 0.8,
+                high_clusters: 40, realized_saturation: Arc::from(realized.clone()),
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: from.0, neighbors: from.1 },
+                to: ExposureLevel { own: to.0, neighbors: to.1 },
+            },
+        );
+        let study = Study::tabular(data.clone())
+            .graph(Dag::with_variables(1))
+            .query(CausalQuery::Interference(query))
+            .interference(InterferenceSpec { network, assignment: Arc::from(assignment.clone()) })
+            .refute(RefuteSuite::None)
+            .build().unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let inference = result.interference_inference.as_ref().unwrap();
+        let interval = inference.interval.as_ref().expect("adequate independent cluster and exposure support");
+        assert_eq!(interval.first_stage_arm_clusters, [40, 40], "{name}");
+        assert!(interval.lower < truth && truth < interval.upper, "{name}");
+        assert!(interval.lower < result.interference.as_ref().unwrap().contrast.horvitz_thompson);
+        assert!(result.interference.as_ref().unwrap().contrast.horvitz_thompson < interval.upper);
+        let artifact = prepared.encode_contracted_result(&result, name, &ctx).unwrap();
+        let consumed = consume_analysis_result(&artifact).unwrap();
+        let wire = consumed.body.interference_inference.unwrap();
+        assert_eq!(wire.method, "saturation_cluster_neyman_welch", "{name}");
+        assert_eq!(wire.interval.unwrap().lower, interval.lower, "{name}");
+        let mut tampered = artifact;
+        let middle = tampered.len() / 2;
+        tampered[middle] ^= 0x40;
+        assert!(consume_analysis_result(&tampered).is_err(), "{name}");
+    }
 }
