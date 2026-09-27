@@ -382,12 +382,17 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         second_factor_variance=section.second_factor_variance,
         factorial_interaction_variance=section.factorial_interaction_variance,
         multi_arm_values=tuple(tuple(item) for item in section.multi_arm_values),
+        standard_error=section.standard_error,
+        interval_95=section.interval_95,
+        second_factor_interval_95=section.second_factor_interval_95,
+        factorial_interaction_interval_95=section.factorial_interaction_interval_95,
+        multi_arm_intervals_95=tuple(section.multi_arm_intervals_95),
         treatment_arms=(section.control_arm, section.treatment_arm),
         control_units=section.control_units,
         treatment_units=section.treatment_units,
         minimum_assignment_probability=section.minimum_assignment_probability,
         uncertainty=section.uncertainty,
-        support_status="unlicensed_off_matrix",
+        support_status="off_axis_interval_evidence" if section.interval_95 is not None else "unlicensed_off_matrix",
     )
 
 

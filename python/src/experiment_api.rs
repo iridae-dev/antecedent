@@ -37,6 +37,14 @@ pub struct RandomizedEffectSection {
     /// Design variance or conservative bound as labeled by uncertainty;
     /// switchback uses a sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
+    /// Primary pointwise 95% interval and its reported standard error.
+    pub standard_error: Option<f64>,
+    pub interval_95: Option<(f64, f64)>,
+    /// Additional pointwise factorial intervals.
+    pub second_factor_interval_95: Option<(f64, f64)>,
+    pub factorial_interaction_interval_95: Option<(f64, f64)>,
+    /// Pointwise multi-arm intervals aligned with declared action labels.
+    pub multi_arm_intervals_95: Vec<Option<(f64, f64)>>,
     /// Minimum assignment probability.
     pub minimum_assignment_probability: f64,
     /// Assignment design (`bernoulli`, `complete`, or `stratified`).
@@ -78,6 +86,12 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             multi_arm_values: value.multi_arm_values.iter().map(|(label, mean, variance, support)|
                 (label.to_string(), *mean, *variance, *support)).collect(),
             variance_upper_bound: value.variance_upper_bound,
+            standard_error: value.standard_error,
+            interval_95: value.interval_95.map(|interval| (interval[0], interval[1])),
+            second_factor_interval_95: value.second_factor_interval_95.map(|interval| (interval[0], interval[1])),
+            factorial_interaction_interval_95: value.factorial_interaction_interval_95.map(|interval| (interval[0], interval[1])),
+            multi_arm_intervals_95: value.multi_arm_intervals_95.iter().map(|interval|
+                interval.map(|value| (value[0], value[1]))).collect(),
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),
             blocks: value.blocks.iter().map(ToString::to_string).collect(),

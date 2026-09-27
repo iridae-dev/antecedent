@@ -8,6 +8,102 @@ use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
 #[test]
+fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
+    use antecedent_core::RandomizationDesign;
+
+    fn run_case(query: RandomizedEffectQuery, outcomes: &[f64], design: &str) {
+        let data = TabularData::from_f64_columns([("outcome", outcomes)]).unwrap();
+        let ctx = ExecutionContext::for_tests(0xCA11_BA7E);
+        let prepared = Study::tabular(data.clone()).query(query).build().unwrap()
+            .prepare(&ctx).unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let fit = result.randomized_effect.as_ref().unwrap();
+        let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
+        assert_eq!(fit.assignment_design.as_ref(), design);
+        assert!(lower <= fit.effect && fit.effect <= upper);
+        assert!(fit.standard_error.unwrap() > 0.0);
+        assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::AnalyticSe);
+        let bytes = prepared.encode_contracted_result(&result, "randomized-interval", &ctx).unwrap();
+        let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
+        let mut tampered = artifact.clone();
+        tampered.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
+        assert!(antecedent_io::encode_analysis_result_artifact(
+            &tampered, header.variable_names.clone(), "forged-interval").is_err());
+        let mut tampered = artifact;
+        tampered.standard_error = Some(0.1);
+        assert!(antecedent_io::encode_analysis_result_artifact(
+            &tampered, header.variable_names, "forged-se").is_err());
+    }
+
+    let units = |n: usize| (0..n).map(|i| Arc::<str>::from(format!("unit-{i}")))
+        .collect::<Vec<_>>();
+    let n = 60;
+    let assignment = (0..n).map(|i| i < 30).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i])
+        + 0.5 * (i as f64 * 0.3).sin()).collect::<Vec<_>>();
+    run_case(RandomizedEffectQuery::with_design(
+        RandomizationDesign::Complete { treated_units: 30 }, VariableId::from_raw(0),
+        assignment, vec![0.5; n], units(n), units(n), ("control", "treated"),
+    ), &outcomes, "complete");
+
+    let n = 400;
+    let assignment = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i])
+        + 0.5 * (i as f64 * 0.3).sin()).collect::<Vec<_>>();
+    run_case(RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0), assignment, vec![0.5; n], units(n), units(n),
+        ("control", "treated"),
+    ), &outcomes, "bernoulli");
+
+    let arms = (0..n).map(|i| i % 4).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + arms[i] as f64
+        + 0.5 * (i as f64 * 0.3).sin()).collect::<Vec<_>>();
+    let fit = RandomizedEffectQuery::with_design(
+        RandomizationDesign::MultiArm {
+            assignment: Arc::from(arms.clone()), probabilities: vec![vec![0.25; 4]; n].into(),
+            arms: ["control", "a", "b", "c"].map(Arc::<str>::from).into(),
+        }, VariableId::from_raw(0), arms.iter().map(|arm| *arm != 0).collect::<Vec<_>>(),
+        vec![0.25; n], units(n), units(n), ("control", "a"),
+    );
+    run_case(fit, &outcomes, "multi_arm");
+
+    let n = 120;
+    let assignment = (0..n).map(|i| i / 2 < 30).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i])
+        + 0.5 * (i as f64 * 0.3).sin()).collect::<Vec<_>>();
+    let clusters = (0..n).map(|i| Arc::<str>::from(format!("cluster-{}", i / 2)))
+        .collect::<Vec<_>>();
+    run_case(RandomizedEffectQuery::with_design(
+        RandomizationDesign::Cluster { treated_clusters: 30 }, VariableId::from_raw(0),
+        assignment, vec![0.5; n], clusters, units(n), ("control", "treated"),
+    ), &outcomes, "cluster");
+
+    let assignment = (0..n).map(|i| i % 30 < 15).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i])
+        + 0.5 * (i as f64 * 0.3).sin()).collect::<Vec<_>>();
+    let blocks = (0..n).map(|i| Arc::<str>::from(format!("block-{}", i / 30)))
+        .collect::<Vec<_>>();
+    run_case(RandomizedEffectQuery::with_design(
+        RandomizationDesign::Stratified { blocks: Arc::from(blocks),
+            treated_per_row: Arc::from([15; 120]) }, VariableId::from_raw(0),
+        assignment, vec![0.5; n], units(n), units(n), ("control", "treated"),
+    ), &outcomes, "stratified");
+
+    let first = (0..n).map(|i| i / 30 % 2 == 1).collect::<Vec<_>>();
+    let second = (0..n).map(|i| i / 30 >= 2).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(first[i])
+        + f64::from(second[i]) + 0.5 * f64::from(first[i] && second[i])
+        + 0.5 * (i as f64 * 0.3).sin()).collect::<Vec<_>>();
+    run_case(RandomizedEffectQuery::with_design(
+        RandomizationDesign::Factorial2x2 { second_factor_assignment: Arc::from(second),
+            cell_counts: [30; 4], second_factor_arms: ("b0".into(), "b1".into()) },
+        VariableId::from_raw(0), first, vec![0.5; n], units(n), units(n),
+        ("control", "treated"),
+    ), &outcomes, "factorial_2x2");
+}
+
+#[test]
 fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() {
     let outcomes = [0.0, 2.0, 5.0, 0.0, 2.0, 5.0];
     let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();

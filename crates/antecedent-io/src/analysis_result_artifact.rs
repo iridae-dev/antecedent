@@ -637,6 +637,21 @@ pub struct RandomizedEffectWire {
     pub multi_arm_values: Vec<(String, f64, f64, usize)>,
     /// Design variance estimate or conservative bound, as labeled by uncertainty.
     pub variance: f64,
+    /// Primary contrast SE when a pointwise interval is reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
+    /// Pointwise 95% primary contrast interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% secondary factorial main-effect interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub second_factor_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% factorial interaction interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub factorial_interaction_interval_95: Option<[f64; 2]>,
+    /// Pointwise action-versus-reference intervals aligned to multi-arm labels.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_intervals_95: Vec<Option<[f64; 2]>>,
     /// Assignment design name.
     pub assignment_design: String,
     /// Row-aligned assignment unit labels.
@@ -1111,38 +1126,38 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 "randomized result section is attached to a different query".into(),
             ));
         };
-        let (design, uncertainty) = match &query.design {
+        let (design, point_uncertainty, interval_uncertainty) = match &query.design {
             crate::RandomizationDesignWire::Bernoulli
                 if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
             {
-                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval")
+                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval", None)
             }
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
-                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval")
+                ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval", None)
             }
             crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => {
-                ("bernoulli", "bernoulli_ancova_hc0_variance_no_interval")
+                ("bernoulli", "bernoulli_ancova_hc0_variance_no_interval", None)
             }
             crate::RandomizationDesignWire::Bernoulli => {
-                ("bernoulli", "bernoulli_ht_design_variance_no_interval")
+                ("bernoulli", "bernoulli_ht_design_variance_no_interval", Some("bernoulli_ht_score_normal_interval"))
             }
             crate::RandomizationDesignWire::Complete { .. } => {
-                ("complete", "complete_neyman_variance_upper_bound_no_interval")
+                ("complete", "complete_neyman_variance_upper_bound_no_interval", Some("complete_neyman_normal_interval"))
             }
             crate::RandomizationDesignWire::Cluster { .. } => {
-                ("cluster", "cluster_neyman_variance_upper_bound_no_interval")
+                ("cluster", "cluster_neyman_variance_upper_bound_no_interval", Some("cluster_neyman_normal_interval"))
             }
             crate::RandomizationDesignWire::Stratified => {
-                ("stratified", "stratified_neyman_variance_upper_bound_no_interval")
+                ("stratified", "stratified_neyman_variance_upper_bound_no_interval", Some("stratified_neyman_normal_interval"))
             }
             crate::RandomizationDesignWire::Factorial2x2 => {
-                ("factorial_2x2", "factorial_cell_neyman_variance_upper_bound_no_interval")
+                ("factorial_2x2", "factorial_cell_neyman_variance_upper_bound_no_interval", Some("factorial_cell_neyman_pointwise_normal_intervals"))
             }
             crate::RandomizationDesignWire::Switchback => {
-                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval")
+                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval", None)
             }
             crate::RandomizationDesignWire::MultiArm => {
-                ("multi_arm", "multi_arm_covariance_free_variance_bound_no_interval")
+                ("multi_arm", "multi_arm_covariance_free_variance_bound_no_interval", Some("multi_arm_ht_score_pointwise_normal_intervals"))
             }
         };
         let (control, treated) =
@@ -1182,15 +1197,96 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             let k = treated as u64;
             Some((0..k).fold(1_u64, |count, i| count * (n - i) / (i + 1)))
         } else { None };
+        let interval_supported = match &query.design {
+            crate::RandomizationDesignWire::Bernoulli =>
+                query.estimand == crate::RandomizedEstimandWire::Itt
+                    && query.fixed_cuped.is_none() && query.ancova_covariates.is_empty()
+                    && query.realized_assignment.len() >= 400
+                    && control >= 30 && treated >= 30
+                    && query.assignment_probabilities.iter().all(|p| *p + 1e-12 >= 0.2 && *p <= 0.8 + 1e-12),
+            crate::RandomizationDesignWire::Complete { .. } => control >= 30 && treated >= 30,
+            crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
+            crate::RandomizationDesignWire::Stratified => {
+                let mut blocks = std::collections::BTreeMap::<&str, (usize, usize)>::new();
+                for (block, assigned) in query.blocks.iter().zip(&query.realized_assignment) {
+                    let counts = blocks.entry(block).or_default();
+                    if *assigned { counts.1 += 1; } else { counts.0 += 1; }
+                }
+                blocks.len() >= 4 && control >= 60 && treated >= 60
+                    && blocks.values().all(|(c, t)| *c >= 15 && *t >= 15)
+            }
+            crate::RandomizationDesignWire::Factorial2x2 => query.factorial_cell_counts
+                .is_some_and(|counts| counts.iter().all(|count| *count >= 30)),
+            crate::RandomizationDesignWire::MultiArm =>
+                query.multi_arm_assignment.len() >= 400
+                    && query.multi_arm_probabilities.iter().all(|row|
+                        row.iter().all(|p| *p + 1e-12 >= 0.2))
+                    && (0..query.multi_arm_labels.len()).all(|arm|
+                        query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count() >= 30),
+            crate::RandomizationDesignWire::Switchback => false,
+        };
+        let has_interval = randomized.interval_95.is_some();
+        let expected_uncertainty = if has_interval {
+            interval_uncertainty.unwrap_or(point_uncertainty)
+        } else { point_uncertainty };
+        let z95 = 1.959_963_984_540_054;
+        let primary_interval_valid = match (randomized.standard_error, randomized.interval_95) {
+            (None, None) => result.standard_error.is_none(),
+            (Some(se), Some([lower, upper])) => {
+                interval_supported && interval_uncertainty.is_some()
+                    && se.is_finite() && se > 0.0
+                    && result.standard_error.is_some_and(|top| (top - se).abs() <= 1e-10)
+                    && lower.is_finite() && upper.is_finite()
+                    && (lower - (randomized.effect - z95 * se)).abs() <= 1e-8
+                    && (upper - (randomized.effect + z95 * se)).abs() <= 1e-8
+                    && (matches!(query.design, crate::RandomizationDesignWire::Bernoulli | crate::RandomizationDesignWire::MultiArm)
+                        || (se * se - randomized.variance).abs() <= 1e-8)
+            }
+            _ => false,
+        };
+        let extra_intervals_valid = if matches!(query.design, crate::RandomizationDesignWire::Factorial2x2) {
+            match (randomized.second_factor_effect, randomized.second_factor_variance,
+                randomized.second_factor_interval_95, randomized.factorial_interaction,
+                randomized.factorial_interaction_variance, randomized.factorial_interaction_interval_95) {
+                (Some(second), Some(second_var), Some([sl, su]), Some(interaction), Some(interaction_var), Some([il, iu])) if has_interval =>
+                    (sl - (second - z95 * second_var.sqrt())).abs() <= 1e-8
+                    && (su - (second + z95 * second_var.sqrt())).abs() <= 1e-8
+                    && (il - (interaction - z95 * interaction_var.sqrt())).abs() <= 1e-8
+                    && (iu - (interaction + z95 * interaction_var.sqrt())).abs() <= 1e-8,
+                (_, _, None, _, _, None) if !has_interval => true,
+                _ => false,
+            }
+        } else {
+            randomized.second_factor_interval_95.is_none()
+                && randomized.factorial_interaction_interval_95.is_none()
+        };
+        let multi_arm_intervals_valid = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+            if has_interval {
+                randomized.multi_arm_intervals_95.len() == query.multi_arm_labels.len()
+                    && randomized.multi_arm_values.len() == query.multi_arm_labels.len()
+                    && randomized.multi_arm_intervals_95.len() >= 2
+                    && randomized.multi_arm_intervals_95[0].is_none()
+                    && randomized.multi_arm_intervals_95.iter().enumerate().skip(1).all(|(arm, interval)|
+                        interval.is_some_and(|[lower, upper]| {
+                            let contrast = randomized.multi_arm_values[arm].1 - randomized.multi_arm_values[0].1;
+                            lower.is_finite() && upper.is_finite() && lower < upper
+                                && ((lower + upper) / 2.0 - contrast).abs() <= 1e-8
+                        }))
+                    && randomized.multi_arm_intervals_95[1] == randomized.interval_95
+            } else { randomized.multi_arm_intervals_95.is_empty()
+                || randomized.multi_arm_intervals_95.iter().all(Option::is_none) }
+        } else { randomized.multi_arm_intervals_95.is_empty() };
         if result.estimate != Some(randomized.effect)
-            || result.standard_error.is_some()
+            || !primary_interval_valid
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
             || !randomized.effect.is_finite()
             || !randomized.variance.is_finite()
             || randomized.variance < 0.0
             || randomized.assignment_design != design
-            || randomized.uncertainty != uncertainty
+            || randomized.uncertainty != expected_uncertainty
+            || !extra_intervals_valid
+            || !multi_arm_intervals_valid
             || randomized.estimand
                 != if query.estimand == crate::RandomizedEstimandWire::CaceLate {
                     "cace_late"

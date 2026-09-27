@@ -59,8 +59,8 @@ pub fn independent_action_contrast(
         {
             return None;
         }
-        probability_supported &= row[reference] >= MIN_ACTION_PROBABILITY_FOR_INTERVAL
-            && row[action] >= MIN_ACTION_PROBABILITY_FOR_INTERVAL;
+        probability_supported &= row[reference] + 1e-12 >= MIN_ACTION_PROBABILITY_FOR_INTERVAL
+            && row[action] + 1e-12 >= MIN_ACTION_PROBABILITY_FOR_INTERVAL;
         let score = if assignments[i] == action {
             action_support += 1;
             outcomes[i] / row[action]
@@ -116,7 +116,7 @@ mod tests {
             let effect = 2.0 + 0.25 * (0.23 * x).cos();
             truth += effect / n as f64;
             let row = if arms == 2 {
-                let p = 0.35 + 0.3 * (i % 7) as f64 / 6.0;
+                let p = 0.2 + 0.6 * (i % 7) as f64 / 6.0;
                 vec![1.0 - p, p]
             } else if arms == 3 {
                 vec![0.3, 0.3, 0.4]
