@@ -715,6 +715,15 @@ pub struct LongitudinalRegimeWire {
     pub rule_provenance: Option<String>,
     /// Horvitz--Thompson regime value.
     pub value: f64,
+    /// Independent-subject IPW score SE, when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value_standard_error: Option<f64>,
+    /// Pointwise 95% randomized IPW regime-value interval, when supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value_interval_95: Option<[f64; 2]>,
+    /// Explicit reason an interval was withheld.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_reason: Option<String>,
     /// Effective sample size among matching observed histories.
     pub effective_sample_size: f64,
     /// Fraction of enrolled subjects with matching observed histories.
@@ -1248,6 +1257,35 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 "longitudinal regime result is attached to a different query".into(),
             ));
         };
+        let eligible_ipw = query.method == "ipw"
+            && query.probabilities_known_by_design
+            && query.subject_ids.len() >= 500
+            && regime.matched_observed_fraction * query.subject_ids.len() as f64 >= 50.0
+            && regime.effective_sample_size >= 50.0
+            && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0);
+        let expected_reason = match query.method.as_str() {
+            "ipw" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
+            "g_formula" => Some("prediction_model_uncertainty_not_accounted"),
+            "sequential_dr" => Some("cross_fitted_nuisance_dependence_not_calibrated"),
+            "marginal_structural_model" => Some("msm_coefficient_intervals_not_calibrated"),
+            _ => None,
+        };
+        let expected_uncertainty = if query.method == "marginal_structural_model" {
+            "pointwise_subject_clustered_cr1_no_interval"
+        } else if regime.value_interval_95.is_some() {
+            "pointwise_subject_score_95"
+        } else { "point_only_no_interval" };
+        let interval_valid = match regime.value_interval_95 {
+            Some(bounds) => {
+                let se = regime.value_standard_error.unwrap_or(f64::NAN);
+                let span = antecedent_stats::normal_ppf(0.975) * se;
+                let tolerance = 1e-10 * (1.0 + regime.value.abs() + span.abs());
+                eligible_ipw && bounds[0].is_finite() && bounds[1].is_finite()
+                    && (bounds[0] - (regime.value - span)).abs() <= tolerance
+                    && (bounds[1] - (regime.value + span)).abs() <= tolerance
+            }
+            None => true,
+        };
         if regime.method != query.method
             || regime.rule_id != query.rule_id
             || regime.rule_version != query.rule_version
@@ -1257,6 +1295,10 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
             || !regime.value.is_finite()
+            || regime.value_standard_error.is_some_and(|se| !se.is_finite() || se < 0.0 || query.method != "ipw")
+            || !interval_valid
+            || regime.interval_reason.as_deref().is_some_and(|reason| Some(reason) != expected_reason)
+            || regime.value_interval_95.is_some() && regime.interval_reason.is_some()
             || !regime.effective_sample_size.is_finite()
             || regime.effective_sample_size <= 0.0
             || regime.effective_sample_size > query.subject_ids.len() as f64
@@ -1268,7 +1310,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || regime.minimum_action_probability < query.minimum_probability
             || !regime.minimum_censoring_probability.is_finite()
             || regime.minimum_censoring_probability < query.minimum_probability
-            || regime.uncertainty != (if query.method == "marginal_structural_model" { "pointwise_subject_clustered_cr1_no_interval" } else { "point_only_no_interval" })
+            || regime.uncertainty != expected_uncertainty
             || regime.probability_ownership
                 != if query.probabilities_known_by_design {
                     "known_sequential_randomization"

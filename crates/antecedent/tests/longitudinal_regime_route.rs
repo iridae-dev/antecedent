@@ -115,6 +115,43 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
 }
 
 #[test]
+fn retained_subject_ipw_interval_round_trips_with_dynamic_rule_identity() {
+    let n = 500;
+    let y = (0..n).map(|i| if i % 4 == 0 { 4.0 } else { 0.0 }).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let mut q = query();
+    q.treatment_history = (0..n).flat_map(|i| match i % 4 {
+        0 => [true, true], 1 => [true, false], 2 => [false, true], _ => [false, false],
+    }).collect::<Vec<_>>().into();
+    q.regime_actions = vec![true; n * 2].into();
+    q.treatment_probabilities = vec![0.5; n * 2].into();
+    q.censoring_probabilities = vec![1.0; n * 2].into();
+    q.outcome_observed = vec![true; n].into();
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("subject-{i}"))).collect::<Vec<_>>().into();
+    q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
+    q.rule_id = Some(Arc::from("static-all-treated-materialized"));
+    q.rule_version = Some(Arc::from("v1"));
+    q.rule_provenance = Some(Arc::from("known-rule-fixture"));
+    let ctx = ExecutionContext::for_tests(104);
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let regime = result.longitudinal_regime.as_ref().unwrap();
+    assert!((regime.value - 4.0).abs() < 1e-12);
+    assert!(regime.value_standard_error.unwrap() > 0.0);
+    let interval = regime.value_interval_95.unwrap();
+    assert!(interval[0] < 4.0 && interval[1] > 4.0);
+    assert_eq!(regime.rule_id.as_deref(), Some("static-all-treated-materialized"));
+    assert_eq!(regime.interval_reason, None);
+    assert_eq!(regime.uncertainty.as_ref(), "pointwise_subject_score_95");
+    let bytes = prepared.encode_contracted_result(&result, "regime-ipw-interval", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(interval));
+    body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([4.0, 4.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-regime").is_err());
+}
+
+#[test]
 fn materialized_dynamic_rule_identity_survives_native_query_and_result_artifacts() {
     let data = TabularData::from_f64_columns([("outcome", &[4.0, 0.0, 0.0, 0.0][..])]).unwrap();
     let mut q = query();

@@ -582,6 +582,11 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         return None
     return LongitudinalRegimeEstimate(
         value=section.value,
+        value_standard_error=section.value_standard_error,
+        value_interval_95=section.value_interval_95,
+        interval_reason=section.interval_reason,
+        support_status=("off_axis_pointwise_95" if section.value_interval_95 is not None
+                        else "unlicensed_point_utility"),
         effective_sample_size=section.effective_sample_size,
         matched_observed_fraction=section.matched_observed_fraction,
         maximum_weight=section.maximum_weight,
