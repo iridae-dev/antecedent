@@ -160,6 +160,14 @@ neighbor exposure on a fixed validated network; the unlicensed
 `InterferenceQuery` cell on `analyze` is NeighborCount under Bernoulli
 assignment.
 
+The retained `analyze` route also accepts the specifically checked cluster
+construction: complete cluster randomization, `NeighborFraction`, an explicit
+matching `PartialInterference` partition, a within-cluster network, and the
+total contrast from `(0, 0)` to `(1, 1)`. It requires at least two clusters in
+each assignment arm. The result reports a conservative cluster-level variance
+and no interval; this construction has no transferred Bernoulli calibration
+claim or support-matrix license.
+
 The unlicensed `interference.estimate` utility also accepts complete and
 cluster randomization with the built-in exposure maps. For cluster designs it
 reports the observed number of units and distinct randomization clusters at

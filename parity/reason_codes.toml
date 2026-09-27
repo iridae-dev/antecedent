@@ -81,7 +81,7 @@ max_uses = 1
 [[code]]
 id = "construction_not_licensed"
 applies_to = ["python_product", "runtime_refusal"]
-meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment); another design, exposure mapping, formula or inner functional on that coordinate is refused."
+meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment). Other constructions refuse on the licensed estimator; a separately identified off-axis estimator may execute without inheriting its license or calibration."
 max_uses = 0
 
 [[code]]
