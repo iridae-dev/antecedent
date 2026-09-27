@@ -200,64 +200,6 @@ fn validate_delayed_entry(
     Ok(())
 }
 
-fn ipc_weighted_km_curve<F>(
-    duration: &[f64],
-    event_observed: &[bool],
-    treated: &[bool],
-    arm: bool,
-    times: &[f64],
-    censoring_survival_at: F,
-    tau: f64,
-) -> PyResult<(Vec<f64>, f64, Option<usize>)>
-where
-    F: Fn(usize, usize) -> f64,
-{
-    let mut survival = 1.0;
-    let mut previous = 0.0;
-    let mut rmst = 0.0;
-    let mut curve = Vec::with_capacity(times.len());
-    let mut minimum_risk_set: Option<usize> = None;
-    for (time_index, &time) in times.iter().enumerate() {
-        if time_index > 0 {
-            rmst += (time - previous) * survival;
-        }
-        let failures = (0..duration.len())
-            .filter(|&i| treated[i] == arm && event_observed[i] && duration[i] == time)
-            .count();
-        if failures > 0 {
-            let risk_rows: Vec<usize> =
-                (0..duration.len()).filter(|&i| treated[i] == arm && duration[i] >= time).collect();
-            let risk_weight: f64 =
-                risk_rows.iter().map(|&i| 1.0 / censoring_survival_at(i, time_index)).sum();
-            let failure_weight: f64 = risk_rows
-                .iter()
-                .filter(|&&i| event_observed[i] && duration[i] == time)
-                .map(|&i| 1.0 / censoring_survival_at(i, time_index))
-                .sum();
-            if !risk_weight.is_finite() || !failure_weight.is_finite() || risk_weight <= 0.0 {
-                return Err(PyValueError::new_err(
-                    "IPCW weighted risk set is not finite and positive",
-                ));
-            }
-            let hazard = failure_weight / risk_weight;
-            if !hazard.is_finite() || hazard > 1.0 + 1e-10 {
-                return Err(PyValueError::new_err(
-                    "IPCW event weight exceeds its weighted risk set; supplied censoring probabilities violate support",
-                ));
-            }
-            survival *= 1.0 - hazard.min(1.0);
-            minimum_risk_set =
-                Some(minimum_risk_set.map_or(risk_rows.len(), |old| old.min(risk_rows.len())));
-        }
-        curve.push(survival);
-        previous = time;
-    }
-    if (previous - tau).abs() > 1e-10 {
-        return Err(PyValueError::new_err("evaluation times must end at tau"));
-    }
-    Ok((curve, rmst, minimum_risk_set))
-}
-
 /// IPCW weighted product-limit curves using caller supplied censoring survival.
 #[pyfunction]
 fn randomized_survival_ipcw(
@@ -334,75 +276,30 @@ fn randomized_survival_ipcw(
             ));
         }
     }
-    let (control, rmst0, minrisk0) = ipc_weighted_km_curve(
-        &duration.to_vec(),
-        &event_observed,
-        &treated,
-        false,
-        &times,
-        |i, j| g[[i, j]],
-        tau,
-    )?;
-    let (treated_curve, rmst1, minrisk1) = ipc_weighted_km_curve(
-        &duration.to_vec(),
-        &event_observed,
-        &treated,
-        true,
-        &times,
-        |i, j| g[[i, j]],
-        tau,
-    )?;
-    Ok((times, control, treated_curve, rmst0, rmst1, minrisk0, minrisk1, minimum_g))
-}
-
-fn ipc_weighted_cif_curve<F>(
-    duration: &[f64],
-    causes: &[i64],
-    treated: &[bool],
-    arm: bool,
-    target_cause: i64,
-    times: &[f64],
-    censoring_survival_at: F,
-) -> PyResult<(Vec<f64>, Option<usize>)>
-where
-    F: Fn(usize, usize) -> f64,
-{
-    let mut survival = 1.0;
-    let mut incidence = 0.0;
-    let mut curve = Vec::with_capacity(times.len());
-    let mut minimum_risk_set: Option<usize> = None;
-    for (j, &time) in times.iter().enumerate() {
-        let risk: Vec<usize> =
-            (0..duration.len()).filter(|&i| treated[i] == arm && duration[i] >= time).collect();
-        let event_rows: Vec<usize> =
-            risk.iter().copied().filter(|&i| causes[i] > 0 && duration[i] == time).collect();
-        if !event_rows.is_empty() {
-            let risk_weight: f64 = risk.iter().map(|&i| 1.0 / censoring_survival_at(i, j)).sum();
-            let all_event_weight: f64 =
-                event_rows.iter().map(|&i| 1.0 / censoring_survival_at(i, j)).sum();
-            let target_weight: f64 = event_rows
-                .iter()
-                .filter(|&&i| causes[i] == target_cause)
-                .map(|&i| 1.0 / censoring_survival_at(i, j))
-                .sum();
-            if !risk_weight.is_finite() || risk_weight <= 0.0 || !all_event_weight.is_finite() {
-                return Err(PyValueError::new_err(
-                    "IPCW weighted risk set is not finite and positive",
-                ));
-            }
-            let hazard = all_event_weight / risk_weight;
-            if !hazard.is_finite() || hazard > 1.0 + 1e-10 {
-                return Err(PyValueError::new_err(
-                    "IPCW event weight exceeds its weighted risk set; supplied censoring probabilities violate support",
-                ));
-            }
-            incidence += survival * target_weight / risk_weight;
-            survival *= 1.0 - hazard.min(1.0);
-            minimum_risk_set = Some(minimum_risk_set.map_or(risk.len(), |old| old.min(risk.len())));
-        }
-        curve.push(incidence);
-    }
-    Ok((curve, minimum_risk_set))
+    let event_codes = event_observed.iter().map(|event| i64::from(*event)).collect::<Vec<_>>();
+    let (summary, kernel_minimum_g) =
+        antecedent_estimate::survival::randomized_survival_ipcw_summary(
+            &duration.to_vec(),
+            &event_codes,
+            &treated,
+            &times,
+            &g.iter().copied().collect::<Vec<_>>(),
+            tau,
+            minimum_probability,
+            antecedent_estimate::survival::SurvivalEndpoint::Survival,
+        )
+        .map_err(PyValueError::new_err)?;
+    debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
+    Ok((
+        summary.times,
+        summary.control,
+        summary.treated,
+        summary.rmst_control.expect("survival summary has RMST"),
+        summary.rmst_treated.expect("survival summary has RMST"),
+        summary.minimum_event_risk_set_by_arm[0],
+        summary.minimum_event_risk_set_by_arm[1],
+        kernel_minimum_g,
+    ))
 }
 
 /// IPCW Aalen-Johansen cumulative incidence with caller-supplied censoring survival.
@@ -488,16 +385,27 @@ fn randomized_cumulative_incidence_ipcw(
             ));
         }
     }
-    let d = duration.to_vec();
-    let (control, minrisk0) =
-        ipc_weighted_cif_curve(&d, &event_cause, &treated, false, target_cause, &times, |i, j| {
-            g[[i, j]]
-        })?;
-    let (treated_curve, minrisk1) =
-        ipc_weighted_cif_curve(&d, &event_cause, &treated, true, target_cause, &times, |i, j| {
-            g[[i, j]]
-        })?;
-    Ok((times, control, treated_curve, minrisk0, minrisk1, minimum_g))
+    let (summary, kernel_minimum_g) =
+        antecedent_estimate::survival::randomized_survival_ipcw_summary(
+            &duration.to_vec(),
+            &event_cause,
+            &treated,
+            &times,
+            &g.iter().copied().collect::<Vec<_>>(),
+            tau,
+            minimum_probability,
+            antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
+        )
+        .map_err(PyValueError::new_err)?;
+    debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
+    Ok((
+        summary.times,
+        summary.control,
+        summary.treated,
+        summary.minimum_event_risk_set_by_arm[0],
+        summary.minimum_event_risk_set_by_arm[1],
+        kernel_minimum_g,
+    ))
 }
 
 /// Two-arm randomized Kaplan-Meier curves and restricted mean survival time.
