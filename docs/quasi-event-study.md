@@ -10,16 +10,19 @@ Each subject must have exactly one pre and post outcome; rows, design values,
 and identifiers must align. The result's `panel_did` section reports the
 difference in mean subject-level changes and a cluster score-sandwich standard
 error using the finite-cluster multiplier `G/(G - 1)`. At least two clusters
-must contribute to each treatment group. It makes no p-value or interval claim
-and remains unlicensed in the support matrix. The identifying assumptions are
-parallel untreated trends, no anticipation, consistency, stable assignment,
-and no interference. Staggered adoption, repeated cross-sections, missing
-waves, and other panel shapes are refused by this route.
+must contribute to each treatment group, and clusters must be nested within
+treatment groups. A separate pointwise 95% normal interval is available when
+each group has at least 30 independent clusters and the standard error is
+positive. This is interval evidence outside the current graphless support
+matrix. The identifying assumptions are parallel untreated trends, no
+anticipation, consistency, stable assignment,
+and no interference. Staggered adoption and missing waves are refused by this
+query; repeated cross sections use its explicit sampling mode.
 
-The same standard-error contract is used by `estimate_panel_did` for balanced
-two-period panels. It defaults to subject clusters and accepts an optional
-higher-level cluster column. `estimate_group_time_att` uses the same contract
-for post-adoption cohort-period contrasts.
+`estimate_panel_did` delegates to this retained route for balanced panels and
+repeated cross sections. It defaults to subject clusters and accepts an optional
+higher-level cluster column. `estimate_group_time_att` uses the same cluster
+score contract for post-adoption cohort-period contrasts.
 
 `antecedent.prepare(data, query=StaggeredAdoption(..., event_study=True))` and
 `antecedent.analyze(...)` retain all cohort-specific event-time contrasts in
@@ -45,8 +48,11 @@ vectors. A prepared analysis requires the same design rows on refresh. The
 top-level scalar is the first post-adoption contrast in cohort/period order;
 the full event study is `result.panel_did.effects`.
 
-This is an unlicensed point workflow with `unlicensed_point_utility` support status.
-It assumes cohort-specific parallel untreated trends, no anticipation,
+Supported post-adoption contrasts have separate pointwise 95% cluster intervals
+when each side has at least 24 independent clusters and a positive standard
+error. These are not a simultaneous band and remain outside the graphless
+support matrix. The design assumes cohort-specific parallel untreated trends,
+no anticipation,
 absorbing treatment after adoption, valid never-treated controls, no
 interference, a balanced panel, and independent sampling clusters. The API
 cannot establish these assumptions. It reports pointwise cluster-robust
@@ -54,10 +60,14 @@ standard errors from cluster-aggregated influence contributions, with the
 finite-cluster multiplier `G/(G - 1)`. Subject IDs are the default clusters;
 an optional higher-level cluster column can be supplied. At least two distinct
 clusters must contribute to each cohort and control group for every row.
-Pre-adoption contrasts are descriptive diagnostics only; they are not a
-parallel-trends test. Neither route provides p-values, confidence intervals,
-or calibrated inference. Cluster IDs must be non-empty and constant within
-subject.
+
+The retained result reports a descriptive joint pre-period statistic when at
+least two non-reference leads have finite, positive cluster standard errors:
+the maximum across leads of `abs(effect / cluster SE)`. It reports an explicit
+unavailable diagnostic otherwise. This statistic has no calibrated p-value or
+cutoff. A small value cannot establish parallel untreated trends, while a
+large value can direct scrutiny to pre-treatment differences. Cluster IDs must
+be non-empty and constant within subject.
 
 The input uses the same columns as `StaggeredAdoption`: outcome, subject ID,
 calendar period, and first-treatment cohort, with cohort 0 reserved for units
