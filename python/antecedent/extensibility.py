@@ -300,6 +300,7 @@ class ProviderVerificationReport:
     evidence_digest: str
     deterministic_replay_checked: bool
     evidence_origin: str
+    verified_request_digests: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -422,6 +423,7 @@ class ProviderRegistry:
         spec = provider.spec
         spec_digest = _digest(_spec_evidence(spec))
         observations = []
+        request_digests = []
         for fixture in fixtures:
             result = self.execute(name, fixture.request)
             expected = _provider_array(fixture.expected_estimate, "expected estimate")
@@ -491,6 +493,7 @@ class ProviderRegistry:
                     "artifact_round_trip_checked": fixture.artifact_decoder is not None,
                 }
             )
+            request_digests.append(_digest(fixture.request))
         if _digest(_spec_evidence(provider.spec)) != spec_digest:
             raise ValueError("provider spec changed during verification")
         report = ProviderVerificationReport(
@@ -506,6 +509,7 @@ class ProviderRegistry:
             ),
             spec.deterministic,
             evidence_origin,
+            tuple(request_digests),
         )
         self._verification[name] = report
         self._providers[name] = (provider, ProviderTrust.VERIFIED_EXTENSION)
@@ -520,6 +524,14 @@ class ProviderRegistry:
         report = self._verification.get(name)
         if report is not None and _digest(_spec_evidence(spec)) != report.spec_digest:
             raise ValueError("verified provider spec changed after verification")
+        effective_trust = trust
+        if report is not None:
+            try:
+                covered_request = _digest(request) in report.verified_request_digests
+            except TypeError:
+                covered_request = False
+            if not covered_request:
+                effective_trust = ProviderTrust.EXTERNALLY_ATTESTED
         raw = provider.execute(MappingProxyType(dict(request)))
         if not isinstance(raw, ProviderExecution):
             raise TypeError("provider execute() must return ProviderExecution")
@@ -533,13 +545,15 @@ class ProviderRegistry:
         )
         if uncertainty is not None and uncertainty.shape not in ((), estimate.shape):
             raise ValueError("provider uncertainty must be scalar or match the estimate shape")
+        if uncertainty is not None and spec.uncertainty_semantics == "point_only":
+            raise ValueError("point-only provider returned uncertainty")
         provenance = dict(spec.provenance)
         provenance.update(raw.provenance)
         provenance["registry_name"] = name
         if name in self._entry_points:
             provenance["entry_point"] = self._entry_points[name]
-        provenance["trust_boundary"] = trust.value
-        if report is not None:
+        provenance["trust_boundary"] = effective_trust.value
+        if report is not None and effective_trust is ProviderTrust.VERIFIED_EXTENSION:
             provenance["verification_evidence_digest"] = report.evidence_digest
             provenance["verification_evidence_origin"] = report.evidence_origin
         return ProviderResult(
@@ -548,7 +562,7 @@ class ProviderRegistry:
             raw.assumptions,
             raw.support_status,
             MappingProxyType(provenance),
-            trust,
+            effective_trust,
             spec.uncertainty_semantics,
             raw.artifact,
         )

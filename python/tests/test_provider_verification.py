@@ -76,9 +76,13 @@ def test_verified_provider_promotion_records_evidence_and_shared_result():
     assert len(report.evidence_digest) == 64
     assert report.deterministic_replay_checked
     assert registry.verification_report("external") == report
-    result = registry.execute("external", {"known_effect": 4.0})
+    result = registry.execute("external", {"known_effect": 2.0})
     assert result.trust is ProviderTrust.VERIFIED_EXTENSION
     assert result.provenance["verification_evidence_digest"] == report.evidence_digest
+    unseen = registry.execute("external", {"known_effect": 4.0})
+    assert unseen.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert unseen.provenance["trust_boundary"] == "externally_attested"
+    assert "verification_evidence_digest" not in unseen.provenance
     view = ProviderAnalysisResult(
         provider_name="external", query_family="effect", provider_result=result
     )
