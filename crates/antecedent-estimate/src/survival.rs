@@ -83,8 +83,8 @@ pub fn randomized_survival_bootstrap_intervals(
     {
         return Err("survival bootstrap subject arrays must be row-aligned");
     }
-    if delayed_entry.is_some() {
-        return Err("delayed-entry survival pointwise intervals require separate truncation calibration");
+    if delayed_entry.is_some() && known_censoring.is_some() {
+        return Err("combined delayed-entry and fixed-censoring bootstrap requires separate calibration");
     }
     let arms = [false, true].map(|arm| {
         treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
@@ -601,6 +601,56 @@ mod tests {
         // undercoverage for this declared data-generating law.
         assert!(covered_rmst >= 360, "RMST coverage: {covered_rmst}/400");
         assert!(covered_tau >= 360, "S(tau) coverage: {covered_tau}/400");
+    }
+
+    #[test]
+    fn delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth() {
+        // Entry is independent of the source-population event time. A subject
+        // entering at one with an event at one is unobserved; those entering
+        // at zero identify the first jump, and later risk sets use both entry
+        // cohorts. The two arm laws imply S(3) and RMST differences of .15
+        // and .25 respectively.
+        let mut state = 0xD3E1_A7E0_95D2_6B63;
+        let mut covered_rmst = 0;
+        let mut covered_tau = 0;
+        for trial in 0..400 {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            let mut entries = Vec::with_capacity(320);
+            for arm in [false, true] {
+                let mut observed = 0;
+                while observed < 160 {
+                    let entry = (splitmix64(&mut state) & 1) as f64;
+                    let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
+                    let (exit, event) = if event_u < first {
+                        (1.0, 1)
+                    } else if event_u < first + second {
+                        (2.0, 1)
+                    } else {
+                        (3.0, 0)
+                    };
+                    if entry >= exit { continue; }
+                    durations.push(exit);
+                    events.push(event);
+                    treated.push(arm);
+                    entries.push(entry);
+                    observed += 1;
+                }
+            }
+            let intervals = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, Some(&entries), None, 3.0,
+                SurvivalEndpoint::Survival, 299, trial + 2_100,
+            ).unwrap();
+            let rmst = intervals.rmst_difference.unwrap();
+            covered_rmst += u32::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
+            let tau = intervals.difference_at_tau;
+            covered_tau += u32::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
+        }
+        eprintln!("left-truncated survival coverage: RMST {covered_rmst}/400, S(tau) {covered_tau}/400");
+        assert!(covered_rmst >= 360, "left-truncated RMST coverage: {covered_rmst}/400");
+        assert!(covered_tau >= 360, "left-truncated S(tau) coverage: {covered_tau}/400");
     }
 
     #[test]
