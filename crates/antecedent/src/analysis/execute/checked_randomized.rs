@@ -614,17 +614,54 @@ impl CheckedRandomizedOperation {
         // Graphless licenses are exact design/method/inference claims. A
         // published interval alone is insufficient: sparse or other designs
         // must not inherit a geometric matrix coordinate by analogy.
-        let (design, method, assignment_unit) = match self.query.design {
+        let (design, method, assignment_unit, claim) = match self.query.design {
+            antecedent_core::RandomizationDesign::Bernoulli =>
+                ("bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Complete { .. } =>
-                ("complete", "neyman_difference_in_means", "unit"),
+                ("complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Cluster { .. } =>
-                ("cluster", "neyman_unit_weighted_cluster_totals", "cluster"),
-            _ => ("unlicensed", "unlicensed", "unit"),
+                ("cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval"),
+            antecedent_core::RandomizationDesign::Stratified { .. } =>
+                ("stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
+            antecedent_core::RandomizationDesign::Factorial2x2 { .. } =>
+                ("factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals"),
+            antecedent_core::RandomizationDesign::MultiArm { .. } =>
+                ("multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
+            antecedent_core::RandomizationDesign::Switchback { .. } =>
+                ("switchback", "unlicensed", "unit", "point_only"),
         };
-        let claim = if interval_95.is_some() {
-            "pointwise_95_normal_interval"
+        let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
+        let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
+        for (block, assigned) in fit.blocks.iter().zip(self.query.realized_assignment.iter()) {
+            let counts = block_counts.entry(block).or_default();
+            if *assigned { counts.1 += 1; } else { counts.0 += 1; }
+        }
+        let min_block_arm = block_counts.values().flat_map(|(control, treated)| [*control, *treated]).min().unwrap_or(0);
+        let min_factorial_cell = if let antecedent_core::RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } = &self.query.design {
+            let mut counts = [0_usize; 4];
+            for (primary, secondary) in self.query.realized_assignment.iter().zip(second_factor_assignment.iter()) {
+                counts[usize::from(*primary) + 2 * usize::from(*secondary)] += 1;
+            }
+            *counts.iter().min().unwrap_or(&0)
+        } else { 0 };
+        let reported_intervals = if design == "multi_arm" {
+            fit.multi_arm_intervals_95.iter().filter(|interval| interval.is_some()).count()
         } else {
-            "point_only"
+            usize::from(fit.interval_95.is_some())
+                + usize::from(fit.second_factor_interval_95.is_some())
+                + usize::from(fit.factorial_interaction_interval_95.is_some())
+        };
+        let all_reported_intervals = match design {
+            "factorial_2x2" => reported_intervals == 3,
+            "multi_arm" => fit.multi_arm_intervals_95.len() == fit.multi_arm_values.len()
+                && reported_intervals + 1 == fit.multi_arm_values.len(),
+            _ => fit.interval_95.is_some(),
+        };
+        let min_probability = if let antecedent_core::RandomizationDesign::MultiArm { probabilities, .. } = &self.query.design {
+            probabilities.iter().flat_map(|row| row.iter().copied()).fold(f64::INFINITY, f64::min)
+        } else {
+            self.query.assignment_probabilities.iter().copied()
+                .map(|p| p.min(1.0 - p)).fold(f64::INFINITY, f64::min)
         };
         if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
             crate::support::GraphlessSupportKey {
@@ -633,6 +670,13 @@ impl CheckedRandomizedOperation {
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit, treated: treatment_units, control: control_units,
                 interval_95_published: interval_95.is_some(),
+                rows: n, blocks: block_counts.len(), min_block_arm, min_factorial_cell,
+                min_action_rows: if fit.multi_arm_values.is_empty() {
+                    control_units.min(treatment_units)
+                } else {
+                    fit.multi_arm_values.iter().map(|(_, _, _, count)| *count).min().unwrap_or(0)
+                },
+                min_probability, reported_intervals, all_reported_intervals,
             },
         ) {
             result.support_status = Some(crate::support::CellStatus::Licensed);

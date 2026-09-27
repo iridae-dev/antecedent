@@ -49,7 +49,7 @@ pub struct GraphlessSupportKey<'a> {
 }
 
 /// Observed independent assignment units in a binary randomized contrast.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphlessAssignmentSupport {
     /// `unit` or `cluster`, matched to the licensed design.
     pub assignment_unit: &'static str,
@@ -59,6 +59,22 @@ pub struct GraphlessAssignmentSupport {
     pub control: usize,
     /// True only after the estimator actually published its 95% interval.
     pub interval_95_published: bool,
+    /// Number of analyzed outcome rows.
+    pub rows: usize,
+    /// Number of separate randomization blocks.
+    pub blocks: usize,
+    /// Smallest realized assignment count in any block arm.
+    pub min_block_arm: usize,
+    /// Smallest realized count in any factorial cell.
+    pub min_factorial_cell: usize,
+    /// Smallest realized count across every named action.
+    pub min_action_rows: usize,
+    /// Smallest declared probability across every action and row.
+    pub min_probability: f64,
+    /// Number of distinct published pointwise intervals.
+    pub reported_intervals: usize,
+    /// Whether every contrast named by the query has an interval.
+    pub all_reported_intervals: bool,
 }
 
 /// Runtime status for one exact graphless support key.
@@ -95,6 +111,14 @@ pub fn classify_graphless(
                 && observed.treated >= row.min_assignment_units_per_arm
                 && observed.control >= row.min_assignment_units_per_arm
                 && observed.interval_95_published
+                && observed.rows >= row.min_rows
+                && observed.blocks >= row.min_blocks
+                && observed.min_block_arm >= row.min_block_arm
+                && observed.min_factorial_cell >= row.min_factorial_cell
+                && observed.min_action_rows >= row.min_action_rows
+                && observed.min_probability + 1e-12 >= row.min_probability
+                && observed.reported_intervals >= row.min_reported_intervals
+                && (!row.all_reported_intervals || observed.all_reported_intervals)
         })
         .map_or(GraphlessSupportStatus::Refused, |row| GraphlessSupportStatus::Licensed {
             limitations: row.limitations,
@@ -113,7 +137,8 @@ mod graphless_support_tests {
             family: "randomized_effect", design: "complete",
             method: "neyman_difference_in_means", inference_claim: "pointwise_95_normal_interval",
         };
-        let unit_30 = GraphlessAssignmentSupport { assignment_unit: "unit", treated: 30, control: 30, interval_95_published: true };
+        let unit_30 = GraphlessAssignmentSupport { assignment_unit: "unit", treated: 30, control: 30,
+            interval_95_published: true, reported_intervals: 1, ..Default::default() };
         assert!(matches!(classify_graphless(complete, unit_30), GraphlessSupportStatus::Licensed { .. }));
         assert_eq!(classify_graphless(complete, GraphlessAssignmentSupport { treated: 29, ..unit_30 }), GraphlessSupportStatus::Refused);
         assert_eq!(classify_graphless(complete, GraphlessAssignmentSupport { interval_95_published: false, ..unit_30 }), GraphlessSupportStatus::Refused);
@@ -123,10 +148,45 @@ mod graphless_support_tests {
             family: "randomized_effect", design: "cluster",
             method: "neyman_unit_weighted_cluster_totals", inference_claim: "pointwise_95_normal_interval",
         };
-        let cluster_30 = GraphlessAssignmentSupport { assignment_unit: "cluster", treated: 30, control: 30, interval_95_published: true };
+        let cluster_30 = GraphlessAssignmentSupport { assignment_unit: "cluster", treated: 30, control: 30,
+            interval_95_published: true, reported_intervals: 1, ..Default::default() };
         assert!(matches!(classify_graphless(cluster, cluster_30), GraphlessSupportStatus::Licensed { .. }));
         assert_eq!(classify_graphless(cluster, unit_30), GraphlessSupportStatus::Refused);
         assert_eq!(classify_graphless(cluster, GraphlessAssignmentSupport { control: 29, ..cluster_30 }), GraphlessSupportStatus::Refused);
+    }
+
+    #[test]
+    fn additional_randomized_interval_rows_refuse_each_missing_gate() {
+        let binary = GraphlessAssignmentSupport {
+            assignment_unit: "unit", treated: 200, control: 200, rows: 400,
+            min_probability: 0.2, interval_95_published: true,
+            reported_intervals: 1, all_reported_intervals: true,
+            ..Default::default()
+        };
+        let bernoulli = GraphlessSupportKey { family: "randomized_effect", design: "bernoulli",
+            method: "independent_action_ht_score", inference_claim: "pointwise_95_normal_interval" };
+        assert!(matches!(classify_graphless(bernoulli, binary), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(bernoulli, GraphlessAssignmentSupport { rows: 399, ..binary }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(bernoulli, GraphlessAssignmentSupport { min_probability: 0.19, ..binary }), GraphlessSupportStatus::Refused);
+
+        let blocked = GraphlessSupportKey { design: "stratified", method: "blocked_neyman_difference_in_means", ..bernoulli };
+        let blocks = GraphlessAssignmentSupport { treated: 60, control: 60,
+            blocks: 4, min_block_arm: 15, ..binary };
+        assert!(matches!(classify_graphless(blocked, blocks), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(blocked, GraphlessAssignmentSupport { min_block_arm: 14, ..blocks }), GraphlessSupportStatus::Refused);
+
+        let factorial = GraphlessSupportKey { design: "factorial_2x2", method: "fixed_cell_neyman_contrasts",
+            inference_claim: "three_pointwise_95_normal_intervals", ..bernoulli };
+        let cells = GraphlessAssignmentSupport { min_factorial_cell: 30, reported_intervals: 3, ..binary };
+        assert!(matches!(classify_graphless(factorial, cells), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(factorial, GraphlessAssignmentSupport { reported_intervals: 2, ..cells }), GraphlessSupportStatus::Refused);
+
+        let multi = GraphlessSupportKey { design: "multi_arm", method: "independent_action_ht_scores",
+            inference_claim: "all_action_pointwise_95_normal_intervals", ..bernoulli };
+        let actions = GraphlessAssignmentSupport { min_action_rows: 30, reported_intervals: 3, ..binary };
+        assert!(matches!(classify_graphless(multi, actions), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(multi, GraphlessAssignmentSupport { all_reported_intervals: false, ..actions }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(multi, GraphlessAssignmentSupport { min_action_rows: 29, ..actions }), GraphlessSupportStatus::Refused);
     }
 }
 

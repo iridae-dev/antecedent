@@ -526,15 +526,19 @@ impl PreparedStudy {
                 support.matrix_status = Arc::from(result.support_status
                     .map_or("off_axis", CellStatus::as_str));
                 support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
-                    .then(|| Arc::from(format!(
-                        "graphless:randomized_effect/{}/{}/pointwise_95_normal_interval",
-                        randomized.assignment_design,
-                        if randomized.assignment_design.as_ref() == "complete" {
-                            "neyman_difference_in_means"
-                        } else {
-                            "neyman_unit_weighted_cluster_totals"
-                        },
-                    )));
+                    .then(|| {
+                        let (method, claim) = match randomized.assignment_design.as_ref() {
+                            "bernoulli" => ("independent_action_ht_score", "pointwise_95_normal_interval"),
+                            "complete" => ("neyman_difference_in_means", "pointwise_95_normal_interval"),
+                            "cluster" => ("neyman_unit_weighted_cluster_totals", "pointwise_95_normal_interval"),
+                            "stratified" => ("blocked_neyman_difference_in_means", "pointwise_95_normal_interval"),
+                            "factorial_2x2" => ("fixed_cell_neyman_contrasts", "three_pointwise_95_normal_intervals"),
+                            "multi_arm" => ("independent_action_ht_scores", "all_action_pointwise_95_normal_intervals"),
+                            _ => unreachable!("only exact graphless randomized rows can be licensed"),
+                        };
+                        Arc::from(format!("graphless:randomized_effect/{}/{method}/{claim}",
+                            randomized.assignment_design))
+                    });
             }
         }
         Ok((contract, payloads))

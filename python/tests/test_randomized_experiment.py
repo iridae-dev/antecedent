@@ -38,6 +38,56 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert prepared.estimate(data).randomized_effect.interval_95 == fit.interval_95
 
 
+def test_bernoulli_interval_has_exact_graphless_license():
+    n = 400
+    assignment = [i % 2 == 0 for i in range(n)]
+    outcomes = np.asarray([1.0 + 2.0 * float(assignment[i])
+                           + 0.5 * np.sin(i * 0.3) for i in range(n)])
+    result = ant.analyze({"outcome": outcomes},
+                         query=ant.RandomizedEffect("outcome", _design(assignment)))
+    assert result.randomized_effect.interval_95 is not None
+    assert result.randomized_effect.support_status == "licensed"
+    assert result.evidence_status == "licensed"
+
+
+def test_blocked_interval_has_exact_graphless_license():
+    n = 120
+    assignment = [i % 30 < 15 for i in range(n)]
+    blocks = [f"block-{i // 30}" for i in range(n)]
+    design = ant.ExperimentDesign(
+        StratifiedRandomization({f"block-{i}": 15 for i in range(4)}),
+        assignment,
+        [f"unit-{i}" for i in range(n)],
+        [f"row-{i}" for i in range(n)],
+        blocks=blocks,
+    )
+    outcomes = np.asarray([1.0 + 2.0 * float(assignment[i])
+                           + 0.5 * np.sin(i * 0.3) for i in range(n)])
+    result = ant.analyze({"outcome": outcomes}, query=ant.RandomizedEffect("outcome", design))
+    assert result.randomized_effect.interval_95 is not None
+    assert result.randomized_effect.support_status == "licensed"
+    assert result.evidence_status == "licensed"
+
+
+def test_factorial_three_intervals_have_exact_graphless_license():
+    n = 120
+    primary = [False] * 30 + [True] * 30 + [False] * 30 + [True] * 30
+    second = [False] * 60 + [True] * 60
+    design = _design(primary, randomization=ant.FactorialRandomization(
+        second, (30, 30, 30, 30), ("no_message", "message")
+    ))
+    outcomes = np.asarray([1.0 + 2.0 * float(primary[i]) + float(second[i])
+                           + 0.5 * float(primary[i] and second[i])
+                           + 0.5 * np.sin(i * 0.3) for i in range(n)])
+    result = ant.analyze({"outcome": outcomes}, query=ant.RandomizedEffect("outcome", design))
+    fit = result.randomized_effect
+    assert fit.interval_95 is not None
+    assert fit.second_factor_interval_95 is not None
+    assert fit.factorial_interaction_interval_95 is not None
+    assert fit.support_status == "licensed"
+    assert result.evidence_status == "licensed"
+
+
 def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
     labels = ("control", "a", "b", "c")
     assignment = tuple(labels[i % 4] for i in range(400))
@@ -59,7 +109,7 @@ def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
         fit.multi_arm_intervals_95[1:]
     )
     assert all(interval is not None for interval in fit.multi_arm_intervals_95[1:])
-    assert fit.support_status == "off_axis_interval_evidence"
+    assert fit.support_status == "licensed"
 
 
 def test_randomized_effect_runs_in_the_retained_analysis_lifecycle():

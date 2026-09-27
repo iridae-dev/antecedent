@@ -655,18 +655,19 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   probabilities at least 0.2 on every row. Smaller designs retain their point
   and labeled variance without an interval. The native estimator's repeated
   randomization fixtures score each reported interval against a known
-  finite-population effect. Exact complete-unit and complete-cluster ITT
-  results with at least 30 independent assignment units per arm, positive
-  realized variance, and a published pointwise 95% normal interval are
-  licensed by the separate [graphless support matrix](graphless-support-matrix.md).
-  Sparse or degenerate results and the other randomized interval designs remain
-  off-axis; their intervals do not inherit this license.
+  finite-population effect. Exact retained Bernoulli, complete-unit,
+  complete-cluster, stratified/block, fixed-cell factorial, and independent
+  multi-arm interval results are licensed by the separate
+  [graphless support matrix](graphless-support-matrix.md) only when their
+  design-specific support gates and every claimed pointwise interval pass.
+  Sparse and degenerate results remain off-axis; no simultaneous coverage is
+  licensed.
   `SwitchbackEffect` also runs through retained `analyze` with row-aligned
   sequence and period labels, known marginal assignment probabilities, and
   a sequence-clustered sandwich variance. It requires two independent
   sequences with both arms observed, assumes no carryover and no interference
   between sequences, and reports no interval. These design queries are off
-  the support-matrix axis; results report `evidence_status="off_axis"`.
+  the graphless license table; these results report `evidence_status="off_axis"`.
   `experiment.ComplierEffect` uses the same retained randomized study path
   for independent Bernoulli encouragement with row-aligned treatment receipt.
   It reports the outcome ITT, positive receipt first stage, Wald CACE/LATE,
@@ -690,7 +691,8 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   and each declared action probability at least 0.2 on every row, the retained
   route also reports separate pointwise 95% score intervals for every action
   versus the first. These intervals do not have simultaneous coverage and
-  remain off the support-matrix axes. The direct multi-arm utility and retained
+  receive the exact multi-arm graphless license when every contrast qualifies.
+  The direct multi-arm utility and retained
   route share the native estimator; multi-arm combinations with CUPED, ANCOVA,
   receipt adjustment, or exact Fisher inference refuse.
   `experiment.estimate_complier_effect` also provides a direct randomized

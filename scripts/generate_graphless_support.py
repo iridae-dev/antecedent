@@ -15,6 +15,10 @@ RUST = ROOT / "crates/antecedent/src/support_graphless_data.rs"
 IO_RUST = ROOT / "crates/antecedent-io/src/support_graphless_data.rs"
 DOC = ROOT / "docs/graphless-support-matrix.md"
 KEYS = ("family", "design", "method", "inference_claim")
+INTEGER_LIMITS = (
+    "min_rows", "min_assignment_units_per_arm", "min_blocks", "min_block_arm",
+    "min_factorial_cell", "min_action_rows", "min_reported_intervals",
+)
 
 
 def load_rows() -> list[dict]:
@@ -30,9 +34,17 @@ def load_rows() -> list[dict]:
                 raise ValueError(f"{key}: missing {field}")
         if row["assignment_unit"] not in ("unit", "cluster"):
             raise ValueError(f"{key}: unsupported assignment unit")
-        threshold = row.get("min_assignment_units_per_arm")
-        if type(threshold) is not int or threshold < 2:
-            raise ValueError(f"{key}: invalid support threshold")
+        if not any(field in row for field in INTEGER_LIMITS):
+            raise ValueError(f"{key}: missing support threshold")
+        for field in INTEGER_LIMITS:
+            threshold = row.get(field, 0)
+            if type(threshold) is not int or threshold < 0:
+                raise ValueError(f"{key}: invalid {field}")
+        probability = row.get("min_probability", 0.0)
+        if type(probability) not in (float, int) or not 0 <= probability <= 1:
+            raise ValueError(f"{key}: invalid min_probability")
+        if type(row.get("all_reported_intervals", False)) is not bool:
+            raise ValueError(f"{key}: all_reported_intervals must be boolean")
         for evidence in ("known_truth_test", "retained_route_test"):
             path, sep, function = row[evidence].partition("::")
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
@@ -40,15 +52,15 @@ def load_rows() -> list[dict]:
             source = ROOT / path
             if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text()):
                 raise ValueError(f"{key}: missing {evidence} function")
-            if evidence == "known_truth_test" and row["inference_claim"] == "pointwise_95_normal_interval":
+            if evidence == "known_truth_test" and "95_normal_interval" in row["inference_claim"]:
                 body = re.search(
                     rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
                     source.read_text(), re.DOTALL,
                 )
                 if body is None or not all(
                     token in body.group(1)
-                    for token in ("REPLICATES: usize = 2_000", "truth", "covered", "interval_95", "0.93..=0.985")
-                ):
+                    for token in ("REPLICATES: usize = 2_000", "0.93..=0.985", "covered", "interval_95")
+                ) or not any(token in body.group(1) for token in ("truth", "target", "truths")):
                     raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
@@ -60,14 +72,18 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         *(["#[allow(dead_code)] // Evidence citations are used by the generator gate, not IO validation."] if io else []),
         "pub(super) struct GraphlessLicenseRow {",
         *(f"    pub(super) {field}: &'static str," for field in fields),
-        "    pub(super) min_assignment_units_per_arm: usize,",
+        *(f"    pub(super) {field}: usize," for field in INTEGER_LIMITS),
+        "    pub(super) min_probability: f64,",
+        "    pub(super) all_reported_intervals: bool,",
         "}",
         "pub(super) const LICENSES: &[GraphlessLicenseRow] = &[",
     ]
     for row in rows:
         lines.append("    GraphlessLicenseRow {")
-        lines.extend(f"        {field}: {json.dumps(row[field])}," for field in fields)
-        lines.append(f"        min_assignment_units_per_arm: {row['min_assignment_units_per_arm']},")
+        lines.extend(f"        {field}: {json.dumps(row[field], ensure_ascii=False)}," for field in fields)
+        lines.extend(f"        {field}: {row.get(field, 0)}," for field in INTEGER_LIMITS)
+        lines.append(f"        min_probability: {float(row.get('min_probability', 0.0))},")
+        lines.append(f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},")
         lines.append("    },")
     return "\n".join([*lines, "];", ""])
 
@@ -94,7 +110,11 @@ def docs(rows: list[dict]) -> str:
         lines.append(
             "| " + " | ".join(
                 [*(f"`{row[field]}`" for field in KEYS),
-                 f">= {row['min_assignment_units_per_arm']} {row['assignment_unit']}s per arm; interval published",
+                 ", ".join([
+                     *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in INTEGER_LIMITS if row.get(field)),
+                     *(f"probability >= {row['min_probability']}" for _ in [0] if row.get("min_probability")),
+                     "all intervals" if row.get("all_reported_intervals") else "interval published",
+                 ]),
                  evidence]
             ) + " |"
         )
