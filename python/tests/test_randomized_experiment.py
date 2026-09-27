@@ -313,6 +313,35 @@ def test_switchback_itt_uses_sequence_clustered_native_variance():
     assert "arbitrary within-sequence dependence" in estimate.assumptions[1]
 
 
+def test_switchback_itt_runs_in_retained_analyze_with_period_identity():
+    sequences = [f"s{sequence}" for sequence in range(4) for _ in range(4)]
+    periods = [f"p{period}" for _ in range(4) for period in range(4)]
+    assignment = [True, False, False, True] * 4
+    outcomes = [10.0 * sequence + (sequence + 1.0 if treated else 0.0)
+                for sequence in range(4) for treated in (True, False, False, True)]
+    query = ant.SwitchbackEffect(
+        "y", ant.SwitchbackDesign(assignment, sequences, periods, [0.5] * 16, ("off", "on"))
+    )
+    result = ant.analyze({"y": outcomes}, query=query, refute="none")
+
+    assert result.answer.value == pytest.approx(2.5)
+    assert result.randomized_effect.variance_upper_bound == pytest.approx(5.0 / 12.0)
+    assert result.randomized_effect.assignment_design == "switchback"
+    assert result.randomized_effect.periods == tuple(periods)
+    assert result.randomized_effect.assignment_units == tuple(sequences)
+    assert result.randomized_effect.uncertainty == "switchback_independent_sequence_sandwich_variance_no_interval"
+    assert result.evidence_status == "off_axis"
+    assert any("switchback_no_carryover" in item for item in result.assumptions or ())
+
+
+def test_switchback_retained_route_refuses_duplicate_periods():
+    with pytest.raises(CausalValueError, match="unique within each sequence"):
+        ant.SwitchbackDesign(
+            [True, False, True, False], ["s0", "s0", "s1", "s1"],
+            ["p0", "p0", "p0", "p1"], [0.5] * 4,
+        )
+
+
 def test_switchback_refuses_unsupported_probability_and_single_sequence():
     with pytest.raises(CausalValueError, match="at least two independent sequences"):
         ant.SwitchbackDesign(

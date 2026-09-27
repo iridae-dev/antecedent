@@ -27,6 +27,11 @@ pub enum RandomizationDesign {
         /// Declared treated count for each row's block.
         treated_per_row: Arc<[usize]>,
     },
+    /// Unit-period assignment within independent switching sequences.
+    Switchback {
+        /// Period labels aligned with outcome rows; unique within each sequence.
+        periods: Arc<[Arc<str>]>,
+    },
 }
 
 /// Intention-to-treat contrast for a two-arm randomized trial.
@@ -145,7 +150,7 @@ impl RandomizedEffectQuery {
                 "retained randomized ITT requires one outcome unit per row".into(),
             ));
         }
-        if !matches!(self.design, RandomizationDesign::Cluster { .. })
+        if !matches!(self.design, RandomizationDesign::Cluster { .. } | RandomizationDesign::Switchback { .. })
             && self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
         {
             return Err(QueryError::InvalidRandomizedEffect(
@@ -270,6 +275,29 @@ impl RandomizedEffectQuery {
                     }
                 }
             }
+            RandomizationDesign::Switchback { periods } => {
+                if periods.len() != n || periods.iter().any(|period| period.trim().is_empty()) {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "switchback period labels must be non-empty and aligned with rows".into(),
+                    ));
+                }
+                let mut pairs = std::collections::HashSet::new();
+                let mut sequences = std::collections::BTreeMap::<&str, [bool; 2]>::new();
+                for i in 0..n {
+                    if !pairs.insert((&*self.assignment_units[i], &*periods[i])) {
+                        return Err(QueryError::InvalidRandomizedEffect(
+                            "switchback periods must be unique within each sequence".into(),
+                        ));
+                    }
+                    sequences.entry(&self.assignment_units[i])
+                        .or_insert([false; 2])[usize::from(self.realized_assignment[i])] = true;
+                }
+                if sequences.len() < 2 || sequences.values().any(|arms| !arms[0] || !arms[1]) {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "switchback variance requires at least two independent sequences with both observed arms in each".into(),
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -303,6 +331,27 @@ mod tests {
         assert!(query().with_fixed_cuped(VariableId::from_raw(1), 2.0).validate().is_ok());
         assert!(query().with_fixed_cuped(VariableId::from_raw(0), 2.0).validate().is_err());
         assert!(query().with_fixed_cuped(VariableId::from_raw(1), f64::NAN).validate().is_err());
+    }
+
+    #[test]
+    fn switchback_rejects_reused_period_and_single_sequence() {
+        let mut query = RandomizedEffectQuery::with_design(
+            RandomizationDesign::Switchback {
+                periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
+            },
+            VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+            ["s0", "s0", "s1", "s1"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3"].map(Arc::<str>::from),
+            ("off", "on"),
+        );
+        assert!(query.validate().is_ok());
+        query.assignment_units = ["s0", "s0", "s0", "s0"].map(Arc::<str>::from).into();
+        assert!(query.validate().is_err());
+        query.assignment_units = ["s0", "s0", "s1", "s1"].map(Arc::<str>::from).into();
+        query.design = RandomizationDesign::Switchback {
+            periods: ["p0", "p0", "p0", "p1"].map(Arc::<str>::from).into(),
+        };
+        assert!(query.validate().is_err());
     }
 
     #[test]

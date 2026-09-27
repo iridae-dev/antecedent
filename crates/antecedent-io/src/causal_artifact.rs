@@ -531,6 +531,11 @@ pub(crate) fn validate_query_ids(
                 crate::RandomizationDesignWire::Bernoulli => {
                     antecedent_core::RandomizationDesign::Bernoulli
                 }
+                crate::RandomizationDesignWire::Switchback => {
+                    antecedent_core::RandomizationDesign::Switchback {
+                        periods: wire.periods.iter().map(|period| std::sync::Arc::<str>::from(period.as_str())).collect::<Vec<_>>().into(),
+                    }
+                }
                 crate::RandomizationDesignWire::Complete { treated_units } => {
                     antecedent_core::RandomizationDesign::Complete { treated_units: *treated_units }
                 }
@@ -617,11 +622,6 @@ pub(crate) fn validate_query_ids(
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
         }
-        Q::Survival(wire) => {
-            validate_id(wire.duration, variable_count)?;
-            validate_id(wire.event, variable_count)?;
-            validate_id(wire.treatment, variable_count)?;
-            if let Some(entry) = wire.delayed_entry {
         Q::SyntheticControl(wire) => {
             validate_ids([wire.outcome], variable_count)?;
             antecedent_core::SyntheticControlQuery::new(
@@ -632,6 +632,11 @@ pub(crate) fn validate_query_ids(
                 wire.intervention_period,
             ).validate().map_err(|error| IoError::Convert(error.to_string()))
         }
+        Q::Survival(wire) => {
+            validate_id(wire.duration, variable_count)?;
+            validate_id(wire.event, variable_count)?;
+            validate_id(wire.treatment, variable_count)?;
+            if let Some(entry) = wire.delayed_entry {
                 validate_id(entry, variable_count)?;
             }
             if !wire.independent_observation {
@@ -1547,6 +1552,24 @@ mod tests {
         let artifact = encode_causal_payload_artifact(
             &payload, vec!["outcome".into(), "baseline".into()], "cuped-itt-query"
         ).unwrap();
+        assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
+    }
+
+    #[test]
+    fn switchback_query_round_trips_with_period_identity() {
+        let domain = antecedent_core::RandomizedEffectQuery::with_design(
+            antecedent_core::RandomizationDesign::Switchback {
+                periods: ["p0", "p1", "p0", "p1"].map(std::sync::Arc::<str>::from).into(),
+            },
+            antecedent_core::VariableId::from_raw(0),
+            [true, false, true, false], [0.5; 4],
+            ["s0", "s0", "s1", "s1"].map(std::sync::Arc::<str>::from),
+            ["r0", "r1", "r2", "r3"].map(std::sync::Arc::<str>::from),
+            ("off", "on"),
+        );
+        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
+        let payload = CausalPayloadWire::Query(Box::new(query.clone()));
+        let artifact = encode_causal_payload_artifact(&payload, vec!["outcome".into()], "switchback-query").unwrap();
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

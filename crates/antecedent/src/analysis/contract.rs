@@ -972,7 +972,8 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if self.synthetic_control.is_some()
+        let calibration = if self.randomized_effect.is_some()
+            || self.synthetic_control.is_some()
             || self.policy_value.is_some()
             || self.survival.is_some()
             || self.longitudinal_regime.is_some()
@@ -3262,6 +3263,20 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             n_pre_periods: fit.n_pre_periods,
             n_post_periods: fit.n_post_periods,
             uncertainty: fit.uncertainty.to_string(),
+        }),
+        randomized_effect: result.randomized_effect.as_ref().map(|randomized| antecedent_io::RandomizedEffectWire {
+            effect: randomized.effect,
+            variance: randomized.variance_upper_bound,
+            assignment_design: randomized.assignment_design.to_string(),
+            assignment_units: randomized.assignment_units.iter().map(ToString::to_string).collect(),
+            outcome_units: randomized.outcome_units.iter().map(ToString::to_string).collect(),
+            blocks: randomized.blocks.iter().map(ToString::to_string).collect(),
+            periods: randomized.periods.iter().map(ToString::to_string).collect(),
+            treatment_arms: (randomized.treatment_arms.0.to_string(), randomized.treatment_arms.1.to_string()),
+            control_units: randomized.control_units,
+            treatment_units: randomized.treatment_units,
+            minimum_assignment_probability: randomized.minimum_assignment_probability,
+            uncertainty: randomized.uncertainty.to_string(),
         }),
         survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {
             times: survival.times.to_vec(),

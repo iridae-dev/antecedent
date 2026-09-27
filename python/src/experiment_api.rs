@@ -12,7 +12,8 @@ use pyo3::prelude::*;
 pub struct RandomizedEffectSection {
     /// ITT contrast under the declared assignment mechanism.
     pub effect: f64,
-    /// Design-based conservative variance estimate; no interval is implied.
+    /// Design variance or conservative bound as labeled by uncertainty;
+    /// switchback uses a sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
     /// Minimum assignment probability.
     pub minimum_assignment_probability: f64,
@@ -20,6 +21,8 @@ pub struct RandomizedEffectSection {
     pub assignment_design: String,
     /// Row-aligned block labels when stratified.
     pub blocks: Vec<String>,
+    /// Row-aligned periods for switchback designs.
+    pub periods: Vec<String>,
     /// Number of analyzed control units.
     pub control_units: usize,
     /// Number of analyzed treatment units.
@@ -44,6 +47,7 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),
             blocks: value.blocks.iter().map(ToString::to_string).collect(),
+            periods: value.periods.iter().map(ToString::to_string).collect(),
             control_units: value.control_units,
             treatment_units: value.treatment_units,
             uncertainty: value.uncertainty.to_string(),

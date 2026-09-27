@@ -268,6 +268,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 "randomization_design".into(),
                 match &query.design {
                     crate::RandomizationDesignWire::Bernoulli => "bernoulli".into(),
+                    crate::RandomizationDesignWire::Switchback => "switchback".into(),
                     crate::RandomizationDesignWire::Complete { .. } => "complete".into(),
                     crate::RandomizationDesignWire::Cluster { .. } => "cluster".into(),
                     crate::RandomizationDesignWire::Stratified => "stratified".into(),
@@ -283,6 +284,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                     format!("fixed_cuped:{id}:{coefficient}")
                 }),
             ),
+            ("switchback_periods".into(), query.periods.join(",")),
             ("temporal_coordinates".into(), "none".into()),
         ],
         CausalQueryWire::PanelDid(query) => vec![
@@ -299,8 +301,6 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ),
             ("temporal_coordinates".into(), "pre_post".into()),
         ],
-        CausalQueryWire::PolicyValue(query) => {
-            let mut dimensions = vec![
         CausalQueryWire::SyntheticControl(query) => vec![
             ("query_kind".into(), "synthetic_control".into()),
             ("outcome".into(), query.outcome.to_string()),
@@ -308,6 +308,8 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("intervention_period".into(), query.intervention_period.to_string()),
             ("donor_pool_size".into(), query.units.iter().collect::<std::collections::BTreeSet<_>>().len().saturating_sub(1).to_string()),
         ],
+        CausalQueryWire::PolicyValue(query) => {
+            let mut dimensions = vec![
                 ("query_kind".into(), "policy_value".into()),
                 ("outcome".into(), query.outcome.to_string()),
                 ("policy_actions".into(), query.multi_action.as_ref().map_or(query.actions.len(), |multi| multi.actions.len()).to_string()),

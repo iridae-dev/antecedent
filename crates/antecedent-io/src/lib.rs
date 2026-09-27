@@ -57,6 +57,7 @@ pub use analysis_result_artifact::{
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterventionalDistributionWire,
     LongitudinalRegimeWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire,
     SyntheticControlWire,
+    RandomizedEffectWire,
     StructuralResponseAtomWire,
     StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalWire,
     TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,

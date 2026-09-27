@@ -324,6 +324,8 @@ pub enum EstimatorId {
     RandomizedHt,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,
+    /// Switchback unit-period HT with independent-sequence variance.
+    RandomizedSwitchbackHt,
     /// Difference-in-means ITT for complete or stratified randomization.
     RandomizedNeyman,
     /// Doubly robust held-out policy value under known randomized propensities.
@@ -733,6 +735,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "randomized.fixed_cuped_ht_itt",
             provenance: ("estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.fixed_cuped_ht_itt"),
         },
+        EstimatorId::RandomizedSwitchbackHt => EstimatorData {
+            name: "randomized.switchback_ht_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.switchback_ht_itt",
+            provenance: ("estimate.randomized.switchback_ht_itt", "estimate.randomized.switchback_ht_itt"),
+        },
         EstimatorId::RandomizedNeyman => EstimatorData {
             name: "randomized.neyman_itt",
             parallel_task_dimension: "analysis",
@@ -1011,6 +1019,7 @@ pub fn validate_static_pair(
             IdentifierId::RandomizedDesign,
             EstimatorId::RandomizedHt
             | EstimatorId::RandomizedFixedCupedHt
+            | EstimatorId::RandomizedSwitchbackHt
             | EstimatorId::RandomizedNeyman
             | EstimatorId::RandomizedDrPolicy
             | EstimatorId::RandomizedIpwPolicy
@@ -1183,7 +1192,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceHtHajek
         | EstimatorId::InterferenceClusterNeyman
         | EstimatorId::InterferenceBayesianGaussian => false,
-        EstimatorId::RandomizedHt | EstimatorId::RandomizedFixedCupedHt | EstimatorId::RandomizedNeyman => {
+        EstimatorId::RandomizedHt | EstimatorId::RandomizedFixedCupedHt | EstimatorId::RandomizedSwitchbackHt | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy

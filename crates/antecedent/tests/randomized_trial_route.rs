@@ -74,6 +74,62 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
 }
 
 #[test]
+fn switchback_itt_retains_periods_and_sequence_variance() {
+    let assignment = [true, false, false, true].repeat(4);
+    let outcomes = (0..4).flat_map(|sequence| {
+        [true, false, false, true].into_iter().map(move |treated| {
+            10.0 * sequence as f64 + if treated { sequence as f64 + 1.0 } else { 0.0 }
+        })
+    }).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let sequences = (0..4).flat_map(|sequence| {
+        (0..4).map(move |_| Arc::<str>::from(format!("s{sequence}")))
+    }).collect::<Vec<_>>();
+    let periods = (0..4).flat_map(|_| {
+        (0..4).map(|period| Arc::<str>::from(format!("p{period}")))
+    }).collect::<Vec<_>>();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Switchback { periods: periods.clone().into() },
+        VariableId::from_raw(0), assignment, [0.5; 16], sequences,
+        (0..16).map(|i| Arc::<str>::from(format!("row-{i}"))).collect::<Vec<_>>(),
+        ("off", "on"),
+    );
+    let context = ExecutionContext::for_tests(48);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap()
+        .prepare(&context).unwrap();
+    let result = prepared.estimate(&data, &context).unwrap();
+    let estimate = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(estimate.effect, 2.5);
+    assert!((estimate.variance_upper_bound - 5.0 / 12.0).abs() < 1e-12);
+    assert_eq!(estimate.assignment_design.as_ref(), "switchback");
+    assert_eq!(estimate.periods.as_ref(), periods.as_slice());
+    assert_eq!(estimate.uncertainty.as_ref(), "switchback_independent_sequence_sandwich_variance_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "switchback_no_carryover"
+    )));
+    let bytes = prepared.encode_contracted_result(&result, "switchback", &context).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.estimate, Some(2.5));
+    assert_eq!(artifact.standard_error, None);
+    assert_eq!(artifact.interval_lower, None);
+    assert_eq!(artifact.interval_upper, None);
+    assert!((artifact.randomized_effect.as_ref().unwrap().variance - 5.0 / 12.0).abs() < 1e-12);
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().periods,
+        ["p0", "p1", "p2", "p3"].repeat(4));
+    let mut fabricated = artifact.clone();
+    fabricated.standard_error = Some(0.1);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &fabricated, header.variable_names, "fabricated-switchback"
+    ).is_err());
+    let antecedent_io::CausalQueryWire::RandomizedEffect(wire) = artifact.query else {
+        panic!("switchback artifact must retain randomized query");
+    };
+    assert_eq!(wire.periods, ["p0", "p1", "p2", "p3"].repeat(4));
+}
+
+#[test]
 fn graphless_complete_and_stratified_itt_use_neyman_variance() {
     let context = ExecutionContext::for_tests(4);
     let outcomes = [2.0, 0.0, 4.0, 2.0, 6.0, 4.0, 8.0, 6.0];

@@ -352,6 +352,7 @@ class RandomizedEffectSection:
     minimum_assignment_probability: float
     assignment_design: str
     blocks: list[str]
+    periods: list[str]
     control_units: int
     treatment_units: int
     uncertainty: str
@@ -368,7 +369,6 @@ class PanelDidSection:
     clusters: int
     uncertainty: str
 
-class SurvivalSection:
 class SyntheticControlSection:
     effect: float
     pre_treatment_rmse: float
@@ -380,6 +380,7 @@ class SyntheticControlSection:
     n_post_periods: int
     uncertainty: str
 
+class SurvivalSection:
     times: list[float]
     control: list[float]
     treated: list[float]
@@ -1201,6 +1202,7 @@ class PreparedAnalysis:
         *,
         treated_clusters: int | None = None,
         fixed_cuped: tuple[str, float] | None = None,
+        periods: list[str] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1222,8 +1224,6 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_survival(
-        names: list[str], columns: Sequence[Any], duration: str, event: str,
     def prepare_synthetic_control(
         names: list[str], columns: Sequence[Any], outcome: str,
         units: list[str], periods: list[int], treated_unit: str,
@@ -1232,6 +1232,8 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_survival(
+        names: list[str], columns: Sequence[Any], duration: str, event: str,
         treatment: str, tau: float, target_cause: int | None = None,
         delayed_entry: str | None = None, *, accepted: bool = False,
         seed: int = 1, threads: int | None = None,
