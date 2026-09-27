@@ -561,6 +561,12 @@ pub struct SyntheticDidWire {
     pub n_post_periods: usize,
     /// Explicit no-interval uncertainty tag.
     pub uncertainty: String,
+    /// Exact sharp-null p-value under declared uniform single-unit assignment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomization_p_value: Option<f64>,
+    /// Absolute synthetic-DiD contrast for every candidate treated unit.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub randomization_statistics: Vec<(String, f64)>,
 }
 
 /// Retained local ratio result and its fixed-bandwidth normal interval.
@@ -2033,7 +2039,21 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || fit.time_weights.iter().map(|(period, _)| *period).collect::<Vec<_>>() != pre.iter().copied().collect::<Vec<_>>()
             || fit.time_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
             || (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
-            || fit.uncertainty != "point_only_no_interval"
+            || (!query.uniform_unit_randomization && (
+                fit.uncertainty != "point_only_no_interval"
+                || fit.randomization_p_value.is_some() || !fit.randomization_statistics.is_empty()))
+            || (query.uniform_unit_randomization && (
+                fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval"
+                || fit.randomization_statistics.len() != donors.len() + 1
+                || fit.randomization_statistics.len() > 32
+                || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
+                    != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
+                || fit.randomization_statistics.iter().any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
+                || fit.randomization_p_value != fit.randomization_statistics.iter()
+                    .find(|(unit, _)| unit == &query.treated_unit)
+                    .map(|(_, observed)| fit.randomization_statistics.iter()
+                        .filter(|(_, statistic)| statistic >= observed).count() as f64
+                        / fit.randomization_statistics.len() as f64)))
         {
             return Err(IoError::Convert("invalid synthetic DiD weights, support, or fabricated interval".into()));
         }

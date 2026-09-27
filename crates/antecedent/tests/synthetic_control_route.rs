@@ -150,7 +150,7 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
     fabricated.synthetic_control.as_mut().unwrap().randomization_p_value = Some(0.0);
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
     let (_, invalid) = fixture();
-    assert!(invalid.difference_in_differences().with_uniform_unit_randomization().validate().is_err());
+    assert!(invalid.difference_in_differences().with_uniform_unit_randomization().validate().is_ok());
 }
 
 #[test]

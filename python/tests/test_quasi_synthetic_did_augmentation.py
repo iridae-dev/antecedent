@@ -61,6 +61,33 @@ def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights(
     assert prepared.estimate(rows).synthetic_did == fit
 
 
+def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
+    import antecedent
+
+    rows = _synthetic_did_panel()
+    query = SyntheticDifferenceInDifferences(
+        "y", "unit", "period", "treated", 4, uniform_unit_randomization=True,
+    )
+    direct = estimate_synthetic_did(rows, query)
+    prepared = antecedent.prepare(rows, query=query)
+    result = prepared.estimate()
+    fit = result.synthetic_did
+    assert fit is not None
+    assert fit == direct
+    assert len(fit.randomization_statistics) == 4
+    observed = dict(fit.randomization_statistics)["treated"]
+    assert fit.randomization_p_value == pytest.approx(
+        sum(stat >= observed for _, stat in fit.randomization_statistics) / 4,
+    )
+    assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
+    assert "uniform_single_treated_unit_assignment" in fit.assumptions
+    assert np.isnan(result.estimate.se_analytic)
+    artifact = result.export()
+    assert antecedent.load(artifact).export() == artifact
+    with pytest.raises(CausalValueError, match="uniform_unit_randomization"):
+        SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4, 1)
+
+
 def test_synthetic_did_refuses_unbalanced_and_insufficient_pre_support():
     query = SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4)
     rows = _synthetic_did_panel()

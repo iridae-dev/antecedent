@@ -6,6 +6,7 @@ use antecedent_estimate::synthetic_control::fit_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_test;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
+use antecedent_estimate::synthetic_control::exact_synthetic_did_unit_randomization_test;
 use antecedent_core::SyntheticPanelMethod;
 
 #[derive(Clone)]
@@ -148,6 +149,12 @@ impl CheckedSyntheticControlOperation {
     ) -> Result<StudyResult, CausalError> {
         let fit = fit_synthetic_did(y, units, &self.query.periods, &self.query.treated_unit,
             self.query.intervention_period).map_err(|message| CausalError::Compile { message })?;
+        let randomization = if self.query.uniform_unit_randomization {
+            Some(exact_synthetic_did_unit_randomization_test(
+                y, units, &self.query.periods, &self.query.treated_unit,
+                self.query.intervention_period,
+            ).map_err(|message| CausalError::Compile { message })?)
+        } else { None };
         let estimate = EffectEstimate::new(
             fit.effect, f64::NAN, self.identification.required_assumptions.clone(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
@@ -163,8 +170,9 @@ impl CheckedSyntheticControlOperation {
                 extra_diagnostics: vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; unit and time simplex weights; no calibrated interval",
-                        fit.n_donors, fit.n_pre_periods, fit.n_post_periods, fit.pre_treatment_rmse),
+                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; unit and time simplex weights; exact unit-randomization p-value {:?} applies only under declared uniform one-unit assignment and the sharp null; no interval",
+                        fit.n_donors, fit.n_pre_periods, fit.n_post_periods, fit.pre_treatment_rmse,
+                        randomization.as_ref().map(|test| test.p_value)),
                 )],
                 refutations: Vec::new(), distribution: None, mediation: None,
                 wall_time_ns: 0, bootstrap_replicates_ok: None,
@@ -180,7 +188,15 @@ impl CheckedSyntheticControlOperation {
             n_donors: fit.n_donors,
             n_pre_periods: fit.n_pre_periods,
             n_post_periods: fit.n_post_periods,
-            uncertainty: Arc::from("point_only_no_interval"),
+            uncertainty: Arc::from(if randomization.is_some() {
+                "point_only_with_exact_unit_randomization_p_value_no_interval"
+            } else { "point_only_no_interval" }),
+            randomization_p_value: randomization.as_ref().map(|test| test.p_value),
+            randomization_statistics: randomization.map_or_else(
+                || Arc::from([]),
+                |test| test.statistics.into_iter().map(|(unit, statistic)|
+                    (Arc::<str>::from(unit), statistic)).collect::<Vec<_>>().into(),
+            ),
         });
         result.treatment = None;
         Ok(result)

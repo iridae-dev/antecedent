@@ -341,15 +341,18 @@ class SyntheticControlEstimate:
 
 @dataclass(frozen=True, slots=True)
 class SyntheticDifferenceInDifferences:
-    """Balanced-panel SDID design with one treated unit and donor units."""
+    """Balanced-panel SDID with optional exact uniform-unit assignment test."""
 
     outcome: str
     unit: str
     period: str
     treated_unit: str
     intervention_period: int
+    uniform_unit_randomization: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.uniform_unit_randomization, bool):
+            raise CausalValueError("uniform_unit_randomization must be boolean")
         if any(not isinstance(value, str) or not value.strip() for value in (self.outcome, self.unit, self.period)):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")
         if len({self.outcome, self.unit, self.period}) != 3:
@@ -371,6 +374,8 @@ class SyntheticDifferenceInDifferencesEstimate:
     n_donors: int
     n_pre_periods: int
     n_post_periods: int
+    randomization_p_value: float | None = None
+    randomization_statistics: tuple[tuple[str, float], ...] = ()
     uncertainty: str = "point_only"
     design: str = "balanced_panel_synthetic_difference_in_differences"
     assumptions: tuple[str, ...] = (
@@ -771,11 +776,18 @@ def estimate_synthetic_did(
     """Estimate SDID with native simplex weights on units and pre-periods.
 
     The balanced-panel kernel reports a point estimate, pre-fit RMSE and both
-    weight vectors. It does not bootstrap or claim inference.
+    weight vectors. A declared uniform single-unit assignment requests an
+    exact sharp-null p-value through retained analysis; it reports no interval.
     """
 
     if not isinstance(query, SyntheticDifferenceInDifferences):
         raise CausalValueError("query must be a SyntheticDifferenceInDifferences")
+    if query.uniform_unit_randomization:
+        from .estimation import PreparedAnalysis
+
+        result = PreparedAnalysis.prepare(data, query=query).estimate(data).synthetic_did
+        assert result is not None
+        return result
     names, columns = _raw_columns(data)
     for name in (query.outcome, query.unit, query.period):
         if name not in names:

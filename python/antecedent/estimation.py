@@ -517,6 +517,21 @@ def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimat
         n_donors=section.n_donors,
         n_pre_periods=section.n_pre_periods,
         n_post_periods=section.n_post_periods,
+        randomization_p_value=section.randomization_p_value,
+        randomization_statistics=tuple((str(unit), float(statistic)) for unit, statistic in section.randomization_statistics),
+        uncertainty=(section.uncertainty if section.randomization_p_value is not None else "point_only"),
+        assumptions=(
+            "no_anticipation", "stable_treatment_after_intervention",
+            "convex_unit_and_time_weights_represent_untreated_counterfactual_trends",
+            "no_interference_between_units", "no_concurrent_treated_unit_specific_shock",
+        ) + (("uniform_single_treated_unit_assignment",)
+             if section.randomization_p_value is not None else ()),
+        diagnostics=(("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
+                     if section.randomization_p_value is not None else
+                     ("balanced_panel_and_two_pre_periods_required",
+                      "unit_and_time_weights_are_simplex_constrained",
+                      "pre_fit_rmse_reported_without_acceptance_threshold",
+                      "no_interval_or_calibrated_inference")),
     )
 
 
@@ -3125,7 +3140,7 @@ class _PrepareRoute:
             list(design["units"]), list(design["periods"]),
             query.treated_unit, query.intervention_period,
             difference_in_differences=isinstance(query, SyntheticDifferenceInDifferences),
-            uniform_unit_randomization=isinstance(query, SyntheticControl) and query.uniform_unit_randomization,
+            uniform_unit_randomization=query.uniform_unit_randomization,
             augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
             accepted=False, **self._common()
         )

@@ -222,6 +222,10 @@ pub struct SyntheticDidEstimate {
     pub n_post_periods: usize,
     /// Explicit point-only uncertainty statement.
     pub uncertainty: Arc<str>,
+    /// Exact sharp-null p-value under declared uniform single-unit assignment.
+    pub randomization_p_value: Option<f64>,
+    /// Absolute synthetic-DiD contrast for every candidate treated unit.
+    pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
 }
 
 /// Local fuzzy-discontinuity or regression-kink ratio with fixed-bandwidth inference.
