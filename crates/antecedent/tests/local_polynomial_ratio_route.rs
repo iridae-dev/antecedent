@@ -39,7 +39,7 @@ fn fixture(kink: bool) -> (TabularData, LocalPolynomialRatioQuery) {
 }
 
 #[test]
-fn retained_fuzzy_rd_recovers_truth_and_rejects_fabricated_interval() {
+fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     let (data, query) = fixture(false);
     let ctx = ExecutionContext::for_tests(41);
     let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
@@ -58,18 +58,20 @@ fn retained_fuzzy_rd_recovers_truth_and_rejects_fabricated_interval() {
     assert_eq!(fit.reduced_form_standard_error, direct.reduced_form_standard_error);
     assert_eq!(fit.first_stage_standard_error, direct.first_stage_standard_error);
     assert_eq!((fit.cutoff, fit.bandwidth, fit.kink), (query.cutoff, query.bandwidth, query.kink));
-    assert_eq!(fit.uncertainty.as_ref(), "rbc_point_with_unvalidated_hc0_standard_error_no_interval");
-    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert_eq!(fit.uncertainty.as_ref(), "rbc_hc0_delta_normal_fixed_bandwidth");
+    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::AnalyticSe);
+    assert_eq!(result.estimate.as_effect().unwrap().se_analytic, fit.standard_error);
     assert!(result.identification.required_assumptions.entries.iter().any(|record|
         format!("{:?}", record.assumption).contains("local_continuity")));
     let bytes = prepared.encode_contracted_result(&result, "fuzzy-rd", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.local_polynomial_ratio.as_ref().unwrap().effect, fit.effect);
     assert_eq!(body.local_polynomial_ratio.as_ref().unwrap().first_stage_standard_error, direct.first_stage_standard_error);
-    assert!(body.standard_error.is_none());
+    assert_eq!(body.standard_error, Some(fit.standard_error));
+    assert!(body.local_polynomial_ratio.as_ref().unwrap().ci_lower.unwrap() < fit.effect);
+    assert!(body.local_polynomial_ratio.as_ref().unwrap().ci_upper.unwrap() > fit.effect);
     let mut fabricated = body.clone();
-    fabricated.interval_lower = Some(2.0);
+    fabricated.local_polynomial_ratio.as_mut().unwrap().ci_lower = Some(2.0);
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names.clone(), "fabricated").is_err());
     let mut mismatched = body.clone();
     mismatched.local_polynomial_ratio.as_mut().unwrap().bandwidth = 0.5;

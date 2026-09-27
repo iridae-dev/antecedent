@@ -208,7 +208,7 @@ pub struct SyntheticDidEstimate {
     pub uncertainty: Arc<str>,
 }
 
-/// Local fuzzy-discontinuity or regression-kink ratio with point-only inference.
+/// Local fuzzy-discontinuity or regression-kink ratio with fixed-bandwidth inference.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalPolynomialRatioEstimate {
     /// Ratio of the outcome contrast to the treatment contrast.
@@ -227,13 +227,17 @@ pub struct LocalPolynomialRatioEstimate {
     pub n_left: usize,
     /// Observations inside the window on or above the cutoff.
     pub n_right: usize,
-    /// Descriptive HC0 standard error without a licensed interval.
+    /// HC0 delta-method standard error for the bias-corrected ratio.
     pub standard_error: f64,
+    /// Pointwise normal lower endpoint when the first stage supports a finite ratio interval.
+    pub ci_lower: Option<f64>,
+    /// Pointwise normal upper endpoint when the first stage supports a finite ratio interval.
+    pub ci_upper: Option<f64>,
     /// Descriptive HC0 standard error for the bias-corrected outcome contrast.
     pub reduced_form_standard_error: f64,
     /// Descriptive HC0 standard error for the bias-corrected first stage.
     pub first_stage_standard_error: f64,
-    /// Explicit point-only uncertainty semantics.
+    /// Explicit interval construction and fixed-bandwidth dependence.
     pub uncertainty: Arc<str>,
 }
 

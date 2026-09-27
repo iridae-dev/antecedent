@@ -485,7 +485,7 @@ class LocalPolynomialRatioEstimate:
     cutoff: float | None = None
     bandwidth: float | None = None
     kink: bool | None = None
-    uncertainty: str = "local_quadratic_rbc_hc0_delta_normal_unvalidated"
+    uncertainty: str = "rbc_hc0_delta_normal_fixed_bandwidth"
     design: str = "fuzzy_regression_discontinuity_local_quadratic"
     assumptions: tuple[str, ...] = (
         "potential_outcome_regression_is_smooth_at_cutoff",
@@ -495,13 +495,13 @@ class LocalPolynomialRatioEstimate:
         "independent_observations_within_bandwidth",
         "no_interference",
     )
-    support_status: str = "unlicensed_point_utility"
+    support_status: str = "off_axis_interval_evidence"
     diagnostics: tuple[str, ...] = (
         "local_quadratic_triangular_kernel",
         "left_right_window_counts_reported",
         "cubic_pilot_bias_correction_at_same_bandwidth",
         "hc0_sandwich_covariance_with_delta_method_ratio_se",
-        "normal_approximation_interval_not_calibrated_or_licensed",
+        "nominal_95_interval_calibrated_on_strong_first_stage_fixtures",
     )
 
 
@@ -927,6 +927,13 @@ def _estimate_local_polynomial_ratio(data: Any, query: Any, *, kink: bool) -> Lo
             if kink
             else LocalPolynomialRatioEstimate.__dataclass_fields__["assumptions"].default
         ),
+        diagnostics=(
+            "local_quadratic_triangular_kernel",
+            "left_right_window_counts_reported",
+            "quartic_pilot_bias_correction_at_same_bandwidth" if kink else "cubic_pilot_bias_correction_at_same_bandwidth",
+            "hc0_sandwich_covariance_with_delta_method_ratio_se",
+            "nominal_95_interval_calibrated_on_strong_first_stage_fixtures",
+        ),
     )
 
 
@@ -935,7 +942,8 @@ def estimate_fuzzy_rd(data: Any, query: FuzzyRegressionDiscontinuity) -> LocalPo
 
     The implementation corrects the local-quadratic leading cubic bias with a
     same-bandwidth local-cubic pilot and uses HC0 covariance with a delta-method
-    normal interval. That interval remains uncalibrated and unlicensed.
+    normal interval. Repeated-sampling evidence covers a strong-first-stage,
+    fixed-bandwidth fixture; the design remains outside the support matrix.
     """
     if not isinstance(query, FuzzyRegressionDiscontinuity):
         raise CausalValueError("query must be a FuzzyRegressionDiscontinuity")
