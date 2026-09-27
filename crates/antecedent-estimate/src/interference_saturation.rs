@@ -328,6 +328,97 @@ mod tests {
 
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
 
+    struct Random(u64);
+
+    impl Random {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+
+        fn uniform(&mut self) -> f64 {
+            (self.next() >> 11) as f64 / (1_u64 << 53) as f64
+        }
+    }
+
+    #[test]
+    fn two_stage_direct_spillover_total_pointwise_coverage() {
+        // Fixed finite-population potential outcomes; only the two randomization
+        // stages vary. Two units per cluster expose the four (own, neighbor)
+        // cells exactly and preserve within-cluster assignment dependence.
+        const CLUSTERS: usize = 80;
+        const DRAWS: usize = 2_000;
+        let clusters = (0..CLUSTERS).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+        let edges = (0..CLUSTERS).flat_map(|cluster| {
+            let first = (2 * cluster) as u32;
+            [
+                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+            ]
+        }).collect::<Vec<_>>();
+        let contrasts = [
+            ("direct", (0.0, 1.0), (1.0, 1.0), 1.7),
+            ("spillover", (0.0, 0.0), (0.0, 1.0), 0.7),
+            ("total", (0.0, 0.0), (1.0, 1.0), 2.4),
+        ];
+        let mut covered = [0_usize; 3];
+        let mut supported = [0_usize; 3];
+        let mut rng = Random(0x6473_58ce_9ab2_1def);
+        for _ in 0..DRAWS {
+            let mut order = (0..CLUSTERS).collect::<Vec<_>>();
+            for i in (1..CLUSTERS).rev() {
+                let j = (rng.next() as usize) % (i + 1);
+                order.swap(i, j);
+            }
+            let mut high = [false; CLUSTERS];
+            for &cluster in &order[..CLUSTERS / 2] {
+                high[cluster] = true;
+            }
+            let realized = (0..CLUSTERS).flat_map(|cluster| [if high[cluster] { 0.8 } else { 0.2 }; 2])
+                .collect::<Vec<_>>();
+            let assignment = (0..CLUSTERS * 2).map(|unit| rng.uniform() < realized[unit]).collect::<Vec<_>>();
+            let outcomes = (0..CLUSTERS * 2).map(|unit| {
+                let own = f64::from(assignment[unit]);
+                let neighbor = f64::from(assignment[unit ^ 1]);
+                let baseline = 1.0 + 0.15 * ((unit / 2) as f64 * 0.37).sin()
+                    + 0.09 * (unit % 2) as f64;
+                baseline + 1.2 * own + 0.7 * neighbor + 0.5 * own * neighbor
+            }).collect::<Vec<_>>();
+            let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+            let network = NetworkData::try_new(units, edges.clone()).unwrap();
+            for (index, &(_, from, to, truth)) in contrasts.iter().enumerate() {
+                let query = InterferenceQuery::new(
+                    AssignmentDesign::TwoStageSaturation {
+                        clusters: Arc::from(clusters.clone()),
+                        low_probability: 0.2,
+                        high_probability: 0.8,
+                        high_clusters: CLUSTERS / 2,
+                        realized_saturation: Arc::from(realized.clone()),
+                    },
+                    ExposureMapping::NeighborFraction,
+                    InterferenceFunctional::ExposureContrast {
+                        outcome: VariableId::from_raw(0),
+                        from: ExposureLevel { own: from.0, neighbors: from.1 },
+                        to: ExposureLevel { own: to.0, neighbors: to.1 },
+                    },
+                );
+                let result = estimate_saturation_interference(&query, &network, &assignment).unwrap();
+                if let Some(interval) = result.pointwise_interval {
+                    supported[index] += 1;
+                    covered[index] += usize::from(interval.bounds[0] <= truth && truth <= interval.bounds[1]);
+                }
+            }
+        }
+        for (index, &(name, _, _, _)) in contrasts.iter().enumerate() {
+            let rate = covered[index] as f64 / supported[index] as f64;
+            eprintln!("saturation {name}: {}/{}, coverage={rate:.4}", covered[index], supported[index]);
+            assert!(supported[index] >= 1_900, "{name}: too many sparse refusals");
+            assert!((0.93..=0.97).contains(&rate), "{name}: pointwise 95% coverage {rate}");
+        }
+    }
+
     #[test]
     fn local_mixture_matches_global_complete_allocation_enumeration() {
         let incoming = vec![vec![(1_usize, 1.0), (2_usize, 2.0)]; 3];
