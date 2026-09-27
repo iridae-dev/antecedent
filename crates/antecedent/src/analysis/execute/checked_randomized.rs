@@ -424,7 +424,7 @@ impl CheckedPolicyValueOperation {
             });
         };
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        if query.assignment.len() != data.row_count()
+        if query.multi_action.as_ref().map_or(query.assignment.len(), |multi| multi.assignment.len()) != data.row_count()
             || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
@@ -439,18 +439,48 @@ impl CheckedPolicyValueOperation {
             .get(query.outcome)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let n = data.row_count();
+        let (binary_assignment, binary_propensity) = if let Some(multi) = &query.multi_action {
+            let k = multi.action_labels.len();
+            (
+                multi.assignment.iter().map(|&a| a != 0).collect::<Vec<_>>(),
+                (0..n).map(|i| 1.0 - multi.propensities[i * k]).collect::<Vec<_>>(),
+            )
+        } else {
+            (
+                query.assignment.to_vec(),
+                (0..n).map(|i| query.propensity[if query.propensity.len() == 1 { 0 } else { i }]).collect::<Vec<_>>(),
+            )
+        };
         let synthetic = antecedent_core::RandomizedEffectQuery::bernoulli_itt(
             query.outcome,
-            query.assignment.clone(),
-            (0..n)
-                .map(|i| query.propensity[if query.propensity.len() == 1 { 0 } else { i }])
-                .collect::<Vec<_>>(),
+            binary_assignment,
+            binary_propensity,
             query.evaluation_subject_ids.clone(),
             query.evaluation_subject_ids.clone(),
             ("control", "treated"),
         );
         let (mut identification, estimand) = randomized_identification(&synthetic);
         identification.query = CausalQuery::PolicyValue(query.clone());
+        identification.required_assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("policy_fixed_without_evaluation_outcomes"),
+                description: Arc::from("policy and reference recommendations were fixed without using the corresponding evaluation outcomes"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+        if query.multi_action.is_some() {
+            identification.required_assumptions.push(AssumptionRecord {
+                assumption: Assumption::Custom {
+                    id: Arc::from("known_random_action_probabilities"),
+                    description: Arc::from("each evaluation row followed the declared randomized multi-action probability vector"),
+                },
+                source: AssumptionSource::UserDeclared,
+                scope: AssumptionScope::Identification,
+                status: AssumptionStatus::Declared,
+            });
+        }
         Ok(Self {
             query: query.clone(),
             source_schema: data.schema().clone(),
@@ -485,8 +515,11 @@ impl CheckedPolicyValueOperation {
                 });
             }
         };
+        let multi = self.query.multi_action.as_ref();
         let ipw = self.query.mu0.is_empty();
-        let score = if ipw {
+        let score = if let Some(multi) = multi {
+            antecedent_estimate::policy_value::evaluate_multi_action_policy_value_scores(y, multi)
+        } else if ipw {
             antecedent_estimate::policy_value::evaluate_policy_value_ipw_scores(
                 y, &self.query.assignment, &self.query.actions, &self.query.propensity,
                 &self.query.reference, &self.query.costs, &self.query.reference_costs,
@@ -513,15 +546,20 @@ impl CheckedPolicyValueOperation {
                     OverlapPolicy::ExplicitOverride,
                 ),
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: if ipw { EstimatorId::RandomizedIpwPolicy } else { EstimatorId::RandomizedDrPolicy },
+                estimator_id: if multi.is_some() {
+                    EstimatorId::RandomizedMultiActionIpwPolicy
+                } else if ipw { EstimatorId::RandomizedIpwPolicy } else { EstimatorId::RandomizedDrPolicy },
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
-                    if ipw { "estimate.policy_value.ipw" } else { "estimate.policy_value.doubly_robust" },
+                    if multi.is_some() { "estimate.policy_value.multi_action_ipw" }
+                    else if ipw { "estimate.policy_value.ipw" } else { "estimate.policy_value.doubly_robust" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    if ipw {
+                    if multi.is_some() {
+                        "fixed randomized multi-action IPW policy value; row-score standard errors assume independent subjects"
+                    } else if ipw {
                         "fixed randomized IPW policy value; row-score standard errors assume independent subjects"
                     } else {
                         "held-out randomized AIPW policy value; row-score standard errors assume independent subjects"
@@ -558,7 +596,9 @@ impl CheckedPolicyValueOperation {
             }),
             propensity_min: score.propensity_min,
             propensity_max: score.propensity_max,
-            uncertainty: Arc::from(if ipw {
+            uncertainty: Arc::from(if multi.is_some() {
+                "multi_action_ipw_row_score_standard_error_independent_subjects"
+            } else if ipw {
                 "ipw_row_score_standard_error_independent_subjects"
             } else {
                 "row_score_standard_error_independent_subjects"

@@ -299,12 +299,18 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ),
             ("temporal_coordinates".into(), "pre_post".into()),
         ],
-        CausalQueryWire::PolicyValue(query) => vec![
-            ("query_kind".into(), "policy_value".into()),
-            ("outcome".into(), query.outcome.to_string()),
-            ("policy_actions".into(), query.actions.len().to_string()),
-            ("temporal_coordinates".into(), "none".into()),
-        ],
+        CausalQueryWire::PolicyValue(query) => {
+            let mut dimensions = vec![
+                ("query_kind".into(), "policy_value".into()),
+                ("outcome".into(), query.outcome.to_string()),
+                ("policy_actions".into(), query.multi_action.as_ref().map_or(query.actions.len(), |multi| multi.actions.len()).to_string()),
+                ("temporal_coordinates".into(), "none".into()),
+            ];
+            if let Some(multi) = &query.multi_action {
+                dimensions.push(("action_count".into(), multi.action_labels.len().to_string()));
+            }
+            dimensions
+        },
         CausalQueryWire::Survival(query) => vec![
             ("query_kind".into(), "survival".into()),
             ("duration".into(), query.duration.to_string()),

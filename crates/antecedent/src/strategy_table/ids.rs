@@ -330,6 +330,8 @@ pub enum EstimatorId {
     RandomizedDrPolicy,
     /// Fixed-policy inverse-probability value under known randomized propensities.
     RandomizedIpwPolicy,
+    /// Fixed multi-action policy IPW value under known randomized action probabilities.
+    RandomizedMultiActionIpwPolicy,
     /// Randomized product-limit survival/RMST or competing-risk incidence.
     RandomizedSurvivalProductLimit,
     /// Prespecified sequential inverse-probability regime value.
@@ -752,6 +754,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "randomized.ipw_policy",
             provenance: ("estimate.policy_value.ipw", "estimate.policy_value.ipw"),
         },
+        EstimatorId::RandomizedMultiActionIpwPolicy => EstimatorData {
+            name: "randomized.multi_action_ipw_policy",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.multi_action_ipw_policy",
+            provenance: ("estimate.policy_value.multi_action_ipw", "estimate.policy_value.multi_action_ipw"),
+        },
         EstimatorId::RandomizedSurvivalProductLimit => EstimatorData {
             name: "randomized.survival_product_limit",
             parallel_task_dimension: "analysis",
@@ -1006,6 +1014,7 @@ pub fn validate_static_pair(
             | EstimatorId::RandomizedNeyman
             | EstimatorId::RandomizedDrPolicy
             | EstimatorId::RandomizedIpwPolicy
+            | EstimatorId::RandomizedMultiActionIpwPolicy
             | EstimatorId::RandomizedSurvivalProductLimit
             | EstimatorId::LongitudinalIpwRegime,
         )
@@ -1177,7 +1186,8 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::RandomizedHt | EstimatorId::RandomizedFixedCupedHt | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
-        EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy => {
+        EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy
+        | EstimatorId::RandomizedMultiActionIpwPolicy => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedSurvivalProductLimit => false,

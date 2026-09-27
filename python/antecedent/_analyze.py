@@ -13,7 +13,7 @@ from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPa
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
-from .policy import PolicyValue
+from .policy import MultiActionPolicyValue, PolicyValue
 from .quasi import PanelDifferenceInDifferences, StaggeredAdoption
 from .query import (
     AnomalyAttribution,
@@ -61,6 +61,7 @@ def analyze(
         | ProviderQuery
         | RandomizedEffect
         | PolicyValue
+        | MultiActionPolicyValue
         | PanelDifferenceInDifferences
         | StaggeredAdoption
         | SurvivalOutcome

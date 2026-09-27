@@ -281,6 +281,58 @@ class PolicyValue:
 
 
 @dataclass(frozen=True, slots=True)
+class MultiActionPolicyValue:
+    """Fixed multi-action policy value on randomized evaluation subjects.
+
+    The first policy action label is control. Recommendations and action
+    probabilities are frozen with the retained study. The caller declares
+    that recommendations were selected without evaluation outcomes.
+    """
+
+    outcome: str
+    assignment: Sequence[str]
+    propensities: Sequence[Sequence[float]]
+    policy: MultiActionPolicy
+    evaluation_subject_ids: Sequence[str]
+    reference: MultiActionPolicy | None = None
+    available: Sequence[Sequence[bool]] | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, str) or not self.outcome.strip():
+            raise CausalValueError("outcome must be a non-empty column name")
+        if not isinstance(self.policy, MultiActionPolicy):
+            raise CausalTypeError("policy must be a MultiActionPolicy")
+        if self.reference is not None and not isinstance(self.reference, MultiActionPolicy):
+            raise CausalTypeError("reference must be a MultiActionPolicy or None")
+        labels = self.policy.action_labels
+        if self.reference is not None and self.reference.action_labels != labels:
+            raise CausalValueError("policy and reference action_labels must match")
+        n = len(self.policy.recommendations)
+        if len(self.assignment) != n or any(value not in labels for value in self.assignment):
+            raise CausalValueError("assignment must name one declared action per evaluation row")
+        ids = tuple(self.evaluation_subject_ids)
+        if len(ids) != n or any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != n:
+            raise CausalValueError("evaluation_subject_ids must be unique non-empty IDs for every row")
+        probabilities = np.asarray(self.propensities, dtype=np.float64)
+        if probabilities.shape != (n, len(labels)) or not np.isfinite(probabilities).all():
+            raise CausalValueError("propensities must be finite with one row and column per subject and action")
+        if (probabilities <= 0).any() or (probabilities > 1).any() or not np.allclose(
+            probabilities.sum(axis=1), 1.0, rtol=0.0, atol=1e-8,
+        ):
+            raise CausalValueError("each randomized action probability must be positive and rows must sum to one")
+        object.__setattr__(self, "assignment", tuple(self.assignment))
+        object.__setattr__(self, "evaluation_subject_ids", ids)
+        object.__setattr__(self, "propensities", tuple(tuple(map(float, row)) for row in probabilities))
+        if self.available is not None:
+            mask = np.asarray(self.available, dtype=object)
+            if mask.shape != (n, len(labels)) or any(
+                not isinstance(value, (bool, np.bool_)) for value in mask.flat
+            ):
+                raise CausalValueError("available must contain one bool per evaluation row and action")
+            object.__setattr__(self, "available", tuple(tuple(bool(v) for v in row) for row in mask))
+
+
+@dataclass(frozen=True, slots=True)
 class UpliftBin:
     rank: int
     effect: float
@@ -743,6 +795,7 @@ __all__ = [
     "MultiActionPolicy",
     "PolicyEvaluation",
     "DoublyRobustPolicyEvaluation",
+    "MultiActionPolicyValue",
     "UpliftBin",
     "ConditionalDoseResponsePoint",
     "ConditionalDoseResponseEstimate",

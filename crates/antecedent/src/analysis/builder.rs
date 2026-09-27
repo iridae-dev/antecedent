@@ -1463,6 +1463,20 @@ impl StudyBuilder {
                     });
                 }
             }
+            if let CausalQuery::PolicyValue(policy) = &query {
+                let expected = if policy.multi_action.is_some() {
+                    EstimatorId::RandomizedMultiActionIpwPolicy
+                } else if policy.mu0.is_empty() {
+                    EstimatorId::RandomizedIpwPolicy
+                } else {
+                    EstimatorId::RandomizedDrPolicy
+                };
+                if self.estimator.is_some_and(|id| id != expected) {
+                    return Err(CausalError::Unsupported {
+                        message: "the selected policy estimator does not match its frozen inputs",
+                    });
+                }
+            }
             if matches!(query, CausalQuery::Survival(_))
                 && self
                     .estimator

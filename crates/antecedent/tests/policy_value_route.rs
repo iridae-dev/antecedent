@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
 use antecedent::{PrimaryEstimate, Study};
-use antecedent_core::{CausalQuery, PolicyValueQuery, VariableId};
+use antecedent_core::{CausalQuery, MultiActionPolicyInputs, PolicyValueQuery, VariableId};
 use antecedent_data::TabularData;
 
 fn query() -> PolicyValueQuery {
@@ -21,6 +21,7 @@ fn query() -> PolicyValueQuery {
         evaluation_subject_ids: Arc::from(["a", "b", "c", "d"].map(Arc::<str>::from)),
         disjoint_training_subjects: true,
         crossfit_fold_ownership_valid: false,
+        multi_action: None,
     }
 }
 
@@ -83,4 +84,54 @@ fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().uncertainty, answer.uncertainty.as_ref());
     assert_eq!(body.estimate, None);
+}
+
+#[test]
+fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() {
+    let y = [1.0, 2.0, 4.0, 1.0, 2.0, 4.0, 1.0, 2.0, 4.0];
+    let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
+    let mut q = query();
+    q.assignment = Vec::new().into();
+    q.propensity = Vec::new().into();
+    q.actions = Vec::new().into();
+    q.reference = Vec::new().into();
+    q.mu0 = Vec::new().into();
+    q.mu1 = Vec::new().into();
+    q.costs = Vec::new().into();
+    q.reference_costs = Vec::new().into();
+    q.evaluation_subject_ids = (0..9).map(|i| Arc::<str>::from(format!("s{i}"))).collect::<Vec<_>>().into();
+    q.disjoint_training_subjects = false;
+    q.multi_action = Some(MultiActionPolicyInputs {
+        action_labels: ["control", "A", "B"].map(Arc::<str>::from).into(),
+        assignment: [0, 1, 2, 0, 1, 2, 0, 1, 2].into(),
+        actions: [0, 0, 0, 1, 1, 1, 2, 2, 2].into(),
+        reference: [0; 9].into(),
+        propensities: vec![1.0 / 3.0; 27].into(),
+        available: vec![true; 27].into(),
+        costs: [0.0; 3].into(),
+        reference_costs: [0.0; 3].into(),
+        capacities: [9; 3].into(),
+        reference_capacities: [9; 3].into(),
+        budget: None,
+        reference_budget: None,
+    });
+    let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
+    let ctx = ExecutionContext::for_tests(43);
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let answer = result.policy_value.as_ref().unwrap();
+    assert!((answer.policy_value - 7.0 / 3.0).abs() < 1e-12);
+    assert!((answer.reference_value - 1.0).abs() < 1e-12);
+    assert!((answer.incremental_value - 4.0 / 3.0).abs() < 1e-12);
+    assert!((answer.treatment_rate - 2.0 / 3.0).abs() < 1e-12);
+    assert_eq!(answer.uncertainty.as_ref(), "multi_action_ipw_row_score_standard_error_independent_subjects");
+    let artifact = prepared.encode_contracted_result(&result, "multi-policy", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().policy_value, answer.policy_value);
+    assert_eq!(body.query, antecedent_io::causal_query_to_wire(&CausalQuery::PolicyValue(q.clone())).unwrap());
+    q.multi_action.as_mut().unwrap().capacities = [9, 2, 9].into();
+    assert!(q.validate().is_err());
+    q.multi_action.as_mut().unwrap().capacities = [9; 3].into();
+    q.multi_action.as_mut().unwrap().propensities = vec![0.0; 27].into();
+    assert!(q.validate().is_err());
 }

@@ -117,7 +117,7 @@ pub use query::{
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     MechanismChangeQuery, MediationContrast, MediationQuery, NestedCounterfactualQuery,
     ObservationAssumption, ObservationSpec, OrderedFloatBits, OutcomeFunctional, PanelDidQuery,
-    PathSpecificEffectQuery, PolicyValueQuery, PopulationRegistry, PopulationSelection,
+    PathSpecificEffectQuery, MultiActionPolicyInputs, PolicyValueQuery, PopulationRegistry, PopulationSelection,
     PopulationSelector, PredicateExpr, QueryError, RandomizationDesign, RandomizedEffectQuery,
     RegimeBinding, RegimeKind, ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig,
     ShapleyMode, SurvivalFunctional, SurvivalQuery, TEMPORAL_OBSERVATION_UNLICENSED,

@@ -47,7 +47,7 @@ pub use interference::{
 pub use longitudinal_regime::LongitudinalRegimeQuery;
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
-pub use policy_value::PolicyValueQuery;
+pub use policy_value::{MultiActionPolicyInputs, PolicyValueQuery};
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use randomized::{RandomizationDesign, RandomizedEffectQuery};
 pub use response::{
@@ -110,7 +110,7 @@ pub enum CausalQuery {
     Interference(InterferenceQuery),
     /// Bernoulli randomized two-arm intention-to-treat effect.
     RandomizedEffect(RandomizedEffectQuery),
-    /// Held-out doubly robust binary policy value.
+    /// Fixed randomized binary or multi-action policy value.
     PolicyValue(PolicyValueQuery),
     /// Balanced two-period panel difference in differences.
     PanelDid(PanelDidQuery),

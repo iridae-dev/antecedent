@@ -629,19 +629,31 @@ impl super::Study {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::PolicyValue(q) = &self.query else { unreachable!() };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                if q.assignment.len() != data.row_count() {
+                if q.multi_action.as_ref().map_or(q.assignment.len(), |multi| multi.assignment.len()) != data.row_count() {
                     return Err(CausalError::Compile {
                         message: "policy inputs must align with the table rows".into(),
                     });
                 }
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
-                        plan_id: Arc::from("randomized_policy_value_dr"),
+                        plan_id: Arc::from(if q.multi_action.is_some() {
+                            "randomized_policy_value_multi_action_ipw"
+                        } else if q.mu0.is_empty() {
+                            "randomized_policy_value_ipw"
+                        } else {
+                            "randomized_policy_value_dr"
+                        }),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
-                        estimator: Some(Arc::from("randomized.dr_policy")),
+                        estimator: Some(Arc::from(if q.multi_action.is_some() {
+                            "randomized.multi_action_ipw_policy"
+                        } else if q.mu0.is_empty() {
+                            "randomized.ipw_policy"
+                        } else {
+                            "randomized.dr_policy"
+                        })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },

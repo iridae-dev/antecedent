@@ -886,6 +886,77 @@ pub struct PolicyValueQueryWire {
     pub disjoint_training_subjects: bool,
     /// Excluded-fold ownership declaration.
     pub crossfit_fold_ownership_valid: bool,
+    /// Multi-action randomized IPW inputs, absent for binary policies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multi_action: Option<MultiActionPolicyInputsWire>,
+}
+
+/// Portable row-major multi-action policy inputs.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MultiActionPolicyInputsWire {
+    /// Ordered action labels with control first.
+    pub action_labels: Vec<String>,
+    /// Realized action index per row.
+    pub assignment: Vec<usize>,
+    /// Policy action index per row.
+    pub actions: Vec<usize>,
+    /// Reference action index per row.
+    pub reference: Vec<usize>,
+    /// Row-major assignment probabilities.
+    pub propensities: Vec<f64>,
+    /// Row-major action availability.
+    pub available: Vec<bool>,
+    /// Per-action policy costs.
+    pub costs: Vec<f64>,
+    /// Per-action reference costs.
+    pub reference_costs: Vec<f64>,
+    /// Per-action policy capacities.
+    pub capacities: Vec<usize>,
+    /// Per-action reference capacities.
+    pub reference_capacities: Vec<usize>,
+    /// Policy budget, if constrained.
+    pub budget: Option<f64>,
+    /// Reference budget, if constrained.
+    pub reference_budget: Option<f64>,
+}
+
+impl From<&antecedent_core::MultiActionPolicyInputs> for MultiActionPolicyInputsWire {
+    fn from(value: &antecedent_core::MultiActionPolicyInputs) -> Self {
+        Self {
+            action_labels: value.action_labels.iter().map(ToString::to_string).collect(),
+            assignment: value.assignment.to_vec(),
+            actions: value.actions.to_vec(),
+            reference: value.reference.to_vec(),
+            propensities: value.propensities.to_vec(),
+            available: value.available.to_vec(),
+            costs: value.costs.to_vec(),
+            reference_costs: value.reference_costs.to_vec(),
+            capacities: value.capacities.to_vec(),
+            reference_capacities: value.reference_capacities.to_vec(),
+            budget: value.budget,
+            reference_budget: value.reference_budget,
+        }
+    }
+}
+
+impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyInputs {
+    fn from(value: &MultiActionPolicyInputsWire) -> Self {
+        Self {
+            action_labels: value.action_labels.iter().map(|v| Arc::<str>::from(v.as_str())).collect::<Vec<_>>().into(),
+            assignment: value.assignment.clone().into(),
+            actions: value.actions.clone().into(),
+            reference: value.reference.clone().into(),
+            propensities: value.propensities.clone().into(),
+            available: value.available.clone().into(),
+            costs: value.costs.clone().into(),
+            reference_costs: value.reference_costs.clone().into(),
+            capacities: value.capacities.clone().into(),
+            reference_capacities: value.reference_capacities.clone().into(),
+            budget: value.budget,
+            reference_budget: value.reference_budget,
+        }
+    }
 }
 
 /// Randomized ITT design metadata wire form.
@@ -1489,6 +1560,7 @@ pub fn causal_query_to_wire_with_registry(
                 .collect(),
             disjoint_training_subjects: q.disjoint_training_subjects,
             crossfit_fold_ownership_valid: q.crossfit_fold_ownership_valid,
+            multi_action: q.multi_action.as_ref().map(Into::into),
         }),
         CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
             outcome: q.outcome.raw(),
@@ -1775,6 +1847,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     .into(),
                 disjoint_training_subjects: w.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
+                multi_action: w.multi_action.as_ref().map(Into::into),
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PolicyValue(q)
@@ -2217,6 +2290,7 @@ mod tests {
             evaluation_subject_ids: Arc::from([Arc::<str>::from("s0"), Arc::<str>::from("s1")]),
             disjoint_training_subjects: true,
             crossfit_fold_ownership_valid: false,
+            multi_action: None,
         });
         let wire = causal_query_to_wire(&query).unwrap();
         let bytes = to_cbor(&wire).unwrap();
