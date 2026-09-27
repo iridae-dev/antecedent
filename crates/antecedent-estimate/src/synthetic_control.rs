@@ -265,3 +265,163 @@ mod tests {
         assert!(too_few.unwrap_err().contains("at least three donor"));
     }
 }
+
+/// Point-only balanced-panel synthetic difference-in-differences fit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyntheticDidFit {
+    /// Post-intervention difference-in-differences contrast.
+    pub effect: f64,
+    /// Pre-period treated-versus-synthetic root mean square gap.
+    pub pre_treatment_rmse: f64,
+    /// Convex donor weights.
+    pub donor_weights: Vec<(String, f64)>,
+    /// Convex pre-period weights.
+    pub time_weights: Vec<(i64, f64)>,
+    /// Number of donor units.
+    pub n_donors: usize,
+    /// Number of pre-periods.
+    pub n_pre_periods: usize,
+    /// Number of post-periods.
+    pub n_post_periods: usize,
+}
+
+/// Fit unit and time simplex weights without claiming interval calibration.
+pub fn fit_synthetic_did(
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
+    intervention_period: i64,
+) -> Result<SyntheticDidFit, String> {
+    let values = outcome;
+    let n = values.len();
+    if n == 0 || units.len() != n || periods.len() != n {
+        return Err(String::from(
+            "outcome, unit, and period vectors must have equal non-zero length",
+        ));
+    }
+    if values.iter().any(|value| !value.is_finite()) {
+        return Err(String::from("outcomes must be finite"));
+    }
+    if treated_unit.is_empty() || intervention_period <= 0 {
+        return Err(String::from("treated unit and intervention period are required"));
+    }
+    let mut panel: BTreeMap<String, BTreeMap<i64, f64>> = BTreeMap::new();
+    let mut all_periods = BTreeSet::new();
+    for i in 0..n {
+        if units[i].is_empty() || periods[i] <= 0 {
+            return Err(String::from("unit IDs must be non-empty and periods positive"));
+        }
+        all_periods.insert(periods[i]);
+        if panel.entry(units[i].clone()).or_default().insert(periods[i], values[i]).is_some() {
+            return Err(String::from(
+                "each unit must have exactly one outcome per period",
+            ));
+        }
+    }
+    let period_list: Vec<i64> = all_periods.into_iter().collect();
+    let pre: Vec<i64> =
+        period_list.iter().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> =
+        period_list.iter().copied().filter(|period| *period >= intervention_period).collect();
+    if pre.len() < 2 || post.is_empty() {
+        return Err(String::from(
+            "synthetic DiD requires at least two pre-periods and one post-period",
+        ));
+    }
+    if panel.len() < 3 || !panel.contains_key(treated_unit) {
+        return Err(String::from(
+            "synthetic DiD requires one treated unit and at least two donor units",
+        ));
+    }
+    let n_pre = pre.len();
+    let n_post = post.len();
+    if panel.values().any(|observed| {
+        observed.len() != period_list.len()
+            || period_list.iter().any(|period| !observed.contains_key(period))
+    }) {
+        return Err(String::from(
+            "synthetic DiD requires a balanced panel with identical periods for every unit",
+        ));
+    }
+    let treated = &panel[treated_unit];
+    let donors: Vec<(&String, &BTreeMap<i64, f64>)> =
+        panel.iter().filter(|(unit, _)| unit.as_str() != treated_unit).collect();
+    let target_pre: Vec<f64> = pre.iter().map(|period| treated[period]).collect();
+    let donor_pre: Vec<Vec<f64>> = donors
+        .iter()
+        .map(|(_, observed)| pre.iter().map(|period| observed[period]).collect())
+        .collect();
+    let (unit_weights, pre_rmse) = fit_weights(&target_pre, &donor_pre);
+
+    // SDID time weights solve the dual simplex problem: represent the average
+    // pre-period donor profile as a convex combination of individual periods.
+    let target_donor_mean: Vec<f64> = donors
+        .iter()
+        .map(|(_, observed)| {
+            pre.iter().map(|period| observed[period]).sum::<f64>() / pre.len() as f64
+        })
+        .collect();
+    let period_profiles: Vec<Vec<f64>> = pre
+        .iter()
+        .map(|period| donors.iter().map(|(_, observed)| observed[period]).collect())
+        .collect();
+    let (time_weights, _) = fit_weights(&target_donor_mean, &period_profiles);
+
+    let treated_post_mean =
+        post.iter().map(|period| treated[period]).sum::<f64>() / post.len() as f64;
+    let treated_pre_weighted: f64 =
+        pre.iter().zip(&time_weights).map(|(period, weight)| treated[period] * weight).sum();
+    let donor_post_mean: f64 = donors
+        .iter()
+        .zip(&unit_weights)
+        .map(|((_, observed), weight)| {
+            weight * post.iter().map(|period| observed[period]).sum::<f64>() / post.len() as f64
+        })
+        .sum();
+    let donor_joint_pre: f64 = donors
+        .iter()
+        .zip(&unit_weights)
+        .map(|((_, observed), unit_weight)| {
+            pre.iter()
+                .zip(&time_weights)
+                .map(|(period, time_weight)| unit_weight * time_weight * observed[period])
+                .sum::<f64>()
+        })
+        .sum();
+    let estimate = (treated_post_mean - treated_pre_weighted) - (donor_post_mean - donor_joint_pre);
+    if !estimate.is_finite() || !pre_rmse.is_finite() {
+        return Err(String::from("synthetic DiD estimate overflowed finite precision"));
+    }
+    let weights = donors
+        .iter()
+        .zip(unit_weights)
+        .map(|((unit, _), weight)| ((*unit).clone(), weight))
+        .collect();
+    let time_weights = pre.into_iter().zip(time_weights).collect();
+    Ok(SyntheticDidFit { effect: estimate, pre_treatment_rmse: pre_rmse, donor_weights: weights, time_weights, n_donors: donors.len(), n_pre_periods: n_pre, n_post_periods: n_post })
+}
+
+#[cfg(test)]
+mod synthetic_did_tests {
+    use super::fit_synthetic_did;
+
+    #[test]
+    fn additive_unit_and_time_effects_recover_known_treatment_and_refuse_sparse_pre_support() {
+        let units: Vec<String> = ["treated", "d0", "d1", "d2"]
+            .into_iter().flat_map(|unit| std::iter::repeat_n(unit.to_string(), 4)).collect();
+        let periods: Vec<i64> = (0..4).flat_map(|_| 1..=4).collect();
+        let outcome: Vec<f64> = units.iter().zip(&periods).map(|(unit, period)| {
+            let baseline = match unit.as_str() { "treated" | "d1" => 10.0, "d0" => 2.0, _ => 18.0 };
+            let common = match period { 1 => 1.0, 2 => 3.0, 3 => -2.0, _ => 5.0 };
+            baseline + common + if unit == "treated" && *period == 4 { 7.0 } else { 0.0 }
+        }).collect();
+        let fit = fit_synthetic_did(&outcome, &units, &periods, "treated", 4).unwrap();
+        assert!((fit.effect - 7.0).abs() < 1e-8);
+        assert_eq!((fit.n_donors, fit.n_pre_periods, fit.n_post_periods), (3, 3, 1));
+        assert!((fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8);
+        assert!((fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8);
+        assert!(fit_synthetic_did(&outcome, &units, &periods, "treated", 2)
+            .unwrap_err().contains("at least two pre-periods"));
+    }
+}
