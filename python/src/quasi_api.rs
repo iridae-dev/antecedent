@@ -51,6 +51,9 @@ pub struct SyntheticControlSection {
     pub uncertainty: String,
     pub randomization_p_value: Option<f64>,
     pub randomization_statistics: Vec<(String, f64)>,
+    pub unadjusted_effect: Option<f64>,
+    pub outcome_model_correction: Option<f64>,
+    pub augmentation_ridge: Option<f64>,
 }
 
 impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
@@ -68,6 +71,9 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
             randomization_p_value: value.randomization_p_value,
             randomization_statistics: value.randomization_statistics.iter().map(|(unit, statistic)|
                 (unit.to_string(), *statistic)).collect(),
+            unadjusted_effect: value.unadjusted_effect,
+            outcome_model_correction: value.outcome_model_correction,
+            augmentation_ridge: value.augmentation_ridge,
         }
     }
 }

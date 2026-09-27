@@ -905,6 +905,9 @@ pub struct SyntheticControlQueryWire {
     /// Uniformly randomized choice of one treated unit for exact sharp-null inference.
     #[serde(default, skip_serializing_if = "is_false")]
     pub uniform_unit_randomization: bool,
+    /// Positive donor outcome-model ridge penalty for augmented synthetic control.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmentation_ridge: Option<f64>,
 }
 
 /// Fixed-cutoff local ratio design, including whether the contrast is a kink.
@@ -1766,6 +1769,7 @@ pub fn causal_query_to_wire_with_registry(
                 difference_in_differences: q.method
                     == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
                 uniform_unit_randomization: q.uniform_unit_randomization,
+                augmentation_ridge: q.augmentation_ridge,
             })
         }
         CausalQuery::LocalPolynomialRatio(q) => {
@@ -2164,6 +2168,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             );
             let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
             let q = if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
+            let q = if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::SyntheticControl(q)
         }

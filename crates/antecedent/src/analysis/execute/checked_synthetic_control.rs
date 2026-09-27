@@ -3,6 +3,7 @@
 
 use super::*;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
+use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_test;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
 use antecedent_core::SyntheticPanelMethod;
@@ -70,9 +71,15 @@ impl CheckedSyntheticControlOperation {
         if self.query.method == SyntheticPanelMethod::DifferenceInDifferences {
             return self.execute_did(data, ctx, y, &units);
         }
-        let fit = fit_synthetic_control(y, &units, &self.query.periods, &self.query.treated_unit,
-            self.query.intervention_period)
+        let augmentation = self.query.augmentation_ridge.map(|ridge|
+            fit_augmented_synthetic_control(y, &units, &self.query.periods, &self.query.treated_unit,
+                self.query.intervention_period, ridge)).transpose()
             .map_err(|message| CausalError::Compile { message })?;
+        let fit = if let Some(augmented) = &augmentation { augmented.control.clone() } else {
+            fit_synthetic_control(y, &units, &self.query.periods, &self.query.treated_unit,
+                self.query.intervention_period).map_err(|message| CausalError::Compile { message })?
+        };
+        let effect = augmentation.as_ref().map_or(fit.effect, |augmented| augmented.effect);
         let randomization = if self.query.uniform_unit_randomization {
             Some(exact_synthetic_unit_randomization_test(y, &units, &self.query.periods,
                 &self.query.treated_unit, self.query.intervention_period)
@@ -81,7 +88,7 @@ impl CheckedSyntheticControlOperation {
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
         let effective_donors = if squared_mass > 0.0 { 1.0 / squared_mass } else { 0.0 };
         let estimate = EffectEstimate::new(
-            fit.effect, f64::NAN, self.identification.required_assumptions.clone(),
+            effect, f64::NAN, self.identification.required_assumptions.clone(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
         );
         let mut result = finish_identified_execute_with_context(
@@ -95,9 +102,10 @@ impl CheckedSyntheticControlOperation {
                 extra_diagnostics: vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; effective donors {}; leave-one-donor-out placebo rank {} is descriptive and uncalibrated; exact unit-randomization p-value {:?} applies only under declared uniform one-unit assignment and the sharp null; no interval",
+                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; effective donors {}; unadjusted leave-one-donor-out placebo rank {} is descriptive and uncalibrated; donor ridge correction {:?}; exact unit-randomization p-value {:?} applies only under declared uniform one-unit assignment and the sharp null; no interval",
                         fit.donor_weights.len(), fit.n_pre_periods, fit.n_post_periods,
                         fit.pre_treatment_rmse, effective_donors, fit.placebo_rank,
+                        augmentation.as_ref().map(|fit| fit.outcome_model_correction),
                         randomization.as_ref().map(|test| test.p_value)),
                 )],
                 refutations: Vec::new(), distribution: None, mediation: None,
@@ -107,7 +115,7 @@ impl CheckedSyntheticControlOperation {
             },
         );
         result.synthetic_control = Some(crate::SyntheticControlEstimate {
-            effect: fit.effect,
+            effect,
             pre_treatment_rmse: fit.pre_treatment_rmse,
             donor_weights: fit.donor_weights.into_iter()
                 .map(|(unit, weight)| (Arc::<str>::from(unit), weight)).collect(),
@@ -116,7 +124,9 @@ impl CheckedSyntheticControlOperation {
             effective_donors,
             n_pre_periods: fit.n_pre_periods,
             n_post_periods: fit.n_post_periods,
-            uncertainty: Arc::from(if randomization.is_some() {
+            uncertainty: Arc::from(if augmentation.is_some() {
+                "point_only_augmented_no_interval"
+            } else if randomization.is_some() {
                 "point_only_with_exact_unit_randomization_p_value_no_interval"
             } else { "point_only_with_unlicensed_placebo_rank" }),
             randomization_p_value: randomization.as_ref().map(|test| test.p_value),
@@ -125,6 +135,9 @@ impl CheckedSyntheticControlOperation {
                 |test| test.statistics.into_iter().map(|(unit, statistic)|
                     (Arc::<str>::from(unit), statistic)).collect::<Vec<_>>().into(),
             ),
+            unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
+            outcome_model_correction: augmentation.as_ref().map(|fit| fit.outcome_model_correction),
+            augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
         });
         result.treatment = None;
         Ok(result)
@@ -211,7 +224,24 @@ pub(crate) fn synthetic_control_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    if query.augmentation_ridge.is_some() {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("donor_ridge_outcome_model_transports"),
+                description: Arc::from("the donor-trained pre-trajectory outcome model predicts the treated unit's untreated post-period mean"),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
     let (method_assumption, method_description, rule, derivation_description) = match query.method {
+        SyntheticPanelMethod::Control if query.augmentation_ridge.is_some() => (
+            "donor_outcome_model_correction_is_valid",
+            "a donor-trained ridge outcome model corrects the remaining convex-donor imbalance",
+            "synthetic_control.augmented_donor_ridge",
+            "the treated post-period mean minus the convex donor mean is corrected by the donor-trained ridge prediction difference under the declared transport assumption",
+        ),
         SyntheticPanelMethod::Control => (
             "convex_donor_combination_is_a_valid_counterfactual",
             "a convex combination of donor outcomes represents the treated unit without intervention",

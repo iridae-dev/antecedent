@@ -399,6 +399,9 @@ class SyntheticControlSection:
     uncertainty: str
     randomization_p_value: float | None
     randomization_statistics: list[tuple[str, float]]
+    unadjusted_effect: float | None
+    outcome_model_correction: float | None
+    augmentation_ridge: float | None
 
 class SyntheticDidSection:
     effect: float
@@ -1284,6 +1287,7 @@ class PreparedAnalysis:
         intervention_period: int, *, difference_in_differences: bool = False,
         uniform_unit_randomization: bool = False,
         accepted: bool = False,
+        augmentation_ridge: float | None = None,
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...

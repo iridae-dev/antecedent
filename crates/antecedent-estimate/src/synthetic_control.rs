@@ -31,6 +31,114 @@ pub struct SyntheticUnitRandomizationTest {
     pub p_value: f64,
 }
 
+/// Ridge outcome-model correction to the simplex synthetic-control contrast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AugmentedSyntheticControlFit {
+    /// Unadjusted simplex fit, including donor support diagnostics.
+    pub control: SyntheticControlFit,
+    /// Post-period treated-minus-synthetic gap after the outcome-model correction.
+    pub effect: f64,
+    /// Donor-trained prediction difference subtracted from the simplex gap.
+    pub outcome_model_correction: f64,
+    /// Positive ridge penalty used for the donor outcome model.
+    pub ridge_penalty: f64,
+}
+
+fn solve_positive_ridge(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<Vec<f64>, String> {
+    let n = rhs.len();
+    for column in 0..n {
+        let mut pivot = column;
+        for row in column + 1..n {
+            if matrix[row][column].abs() > matrix[pivot][column].abs() {
+                pivot = row;
+            }
+        }
+        if !matrix[pivot][column].is_finite() || matrix[pivot][column].abs() < 1e-14 {
+            return Err("augmented synthetic-control ridge system is numerically singular".into());
+        }
+        matrix.swap(column, pivot);
+        rhs.swap(column, pivot);
+        let diagonal = matrix[column][column];
+        for row in column + 1..n {
+            let factor = matrix[row][column] / diagonal;
+            for inner in column + 1..n {
+                matrix[row][inner] -= factor * matrix[column][inner];
+            }
+            rhs[row] -= factor * rhs[column];
+        }
+    }
+    let mut solution = vec![0.0; n];
+    for row in (0..n).rev() {
+        let remainder: f64 = (row + 1..n).map(|inner| matrix[row][inner] * solution[inner]).sum();
+        solution[row] = (rhs[row] - remainder) / matrix[row][row];
+    }
+    if solution.iter().any(|value| !value.is_finite()) {
+        return Err("augmented synthetic-control ridge prediction overflowed".into());
+    }
+    Ok(solution)
+}
+
+/// Correct a simplex synthetic-control gap using a donor-trained ridge outcome model.
+///
+/// Each donor's pre-period trajectory predicts its post-period mean. The centered
+/// linear ridge model is fitted only on donors; its treated-minus-weighted-donor
+/// prediction difference is subtracted from the original synthetic-control gap.
+/// No sampling interval or placebo calibration is implied by this point fit.
+pub fn fit_augmented_synthetic_control(
+    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    intervention_period: i64, ridge_penalty: f64,
+) -> Result<AugmentedSyntheticControlFit, String> {
+    if !ridge_penalty.is_finite() || ridge_penalty <= 0.0 {
+        return Err("augmented synthetic control requires a finite positive ridge penalty".into());
+    }
+    let control = fit_synthetic_control(outcome, units, periods, treated_unit, intervention_period)?;
+    let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
+    let mut period_set = BTreeSet::new();
+    for ((unit, period), value) in units.iter().zip(periods).zip(outcome) {
+        panel.entry(unit).or_default().insert(*period, *value);
+        period_set.insert(*period);
+    }
+    let pre: Vec<i64> = period_set.iter().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> = period_set.iter().copied().filter(|period| *period >= intervention_period).collect();
+    let donors: Vec<&str> = control.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
+    let donor_pre: Vec<Vec<f64>> = donors.iter().map(|unit|
+        pre.iter().map(|period| panel[unit][period]).collect()).collect();
+    let donor_post: Vec<f64> = donors.iter().map(|unit|
+        post.iter().map(|period| panel[unit][period]).sum::<f64>() / post.len() as f64).collect();
+    let treated_pre: Vec<f64> = pre.iter().map(|period| panel[treated_unit][period]).collect();
+    let n = donors.len();
+    let p = pre.len();
+    let pre_mean: Vec<f64> = (0..p).map(|period|
+        donor_pre.iter().map(|values| values[period]).sum::<f64>() / n as f64).collect();
+    let post_mean = donor_post.iter().sum::<f64>() / n as f64;
+    let centered: Vec<Vec<f64>> = donor_pre.iter().map(|values|
+        values.iter().zip(&pre_mean).map(|(value, mean)| value - mean).collect()).collect();
+    let mut gram = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            gram[i][j] = centered[i].iter().zip(&centered[j])
+                .map(|(left, right)| left * right).sum::<f64>() / p as f64;
+        }
+        gram[i][i] += ridge_penalty;
+    }
+    let coefficients = solve_positive_ridge(gram, donor_post.iter().map(|value| value - post_mean).collect())?;
+    let prediction = |features: &[f64]| -> f64 {
+        post_mean + coefficients.iter().zip(&centered).map(|(coefficient, donor)| {
+            coefficient * donor.iter().zip(features.iter().zip(&pre_mean))
+                .map(|(donor_value, (value, mean))| donor_value * (value - mean))
+                .sum::<f64>() / p as f64
+        }).sum::<f64>()
+    };
+    let donor_prediction: f64 = donor_pre.iter().zip(&control.donor_weights)
+        .map(|(features, (_, weight))| weight * prediction(features)).sum();
+    let correction = prediction(&treated_pre) - donor_prediction;
+    let effect = control.effect - correction;
+    if !effect.is_finite() || !correction.is_finite() {
+        return Err("augmented synthetic-control correction overflowed finite precision".into());
+    }
+    Ok(AugmentedSyntheticControlFit { control, effect, outcome_model_correction: correction, ridge_penalty })
+}
+
 fn project_simplex(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
     sorted.sort_by(|left, right| right.total_cmp(left));
@@ -282,6 +390,27 @@ pub fn exact_synthetic_unit_randomization_test(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn augmented_synthetic_control_corrects_outside_convex_hull_bias() {
+        let mut outcome = Vec::new();
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        for (unit, position) in [("a", 0.0), ("b", 1.0), ("c", 2.0), ("treated", 3.0)] {
+            for period in 1..=4 {
+                units.push(unit.to_string());
+                periods.push(period);
+                outcome.push(if period < 4 { position * period as f64 }
+                    else { 4.0 * position + if unit == "treated" { 5.0 } else { 0.0 } });
+            }
+        }
+        let fit = fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 1e-8).unwrap();
+        assert!((fit.control.effect - 9.0).abs() < 1e-5);
+        assert!((fit.outcome_model_correction - 4.0).abs() < 1e-4);
+        assert!((fit.effect - 5.0).abs() < 1e-4);
+        assert!(fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 0.0)
+            .unwrap_err().contains("positive ridge penalty"));
+    }
 
     #[test]
     fn known_convex_donor_truth_and_support_refusal() {

@@ -152,3 +152,41 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
     let (_, invalid) = fixture();
     assert!(invalid.difference_in_differences().with_uniform_unit_randomization().validate().is_err());
 }
+
+#[test]
+fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() {
+    let mut units = Vec::new();
+    let mut periods = Vec::new();
+    let mut y = Vec::new();
+    for (unit, position) in [("a", 0.0), ("b", 1.0), ("c", 2.0), ("treated", 3.0)] {
+        for period in 1..=4 {
+            units.push(Arc::<str>::from(unit));
+            periods.push(period);
+            y.push(if period < 4 { position * period as f64 }
+                else { 4.0 * position + if unit == "treated" { 5.0 } else { 0.0 } });
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let query = SyntheticControlQuery::new(VariableId::from_raw(0), units, periods, "treated", 4)
+        .with_augmentation(1e-8);
+    let ctx = ExecutionContext::for_tests(23);
+    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.synthetic_control.as_ref().unwrap();
+    assert!((fit.unadjusted_effect.unwrap() - 9.0).abs() < 1e-5);
+    assert!((fit.outcome_model_correction.unwrap() - 4.0).abs() < 1e-4);
+    assert!((fit.effect - 5.0).abs() < 1e-4);
+    assert_eq!(fit.uncertainty.as_ref(), "point_only_augmented_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.identification.required_assumptions.entries.iter().any(|record|
+        format!("{:?}", record.assumption).contains("donor_ridge_outcome_model_transports")));
+    let bytes = prepared.encode_contracted_result(&result, "augmented-control", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.synthetic_control.as_ref().unwrap().effect, fit.effect);
+    let mut fabricated = body.clone();
+    fabricated.synthetic_control.as_mut().unwrap().outcome_model_correction = Some(0.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(query.clone().with_uniform_unit_randomization().validate().is_err());
+    assert!(query.difference_in_differences().validate().is_err());
+}

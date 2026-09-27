@@ -475,6 +475,15 @@ pub struct SyntheticControlWire {
     /// Absolute post-gap statistics for every candidate treated unit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub randomization_statistics: Vec<(String, f64)>,
+    /// Unadjusted simplex gap for augmented synthetic control.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unadjusted_effect: Option<f64>,
+    /// Donor ridge prediction difference subtracted from the simplex gap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_model_correction: Option<f64>,
+    /// Positive donor outcome-model ridge penalty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmentation_ridge: Option<f64>,
 }
 
 /// Point-only synthetic DiD result with unit and time simplex weights.
@@ -1304,11 +1313,21 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
             || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
             || (!query.uniform_unit_randomization && (
-                fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
+                (query.augmentation_ridge.is_none() && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
                 || fit.randomization_p_value.is_some() || !fit.randomization_statistics.is_empty()))
             || (query.uniform_unit_randomization && (
                 fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval"
                 || fit.randomization_statistics.len() != donors.len() + 1
+            || (query.augmentation_ridge.is_none() && (
+                fit.unadjusted_effect.is_some() || fit.outcome_model_correction.is_some()
+                || fit.augmentation_ridge.is_some()))
+            || (query.augmentation_ridge.is_some() && (
+                fit.uncertainty != "point_only_augmented_no_interval"
+                || fit.augmentation_ridge != query.augmentation_ridge
+                || !fit.unadjusted_effect.is_some_and(f64::is_finite)
+                || !fit.outcome_model_correction.is_some_and(f64::is_finite)
+                || (fit.unadjusted_effect.unwrap_or(f64::NAN)
+                    - fit.outcome_model_correction.unwrap_or(f64::NAN) - fit.effect).abs() > 1e-8))
                 || fit.randomization_statistics.len() > 32
                 || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
                     != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
