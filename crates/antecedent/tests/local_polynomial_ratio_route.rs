@@ -70,7 +70,7 @@ fn retained_fuzzy_rd_recovers_truth_and_rejects_fabricated_interval() {
     assert!(body.standard_error.is_none());
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(2.0);
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names.clone(), "fabricated").is_err());
     let mut mismatched = body.clone();
     mismatched.local_polynomial_ratio.as_mut().unwrap().bandwidth = 0.5;
     assert!(antecedent_io::encode_analysis_result_artifact(&mismatched, header.variable_names, "mismatched").is_err());
