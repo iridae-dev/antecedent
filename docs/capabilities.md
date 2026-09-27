@@ -595,17 +595,27 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   A second retained frequentist construction accepts completely randomized
   clusters with an explicit matching `PartialInterference` partition,
   `NeighborFraction`, and the total exposure contrast `(0, 0)` to `(1, 1)`.
-  It requires at least two clusters per arm and reports a conservative
-  cluster-level variance without an interval or a Bernoulli calibration claim.
+  It requires at least two clusters per arm for a point estimate. At eight
+  independent clusters per arm with positive between-cluster variation, it
+  reports a pointwise 95% cluster-level Neyman/Welch interval. Fixed-population
+  randomization checks cover known truth in 1,910/2,000 draws at eight clusters
+  per arm and 1,933/2,000 at 40 per arm. This remains off the support-matrix
+  axis; the Bernoulli cell's license does not transfer.
   `SaturationDesign` is a third retained construction: complete allocation of
   clusters to low/high treatment probabilities followed by independent
   Bernoulli assignment of units. With a matching `PartialInterference` partition,
   `InterferenceQuery` accepts `NeighborCount`, `NeighborFraction`, or
   `WeightedNeighborExposure` and estimates direct, spillover, or total contrasts
   from the requested exposure levels. Exact cluster-allocation and neighbor
-  assignment probabilities are computed in Rust. The variance is a descriptive
-  covariance-free proxy; no interval or support-matrix license is claimed.
-  Direct and retained Python routes use the same native estimator.
+  assignment probabilities are computed in Rust. The covariance-free variance
+  proxy is descriptive. A separate pointwise 95% cluster-level interval is
+  reported with at least 24 independent clusters in each saturation arm, eight
+  exposed clusters at each requested level, and positive between-cluster score
+  variation. Repeated-sampling checks cover direct, spillover, and total
+  contrasts across neighbor fraction, count, and weighted mappings at the
+  reported level. Thinner designs retain a point estimate with a specific
+  interval refusal. This route remains off the support-matrix axis. Direct and
+  retained Python routes use the same native estimator.
   `ObservedExposureDesign` is a retained observational construction on the
   same query. It requires an explicit `PartialInterference` partition, a fixed
   within-cluster network, both exposure propensities and their known or
