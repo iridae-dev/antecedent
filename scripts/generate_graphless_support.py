@@ -95,7 +95,9 @@ def load_rows() -> list[dict]:
                         "const REPLICATIONS: usize = 2_000", "covered_rmst", "covered_tau",
                         "1_860..=1_970", "rmst_difference", "difference_at_tau",
                     ))
-                if body is None or not (legacy_evidence or policy_evidence or did_evidence or switchback_evidence or survival_evidence) or not (
+                longitudinal_evidence = row["family"] == "longitudinal_regime" and body is not None \
+                    and all(token in body.group(1) for token in ("simulations = 2_000", "truth", "covered", "coverage", "bounds"))
+                if body is None or not (legacy_evidence or policy_evidence or did_evidence or switchback_evidence or survival_evidence or longitudinal_evidence) or not (
                     switchback_evidence or any(token in body.group(1)
                         for token in ("truth", "target", "truths", "TRUTH"))):
                     raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
@@ -105,7 +107,8 @@ def load_rows() -> list[dict]:
 def rust(rows: list[dict], *, io: bool = False) -> str:
     fields = (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations")
     lines = [
-        "//! Generated from parity/support_graphless.toml; do not edit by hand.",
+        "//! Generated from `parity/support_graphless.toml`; do not edit by hand.",
+        "#[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.",
         *(["#[allow(dead_code)] // Evidence citations are used by the generator gate, not IO validation."] if io else []),
         "pub(super) struct GraphlessLicenseRow {",
         *(f"    pub(super) {field}: &'static str," for field in fields),

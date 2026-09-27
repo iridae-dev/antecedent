@@ -468,6 +468,7 @@ class SurvivalSection:
 
 class LongitudinalRegimeSection:
     method: str
+    graphless_support_status: str | None
     rule_id: str | None
     rule_version: str | None
     rule_provenance: str | None

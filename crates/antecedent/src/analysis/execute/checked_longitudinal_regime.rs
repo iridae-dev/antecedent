@@ -214,6 +214,37 @@ impl CheckedLongitudinalRegimeOperation {
             ("estimate.longitudinal.sequential_dr_regime.pointwise_95_conditional_q",
              "sequential DR value with pointwise 95% independent-subject score interval conditional on caller-declared subject-excluded Q fitting and known randomization; Q training is not verified")
         } else { (diagnostic, description) };
+        // The sequential-DR interval only publishes after its narrowed,
+        // calibrated subject support holds, so the graphless license is a
+        // function of that published interval plus the exact two- or
+        // three-period row. Observed-outcome, matching-history, and censoring
+        // floors are enforced upstream by the interval and stated in the row's
+        // limitations; classify_graphless checks the coarse published-interval
+        // support so the license cannot exist without a matching matrix row.
+        let graphless_dr_licensed = self.query.method == LongitudinalRegimeMethod::SequentialDoublyRobust
+            && dr_interval.is_some()
+            && matches!(self.query.periods, 2 | 3)
+            && matches!(crate::support::classify_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "longitudinal_regime",
+                    design: if self.query.periods == 2 {
+                        "known_sequential_randomized_two_period"
+                    } else {
+                        "known_sequential_randomized_three_period"
+                    },
+                    method: "subject_excluded_q_sequential_dr_scores",
+                    inference_claim: "conditional_q_pointwise_95_normal_interval",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit", rows: self.rows,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    min_probability: summary.minimum_action_probability,
+                    disjoint_nuisance_training: self.query.excluded_fold_predictions
+                        && self.query.prediction_fold_ids.as_deref() == Some(self.query.fold_ids.as_ref()),
+                    ..Default::default()
+                },
+            ), crate::support::GraphlessSupportStatus::Licensed { .. });
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -250,8 +281,12 @@ impl CheckedLongitudinalRegimeOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
+        if graphless_dr_licensed {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         result.longitudinal_regime = Some(crate::LongitudinalRegimeEstimate {
             method: Arc::from(method),
+            graphless_support_status: graphless_dr_licensed.then_some(crate::support::CellStatus::Licensed),
             rule_id: self.query.rule_id.clone(),
             rule_version: self.query.rule_version.clone(),
             rule_provenance: self.query.rule_provenance.clone(),

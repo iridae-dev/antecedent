@@ -547,7 +547,10 @@ pub struct UpliftBinWire {
     pub interval_95: Option<[f64; 2]>,
 }
 
-/// Panel DiD result section; uncertainty is an SE only and carries no interval claim.
+/// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
+type EventTimeEffect = (i64, i64, i64, f64, usize, usize, f64, usize);
+
+/// Panel `DiD` result section; uncertainty is an SE only and carries no interval claim.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PanelDidWire {
@@ -556,7 +559,7 @@ pub struct PanelDidWire {
     /// Cluster-robust standard error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_error: Option<f64>,
-    /// Pointwise normal interval for a sufficiently supported scalar DiD contrast.
+    /// Pointwise normal interval for a sufficiently supported scalar `DiD` contrast.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_95: Option<[f64; 2]>,
     /// Treated subject count.
@@ -567,13 +570,13 @@ pub struct PanelDidWire {
     pub clusters: usize,
     /// Explicit uncertainty semantics tag.
     pub uncertainty: String,
-    /// Exact graphless two-period DiD license, absent off-axis.
+    /// Exact graphless two-period `DiD` license, absent off-axis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
     /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
-    /// Optional post-adoption pointwise intervals aligned with event_time_effects.
+    pub event_time_effects: Vec<EventTimeEffect>,
+    /// Optional post-adoption pointwise intervals aligned with `event_time_effects`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_time_intervals_95: Vec<Option<[f64; 2]>>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
@@ -623,7 +626,7 @@ pub struct SyntheticControlWire {
     pub augmentation_ridge: Option<f64>,
 }
 
-/// Point-only synthetic DiD result with unit and time simplex weights.
+/// Point-only synthetic `DiD` result with unit and time simplex weights.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SyntheticDidWire {
@@ -848,6 +851,9 @@ pub struct LongitudinalRegimeWire {
     /// Named point method, defaulting to IPW for older artifacts.
     #[serde(default = "default_longitudinal_result_method")]
     pub method: String,
+    /// Exact graphless sequential-DR license; absent for off-axis results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
     /// Identity of materialized caller rule; source code is not replayable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule_id: Option<String>,
@@ -899,6 +905,7 @@ pub struct LongitudinalRegimeWire {
     pub observed_subjects: usize,
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip_serializing_if requires an fn(&T) -> bool signature")]
 fn is_zero_usize(value: &usize) -> bool { *value == 0 }
 
 fn default_longitudinal_result_method() -> String {
@@ -962,13 +969,13 @@ pub struct AnalysisResultWire {
     /// Conditional continuous-dose response; never encoded as policy value.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub continuous_dose_response: Option<ContinuousDoseResponseWire>,
-    /// Balanced two-period panel DiD metadata and cluster uncertainty semantics.
+    /// Balanced two-period panel `DiD` metadata and cluster uncertainty semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panel_did: Option<PanelDidWire>,
     /// Synthetic-control result with donor and placebo diagnostics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synthetic_control: Option<SyntheticControlWire>,
-    /// Synthetic DiD point result and fitted simplex weights.
+    /// Synthetic `DiD` point result and fitted simplex weights.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synthetic_did: Option<SyntheticDidWire>,
     /// Fixed-window fuzzy RD or regression-kink ratio.
@@ -1193,6 +1200,8 @@ pub fn decode_analysis_result_artifact(
     Ok((artifact, decoded_header, decoded_body))
 }
 
+// allow(too_many_lines): single dispatch over every result-variant validator; splitting hides the total contract
+#[allow(clippy::too_many_lines)]
 fn validate_result(
     result: &AnalysisResultWire,
     variable_names: &[String],
@@ -1353,8 +1362,8 @@ fn validate_result(
                     && (query.ancova_covariates.is_empty()
                         || query.assignment_probabilities.iter().all(|p|
                             (*p - query.assignment_probabilities[0]).abs() <= 1e-12)),
-            crate::RandomizationDesignWire::Complete { .. } => control >= 30 && treated >= 30,
-            crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
+            crate::RandomizationDesignWire::Complete { .. }
+            | crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
             crate::RandomizationDesignWire::Stratified => {
                 let mut blocks = std::collections::BTreeMap::<&str, (usize, usize)>::new();
                 for (block, assigned) in query.blocks.iter().zip(&query.realized_assignment) {
@@ -1413,7 +1422,7 @@ fn validate_result(
                 size > 0 && block_counts.values().all(|counts| counts.0 + counts.1 == size)
             });
         let min_factorial_cell = query.factorial_cell_counts
-            .map(|counts| *counts.iter().min().unwrap_or(&0)).unwrap_or(0);
+            .map_or(0, |counts| *counts.iter().min().unwrap_or(&0));
         let min_action_rows = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
             (0..query.multi_arm_labels.len()).map(|arm|
                 query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count())
@@ -1553,7 +1562,7 @@ fn validate_result(
             || randomized.second_factor_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - randomized.variance).abs() > 1e-12)
             || randomized.factorial_interaction_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - 4.0 * randomized.variance).abs() > 1e-12)
             || (matches!(query.design, crate::RandomizationDesignWire::MultiArm)
-                != !randomized.multi_arm_values.is_empty())
+                == randomized.multi_arm_values.is_empty())
             || (matches!(query.design, crate::RandomizationDesignWire::MultiArm) && (
                 randomized.multi_arm_values.len() != query.multi_arm_labels.len()
                 || randomized.multi_arm_values.iter().enumerate().any(|(i, (label, value, variance, support))|
@@ -1612,9 +1621,8 @@ fn validate_result(
         return Err(IoError::Convert("local ratio artifact is missing its design-specific result section".into()));
     }
     if let Some(fit) = &result.local_polynomial_ratio {
-        let query = match &result.query {
-            crate::CausalQueryWire::LocalPolynomialRatio(query) => query,
-            _ => return Err(IoError::Convert("local ratio result requires matching query".into())),
+        let crate::CausalQueryWire::LocalPolynomialRatio(query) = &result.query else {
+            return Err(IoError::Convert("local ratio result requires matching query".into()));
         };
         let legacy_point_only = fit.uncertainty == "rbc_point_with_unvalidated_hc0_standard_error_no_interval";
         let interval_available = !legacy_point_only && fit.standard_error > 0.0;
@@ -1627,6 +1635,7 @@ fn validate_result(
                 bounds.is_some_and(|value| value.is_finite() && (value - expected).abs() <= tolerance)
             } else { bounds.is_none() }
         };
+        #[allow(clippy::float_cmp, reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch")]
         if fit.cutoff != query.cutoff
             || fit.bandwidth != query.bandwidth
             || fit.kink != query.kink
@@ -1747,6 +1756,7 @@ fn validate_result(
         } else if regime.value_interval_95.is_some() {
             "pointwise_subject_score_95"
         } else { "point_only_no_interval" };
+        #[allow(clippy::float_cmp, reason = "wire interval bounds must equal the recomputed values exactly; drift is a real mismatch")]
         let interval_valid = match regime.value_interval_95 {
             Some(bounds) => {
                 let se = regime.value_standard_error.unwrap_or(f64::NAN);
@@ -1778,6 +1788,27 @@ fn validate_result(
                             && (bounds[1] - (center + span)).abs() <= tolerance
                     })
         };
+        let graphless_dr_licensed = query.method == "sequential_dr"
+            && matches!(query.periods, 2 | 3)
+            && eligible_dr
+            && regime.value_interval_95.is_some()
+            && graphless_data::LICENSES.iter().any(|row| {
+                row.family == "longitudinal_regime"
+                    && row.design == if query.periods == 2 {
+                        "known_sequential_randomized_two_period"
+                    } else {
+                        "known_sequential_randomized_three_period"
+                    }
+                    && row.method == "subject_excluded_q_sequential_dr_scores"
+                    && row.inference_claim == "conditional_q_pointwise_95_normal_interval"
+            });
+        if regime.graphless_support_status.as_deref() != graphless_dr_licensed.then_some("licensed")
+            && !(allow_legacy_graphless_missing && regime.graphless_support_status.is_none())
+        {
+            return Err(IoError::Convert(
+                "longitudinal regime graphless license does not match evidenced support".into(),
+            ));
+        }
         if regime.method != query.method
             || regime.rule_id != query.rule_id
             || regime.rule_version != query.rule_version
@@ -1892,6 +1923,7 @@ fn validate_result(
         } else if policy_requested {
             "fixed_group_kernel_smoothed_paired_variance_no_interval"
         } else { "point_only_no_interval" };
+        #[allow(clippy::float_cmp, reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch")]
         if result.estimate.is_some() || result.standard_error.is_some()
             || result.interval_lower.is_some() || result.interval_upper.is_some()
             || fit.bandwidth != query.bandwidth || fit.density_provenance != query.density_provenance
@@ -1905,6 +1937,7 @@ fn validate_result(
         for (index, point) in fit.points.iter().enumerate() {
             let group = groups.iter().nth(index / query.target_doses.len()).copied().unwrap_or("");
             let target = query.target_doses[index % query.target_doses.len()];
+            #[allow(clippy::float_cmp, reason = "target dose must equal the frozen query grid value exactly")]
             if point.baseline_group != group || point.target_dose != target
                 || point.local_rows < query.min_local_support
                 || ![point.response, point.effective_sample_size, point.minimum_dose_density,
@@ -2295,6 +2328,7 @@ fn validate_result(
                 .insert(cluster);
         }
         let representative = did.event_time_effects.iter().find(|effect| effect.2 >= 0);
+        #[allow(clippy::float_cmp, reason = "representative effect/SE must equal the sealed event-time rows exactly")]
         let event_study_valid = if query.staggered_event_study {
             let mut unit_metadata = std::collections::BTreeMap::<&str, (i64, &str)>::new();
             let mut observed_periods = std::collections::BTreeSet::new();
@@ -2372,7 +2406,7 @@ fn validate_result(
             }
         } else { did.event_time_intervals_95.is_empty() };
         let (treated_subjects, comparison_subjects) = if query.staggered_event_study {
-            representative.map(|effect| (effect.4, effect.5)).unwrap_or((0, 0))
+            representative.map_or((0, 0), |effect| (effect.4, effect.5))
         } else if let Some((target, _)) = query.staggered_target {
             let mut cohort_by_subject = std::collections::BTreeMap::new();
             for (subject, cohort) in query.subjects.iter().zip(&query.cohorts) {
@@ -2389,7 +2423,7 @@ fn validate_result(
             (treated_subjects, subjects.len() - treated_subjects)
         };
         let clusters = if query.staggered_event_study {
-            representative.map(|effect| effect.7).unwrap_or(0)
+            representative.map_or(0, |effect| effect.7)
         } else if let Some((target, _)) = query.staggered_target {
             query.clusters.iter().zip(&query.cohorts)
                 .filter(|(_, cohort)| **cohort == 0 || **cohort == target)
@@ -2435,7 +2469,7 @@ fn validate_result(
             representative_scalar_valid && event_intervals_valid
         } else { match (did.interval_95, did.standard_error) {
             (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
-                let radius = 1.959963984540054 * se;
+                let radius = 1.959_963_984_540_054 * se;
                 let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
                 bounds.iter().all(|value| value.is_finite())
                     && (bounds[0] - (did.effect - radius)).abs() <= tolerance
@@ -2503,6 +2537,7 @@ fn validate_result(
             .filter(|period| *period >= query.intervention_period).collect();
         let weight_names: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
+        #[allow(clippy::float_cmp, reason = "randomization null effect must equal the frozen sharp-null query value exactly")]
         if result.estimate != Some(fit.effect)
             || result.standard_error.is_some()
             || result.interval_lower.is_some() || result.interval_upper.is_some()
@@ -2566,6 +2601,7 @@ fn validate_result(
             .filter(|period| *period < query.intervention_period).collect();
         let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
             .filter(|period| *period >= query.intervention_period).collect();
+        #[allow(clippy::float_cmp, reason = "randomization null effect must equal the frozen sharp-null query value exactly")]
         if !query.difference_in_differences
             || result.estimate != Some(fit.effect)
             || result.standard_error.is_some() || result.interval_lower.is_some() || result.interval_upper.is_some()
@@ -2674,6 +2710,7 @@ fn validate_result(
                         && row.min_reported_intervals <= 2
                 })
             });
+        #[allow(clippy::float_cmp, reason = "survival curve endpoints and tau must equal the frozen query/boundary values exactly")]
         if result.estimate.is_some()
             || result.standard_error.is_some()
             || result.interval_lower.is_some()

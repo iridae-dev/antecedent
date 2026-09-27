@@ -1071,7 +1071,10 @@ Below those floors the value is point-only with a specific reason. Two
 0.9521 after applying the support gate; one used fixed Q and the other fit
 Q on subject-excluded folds. Antecedent checks prediction-fold IDs and keeps
 the declaration in the query artifact, but cannot inspect model training.
-This conditional interval remains outside the current support-matrix axes.
+This conditional interval remains outside the geometric support-matrix axes,
+but the two-period subject-excluded-fold route now carries an exact graphless
+support-matrix license
+(`graphless:longitudinal_regime/known_sequential_randomized_two_period/subject_excluded_q_sequential_dr_scores/conditional_q_pointwise_95_normal_interval`).
 The same retained interval is also available for a three-period randomized
 regime with at least 800 independent subjects, 600 observed endpoints, 60
 observed matching histories, prescribed-action probability at least 0.5,
@@ -1079,7 +1082,10 @@ and remaining-observed probability at least 0.9. Two 2,000-replicate
 known-truth calibrations covered truth at 0.9519 among 1,997 accepted
 fixed-Q studies and 0.9525 among 2,000 accepted subject-excluded-fold
 fitted-Q studies. Q training remains caller-declared; four or more periods
-remain point-only.
+remain point-only. The three-period subject-excluded-fold route carries the
+matching graphless license
+(`graphless:longitudinal_regime/known_sequential_randomized_three_period/subject_excluded_q_sequential_dr_scores/conditional_q_pointwise_95_normal_interval`);
+fixed-Q, g-formula, and MSM intervals are not licensed by these rows.
 
 For retained IPW with known sequential randomization and one independent row
 per subject, the native result also reports a whole-history subject-score
