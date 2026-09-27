@@ -57,6 +57,7 @@ _EXPECTED_ALL = {
     "ExperimentDesign",
     "FactorialRandomization",
     "FixedCUPED",
+    "MultiArmExperimentDesign",
     "ANCOVAEstimate",
     "estimate_ancova_effect",
     "InterferenceQuery",
@@ -197,7 +198,7 @@ _EXPECTED_STAGE_ALL = {
     "design": {"DecisionEvaluation", "DesignRanking", "evaluate_decision", "rank_designs"},
     "experiment": {
         "ANCOVAEstimate", "ComplierEffect", "ComplierEffectEstimate", "CUPEDEstimate", "ExperimentDesign", "FactorialRandomization", "FixedCUPED",
-        "MultiArmContrast", "MultiArmExperimentEstimate",
+        "MultiArmContrast", "MultiArmExperimentDesign", "MultiArmExperimentEstimate",
         "RandomizedEffect", "RandomizedExperimentEstimate", "RandomizationTest",
         "StratifiedRandomization",
         "SwitchbackDesign", "SwitchbackEffect", "SwitchbackEstimate",
