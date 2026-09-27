@@ -578,6 +578,12 @@ impl CheckedPolicyValueOperation {
         };
         let multi = self.query.multi_action.as_ref();
         let ipw = self.query.mu0.is_empty();
+        let uplift_bins = if self.query.uplift_bin_count > 0 {
+            antecedent_estimate::policy_value::evaluate_uplift_bins(
+                y, &self.query.assignment, &self.query.propensity,
+                &self.query.uplift_bins, self.query.uplift_bin_count,
+            ).map_err(|message| CausalError::Unsupported { message })?
+        } else { Vec::new() };
         let score = if let Some(multi) = multi {
             antecedent_estimate::policy_value::evaluate_multi_action_policy_value_scores(y, multi)
         } else if ipw {
@@ -664,6 +670,7 @@ impl CheckedPolicyValueOperation {
             } else {
                 "row_score_standard_error_independent_subjects"
             }),
+            uplift_bins,
         });
         Ok(result)
     }

@@ -3237,6 +3237,12 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         propensity_min: policy.propensity_min,
         propensity_max: policy.propensity_max,
         uncertainty: policy.uncertainty.to_string(),
+        uplift_bins: policy.uplift_bins.iter().map(|bin| antecedent_io::UpliftBinWire {
+            rank: bin.rank,
+            effect: bin.effect,
+            standard_error: bin.standard_error,
+            evaluation_rows: bin.evaluation_rows,
+        }).collect(),
     });
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),

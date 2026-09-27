@@ -22,6 +22,9 @@ fn query() -> PolicyValueQuery {
         disjoint_training_subjects: true,
         crossfit_fold_ownership_valid: false,
         multi_action: None,
+        uplift_bins: Arc::from([]),
+        uplift_bin_count: 0,
+        uplift_training_subject_ids: Arc::from([]),
     }
 }
 
@@ -52,6 +55,33 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
     let refreshed = prepared.refresh(data, &ctx).unwrap();
     assert_eq!(first.policy_value, refreshed.policy_value);
     assert_eq!(first.logical_plan.plan_id, refreshed.logical_plan.plan_id);
+}
+
+#[test]
+fn retained_uplift_bins_recover_ranked_randomized_contrasts_and_round_trip() {
+    let mut ranked = query();
+    ranked.mu0 = Arc::from([]);
+    ranked.mu1 = Arc::from([]);
+    ranked.disjoint_training_subjects = false;
+    ranked.uplift_bins = Arc::from([0, 0, 1, 1]);
+    ranked.uplift_bin_count = 2;
+    ranked.uplift_training_subject_ids = Arc::from([Arc::<str>::from("rank-train")]);
+    let data = TabularData::from_f64_columns([("outcome", &[1.0, 3.0, 1.0, 1.0][..])]).unwrap();
+    let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(ranked.clone())).build().unwrap();
+    let ctx = ExecutionContext::for_tests(31);
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bins = &result.policy_value.as_ref().unwrap().uplift_bins;
+    assert_eq!(bins.len(), 2);
+    assert!((bins[0].effect - 2.0).abs() < 1e-12);
+    assert!((bins[1].effect - 0.0).abs() < 1e-12);
+    assert_eq!(bins[0].evaluation_rows, 2);
+    assert!(bins.iter().all(|bin| bin.standard_error.is_finite()));
+    let bytes = prepared.encode_contracted_result(&result, "ranked-policy", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.unwrap().uplift_bins[0].effect, 2.0);
+    ranked.uplift_training_subject_ids = Arc::from([Arc::<str>::from("a")]);
+    assert!(ranked.validate().is_err());
 }
 
 #[test]

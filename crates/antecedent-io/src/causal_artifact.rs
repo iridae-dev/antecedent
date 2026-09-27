@@ -600,6 +600,9 @@ pub(crate) fn validate_query_ids(
                 disjoint_training_subjects: wire.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: wire.crossfit_fold_ownership_valid,
                 multi_action: wire.multi_action.as_ref().map(Into::into),
+                uplift_bins: wire.uplift_bins.clone().into(),
+                uplift_bin_count: wire.uplift_bin_count,
+                uplift_training_subject_ids: wire.uplift_training_subject_ids.iter().map(|x| std::sync::Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
             }
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))

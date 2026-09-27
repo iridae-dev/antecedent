@@ -3694,7 +3694,8 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, assignment, propensity, actions, reference,
         mu0, mu1, costs, reference_costs, evaluation_subject_ids, disjoint_training_subjects,
-        crossfit_fold_ownership_valid, *, accepted=false, seed=1, threads=None, options=None))]
+        crossfit_fold_ownership_valid, *, uplift_bins=vec![], uplift_bin_count=0,
+        uplift_training_subject_ids=vec![], accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_policy_value(
         py: Python<'_>,
@@ -3712,6 +3713,9 @@ impl PyPreparedAnalysis {
         evaluation_subject_ids: Vec<String>,
         disjoint_training_subjects: bool,
         crossfit_fold_ownership_valid: bool,
+        uplift_bins: Vec<usize>,
+        uplift_bin_count: usize,
+        uplift_training_subject_ids: Vec<String>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3741,6 +3745,9 @@ impl PyPreparedAnalysis {
                 disjoint_training_subjects,
                 crossfit_fold_ownership_valid,
                 multi_action: None,
+                uplift_bins: uplift_bins.into(),
+                uplift_bin_count,
+                uplift_training_subject_ids: uplift_training_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
             };
             query
                 .validate()
@@ -3817,6 +3824,9 @@ impl PyPreparedAnalysis {
                 disjoint_training_subjects: false,
                 crossfit_fold_ownership_valid: false,
                 multi_action: Some(multi_action),
+                uplift_bins: Arc::from([]),
+                uplift_bin_count: 0,
+                uplift_training_subject_ids: Arc::from([]),
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;

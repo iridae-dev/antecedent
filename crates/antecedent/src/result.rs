@@ -188,6 +188,8 @@ pub struct PolicyValueEstimate {
     pub propensity_max: f64,
     /// Method-specific row-score uncertainty semantics.
     pub uncertainty: Arc<str>,
+    /// Held-out uplift across descending frozen score bins, when requested.
+    pub uplift_bins: Vec<antecedent_estimate::policy_value::UpliftBinScore>,
 }
 
 /// Point-only randomized survival or competing-risk result on a shared time grid.

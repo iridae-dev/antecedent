@@ -908,7 +908,18 @@ pub struct PolicyValueQueryWire {
     /// Multi-action randomized IPW inputs, absent for binary policies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_action: Option<MultiActionPolicyInputsWire>,
+    /// Frozen descending-score bin for each binary evaluation row.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uplift_bins: Vec<usize>,
+    /// Number of nonempty uplift bins; zero when no ranked view is requested.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub uplift_bin_count: usize,
+    /// Caller-declared ranking training subjects, disjoint from evaluation subjects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uplift_training_subject_ids: Vec<String>,
 }
+
+fn is_zero(value: &usize) -> bool { *value == 0 }
 
 /// Portable row-major multi-action policy inputs.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1592,6 +1603,9 @@ pub fn causal_query_to_wire_with_registry(
             disjoint_training_subjects: q.disjoint_training_subjects,
             crossfit_fold_ownership_valid: q.crossfit_fold_ownership_valid,
             multi_action: q.multi_action.as_ref().map(Into::into),
+            uplift_bins: q.uplift_bins.to_vec(),
+            uplift_bin_count: q.uplift_bin_count,
+            uplift_training_subject_ids: q.uplift_training_subject_ids.iter().map(ToString::to_string).collect(),
         }),
         CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
             outcome: q.outcome.raw(),
@@ -1889,6 +1903,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 disjoint_training_subjects: w.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
                 multi_action: w.multi_action.as_ref().map(Into::into),
+                uplift_bins: w.uplift_bins.clone().into(),
+                uplift_bin_count: w.uplift_bin_count,
+                uplift_training_subject_ids: w.uplift_training_subject_ids.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PolicyValue(q)
@@ -2355,6 +2372,9 @@ mod tests {
             disjoint_training_subjects: true,
             crossfit_fold_ownership_valid: false,
             multi_action: None,
+            uplift_bins: Arc::from([]),
+            uplift_bin_count: 0,
+            uplift_training_subject_ids: Arc::from([]),
         });
         let wire = causal_query_to_wire(&query).unwrap();
         let bytes = to_cbor(&wire).unwrap();

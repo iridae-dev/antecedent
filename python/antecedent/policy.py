@@ -194,6 +194,7 @@ class DoublyRobustPolicyEvaluation:
     prediction_ownership: str
     propensity_min: float
     propensity_max: float
+    uplift_bins: tuple[UpliftBin, ...] = ()
     uncertainty: str = "row_score_standard_error_independent_subjects"
     evaluation_method: str = "doubly_robust_randomized_heldout_or_cross_fitted"
     assumptions: tuple[str, ...] = (
@@ -232,6 +233,9 @@ class PolicyValue:
     prediction_excluded_fold_ids: Sequence[int] | None = None
     reference: BinaryPolicy | None = None
     available: Sequence[bool] | None = None
+    uplift_scores: Sequence[float] | None = None
+    uplift_bin_count: int = 0
+    uplift_training_subject_ids: Sequence[str] | None = None
     _ownership: str = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -277,6 +281,22 @@ class PolicyValue:
         object.__setattr__(self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids))
         if self.available is not None:
             object.__setattr__(self, "available", tuple(self.available))
+        if self.uplift_scores is None:
+            if self.uplift_bin_count != 0 or self.uplift_training_subject_ids is not None:
+                raise CausalValueError("uplift_bin_count and uplift_training_subject_ids require uplift_scores")
+        else:
+            scores = np.asarray(self.uplift_scores, dtype=np.float64)
+            n = len(self.policy.actions)
+            if scores.shape != (n,) or not np.isfinite(scores).all():
+                raise CausalValueError("uplift_scores must be finite and match evaluation rows")
+            if isinstance(self.uplift_bin_count, bool) or not isinstance(self.uplift_bin_count, Integral) or not 1 <= self.uplift_bin_count <= n // 2:
+                raise CausalValueError("uplift_bin_count requires at least two evaluation rows in every bin")
+            training = tuple(self.uplift_training_subject_ids or ())
+            if not training or any(not isinstance(value, str) or not value for value in training) or len(set(training)) != len(training) or set(training) & set(self.evaluation_subject_ids):
+                raise CausalValueError("uplift_training_subject_ids must be unique, non-empty, and disjoint from evaluation subjects")
+            object.__setattr__(self, "uplift_scores", tuple(float(v) for v in scores))
+            object.__setattr__(self, "uplift_bin_count", int(self.uplift_bin_count))
+            object.__setattr__(self, "uplift_training_subject_ids", training)
         object.__setattr__(self, "_ownership", ownership)
 
 
@@ -334,6 +354,7 @@ class MultiActionPolicyValue:
 
 @dataclass(frozen=True, slots=True)
 class UpliftBin:
+    """Held-out randomized uplift; standard_error assumes independent subjects."""
     rank: int
     effect: float
     standard_error: float
