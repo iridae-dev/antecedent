@@ -628,6 +628,7 @@ impl super::Study {
                             antecedent_core::RandomizationDesign::Switchback { .. } => {
                                 "randomized.switchback_ht_itt"
                             }
+                            antecedent_core::RandomizationDesign::MultiArm { .. } => "randomized.ht_itt",
                         })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),

@@ -523,6 +523,11 @@ pub(crate) fn validate_query_ids(
             validate_id(*outcome, variable_count)
         }
         Q::RandomizedEffect(wire) => {
+            if !matches!(wire.design, crate::RandomizationDesignWire::MultiArm)
+                && (!wire.multi_arm_labels.is_empty() || !wire.multi_arm_assignment.is_empty() || !wire.multi_arm_probabilities.is_empty())
+            {
+                return Err(IoError::Convert("multi-arm metadata requires a multi-arm design".into()));
+            }
             if !matches!(wire.design, crate::RandomizationDesignWire::Factorial2x2)
                 && (!wire.second_factor_assignment.is_empty() || wire.factorial_cell_counts.is_some() || wire.second_factor_arms.is_some())
             {
@@ -567,6 +572,13 @@ pub(crate) fn validate_query_ids(
                         second_factor_assignment: wire.second_factor_assignment.clone().into(),
                         cell_counts: wire.factorial_cell_counts.ok_or_else(|| IoError::Convert("factorial cell counts are missing".into()))?,
                         second_factor_arms: (std::sync::Arc::<str>::from(arms.0.as_str()), std::sync::Arc::<str>::from(arms.1.as_str())),
+                    }
+                }
+                crate::RandomizationDesignWire::MultiArm => {
+                    antecedent_core::RandomizationDesign::MultiArm {
+                        assignment: wire.multi_arm_assignment.clone().into(),
+                        probabilities: wire.multi_arm_probabilities.clone().into(),
+                        arms: wire.multi_arm_labels.iter().map(|arm| std::sync::Arc::<str>::from(arm.as_str())).collect::<Vec<_>>().into(),
                     }
                 }
             };

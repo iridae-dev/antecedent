@@ -8,6 +8,59 @@ use antecedent_core::VariableId;
 use antecedent_data::TabularData;
 
 #[test]
+fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() {
+    let outcomes = [0.0, 2.0, 5.0, 0.0, 2.0, 5.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let assignment: Arc<[usize]> = [0, 1, 2, 0, 1, 2].into();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::MultiArm {
+            assignment: assignment.clone(),
+            probabilities: vec![vec![1.0 / 3.0; 3]; 6].into(),
+            arms: ["control", "low", "high"].map(Arc::<str>::from).into(),
+        },
+        VariableId::from_raw(0),
+        assignment.iter().map(|&arm| arm != 0).collect::<Vec<_>>(),
+        [1.0 / 3.0; 6],
+        (0..6).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect::<Vec<_>>(),
+        (0..6).map(|i| Arc::<str>::from(format!("row-{i}"))).collect::<Vec<_>>(),
+        ("control", "low"),
+    );
+    let ctx = ExecutionContext::for_tests(73);
+    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(fit.effect, 2.0);
+    assert_eq!(fit.estimand.as_ref(), "multi_arm_itt");
+    assert_eq!(fit.assignment_design.as_ref(), "multi_arm");
+    assert_eq!(fit.uncertainty.as_ref(), "multi_arm_covariance_free_variance_bound_no_interval");
+    assert_eq!(fit.multi_arm_values.iter().map(|(_, mean, _, _)| *mean).collect::<Vec<_>>(), [0.0, 2.0, 5.0]);
+    assert_eq!(fit.multi_arm_values.iter().map(|(_, _, _, support)| *support).collect::<Vec<_>>(), [2, 2, 2]);
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.support_status, None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "known_random_assignment"
+    )));
+    assert_eq!(prepared.estimate(&data, &ctx).unwrap().randomized_effect.as_ref().unwrap(), fit);
+    let bytes = prepared.encode_contracted_result(&result, "multi-arm", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().multi_arm_values[2].1, 5.0);
+    let mut wrong_arm = artifact.clone();
+    // The serialized result must retain a coherent primary contrast.
+    wrong_arm.randomized_effect.as_mut().unwrap().multi_arm_values[1].1 = 6.0;
+    assert!(antecedent_io::encode_analysis_result_artifact(&wrong_arm, header.variable_names.clone(), "wrong-arm").is_err());
+    let mut fabricated = artifact;
+    fabricated.standard_error = Some(0.5);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated-multi-arm").is_err());
+    let mut missing = query;
+    missing.design = antecedent_core::RandomizationDesign::MultiArm {
+        assignment: [0, 1, 1, 0, 1, 1].into(),
+        probabilities: vec![vec![1.0 / 3.0; 3]; 6].into(),
+        arms: ["control", "low", "high"].map(Arc::<str>::from).into(),
+    };
+    assert!(missing.validate().is_err());
+}
+
+#[test]
 fn graphless_bernoulli_itt_runs_and_retains_design_units() {
     let outcomes = [3.0, 0.0, 4.0, 1.0];
     let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();

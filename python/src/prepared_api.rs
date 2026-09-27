@@ -3380,7 +3380,9 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
         treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, exact_randomization_test=false,
-        second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None, accepted=false, seed=1, threads=None,
+        second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None,
+        multi_arm_labels=None, multi_arm_assignment=None, multi_arm_probabilities=None,
+        accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3406,6 +3408,9 @@ impl PyPreparedAnalysis {
         second_factor_assignment: Option<Vec<bool>>,
         factorial_cell_counts: Option<[usize; 4]>,
         second_factor_arms: Option<(String, String)>,
+        multi_arm_labels: Option<Vec<String>>,
+        multi_arm_assignment: Option<Vec<usize>>,
+        multi_arm_probabilities: Option<Vec<Vec<f64>>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3451,9 +3456,15 @@ impl PyPreparedAnalysis {
                         second_factor_arms: (Arc::<str>::from(arms.0), Arc::<str>::from(arms.1)),
                     }
                 },
+                "multi_arm" => antecedent_core::RandomizationDesign::MultiArm {
+                    arms: multi_arm_labels.ok_or_else(|| py_msg("multi-arm labels are required"))?
+                        .into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                    assignment: multi_arm_assignment.ok_or_else(|| py_msg("multi-arm assignment is required"))?.into(),
+                    probabilities: multi_arm_probabilities.ok_or_else(|| py_msg("multi-arm probability rows are required"))?.into(),
+                },
                 _ => {
                     return Err(py_msg(
-                        "design_kind must be bernoulli, complete, stratified, cluster, switchback, or factorial_2x2",
+                        "design_kind must be bernoulli, complete, stratified, cluster, switchback, factorial_2x2, or multi_arm",
                     ));
                 }
             };

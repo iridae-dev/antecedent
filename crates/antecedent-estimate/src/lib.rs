@@ -46,6 +46,7 @@ pub mod interference_observational;
 pub mod interference_saturation;
 pub mod iv;
 pub mod joint_if;
+pub mod multi_arm;
 mod learn_nuisance;
 pub mod observation;
 pub mod overlap;

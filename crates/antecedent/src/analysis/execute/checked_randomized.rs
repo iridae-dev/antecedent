@@ -146,6 +146,7 @@ impl CheckedRandomizedOperation {
         };
         let mut complier_components = None;
         let mut factorial_contrasts = None;
+        let mut multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]> = Arc::from([]);
         let (
             effect,
             variance,
@@ -205,6 +206,19 @@ impl CheckedRandomizedOperation {
                 Arc::<str>::from("bernoulli_wald_cace_influence_variance_no_interval"),
                 "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval")
         } else { match &self.query.design {
+            antecedent_core::RandomizationDesign::MultiArm { assignment, probabilities, arms } => {
+                let fit = antecedent_estimate::multi_arm::estimate_multi_arm(outcomes, assignment, probabilities)
+                    .map_err(|message| CausalError::Unsupported { message })?;
+                let primary = fit[1].value - fit[0].value;
+                let primary_variance = 2.0 * (fit[1].variance_bound + fit[0].variance_bound);
+                multi_arm_values = arms.iter().zip(fit.iter()).map(|(label, arm)|
+                    (Arc::clone(label), arm.value, arm.variance_bound, arm.observed_support)
+                ).collect::<Vec<_>>().into();
+                (primary, primary_variance, fit[0].observed_support, fit[1].observed_support,
+                    Arc::from([]), Arc::from([]), Arc::<str>::from("multi_arm"),
+                    Arc::<str>::from("multi_arm_covariance_free_variance_bound_no_interval"),
+                    "Independent multi-arm assignment with known action probabilities; all contrasts versus reference retain covariance-free variance bounds, no calibrated interval")
+            }
             antecedent_core::RandomizationDesign::Bernoulli => {
                 let mut effect_sum = 0.0;
                 let mut variance_sum = 0.0;
@@ -475,6 +489,7 @@ impl CheckedRandomizedOperation {
                         antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() => "estimate.randomized.ancova_itt",
                         antecedent_core::RandomizationDesign::Bernoulli => "estimate.randomized.ht_itt",
                         antecedent_core::RandomizationDesign::Switchback { .. } => "estimate.randomized.switchback_ht_itt",
+                        antecedent_core::RandomizationDesign::MultiArm { .. } => "estimate.randomized.multi_arm_ht_itt",
                         _ => "estimate.randomized.neyman_itt",
                     },
                     DiagnosticKind::Scientific,
@@ -493,7 +508,7 @@ impl CheckedRandomizedOperation {
         );
         result.randomized_effect = Some(crate::RandomizedEffectEstimate {
             effect,
-            estimand: Arc::from(if complier_components.is_some() { "cace_late" } else if factorial_contrasts.is_some() { "factorial_primary_main_effect" } else { "itt" }),
+            estimand: Arc::from(if complier_components.is_some() { "cace_late" } else if factorial_contrasts.is_some() { "factorial_primary_main_effect" } else if !multi_arm_values.is_empty() { "multi_arm_itt" } else { "itt" }),
             intention_to_treat_effect: complier_components.map(|(itt, _)| itt),
             first_stage_effect: complier_components.map(|(_, stage)| stage),
             received_treatment: self.query.received_treatment.clone(),
@@ -503,6 +518,7 @@ impl CheckedRandomizedOperation {
             factorial_interaction: factorial_contrasts.map(|(_, effect, _, _)| effect),
             second_factor_variance: factorial_contrasts.map(|(_, _, variance, _)| variance),
             factorial_interaction_variance: factorial_contrasts.map(|(_, _, _, variance)| variance),
+            multi_arm_values,
             variance_upper_bound: variance,
             minimum_assignment_probability: self
                 .query
@@ -876,6 +892,8 @@ pub(crate) fn randomized_identification(
                     "Treatment assignment follows independent complete randomization within each declared block",
                 antecedent_core::RandomizationDesign::Factorial2x2 { .. } =>
                     "The two factors are jointly completely randomized to the declared four fixed cell counts",
+                antecedent_core::RandomizationDesign::MultiArm { .. } =>
+                    "Each unit is independently assigned to one of the declared actions with its known probability vector",
                 antecedent_core::RandomizationDesign::Cluster { .. } =>
                     "Treatment assignment follows complete randomization of independent clusters; arbitrary dependence is allowed within clusters",
                 antecedent_core::RandomizationDesign::Switchback { .. } =>
@@ -922,7 +940,9 @@ pub(crate) fn randomized_identification(
         function: antecedent_expr::OutcomeExprId::identity(query.outcome),
         distribution,
     });
-    let (identification_rule, identification_note) = if query.received_treatment.is_some() {
+    let (identification_rule, identification_note) = if matches!(query.design, antecedent_core::RandomizationDesign::MultiArm { .. }) {
+        ("randomized.multi_arm_itt", "known randomized action probabilities identify all arm means and their assignment contrasts")
+    } else if query.received_treatment.is_some() {
         ("randomized.wald_cace_late", "randomized encouragement identifies the Wald complier contrast under exclusion and monotonicity")
     } else {
         ("randomized.itt", "randomized assignment identifies the intention-to-treat contrast")
@@ -976,5 +996,6 @@ fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> Es
         | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
         | antecedent_core::RandomizationDesign::Cluster { .. } => EstimatorId::RandomizedNeyman,
         antecedent_core::RandomizationDesign::Switchback { .. } => EstimatorId::RandomizedSwitchbackHt,
+        antecedent_core::RandomizationDesign::MultiArm { .. } => EstimatorId::RandomizedHt,
     }
 }

@@ -58,6 +58,7 @@ public_query_companions = [
   "IPCWSurvivalEstimate",
   "KnownCensoringSurvival",
   "LongitudinalRegimeEstimate",
+  "MultiArmExperimentDesign",
   "SurvivalEstimate",
   "SwitchbackDesign",
   "SwitchbackEstimate",

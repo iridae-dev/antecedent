@@ -281,6 +281,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                     crate::RandomizationDesignWire::Cluster { .. } => "cluster".into(),
                     crate::RandomizationDesignWire::Stratified => "stratified".into(),
                     crate::RandomizationDesignWire::Factorial2x2 => "factorial_2x2".into(),
+                    crate::RandomizationDesignWire::MultiArm => "multi_arm".into(),
                 },
             ),
             (

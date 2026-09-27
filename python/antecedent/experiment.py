@@ -70,6 +70,35 @@ class FactorialRandomization:
 
 
 @dataclass(frozen=True, slots=True)
+class MultiArmExperimentDesign:
+    """Independent randomized assignment among three or more named actions."""
+
+    realized_assignment: Sequence[str]
+    action_labels: Sequence[str]
+    assignment_probabilities: Sequence[Sequence[float]]
+    assignment_units: Sequence[str]
+    outcome_units: Sequence[str]
+
+    def __post_init__(self) -> None:
+        for name in ("realized_assignment", "action_labels", "assignment_units", "outcome_units"):
+            object.__setattr__(self, name, tuple(getattr(self, name)))
+        object.__setattr__(self, "assignment_probabilities", tuple(tuple(row) for row in self.assignment_probabilities))
+        n = len(self.realized_assignment)
+        labels = self.action_labels
+        if n < 3 or len(labels) < 3 or len(set(labels)) != len(labels) or any(not isinstance(label, str) or not label.strip() for label in labels):
+            raise CausalValueError("multi-arm design requires at least three distinct non-empty action labels")
+        if len(self.assignment_units) != n or len(self.outcome_units) != n or len(self.assignment_probabilities) != n:
+            raise CausalValueError("multi-arm assignment, probabilities, and unit labels must align")
+        if any(action not in labels for action in self.realized_assignment) or set(self.realized_assignment) != set(labels):
+            raise CausalValueError("every declared multi-arm action needs observed support")
+        if any(not isinstance(unit, str) or not unit.strip() for unit in (*self.assignment_units, *self.outcome_units)) or len(set(self.assignment_units)) != n or len(set(self.outcome_units)) != n:
+            raise CausalValueError("multi-arm assignment and outcome units must be distinct non-empty labels")
+        probabilities = np.asarray(self.assignment_probabilities, dtype=np.float64)
+        if probabilities.shape != (n, len(labels)) or not np.isfinite(probabilities).all() or np.any(probabilities <= 0) or np.any(probabilities >= 1) or not np.allclose(probabilities.sum(axis=1), 1.0, rtol=0, atol=1e-8):
+            raise CausalValueError("multi-arm probability rows must be positive, finite, and sum to one")
+
+
+@dataclass(frozen=True, slots=True)
 class SwitchbackDesign:
     """Randomized treatment switching over periods within independent sequences.
 
@@ -353,7 +382,7 @@ class RandomizedEffect:
     """
 
     outcome: str
-    design: ExperimentDesign
+    design: ExperimentDesign | MultiArmExperimentDesign
     _: KW_ONLY
     cuped: FixedCUPED | None = None
     ancova_covariates: tuple[str, ...] = ()
@@ -363,6 +392,10 @@ class RandomizedEffect:
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty variable name")
+        if isinstance(self.design, MultiArmExperimentDesign):
+            if self.cuped is not None or self.ancova_covariates or self.exact_randomization_test:
+                raise CausalValueError("multi-arm contrasts do not combine with CUPED, ANCOVA, or exact Fisher inference")
+            return
         if self.cuped is not None:
             if not isinstance(self.cuped, FixedCUPED) or self.cuped.covariate == self.outcome:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
@@ -408,6 +441,8 @@ class RandomizedEffect:
         or a support-matrix license. Exact randomization inference is available
         through the retained ``analyze`` or ``prepare`` route.
         """
+        if isinstance(self.design, MultiArmExperimentDesign):
+            raise CausalUnsupportedError("multi-arm RandomizedEffect requires analyze or prepare to retain every arm and the assignment record", reason_code="route_not_supported")
         if self.exact_randomization_test or self.ancova_covariates:
             raise CausalUnsupportedError(
                 "exact randomization inference requires analyze or prepare; ANCOVA also requires this retained inference contract",
@@ -490,7 +525,7 @@ class RandomizedExperimentEstimate:
 
     effect: float
     variance_upper_bound: float
-    assignment_design: Literal["bernoulli", "complete", "cluster", "stratified", "switchback", "factorial_2x2"]
+    assignment_design: Literal["bernoulli", "complete", "cluster", "stratified", "switchback", "factorial_2x2", "multi_arm"]
     assignment_units: tuple[str, ...]
     outcome_units: tuple[str, ...]
     blocks: tuple[str, ...] | None
@@ -501,7 +536,7 @@ class RandomizedExperimentEstimate:
     uncertainty: str
     support_status: str
     periods: tuple[str, ...] | None = None
-    estimand: Literal["itt", "cace_late", "factorial_primary_main_effect"] = "itt"
+    estimand: Literal["itt", "cace_late", "factorial_primary_main_effect", "multi_arm_itt"] = "itt"
     intention_to_treat_effect: float | None = None
     first_stage_effect: float | None = None
     received_treatment: tuple[bool, ...] | None = None
@@ -511,6 +546,16 @@ class RandomizedExperimentEstimate:
     factorial_interaction: float | None = None
     second_factor_variance: float | None = None
     factorial_interaction_variance: float | None = None
+    multi_arm_values: tuple[tuple[str, float, float, int], ...] = ()
+
+    @property
+    def multi_arm_contrasts(self) -> tuple[MultiArmContrast, ...]:
+        """All named contrasts to the first arm with covariance-free variance bounds."""
+        if not self.multi_arm_values:
+            return ()
+        control = self.multi_arm_values[0]
+        return tuple(MultiArmContrast(label, value, value - control[1], 2.0 * (variance + control[2]), support)
+                     for label, value, variance, support in self.multi_arm_values[1:])
 
     @property
     def variance(self) -> float:
@@ -825,6 +870,7 @@ __all__ = [
     "FactorialRandomization",
     "ExperimentDesign",
     "MultiArmContrast",
+    "MultiArmExperimentDesign",
     "MultiArmExperimentEstimate",
     "RandomizedEffect",
     "RandomizedExperimentEstimate",
