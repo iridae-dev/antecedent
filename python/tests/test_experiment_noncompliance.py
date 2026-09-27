@@ -21,8 +21,10 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
     # Baseline is balanced within assignment; treatment receipt changes only
     # among compliers, so ITT = 1 and first stage = 0.25.
     design = ExperimentDesign(
-        BernoulliAssignment(0.5), assignment,
-        [f"unit-{i}" for i in range(len(outcome))], [f"row-{i}" for i in range(len(outcome))],
+        BernoulliAssignment(0.5),
+        assignment,
+        [f"unit-{i}" for i in range(len(outcome))],
+        [f"row-{i}" for i in range(len(outcome))],
     )
     analysis = ant.analyze(
         {"outcome": outcome}, query=ComplierEffect("outcome", design, receipt), refute="none"
@@ -40,23 +42,28 @@ def test_randomized_noncompliance_recovers_known_complier_effect_and_itt():
     native = native_estimate_complier_effect(outcome, assignment, receipt, np.array([0.5]))
     assert native[4] is None
     assert tuple(native[:4]) == pytest.approx(
-        (result.intention_to_treat_effect, result.first_stage_effect,
-         result.effect, np.sqrt(result.variance))
+        (
+            result.intention_to_treat_effect,
+            result.first_stage_effect,
+            result.effect,
+            np.sqrt(result.variance),
+        )
     )
 
 
 def test_randomized_noncompliance_refuses_zero_first_stage():
-    design2 = ExperimentDesign(
-        BernoulliAssignment(0.5), [False, True], ["a", "b"], ["a", "b"]
-    )
+    design2 = ExperimentDesign(BernoulliAssignment(0.5), [False, True], ["a", "b"], ["a", "b"])
     with pytest.raises(CausalUnsupportedError, match="positive receipt first stage"):
         ant.analyze(
             {"outcome": [1.0, 2.0]},
-            query=ComplierEffect("outcome", design2, [False, False]), refute="none",
+            query=ComplierEffect("outcome", design2, [False, False]),
+            refute="none",
         )
     design4 = ExperimentDesign(
-        BernoulliAssignment(0.5), [False, True, False, True],
-        ["a", "b", "c", "d"], ["a", "b", "c", "d"],
+        BernoulliAssignment(0.5),
+        [False, True, False, True],
+        ["a", "b", "c", "d"],
+        ["a", "b", "c", "d"],
     )
     with pytest.raises(CausalUnsupportedError, match="positive receipt first stage"):
         ant.analyze(
@@ -88,8 +95,10 @@ def _complier_route_data(n: int, *, one_sided: bool):
         dtype=float,
     )
     design = ExperimentDesign(
-        BernoulliAssignment(0.5), assigned,
-        [f"unit-{i}" for i in range(n)], [f"row-{i}" for i in range(n)],
+        BernoulliAssignment(0.5),
+        assigned,
+        [f"unit-{i}" for i in range(n)],
+        [f"row-{i}" for i in range(n)],
     )
     return outcome, assigned, received, design
 

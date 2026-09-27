@@ -38,9 +38,17 @@ def test_binary_policy_evaluation_uses_heldout_randomized_rows_and_costs():
 @pytest.mark.parametrize(
     ("policy", "kwargs", "message"),
     [
-        (ant.policy.BinaryPolicy([True, True, False, False], max_treatment_rate=0.25), {}, "capacity"),
+        (
+            ant.policy.BinaryPolicy([True, True, False, False], max_treatment_rate=0.25),
+            {},
+            "capacity",
+        ),
         (ant.policy.BinaryPolicy([True, True, False, False], costs=0.5, budget=0.5), {}, "budget"),
-        (ant.policy.BinaryPolicy([True, True, False, False]), {"available": [False, True, True, True]}, "unavailable"),
+        (
+            ant.policy.BinaryPolicy([True, True, False, False]),
+            {"available": [False, True, True, True]},
+            "unavailable",
+        ),
         (ant.policy.BinaryPolicy([True, True, False, False]), {"propensity": 1.0}, "propensities"),
     ],
 )
@@ -118,12 +126,15 @@ def test_multi_action_policy_refuses_positivity_availability_and_capacity_failur
         evaluate_multi_action_policy(**args, available=[[True, False, True]] * 3)
     with pytest.raises(ValueError, match="capacity"):
         evaluate_multi_action_policy(
-            **{**args, "policy": MultiActionPolicy(("control", "A", "B"), ["A", "A", "B"], capacities=[3, 1, 3])}
+            **{
+                **args,
+                "policy": MultiActionPolicy(
+                    ("control", "A", "B"), ["A", "A", "B"], capacities=[3, 1, 3]
+                ),
+            }
         )
     with pytest.raises(ValueError, match="propensity"):
-        evaluate_multi_action_policy(
-            **{**args, "propensities": [[0.0, 0.5, 0.5]] * 3}
-        )
+        evaluate_multi_action_policy(**{**args, "propensities": [[0.0, 0.5, 0.5]] * 3})
 
 
 def test_uplift_view_recovers_effect_by_heldout_score_rank():
@@ -132,8 +143,12 @@ def test_uplift_view_recovers_effect_by_heldout_score_rank():
     effects = np.array([5.0] * 4 + [1.0] * 4)
     outcome = effects * np.asarray(assignment, dtype=float)
     result = ant.policy.uplift_by_score(
-        {"y": outcome}, outcome="y", assignment=assignment,
-        propensity=0.5, scores=scores, bins=2,
+        {"y": outcome},
+        outcome="y",
+        assignment=assignment,
+        propensity=0.5,
+        scores=scores,
+        bins=2,
     )
     assert [item.effect for item in result] == pytest.approx([5.0, 1.0])
     assert [item.evaluation_rows for item in result] == [4, 4]

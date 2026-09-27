@@ -44,7 +44,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal, get_args
+from typing import Any, Final, Literal
 
 from ._defaults import OMITTED
 from .errors import CausalValueError

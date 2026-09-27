@@ -75,14 +75,20 @@ class KnownCensoringSurvival:
     def __post_init__(self) -> None:
         times = tuple(float(value) for value in self.times)
         columns = tuple(self.columns)
-        if (len(times) < 2 or len(columns) != len(times) or times[0] != 0.0
+        if (
+            len(times) < 2
+            or len(columns) != len(times)
+            or times[0] != 0.0
             or any(not np.isfinite(value) for value in times)
             or any(right <= left for left, right in zip(times, times[1:], strict=False))
             or any(not isinstance(name, str) or not name.strip() for name in columns)
             or len(set(columns)) != len(columns)
             or not np.isfinite(self.minimum_probability)
-            or not 0.0 < self.minimum_probability <= 1.0):
-            raise CausalValueError("known censoring requires aligned increasing times, distinct columns, and a positive probability floor")
+            or not 0.0 < self.minimum_probability <= 1.0
+        ):
+            raise CausalValueError(
+                "known censoring requires aligned increasing times, distinct columns, and a positive probability floor"
+            )
         object.__setattr__(self, "times", times)
         object.__setattr__(self, "columns", columns)
 
@@ -113,8 +119,15 @@ class SurvivalOutcome:
             if not isinstance(value, str) or not value.strip():
                 raise CausalValueError(f"{name} must be a non-empty column name")
         if len({self.duration, self.event_observed, self.treatment}) != 3:
-            raise CausalValueError("duration, event_observed, and treatment columns must be distinct")
-        if isinstance(self.tau, bool) or not isinstance(self.tau, (int, float)) or not np.isfinite(self.tau) or self.tau <= 0:
+            raise CausalValueError(
+                "duration, event_observed, and treatment columns must be distinct"
+            )
+        if (
+            isinstance(self.tau, bool)
+            or not isinstance(self.tau, (int, float))
+            or not np.isfinite(self.tau)
+            or self.tau <= 0
+        ):
             raise CausalValueError("tau must be finite and positive")
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
@@ -126,7 +139,9 @@ class SurvivalOutcome:
             if self.delayed_entry is not None:
                 _validate_entry_contract(self.delayed_entry, self.observation_assumption)
             if not isinstance(self.observation_assumption, IndependentGiven):
-                raise CausalValueError("known censoring requires an explicit IndependentGiven observation assumption")
+                raise CausalValueError(
+                    "known censoring requires an explicit IndependentGiven observation assumption"
+                )
             if abs(self.known_censoring.times[-1] - self.tau) > 1e-10:
                 raise CausalValueError("known censoring time grid must end at tau")
         if self.delayed_entry in {self.duration, self.event_observed, self.treatment}:
@@ -268,7 +283,12 @@ class CompetingRisksOutcome:
             or self.target_cause > np.iinfo(np.int64).max
         ):
             raise CausalValueError("target_cause must be a positive integer event code")
-        if isinstance(self.tau, bool) or not isinstance(self.tau, (int, float)) or not np.isfinite(self.tau) or self.tau <= 0:
+        if (
+            isinstance(self.tau, bool)
+            or not isinstance(self.tau, (int, float))
+            or not np.isfinite(self.tau)
+            or self.tau <= 0
+        ):
             raise CausalValueError("tau must be finite and positive")
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
@@ -280,7 +300,9 @@ class CompetingRisksOutcome:
             if self.delayed_entry is not None:
                 _validate_entry_contract(self.delayed_entry, self.observation_assumption)
             if not isinstance(self.observation_assumption, IndependentGiven):
-                raise CausalValueError("known censoring requires an explicit IndependentGiven observation assumption")
+                raise CausalValueError(
+                    "known censoring requires an explicit IndependentGiven observation assumption"
+                )
             if abs(self.known_censoring.times[-1] - self.tau) > 1e-10:
                 raise CausalValueError("known censoring time grid must end at tau")
         if self.delayed_entry in {self.duration, self.event_cause, self.treatment}:
@@ -332,9 +354,13 @@ def estimate_survival_ipcw(
     if not isinstance(query, SurvivalOutcome):
         raise CausalValueError("query must be a SurvivalOutcome")
     if query.known_censoring is not None:
-        raise CausalValueError("query already carries known censoring columns; use analyze(data, query=...)")
+        raise CausalValueError(
+            "query already carries known censoring columns; use analyze(data, query=...)"
+        )
     if not query.randomized:
-        raise CausalValueError("causal survival estimates currently require declared individual random assignment")
+        raise CausalValueError(
+            "causal survival estimates currently require declared individual random assignment"
+        )
     if query.delayed_entry is not None:
         raise CausalValueError("IPCW survival currently refuses delayed-entry queries")
     names, columns = as_columns(data)
@@ -351,9 +377,23 @@ def estimate_survival_ipcw(
     if not np.isfinite(minimum_probability) or not 0 < minimum_probability <= 1:
         raise CausalValueError("minimum_probability must be finite and in (0, 1]")
     try:
-        (returned_times, control, treated, rmst_control, rmst_treated,
-         minrisk_control, minrisk_treated, minimum_g) = _randomized_survival_ipcw(
-            duration, events, treatment, grid.tolist(), g, float(query.tau), float(minimum_probability)
+        (
+            returned_times,
+            control,
+            treated,
+            rmst_control,
+            rmst_treated,
+            minrisk_control,
+            minrisk_treated,
+            minimum_g,
+        ) = _randomized_survival_ipcw(
+            duration,
+            events,
+            treatment,
+            grid.tolist(),
+            g,
+            float(query.tau),
+            float(minimum_probability),
         )
     except ValueError as error:
         raise CausalValueError(str(error)) from error
@@ -389,9 +429,13 @@ def estimate_cumulative_incidence_ipcw(
     if not isinstance(query, CompetingRisksOutcome):
         raise CausalValueError("query must be a CompetingRisksOutcome")
     if query.known_censoring is not None:
-        raise CausalValueError("query already carries known censoring columns; use analyze(data, query=...)")
+        raise CausalValueError(
+            "query already carries known censoring columns; use analyze(data, query=...)"
+        )
     if not query.randomized:
-        raise CausalValueError("causal cumulative incidence requires declared individual random assignment")
+        raise CausalValueError(
+            "causal cumulative incidence requires declared individual random assignment"
+        )
     if query.delayed_entry is not None:
         raise CausalValueError("IPCW cumulative incidence currently refuses delayed-entry queries")
     names, columns = as_columns(data)
@@ -402,19 +446,27 @@ def estimate_cumulative_incidence_ipcw(
     raw_causes = list(columns[names.index(query.event_cause)])
     treatment = _binary(list(columns[names.index(query.treatment)]), "treatment")
     if len(raw_causes) != len(duration):
-        raise CausalValueError("duration, event_cause, and treatment columns must have equal lengths")
+        raise CausalValueError(
+            "duration, event_cause, and treatment columns must have equal lengths"
+        )
     causes: list[int] = []
     for value in raw_causes:
         if isinstance(value, (bool, np.bool_)):
-            raise CausalValueError("event_cause values must be non-negative integer codes; zero denotes censoring")
+            raise CausalValueError(
+                "event_cause values must be non-negative integer codes; zero denotes censoring"
+            )
         if isinstance(value, (int, np.integer)) or (
             isinstance(value, (float, np.floating)) and np.isfinite(value) and value.is_integer()
         ):
             code = int(value)
         else:
-            raise CausalValueError("event_cause values must be non-negative integer codes; zero denotes censoring")
+            raise CausalValueError(
+                "event_cause values must be non-negative integer codes; zero denotes censoring"
+            )
         if code < 0 or code > np.iinfo(np.int64).max:
-            raise CausalValueError("event_cause values must fit in non-negative 64-bit integer codes")
+            raise CausalValueError(
+                "event_cause values must fit in non-negative 64-bit integer codes"
+            )
         causes.append(code)
     g = np.asarray(censoring_survival, dtype=np.float64)
     grid = np.asarray(times, dtype=np.float64)
@@ -425,8 +477,14 @@ def estimate_cumulative_incidence_ipcw(
     try:
         (returned_times, control, treated, minrisk_control, minrisk_treated, minimum_g) = (
             _randomized_cumulative_incidence_ipcw(
-                duration, causes, treatment, grid.tolist(), g, float(query.tau),
-                int(query.target_cause), float(minimum_probability),
+                duration,
+                causes,
+                treatment,
+                grid.tolist(),
+                g,
+                float(query.tau),
+                int(query.target_cause),
+                float(minimum_probability),
             )
         )
     except ValueError as error:

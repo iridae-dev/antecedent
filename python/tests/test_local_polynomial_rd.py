@@ -48,7 +48,9 @@ def test_fuzzy_rd_local_quadratic_recovers_known_local_effect():
 def test_fuzzy_regression_kink_recovers_known_local_effect():
     running = _running_grid()
     treatment = [1.0 + 0.2 * x + 0.8 * max(x, 0.0) for x in running]
-    outcome = [2.0 + 1.5 * x + 0.5 * x**2 + 3.0 * t for x, t in zip(running, treatment, strict=True)]
+    outcome = [
+        2.0 + 1.5 * x + 0.5 * x**2 + 3.0 * t for x, t in zip(running, treatment, strict=True)
+    ]
     result = analyze(
         {"x": running, "dose": treatment, "y": outcome},
         query=RegressionKink("y", "dose", "x", 0.0, 1.0),
@@ -56,7 +58,10 @@ def test_fuzzy_regression_kink_recovers_known_local_effect():
     assert result.estimate == pytest.approx(3.0, abs=1e-10)
     assert result.first_stage_discontinuity == pytest.approx(0.8, abs=1e-10)
     assert result.design == "regression_kink_local_polynomial"
-    assert "continuous_untreated_potential_outcome_and_treatment_derivatives_at_cutoff" in result.assumptions
+    assert (
+        "continuous_untreated_potential_outcome_and_treatment_derivatives_at_cutoff"
+        in result.assumptions
+    )
     assert result.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
     assert "quartic_pilot_bias_correction_at_same_bandwidth" in result.diagnostics
 
@@ -70,8 +75,10 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
         for sign in (-1, 1):
             score = sign * step / 80
             for replicate in range(4):
-                dose = (1.0 + 0.2 * score + 0.8 * max(score, 0.0)) if kink else float(
-                    replicate == 0 if sign < 0 else replicate != 3
+                dose = (
+                    (1.0 + 0.2 * score + 0.8 * max(score, 0.0))
+                    if kink
+                    else float(replicate == 0 if sign < 0 else replicate != 3)
                 )
                 running.append(score)
                 treatment.append(dose)
@@ -94,14 +101,21 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
     assert fit.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
     assert fit.observations_left == fit.observations_right == 316
     assert "calibrated_strong_first_stage_fixture" in fit.diagnostics
-    assert ("quartic_pilot_bias_correction_at_same_bandwidth" if kink else "cubic_pilot_bias_correction_at_same_bandwidth") in fit.diagnostics
+    assert (
+        "quartic_pilot_bias_correction_at_same_bandwidth"
+        if kink
+        else "cubic_pilot_bias_correction_at_same_bandwidth"
+    ) in fit.diagnostics
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).local_polynomial_ratio == fit
 
 
 def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
     running = _running_grid()
     treatment = [0.4 + 0.2 * x for x in running]
-    outcome = [1.0 + 2.0 * x + treatment_value for x, treatment_value in zip(running, treatment, strict=True)]
+    outcome = [
+        1.0 + 2.0 * x + treatment_value
+        for x, treatment_value in zip(running, treatment, strict=True)
+    ]
     with pytest.raises(CausalCompileError, match="discontinuity is too small"):
         analyze(
             {"x": running, "t": treatment, "y": outcome},
@@ -117,12 +131,14 @@ def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
         )
     sparse = {"x": [-0.2, -0.1, 0.1, 0.2], "t": [0, 0, 1, 1], "y": [0, 0, 1, 1]}
     with pytest.raises(CausalCompileError, match="lacks full-rank support"):
-        analyze(
-            sparse, query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0)
-        )
+        analyze(sparse, query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0))
     with pytest.raises(CausalCompileError, match="lacks full-rank support"):
         analyze(
-            {"x": running, "t": [float(x > 0) for x in running], "y": [float(x > 0) for x in running]},
+            {
+                "x": running,
+                "t": [float(x > 0) for x in running],
+                "y": [float(x > 0) for x in running],
+            },
             query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 0.04),
         )
 

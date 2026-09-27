@@ -86,7 +86,9 @@ class SaturationDesign:
 
     def __post_init__(self) -> None:
         if len(self.clusters) == 0 or len(self.realized_saturation) == 0:
-            raise CausalValueError("saturation design requires cluster labels and realized saturation")
+            raise CausalValueError(
+                "saturation design requires cluster labels and realized saturation"
+            )
         if (
             not np.isfinite(self.low_probability)
             or not np.isfinite(self.high_probability)
@@ -116,11 +118,15 @@ class ObservedExposureDesign:
     def __post_init__(self) -> None:
         n = len(self.clusters)
         if n == 0 or len(self.propensity_from) != n or len(self.propensity_to) != n:
-            raise CausalValueError("observational exposure probabilities and clusters must align by row")
+            raise CausalValueError(
+                "observational exposure probabilities and clusters must align by row"
+            )
         if self.propensity_provenance not in {"known", "externally_estimated"}:
             raise CausalValueError("propensity_provenance must be known or externally_estimated")
         if self.assume_network_exchangeability is not True:
-            raise CausalValueError("observational exposure requires assume_network_exchangeability=True")
+            raise CausalValueError(
+                "observational exposure requires assume_network_exchangeability=True"
+            )
         for values in (self.propensity_from, self.propensity_to):
             if any(not np.isfinite(p) or p <= 0.0 or p > 1.0 for p in values):
                 raise CausalValueError("exposure probabilities must lie in (0, 1]")
@@ -144,9 +150,7 @@ class SaturationEffects:
     spillover: SaturationEffectEstimate
     total: SaturationEffectEstimate
     support_status: str = "unlicensed_point_utility"
-    uncertainty_semantics: str = (
-        "Covariance-free variance bounds cover both randomization stages; no confidence interval or calibration claim is made."
-    )
+    uncertainty_semantics: str = "Covariance-free variance bounds cover both randomization stages; no confidence interval or calibration claim is made."
     assumptions: tuple[str, ...] = (
         "Clusters are completely randomized to the declared low/high saturation counts.",
         "Units are independently Bernoulli assigned within each cluster at its realized saturation probability.",
@@ -477,8 +481,7 @@ def estimate(
     if len(assignment) != n:
         raise CausalValueError("assignment length must match data rows")
     if any(
-        source < 0 or target < 0 or source >= n or target >= n
-        for source, target, _ in edge_values
+        source < 0 or target < 0 or source >= n or target >= n for source, target, _ in edge_values
     ):
         raise CausalValueError("network edge index is outside data rows")
     partial_clusters: list[int] | None = None
@@ -490,23 +493,36 @@ def estimate(
         partial_clusters = list(query.partial_interference.clusters)
         assignment_clusters = list(query.assignment.clusters)
         if len(partial_clusters) != n or len(assignment_clusters) != n:
-            raise CausalValueError("partial-interference and assignment clusters must match data rows")
+            raise CausalValueError(
+                "partial-interference and assignment clusters must match data rows"
+            )
         if _partition(partial_clusters) != _partition(assignment_clusters):
             raise CausalValueError(
                 "partial-interference clusters must match the cluster-randomization partition"
             )
-        if any(partial_clusters[source] != partial_clusters[target] for source, target, _ in edge_values):
+        if any(
+            partial_clusters[source] != partial_clusters[target]
+            for source, target, _ in edge_values
+        ):
             raise CausalValueError(
                 "partial-interference assumption violated: network edge crosses cluster boundary"
             )
     observed_levels = _observed_exposure(assignment, edge_values, query.exposure)
-    from_rows = [i for i, level in enumerate(observed_levels) if _same_level(level, query.functional.from_)]
-    to_rows = [i for i, level in enumerate(observed_levels) if _same_level(level, query.functional.to)]
+    from_rows = [
+        i for i, level in enumerate(observed_levels) if _same_level(level, query.functional.from_)
+    ]
+    to_rows = [
+        i for i, level in enumerate(observed_levels) if _same_level(level, query.functional.to)
+    ]
     cluster_labels = partial_clusters
     if cluster_labels is None and isinstance(query.assignment, ClusterRandomization):
         cluster_labels = list(query.assignment.clusters)
-    from_cluster_count = len({cluster_labels[i] for i in from_rows}) if cluster_labels is not None else None
-    to_cluster_count = len({cluster_labels[i] for i in to_rows}) if cluster_labels is not None else None
+    from_cluster_count = (
+        len({cluster_labels[i] for i in from_rows}) if cluster_labels is not None else None
+    )
+    to_cluster_count = (
+        len({cluster_labels[i] for i in to_rows}) if cluster_labels is not None else None
+    )
     raw = _estimate_network_interference(
         columns[outcome_index],
         list(assignment),
@@ -528,8 +544,12 @@ def estimate(
         raw.to_probability_method,
         raw.minimum_exposure_probability,
         InterferenceSupport(
-            len(from_rows), len(to_rows), from_cluster_count, to_cluster_count,
-            raw.minimum_exposure_probability, partial_clusters is not None,
+            len(from_rows),
+            len(to_rows),
+            from_cluster_count,
+            to_cluster_count,
+            raw.minimum_exposure_probability,
+            partial_clusters is not None,
         ),
     )
 
@@ -577,14 +597,17 @@ def estimate_saturation_effects(
     if len(clusters) != n or len(partial_clusters) != n or len(saturation) != n:
         raise CausalValueError("saturation and partial-interference vectors must match data rows")
     if _partition(clusters) != _partition(partial_clusters):
-        raise CausalValueError("partial-interference clusters must match saturation-design clusters")
+        raise CausalValueError(
+            "partial-interference clusters must match saturation-design clusters"
+        )
     edge_values = _edge_values(edges)
     if any(
-        source < 0 or target < 0 or source >= n or target >= n
-        for source, target, _ in edge_values
+        source < 0 or target < 0 or source >= n or target >= n for source, target, _ in edge_values
     ):
         raise CausalValueError("network edge index is outside data rows")
-    if any(partial_clusters[source] != partial_clusters[target] for source, target, _ in edge_values):
+    if any(
+        partial_clusters[source] != partial_clusters[target] for source, target, _ in edge_values
+    ):
         raise CausalValueError(
             "partial-interference assumption violated: network edge crosses cluster boundary"
         )
@@ -594,10 +617,18 @@ def estimate_saturation_effects(
         and abs(value - design.high_probability) > 1e-12
         for value in saturation
     ):
-        raise CausalValueError("realized saturation must equal the design's low or high probability")
-    if not all(np.isfinite([reference_neighbor_exposure, low_neighbor_exposure, high_neighbor_exposure])):
+        raise CausalValueError(
+            "realized saturation must equal the design's low or high probability"
+        )
+    if not all(
+        np.isfinite([reference_neighbor_exposure, low_neighbor_exposure, high_neighbor_exposure])
+    ):
         raise CausalValueError("neighbor exposure targets must be finite")
-    if low_neighbor_exposure < 0.0 or high_neighbor_exposure < 0.0 or reference_neighbor_exposure < 0.0:
+    if (
+        low_neighbor_exposure < 0.0
+        or high_neighbor_exposure < 0.0
+        or reference_neighbor_exposure < 0.0
+    ):
         raise CausalValueError("neighbor exposure targets must be non-negative")
     if abs(low_neighbor_exposure - high_neighbor_exposure) <= 1e-12:
         raise CausalValueError("low and high neighbor exposure targets must differ")
@@ -650,7 +681,8 @@ def estimate_observational_network_exposure(
     if not isinstance(exposure, (NeighborCount, NeighborFraction, WeightedNeighborExposure)):
         raise CausalTypeError("observational network exposure requires a neighbor exposure mapping")
     if not isinstance(propensity_provenance, str) or propensity_provenance not in {
-        "known", "externally_estimated"
+        "known",
+        "externally_estimated",
     }:
         raise CausalValueError("propensity_provenance must be known or externally_estimated")
     if not isinstance(from_level, ExposureLevel) or not isinstance(to_level, ExposureLevel):
@@ -680,11 +712,12 @@ def estimate_observational_network_exposure(
         raise CausalValueError("partial-interference clusters must match cluster labels")
     edge_values = _edge_values(edges)
     if any(
-        source < 0 or target < 0 or source >= n or target >= n
-        for source, target, _ in edge_values
+        source < 0 or target < 0 or source >= n or target >= n for source, target, _ in edge_values
     ):
         raise CausalValueError("network edge index is outside data rows")
-    if any(partial_clusters[source] != partial_clusters[target] for source, target, _ in edge_values):
+    if any(
+        partial_clusters[source] != partial_clusters[target] for source, target, _ in edge_values
+    ):
         raise CausalValueError(
             "partial-interference assumption violated: network edge crosses cluster boundary"
         )
@@ -706,8 +739,16 @@ def estimate_observational_network_exposure(
     except (ValueError, CausalEstimateError) as error:
         raise CausalValueError(str(error)) from error
     return ObservationalNetworkExposureEstimate(
-        float(raw[0]), float(raw[1]), float(raw[2]), int(raw[3]), int(raw[4]),
-        int(raw[5]), int(raw[6]), float(raw[7]), float(raw[8]), int(raw[9]),
+        float(raw[0]),
+        float(raw[1]),
+        float(raw[2]),
+        int(raw[3]),
+        int(raw[4]),
+        int(raw[5]),
+        int(raw[6]),
+        float(raw[7]),
+        float(raw[8]),
+        int(raw[9]),
         propensity_provenance,
     )
 
@@ -721,9 +762,7 @@ def _assignment_values(values: Sequence[bool], n: int) -> list[bool]:
     return [bool(value) for value in result]
 
 
-def _exposure_probability_vector(
-    values: float | Sequence[float], n: int, name: str
-) -> np.ndarray:
+def _exposure_probability_vector(values: float | Sequence[float], n: int, name: str) -> np.ndarray:
     vector = np.asarray(values, dtype=np.float64)
     if vector.ndim == 0:
         vector = np.full(n, float(vector), dtype=np.float64)
@@ -763,10 +802,18 @@ def _observed_exposure(
         elif isinstance(exposure, NeighborCount):
             neighbors = float(sum(assignment[source] for source, _ in sources))
         elif isinstance(exposure, NeighborFraction):
-            neighbors = float(sum(assignment[source] for source, _ in sources) / len(sources)) if sources else 0.0
+            neighbors = (
+                float(sum(assignment[source] for source, _ in sources) / len(sources))
+                if sources
+                else 0.0
+            )
         elif isinstance(exposure, WeightedNeighborExposure):
             total = sum(weight for _, weight in sources)
-            neighbors = sum(weight * assignment[source] for source, weight in sources) / total if total else 0.0
+            neighbors = (
+                sum(weight * assignment[source] for source, weight in sources) / total
+                if total
+                else 0.0
+            )
         else:
             raise CausalTypeError("unsupported exposure mapping")
         levels.append((own, neighbors))

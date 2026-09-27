@@ -32,9 +32,7 @@ def fixture():
 
 
 def test_prepared_fixed_graph_root_mechanism_sensitivity_smoke():
-    graph = Admg.from_edges(
-        ["u", "x", "y"], [("u", "x"), ("u", "y"), ("x", "y")]
-    )
+    graph = Admg.from_edges(["u", "x", "y"], [("u", "x"), ("u", "y"), ("x", "y")])
     identified = transport.identify_classical(
         graph,
         transport.SelectionDiagram("source", "target", ["x"]),

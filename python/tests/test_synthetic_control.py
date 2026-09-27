@@ -54,25 +54,21 @@ def test_native_synthetic_control_recovers_known_effect_and_reports_diagnostics(
 
 def test_synthetic_control_refuses_insufficient_donor_pool():
     rows = _synthetic_truth()
-    rows = {key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
-            for key, values in rows.items()}
+    rows = {
+        key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
+        for key, values in rows.items()
+    }
     with pytest.raises(CausalCompileError, match="at least three donor units"):
-        analyze(
-            rows, query=SyntheticControl("y", "unit", "period", "treated", 5)
-        )
+        analyze(rows, query=SyntheticControl("y", "unit", "period", "treated", 5))
 
 
 def test_synthetic_control_refuses_unbalanced_panel_and_no_pre_support():
     rows = _synthetic_truth()
     short = {key: values[:-1] for key, values in rows.items()}
     with pytest.raises(CausalCompileError, match="balanced panel"):
-        analyze(
-            short, query=SyntheticControl("y", "unit", "period", "treated", 5)
-        )
+        analyze(short, query=SyntheticControl("y", "unit", "period", "treated", 5))
     with pytest.raises(CausalCompileError, match="at least two pre-periods"):
-        analyze(
-            rows, query=SyntheticControl("y", "unit", "period", "treated", 1)
-        )
+        analyze(rows, query=SyntheticControl("y", "unit", "period", "treated", 1))
 
 
 def test_retained_analyze_and_prepare_match_direct_point_result():
@@ -101,8 +97,10 @@ def test_retained_synthetic_control_refuses_changed_design_and_bad_donors():
     changed["unit"][0] = "different"
     with pytest.raises(CausalUnsupportedError, match="prepared unit and period row order"):
         prepared.estimate(changed)
-    short = {key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
-             for key, values in rows.items()}
+    short = {
+        key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
+        for key, values in rows.items()
+    }
     with pytest.raises((CausalValueError, CausalCompileError), match="at least three donor units"):
         analyze(short, query=query)
 
@@ -131,10 +129,18 @@ def test_nonzero_constant_effect_sharp_null_is_explicit_in_public_result():
     with pytest.raises(CausalValueError, match="uniform_unit_randomization"):
         SyntheticControl("y", "unit", "period", "treated", 5, sharp_null_effect=5.0)
     with pytest.raises(CausalValueError, match="finite"):
-        SyntheticControl("y", "unit", "period", "treated", 5,
-                         uniform_unit_randomization=True, sharp_null_effect=float("nan"))
-    query = SyntheticControl("y", "unit", "period", "treated", 5,
-                             uniform_unit_randomization=True, sharp_null_effect=5.0)
+        SyntheticControl(
+            "y",
+            "unit",
+            "period",
+            "treated",
+            5,
+            uniform_unit_randomization=True,
+            sharp_null_effect=float("nan"),
+        )
+    query = SyntheticControl(
+        "y", "unit", "period", "treated", 5, uniform_unit_randomization=True, sharp_null_effect=5.0
+    )
     fit = analyze(rows, query=query).synthetic_control
     assert fit is not None
     assert fit.randomization_null_effect == 5.0
@@ -149,7 +155,9 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
         for period in range(1, 5):
             rows["unit"].append(unit)
             rows["period"].append(period)
-            rows["y"].append(position * period if period < 4 else 4 * position + (5 if unit == "treated" else 0))
+            rows["y"].append(
+                position * period if period < 4 else 4 * position + (5 if unit == "treated" else 0)
+            )
     query = SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=1e-8)
     result = analyze(rows, query=query)
     fit = result.synthetic_control
@@ -165,11 +173,15 @@ def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_inval
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
     with pytest.raises(CausalValueError, match="positive"):
         SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=0.0)
-    exact_query = SyntheticControl("y", "unit", "period", "treated", 4,
-                                   uniform_unit_randomization=True, augmentation_ridge=1.0)
+    exact_query = SyntheticControl(
+        "y", "unit", "period", "treated", 4, uniform_unit_randomization=True, augmentation_ridge=1.0
+    )
     exact = analyze(rows, query=exact_query).synthetic_control
     assert exact is not None
-    assert exact.uncertainty == "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+    assert (
+        exact.uncertainty
+        == "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
+    )
     assert len(exact.randomization_statistics) == 4
     assert dict(exact.randomization_statistics)["treated"] == pytest.approx(abs(exact.estimate))
     assert exact.randomization_p_value == pytest.approx(

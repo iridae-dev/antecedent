@@ -70,7 +70,11 @@ class _FamilySpec:
     def from_live(self, section: Any) -> dict[str, Any]:
         if self.live_fn is not None:
             return _normalize(self.live_fn(section))
-        raw = asdict(section) if is_dataclass(section) and not isinstance(section, type) else dict(section)
+        raw = (
+            asdict(section)
+            if is_dataclass(section) and not isinstance(section, type)
+            else dict(section)
+        )
         renamed = {self.live_renames.get(key, key): item for key, item in raw.items()}
         return _normalize({k: v for k, v in renamed.items() if k not in self.exclude})
 
@@ -103,9 +107,12 @@ def _event_study_uncertainty(any_interval: bool) -> str:
 def _panel_from_live(section: Any) -> dict[str, Any]:
     if getattr(section, "effective_control_sample_size", None) is not None:  # augmented DiD
         return {
-            "effect": section.estimate, "treated_subjects": section.treated_subjects,
-            "comparison_subjects": section.control_subjects, "clusters": section.clusters,
-            "uncertainty": section.uncertainty, "propensity_min": section.propensity_min,
+            "effect": section.estimate,
+            "treated_subjects": section.treated_subjects,
+            "comparison_subjects": section.control_subjects,
+            "clusters": section.clusters,
+            "uncertainty": section.uncertainty,
+            "propensity_min": section.propensity_min,
             "propensity_max": section.propensity_max,
             "effective_control_sample_size": section.effective_control_sample_size,
             "nuisance_predictions_cross_fitted": section.nuisance_predictions_cross_fitted,
@@ -115,10 +122,15 @@ def _panel_from_live(section: Any) -> dict[str, Any]:
         return _PANEL_PLAIN.from_live(section)
     rows = [
         {
-            "cohort": e.cohort, "period": e.period, "event_time": e.event_time,
-            "estimate": e.estimate, "standard_error": e.standard_error,
-            "treated_subjects": e.treated_subjects, "control_subjects": e.control_subjects,
-            "clusters": e.clusters, "interval_95": e.interval_95,
+            "cohort": e.cohort,
+            "period": e.period,
+            "event_time": e.event_time,
+            "estimate": e.estimate,
+            "standard_error": e.standard_error,
+            "treated_subjects": e.treated_subjects,
+            "control_subjects": e.control_subjects,
+            "clusters": e.clusters,
+            "interval_95": e.interval_95,
         }
         for e in effects
     ]
@@ -131,10 +143,15 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
     if augmented is not None:  # augmented DiD: propensity_min, max, ESS, cross_fitted
         p_min, p_max, ess, declared = augmented
         return {
-            "effect": wire.get("effect"), "treated_subjects": wire.get("treated_subjects"),
-            "comparison_subjects": wire.get("comparison_subjects"), "clusters": wire.get("clusters"),
-            "uncertainty": wire.get("uncertainty"), "propensity_min": p_min, "propensity_max": p_max,
-            "effective_control_sample_size": ess, "nuisance_predictions_cross_fitted": declared,
+            "effect": wire.get("effect"),
+            "treated_subjects": wire.get("treated_subjects"),
+            "comparison_subjects": wire.get("comparison_subjects"),
+            "clusters": wire.get("clusters"),
+            "uncertainty": wire.get("uncertainty"),
+            "propensity_min": p_min,
+            "propensity_max": p_max,
+            "effective_control_sample_size": ess,
+            "nuisance_predictions_cross_fitted": declared,
         }
     tuples = wire.get("event_time_effects")
     if not tuples:
@@ -142,10 +159,15 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
     intervals = wire.get("event_time_intervals_95") or [None] * len(tuples)
     rows = [
         {
-            "cohort": t[0], "period": t[1], "event_time": t[2],
-            "estimate": t[3], "standard_error": t[6],
-            "treated_subjects": t[4], "control_subjects": t[5],
-            "clusters": t[7], "interval_95": interval,
+            "cohort": t[0],
+            "period": t[1],
+            "event_time": t[2],
+            "estimate": t[3],
+            "standard_error": t[6],
+            "treated_subjects": t[4],
+            "control_subjects": t[5],
+            "clusters": t[7],
+            "interval_95": interval,
         }
         for t, interval in zip(tuples, intervals, strict=True)
     ]

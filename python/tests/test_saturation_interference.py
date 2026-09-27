@@ -21,8 +21,10 @@ def _fixture():
         incoming = [source for source, target in edges if target == row]
         neighbors.append(sum(assignment[source] for source in incoming) / len(incoming))
     outcome = np.array(
-        [1.0 + 2.0 * own + 3.0 * neighbor + 4.0 * own * neighbor
-         for own, neighbor in zip(assignment, neighbors, strict=True)]
+        [
+            1.0 + 2.0 * own + 3.0 * neighbor + 4.0 * own * neighbor
+            for own, neighbor in zip(assignment, neighbors, strict=True)
+        ]
     )
     design = interference.SaturationDesign(
         clusters=clusters,
@@ -97,14 +99,18 @@ def test_saturation_analyze_matches_native_utility_and_reports_point_only(
     assert result.interference.contrast.conservative_variance == pytest.approx(
         utility.conservative_variance
     )
-    assert any("two-stage" in value.lower() or "saturation" in value.lower() for value in result.assumptions)
+    assert any(
+        "two-stage" in value.lower() or "saturation" in value.lower()
+        for value in result.assumptions
+    )
     assert result.estimate.se_analytic != result.estimate.se_analytic
 
 
 def test_saturation_analyze_refuses_cross_cluster_edge() -> None:
     data, assignment, edges, design, partial = _fixture()
     query = interference.InterferenceQuery(
-        design, interference.NeighborFraction(),
+        design,
+        interference.NeighborFraction(),
         interference.ExposureContrast(
             "y", interference.ExposureLevel(0.0, 0.5), interference.ExposureLevel(1.0, 0.5)
         ),

@@ -74,20 +74,28 @@ def test_rejects_sequential_positivity_violation():
 def test_rejects_invalid_censoring_probability_and_dynamic_regime_output():
     with pytest.raises(ValueError, match="censoring positivity"):
         evaluate_regime_value(
-            outcomes=[1.0], treatment_history=[[0]], regime=[False],
-            treatment_probabilities=[[0.5]], censoring_survival=[[0.0]],
+            outcomes=[1.0],
+            treatment_history=[[0]],
+            regime=[False],
+            treatment_probabilities=[[0.5]],
+            censoring_survival=[[0.0]],
         )
     with pytest.raises(ValueError, match="must return a bool"):
         evaluate_regime_value(
-            outcomes=[1.0], treatment_history=[[0]], regime=lambda *_: 1,
-            covariate_history=[[[0.0]]], treatment_probabilities=[[0.5]],
+            outcomes=[1.0],
+            treatment_history=[[0]],
+            regime=lambda *_: 1,
+            covariate_history=[[[0.0]]],
+            treatment_probabilities=[[0.5]],
         )
 
 
 def test_refuses_regime_without_any_observed_matching_trajectory():
     with pytest.raises(ValueError, match="no observed trajectories"):
         evaluate_regime_value(
-            outcomes=[1.0], treatment_history=[[1]], regime=[False],
+            outcomes=[1.0],
+            treatment_history=[[1]],
+            regime=[False],
             treatment_probabilities=[[0.5]],
         )
 
@@ -121,9 +129,14 @@ def test_msm_direct_accepts_strided_numpy_inputs():
     histories = np.repeat(np.array([[0, 0], [0, 1], [1, 0], [1, 1]]), 4, axis=0)
     y = 10.0 + 2.0 * histories[:, 0] + 3.0 * histories[:, 1]
     padded_y = np.column_stack((y, y))
-    padded_p = np.stack((np.full_like(histories, 0.5, dtype=float), np.full_like(histories, 0.5, dtype=float)), axis=2)
+    padded_p = np.stack(
+        (np.full_like(histories, 0.5, dtype=float), np.full_like(histories, 0.5, dtype=float)),
+        axis=2,
+    )
     query = LongitudinalRegime.marginal_structural_model(
-        outcome="y", treatment_history=histories, treatment_probabilities=padded_p[:, :, 0],
+        outcome="y",
+        treatment_history=histories,
+        treatment_probabilities=padded_p[:, :, 0],
         stabilizing_numerator_probabilities=np.array([0.5, 9.0, 0.5])[::2],
         outcome_observed=np.ones(32, dtype=bool)[::2],
         censoring_probabilities=padded_p[:, :, 0] * 0.0 + 1.0,
@@ -138,10 +151,10 @@ def test_msm_refuses_bad_weights_rank_deficiency_and_duplicate_subjects():
     histories = np.column_stack((np.arange(8) % 2, np.arange(8) % 2))
     probabilities = np.full((8, 2), 0.5)
 
-    def msm_query(treatment_probabilities, *, treatment_history=histories,
-                  subject_ids=None):
+    def msm_query(treatment_probabilities, *, treatment_history=histories, subject_ids=None):
         return LongitudinalRegime.marginal_structural_model(
-            outcome="y", treatment_history=treatment_history,
+            outcome="y",
+            treatment_history=treatment_history,
             treatment_probabilities=treatment_probabilities,
             stabilizing_numerator_probabilities=[0.5, 0.5],
             subject_ids=subject_ids or [f"s{i}" for i in range(8)],

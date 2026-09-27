@@ -466,7 +466,9 @@ class SurvivalSection:
     bootstrap_replicates_ok: int | None
     assignment_counts: tuple[int, int]
     censoring_survival_provenance: str | None
-    difference_band: tuple[list[float], list[float], list[float], list[float], int, str | None] | None
+    difference_band: (
+        tuple[list[float], list[float], list[float], list[float], int, str | None] | None
+    )
     band_unavailable_reason: str | None
 
 class LongitudinalRegimeSection:
@@ -510,7 +512,9 @@ class PolicyValueSection:
     uncertainty: str
     graphless_support_status: str | None
     uplift_bins: list[tuple[int, float, float, int, tuple[float, float] | None]]
-    multi_action_cate: list[tuple[str, str, float, int, int, int, float, tuple[float, float] | None]]
+    multi_action_cate: list[
+        tuple[str, str, float, int, int, int, float, tuple[float, float] | None]
+    ]
     regret: tuple[float, tuple[float, float], list[float], list[float], int] | None
 
 class ContinuousDoseResponseSection:
@@ -1349,90 +1353,176 @@ class PreparedAnalysis:
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_panel_did(
-        names: list[str], columns: Sequence[Any], outcome: str, treated: list[bool],
-        post: list[bool], subjects: list[str], clusters: list[str], *,
-        repeated_cross_section: bool = False, accepted: bool = False, seed: int = 1,
-        threads: int | None = None, options: dict[str, Any] | None = None,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treated: list[bool],
+        post: list[bool],
+        subjects: list[str],
+        clusters: list[str],
+        *,
+        repeated_cross_section: bool = False,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_augmented_panel_did(
-        names: list[str], columns: Sequence[Any], outcome_pre: str, outcome_post: str,
-        propensity: str, untreated_change_prediction: str, treated: list[bool],
-        subjects: list[str], clusters: list[str], predictions_cross_fitted: bool, *,
-        accepted: bool = False, seed: int = 1, threads: int | None = None,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome_pre: str,
+        outcome_post: str,
+        propensity: str,
+        untreated_change_prediction: str,
+        treated: list[bool],
+        subjects: list[str],
+        clusters: list[str],
+        predictions_cross_fitted: bool,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_staggered_group_time(
-        names: list[str], columns: Sequence[Any], outcome: str,
-        subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
-        target_cohort: int, target_period: int, *, accepted: bool = False,
-        seed: int = 1, threads: int | None = None,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        subjects: list[str],
+        clusters: list[str],
+        periods: list[int],
+        cohorts: list[int],
+        target_cohort: int,
+        target_period: int,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_staggered_event_study(
-        names: list[str], columns: Sequence[Any], outcome: str,
-        subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
-        *, accepted: bool = False, seed: int = 1, threads: int | None = None,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        subjects: list[str],
+        clusters: list[str],
+        periods: list[int],
+        cohorts: list[int],
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_synthetic_control(
-        names: list[str], columns: Sequence[Any], outcome: str,
-        units: list[str], periods: list[int], treated_unit: str,
-        intervention_period: int, *, difference_in_differences: bool = False,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        units: list[str],
+        periods: list[int],
+        treated_unit: str,
+        intervention_period: int,
+        *,
+        difference_in_differences: bool = False,
         uniform_unit_randomization: bool = False,
         sharp_null_effect: float | None = None,
         augmentation_ridge: float | None = None,
         accepted: bool = False,
-        seed: int = 1, threads: int | None = None,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_continuous_dose_response(
-        names: list[str], columns: Sequence[Any], outcome: str, dose: str,
-        dose_density: str, baseline_groups: list[str], target_doses: list[float],
-        bandwidth: float, density_provenance: str, *, min_local_support: int = 3,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        dose: str,
+        dose_density: str,
+        baseline_groups: list[str],
+        target_doses: list[float],
+        bandwidth: float,
+        density_provenance: str,
+        *,
+        min_local_support: int = 3,
         policy_doses: list[tuple[str, float]] | None = None,
         reference_doses: list[tuple[str, float]] | None = None,
-        accepted: bool = False, seed: int = 1, threads: int | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_local_polynomial_ratio(
-        names: list[str], columns: Sequence[Any], outcome: str, treatment: str,
-        running: str, cutoff: float, bandwidth: float, *, kink: bool = False,
-        accepted: bool = False, seed: int = 1, threads: int | None = None,
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treatment: str,
+        running: str,
+        cutoff: float,
+        bandwidth: float,
+        *,
+        kink: bool = False,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_survival(
-        names: list[str], columns: Sequence[Any], duration: str, event: str,
-        treatment: str, tau: float, target_cause: int | None = None,
-        delayed_entry: str | None = None, *,
+        names: list[str],
+        columns: Sequence[Any],
+        duration: str,
+        event: str,
+        treatment: str,
+        tau: float,
+        target_cause: int | None = None,
+        delayed_entry: str | None = None,
+        *,
         independent_given: list[str] = [],
         censoring_times: list[float] = [],
         censoring_columns: list[str] = [],
         censoring_probability_floor: float | None = None,
         accepted: bool = False,
-        seed: int = 1, threads: int | None = None,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_longitudinal_regime(
-        names: list[str], columns: Sequence[Any], outcome: str, periods: int,
-        treatment_history: list[bool], regime_actions: list[bool],
-        treatment_probabilities: list[float], censoring_probabilities: list[float],
-        outcome_observed: list[bool], subject_ids: list[str], fold_ids: list[int],
-        excluded_fold_predictions: bool, probabilities_known_by_design: bool,
-        minimum_probability: float, *, method: str = "ipw", period_outcome_predictions: list[float] = [],
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        periods: int,
+        treatment_history: list[bool],
+        regime_actions: list[bool],
+        treatment_probabilities: list[float],
+        censoring_probabilities: list[float],
+        outcome_observed: list[bool],
+        subject_ids: list[str],
+        fold_ids: list[int],
+        excluded_fold_predictions: bool,
+        probabilities_known_by_design: bool,
+        minimum_probability: float,
+        *,
+        method: str = "ipw",
+        period_outcome_predictions: list[float] = [],
         known_fixed_outcome_predictions: bool = False,
         stabilizing_numerator_probabilities: list[float] = [],
-        q_predictions: list[float] = [], observation_history: list[bool] = [], prediction_fold_ids: list[int] = [],
-        rule_id: str | None = None, rule_version: str | None = None, rule_provenance: str | None = None,
-        accepted: bool = False, seed: int = 1,
-        threads: int | None = None, options: dict[str, Any] | None = None,
+        q_predictions: list[float] = [],
+        observation_history: list[bool] = [],
+        prediction_fold_ids: list[int] = [],
+        rule_id: str | None = None,
+        rule_version: str | None = None,
+        rule_provenance: str | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_policy_value(
@@ -3377,6 +3467,7 @@ def uplift_by_score(
     propensity: NDArray[np.float64],
     bin_count: int,
 ) -> list[tuple[int, float, float, int]]: ...
+
 class FactorialNativeResult:
     cell_means: list[float]
     cell_support: list[int]
@@ -3386,6 +3477,7 @@ class FactorialNativeResult:
     factor_a_variance_bound: float
     factor_b_variance_bound: float
     interaction_variance_bound: float
+
 def estimate_factorial_2x2(
     outcome: NDArray[np.float64],
     factor_a: list[bool],
@@ -3557,9 +3649,7 @@ def synthetic_difference_in_differences(
     periods: list[int],
     treated_unit: str,
     intervention_period: int,
-) -> tuple[
-    float, float, list[tuple[str, float]], list[tuple[int, float]], int, int, int
-]: ...
+) -> tuple[float, float, list[tuple[str, float]], list[tuple[int, float]], int, int, int]: ...
 def augmented_panel_difference_in_differences(
     outcome_pre: NDArray[np.float64],
     outcome_post: NDArray[np.float64],
@@ -4629,7 +4719,6 @@ def conditional_dose_response(
     *,
     min_local_support: int = 3,
 ) -> list[tuple[str, float, float, int, float, float, float, float]]: ...
-
 def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(
     bytes: bytes,

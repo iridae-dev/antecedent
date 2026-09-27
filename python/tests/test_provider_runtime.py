@@ -40,8 +40,10 @@ class _Provider:
         with pytest.raises(TypeError, match="does not support item assignment"):
             request["query"] = "mutated"
         return ProviderExecution(
-            estimate=[1.0, 2.0], uncertainty=None,
-            assumptions=("unconfounded",), support_status="caller_asserted",
+            estimate=[1.0, 2.0],
+            uncertainty=None,
+            assumptions=("unconfounded",),
+            support_status="caller_asserted",
             provenance={"version": "0.1"},
         )
 
@@ -76,8 +78,9 @@ def test_registry_rejects_native_self_promotion_and_wrong_shape():
 def test_point_only_provider_cannot_return_uncertainty_at_execution():
     class FalseUncertainty(_Provider):
         def execute(self, request):
-            return ProviderExecution([1.0, 2.0], [0.1, 0.1],
-                                     ("caller_asserted",), "both_arms", {"version": "1"})
+            return ProviderExecution(
+                [1.0, 2.0], [0.1, 0.1], ("caller_asserted",), "both_arms", {"version": "1"}
+            )
 
     registry = ProviderRegistry()
     registry.register("point-only", FalseUncertainty())

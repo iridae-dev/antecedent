@@ -64,7 +64,12 @@ def test_synthetic_did_exact_uniform_unit_assignment_uses_retained_analysis():
 
     rows = _synthetic_did_panel()
     query = SyntheticDifferenceInDifferences(
-        "y", "unit", "period", "treated", 4, uniform_unit_randomization=True,
+        "y",
+        "unit",
+        "period",
+        "treated",
+        4,
+        uniform_unit_randomization=True,
     )
     direct = analyze(rows, query=query).synthetic_did
     prepared = antecedent.prepare(rows, query=query)
@@ -161,7 +166,10 @@ def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
     assert result.panel_did.uncertainty == "point_only_no_standard_error"
     assert result.panel_did.estimate == direct.estimate
     assert antecedent.analyze(data, query=query).panel_did == result.panel_did
-    assert prepared.estimate({**data, "post": [x + 1 for x in data["post"]]}).panel_did == result.panel_did
+    assert (
+        prepared.estimate({**data, "post": [x + 1 for x in data["post"]]}).panel_did
+        == result.panel_did
+    )
     artifact = result.export()
     loaded = antecedent.load(artifact)
     assert loaded.export() == artifact

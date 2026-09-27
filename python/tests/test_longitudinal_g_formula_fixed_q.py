@@ -16,9 +16,7 @@ def _query(subjects: int, *, known: bool) -> LongitudinalRegime:
         actions=[True, True],
         treatment_probabilities=[[0.5, 0.5]] * subjects,
         subject_ids=[f"subject-{subject}" for subject in range(subjects)],
-        period_outcome_predictions=[
-            [1.0 + 0.2 * x, 2.0 + 0.3 * x] for x in baseline
-        ],
+        period_outcome_predictions=[[1.0 + 0.2 * x, 2.0 + 0.3 * x] for x in baseline],
         known_fixed_outcome_predictions=known,
     )
 
@@ -34,7 +32,9 @@ def test_fixed_known_q_interval_round_trips_and_default_stays_point_only() -> No
     assert "fixed_known_outcome_predictions" in " ".join(result.assumptions or [])
     artifact = ant.load(result.export()).artifact.payload
     assert artifact["query"]["longitudinal_regime"]["known_fixed_outcome_predictions"] is True
-    assert artifact["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
+    assert artifact["longitudinal_regime"]["value_interval_95"] == pytest.approx(
+        value.value_interval_95
+    )
 
     default_result = ant.analyze(data, query=_query(400, known=False)).longitudinal_regime
     assert default_result.value_interval_95 is None

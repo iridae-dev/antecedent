@@ -250,9 +250,7 @@ def test_route_interference_tabular_explicit():
 def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_edges():
     clusters = [0, 0, 1, 1, 2, 2, 3, 3]
     assignment = [False] * 4 + [True] * 4
-    edges = [(i, i + 1) for i in range(0, 8, 2)] + [
-        (i + 1, i) for i in range(0, 8, 2)
-    ]
+    edges = [(i, i + 1) for i in range(0, 8, 2)] + [(i + 1, i) for i in range(0, 8, 2)]
     contrast = interference.ExposureContrast(
         "y", interference.ExposureLevel(0.0, 0.0), interference.ExposureLevel(1.0, 1.0)
     )

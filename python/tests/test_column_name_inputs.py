@@ -67,6 +67,7 @@ def test_refresh_reuses_the_frozen_design_with_outcome_only_data():
     assert updated.answer.kind == "point"
     assert updated.program_id == result.program_id
 
+
 # --- Adopted classes: array vs column-name equality (see antecedent._columns) ---
 
 from antecedent import interference as _interference  # noqa: E402
@@ -108,7 +109,9 @@ def test_multi_action_policy_value_column_names_match_inline_arrays():
     inline = ant.analyze(
         {"y": outcomes},
         query=_policy.MultiActionPolicyValue(
-            outcome="y", assignment=assigned, propensities=props,
+            outcome="y",
+            assignment=assigned,
+            propensities=props,
             policy=_policy.MultiActionPolicy(labels, recommendations, capacities=[9, 3, 3]),
             evaluation_subject_ids=ids,
         ),
@@ -118,7 +121,9 @@ def test_multi_action_policy_value_column_names_match_inline_arrays():
     named = ant.analyze(
         {"y": outcomes, "asg": assigned, "rec": recommendations, "sid": ids},
         query=_policy.MultiActionPolicyValue(
-            outcome="y", assignment="asg", propensities=props,
+            outcome="y",
+            assignment="asg",
+            propensities=props,
             policy=_policy.MultiActionPolicy(labels, "rec", capacities=[9, 3, 3]),
             evaluation_subject_ids="sid",
         ),
@@ -161,12 +166,14 @@ def test_switchback_column_names_match_inline_arrays():
     sequences = [f"s{s}" for s in range(4) for _ in range(4)]
     periods = [f"p{p}" for _ in range(4) for p in range(4)]
     assignment = [True, False, False, True] * 4
-    outcomes = [10.0 * s + (2.0 if t else 0.0)
-                for s in range(4) for t in (True, False, False, True)]
+    outcomes = [
+        10.0 * s + (2.0 if t else 0.0) for s in range(4) for t in (True, False, False, True)
+    ]
     inline = ant.analyze(
         {"y": outcomes},
         query=ant.experiment.SwitchbackEffect(
-            "y", ant.experiment.SwitchbackDesign(
+            "y",
+            ant.experiment.SwitchbackDesign(
                 assignment, sequences, periods, [0.5] * 16, ("off", "on")
             ),
         ),
@@ -175,7 +182,8 @@ def test_switchback_column_names_match_inline_arrays():
     named = ant.analyze(
         {"y": outcomes, "a": assignment, "s": sequences, "p": periods, "pr": [0.5] * 16},
         query=ant.experiment.SwitchbackEffect(
-            "y", ant.experiment.SwitchbackDesign("a", "s", "p", "pr", ("off", "on")),
+            "y",
+            ant.experiment.SwitchbackDesign("a", "s", "p", "pr", ("off", "on")),
         ),
         refute="none",
     )
@@ -202,9 +210,7 @@ def test_multi_arm_design_column_names_match_inline_arrays():
         {**data, "asg": assignment, "au": units, "ou": rows},
         query=ant.experiment.RandomizedEffect(
             "outcome",
-            ant.experiment.MultiArmExperimentDesign(
-                "asg", labels, [[1 / 3] * 3] * 6, "au", "ou"
-            ),
+            ant.experiment.MultiArmExperimentDesign("asg", labels, [[1 / 3] * 3] * 6, "au", "ou"),
         ),
         refute="none",
     )
@@ -226,7 +232,9 @@ def test_factorial_second_factor_column_name_matches_inline_array():
             "y",
             ant.experiment.ExperimentDesign(
                 ant.experiment.FactorialRandomization(second, tuple(counts)),
-                primary, units, rows,
+                primary,
+                units,
+                rows,
             ),
         ),
         refute="none",
@@ -239,7 +247,9 @@ def test_factorial_second_factor_column_name_matches_inline_array():
             "y",
             ant.experiment.ExperimentDesign(
                 ant.experiment.FactorialRandomization("sf", tuple(counts)),
-                primary, units, rows,
+                primary,
+                units,
+                rows,
             ),
         ),
         refute="none",
@@ -249,9 +259,13 @@ def test_factorial_second_factor_column_name_matches_inline_array():
 
 def test_interference_query_column_name_matches_inline_array():
     clusters = 80
-    edges = [(first + s, first + t)
-             for first in range(0, 3 * clusters, 3)
-             for s in range(3) for t in range(3) if s != t]
+    edges = [
+        (first + s, first + t)
+        for first in range(0, 3 * clusters, 3)
+        for s in range(3)
+        for t in range(3)
+        if s != t
+    ]
     rng = np.random.default_rng(0)
     assignment = [bool(v) for v in (rng.random(3 * clusters) < 0.5)]
     outcome = np.array([1.0 + 2.0 * a for a in assignment])
@@ -259,17 +273,25 @@ def test_interference_query_column_name_matches_inline_array():
         "y", _interference.ExposureLevel(0.0, 0.0), _interference.ExposureLevel(1.0, 0.0)
     )
     inline = ant.analyze(
-        {"y": outcome}, graph=[],
+        {"y": outcome},
+        graph=[],
         query=_interference.InterferenceQuery(
-            _interference.BernoulliAssignment(0.5), _interference.NeighborCount(),
-            contrast, network=edges, realized_assignment=assignment,
+            _interference.BernoulliAssignment(0.5),
+            _interference.NeighborCount(),
+            contrast,
+            network=edges,
+            realized_assignment=assignment,
         ),
     )
     named = ant.analyze(
-        {"y": outcome, "asg": assignment}, graph=[],
+        {"y": outcome, "asg": assignment},
+        graph=[],
         query=_interference.InterferenceQuery(
-            _interference.BernoulliAssignment(0.5), _interference.NeighborCount(),
-            contrast, network=edges, realized_assignment="asg",
+            _interference.BernoulliAssignment(0.5),
+            _interference.NeighborCount(),
+            contrast,
+            network=edges,
+            realized_assignment="asg",
         ),
     )
     assert named.interference.contrast.horvitz_thompson == pytest.approx(
@@ -284,15 +306,21 @@ def test_longitudinal_regime_column_names_match_inline_arrays():
     inline = ant.analyze(
         {"y": outcome},
         query=LongitudinalRegime(
-            outcome="y", treatment_history=history, actions=[True, True],
-            treatment_probabilities=[[0.5, 0.5]] * 4, subject_ids=ids,
+            outcome="y",
+            treatment_history=history,
+            actions=[True, True],
+            treatment_probabilities=[[0.5, 0.5]] * 4,
+            subject_ids=ids,
         ),
     )
     named = ant.analyze(
         {"y": outcome, "id": ids},
         query=LongitudinalRegime(
-            outcome="y", treatment_history=history, actions=[True, True],
-            treatment_probabilities=[[0.5, 0.5]] * 4, subject_ids="id",
+            outcome="y",
+            treatment_history=history,
+            actions=[True, True],
+            treatment_probabilities=[[0.5, 0.5]] * 4,
+            subject_ids="id",
         ),
     )
     assert named.longitudinal_regime.value == pytest.approx(inline.longitudinal_regime.value)

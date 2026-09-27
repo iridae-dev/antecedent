@@ -42,7 +42,9 @@ def test_stratified_continuous_dose_response_recovers_known_linear_truth():
         ("treated", 0.0): 10.0,
         ("treated", 0.5): 11.0,
     }
-    assert {(point.baseline_group, point.target_dose): point.response for point in result.points} == pytest.approx(expected)
+    assert {
+        (point.baseline_group, point.target_dose): point.response for point in result.points
+    } == pytest.approx(expected)
     assert all(point.local_rows == 3 for point in result.points)
     assert all(point.effective_sample_size == pytest.approx(1682 / 769) for point in result.points)
     assert all(point.minimum_dose_density == pytest.approx(0.5) for point in result.points)
@@ -58,16 +60,26 @@ def test_continuous_dose_response_refuses_zero_density_and_unsupported_targets()
         antecedent.analyze(
             {**data, "density": [0.0] * 10},
             query=ConditionalDoseResponse(
-                outcome="y", dose="dose", baseline_group="group", dose_density="density",
-                target_doses=(0.0,), bandwidth=0.6, density_provenance="known",
+                outcome="y",
+                dose="dose",
+                baseline_group="group",
+                dose_density="density",
+                target_doses=(0.0,),
+                bandwidth=0.6,
+                density_provenance="known",
             ),
         )
     with pytest.raises(CausalCompileError, match="support failure"):
         antecedent.analyze(
             data,
             query=ConditionalDoseResponse(
-                outcome="y", dose="dose", baseline_group="group", dose_density="density",
-                target_doses=(4.0,), bandwidth=0.1, density_provenance="known",
+                outcome="y",
+                dose="dose",
+                baseline_group="group",
+                dose_density="density",
+                target_doses=(4.0,),
+                bandwidth=0.1,
+                density_provenance="known",
             ),
         )
 
@@ -75,21 +87,36 @@ def test_continuous_dose_response_refuses_zero_density_and_unsupported_targets()
 def test_continuous_dose_response_refuses_bad_density_source_and_bandwidth():
     with pytest.raises(CausalValueError, match="density_provenance"):
         ConditionalDoseResponse(
-            outcome="y", dose="dose", baseline_group="group", dose_density="density",
-            target_doses=(0.0,), bandwidth=0.6, density_provenance="guessed",
+            outcome="y",
+            dose="dose",
+            baseline_group="group",
+            dose_density="density",
+            target_doses=(0.0,),
+            bandwidth=0.6,
+            density_provenance="guessed",
         )
     with pytest.raises(CausalValueError, match="bandwidth"):
         ConditionalDoseResponse(
-            outcome="y", dose="dose", baseline_group="group", dose_density="density",
-            target_doses=(0.0,), bandwidth=0.0, density_provenance="known",
+            outcome="y",
+            dose="dose",
+            baseline_group="group",
+            dose_density="density",
+            target_doses=(0.0,),
+            bandwidth=0.0,
+            density_provenance="known",
         )
 
 
 def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
     data = _dose_data()
     query = antecedent.policy.ConditionalDoseResponse(
-        outcome="y", dose="dose", baseline_group="group", dose_density="density",
-        target_doses=(0.0, 0.5), bandwidth=0.6, density_provenance="known",
+        outcome="y",
+        dose="dose",
+        baseline_group="group",
+        dose_density="density",
+        target_doses=(0.0, 0.5),
+        bandwidth=0.6,
+        density_provenance="known",
     )
     direct = antecedent.analyze(data, query=query).continuous_dose_response
     prepared = antecedent.prepare(data, query=query)
@@ -109,12 +136,24 @@ def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
 def test_retained_continuous_dose_refuses_support_and_row_rebinding():
     data = _dose_data()
     query = antecedent.policy.ConditionalDoseResponse(
-        "y", "dose", "group", "density", (4.0,), 0.1, "known",
+        "y",
+        "dose",
+        "group",
+        "density",
+        (4.0,),
+        0.1,
+        "known",
     )
     with pytest.raises(Exception, match="support failure"):
         antecedent.analyze(data, query=query)
     query = antecedent.policy.ConditionalDoseResponse(
-        "y", "dose", "group", "density", (0.0,), 0.6, "known",
+        "y",
+        "dose",
+        "group",
+        "density",
+        (0.0,),
+        0.6,
+        "known",
     )
     prepared = antecedent.prepare(data, query=query)
     with pytest.raises(Exception, match="baseline-group row order"):

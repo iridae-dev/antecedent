@@ -25,18 +25,26 @@ def _data() -> pd.DataFrame:
                 duration, cause = 2.0, 1
             else:
                 duration, cause = 3.0, 0
-            rows.append((duration, cause, int(cause > 0), arm, entry,
-                         1.0, 1.0, 1.0, 0.8, 0.8))
-    return pd.DataFrame(rows, columns=(
-        "duration", "cause", "event", "treated", "entry",
-        "g0", "g1", "g15", "g2", "g3",
-    ))
+            rows.append((duration, cause, int(cause > 0), arm, entry, 1.0, 1.0, 1.0, 0.8, 0.8))
+    return pd.DataFrame(
+        rows,
+        columns=(
+            "duration",
+            "cause",
+            "event",
+            "treated",
+            "entry",
+            "g0",
+            "g1",
+            "g15",
+            "g2",
+            "g3",
+        ),
+    )
 
 
 def _g() -> KnownCensoringSurvival:
-    return KnownCensoringSurvival(
-        (0.0, 1.0, 1.5, 2.0, 3.0), ("g0", "g1", "g15", "g2", "g3")
-    )
+    return KnownCensoringSurvival((0.0, 1.0, 1.5, 2.0, 3.0), ("g0", "g1", "g15", "g2", "g3"))
 
 
 @pytest.mark.parametrize("competing", [False, True])
@@ -44,15 +52,26 @@ def test_combined_entry_fixed_g_pointwise_interval_round_trip(competing: bool) -
     data = _data()
     if competing:
         query = CompetingRisksOutcome(
-            "duration", "cause", "treated", 1, 3.0, randomized=True,
-            delayed_entry="entry", known_censoring=_g(),
+            "duration",
+            "cause",
+            "treated",
+            1,
+            3.0,
+            randomized=True,
+            delayed_entry="entry",
+            known_censoring=_g(),
             observation_assumption=IndependentGiven(()),
         )
     else:
         data.loc[data["cause"] == 2, "event"] = 1
         query = SurvivalOutcome(
-            "duration", "event", "treated", 3.0, randomized=True,
-            delayed_entry="entry", known_censoring=_g(),
+            "duration",
+            "event",
+            "treated",
+            3.0,
+            randomized=True,
+            delayed_entry="entry",
+            known_censoring=_g(),
             observation_assumption=IndependentGiven(()),
         )
     result = ant.analyze(data, query=query, bootstrap=299, seed=297)
@@ -77,16 +96,26 @@ def test_combined_entry_fixed_g_pointwise_interval_round_trip(competing: bool) -
 def test_combined_entry_fixed_g_refuses_conditional_entry_and_bad_g() -> None:
     with pytest.raises(CausalValueError, match="conditional delayed entry"):
         SurvivalOutcome(
-            "duration", "event", "treated", 3.0, randomized=True,
-            delayed_entry="entry", known_censoring=_g(),
+            "duration",
+            "event",
+            "treated",
+            3.0,
+            randomized=True,
+            delayed_entry="entry",
+            known_censoring=_g(),
             observation_assumption=IndependentGiven(("baseline",)),
         )
     data = _data()
     data.loc[data["cause"] == 2, "event"] = 1
     data.loc[0, "g2"] = 0.0
     query = SurvivalOutcome(
-        "duration", "event", "treated", 3.0, randomized=True,
-        delayed_entry="entry", known_censoring=_g(),
+        "duration",
+        "event",
+        "treated",
+        3.0,
+        randomized=True,
+        delayed_entry="entry",
+        known_censoring=_g(),
         observation_assumption=IndependentGiven(()),
     )
     with pytest.raises(Exception, match="positivity|censoring survival"):

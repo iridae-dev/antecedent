@@ -48,13 +48,18 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
     for arm in (0, 1):
         for i in range(60):
             entry = 1.0 if i % 3 == 0 else 0.0
-            duration = (1.0 if entry == 0.0 and i % 7 == 0 else
-                        2.0 if i % (6 if arm else 5) == 0 else 3.0)
+            duration = (
+                1.0 if entry == 0.0 and i % 7 == 0 else 2.0 if i % (6 if arm else 5) == 0 else 3.0
+            )
             rows.append((duration, float(duration < 3.0), float(arm), entry))
     data = pd.DataFrame(rows, columns=("duration", "event", "treated", "entry"))
     query = antecedent.survival.SurvivalOutcome(
-        "duration", "event", "treated", 3.0,
-        randomized=True, delayed_entry="entry",
+        "duration",
+        "event",
+        "treated",
+        3.0,
+        randomized=True,
+        delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
     prepared = antecedent.prepare(data, query=query, bootstrap=299, seed=279)
@@ -67,7 +72,9 @@ def test_retained_delayed_entry_bootstrap_reports_pointwise_interval():
     assert section.bootstrap_replicates_ok == 299
     assert section.support_status == "unlicensed_pointwise_interval"
     loaded = antecedent.load(prepared.export(artifact_id="left-truncated-survival-bootstrap"))
-    assert loaded.answer.structured["rmst_difference_interval"] == list(section.rmst_difference_interval)
+    assert loaded.answer.structured["rmst_difference_interval"] == list(
+        section.rmst_difference_interval
+    )
 
 
 def _competing_data() -> pd.DataFrame:

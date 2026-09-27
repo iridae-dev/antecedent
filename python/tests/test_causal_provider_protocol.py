@@ -10,12 +10,8 @@ def _data() -> dict[str, list[float]]:
 
 
 def test_econml_handoff_implements_declarative_provider_contract_only():
-    graph = antecedent.Dag.from_edges(
-        ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
-    )
-    identified = antecedent.identify(
-        graph=graph, query=antecedent.AverageEffect("t", "y")
-    )
+    graph = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+    identified = antecedent.identify(graph=graph, query=antecedent.AverageEffect("t", "y"))
     provider = antecedent.handoff.econml(identified)
     assert isinstance(provider, CausalProvider)
     assert not hasattr(provider, "estimate")
