@@ -1,4 +1,5 @@
 //! End-to-end retained randomized policy-value execution.
+#![allow(clippy::float_cmp, clippy::bool_assert_comparison, reason = "integration test asserts exact deterministic estimates and an explicit boolean predicate")]
 
 use std::sync::Arc;
 

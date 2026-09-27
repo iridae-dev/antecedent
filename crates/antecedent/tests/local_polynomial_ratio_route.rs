@@ -1,4 +1,5 @@
 //! Retained fuzzy RD and regression-kink route evidence.
+#![allow(clippy::float_cmp, clippy::collapsible_else_if, clippy::if_not_else, reason = "integration test asserts exact deterministic estimates; fixture branching mirrors the design layout")]
 
 use antecedent::prelude::ExecutionContext;
 use antecedent::{LocalPolynomialRatioQuery, Study};

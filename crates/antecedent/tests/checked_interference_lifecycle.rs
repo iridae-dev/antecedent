@@ -1,4 +1,5 @@
 //! Public lifecycle evidence for the two licensed explicit-DAG interference routes.
+#![allow(clippy::float_cmp, reason = "integration test asserts exact deterministic estimates")]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;

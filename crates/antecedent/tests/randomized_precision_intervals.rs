@@ -1,4 +1,5 @@
 //! Retained interval evidence for Bernoulli precision adjustment.
+#![allow(clippy::unusual_byte_groupings, reason = "deterministic seed literals keep their author-chosen digit grouping")]
 
 use std::sync::Arc;
 

@@ -1,4 +1,5 @@
 //! Exact assignment inference for retained synthetic difference in differences.
+#![allow(clippy::cast_lossless, reason = "integration test widens small integer fixtures to f64 by value-preserving cast")]
 
 use std::sync::Arc;
 

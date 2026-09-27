@@ -146,6 +146,7 @@ impl CheckedRandomizedOperation {
         };
         let mut complier_components = None;
         let mut factorial_contrasts = None;
+        #[allow(clippy::type_complexity, reason = "labeled multi-arm value tuple mirrors the public result field type")]
         let mut multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]> = Arc::from([]);
         let mut interval_95 = None;
         let mut second_factor_interval_95 = None;

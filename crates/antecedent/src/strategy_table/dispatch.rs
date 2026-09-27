@@ -177,12 +177,8 @@ pub fn identify_static_query_with_rd(
         | IdentifierId::TemporalBackdoorUnfolded
         | IdentifierId::TransportSid
         | IdentifierId::InterferenceDesign
-        | IdentifierId::RandomizedDesign => {
-            return Err(CausalError::Unsupported {
-                message: static_identifier_refusal(identifier),
-            });
-        }
-        IdentifierId::ContinuousDoseExchangeability => {
+        | IdentifierId::RandomizedDesign
+        | IdentifierId::ContinuousDoseExchangeability => {
             return Err(CausalError::Unsupported {
                 message: static_identifier_refusal(identifier),
             });

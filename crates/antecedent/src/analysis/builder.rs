@@ -415,8 +415,10 @@ fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
         GraphClass::Admg => graph.as_admg().map(Admg::node_count),
         GraphClass::Cpdag => graph.as_cpdag().map(Cpdag::node_count),
         GraphClass::Pag => graph.as_pag().map(Pag::node_count),
-        GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => None,
-        GraphClass::RandomizedTrial => None,
+        GraphClass::TemporalDag
+        | GraphClass::TemporalCpdag
+        | GraphClass::TemporalPag
+        | GraphClass::RandomizedTrial => None,
     }
 }
 

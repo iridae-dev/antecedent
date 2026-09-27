@@ -1,4 +1,5 @@
 //! Retained synthetic-control study evidence.
+#![allow(clippy::float_cmp, clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_possible_wrap, reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts/indices")]
 
 use std::sync::Arc;
 

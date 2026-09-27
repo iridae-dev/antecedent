@@ -693,6 +693,7 @@ fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::Assumpti
 
 #[cfg(test)]
 mod checked_interference_tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates and probabilities"))]
     use super::*;
     use antecedent_core::{
         AssignmentDesign, CausalQuery, ExposureLevel, ExposureMapping, InterferenceFunctional,

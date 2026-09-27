@@ -217,6 +217,8 @@ fn contrast_labels(contrast: ContrastLabels<'_>) -> Vec<(String, String)> {
     out
 }
 
+// allow(too_many_lines): flat per-variant label mapping; splitting would obscure the query taxonomy
+#[allow(clippy::too_many_lines)]
 fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
     match query {
         CausalQueryWire::Counterfactual { outcomes, interventions, .. } => vec![
@@ -291,12 +293,12 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ),
             (
                 "precision_adjustment".into(),
-                if !query.ancova_covariates.is_empty() {
-                    format!("ancova:{:?}", query.ancova_covariates)
-                } else {
+                if query.ancova_covariates.is_empty() {
                     query.fixed_cuped.map_or_else(|| "none".into(), |(id, coefficient)| {
                         format!("fixed_cuped:{id}:{coefficient}")
                     })
+                } else {
+                    format!("ancova:{:?}", query.ancova_covariates)
                 },
             ),
             ("switchback_periods".into(), query.periods.join(",")),

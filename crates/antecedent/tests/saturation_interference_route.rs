@@ -1,4 +1,5 @@
 //! Retained two-stage saturation design through prepare, analyze, and artifact transport.
+#![allow(clippy::float_cmp, clippy::cast_sign_loss, reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts")]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;

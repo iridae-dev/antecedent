@@ -425,6 +425,8 @@ fn validate_response_query_ids(
     Ok(())
 }
 
+// allow(too_many_lines): exhaustive per-variant id validation; one match arm per query kind
+#[allow(clippy::too_many_lines)]
 pub(crate) fn validate_query_ids(
     query: &CausalQueryWire,
     variable_count: usize,

@@ -8606,10 +8606,14 @@ impl Study {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
             }
-            (DataInput::Tabular(_), CausalQuery::PolicyValue(_), None) => {}
-            (DataInput::Tabular(_), CausalQuery::ContinuousDoseResponse(_), None) => {}
-            (DataInput::Tabular(_), CausalQuery::Survival(_), None) => {}
-            (DataInput::Tabular(_), CausalQuery::LongitudinalRegime(_), None) => {}
+            (
+                DataInput::Tabular(_),
+                CausalQuery::PolicyValue(_)
+                | CausalQuery::ContinuousDoseResponse(_)
+                | CausalQuery::Survival(_)
+                | CausalQuery::LongitudinalRegime(_),
+                None,
+            ) => {}
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);

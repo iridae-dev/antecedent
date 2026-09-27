@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip_serializing_if requires an fn(&T) -> bool signature")]
 fn is_false(value: &bool) -> bool { !*value }
 use crate::response_wire::{response_query_from_wire, response_query_to_wire, ResponseQueryWire};
 
@@ -883,7 +884,7 @@ pub struct SurvivalQueryWire {
     pub censoring_probability_floor: Option<f64>,
 }
 
-/// Frozen design vectors for a retained panel DiD query.
+/// Frozen design vectors for a retained panel `DiD` query.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PanelDidQueryWire {
@@ -1023,6 +1024,9 @@ pub struct FixedCandidateRegretWire {
     pub training_subject_ids: Vec<String>,
 }
 
+/// Frozen policy and reference group-dose maps for a continuous-dose query.
+type FixedPolicyMaps = (Vec<(String, f64)>, Vec<(String, f64)>);
+
 /// Portable caller-supplied conditional continuous-dose response design.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -1045,9 +1049,10 @@ pub struct ContinuousDoseResponseQueryWire {
     pub density_provenance: String,
     /// Frozen policy and reference group-dose maps, when policy value is requested.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fixed_policy: Option<(Vec<(String, f64)>, Vec<(String, f64)>)>,
+    pub fixed_policy: Option<FixedPolicyMaps>,
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip_serializing_if requires an fn(&T) -> bool signature")]
 fn is_zero(value: &usize) -> bool { *value == 0 }
 
 /// Portable row-major multi-action policy inputs.
@@ -1921,7 +1926,7 @@ pub fn causal_query_to_wire_with_registry(
             event: q.event.raw(),
             treatment: q.treatment.raw(),
             tau: q.tau,
-            delayed_entry: q.delayed_entry.map(|id| id.raw()),
+            delayed_entry: q.delayed_entry.map(antecedent_core::VariableId::raw),
             target_cause: match q.functional {
                 antecedent_core::SurvivalFunctional::SurvivalAndRmst => None,
                 antecedent_core::SurvivalFunctional::CumulativeIncidence { target_cause } => {
