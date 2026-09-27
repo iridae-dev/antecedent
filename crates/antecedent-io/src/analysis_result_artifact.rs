@@ -852,11 +852,31 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             cell_clusters[usize::from(query.treated[i])][usize::from(query.post[i])]
                 .insert(cluster);
         }
-        let treated_subjects = subjects.values().filter(|(treated, _)| *treated).count();
-        let comparison_subjects = subjects.len() - treated_subjects;
-        let clusters = query.clusters.iter().collect::<std::collections::BTreeSet<_>>().len();
+        let (treated_subjects, comparison_subjects) = if let Some((target, _)) = query.staggered_target {
+            let mut cohort_by_subject = std::collections::BTreeMap::new();
+            for (subject, cohort) in query.subjects.iter().zip(&query.cohorts) {
+                if cohort_by_subject.insert(subject.as_str(), *cohort).is_some_and(|old| old != *cohort) {
+                    return Err(IoError::Convert("staggered DiD query changes adoption cohort within subject".into()));
+                }
+            }
+            (
+                cohort_by_subject.values().filter(|cohort| **cohort == target).count(),
+                cohort_by_subject.values().filter(|cohort| **cohort == 0).count(),
+            )
+        } else {
+            let treated_subjects = subjects.values().filter(|(treated, _)| *treated).count();
+            (treated_subjects, subjects.len() - treated_subjects)
+        };
+        let clusters = if let Some((target, _)) = query.staggered_target {
+            query.clusters.iter().zip(&query.cohorts)
+                .filter(|(_, cohort)| **cohort == 0 || **cohort == target)
+                .map(|(cluster, _)| cluster)
+                .collect::<std::collections::BTreeSet<_>>().len()
+        } else {
+            query.clusters.iter().collect::<std::collections::BTreeSet<_>>().len()
+        };
         if result.estimate != Some(did.effect)
-            || result.standard_error != Some(did.standard_error)
+            || result.standard_error.is_some()
             || !did.effect.is_finite()
             || !did.standard_error.is_finite()
             || did.standard_error < 0.0
@@ -866,7 +886,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || (query.repeated_cross_section
                 && (duplicate_subject
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
-            || (!query.repeated_cross_section
+            || (!query.repeated_cross_section && query.staggered_target.is_none()
                 && group_clusters.iter().any(|members| members.len() < 2))
             || did.uncertainty != "cluster_robust_standard_error_no_interval"
             || result.interval_lower.is_some()
@@ -1393,7 +1413,7 @@ mod tests {
         result.query = query.clone();
         result.identification.query = query;
         result.estimate = Some(2.0);
-        result.standard_error = Some(0.4);
+        result.standard_error = None;
         result.panel_did = Some(PanelDidWire {
             effect: 2.0,
             standard_error: 0.4,
@@ -1429,7 +1449,7 @@ mod tests {
         result.query = query.clone();
         result.identification.query = query;
         result.estimate = Some(2.0);
-        result.standard_error = Some((16.0_f64 / 7.0).sqrt());
+        result.standard_error = None;
         result.panel_did = Some(PanelDidWire {
             effect: 2.0,
             standard_error: (16.0_f64 / 7.0).sqrt(),
@@ -1457,6 +1477,47 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn staggered_did_result_round_trips_selected_cohort_counts_without_interval() {
+        let mut units = Vec::new();
+        let mut clusters = Vec::new();
+        let mut periods = Vec::new();
+        let mut cohorts = Vec::new();
+        for unit in 0..10 {
+            for period in 1..=4 {
+                units.push(std::sync::Arc::<str>::from(format!("u{unit}")));
+                clusters.push(std::sync::Arc::<str>::from(format!("c{unit}")));
+                periods.push(period);
+                cohorts.push(if unit < 4 { 0 } else if unit < 8 { 3 } else { 4 });
+            }
+        }
+        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(
+            antecedent_core::PanelDidQuery::staggered_group_time(
+                antecedent_core::VariableId::from_raw(1), units, clusters, periods, cohorts, 3, 4,
+            ),
+        )).unwrap();
+        let mut result = fixture();
+        result.query = query.clone();
+        result.identification.query = query;
+        result.estimate = Some(4.0);
+        result.standard_error = None;
+        result.panel_did = Some(PanelDidWire {
+            effect: 4.0,
+            standard_error: 0.5,
+            treated_subjects: 4,
+            comparison_subjects: 4,
+            clusters: 8,
+            uncertainty: "cluster_robust_standard_error_no_interval".into(),
+        });
+        let encoded = encode_analysis_result_artifact(
+            &result, vec!["treatment".into(), "outcome".into()], "staggered-did-result",
+        ).unwrap();
+        let mut bytes = Vec::new();
+        encoded.write_to(&mut bytes).unwrap();
+        let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(decoded, result);
     }
 
     #[test]
