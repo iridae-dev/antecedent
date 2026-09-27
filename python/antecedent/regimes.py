@@ -272,13 +272,16 @@ class LongitudinalRegimeQuery:
 
 @dataclass(frozen=True, slots=True)
 class LongitudinalRegimeEstimate:
-    """Regime mean, or additive MSM intercept and period effects with pointwise CR1 errors."""
+    """Regime mean and bounded IPW uncertainty, or an additive MSM summary."""
     value: float
     effective_sample_size: float
     matched_observed_fraction: float
     maximum_weight: float
     minimum_action_probability: float
     minimum_censoring_probability: float
+    value_standard_error: float | None = None
+    value_interval_95: tuple[float, float] | None = None
+    interval_reason: str | None = None
     method: str = "ipw"
     uncertainty: str = "point_only_no_interval"
     probability_ownership: str = "known_sequential_randomization"

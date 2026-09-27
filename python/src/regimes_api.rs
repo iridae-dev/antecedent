@@ -7,7 +7,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
-/// Retained sequential randomized regime value; no interval claim.
+/// Retained sequential randomized regime value with bounded IPW inference.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct LongitudinalRegimeSection {
@@ -16,6 +16,9 @@ pub struct LongitudinalRegimeSection {
     pub rule_version: Option<String>,
     pub rule_provenance: Option<String>,
     pub value: f64,
+    pub value_standard_error: Option<f64>,
+    pub value_interval_95: Option<(f64, f64)>,
+    pub interval_reason: Option<String>,
     pub effective_sample_size: f64,
     pub matched_observed_fraction: f64,
     pub maximum_weight: f64,
@@ -37,6 +40,9 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
             rule_version: value.rule_version.as_ref().map(ToString::to_string),
             rule_provenance: value.rule_provenance.as_ref().map(ToString::to_string),
             value: value.value,
+            value_standard_error: value.value_standard_error,
+            value_interval_95: value.value_interval_95.map(|bounds| (bounds[0], bounds[1])),
+            interval_reason: value.interval_reason.as_ref().map(ToString::to_string),
             effective_sample_size: value.effective_sample_size,
             matched_observed_fraction: value.matched_observed_fraction,
             maximum_weight: value.maximum_weight,

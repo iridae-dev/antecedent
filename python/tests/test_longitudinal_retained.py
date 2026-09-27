@@ -28,6 +28,8 @@ def test_known_truth_regime_value_prepare_analyze_and_artifact():
     assert result.longitudinal_regime.matched_observed_fraction == pytest.approx(0.25)
     assert result.longitudinal_regime.maximum_weight == pytest.approx(4.0)
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
+    assert result.longitudinal_regime.value_interval_95 is None
+    assert result.longitudinal_regime.interval_reason == "insufficient_independent_subject_support_or_degenerate_score"
     assert result.longitudinal_regime.probability_ownership == "known_sequential_randomization"
     assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
     assert "known_sequential_randomization" in " ".join(result.assumptions or [])
@@ -46,6 +48,31 @@ def test_known_truth_regime_value_prepare_analyze_and_artifact():
     assert query_wire["fold_ids"] == [0, 0, 0, 0]
     with pytest.raises(ValueError, match="align with subject histories"):
         prepared.refresh({"y": [1.0, 2.0]})
+
+
+def test_retained_ipw_interval_on_independent_subject_histories_round_trips():
+    n = 500
+    history = [
+        [(i % 4 in (0, 1)), (i % 4 in (0, 2))]
+        for i in range(n)
+    ]
+    data = {"y": [4.0 if i % 4 == 0 else 0.0 for i in range(n)]}
+    query = LongitudinalRegimeQuery(
+        outcome="y", treatment_history=history, actions=[True, True],
+        treatment_probabilities=[[0.5, 0.5]] * n,
+        subject_ids=[f"subject-{i}" for i in range(n)],
+        fold_ids=[i % 5 for i in range(n)],
+    )
+    result = antecedent.analyze(data, query=query)
+    value = result.longitudinal_regime
+    assert value.value == pytest.approx(4.0)
+    assert value.value_standard_error > 0.0
+    assert value.value_interval_95[0] < 4.0 < value.value_interval_95[1]
+    assert value.uncertainty == "pointwise_subject_score_95"
+    assert value.interval_reason is None
+    assert value.support_status == "off_axis_pointwise_95"
+    artifact = antecedent.load(result.export(artifact_id="regime-ipw-interval"))
+    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
 
 
 def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_value():

@@ -19,6 +19,23 @@ pub struct RegimeValueSummary {
     pub minimum_action_probability: f64,
     /// Smallest conditional probability of remaining uncensored.
     pub minimum_censoring_probability: f64,
+    /// Independent-subject standard error of the Horvitz--Thompson scores,
+    /// when the method supplies observed subject scores.
+    pub score_standard_error: Option<f64>,
+}
+
+/// Pointwise 95% regime-value interval for independent randomized subjects.
+/// A finite support floor protects the normal approximation from rare
+/// matched trajectories. The caller must establish known probabilities and
+/// independent subject histories before publishing this interval.
+pub fn ipw_pointwise_interval_95(summary: &RegimeValueSummary, subjects: usize) -> Option<[f64; 2]> {
+    let se = summary.score_standard_error?;
+    let matched = summary.matched_observed_fraction * subjects as f64;
+    if subjects < 500 || matched < 50.0 || summary.effective_sample_size < 50.0
+        || !se.is_finite() || se <= 0.0 { return None; }
+    let span = antecedent_stats::normal_ppf(0.975) * se;
+    let bounds = [summary.value - span, summary.value + span];
+    bounds.iter().all(|value| value.is_finite()).then_some(bounds)
 }
 
 /// Backward-recursive sequential doubly robust score. All histories are
@@ -90,7 +107,8 @@ pub fn evaluate_sequential_dr_value(
     }
     Ok(RegimeValueSummary { value: total / n as f64,
         effective_sample_size: n as f64, matched_observed_fraction: outcome_observed.iter().filter(|&&x| x).count() as f64 / n as f64,
-        maximum_weight, minimum_action_probability: min_action, minimum_censoring_probability: min_censor })
+        maximum_weight, minimum_action_probability: min_action, minimum_censoring_probability: min_censor,
+        score_standard_error: None })
 }
 
 /// Evaluate supplied conditional period rewards under a prescribed regime.
@@ -151,6 +169,7 @@ pub fn evaluate_g_formula_value(
         maximum_weight: 1.0,
         minimum_action_probability,
         minimum_censoring_probability,
+        score_standard_error: None,
     })
 }
 
@@ -195,6 +214,7 @@ pub fn evaluate_regime_value(
     let mut minimum_action_probability: f64 = 1.0;
     let mut minimum_censoring_probability: f64 = 1.0;
     let mut matched = 0usize;
+    let mut scores = Vec::with_capacity(n);
     for i in 0..n {
         if !outcomes[i].is_finite() {
             return Err("longitudinal outcomes must be finite");
@@ -228,6 +248,9 @@ pub fn evaluate_regime_value(
             weight_sum += weight;
             weight_squares += weight * weight;
             maximum_weight = maximum_weight.max(weight);
+            scores.push(weight * outcomes[i]);
+        } else {
+            scores.push(0.0);
         }
     }
     if matched == 0 {
@@ -236,19 +259,69 @@ pub fn evaluate_regime_value(
     if !total.is_finite() || !weight_squares.is_finite() {
         return Err("longitudinal weighted score overflowed");
     }
+    let value = total / n as f64;
+    let score_standard_error = if n > 1 {
+        let se = (scores.iter().map(|score| (score - value).powi(2)).sum::<f64>()
+            / (n * (n - 1)) as f64).sqrt();
+        if !se.is_finite() { return Err("longitudinal subject-score variance overflowed"); }
+        Some(se)
+    } else { None };
     Ok(RegimeValueSummary {
-        value: total / n as f64,
+        value,
         effective_sample_size: weight_sum * weight_sum / weight_squares,
         matched_observed_fraction: matched as f64 / n as f64,
         maximum_weight,
         minimum_action_probability,
         minimum_censoring_probability,
+        score_standard_error,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn subject_ipw_interval_recovers_randomized_censored_truth_over_repeated_samples() {
+        let n = 500;
+        let simulations = 2_000;
+        let mut state = 0x72B4_07D1_9C38_EF65_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let actions = vec![true; n * 2];
+        let treatment_probabilities = vec![0.5; n * 2];
+        let censoring_probabilities = vec![0.9; n * 2];
+        let mut covered = 0;
+        let mut skipped = 0;
+        for _ in 0..simulations {
+            let mut treatment = Vec::with_capacity(n * 2);
+            let mut observed = Vec::with_capacity(n);
+            let mut outcomes = Vec::with_capacity(n);
+            for _ in 0..n {
+                let a0 = uniform() < 0.5;
+                let a1 = uniform() < 0.5;
+                treatment.extend([a0, a1]);
+                observed.push(uniform() < 0.9 && uniform() < 0.9);
+                outcomes.push(2.0 + f64::from(a0) + f64::from(a1) + (uniform() - 0.5) * 2.0);
+            }
+            let summary = evaluate_regime_value(
+                &outcomes, &treatment, &actions, &treatment_probabilities, &observed,
+                &censoring_probabilities, 2, 0.01,
+            ).unwrap();
+            if let Some(interval) = ipw_pointwise_interval_95(&summary, n) {
+                covered += usize::from(interval[0] <= 4.0 && 4.0 <= interval[1]);
+            } else { skipped += 1; }
+        }
+        let coverage = covered as f64 / simulations as f64;
+        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        assert!(skipped <= simulations / 100, "weak-support skips {skipped}");
+        assert!((coverage - 0.95).abs() <= 3.0 * mcse, "longitudinal IPW coverage {coverage}");
+    }
 
     #[test]
     fn known_truth_two_period_bernoulli() {

@@ -254,6 +254,13 @@ pub struct LongitudinalRegimeEstimate {
     pub rule_provenance: Option<Arc<str>>,
     /// Regime mean, or the additive MSM intercept for the MSM method.
     pub value: f64,
+    /// Independent-subject Horvitz--Thompson score SE for IPW, if available.
+    pub value_standard_error: Option<f64>,
+    /// Pointwise 95% interval for the randomized IPW regime value when
+    /// subject-level support passes the calibrated floor.
+    pub value_interval_95: Option<[f64; 2]>,
+    /// Specific reason the regime value has no interval, when applicable.
+    pub interval_reason: Option<Arc<str>>,
     /// Effective sample size: matching weighted histories for IPW, subject count for g-formula.
     pub effective_sample_size: f64,
     /// Fraction of enrolled subjects with observed matching histories for IPW; one for g-formula predictions.

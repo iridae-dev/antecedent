@@ -455,6 +455,9 @@ class LongitudinalRegimeSection:
     rule_version: str | None
     rule_provenance: str | None
     value: float
+    value_standard_error: float | None
+    value_interval_95: tuple[float, float] | None
+    interval_reason: str | None
     effective_sample_size: float
     matched_observed_fraction: float
     maximum_weight: float
