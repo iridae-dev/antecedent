@@ -222,6 +222,8 @@ fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
 
 /// Fit a balanced-panel synthetic control and leave-one-donor-out placebos.
 /// No p-value or interval calibration is attached to the returned placebo rank.
+// length reflects the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_lines)]
 pub fn fit_synthetic_control(
     outcome: &[f64],
     units: &[String],
@@ -335,7 +337,7 @@ pub fn fit_synthetic_control(
         donor_weights: donors
             .iter()
             .zip(weights)
-            .map(|((unit, _), weight)| ((*unit).to_string(), weight))
+            .map(|((unit, _), weight)| ((*(*unit)).to_string(), weight))
             .collect(),
         placebo_effects,
         placebo_rank,
@@ -466,7 +468,7 @@ pub fn exact_synthetic_constant_effect_test(
 pub enum SyntheticConstantEffectMethod {
     /// Simplex synthetic control.
     Control,
-    /// Unit and time weighted synthetic DiD.
+    /// Unit and time weighted synthetic `DiD`.
     DifferenceInDifferences,
     /// Ridge-augmented simplex synthetic control.
     AugmentedControl {
@@ -477,6 +479,7 @@ pub enum SyntheticConstantEffectMethod {
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::cast_possible_wrap, reason = "fixtures build small nonnegative period labels as i64"))]
     use super::*;
 
     #[test]
@@ -625,6 +628,8 @@ pub struct SyntheticDidFit {
 }
 
 /// Fit unit and time simplex weights without claiming interval calibration.
+// length reflects the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_lines)]
 pub fn fit_synthetic_did(
     outcome: &[f64],
     units: &[String],
@@ -772,6 +777,7 @@ pub fn exact_synthetic_did_unit_randomization_test(
 
 #[cfg(test)]
 mod synthetic_did_tests {
+    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "fixtures map small nonnegative i64 period labels to indices"))]
     use super::{exact_synthetic_did_unit_randomization_test, fit_synthetic_did};
 
     #[test]
@@ -826,6 +832,7 @@ mod synthetic_did_tests {
 
 #[cfg(test)]
 mod constant_effect_null_tests {
+    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "fixtures map small nonnegative i64 period labels to indices"))]
     use super::{exact_synthetic_constant_effect_test, exact_synthetic_did_unit_randomization_test,
         exact_augmented_synthetic_unit_randomization_test, SyntheticConstantEffectMethod};
 

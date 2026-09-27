@@ -154,6 +154,7 @@ fn sandwich_four(inverse: [[f64; 4]; 4], meat: [[f64; 4]; 4]) -> [[f64; 4]; 4] {
     let mut covariance = [[0.0; 4]; 4];
     for row in 0..4 {
         for column in 0..4 {
+            #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
             for left in 0..4 {
                 for right in 0..4 {
                     covariance[row][column] +=
@@ -177,6 +178,7 @@ struct LocalQuarticSlopeFit {
 
 fn invert_five(mut matrix: [[f64; 5]; 5]) -> Option<[[f64; 5]; 5]> {
     let mut inverse = [[0.0; 5]; 5];
+    #[allow(clippy::needless_range_loop, reason = "index sets the matrix diagonal inverse[index][index]")]
     for index in 0..5 { inverse[index][index] = 1.0; }
     for column in 0..5 {
         let pivot = (column..5).max_by(|left, right| {
@@ -237,7 +239,7 @@ fn local_quartic_slope_side(
     let mut var_y = 0.0;
     let mut var_t = 0.0;
     let mut cov_yt = 0.0;
-    for (basis, weight, value_y, value_t) in rows.iter() {
+    for (basis, weight, value_y, value_t) in &rows {
         let leverage = (0..5).map(|index| inverse[1][index] * basis[index]).sum::<f64>();
         let score_y = weight * leverage
             * (value_y - (0..5).map(|index| beta_y[index] * basis[index]).sum::<f64>());
@@ -348,6 +350,7 @@ fn cubic_bias_projection(
     let inverse = invert_three(gram)?;
     let mut projection = [0.0; 3];
     for row in 0..3 {
+        #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
         for column in 0..3 {
             projection[row] += inverse[row][column] * cross[column];
         }
@@ -356,6 +359,8 @@ fn cubic_bias_projection(
 }
 
 /// Fit local quadratic jumps with a cubic pilot, or kinks with a quartic pilot.
+// length reflects the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_lines)]
 pub fn fit_local_polynomial_ratio(
     running: &[f64],
     outcome: &[f64],
@@ -376,9 +381,9 @@ pub fn fit_local_polynomial_ratio(
     if running.iter().chain(outcome.iter()).chain(treatment.iter()).any(|x| !x.is_finite()) {
         return Err(String::from("running, outcome, and treatment values must be finite"));
     }
-    let running: Vec<f64> = running.iter().copied().collect();
-    let outcome: Vec<f64> = outcome.iter().copied().collect();
-    let treatment: Vec<f64> = treatment.iter().copied().collect();
+    let running: Vec<f64> = running.to_vec();
+    let outcome: Vec<f64> = outcome.to_vec();
+    let treatment: Vec<f64> = treatment.to_vec();
     let (left_y_p, left_t_p, n_left) =
         local_quadratic_side(&running, &outcome, &treatment, cutoff, bandwidth, false)
             .filter(|(_, _, count)| *count >= 4)
@@ -405,7 +410,7 @@ pub fn fit_local_polynomial_ratio(
         .ok_or_else(|| String::from("bias correction lacks left-side support"))?;
     let right_projection = cubic_bias_projection(&running, cutoff, bandwidth, true)
         .ok_or_else(|| String::from("bias correction lacks right-side support"))?;
-    let coefficient = if kink { 1 } else { 0 };
+    let coefficient = usize::from(kink);
     let scale = if kink { 1.0 / bandwidth } else { 1.0 };
     // The p=2 local-polynomial coefficient's leading omitted-cubic bias is
     // projection[j] * beta_3. Subtracting it gives the RBC coefficient; the

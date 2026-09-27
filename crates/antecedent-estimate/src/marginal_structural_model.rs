@@ -31,6 +31,7 @@ pub struct MsmIntervals95 {
 
 /// Form coefficient intervals only with enough independent subjects and
 /// effective weighted support for the subject-clustered CR1 approximation.
+#[must_use]
 pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIntervals95> {
     if subjects < 300 || fit.observed_subjects < 200 || fit.effective_sample_size < 150.0
         || fit.intercept_standard_error <= 0.0
@@ -46,6 +47,8 @@ pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIn
 }
 
 /// Fit one terminal-outcome row per subject; all histories are subject-major.
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 pub fn fit_binary_msm(
     y: &[f64], a: &[bool], p: &[f64], numerator: &[f64], observed: &[bool],
     censor: &[f64], periods: usize, floor: f64,
@@ -56,7 +59,7 @@ pub fn fit_binary_msm(
         || censor.len() != cells || observed.len() != n || numerator.len() != periods {
         return Err("MSM arrays must have matching subject and period dimensions");
     }
-    if !floor.is_finite() || !(0.0 < floor && floor <= 0.5) {
+    if !(floor.is_finite() && 0.0 < floor && floor <= 0.5) {
         return Err("minimum probability must be finite and in (0, 0.5]");
     }
     if numerator.iter().any(|&v| !v.is_finite() || v < floor || v > 1.0 - floor) {
@@ -74,6 +77,7 @@ pub fn fit_binary_msm(
         design[i][0] = 1.0;
         if observed[i] && !y[i].is_finite() { return Err("observed terminal outcomes must be finite"); }
         let mut weight = 1.0;
+        #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned per-period slices")]
         for t in 0..periods {
             let j = i * periods + t;
             if !p[j].is_finite() || p[j] < floor || p[j] > 1.0 - floor {
@@ -117,6 +121,7 @@ pub fn fit_binary_msm(
     for i in 0..n {
         if !observed[i] { continue; }
         let residual = y[i] - dot(&design[i], &beta);
+        #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
         for j in 0..columns {
             for k in 0..columns {
                 meat[j][k] += weights[i] * weights[i] * design[i][j] * design[i][k] * residual * residual;
@@ -142,6 +147,7 @@ pub fn fit_binary_msm(
 fn invert(mut a: Vec<Vec<f64>>) -> Result<Vec<Vec<f64>>, &'static str> {
     let n = a.len();
     let mut inverse = vec![vec![0.0; n]; n];
+    #[allow(clippy::needless_range_loop, reason = "index sets the matrix diagonal inverse[i][i]")]
     for i in 0..n { inverse[i][i] = 1.0; }
     for j in 0..n {
         let pivot = (j..n).max_by(|&x, &y| a[x][j].abs().total_cmp(&a[y][j].abs())).unwrap();
@@ -165,6 +171,7 @@ fn matvec(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> { a.iter().map(|row| dot(row, b
 fn matmul(a: &[Vec<f64>], b: &[Vec<f64>]) -> Vec<Vec<f64>> {
     let n = a.len();
     let mut out = vec![vec![0.0; n]; n];
+    #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
     for i in 0..n { for j in 0..n { for k in 0..n { out[i][k] += a[i][j] * b[j][k]; } } }
     out
 }
@@ -225,10 +232,10 @@ mod tests {
                 }
             } else { skipped += 1; }
         }
-        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         assert!(skipped <= simulations / 100, "weak-support skips {skipped}");
         for (j, count) in hits.into_iter().enumerate() {
-            let coverage = count as f64 / simulations as f64;
+            let coverage = count as f64 / f64::from(simulations);
             assert!((coverage - 0.95).abs() <= 3.0 * mcse, "MSM coefficient {j} coverage {coverage}");
         }
     }

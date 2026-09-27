@@ -75,6 +75,7 @@ pub fn fit_ancova(
         for j in 0..q { for l in 0..q { meat[j][l] += row[j] * row[l] * residual.powi(2); } }
     }
     let mut variance = 0.0;
+    #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned slices")]
     for j in 0..q {
         for l in 0..q {
             variance += inverse[1][j] * meat[j][l] * inverse[l][1];

@@ -67,6 +67,7 @@ pub fn pretrend_falsification_statistic(
 /// Pointwise 95% interval for an event-time contrast only when each side has
 /// enough independent clusters for the calibrated normal approximation.
 /// This does not establish simultaneous coverage of the event-study curve.
+#[must_use]
 pub fn pointwise_interval_95(
     effect: &EventTimeEffect, treated_clusters: usize, control_clusters: usize,
 ) -> Option<[f64; 2]> {
@@ -160,6 +161,7 @@ pub fn estimate(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates"))]
     use super::*;
 
     #[test]
@@ -228,12 +230,12 @@ mod tests {
                         <= antecedent_stats::normal_ppf(0.95) * fit.standard_error);
                 }
             }
-            let coverage_90 = covered_90.map(|hits| hits as f64 / simulations as f64);
-            let coverage_95 = covered_95.map(|hits| hits as f64 / simulations as f64);
+            let coverage_90 = covered_90.map(|hits| hits as f64 / f64::from(simulations));
+            let coverage_95 = covered_95.map(|hits| hits as f64 / f64::from(simulations));
             println!("staggered event coverage, clusters/group={clusters_per_group}: 90%={coverage_90:?}, 95%={coverage_95:?}");
             if clusters_per_group >= 24 {
                 for (nominal, coverage) in [(0.90_f64, coverage_90), (0.95, coverage_95)] {
-                    let mcse = (nominal * (1.0 - nominal) / simulations as f64).sqrt();
+                    let mcse = (nominal * (1.0 - nominal) / f64::from(simulations)).sqrt();
                     assert!(coverage.iter().all(|rate| (rate - nominal).abs() <= 3.0 * mcse));
                 }
             }
@@ -294,9 +296,9 @@ mod tests {
                 covered[target] += usize::from(bounds[0] <= 2.0 && 2.0 <= bounds[1]);
             }
         }
-        let coverage = covered.map(|hits| hits as f64 / simulations as f64);
+        let coverage = covered.map(|hits| hits as f64 / f64::from(simulations));
         println!("staggered shared-cluster post-event 95% coverage: {coverage:?}");
-        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         assert!(coverage.iter().all(|rate| (rate - 0.95).abs() <= 3.0 * mcse));
     }
 }

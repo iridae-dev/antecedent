@@ -66,7 +66,7 @@ pub fn switchback_itt(
         * grouped.values().map(|(score, _)| (score - mean_total).powi(2)).sum::<f64>()
         / (n * n) as f64;
     if !effect.is_finite() || !variance.is_finite() || variance < 0.0 { return None; }
-    let period_count = grouped.values().next().map(|(_, count)| *count).unwrap_or(0);
+    let period_count = grouped.values().next().map_or(0, |(_, count)| *count);
     let balanced = period_count > 0 && grouped.values().all(|(_, count)| *count == period_count);
     let interval_95 = (sequences >= MIN_SEQUENCES_FOR_INTERVAL && balanced && overlap
         && arm_counts.iter().all(|count| *count >= 30) && variance > 0.0)
@@ -113,6 +113,6 @@ mod tests {
         let refs = ids.iter().map(String::as_str).collect::<Vec<_>>();
         let fit = switchback_itt(&outcomes, &assignment, &vec![0.5; n], &refs).unwrap();
         assert_eq!(fit.sequences, 30);
-        assert_eq!(fit.interval_95.is_some(), true);
+        assert!(fit.interval_95.is_some());
     }
 }

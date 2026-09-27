@@ -224,6 +224,7 @@ pub fn complete_cluster_itt(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, clippy::cast_possible_truncation, reason = "PRNG fixtures reduce u64 to small indices; tests assert exact deterministic values"))]
     use super::*;
 
     fn allocation(size: usize, rep: usize) -> Vec<usize> {
