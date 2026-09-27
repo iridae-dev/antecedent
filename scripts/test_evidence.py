@@ -570,11 +570,14 @@ def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
     if problems:
         return problems
     rel = path.resolve().relative_to((cwd / "python").resolve())
+    # Evidence collection is read-only. CI and local release gates install the
+    # project environment first; resolving one test must not fetch packages.
     proc = subprocess.run(
         [
             "uv",
             "run",
             "--quiet",
+            "--no-sync",
             "--project",
             ".",
             "pytest",
