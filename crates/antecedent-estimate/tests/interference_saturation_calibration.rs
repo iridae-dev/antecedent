@@ -30,16 +30,15 @@ struct Contrast {
     mapping: ExposureMapping,
     from: (f64, f64),
     to: (f64, f64),
-    truth: f64,
 }
 
 #[test]
 fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth() {
     let contrasts = [
-        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.5), to: (1.0, 0.5), truth: 2.5 },
-        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (0.0, 1.0), truth: 3.0 },
-        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (1.0, 1.0), truth: 6.0 },
-        Contrast { mapping: ExposureMapping::WeightedNeighborExposure, from: (0.0, 1.0 / 3.0), to: (1.0, 1.0 / 3.0), truth: 2.0 + 1.0 / 3.0 },
+        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.5), to: (1.0, 0.5) },
+        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (0.0, 1.0) },
+        Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.0), to: (1.0, 1.0) },
+        Contrast { mapping: ExposureMapping::WeightedNeighborExposure, from: (0.0, 1.0 / 3.0), to: (1.0, 1.0 / 3.0) },
     ];
     let edges = (0..CLUSTERS).flat_map(|cluster| {
         (0..UNITS_PER_CLUSTER).flat_map(move |within| {
@@ -54,7 +53,7 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
     let mut state = 0x8A43_F5D2_0977_141B;
     let mut accepted = [0_u32; 4];
     let mut covered = [0_u32; 4];
-    for _ in 0..400 {
+    for trial in 0..400 {
         let mut permutation = (0..CLUSTERS).collect::<Vec<_>>();
         for index in (1..CLUSTERS).rev() {
             permutation.swap(index, next_u64(&mut state) as usize % (index + 1));
@@ -65,8 +64,16 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
         let mut realized = vec![0.0; assignment.len()];
         let mut noise = vec![0.0; assignment.len()];
         let mut cluster_noise = [0.0; CLUSTERS];
+        let mut beta = [2.0; CLUSTERS];
+        let mut gamma = [3.0; CLUSTERS];
+        let mut interaction = [1.0; CLUSTERS];
         for cluster in 0..CLUSTERS {
             cluster_noise[cluster] = 0.5 * centered_noise(&mut state);
+            if trial % 2 == 0 {
+                beta[cluster] += 0.5 * centered_noise(&mut state);
+                gamma[cluster] += 0.4 * centered_noise(&mut state);
+                interaction[cluster] += 0.2 * centered_noise(&mut state);
+            }
             for within in 0..UNITS_PER_CLUSTER {
                 let index = cluster * UNITS_PER_CLUSTER + within;
                 let p = if high[cluster] { 0.8 } else { 0.2 };
@@ -88,7 +95,8 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
                     _ => unreachable!(),
                 };
                 let own = f64::from(assignment[index]);
-                5.0 + 2.0 * own + 3.0 * neighbor + own * neighbor
+                5.0 + beta[cluster] * own + gamma[cluster] * neighbor
+                    + interaction[cluster] * own * neighbor
                     + cluster_noise[cluster] + noise[index]
             }).collect::<Vec<_>>();
             let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -109,8 +117,14 @@ fn cluster_pointwise_intervals_cover_direct_spillover_total_and_weighted_truth()
             let result = estimate_saturation_interference(&query, &network, &assignment).unwrap();
             if let Some(interval) = result.pointwise_interval {
                 accepted[contrast_index] += 1;
+                let truth = (0..CLUSTERS).map(|cluster| {
+                    beta[cluster] * (contrast.to.0 - contrast.from.0)
+                        + gamma[cluster] * (contrast.to.1 - contrast.from.1)
+                        + interaction[cluster]
+                            * (contrast.to.0 * contrast.to.1 - contrast.from.0 * contrast.from.1)
+                }).sum::<f64>() / CLUSTERS as f64;
                 covered[contrast_index] += u32::from(
-                    interval.bounds[0] <= contrast.truth && contrast.truth <= interval.bounds[1],
+                    interval.bounds[0] <= truth && truth <= interval.bounds[1],
                 );
             }
         }
@@ -148,7 +162,7 @@ fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
     );
     let mut state = 0xBFD2_5126_F4C0_BA85;
     let mut covered = 0;
-    for _ in 0..400 {
+    for trial in 0..400 {
         let mut permutation = (0..CLUSTERS).collect::<Vec<_>>();
         for index in (1..CLUSTERS).rev() {
             permutation.swap(index, next_u64(&mut state) as usize % (index + 1));
@@ -158,10 +172,14 @@ fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
         let assignment = (0..CLUSTERS).flat_map(|cluster| [assigned_cluster[cluster]; UNITS_PER_CLUSTER])
             .collect::<Vec<_>>();
         let mut outcomes = Vec::with_capacity(assignment.len());
+        let mut total_effect = [6.0; CLUSTERS];
         for cluster in 0..CLUSTERS {
             let shock = 0.5 * centered_noise(&mut state);
+            if trial % 2 == 0 {
+                total_effect[cluster] += 0.7 * centered_noise(&mut state);
+            }
             for _ in 0..UNITS_PER_CLUSTER {
-                outcomes.push(5.0 + 6.0 * f64::from(assigned_cluster[cluster])
+                outcomes.push(5.0 + total_effect[cluster] * f64::from(assigned_cluster[cluster])
                     + shock + 0.25 * centered_noise(&mut state));
             }
         }
@@ -172,7 +190,8 @@ fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
         ).unwrap();
         let interval = interval.expect("40 independent clusters per assignment arm");
         assert!(estimate.contrast.conservative_variance > 0.0);
-        covered += u32::from(interval.bounds[0] <= 6.0 && 6.0 <= interval.bounds[1]);
+        let truth = total_effect.iter().sum::<f64>() / CLUSTERS as f64;
+        covered += u32::from(interval.bounds[0] <= truth && truth <= interval.bounds[1]);
     }
     assert!(covered >= 360, "cluster total coverage {covered}/400");
 }
