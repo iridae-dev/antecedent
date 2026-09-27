@@ -3962,6 +3962,7 @@ impl PyPreparedAnalysis {
         mu0, mu1, costs, reference_costs, evaluation_subject_ids, disjoint_training_subjects,
         crossfit_fold_ownership_valid, *, uplift_bins=vec![], uplift_bin_count=0,
         uplift_training_subject_ids=vec![], global_constraints_present=false,
+        regret_candidates=vec![], regret_selected_index=None, regret_training_subject_ids=vec![],
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_policy_value(
@@ -3984,6 +3985,9 @@ impl PyPreparedAnalysis {
         uplift_bin_count: usize,
         uplift_training_subject_ids: Vec<String>,
         global_constraints_present: bool,
+        regret_candidates: Vec<Vec<bool>>,
+        regret_selected_index: Option<usize>,
+        regret_training_subject_ids: Vec<String>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3995,6 +3999,12 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            if regret_selected_index.is_some() != !regret_candidates.is_empty()
+                || (regret_selected_index.is_none() && !regret_training_subject_ids.is_empty()) {
+                return Err(py_err(antecedent::CausalError::Compile {
+                    message: "finite-class regret candidates, selected index, and training subjects must be supplied together".into(),
+                }));
+            }
             let query = antecedent_core::PolicyValueQuery {
                 outcome: outcome_id,
                 assignment: assignment.into(),
@@ -4017,6 +4027,11 @@ impl PyPreparedAnalysis {
                 uplift_bins: uplift_bins.into(),
                 uplift_bin_count,
                 uplift_training_subject_ids: uplift_training_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                regret: regret_selected_index.map(|selected_index| antecedent_core::FixedCandidateRegretInputs {
+                    candidates: regret_candidates.into_iter().map(Arc::<[bool]>::from).collect::<Vec<_>>().into(),
+                    selected_index,
+                    training_subject_ids: regret_training_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                }),
             };
             query
                 .validate()
@@ -4100,6 +4115,7 @@ impl PyPreparedAnalysis {
                 uplift_bins: Arc::from([]),
                 uplift_bin_count: 0,
                 uplift_training_subject_ids: Arc::from([]),
+                regret: None,
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;

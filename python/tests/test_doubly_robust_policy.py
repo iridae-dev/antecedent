@@ -89,6 +89,38 @@ def test_policy_artifact_answer_preserves_typed_values_and_uncertainty():
     assert answer.structured == payload["policy_value"]
 
 
+def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
+    n = 400
+    assignment = [i % 4 < 2 for i in range(n)]
+    outcome = [1.0 + (2.0 if assigned else 0.0) + 0.01 * (i % 7)
+               for i, assigned in enumerate(assignment)]
+    selected = policy.BinaryPolicy([True] * n, costs=0.2)
+    candidates = (
+        policy.BinaryPolicy([False] * n, costs=0.2), selected,
+        policy.BinaryPolicy([i % 2 == 0 for i in range(n)], costs=0.2),
+        policy.BinaryPolicy([i % 2 == 1 for i in range(n)], costs=0.2),
+    )
+    query = policy.PolicyValue(
+        "y", assignment, 0.5, selected, [f"eval-{i}" for i in range(n)],
+        regret_candidates=candidates,
+        regret_training_subject_ids=["selection-training"],
+    )
+    result = ant.analyze({"y": outcome}, query=query, refute="none")
+    regret = result.policy_value.finite_class_regret
+    assert regret is not None
+    assert regret.target == "best_in_prespecified_candidate_class_minus_selected"
+    assert regret.regret > 0.0
+    assert regret.interval_95[0] <= regret.regret <= regret.interval_95[1]
+    assert result.policy_value.support_status == "off_axis_simultaneous_95"
+    loaded = ant.load(result.export(artifact_id="finite-class-regret"))
+    assert loaded.answer.structured["regret"]["selected_index"] == 1
+    with pytest.raises(CausalValueError, match="regret training IDs"):
+        policy.PolicyValue(
+            "y", assignment, 0.5, selected, [f"eval-{i}" for i in range(n)],
+            regret_candidates=candidates, regret_training_subject_ids=["eval-0"],
+        )
+
+
 def test_retained_policy_value_honors_capacity_budget_and_availability():
     assignment = [True, False] * 4
     outcome = 5.0 + 2.0 * np.asarray(assignment, dtype=float)
@@ -366,7 +398,7 @@ def test_retained_multi_action_cate_interval_and_sparse_refusal():
     assert result.policy_value.support_status == "licensed"
     points = result.policy_value.multi_action_cate
     assert len(points) == 2
-    for point, truth in zip(points, (1.0, 3.0)):
+    for point, truth in zip(points, (1.0, 3.0), strict=True):
         assert point.uncertainty == "pointwise_95"
         assert point.standard_error > 0.0
         assert point.interval_95[0] < truth < point.interval_95[1]

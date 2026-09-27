@@ -198,6 +198,7 @@ class DoublyRobustPolicyEvaluation:
     incremental_value_interval_95: tuple[float, float] | None = None
     uplift_bins: tuple[UpliftBin, ...] = ()
     multi_action_cate: tuple[MultiActionCatePoint, ...] = ()
+    finite_class_regret: FiniteClassRegretEvaluation | None = None
     uncertainty: str = "row_score_standard_error_independent_subjects"
     evaluation_method: str = "doubly_robust_randomized_heldout_or_cross_fitted"
     assumptions: tuple[str, ...] = (
@@ -212,6 +213,19 @@ class DoublyRobustPolicyEvaluation:
         "nuisance predictions and randomization claims are not independently authenticated",
     )
     support_status: str = "unlicensed_point_utility"
+
+
+@dataclass(frozen=True, slots=True)
+class FiniteClassRegretEvaluation:
+    """Simultaneous gap to the best policy in a prespecified finite class."""
+
+    regret: float
+    interval_95: tuple[float, float]
+    candidate_values: tuple[float, ...]
+    contrast_standard_errors: tuple[float, ...]
+    selected_index: int
+    target: str = "best_in_prespecified_candidate_class_minus_selected"
+    uncertainty: str = "bonferroni_simultaneous_95_independent_held_out_subjects"
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +253,8 @@ class PolicyValue:
     uplift_scores: Sequence[float] | None = None
     uplift_bin_count: int = 0
     uplift_training_subject_ids: Sequence[str] | None = None
+    regret_candidates: Sequence[BinaryPolicy] | None = None
+    regret_training_subject_ids: Sequence[str] | None = None
     _ownership: str = field(init=False, repr=False, compare=False)
 
     @classmethod
@@ -316,6 +332,39 @@ class PolicyValue:
         object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0) if self.mu0 is not None else ())
         object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1) if self.mu1 is not None else ())
         object.__setattr__(self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids))
+        if self.regret_candidates is None:
+            if self.regret_training_subject_ids is not None:
+                raise CausalValueError("regret training IDs require a fixed candidate class")
+        else:
+            candidates = tuple(self.regret_candidates)
+            n = len(self.policy.actions)
+            training = tuple(self.regret_training_subject_ids or ())
+            if (bool(self.mu0) or self.uplift_scores is not None
+                or not 2 <= len(candidates) <= 16
+                or any(not isinstance(candidate, BinaryPolicy) or len(candidate.actions) != n
+                    or candidate.capacity is not None or candidate.budget is not None
+                    or candidate.max_treatment_rate is not None for candidate in candidates)
+                or self.policy.capacity is not None or self.policy.budget is not None
+                or self.policy.max_treatment_rate is not None):
+                raise CausalValueError("finite-class regret requires 2–16 fixed unconstrained binary IPW candidates")
+            def cost(candidate: BinaryPolicy) -> tuple[float, ...]:
+                if isinstance(candidate.costs, (int, float)):
+                    return (float(candidate.costs),) * n
+                return tuple(float(value) for value in candidate.costs)
+            if any(cost(candidate) != cost(self.policy) for candidate in candidates):
+                raise CausalValueError("finite-class regret candidates must use the selected policy's treatment costs")
+            if self.available is not None and any(
+                action and not self.available[i]
+                for candidate in candidates for i, action in enumerate(candidate.actions)
+            ):
+                raise CausalValueError("finite-class regret candidates must respect action availability")
+            if sum(candidate.actions == self.policy.actions for candidate in candidates) != 1:
+                raise CausalValueError("selected policy must occur exactly once in the fixed candidate class")
+            if (not training or any(not isinstance(value, str) or not value for value in training)
+                or len(set(training)) != len(training) or set(training) & set(self.evaluation_subject_ids)):
+                raise CausalValueError("regret training IDs must be unique, nonempty, and disjoint from evaluation subjects")
+            object.__setattr__(self, "regret_candidates", candidates)
+            object.__setattr__(self, "regret_training_subject_ids", training)
         if self.available is not None:
             object.__setattr__(self, "available", tuple(self.available))
         if self.uplift_scores is None:
@@ -949,6 +998,7 @@ __all__ = [
     "MultiActionPolicy",
     "PolicyEvaluation",
     "DoublyRobustPolicyEvaluation",
+    "FiniteClassRegretEvaluation",
     "MultiActionPolicyValue",
     "UpliftBin",
     "ConditionalDoseResponsePoint",

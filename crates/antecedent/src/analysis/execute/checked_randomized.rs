@@ -883,6 +883,14 @@ impl CheckedPolicyValueOperation {
             antecedent_estimate::policy_value::evaluate_multi_action_cate(y, policy)
                 .map_err(|message| CausalError::Unsupported { message })?
         } else { Vec::new() };
+        let regret = self.query.regret.as_ref().map(|design| {
+            antecedent_estimate::policy_value::evaluate_fixed_candidate_regret(
+                y, &self.query.assignment, &self.query.propensity,
+                &design.candidates.iter().map(|candidate| candidate.to_vec()).collect::<Vec<_>>(),
+                design.selected_index, &self.query.costs,
+                !design.training_subject_ids.is_empty(),
+            ).map_err(|message| CausalError::Unsupported { message })
+        }).transpose()?;
         let ipw = self.query.mu0.is_empty();
         let uplift_bins = if self.query.uplift_bin_count > 0 {
             antecedent_estimate::policy_value::evaluate_uplift_bins(
@@ -1003,6 +1011,7 @@ impl CheckedPolicyValueOperation {
             }),
             uplift_bins,
             multi_action_cate,
+            regret,
         });
         let policy = result.policy_value.as_ref().expect("policy value was just attached");
         let (design, method, claim) = match (multi.is_some(), ipw, !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty()) {
@@ -1064,9 +1073,9 @@ impl CheckedPolicyValueOperation {
                     .all(|id| !self.query.evaluation_subject_ids.contains(id)),
             ..Default::default()
         };
-        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+        if self.query.regret.is_none() && matches!(crate::support::classify_graphless(
             crate::support::GraphlessSupportKey { family: "policy_value", design, method, inference_claim: claim }, observed,
-        ) {
+        ), crate::support::GraphlessSupportStatus::Licensed { .. }) {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         Ok(result)

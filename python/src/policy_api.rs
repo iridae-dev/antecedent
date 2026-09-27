@@ -46,6 +46,8 @@ pub struct PolicyValueSection {
     pub uplift_bins: Vec<(usize, f64, f64, usize, Option<(f64, f64)>)>,
     /// Conditional contrasts: group, action, effect, total and observed rows, SE, interval.
     pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize, f64, Option<(f64, f64)>)>,
+    /// Finite-class regret: gap, simultaneous bounds, values, paired SEs, selected index.
+    pub regret: Option<(f64, (f64, f64), Vec<f64>, Vec<f64>, usize)>,
 }
 
 /// Fixed group-dose policy value under a kernel-smoothed intervention.
@@ -146,6 +148,11 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
                 point.evaluation_rows, point.observed_action_rows, point.observed_control_rows,
                 point.standard_error, point.interval_95.map(|bounds| (bounds[0], bounds[1])),
             )).collect(),
+            regret: value.regret.as_ref().map(|regret| (
+                regret.regret, (regret.interval_95[0], regret.interval_95[1]),
+                regret.candidate_values.clone(), regret.contrast_standard_errors.clone(),
+                regret.selected_index,
+            )),
         }
     }
 }

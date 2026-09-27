@@ -141,6 +141,19 @@ pub struct PolicyValueQuery {
     pub uplift_bin_count: usize,
     /// Subjects used to train the ranking model, declared disjoint from evaluation subjects.
     pub uplift_training_subject_ids: Arc<[Arc<str>]>,
+    /// Prespecified finite candidate class for held-out regret, when requested.
+    pub regret: Option<FixedCandidateRegretInputs>,
+}
+
+/// Fixed candidate recommendations and training ownership for finite-class regret.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixedCandidateRegretInputs {
+    /// Candidate action vectors in a prespecified order.
+    pub candidates: Arc<[Arc<[bool]>]>,
+    /// The selected candidate, which must equal `PolicyValueQuery::actions`.
+    pub selected_index: usize,
+    /// Caller-declared candidate construction and selection subjects.
+    pub training_subject_ids: Arc<[Arc<str>]>,
 }
 
 impl PolicyValueQuery {
@@ -154,6 +167,7 @@ impl PolicyValueQuery {
                 || self.global_constraints_present
                 || !self.uplift_bins.is_empty() || self.uplift_bin_count != 0
                 || !self.uplift_training_subject_ids.is_empty()
+                || self.regret.is_some()
                 || self.evaluation_subject_ids.len() != multi.assignment.len()
                 || self.evaluation_subject_ids.iter().any(|id| id.trim().is_empty())
                 || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != multi.assignment.len()
@@ -222,6 +236,22 @@ impl PolicyValueQuery {
                 "prediction ownership requires disjoint training IDs or matching excluded-fold metadata".into(),
             ));
         }
+        if let Some(regret) = &self.regret {
+            let training = &regret.training_subject_ids;
+            if !ipw || self.global_constraints_present || self.uplift_bin_count != 0
+                || !(2..=16).contains(&regret.candidates.len())
+                || regret.selected_index >= regret.candidates.len()
+                || regret.candidates.iter().any(|actions| actions.len() != n)
+                || regret.candidates[regret.selected_index].as_ref() != self.actions.as_ref()
+                || training.is_empty() || training.iter().any(|id| id.trim().is_empty()
+                    || self.evaluation_subject_ids.contains(id))
+                || training.iter().collect::<std::collections::HashSet<_>>().len() != training.len()
+            {
+                return Err(QueryError::InvalidPolicyValue(
+                    "finite-class regret requires 2–16 fixed IPW candidates, selected-policy equality, and disjoint construction subjects".into(),
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -249,6 +279,7 @@ mod tests {
             uplift_bins: Arc::from([]),
             uplift_bin_count: 0,
             uplift_training_subject_ids: Arc::from([]),
+            regret: None,
         }
     }
 

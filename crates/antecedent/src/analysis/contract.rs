@@ -3334,6 +3334,13 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             observed_action_rows: point.observed_action_rows,
             observed_control_rows: point.observed_control_rows,
         }).collect(),
+        regret: policy.regret.as_ref().map(|regret| antecedent_io::analysis_result_artifact::FixedCandidateRegretWire {
+            candidate_values: regret.candidate_values.clone(),
+            contrast_standard_errors: regret.contrast_standard_errors.clone(),
+            regret: regret.regret,
+            interval_95: regret.interval_95,
+            selected_index: regret.selected_index,
+        }),
     });
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),
