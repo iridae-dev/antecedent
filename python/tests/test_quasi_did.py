@@ -534,7 +534,7 @@ def test_staggered_event_known_truth_fixture_spans_thin_and_supported_clusters()
             for effect in effects[1:]:
                 assert effect.interval_95[0] < 4.0 < effect.interval_95[1]
             assert result.estimate.se_analytic > 0.0
-            assert result.panel_did.support_status == "off_axis_pointwise_95"
+            assert result.panel_did.support_status == "licensed"
             assert result.answer.detail == "staggered_event_post_pointwise_intervals"
             assert "no simultaneous band" in result.claim()
         else:
