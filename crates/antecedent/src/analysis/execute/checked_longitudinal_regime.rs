@@ -197,7 +197,7 @@ impl CheckedLongitudinalRegimeOperation {
             LongitudinalRegimeMethod::GFormula if !self.query.known_fixed_outcome_predictions => Some("prediction_model_uncertainty_not_accounted"),
             LongitudinalRegimeMethod::GFormula if !self.query.probabilities_known_by_design => Some("known_sequential_randomization_required_for_fixed_q_interval"),
             LongitudinalRegimeMethod::GFormula if g_formula_interval.is_none() => Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score"),
-            LongitudinalRegimeMethod::SequentialDoublyRobust if dr_interval.is_none() => Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"),
+            LongitudinalRegimeMethod::SequentialDoublyRobust if dr_interval.is_none() => Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"),
             LongitudinalRegimeMethod::MarginalStructuralModel if msm_intervals.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
         };

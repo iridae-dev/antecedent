@@ -279,7 +279,7 @@ def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
     assert result.longitudinal_regime.value == pytest.approx(direct.value)
     assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
     assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
-    assert result.longitudinal_regime.interval_reason == "insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"
+    assert result.longitudinal_regime.interval_reason == "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"
     assert "subject_excluded_fold_predictions" in " ".join(result.assumptions or [])
     assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
     artifact = antecedent.load(prepared.export()).artifact
@@ -314,6 +314,44 @@ def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
     query_wire = artifact.artifact.payload["query"]["longitudinal_regime"]
     assert query_wire["prediction_fold_ids"] == query_wire["fold_ids"] == folds
     assert query_wire["excluded_fold_predictions"] is True
+
+
+def test_three_period_sequential_dr_interval_and_four_period_refusal():
+    n = 800
+    treatment = [[bool(i & 1), bool(i & 2), bool(i & 4)] for i in range(n)]
+    outcomes = [2.0 + sum(actions) + ((i % 11) - 5) / 20
+                for i, actions in enumerate(treatment)]
+    folds = [i % 5 for i in range(n)]
+    args = dict(
+        outcome="y", method="sequential_dr", treatment_history=treatment,
+        actions=[True] * 3, treatment_probabilities=[[0.5] * 3] * n,
+        censoring_probabilities=[[0.95] * 3] * n,
+        q_predictions=[[4.4, 4.7, 5.1]] * n,
+        observation_history=[[True] * 3] * n,
+        subject_ids=[f"three-{i}" for i in range(n)], fold_ids=folds,
+        prediction_fold_ids=folds, excluded_fold_predictions=True,
+    )
+    result = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**args))
+    value = result.longitudinal_regime
+    assert value.value_interval_95[0] < 5.0 < value.value_interval_95[1]
+    assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
+    assert value.support_status == "off_axis_pointwise_95"
+    assert "sequential_q_validity" in " ".join(result.assumptions or [])
+    artifact = antecedent.load(result.export(artifact_id="three-period-dr"))
+    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
+
+    four = dict(args)
+    four.update(
+        treatment_history=[actions + [bool(i & 8)] for i, actions in enumerate(treatment)],
+        actions=[True] * 4,
+        treatment_probabilities=[[0.5] * 4] * n,
+        censoring_probabilities=[[0.95] * 4] * n,
+        q_predictions=[[6.0] * 4] * n,
+        observation_history=[[True] * 4] * n,
+    )
+    unsupported = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**four)).longitudinal_regime
+    assert unsupported.value_interval_95 is None
+    assert unsupported.uncertainty == "point_only_no_interval"
 
 
 def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation():

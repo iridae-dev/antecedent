@@ -1592,14 +1592,16 @@ fn validate_result(
             && regime.standard_errors.len() == query.periods
             && regime.standard_errors.iter().all(|se| se.is_finite() && *se > 0.0);
         let n = query.subject_ids.len();
-        let dr_cells = n.checked_mul(2);
-        let dr_matching_subjects = if query.periods == 2
+        let dr_cells = n.checked_mul(query.periods);
+        let dr_matching_subjects = if matches!(query.periods, 2 | 3)
             && dr_cells.is_some_and(|cells| query.treatment_history.len() == cells
                 && query.regime_actions.len() == cells)
             && query.outcome_observed.len() == n {
             (0..n).filter(|&i| query.outcome_observed[i]
-                && query.treatment_history[2 * i] == query.regime_actions[2 * i]
-                && query.treatment_history[2 * i + 1] == query.regime_actions[2 * i + 1]).count()
+                && (0..query.periods).all(|t| {
+                    let j = query.periods * i + t;
+                    query.treatment_history[j] == query.regime_actions[j]
+                })).count()
         } else { 0 };
         let dr_min_action = query.regime_actions.iter().zip(&query.treatment_probabilities)
             .map(|(action, p)| if *action { *p } else { 1.0 - p })
@@ -1609,11 +1611,15 @@ fn validate_result(
             && query.probabilities_known_by_design
             && query.excluded_fold_predictions
             && query.prediction_fold_ids == query.fold_ids
-            && query.periods == 2 && n >= 300
+            && (query.periods == 2 && n >= 300
+                && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 200
+                && dr_matching_subjects >= 50
+                && dr_min_action >= 0.4 && dr_min_censor >= 0.85
+                || query.periods == 3 && n >= 800
+                && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 600
+                && dr_matching_subjects >= 60
+                && dr_min_action >= 0.5 && dr_min_censor >= 0.9)
             && dr_cells.is_some_and(|cells| query.q_predictions.len() == cells)
-            && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 200
-            && dr_matching_subjects >= 50
-            && dr_min_action >= 0.4 && dr_min_censor >= 0.85
             && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0);
         let g_formula_expected = if query.method == "g_formula"
             && query.known_fixed_outcome_predictions
@@ -1633,7 +1639,7 @@ fn validate_result(
             "g_formula" if !query.known_fixed_outcome_predictions => Some("prediction_model_uncertainty_not_accounted"),
             "g_formula" if !query.probabilities_known_by_design => Some("known_sequential_randomization_required_for_fixed_q_interval"),
             "g_formula" if g_formula_expected.is_none() => Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score"),
-            "sequential_dr" if regime.value_interval_95.is_none() => Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"),
+            "sequential_dr" if regime.value_interval_95.is_none() => Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"),
             "marginal_structural_model" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
             _ => None,
         };

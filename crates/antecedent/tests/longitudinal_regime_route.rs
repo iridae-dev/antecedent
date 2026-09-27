@@ -355,7 +355,7 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
     assert_eq!(&*value.uncertainty, "point_only_no_interval");
     assert_eq!(value.value_interval_95, None);
     assert_eq!(value.interval_reason.as_deref(),
-        Some("insufficient_two_period_subject_or_trajectory_support_for_sequential_dr_interval"));
+        Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"));
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
             if id.as_ref() == "subject_excluded_fold_predictions")
@@ -411,6 +411,59 @@ fn sequential_dr_conditional_interval_binds_subject_folds_and_artifact() {
         header.variable_names.clone(), "forged-dr-ownership").is_err());
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
     assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-dr").is_err());
+}
+
+#[test]
+fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_horizon() {
+    let n = 800;
+    let treatment = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0])
+        .collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 2.0 + (0..3).map(|t| f64::from(treatment[3 * i + t])).sum::<f64>()
+        + ((i % 11) as f64 - 5.0) / 20.0).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust;
+    q.periods = 3;
+    q.treatment_history = treatment.into();
+    q.regime_actions = vec![true; n * 3].into();
+    q.treatment_probabilities = vec![0.5; n * 3].into();
+    q.censoring_probabilities = vec![0.95; n * 3].into();
+    q.outcome_observed = vec![true; n].into();
+    q.observation_history = Some(vec![true; n * 3].into());
+    q.q_predictions = Some((0..n).flat_map(|_| [4.4, 4.7, 5.1]).collect::<Vec<_>>().into());
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("three-{i}"))).collect::<Vec<_>>().into();
+    q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
+    q.prediction_fold_ids = Some(q.fold_ids.clone());
+    q.excluded_fold_predictions = true;
+    let ctx = ExecutionContext::for_tests(193);
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime.as_ref().unwrap();
+    assert!(fit.value_interval_95.is_some());
+    assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_excluded_fold_q_95");
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| {
+        matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
+            if id.as_ref() == "sequential_q_validity")
+    }));
+    let bytes = prepared.encode_contracted_result(&result, "three-period-dr", &ctx).unwrap();
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, fit.value_interval_95);
+    body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-three-period-dr").is_err());
+
+    q.periods = 4;
+    q.treatment_history = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0, i & 8 != 0]).collect::<Vec<_>>().into();
+    q.regime_actions = vec![true; n * 4].into();
+    q.treatment_probabilities = vec![0.5; n * 4].into();
+    q.censoring_probabilities = vec![0.95; n * 4].into();
+    q.observation_history = Some(vec![true; n * 4].into());
+    q.q_predictions = Some(vec![6.0; n * 4].into());
+    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let fit = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    let value = fit.longitudinal_regime.as_ref().unwrap();
+    assert!(value.value_interval_95.is_none());
+    assert_eq!(value.uncertainty.as_ref(), "point_only_no_interval");
 }
 
 #[test]

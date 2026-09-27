@@ -129,7 +129,7 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
         score_standard_error: None }, scores))
 }
 
-/// Calibrated two-period pointwise interval for a prespecified regime under
+/// Calibrated two- or three-period pointwise interval for a prespecified regime under
 /// known randomization and genuinely subject-excluded Q predictions. The
 /// caller must establish those ownership conditions; this kernel can check
 /// only the score and support inputs. The support floor is deliberately
@@ -139,10 +139,18 @@ pub fn sequential_dr_pointwise_interval_95(
     observed_subjects: usize, observed_matching_subjects: usize,
 ) -> Option<(f64, [f64; 2])> {
     let n = scores.len();
-    if periods != 2 || n < 300 || observed_subjects < 200
-        || observed_matching_subjects < 50
-        || summary.minimum_action_probability < 0.4
-        || summary.minimum_censoring_probability < 0.85
+    let supported = match periods {
+        2 => n >= 300 && observed_subjects >= 200
+            && observed_matching_subjects >= 50
+            && summary.minimum_action_probability >= 0.4
+            && summary.minimum_censoring_probability >= 0.85,
+        3 => n >= 800 && observed_subjects >= 600
+            && observed_matching_subjects >= 60
+            && summary.minimum_action_probability >= 0.5
+            && summary.minimum_censoring_probability >= 0.9,
+        _ => false,
+    };
+    if !supported
         || scores.iter().any(|score| !score.is_finite())
     { return None; }
     let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
@@ -356,6 +364,122 @@ pub fn evaluate_regime_value(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn three_period_sequential_dr_interval_covers_randomized_truth() {
+        let n = 800;
+        let simulations = 2_000;
+        let mut state = 0x87A4_12CD_95EF_3B60_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let actions = vec![true; n * 3];
+        let q = (0..n).flat_map(|_| [4.4, 4.7, 5.1]).collect::<Vec<_>>();
+        let p = vec![0.5; n * 3];
+        let c = vec![0.95; n * 3];
+        let mut accepted = 0;
+        let mut covered = 0;
+        for _ in 0..simulations {
+            let mut treatment = Vec::with_capacity(n * 3);
+            let mut history = Vec::with_capacity(n * 3);
+            let mut observed = Vec::with_capacity(n);
+            let mut outcomes = Vec::with_capacity(n);
+            let mut matched = 0;
+            let mut observed_count = 0;
+            for _ in 0..n {
+                let a = [uniform() < 0.5, uniform() < 0.5, uniform() < 0.5];
+                let o0 = uniform() < 0.95;
+                let o1 = o0 && uniform() < 0.95;
+                let o2 = o1 && uniform() < 0.95;
+                treatment.extend(a);
+                history.extend([o0, o1, o2]);
+                observed.push(o2);
+                observed_count += usize::from(o2);
+                matched += usize::from(o2 && a.iter().all(|&action| action));
+                outcomes.push(2.0 + a.iter().map(|&action| f64::from(action)).sum::<f64>()
+                    + 2.0 * (uniform() - 0.5));
+            }
+            let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
+                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 3, 0.01,
+            ).unwrap();
+            if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
+                &summary, &scores, 3, observed_count, matched,
+            ) {
+                accepted += 1;
+                covered += usize::from(bounds[0] <= 5.0 && 5.0 <= bounds[1]);
+            }
+        }
+        assert!(accepted >= 1_800, "three-period support: {accepted}/{simulations}");
+        let coverage = covered as f64 / accepted as f64;
+        println!("three-period sequential DR: accepted={accepted}, coverage={coverage}");
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / accepted as f64).sqrt());
+    }
+
+    #[test]
+    fn three_period_excluded_fold_q_interval_covers_randomized_truth() {
+        let n = 800;
+        let simulations = 2_000;
+        let mut state = 0xA83D_91E4_57C0_2FB6_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let actions = vec![true; n * 3];
+        let p = vec![0.5; n * 3];
+        let c = vec![0.95; n * 3];
+        let mut accepted = 0;
+        let mut covered = 0;
+        for _ in 0..simulations {
+            let mut treatment = Vec::with_capacity(n * 3);
+            let mut history = Vec::with_capacity(n * 3);
+            let mut observed = Vec::with_capacity(n);
+            let mut outcomes = Vec::with_capacity(n);
+            for _ in 0..n {
+                let a = [uniform() < 0.5, uniform() < 0.5, uniform() < 0.5];
+                let o0 = uniform() < 0.95;
+                let o1 = o0 && uniform() < 0.95;
+                let o2 = o1 && uniform() < 0.95;
+                treatment.extend(a);
+                history.extend([o0, o1, o2]);
+                observed.push(o2);
+                outcomes.push(2.0 + a.iter().map(|&action| f64::from(action)).sum::<f64>()
+                    + 2.0 * (uniform() - 0.5));
+            }
+            let mut q = vec![0.0; n * 3];
+            for fold in 0..5 {
+                let (sum, count) = (0..n).filter(|&i| i % 5 != fold && observed[i]
+                    && treatment[3 * i..3 * i + 3].iter().all(|&a| a))
+                    .fold((0.0, 0_usize), |(sum, count), i| (sum + outcomes[i], count + 1));
+                assert!(count >= 40, "excluded-fold training support");
+                let prediction = sum / count as f64;
+                for i in (fold..n).step_by(5) {
+                    q[3 * i..3 * i + 3].fill(prediction);
+                }
+            }
+            let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
+                &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 3, 0.01,
+            ).unwrap();
+            let matched = (0..n).filter(|&i| observed[i]
+                && treatment[3 * i..3 * i + 3].iter().all(|&a| a)).count();
+            if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
+                &summary, &scores, 3, observed.iter().filter(|&&x| x).count(), matched,
+            ) {
+                accepted += 1;
+                covered += usize::from(bounds[0] <= 5.0 && 5.0 <= bounds[1]);
+            }
+        }
+        assert!(accepted >= 1_800, "three-period excluded-fold support: {accepted}/{simulations}");
+        let coverage = covered as f64 / accepted as f64;
+        println!("three-period excluded-fold Q sequential DR: accepted={accepted}, coverage={coverage}");
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / accepted as f64).sqrt());
+    }
 
     #[test]
     fn fixed_exogenous_q_sequential_dr_subject_scores_cover_randomized_truth() {
