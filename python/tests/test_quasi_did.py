@@ -357,6 +357,7 @@ def test_staggered_event_study_runs_through_retained_analyze_with_direct_parity(
     assert result.panel_did.support_status == "unlicensed_point_utility"
     assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.panel_did.diagnostics
     assert antecedent.analyze(data, query=query).panel_did == direct
+    assert estimate_staggered_event_study(data, query) == direct
     assert prepared.estimate({**data, "y": [value + 1 for value in outcomes]}).panel_did == direct
     with pytest.raises(Exception, match="never-treated"):
         antecedent.analyze({**data, "cohort": [3] * len(cohorts)}, query=query)
