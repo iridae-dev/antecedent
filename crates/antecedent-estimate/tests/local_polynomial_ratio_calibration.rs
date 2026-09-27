@@ -5,7 +5,7 @@ use antecedent_core::CausalRng;
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 use antecedent_kernels::standard_normal;
 
-const REPLICATIONS: usize = 1_000;
+const REPLICATIONS: usize = 2_000;
 const TRUTH: f64 = 2.0;
 
 fn coverage(kink: bool) -> (usize, usize) {
@@ -46,7 +46,7 @@ fn fuzzy_rd_bias_corrected_normal_interval_has_nominal_95_coverage() {
     let (accepted, covered) = coverage(false);
     let rate = covered as f64 / accepted as f64;
     eprintln!("fuzzy RD: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
-    assert!(accepted >= 950, "weak-stage refusal rate exceeded the fixture boundary");
+    assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
     assert!((0.925..=0.975).contains(&rate), "fuzzy RD coverage {rate:.4}");
 }
 
@@ -55,6 +55,6 @@ fn regression_kink_bias_corrected_normal_interval_has_nominal_95_coverage() {
     let (accepted, covered) = coverage(true);
     let rate = covered as f64 / accepted as f64;
     eprintln!("regression kink: {covered}/{accepted} = {rate:.4} coverage at nominal 0.95");
-    assert!(accepted >= 950, "weak-stage refusal rate exceeded the fixture boundary");
+    assert!(accepted >= 1_900, "weak-stage refusal rate exceeded the fixture boundary");
     assert!((0.925..=0.975).contains(&rate), "regression-kink coverage {rate:.4}");
 }
