@@ -307,6 +307,8 @@ _EXPECTED_STAGE_ALL = {
         "ProviderRegistry",
         "ProviderResult",
         "ProviderQuery",
+        "ProviderVerificationFixture",
+        "ProviderVerificationReport",
         "UtilityFn",
         "providers",
     },
