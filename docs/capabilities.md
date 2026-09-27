@@ -633,8 +633,10 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   exposure mappings, and reports exposed-unit and cluster counts, probability
   bounds, and a descriptive cluster-robust variance. The direct utility and
   retained analysis share the native estimator. Neither the propensities nor
-  network exchangeability are verified by the library; the result is off-axis
-  and has no licensed interval.
+  network exchangeability are verified by the library. With known fixed
+  propensities and the documented cluster support gates, the retained result
+  reports a calibrated pointwise cluster interval while remaining off-axis;
+  externally fitted propensities retain a point and labeled variance only.
   `interference.estimate` remains an unlicensed utility over every design and
   exposure mapping; it returns bare numbers.
 * **Randomized experiment ITT** (`antecedent.experiment`): `ExperimentDesign`
@@ -678,13 +680,19 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   sequence and period labels, known marginal assignment probabilities, and
   a sequence-clustered sandwich variance. It requires two independent
   sequences with both arms observed, assumes no carryover and no interference
-  between sequences, and reports no interval. These design queries are off
-  the graphless license table; these results report `evidence_status="off_axis"`.
+  between sequences, and reports no interval. Switchback results are off
+  the graphless license table and report `evidence_status="off_axis"`.
   `experiment.ComplierEffect` uses the same retained randomized study path
   for independent Bernoulli encouragement with row-aligned treatment receipt.
   It reports the outcome ITT, positive receipt first stage, Wald CACE/LATE,
   and independent-unit influence variance under exclusion and monotonicity;
   it refuses zero or negative first stages and publishes no interval.
+  `experiment.TreatmentOnTreated` is a distinct recipient-target query for
+  one-sided Bernoulli encouragement. It requires observed zero receipt among
+  controls and declared counterfactual one-sidedness and exclusion. Under
+  those assumptions recipients are compliers, so its Wald point matches the
+  corresponding CACE; it reports independent-unit influence variance but no
+  interval or graphless license. Two-sided receipt is refused.
   `experiment.FactorialRandomization` carries a fixed four-cell 2×2 design
   through the same retained `RandomizedEffect` route. It requires at least two
   units per cell and reports both marginal main effects and their interaction
