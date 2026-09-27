@@ -327,7 +327,7 @@ _EXPECTED_STAGE_ALL = {
     },
     "policy": {
         "BinaryPolicy", "ConditionalDoseResponseEstimate", "ConditionalDoseResponsePoint",
-        "DoublyRobustPolicyEvaluation", "MultiActionPolicy", "PolicyEvaluation", "UpliftBin",
+        "DoublyRobustPolicyEvaluation", "MultiActionPolicy", "MultiActionPolicyValue", "PolicyEvaluation", "UpliftBin",
         "estimate_continuous_dose_response", "evaluate_policy_doubly_robust",
         "evaluate_multi_action_policy", "evaluate_policy", "uplift_by_score",
     },
