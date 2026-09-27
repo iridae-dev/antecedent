@@ -3275,6 +3275,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             effect: bin.effect,
             standard_error: bin.standard_error,
             evaluation_rows: bin.evaluation_rows,
+            interval_95: bin.interval_95,
         }).collect(),
         multi_action_cate: policy.multi_action_cate.iter().map(|point| antecedent_io::analysis_result_artifact::MultiActionCateWire {
             group: point.group.clone(), action: point.action.clone(), effect: point.effect,

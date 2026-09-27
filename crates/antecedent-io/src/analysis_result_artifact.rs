@@ -460,7 +460,7 @@ pub struct MultiActionCateWire {
     pub observed_control_rows: usize,
 }
 
-/// One retained uplift bin with descriptive row-score uncertainty.
+/// One retained held-out randomized uplift bin.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UpliftBinWire {
@@ -468,10 +468,13 @@ pub struct UpliftBinWire {
     pub rank: usize,
     /// Randomized inverse-probability contrast.
     pub effect: f64,
-    /// Independent-subject row-score standard error, without an interval claim.
+    /// Independent-subject row-score standard error.
     pub standard_error: f64,
     /// Evaluation subjects in the bin.
     pub evaluation_rows: usize,
+    /// Pointwise 95% interval when fixed-rank and observed assignment support pass.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_95: Option<[f64; 2]>,
 }
 
 /// Panel DiD result section; uncertainty is an SE only and carries no interval claim.
@@ -1808,6 +1811,35 @@ fn validate_result(
             return Err(IoError::Convert(
                 "invalid policy-value payload or fabricated scalar effect".into(),
             ));
+        }
+        let crate::CausalQueryWire::PolicyValue(query) = &result.query else {
+            return Err(IoError::Convert("policy uplift bins require a policy-value query".into()));
+        };
+        if policy.uplift_bins.len() != query.uplift_bin_count
+            || (!query.uplift_bins.is_empty() && query.uplift_bins.len() != query.assignment.len())
+            || policy.uplift_bins.iter().enumerate().any(|(rank, bin)| {
+                let rows = query.uplift_bins.iter().enumerate()
+                    .filter(|&(_, &group)| group == rank).collect::<Vec<_>>();
+                let treated = rows.iter().filter(|&&(i, _)| query.assignment[i]).count();
+                let controls = rows.len() - treated;
+                let interval_valid = bin.interval_95.is_none_or(|bounds| {
+                    let span = z * bin.standard_error;
+                    let tolerance = 1e-10 * (1.0 + bin.effect.abs() + span.abs());
+                    rows.len() >= 300 && treated >= 50 && controls >= 50
+                        && !query.uplift_training_subject_ids.is_empty()
+                        && query.uplift_training_subject_ids.iter()
+                            .all(|id| !query.evaluation_subject_ids.contains(id))
+                        && bin.standard_error > 0.0
+                        && bounds.iter().all(|value| value.is_finite())
+                        && (bounds[0] - (bin.effect - span)).abs() <= tolerance
+                        && (bounds[1] - (bin.effect + span)).abs() <= tolerance
+                });
+                bin.rank != rank || bin.evaluation_rows != rows.len()
+                    || !bin.effect.is_finite() || !bin.standard_error.is_finite()
+                    || bin.standard_error < 0.0 || !interval_valid
+            })
+        {
+            return Err(IoError::Convert("invalid policy uplift-bin support or interval".into()));
         }
     }
     if let Some(did) = &result.panel_did {

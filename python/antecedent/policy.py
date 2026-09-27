@@ -410,11 +410,12 @@ class MultiActionCatePoint:
 
 @dataclass(frozen=True, slots=True)
 class UpliftBin:
-    """Held-out randomized uplift; standard_error assumes independent subjects."""
+    """Held-out randomized uplift for one fixed descending score bin."""
     rank: int
     effect: float
     standard_error: float
     evaluation_rows: int
+    interval_95: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)

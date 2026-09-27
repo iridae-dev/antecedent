@@ -600,7 +600,10 @@ def _survival_from_raw(
         if fixed_g else ("independent_right_censoring_within_arm",)
     )
     if getattr(query, "delayed_entry", None) is not None:
-        observation_assumptions += ("independent_delayed_entry_within_arm",)
+        observation_assumptions += (
+            "marginal_independent_delayed_entry_and_censoring_within_arm"
+            if fixed_g else "independent_delayed_entry_within_arm",
+        )
     provenance = section.censoring_survival_provenance
     support_status = (
         "unlicensed_simultaneous_band" if difference_band is not None else
@@ -713,12 +716,13 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         policy_value_interval_95=section.policy_interval_95,
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=("off_axis_pointwise_95" if section.policy_interval_95 is not None
+                        or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
                         else "unlicensed_point_utility"),
         prediction_ownership=section.prediction_ownership,
         propensity_min=section.propensity_min,
         propensity_max=section.propensity_max,
-        uplift_bins=tuple(UpliftBin(int(rank), float(effect), float(se), int(rows))
-                          for rank, effect, se, rows in section.uplift_bins),
+        uplift_bins=tuple(UpliftBin(int(rank), float(effect), float(se), int(rows), interval)
+                          for rank, effect, se, rows, interval in section.uplift_bins),
         multi_action_cate=tuple(MultiActionCatePoint(group, action, float(effect), int(rows), int(action_rows), int(control_rows))
                                 for group, action, effect, rows, action_rows, control_rows in section.multi_action_cate),
         uncertainty=section.uncertainty,
@@ -761,7 +765,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
                 "nuisance predictions and randomization claims are not independently authenticated",
             ))
             + ((
-                "uplift bin row-score standard errors assume independent evaluation subjects; no interval coverage is licensed",
+                "uplift-bin pointwise 95% intervals require at least 300 independent evaluation subjects and 50 observed treated and control subjects per bin",
                 "ranking-model ownership is checked from caller-supplied subject IDs only",
             ) if section.uplift_bins else ())
             + ((
