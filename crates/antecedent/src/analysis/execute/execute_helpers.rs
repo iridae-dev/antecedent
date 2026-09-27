@@ -52,6 +52,7 @@ pub(super) enum AnalysisRoute {
     RandomizedEffect,
     PolicyValue,
     PanelDid,
+    SyntheticControl,
     Survival,
     LongitudinalRegime,
 }
@@ -122,6 +123,7 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         }
         (DataModality::Tabular, CausalQuery::PolicyValue(_)) => AnalysisRoute::PolicyValue,
         (DataModality::Tabular, CausalQuery::PanelDid(_)) => AnalysisRoute::PanelDid,
+        (DataModality::Tabular, CausalQuery::SyntheticControl(_)) => AnalysisRoute::SyntheticControl,
         (DataModality::Tabular, CausalQuery::Survival(_)) => AnalysisRoute::Survival,
         (DataModality::Tabular, CausalQuery::LongitudinalRegime(_)) => AnalysisRoute::LongitudinalRegime,
         _ => return None,

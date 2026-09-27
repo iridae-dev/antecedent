@@ -1133,6 +1133,9 @@ pub(crate) struct AteAnalysisResult {
     /// Balanced two-period panel DiD estimate and cluster standard error.
     #[pyo3(get)]
     panel_did: Option<quasi_api::PanelDidSection>,
+    /// Synthetic-control point result and donor-support diagnostics.
+    #[pyo3(get)]
+    synthetic_control: Option<quasi_api::SyntheticControlSection>,
     /// Randomized survival or competing-risk curves with no interval claim.
     #[pyo3(get)]
     survival: Option<survival_api::SurvivalSection>,

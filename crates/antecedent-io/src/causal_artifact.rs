@@ -622,6 +622,16 @@ pub(crate) fn validate_query_ids(
             validate_id(wire.event, variable_count)?;
             validate_id(wire.treatment, variable_count)?;
             if let Some(entry) = wire.delayed_entry {
+        Q::SyntheticControl(wire) => {
+            validate_ids([wire.outcome], variable_count)?;
+            antecedent_core::SyntheticControlQuery::new(
+                antecedent_core::VariableId::from_raw(wire.outcome),
+                wire.units.iter().map(|unit| std::sync::Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
+                wire.periods.clone(),
+                std::sync::Arc::<str>::from(wire.treated_unit.as_str()),
+                wire.intervention_period,
+            ).validate().map_err(|error| IoError::Convert(error.to_string()))
+        }
                 validate_id(entry, variable_count)?;
             }
             if !wire.independent_observation {

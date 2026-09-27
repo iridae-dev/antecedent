@@ -211,6 +211,7 @@ class AteAnalysisResult:
     interference: InterferenceSection | None
     randomized_effect: RandomizedEffectSection | None
     panel_did: PanelDidSection | None
+    synthetic_control: SyntheticControlSection | None
     survival: SurvivalSection | None
     longitudinal_regime: LongitudinalRegimeSection | None
     policy_value: PolicyValueSection | None
@@ -368,6 +369,17 @@ class PanelDidSection:
     uncertainty: str
 
 class SurvivalSection:
+class SyntheticControlSection:
+    effect: float
+    pre_treatment_rmse: float
+    donor_weights: list[tuple[str, float]]
+    placebo_effects: list[float]
+    placebo_rank: float
+    effective_donors: float
+    n_pre_periods: int
+    n_post_periods: int
+    uncertainty: str
+
     times: list[float]
     control: list[float]
     treated: list[float]
@@ -1212,6 +1224,14 @@ class PreparedAnalysis:
     @staticmethod
     def prepare_survival(
         names: list[str], columns: Sequence[Any], duration: str, event: str,
+    def prepare_synthetic_control(
+        names: list[str], columns: Sequence[Any], outcome: str,
+        units: list[str], periods: list[int], treated_unit: str,
+        intervention_period: int, *, accepted: bool = False,
+        seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
         treatment: str, tau: float, target_cause: int | None = None,
         delayed_entry: str | None = None, *, accepted: bool = False,
         seed: int = 1, threads: int | None = None,

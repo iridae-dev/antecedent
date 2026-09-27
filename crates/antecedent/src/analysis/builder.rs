@@ -1368,6 +1368,7 @@ impl StudyBuilder {
                         CausalQuery::RandomizedEffect(_)
                             | CausalQuery::PolicyValue(_)
                             | CausalQuery::PanelDid(_)
+                            | CausalQuery::SyntheticControl(_)
                             | CausalQuery::Survival(_)
                             | CausalQuery::LongitudinalRegime(_)
                     )
@@ -1439,6 +1440,7 @@ impl StudyBuilder {
             CausalQuery::RandomizedEffect(_)
                 | CausalQuery::PolicyValue(_)
                 | CausalQuery::PanelDid(_)
+                | CausalQuery::SyntheticControl(_)
                 | CausalQuery::Survival(_)
                 | CausalQuery::LongitudinalRegime(_)
         ) {

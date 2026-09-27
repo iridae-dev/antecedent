@@ -972,7 +972,8 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if self.policy_value.is_some()
+        let calibration = if self.synthetic_control.is_some()
+            || self.policy_value.is_some()
             || self.survival.is_some()
             || self.longitudinal_regime.is_some()
         {
@@ -3250,6 +3251,17 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             comparison_subjects: did.comparison_subjects,
             clusters: did.clusters,
             uncertainty: did.uncertainty.to_string(),
+        }),
+        synthetic_control: result.synthetic_control.as_ref().map(|fit| antecedent_io::SyntheticControlWire {
+            effect: fit.effect,
+            pre_treatment_rmse: fit.pre_treatment_rmse,
+            donor_weights: fit.donor_weights.iter().map(|(unit, weight)| (unit.to_string(), *weight)).collect(),
+            placebo_effects: fit.placebo_effects.to_vec(),
+            placebo_rank: fit.placebo_rank,
+            effective_donors: fit.effective_donors,
+            n_pre_periods: fit.n_pre_periods,
+            n_post_periods: fit.n_post_periods,
+            uncertainty: fit.uncertainty.to_string(),
         }),
         survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {
             times: survival.times.to_vec(),

@@ -300,6 +300,7 @@ mod bayesian_specialist_path;
 mod checked_bayesian_static_mediation;
 mod checked_interference;
 mod checked_panel_did;
+mod checked_synthetic_control;
 mod checked_randomized;
 mod checked_static_mediation;
 mod checked_survival;
@@ -313,6 +314,7 @@ pub use checked_cell_aipw_response::DagResponseOrigin;
 pub(crate) use checked_interference::CheckedInterferenceOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_identification;
+pub(crate) use checked_synthetic_control::{CheckedSyntheticControlOperation, synthetic_control_identification};
 pub(crate) use checked_randomized::{
     CheckedPolicyValueOperation, CheckedRandomizedOperation, randomized_identification,
 };

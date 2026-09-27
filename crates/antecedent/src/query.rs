@@ -9,6 +9,7 @@ pub use antecedent_core::{
     InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
     LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast, MediationQuery,
     OutcomeFunctional, PanelDidQuery,
+    SyntheticControlQuery,
     PathSpecificEffectQuery, RandomizationDesign, RandomizedEffectQuery, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, TemporalEffectQuery,
     TemporalPolicy, TemporalResponseSpec, TransportQuery, UnitChangeQuery,

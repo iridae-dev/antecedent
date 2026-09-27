@@ -3726,6 +3726,7 @@ mod tests {
             estimate: Some(2.0),
             policy_value: None,
             panel_did: None,
+            synthetic_control: None,
             survival: None,
             longitudinal_regime: None,
             interventional_distribution: None,

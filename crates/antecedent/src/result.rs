@@ -115,6 +115,29 @@ pub struct PanelDidEstimate {
 /// Point value of a prespecified treatment regime over subject histories.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LongitudinalRegimeEstimate {
+/// Balanced-panel synthetic-control point result and donor-support diagnostics.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyntheticControlEstimate {
+    /// Average treated-minus-synthetic post-intervention outcome.
+    pub effect: f64,
+    /// Pre-intervention root mean squared fit gap.
+    pub pre_treatment_rmse: f64,
+    /// Donor weights in stable unit-name order.
+    pub donor_weights: Arc<[(Arc<str>, f64)]>,
+    /// Leave-one-donor-out placebo effects, corresponding to donor order.
+    pub placebo_effects: Arc<[f64]>,
+    /// Descriptive placebo rank without a calibrated p-value claim.
+    pub placebo_rank: f64,
+    /// Effective donor count, the reciprocal of summed squared weights.
+    pub effective_donors: f64,
+    /// Observed pre-intervention periods.
+    pub n_pre_periods: usize,
+    /// Observed post-intervention periods.
+    pub n_post_periods: usize,
+    /// Explicit uncertainty semantics.
+    pub uncertainty: Arc<str>,
+}
+
     /// Horvitz--Thompson mean over all enrolled subjects.
     pub value: f64,
     /// Effective sample size of observed matching histories.
@@ -421,6 +444,8 @@ pub struct StudyResult {
     /// Held-out doubly robust policy evaluation; never an ATE.
     pub policy_value: Option<PolicyValueEstimate>,
     /// Randomized right-censored survival or competing-risk curve.
+    /// Synthetic-control point result with donor and placebo diagnostics.
+    pub synthetic_control: Option<SyntheticControlEstimate>,
     pub survival: Option<SurvivalEstimate>,
     /// Prespecified longitudinal regime value.
     pub longitudinal_regime: Option<LongitudinalRegimeEstimate>,
