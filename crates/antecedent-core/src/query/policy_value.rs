@@ -40,6 +40,21 @@ pub struct MultiActionPolicyInputs {
 }
 
 impl MultiActionPolicyInputs {
+    /// Whether capacities or budgets can couple recommendations across rows.
+    /// An unconstraining declared limit is harmless to row-score inference.
+    pub fn global_constraints_couple_rows(&self) -> bool {
+        let n = self.assignment.len();
+        [(&self.capacities, &self.costs, self.budget),
+         (&self.reference_capacities, &self.reference_costs, self.reference_budget)]
+            .into_iter().any(|(capacities, costs, budget)| {
+                capacities.iter().any(|&limit| limit < n)
+                    || budget.is_some_and(|limit| {
+                        let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
+                        limit + 1e-12 < n as f64 * maximum_cost
+                    })
+            })
+    }
+
     /// Validate action support, probability rows, availability, and constraints.
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.assignment.len();
@@ -115,6 +130,9 @@ pub struct PolicyValueQuery {
     pub disjoint_training_subjects: bool,
     /// Whether fold IDs match the prediction-excluded fold IDs.
     pub crossfit_fold_ownership_valid: bool,
+    /// A global capacity or budget selected recommendations jointly across
+    /// evaluation rows; row-score pointwise intervals are withheld.
+    pub global_constraints_present: bool,
     /// Multi-action randomized IPW inputs; binary fields are empty when present.
     pub multi_action: Option<MultiActionPolicyInputs>,
     /// Frozen descending-score rank bin for each binary evaluation row.
@@ -132,7 +150,8 @@ impl PolicyValueQuery {
             if !self.assignment.is_empty() || !self.propensity.is_empty() || !self.actions.is_empty()
                 || !self.reference.is_empty() || !self.mu0.is_empty() || !self.mu1.is_empty()
                 || !self.costs.is_empty() || !self.reference_costs.is_empty()
-                || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid
+            || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid
+                || self.global_constraints_present
                 || !self.uplift_bins.is_empty() || self.uplift_bin_count != 0
                 || !self.uplift_training_subject_ids.is_empty()
                 || self.evaluation_subject_ids.len() != multi.assignment.len()
@@ -225,6 +244,7 @@ mod tests {
             evaluation_subject_ids: Arc::from([Arc::<str>::from("a"), Arc::<str>::from("b")]),
             disjoint_training_subjects: true,
             crossfit_fold_ownership_valid: false,
+            global_constraints_present: false,
             multi_action: None,
             uplift_bins: Arc::from([]),
             uplift_bin_count: 0,

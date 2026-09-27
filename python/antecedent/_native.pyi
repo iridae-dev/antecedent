@@ -1400,6 +1400,7 @@ class PreparedAnalysis:
         uplift_bins: list[int] = ...,
         uplift_bin_count: int = 0,
         uplift_training_subject_ids: list[str] = ...,
+        global_constraints_present: bool = False,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

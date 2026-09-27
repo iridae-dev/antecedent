@@ -2831,6 +2831,8 @@ class _PrepareRoute:
             uplift_bins=uplift_bin_ids,
             uplift_bin_count=query.uplift_bin_count,
             uplift_training_subject_ids=list(query.uplift_training_subject_ids or ()),
+            global_constraints_present=(query.policy.capacity is not None or query.policy.budget is not None
+                                        or reference.capacity is not None or reference.budget is not None),
             accepted=self.accepted, **self._common(),
         )
         return native, "average"

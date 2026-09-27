@@ -985,6 +985,9 @@ pub struct PolicyValueQueryWire {
     pub disjoint_training_subjects: bool,
     /// Excluded-fold ownership declaration.
     pub crossfit_fold_ownership_valid: bool,
+    /// Whether globally coupled capacity or budget selection was used.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub global_constraints_present: bool,
     /// Multi-action randomized IPW inputs, absent for binary policies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub multi_action: Option<MultiActionPolicyInputsWire>,
@@ -1823,6 +1826,7 @@ pub fn causal_query_to_wire_with_registry(
                 .collect(),
             disjoint_training_subjects: q.disjoint_training_subjects,
             crossfit_fold_ownership_valid: q.crossfit_fold_ownership_valid,
+            global_constraints_present: q.global_constraints_present,
             multi_action: q.multi_action.as_ref().map(Into::into),
             uplift_bins: q.uplift_bins.to_vec(),
             uplift_bin_count: q.uplift_bin_count,
@@ -2224,6 +2228,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     .into(),
                 disjoint_training_subjects: w.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
+                global_constraints_present: w.global_constraints_present,
                 multi_action: w.multi_action.as_ref().map(Into::into),
                 uplift_bins: w.uplift_bins.clone().into(),
                 uplift_bin_count: w.uplift_bin_count,
@@ -2879,6 +2884,7 @@ mod tests {
             evaluation_subject_ids: Arc::from([Arc::<str>::from("s0"), Arc::<str>::from("s1")]),
             disjoint_training_subjects: true,
             crossfit_fold_ownership_valid: false,
+            global_constraints_present: false,
             multi_action: None,
             uplift_bins: Arc::from([]),
             uplift_bin_count: 0,

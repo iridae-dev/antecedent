@@ -332,3 +332,11 @@ def test_retained_held_out_policy_intervals_and_crossfit_refusal():
     assert point_only.policy_value_interval_95 is None
     assert point_only.incremental_value_interval_95 is None
     assert point_only.support_status == "unlicensed_point_utility"
+
+    constrained = policy.PolicyValue(
+        **dict(common, policy=policy.BinaryPolicy(actions, costs=0.1, capacity=sum(actions))),
+        training_subject_ids=["train-1", "train-2"],
+    )
+    constrained_result = ant.analyze({"y": y}, query=constrained, refute="none").policy_value
+    assert constrained_result.policy_value_interval_95 is None
+    assert constrained_result.incremental_value_interval_95 is None

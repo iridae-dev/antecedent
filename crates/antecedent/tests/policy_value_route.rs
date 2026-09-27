@@ -21,6 +21,7 @@ fn query() -> PolicyValueQuery {
         evaluation_subject_ids: Arc::from(["a", "b", "c", "d"].map(Arc::<str>::from)),
         disjoint_training_subjects: true,
         crossfit_fold_ownership_valid: false,
+        global_constraints_present: false,
         multi_action: None,
         uplift_bins: Arc::from([]),
         uplift_bin_count: 0,
@@ -131,6 +132,18 @@ fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only()
     let point_only = crossfit_result.policy_value.unwrap();
     assert!(point_only.policy_interval_95.is_none());
     assert!(point_only.incremental_interval_95.is_none());
+
+    let mut constrained_query = query();
+    constrained_query.assignment = (0..n).map(|i| i % 2 == 1).collect::<Vec<_>>().into();
+    constrained_query.actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>().into();
+    constrained_query.reference = vec![false; n].into();
+    constrained_query.mu0 = vec![1.0; n].into();
+    constrained_query.mu1 = vec![3.0; n].into();
+    constrained_query.evaluation_subject_ids = (0..n).map(|i| Arc::<str>::from(format!("evaluation-{i}"))).collect::<Vec<_>>().into();
+    constrained_query.global_constraints_present = true;
+    let constrained = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(constrained_query)).build().unwrap();
+    let constrained_result = constrained.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    assert!(constrained_result.policy_value.unwrap().policy_interval_95.is_none());
 }
 
 #[test]
