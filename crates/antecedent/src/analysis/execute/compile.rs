@@ -613,6 +613,8 @@ impl super::Study {
                                     "randomized.wald_cace_late"
                                 } else if q.fixed_cuped.is_some() {
                                     "randomized.fixed_cuped_ht_itt"
+                                } else if !q.ancova_covariates.is_empty() {
+                                    "randomized.ancova_itt"
                                 } else {
                                     "randomized.ht_itt"
                                 }
@@ -809,6 +811,9 @@ impl super::Study {
                             antecedent_core::LongitudinalRegimeMethod::GFormula => {
                                 "longitudinal.g_formula_regime"
                             }
+                            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                                "longitudinal.sequential_dr_regime"
+                            }
                         }),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
@@ -820,6 +825,9 @@ impl super::Study {
                             }
                             antecedent_core::LongitudinalRegimeMethod::GFormula => {
                                 "longitudinal.g_formula_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                                "longitudinal.sequential_dr_regime"
                             }
                         })),
                         validation_suite: self.validation_suite_id(),

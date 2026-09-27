@@ -797,6 +797,15 @@ pub struct LongitudinalRegimeQueryWire {
     /// Caller-supplied conditional period rewards for g-formula.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_outcome_predictions: Vec<f64>,
+    /// Subject-major conditional Q scores for sequential augmentation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub q_predictions: Vec<f64>,
+    /// Subject-major monotone observation history.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observation_history: Vec<bool>,
+    /// Fold ownership of each subject's Q trajectory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prediction_fold_ids: Vec<u32>,
     /// Decisions per subject.
     pub periods: usize,
     /// Observed treatment history, subject-major.
@@ -1823,12 +1832,16 @@ pub fn causal_query_to_wire_with_registry(
                 method: match q.method {
                     antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
                     antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
                 }
                 .into(),
                 period_outcome_predictions: q
                     .period_outcome_predictions
                     .as_ref()
                     .map_or_else(Vec::new, |q| q.to_vec()),
+                q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
+                observation_history: q.observation_history.as_ref().map_or_else(Vec::new, |o| o.to_vec()),
+                prediction_fold_ids: q.prediction_fold_ids.as_ref().map_or_else(Vec::new, |f| f.to_vec()),
                 periods: q.periods,
                 treatment_history: q.treatment_history.to_vec(),
                 regime_actions: q.regime_actions.to_vec(),
@@ -2224,6 +2237,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             let method = match w.method.as_str() {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
                 _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
             };
             let q = antecedent_core::LongitudinalRegimeQuery {
@@ -2235,6 +2249,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 } else {
                     Some(w.period_outcome_predictions.clone().into())
                 },
+                q_predictions: if w.q_predictions.is_empty() { None } else { Some(w.q_predictions.clone().into()) },
+                observation_history: if w.observation_history.is_empty() { None } else { Some(w.observation_history.clone().into()) },
+                prediction_fold_ids: if w.prediction_fold_ids.is_empty() { None } else { Some(w.prediction_fold_ids.clone().into()) },
                 treatment_history: w.treatment_history.clone().into(),
                 regime_actions: w.regime_actions.clone().into(),
                 treatment_probabilities: w.treatment_probabilities.clone().into(),

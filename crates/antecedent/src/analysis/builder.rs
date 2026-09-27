@@ -1514,6 +1514,9 @@ impl StudyBuilder {
                     antecedent_core::LongitudinalRegimeMethod::GFormula => {
                         EstimatorId::LongitudinalGFormulaRegime
                     }
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                        EstimatorId::LongitudinalSequentialDrRegime
+                    }
                 };
                 if self.estimator.is_some_and(|id| id != expected) {
                     return Err(CausalError::Unsupported {

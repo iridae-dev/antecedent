@@ -453,73 +453,18 @@ fn evaluate_sequential_doubly_robust(
         ));
     }
 
-    let mut total = 0.0;
-    let mut minimum_action_probability: f64 = 1.0;
-    let mut minimum_censoring_probability: f64 = 1.0;
-    for i in 0..n {
-        if observed_y[i] && !y[i].is_finite() {
-            return Err(PyValueError::new_err("observed terminal outcomes must be finite"));
-        }
-        if observed[[i, periods - 1]] != observed_y[i] {
-            return Err(PyValueError::new_err(
-                "terminal outcome observation must agree with the final observation-history period",
-            ));
-        }
-        for t in 1..periods {
-            if !observed[[i, t - 1]] && observed[[i, t]] {
-                return Err(PyValueError::new_err(
-                    "observation_history must be monotone after censoring or dropout",
-                ));
-            }
-        }
-        let mut next_value = if observed_y[i] { y[i] } else { 0.0 };
-        for t in (0..periods).rev() {
-            let q_value = q[[i, t]];
-            let probability_treated = p[[i, t]];
-            let censor_probability = g[[i, t]];
-            if !q_value.is_finite() {
-                return Err(PyValueError::new_err("q_prediction values must be finite"));
-            }
-            if !probability_treated.is_finite()
-                || probability_treated < minimum_probability
-                || probability_treated > 1.0 - minimum_probability
-            {
-                return Err(PyValueError::new_err(
-                    "sequential treatment positivity is violated at the declared probability floor",
-                ));
-            }
-            if !censor_probability.is_finite()
-                || censor_probability < minimum_probability
-                || censor_probability > 1.0
-            {
-                return Err(PyValueError::new_err(
-                    "sequential censoring positivity is violated at the declared probability floor",
-                ));
-            }
-            let action_probability =
-                if d[[i, t]] { probability_treated } else { 1.0 - probability_treated };
-            minimum_action_probability = minimum_action_probability.min(action_probability);
-            minimum_censoring_probability = minimum_censoring_probability.min(censor_probability);
-            if observed[[i, t]] && a[[i, t]] == d[[i, t]] {
-                next_value =
-                    q_value + (next_value - q_value) / (action_probability * censor_probability);
-            } else {
-                next_value = q_value;
-            }
-            if !next_value.is_finite() {
-                return Err(PyValueError::new_err(
-                    "sequential augmentation overflowed; raise the positivity floor or shorten the horizon",
-                ));
-            }
-        }
-        total += next_value;
-        if !total.is_finite() {
-            return Err(PyValueError::new_err(
-                "sequential augmented values overflowed across subjects",
-            ));
-        }
-    }
-    Ok((total / n as f64, n, minimum_action_probability, minimum_censoring_probability))
+    let summary = antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
+        &y.iter().copied().collect::<Vec<_>>(),
+        &observed_y.iter().copied().collect::<Vec<_>>(),
+        &observed.iter().copied().collect::<Vec<_>>(),
+        &a.iter().copied().collect::<Vec<_>>(),
+        &d.iter().copied().collect::<Vec<_>>(),
+        &q.iter().copied().collect::<Vec<_>>(),
+        &p.iter().copied().collect::<Vec<_>>(),
+        &g.iter().copied().collect::<Vec<_>>(),
+        periods, minimum_probability,
+    ).map_err(PyValueError::new_err)?;
+    Ok((summary.value, n, summary.minimum_action_probability, summary.minimum_censoring_probability))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

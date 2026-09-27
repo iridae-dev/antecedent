@@ -12,6 +12,8 @@ pub enum LongitudinalRegimeMethod {
     Ipw,
     /// Plug-in g-formula using supplied period reward predictions.
     GFormula,
+    /// Backward-recursive augmented value using supplied subject-owned Q scores.
+    SequentialDoublyRobust,
 }
 
 /// Prespecified binary static or history-dependent actions, resolved before
@@ -26,6 +28,12 @@ pub struct LongitudinalRegimeQuery {
     /// Prespecified conditional period rewards under the regime, subject-major.
     /// Required for g-formula and absent for IPW.
     pub period_outcome_predictions: Option<Arc<[f64]>>,
+    /// Period Q scores for sequential augmentation.
+    pub q_predictions: Option<Arc<[f64]>>,
+    /// Whether the subject remains observed at each decision.
+    pub observation_history: Option<Arc<[bool]>>,
+    /// Fold used to generate each subject's Q trajectory.
+    pub prediction_fold_ids: Option<Arc<[u32]>>,
     /// Number of treatment decisions per subject.
     pub periods: usize,
     /// Realized binary actions, flattened subject-major.
@@ -75,10 +83,29 @@ impl LongitudinalRegimeQuery {
             (LongitudinalRegimeMethod::Ipw, None) => {}
             (LongitudinalRegimeMethod::GFormula, Some(q))
                 if q.len() == cells && q.iter().all(|v| v.is_finite()) => {}
+            (LongitudinalRegimeMethod::SequentialDoublyRobust, None)
+                if self.q_predictions.as_ref().is_some_and(|q| q.len() == cells && q.iter().all(|v| v.is_finite()))
+                    && self.observation_history.as_ref().is_some_and(|o| o.len() == cells)
+                    && self.prediction_fold_ids.as_ref().is_some_and(|f| f.as_ref() == self.fold_ids.as_ref())
+                    && self.excluded_fold_predictions
+                    && self.fold_ids.iter().collect::<std::collections::HashSet<_>>().len() >= 2
+                    && self.outcome_observed.iter().any(|&x| x) => {}
             _ => return Err(QueryError::InvalidLongitudinalRegime(
-                "g-formula requires finite subject-period predictions; IPW does not accept them"
+                "method requires aligned finite predictions, observation history, and subject-owned folds"
                     .into(),
             )),
+        }
+        if self.method != LongitudinalRegimeMethod::SequentialDoublyRobust
+            && (self.q_predictions.is_some() || self.observation_history.is_some() || self.prediction_fold_ids.is_some()) {
+            return Err(QueryError::InvalidLongitudinalRegime("sequential DR fields require the sequential doubly robust method".into()));
+        }
+        if let Some(observed) = &self.observation_history {
+            for i in 0..n {
+                if observed[i * self.periods + self.periods - 1] != self.outcome_observed[i]
+                    || (1..self.periods).any(|t| !observed[i * self.periods + t - 1] && observed[i * self.periods + t]) {
+                    return Err(QueryError::InvalidLongitudinalRegime("observation history must be monotone and agree with endpoint observation".into()));
+                }
+            }
         }
         if self.subject_ids.iter().any(|id| id.trim().is_empty())
             || self.subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != n
@@ -125,6 +152,9 @@ mod tests {
             outcome: VariableId::from_raw(0),
             method: LongitudinalRegimeMethod::Ipw,
             period_outcome_predictions: None,
+            q_predictions: None,
+            observation_history: None,
+            prediction_fold_ids: None,
             periods: 2,
             treatment_history: Arc::from([true, true, false, false]),
             regime_actions: Arc::from([true, true, true, true]),
