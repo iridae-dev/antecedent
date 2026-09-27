@@ -71,20 +71,40 @@ fn retained_fuzzy_rd_recovers_truth_and_round_trips_calibrated_interval() {
     assert_eq!(body.standard_error, Some(fit.standard_error));
     assert!(body.local_polynomial_ratio.as_ref().unwrap().ci_lower.unwrap() < fit.effect);
     assert!(body.local_polynomial_ratio.as_ref().unwrap().ci_upper.unwrap() > fit.effect);
+    assert_eq!(body.local_polynomial_ratio.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
     let mut fabricated = body.clone();
     fabricated.local_polynomial_ratio.as_mut().unwrap().ci_lower = Some(2.0);
     assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names.clone(), "fabricated").is_err());
     let mut mismatched = body.clone();
     mismatched.local_polynomial_ratio.as_mut().unwrap().bandwidth = 0.5;
-    assert!(antecedent_io::encode_analysis_result_artifact(&mismatched, header.variable_names, "mismatched").is_err());
+    assert!(antecedent_io::encode_analysis_result_artifact(&mismatched, header.variable_names.clone(), "mismatched").is_err());
+    let mut forged_license = body.clone();
+    forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status = Some("allowed_unlicensed".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged_license, header.variable_names, "forged-license").is_err());
 }
 
 #[test]
-fn retained_regression_kink_recovers_truth_and_refuses_weak_first_stage() {
+fn retained_regression_kink_recovers_truth_and_round_trips_calibrated_interval() {
     let (data, query) = fixture(true);
     let ctx = ExecutionContext::for_tests(43);
-    let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
-    assert!((result.local_polynomial_ratio.as_ref().unwrap().effect - 3.0).abs() < 1e-7);
+    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.local_polynomial_ratio.as_ref().unwrap();
+    assert!((fit.effect - 3.0).abs() < 1e-7);
+    assert!(fit.kink);
+    assert_eq!(fit.uncertainty.as_ref(), "rbc_hc0_delta_normal_fixed_bandwidth");
+    let bytes = prepared.encode_contracted_result(&result, "regression-kink", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.local_polynomial_ratio.as_ref().unwrap();
+    assert_eq!(wire.effect, fit.effect);
+    assert!(wire.ci_lower.unwrap() < fit.effect && wire.ci_upper.unwrap() > fit.effect);
+    assert_eq!(wire.graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged_license = body.clone();
+    forged_license.local_polynomial_ratio.as_mut().unwrap().graphless_support_status = Some("licensed_but_wrong".into());
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged_license, header.variable_names.clone(), "forged-kink-license").is_err());
+    let mut fabricated = body.clone();
+    fabricated.local_polynomial_ratio.as_mut().unwrap().ci_upper = Some(fit.effect + 50.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated-kink").is_err());
     let (mut data, query) = fixture(false);
     let y = match data.column(VariableId::from_raw(2)).unwrap() {
         antecedent_data::ColumnView::Float64(column) => column.values.clone(), _ => unreachable!(),
