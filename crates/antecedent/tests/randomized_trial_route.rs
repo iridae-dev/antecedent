@@ -74,6 +74,44 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
 }
 
 #[test]
+fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
+    let outcomes = [5.0, 1.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let base = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        [true, false, true, false, true, false, true, false],
+        [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "encouraged"),
+    );
+    let query = base.clone().with_received_treatment([true, false, true, false, false, false, false, false]);
+    let ctx = ExecutionContext::for_tests(57);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let effect = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(effect.effect, 4.0);
+    assert_eq!(effect.intention_to_treat_effect, Some(2.0));
+    assert_eq!(effect.first_stage_effect, Some(0.5));
+    assert!((effect.variance_upper_bound - 16.0 / 7.0).abs() < 1e-12);
+    assert_eq!(effect.estimand.as_ref(), "cace_late");
+    assert_eq!(effect.uncertainty.as_ref(), "bernoulli_wald_cace_influence_variance_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "exclusion_restriction"
+    )));
+    let bytes = prepared.encode_contracted_result(&result, "cace", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().first_stage_effect, Some(0.5));
+    let mut fabricated = artifact;
+    fabricated.standard_error = Some(1.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated-cace").is_err());
+    let zero_stage = base.with_received_treatment([false; 8]);
+    assert!(Study::tabular(data).query(zero_stage).build().unwrap().run(&ctx).is_err());
+}
+
+#[test]
 fn switchback_itt_retains_periods_and_sequence_variance() {
     let assignment = [true, false, false, true].repeat(4);
     let outcomes = (0..4).flat_map(|sequence| {

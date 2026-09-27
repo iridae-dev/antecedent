@@ -50,7 +50,7 @@ pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use policy_value::{MultiActionPolicyInputs, PolicyValueQuery};
 pub use population::{PopulationRegistry, PopulationSelection};
-pub use randomized::{RandomizationDesign, RandomizedEffectQuery};
+pub use randomized::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,

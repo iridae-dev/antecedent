@@ -34,6 +34,15 @@ pub enum RandomizationDesign {
     },
 }
 
+/// Target of a retained randomized experiment query.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RandomizedEstimand {
+    /// Effect of assignment, regardless of treatment receipt.
+    IntentionToTreat,
+    /// Wald complier effect under exclusion and monotonicity.
+    ComplierAverageCausalEffect,
+}
+
 /// Intention-to-treat contrast for a two-arm randomized trial.
 ///
 /// Assignment and unit identity are part of the query contract so a prepared
@@ -41,6 +50,8 @@ pub enum RandomizationDesign {
 /// not require a causal graph: randomization supplies the identification.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RandomizedEffectQuery {
+    /// Distinguishes assignment ITT from a receipt-adjusted complier effect.
+    pub estimand: RandomizedEstimand,
     /// Assignment mechanism used by the trial.
     pub design: RandomizationDesign,
     /// Outcome variable.
@@ -57,6 +68,8 @@ pub struct RandomizedEffectQuery {
     pub treatment_arms: (Arc<str>, Arc<str>),
     /// Pre-assignment covariate and coefficient fixed before outcomes were observed.
     pub fixed_cuped: Option<(VariableId, f64)>,
+    /// Observed treatment receipt in row order for CACE/LATE.
+    pub received_treatment: Option<Arc<[bool]>>,
 }
 
 impl RandomizedEffectQuery {
@@ -93,6 +106,7 @@ impl RandomizedEffectQuery {
         treatment_arms: (impl Into<Arc<str>>, impl Into<Arc<str>>),
     ) -> Self {
         Self {
+            estimand: RandomizedEstimand::IntentionToTreat,
             design,
             outcome,
             realized_assignment: realized_assignment.into(),
@@ -101,6 +115,7 @@ impl RandomizedEffectQuery {
             outcome_units: outcome_units.into(),
             treatment_arms: (treatment_arms.0.into(), treatment_arms.1.into()),
             fixed_cuped: None,
+            received_treatment: None,
         }
     }
 
@@ -111,8 +126,30 @@ impl RandomizedEffectQuery {
         self
     }
 
+    /// Target the Wald complier effect from observed treatment receipt.
+    #[must_use]
+    pub fn with_received_treatment(mut self, received: impl Into<Arc<[bool]>>) -> Self {
+        self.estimand = RandomizedEstimand::ComplierAverageCausalEffect;
+        self.received_treatment = Some(received.into());
+        self
+    }
+
     /// Validate row alignment, allocations, and assignment probabilities.
     pub fn validate(&self) -> Result<(), QueryError> {
+        if self.estimand == RandomizedEstimand::ComplierAverageCausalEffect {
+            if !matches!(self.design, RandomizationDesign::Bernoulli)
+                || self.fixed_cuped.is_some()
+                || self.received_treatment.as_ref().is_none_or(|receipt| receipt.len() != self.realized_assignment.len())
+            {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment".into(),
+                ));
+            }
+        } else if self.received_treatment.is_some() {
+            return Err(QueryError::InvalidRandomizedEffect(
+                "treatment receipt is only valid for a CACE/LATE query".into(),
+            ));
+        }
         if let Some((covariate, coefficient)) = self.fixed_cuped {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || covariate == self.outcome
@@ -352,6 +389,15 @@ mod tests {
             periods: ["p0", "p0", "p0", "p1"].map(Arc::<str>::from).into(),
         };
         assert!(query.validate().is_err());
+    }
+
+    #[test]
+    fn cace_requires_aligned_receipt_and_bernoulli_assignment() {
+        let base = query();
+        assert!(base.clone().with_received_treatment([true]).validate().is_err());
+        let mut complete = base.with_received_treatment([true, false, true, false]);
+        complete.design = RandomizationDesign::Complete { treated_units: 2 };
+        assert!(complete.validate().is_err());
     }
 
     #[test]

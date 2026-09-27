@@ -3283,6 +3283,10 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             treatment_units: randomized.treatment_units,
             minimum_assignment_probability: randomized.minimum_assignment_probability,
             uncertainty: randomized.uncertainty.to_string(),
+            estimand: randomized.estimand.to_string(),
+            intention_to_treat_effect: randomized.intention_to_treat_effect,
+            first_stage_effect: randomized.first_stage_effect,
+            received_treatment: randomized.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
         }),
         survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {
             times: survival.times.to_vec(),

@@ -119,6 +119,7 @@ pub use query::{
     ObservationAssumption, ObservationSpec, OrderedFloatBits, OutcomeFunctional, PanelDidQuery,
     PathSpecificEffectQuery, MultiActionPolicyInputs, PolicyValueQuery, PopulationRegistry, PopulationSelection,
     PopulationSelector, PredicateExpr, QueryError, RandomizationDesign, RandomizedEffectQuery,
+    RandomizedEstimand,
     RegimeBinding, RegimeKind, ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig,
     ShapleyMode, SurvivalFunctional, SurvivalQuery, TEMPORAL_OBSERVATION_UNLICENSED,
     SyntheticControlQuery,

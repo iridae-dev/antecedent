@@ -478,6 +478,18 @@ pub struct RandomizedEffectWire {
     pub minimum_assignment_probability: f64,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
+    /// `itt` or `cace_late`.
+    #[serde(default = "default_randomized_itt")]
+    pub estimand: String,
+    /// Outcome assignment effect for CACE/LATE.
+    #[serde(default)]
+    pub intention_to_treat_effect: Option<f64>,
+    /// Treatment-receipt first stage for CACE/LATE.
+    #[serde(default)]
+    pub first_stage_effect: Option<f64>,
+    /// Row-aligned observed receipt for CACE/LATE.
+    #[serde(default)]
+    pub received_treatment: Option<Vec<bool>>,
 }
 
 /// Randomized arm event-time curves with an explicit point-only uncertainty contract.
@@ -502,6 +514,8 @@ pub struct SurvivalWire {
     pub minimum_event_risk_set: Option<usize>,
     /// Explicit uncertainty semantics; no interval is licensed.
     pub uncertainty: String,
+fn default_randomized_itt() -> String { "itt".into() }
+
 }
 
 /// Subject-owned sequential inverse-probability regime value.
@@ -818,6 +832,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
              query.realized_assignment.iter().filter(|assigned| **assigned).count())
         };
         let minimum_probability = query.assignment_probabilities.iter().copied()
+            crate::RandomizationDesignWire::Bernoulli if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
+                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval"),
             .map(|p| if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
                 p.min(1.0 - p)
             } else { p })
@@ -856,6 +872,14 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
         return Err(IoError::Convert(
             "survival artifact is missing its curve result section".into(),
+            || randomized.estimand != if query.estimand == crate::RandomizedEstimandWire::CaceLate { "cace_late" } else { "itt" }
+            || randomized.received_treatment != query.received_treatment
+            || (query.estimand == crate::RandomizedEstimandWire::CaceLate
+                && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
+                    || randomized.first_stage_effect.is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)
+                    || (randomized.effect - randomized.intention_to_treat_effect.unwrap() / randomized.first_stage_effect.unwrap()).abs() > 1e-10))
+            || (query.estimand == crate::RandomizedEstimandWire::Itt
+                && (randomized.intention_to_treat_effect.is_some() || randomized.first_stage_effect.is_some()))
         ));
     }
     if matches!(result.query, crate::CausalQueryWire::LongitudinalRegime(_))

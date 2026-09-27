@@ -194,7 +194,7 @@ pub use query_wire::{
     AssignmentDesignWire, CausalQueryWire, ExposureLevelWire, ExposureMappingWire,
     InterferenceFunctionalWire, InterferenceQueryWire, InterventionWire,
     InterventionalDistributionQueryWire, PathSpecificEffectQueryWire, RandomizationDesignWire,
-    RandomizedEffectQueryWire, SetInterventionWire, TargetPopulationWire, TemporalPolicyWire,
+    RandomizedEffectQueryWire, RandomizedEstimandWire, SetInterventionWire, TargetPopulationWire, TemporalPolicyWire,
     TransportQueryWire, ValueWire, causal_query_from_wire, causal_query_to_wire,
     causal_query_to_wire_with_registry, interference_query_from_wire, interference_query_to_wire,
     interventional_distribution_from_wire, interventional_distribution_to_wire,

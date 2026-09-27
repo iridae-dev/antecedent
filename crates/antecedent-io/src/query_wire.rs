@@ -1008,6 +1008,9 @@ pub struct RandomizedEffectQueryWire {
     pub outcome_units: Vec<String>,
     /// Control and treatment labels.
     pub treatment_arms: (String, String),
+    /// Assignment ITT or randomized-encouragement CACE/LATE.
+    #[serde(default)]
+    pub estimand: RandomizedEstimandWire,
     /// Block labels in row order (stratified designs only).
     #[serde(default)]
     pub blocks: Vec<String>,
@@ -1035,6 +1038,20 @@ pub enum RandomizationDesignWire {
     /// Complete randomization with a fixed treated count.
     Complete {
         /// Declared number assigned to treatment.
+    /// Row-aligned observed receipt for CACE/LATE.
+    #[serde(default)]
+    pub received_treatment: Option<Vec<bool>>,
+}
+
+/// Target estimand serialized with a randomized query.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RandomizedEstimandWire {
+    /// Assignment intention-to-treat contrast.
+    #[default]
+    Itt,
+    /// Wald complier effect under exclusion and monotonicity.
+    CaceLate,
         treated_units: usize,
     },
     /// Complete randomization of assignment clusters.
@@ -1564,6 +1581,10 @@ pub fn causal_query_to_wire_with_registry(
                 realized_assignment: q.realized_assignment.to_vec(),
                 assignment_probabilities: q.assignment_probabilities.to_vec(),
                 assignment_units: q.assignment_units.iter().map(ToString::to_string).collect(),
+                estimand: match q.estimand {
+                    antecedent_core::RandomizedEstimand::IntentionToTreat => RandomizedEstimandWire::Itt,
+                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => RandomizedEstimandWire::CaceLate,
+                },
                 outcome_units: q.outcome_units.iter().map(ToString::to_string).collect(),
                 treatment_arms: (q.treatment_arms.0.to_string(), q.treatment_arms.1.to_string()),
                 blocks: match &q.design {
@@ -1594,6 +1615,7 @@ pub fn causal_query_to_wire_with_registry(
             mu0: q.mu0.to_vec(),
             mu1: q.mu1.to_vec(),
             costs: q.costs.to_vec(),
+                received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
             reference_costs: q.reference_costs.to_vec(),
             evaluation_subject_ids: q
                 .evaluation_subject_ids
@@ -1903,6 +1925,12 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 disjoint_training_subjects: w.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
                 multi_action: w.multi_action.as_ref().map(Into::into),
+            if let Some(receipt) = &w.received_treatment {
+                query = query.with_received_treatment(receipt.clone());
+            }
+            if (w.estimand == RandomizedEstimandWire::CaceLate) != w.received_treatment.is_some() {
+                return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
+            }
                 uplift_bins: w.uplift_bins.clone().into(),
                 uplift_bin_count: w.uplift_bin_count,
                 uplift_training_subject_ids: w.uplift_training_subject_ids.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
@@ -1985,6 +2013,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::Survival(q)
         }
         CausalQueryWire::LongitudinalRegime(w) => {
+            if w.censoring_probability_floor.is_none()
+                && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
+            {
+                return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
+            }
             let q = antecedent_core::LongitudinalRegimeQuery {
                 outcome: VariableId::from_raw(w.outcome), periods: w.periods,
                 treatment_history: w.treatment_history.clone().into(),

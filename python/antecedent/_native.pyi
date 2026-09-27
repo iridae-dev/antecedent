@@ -349,6 +349,10 @@ class InterferenceSection:
 class RandomizedEffectSection:
     effect: float
     variance_upper_bound: float
+    estimand: str
+    intention_to_treat_effect: float | None
+    first_stage_effect: float | None
+    received_treatment: list[bool] | None
     minimum_assignment_probability: float
     assignment_design: str
     blocks: list[str]
@@ -1215,6 +1219,7 @@ class PreparedAnalysis:
         post: list[bool], subjects: list[str], clusters: list[str], *,
         repeated_cross_section: bool = False, accepted: bool = False, seed: int = 1,
         threads: int | None = None, options: dict[str, Any] | None = None,
+        received_treatment: list[bool] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_staggered_group_time(
