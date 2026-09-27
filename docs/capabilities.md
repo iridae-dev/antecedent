@@ -794,16 +794,34 @@ IPW (90% and 95%) and held-out AIPW (95%) calibration tests are in
 are in `crates/antecedent/tests/policy_value_route.rs`.
 `MultiActionPolicyValue(..., baseline_groups=...)` also retains pre-treatment
 group labels and reports each action-versus-control contrast within each group
-as a point-only multi-action CATE. Every group needs observed control and each
-action, with known positive assignment probabilities. These conditional
-contrasts are frozen in the result artifact; they do not fit a CATE model or
-claim a conditional CATE interval or licensed support-matrix cell. The
+as a multi-action CATE. Every group needs observed control and each action,
+with known positive assignment probabilities. A pointwise 95% interval uses
+the paired action-minus-control row-score variance only for a group fixed
+before evaluation outcomes, at least 300 independent held-out subjects in
+that group, at least 50 observed subjects in each compared arm, both compared
+randomization probabilities at least 0.2 on every row, and positive score
+variance. Other contrasts remain point-only. These conditional contrasts and
+their interval support are frozen in the result artifact; the route does not
+fit a CATE model. The four 2,000-draw known-truth group/action coverage rates
+were 0.9490, 0.9440, 0.9425, and 0.9540. The
 multi-action policy and incremental values have pointwise 95% intervals from
 at least 300 independent randomized subjects when capacities and budgets
 cannot couple recommendations across rows. The 2,000-replicate known-truth
 calibration is in `crates/antecedent-estimate/src/policy_value.rs`. A
 120-subject multi-action probe covered only 0.932 at nominal 0.95, so the
 runtime withholds that interval below 300 subjects.
+
+Retained `PolicyValue.top_k(...)` also reports pointwise 95% intervals for
+fixed uplift score bins when the declared ranking-training subject IDs are
+disjoint from evaluation IDs, each bin contains at least 300 independent
+randomized evaluation subjects and 50 observed treated and control subjects,
+and its row-score variance is positive. The two 2,000-draw known-truth bin
+coverage rates were 0.9425 and 0.9515. Each bin interval is separate; there
+is no simultaneous top-k band or learned-ranking guarantee. Direct
+`uplift_by_score` remains point-only because its API does not retain ranking
+training ownership. These retained uplift and CATE interval routes are
+currently off-axis in the generated support matrix and do not create licensed
+matrix cells.
 
 `policy.ConditionalDoseResponse(...)` carries a fixed target-dose grid through
 `prepare` / `analyze`. Baseline group labels remain bound to the prepared row
