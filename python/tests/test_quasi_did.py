@@ -122,6 +122,30 @@ def test_panel_did_runs_through_retained_public_prepare_and_analyze_routes():
     assert direct.panel_did == estimate.panel_did
 
 
+def test_supported_panel_did_reports_interval_through_public_analyze():
+    import antecedent
+
+    ids, groups, periods, outcomes = [], [], [], []
+    for group in (False, True):
+        for cluster in range(30):
+            for after in (False, True):
+                ids.append(f"subject-{group}-{cluster}")
+                groups.append(group)
+                periods.append(after)
+                outcomes.append(cluster * 0.1 + 2.0 * int(group and after) if after else 0.0)
+    data = {"y": outcomes, "id": ids, "group": groups, "after": periods}
+    query = PanelDifferenceInDifferences("y", "id", "group", "after")
+    result = antecedent.analyze(data, query=query)
+    did = result.panel_did
+    assert did is not None
+    assert did.estimate == pytest.approx(2.0)
+    assert did.interval_95 is not None
+    assert did.interval_95[0] < 2.0 < did.interval_95[1]
+    assert did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
+    assert did.support_status == "off_axis_interval_evidence"
+    assert result.estimate.se_analytic == pytest.approx(did.standard_error)
+
+
 def test_repeated_cross_section_did_runs_through_public_flow_and_direct_utility():
     import antecedent
 

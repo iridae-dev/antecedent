@@ -384,6 +384,7 @@ class RandomizedEffectSection:
 class PanelDidSection:
     effect: float
     standard_error: float | None
+    interval_95: tuple[float, float] | None
     treated_subjects: int
     comparison_subjects: int
     clusters: int

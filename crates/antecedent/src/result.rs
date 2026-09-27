@@ -120,13 +120,15 @@ pub struct RandomizedEffectEstimate {
     pub treatment_arms: (Arc<str>, Arc<str>),
 }
 
-/// Two-period panel DiD point estimate with cluster-robust standard error.
+/// Two-period panel DiD point estimate with cluster-aware uncertainty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PanelDidEstimate {
     /// Difference in average subject-level outcome changes.
     pub effect: f64,
-    /// Cluster score-sandwich standard error; no interval is implied.
+    /// Cluster score-sandwich standard error.
     pub standard_error: f64,
+    /// Pointwise 95% interval for sufficiently supported scalar panel or repeated-cross-section DiD.
+    pub interval_95: Option<[f64; 2]>,
     /// Number of treated subjects.
     pub treated_subjects: usize,
     /// Number of comparison subjects.
@@ -1017,10 +1019,8 @@ impl StudyResult {
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
-        // Retained panel DiD is bound through a tabular snapshot and publishes
-        // no interval. Its pointwise cluster SE lives in the design section;
-        // the absent primary interval has no panel resampling dependence.
-        let base = if self.panel_did.is_some() { "iid" } else { self.base_dependence() };
+        let panel_interval = self.panel_did.as_ref().is_some_and(|did| did.interval_95.is_some());
+        let base = if panel_interval { "cluster" } else if self.panel_did.is_some() { "iid" } else { self.base_dependence() };
         if let Some(response) = &self.response {
             // A Bayesian response publishes credible bands; the draws behind a
             // band are in the referenced posterior artifact, not on the result.
@@ -1095,7 +1095,7 @@ impl StudyResult {
                     let mut binding = IntervalBinding::new(
                         M::AnalyticSe,
                         published.level,
-                        self.se_dependence(estimate.se_kind),
+                        if panel_interval { "cluster" } else { self.se_dependence(estimate.se_kind) },
                     );
                     binding.se_kind = estimate.se_kind;
                     return binding;

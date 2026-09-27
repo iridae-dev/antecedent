@@ -402,6 +402,7 @@ def _panel_did_from_raw(
         estimate=section.effect, standard_error=section.standard_error,
         treated_subjects=section.treated_subjects, control_subjects=section.comparison_subjects,
         clusters=section.clusters, uncertainty=section.uncertainty,
+        interval_95=section.interval_95,
         design="balanced_staggered_adoption_group_time_att" if staggered else ("repeated_cross_section_2x2" if repeated else "balanced_two_period_panel"),
         assumptions=(
             "cohort_specific_parallel_untreated_trends",
@@ -425,7 +426,7 @@ def _panel_did_from_raw(
             "no_interference",
             "independent_sampling_clusters",
         ),
-        support_status="unlicensed_point_utility",
+        support_status="off_axis_interval_evidence" if section.interval_95 is not None else "unlicensed_point_utility",
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
     )

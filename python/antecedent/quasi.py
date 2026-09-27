@@ -137,7 +137,7 @@ class PanelDifferenceInDifferences:
 
 @dataclass(frozen=True, slots=True)
 class PanelDifferenceInDifferencesEstimate:
-    """DiD point estimate with cluster-robust standard error only."""
+    """DiD estimate with a support-gated pointwise cluster interval."""
 
     estimate: float
     standard_error: float
@@ -145,6 +145,7 @@ class PanelDifferenceInDifferencesEstimate:
     control_subjects: int
     clusters: int
     uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unlicensed"
+    interval_95: tuple[float, float] | None = None
     design: str = "balanced_two_period_panel"
     assumptions: tuple[str, ...] = (
         "parallel_untreated_trends",

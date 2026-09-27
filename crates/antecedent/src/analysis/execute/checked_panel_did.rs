@@ -172,16 +172,20 @@ impl CheckedPanelDidOperation {
         }
         let g = scores.len();
         let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
+        let se = variance.sqrt();
+        let interval_supported = clusters.iter().all(|set| set.len() >= 30) && se.is_finite() && se > 0.0;
+        let interval_95 = interval_supported.then(|| {
+            let radius = antecedent_stats::normal_ppf(0.975) * se;
+            [effect - radius, effect + radius]
+        });
         let identification = self.identification.clone();
         let assumptions = identification.required_assumptions.clone();
         let estimate = EffectEstimate::new(
             effect,
-            // The cluster SE is disclosed in `panel_did` only. A positive scalar
-            // analytic SE would publish an uncalibrated normal interval.
-            f64::NAN,
+            if interval_supported { se } else { f64::NAN },
             assumptions,
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
-        );
+        ).with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
         let started = Instant::now();
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -200,7 +204,7 @@ impl CheckedPanelDidOperation {
                     "estimate.quasi.panel_did.cluster_se",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "two-period subject change-score DiD; cluster score sandwich SE; normal intervals are not reported",
+                    "two-period subject change-score DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per arm",
                 )],
                 refutations: Vec::new(),
                 distribution: None,
@@ -214,15 +218,17 @@ impl CheckedPanelDidOperation {
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect,
-            standard_error: variance.sqrt(),
+            standard_error: se,
+            interval_95,
             treated_subjects: counts[1],
             comparison_subjects: counts[0],
             clusters: g,
-            uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            uncertainty: Arc::from(if interval_supported { "cluster_robust_normal_interval_independent_clusters" } else { "cluster_robust_standard_error_no_interval" }),
             event_time_effects: Arc::from([]),
             augmented: None,
         });
         result.treatment = None;
+        result.rebind_interval(false);
         Ok(result)
     }
 
@@ -270,6 +276,7 @@ impl CheckedPanelDidOperation {
             effect: fit.effect,
             // The field is a wire-compatible placeholder, not a standard error.
             standard_error: 0.0,
+            interval_95: None,
             treated_subjects: fit.treated_subjects,
             comparison_subjects: fit.control_subjects,
             clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
@@ -327,6 +334,7 @@ impl CheckedPanelDidOperation {
         result.panel_did = Some(crate::PanelDidEstimate {
             effect: representative.effect,
             standard_error: representative.standard_error,
+            interval_95: None,
             treated_subjects: representative.treated_subjects,
             comparison_subjects: representative.comparison_subjects,
             clusters: representative.clusters,
@@ -453,6 +461,7 @@ impl CheckedPanelDidOperation {
         result.panel_did = Some(crate::PanelDidEstimate {
             effect,
             standard_error: se,
+            interval_95: None,
             treated_subjects: selected[1].len(),
             comparison_subjects: selected[0].len(),
             clusters: cluster_count,
@@ -514,14 +523,19 @@ impl CheckedPanelDidOperation {
         }
         let g = scores.len();
         let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
+        let se = variance.sqrt();
+        let interval_supported = cell_clusters.iter().flatten().all(|set| set.len() >= 30) && se.is_finite() && se > 0.0;
+        let interval_95 = interval_supported.then(|| {
+            let radius = antecedent_stats::normal_ppf(0.975) * se;
+            [effect - radius, effect + radius]
+        });
         let identification = self.identification.clone();
         let estimate = EffectEstimate::new(
             effect,
-            // Keep the cluster SE in `panel_did` without implying a normal interval.
-            f64::NAN,
+            if interval_supported { se } else { f64::NAN },
             identification.required_assumptions.clone(),
             antecedent_estimate::OverlapPolicy::ExplicitOverride,
-        );
+        ).with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
         let started = Instant::now();
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -540,7 +554,7 @@ impl CheckedPanelDidOperation {
                     "estimate.quasi.repeated_cross_section_did.cluster_se",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "four-cell repeated-cross-section DiD; cluster score sandwich SE; normal intervals are not reported",
+                    "four-cell repeated-cross-section DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per cell",
                 )],
                 refutations: Vec::new(),
                 distribution: None,
@@ -554,15 +568,17 @@ impl CheckedPanelDidOperation {
         );
         result.panel_did = Some(crate::PanelDidEstimate {
             effect,
-            standard_error: variance.sqrt(),
+            standard_error: se,
+            interval_95,
             treated_subjects: counts[1].iter().sum(),
             comparison_subjects: counts[0].iter().sum(),
             clusters: g,
-            uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            uncertainty: Arc::from(if interval_supported { "cluster_robust_normal_interval_independent_clusters" } else { "cluster_robust_standard_error_no_interval" }),
             event_time_effects: Arc::from([]),
             augmented: None,
         });
         result.treatment = None;
+        result.rebind_interval(false);
         Ok(result)
     }
 }

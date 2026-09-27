@@ -480,6 +480,9 @@ pub struct PanelDidWire {
     /// Cluster-robust standard error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_error: Option<f64>,
+    /// Pointwise normal interval for a sufficiently supported scalar DiD contrast.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_95: Option<[f64; 2]>,
     /// Treated subject count.
     pub treated_subjects: usize,
     /// Comparison subject count.
@@ -1610,8 +1613,30 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             (None, None) => true,
             _ => false,
         };
+        let interval_supported = query.augmented.is_none()
+            && query.staggered_target.is_none()
+            && !query.staggered_event_study
+            && if query.repeated_cross_section {
+                !duplicate_subject && cell_clusters.iter().flatten().all(|members| members.len() >= 30)
+            } else {
+                group_clusters.iter().all(|members| members.len() >= 30)
+            };
+        let interval_valid = match (did.interval_95, did.standard_error) {
+            (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
+                let radius = 1.959963984540054 * se;
+                let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
+                bounds.iter().all(|value| value.is_finite())
+                    && (bounds[0] - (did.effect - radius)).abs() <= tolerance
+                    && (bounds[1] - (did.effect + radius)).abs() <= tolerance
+                    && result.standard_error.is_some_and(|reported| (reported - se).abs() <= tolerance)
+                    && did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
+            }
+            (None, _) => result.standard_error.is_none()
+                && (query.augmented.is_some() || did.uncertainty == "cluster_robust_standard_error_no_interval"),
+            _ => false,
+        };
         if result.estimate != Some(did.effect)
-            || result.standard_error.is_some()
+            || !interval_valid
             || !did.effect.is_finite()
             || did.standard_error.is_some_and(|se| !se.is_finite() || se < 0.0)
             || (query.augmented.is_none() && did.standard_error.is_none())
@@ -1625,7 +1650,6 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
             || (!query.repeated_cross_section && query.staggered_target.is_none() && !query.staggered_event_study && query.augmented.is_none()
                 && group_clusters.iter().any(|members| members.len() < 2))
-            || (query.augmented.is_none() && did.uncertainty != "cluster_robust_standard_error_no_interval")
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
         {
@@ -2265,6 +2289,7 @@ mod tests {
         result.panel_did = Some(PanelDidWire {
             effect: 2.0,
             standard_error: Some(0.4),
+            interval_95: None,
             treated_subjects: 2,
             comparison_subjects: 2,
             clusters: 4,
@@ -2303,6 +2328,7 @@ mod tests {
         result.panel_did = Some(PanelDidWire {
             effect: 2.0,
             standard_error: Some((16.0_f64 / 7.0).sqrt()),
+            interval_95: None,
             treated_subjects: 4,
             comparison_subjects: 4,
             clusters: 8,
@@ -2358,6 +2384,7 @@ mod tests {
         result.panel_did = Some(PanelDidWire {
             effect: 4.0,
             standard_error: Some(0.5),
+            interval_95: None,
             treated_subjects: 4,
             comparison_subjects: 4,
             clusters: 8,
