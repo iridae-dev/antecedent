@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import math
 import pytest
 from antecedent import analyze
-from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.errors import CausalCompileError, CausalUnsupportedError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.quasi import SyntheticControl, estimate_synthetic_control
 
@@ -85,7 +86,7 @@ def test_retained_analyze_and_prepare_match_direct_point_result():
     assert fit.placebo_effects == pytest.approx(direct.placebo_effects)
     assert fit.support_status == "unlicensed_point_utility"
     assert fit.uncertainty == "point_only_with_unlicensed_placebo_rank"
-    assert result.estimate.interval is None
+    assert math.isnan(result.estimate.se_analytic)
     prepared = PreparedAnalysis.prepare(rows, query=query)
     refreshed = prepared.estimate(rows)
     assert refreshed.synthetic_control == fit
@@ -101,5 +102,5 @@ def test_retained_synthetic_control_refuses_changed_design_and_bad_donors():
         prepared.estimate(changed)
     short = {key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
              for key, values in rows.items()}
-    with pytest.raises((CausalValueError, CausalUnsupportedError), match="at least three donor units"):
+    with pytest.raises((CausalValueError, CausalCompileError), match="at least three donor units"):
         analyze(short, query=query)
