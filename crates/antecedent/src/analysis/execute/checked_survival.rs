@@ -6,7 +6,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     SurvivalFunctional,
 };
-use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_summary};
+use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_ipcw_summary, randomized_survival_summary};
 
 #[derive(Clone)]
 pub(crate) struct CheckedSurvivalOperation {
@@ -59,6 +59,11 @@ impl CheckedSurvivalOperation {
                 .flatten()
         {
             data.schema().get(id).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        }
+        if let Some(known) = &query.known_censoring {
+            for id in known.columns.iter().copied() {
+                data.schema().get(id).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            }
         }
         if physical.logical.query != study.query
             || physical.logical.record.identifier.as_deref()
@@ -129,15 +134,22 @@ impl CheckedSurvivalOperation {
                 SurvivalEndpoint::CumulativeIncidence { target_cause }
             }
         };
-        let summary = randomized_survival_summary(
-            &duration,
-            &event,
-            &treated,
-            entry.as_deref(),
-            self.query.tau,
-            endpoint,
-        )
-        .map_err(|message| CausalError::Unsupported { message })?;
+        let (summary, minimum_censoring_survival) = if let Some(known) = &self.query.known_censoring {
+            let columns = known.columns.iter().map(|id| numeric_column(data, *id)).collect::<Result<Vec<_>, _>>()?;
+            let mut probabilities = Vec::with_capacity(self.rows * columns.len());
+            for row in 0..self.rows {
+                probabilities.extend(columns.iter().map(|column| column[row]));
+            }
+            let (summary, minimum) = randomized_survival_ipcw_summary(
+                &duration, &event, &treated, &known.times, &probabilities,
+                self.query.tau, known.minimum_probability, endpoint,
+            ).map_err(|message| CausalError::Unsupported { message })?;
+            (summary, Some(minimum))
+        } else {
+            (randomized_survival_summary(
+                &duration, &event, &treated, entry.as_deref(), self.query.tau, endpoint,
+            ).map_err(|message| CausalError::Unsupported { message })?, None)
+        };
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -160,8 +172,17 @@ impl CheckedSurvivalOperation {
                     "estimate.survival.point_only",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported",
-                )],
+                    if minimum_censoring_survival.is_some() {
+                        "randomized IPCW estimate using caller-supplied censoring survival; no interval or calibrated uncertainty is reported"
+                    } else {
+                        "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported"
+                    },
+                )].into_iter().chain(minimum_censoring_survival.map(|minimum| Diagnostic::new(
+                    "estimate.survival.censoring_support",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!("minimum supplied censoring survival: {minimum:.6}"),
+                ))).collect(),
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,
@@ -239,7 +260,11 @@ pub(crate) fn survival_identification(
         ),
         (
             "independent_censoring_and_entry",
-            "censoring and delayed entry are marginally independent of potential event times within treatment arms",
+            if query.known_censoring.is_some() {
+                "censoring is independent of potential event times within treatment arms conditional on declared variables, and the caller-supplied censoring survival is correct"
+            } else {
+                "censoring and delayed entry are marginally independent of potential event times within treatment arms"
+            },
         ),
         (
             "common_restriction_horizon",
@@ -250,6 +275,17 @@ pub(crate) fn survival_identification(
             assumption: Assumption::Custom {
                 id: Arc::from(id),
                 description: Arc::from(description),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
+    if query.known_censoring.is_some() {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("known_censoring_survival_positivity"),
+                description: Arc::from("the supplied subject-specific censoring survival is outcome-independent, row-aligned, and positive through the restriction horizon"),
             },
             source: AssumptionSource::UserDeclared,
             scope: AssumptionScope::Identification,

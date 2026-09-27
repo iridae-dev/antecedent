@@ -3552,12 +3552,12 @@ impl PyPreparedAnalysis {
     /// Freeze one treated unit and its balanced donor pool for native synthetic control.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
-        intervention_period, *, accepted=false, seed=1, threads=None, options=None))]
+        intervention_period, *, difference_in_differences=false, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_synthetic_control(
         py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
         outcome: String, units: Vec<String>, periods: Vec<i64>, treated_unit: String,
-        intervention_period: i64, accepted: bool, seed: u64, threads: Option<u32>,
+        intervention_period: i64, difference_in_differences: bool, accepted: bool, seed: u64, threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3570,6 +3570,7 @@ impl PyPreparedAnalysis {
             let query = antecedent_core::SyntheticControlQuery::new(
                 outcome_id, unit_arc, periods, Arc::<str>::from(treated_unit), intervention_period,
             );
+            let query = if difference_in_differences { query.difference_in_differences() } else { query };
             query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
@@ -3644,7 +3645,7 @@ impl PyPreparedAnalysis {
 
     /// Freeze a graphless randomized survival or competing-risk analysis.
     #[staticmethod]
-    #[pyo3(signature = (names, columns, duration, event, treatment, tau, target_cause=None, delayed_entry=None, *, accepted=false, seed=1, threads=None, options=None))]
+    #[pyo3(signature = (names, columns, duration, event, treatment, tau, target_cause=None, delayed_entry=None, *, independent_given=Vec::new(), censoring_times=Vec::new(), censoring_columns=Vec::new(), censoring_probability_floor=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_survival(
         py: Python<'_>,
@@ -3656,6 +3657,10 @@ impl PyPreparedAnalysis {
         tau: f64,
         target_cause: Option<i64>,
         delayed_entry: Option<String>,
+        independent_given: Vec<String>,
+        censoring_times: Vec<f64>,
+        censoring_columns: Vec<String>,
+        censoring_probability_floor: Option<f64>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3667,14 +3672,21 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+            let censoring_ids = censoring_columns.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
+            let conditioning_ids = independent_given.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
             let query = antecedent_core::SurvivalQuery {
                 duration: id(&duration)?,
                 event: id(&event)?,
                 treatment: id(&treatment)?,
                 tau,
                 delayed_entry: delayed_entry.as_deref().map(id).transpose()?,
+                known_censoring: censoring_probability_floor.map(|minimum_probability| antecedent_core::KnownCensoringSurvival {
+                    times: Arc::from(censoring_times),
+                    columns: Arc::from(censoring_ids),
+                    minimum_probability,
+                }),
                 observation_assumption: antecedent_core::ObservationAssumption::IndependentGiven(
-                    Arc::from([]),
+                    Arc::from(conditioning_ids),
                 ),
                 functional: target_cause.map_or(
                     antecedent_core::SurvivalFunctional::SurvivalAndRmst,

@@ -161,6 +161,7 @@ from .results import Analysis, AnalysisResult
 from .survival import (
     IPCWCumulativeIncidenceEstimate,
     IPCWSurvivalEstimate,
+    KnownCensoringSurvival,
     SurvivalEstimate,
     SurvivalOutcome,
     estimate_cumulative_incidence_ipcw,
@@ -207,6 +208,7 @@ __all__ = [
     "SurvivalOutcome",
     "SurvivalEstimate",
     "IPCWSurvivalEstimate",
+    "KnownCensoringSurvival",
     "IPCWCumulativeIncidenceEstimate",
     "estimate_survival",
     "estimate_survival_ipcw",

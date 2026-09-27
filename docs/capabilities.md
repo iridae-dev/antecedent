@@ -72,11 +72,12 @@ a license. The [support matrix](support-matrix.md) is the public license.
 The two-arm randomized survival utilities cover Kaplan–Meier curves/RMST,
 Aalen–Johansen cumulative incidence, delayed entry under the marginal
 observation contract, and a separate caller-supplied IPCW curve/RMST route.
-The unadjusted randomized survival and competing-risk curves now run through
-retained `prepare` / `analyze` as well as the direct utilities, with an explicit
-marginal `IndependentGiven(())` censoring and entry assumption. They remain
-point-only and unlicensed; supplied censoring probabilities on the separate
-IPCW route are not fit or independently verified. See [Survival outcomes](survival-outcomes.md).
+The randomized survival and competing-risk curves run through retained
+`prepare` / `analyze` as well as the direct utilities. The unweighted route
+requires marginal `IndependentGiven(())`; the retained IPCW route accepts
+caller-supplied censoring survival columns and an explicit conditional
+`IndependentGiven` claim. They remain point-only and unlicensed; supplied
+probabilities are not fit or independently verified. See [Survival outcomes](survival-outcomes.md).
 
 ## Graph primitives
 

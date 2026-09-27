@@ -57,8 +57,8 @@ pub use response::{
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
-pub use survival::{SurvivalFunctional, SurvivalQuery};
-pub use synthetic_control::SyntheticControlQuery;
+pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
+pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;

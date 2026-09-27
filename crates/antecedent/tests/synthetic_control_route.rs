@@ -90,3 +90,39 @@ fn synthetic_control_refuses_insufficient_donors_and_unbalanced_panel() {
     missing.periods = periods.into();
     assert!(Study::tabular(data).query(missing).build().unwrap().run(&ctx).is_err());
 }
+
+#[test]
+fn retained_synthetic_did_recovers_additive_truth_and_round_trips_weights() {
+    let mut units = Vec::new();
+    let mut periods = Vec::new();
+    let mut y = Vec::new();
+    for (unit, baseline) in [("treated", 10.0), ("d0", 2.0), ("d1", 10.0), ("d2", 18.0)] {
+        for (period, common) in [(1, 1.0), (2, 3.0), (3, -2.0), (4, 5.0)] {
+            units.push(Arc::<str>::from(unit));
+            periods.push(period);
+            y.push(baseline + common + if unit == "treated" && period == 4 { 7.0 } else { 0.0 });
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let query = SyntheticControlQuery::new(
+        VariableId::from_raw(0), units, periods, "treated", 4,
+    ).difference_in_differences();
+    let ctx = ExecutionContext::for_tests(13);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.synthetic_did.as_ref().unwrap();
+    assert!((fit.effect - 7.0).abs() < 1e-8);
+    assert_eq!((fit.n_donors, fit.n_pre_periods, fit.n_post_periods), (3, 3, 1));
+    assert_eq!(fit.time_weights.len(), 3);
+    assert_eq!(fit.uncertainty.as_ref(), "point_only_no_interval");
+    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    let bytes = prepared.encode_contracted_result(&result, "synthetic-did", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.synthetic_did.as_ref().unwrap().effect, 7.0);
+    assert!(body.standard_error.is_none());
+    let mut fabricated = body.clone();
+    fabricated.interval_lower = Some(6.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &fabricated, header.variable_names, "fabricated"
+    ).is_err());
+}

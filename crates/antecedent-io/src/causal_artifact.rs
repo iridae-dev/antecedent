@@ -644,9 +644,17 @@ pub(crate) fn validate_query_ids(
             ).validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::Survival(wire) => {
+            if wire.censoring_probability_floor.is_none()
+                && (!wire.censoring_times.is_empty() || !wire.censoring_columns.is_empty())
+            {
+                return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
+            }
             validate_id(wire.duration, variable_count)?;
             validate_id(wire.event, variable_count)?;
             validate_id(wire.treatment, variable_count)?;
+            for id in wire.independent_given.iter().chain(wire.censoring_columns.iter()) {
+                validate_id(*id, variable_count)?;
+            }
             if let Some(entry) = wire.delayed_entry {
                 validate_id(entry, variable_count)?;
             }
@@ -661,8 +669,13 @@ pub(crate) fn validate_query_ids(
                 treatment: antecedent_core::VariableId::from_raw(wire.treatment),
                 tau: wire.tau,
                 delayed_entry: wire.delayed_entry.map(antecedent_core::VariableId::from_raw),
+                known_censoring: wire.censoring_probability_floor.map(|minimum_probability| antecedent_core::KnownCensoringSurvival {
+                    times: std::sync::Arc::from(wire.censoring_times.clone()),
+                    columns: std::sync::Arc::from(wire.censoring_columns.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>()),
+                    minimum_probability,
+                }),
                 observation_assumption: antecedent_core::ObservationAssumption::IndependentGiven(
-                    std::sync::Arc::from([]),
+                    std::sync::Arc::from(wire.independent_given.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>()),
                 ),
                 functional: wire.target_cause.map_or(
                     antecedent_core::SurvivalFunctional::SurvivalAndRmst,

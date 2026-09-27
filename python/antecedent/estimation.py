@@ -55,9 +55,9 @@ from .experiment import (
     BernoulliAssignment,
     ComplierEffect,
     RandomizedEffect,
-    SwitchbackEffect,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
+    SwitchbackEffect,
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
@@ -76,11 +76,24 @@ from .interference import (
     RandomizationContrast,
 )
 from .policy import (
-    BinaryPolicy, DoublyRobustPolicyEvaluation, MultiActionPolicy, MultiActionPolicyValue,
-    PolicyValue, evaluate_multi_action_policy, evaluate_policy,
+    BinaryPolicy,
+    DoublyRobustPolicyEvaluation,
+    MultiActionPolicy,
+    MultiActionPolicyValue,
+    PolicyValue,
+    evaluate_multi_action_policy,
+    evaluate_policy,
 )
 from .population import coerce_target_population
-from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate, StaggeredAdoption, SyntheticControl, SyntheticControlEstimate
+from .quasi import (
+    PanelDifferenceInDifferences,
+    PanelDifferenceInDifferencesEstimate,
+    StaggeredAdoption,
+    SyntheticControl,
+    SyntheticControlEstimate,
+    SyntheticDifferenceInDifferences,
+    SyntheticDifferenceInDifferencesEstimate,
+)
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -356,6 +369,21 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
         placebo_rank_p_value=section.placebo_rank,
         effective_donors=section.effective_donors,
         n_donors=len(section.donor_weights),
+        n_pre_periods=section.n_pre_periods,
+        n_post_periods=section.n_post_periods,
+    )
+
+
+def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimate | None:
+    section = getattr(raw, "synthetic_did", None)
+    if section is None:
+        return None
+    return SyntheticDifferenceInDifferencesEstimate(
+        estimate=section.effect,
+        pre_treatment_rmse=section.pre_treatment_rmse,
+        donor_weights=tuple((str(unit), float(weight)) for unit, weight in section.donor_weights),
+        time_weights=tuple((int(period), float(weight)) for period, weight in section.time_weights),
+        n_donors=section.n_donors,
         n_pre_periods=section.n_pre_periods,
         n_post_periods=section.n_post_periods,
     )
@@ -793,6 +821,7 @@ def _wrap_ate(
         randomized_effect=_randomized_effect_from_raw(raw),
         panel_did=_panel_did_from_raw(raw, query),
         synthetic_control=_synthetic_control_from_raw(raw),
+        synthetic_did=_synthetic_did_from_raw(raw),
         policy_value=_policy_value_from_raw(raw),
         survival=_survival_from_raw(raw, query),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
@@ -1618,6 +1647,7 @@ _PreparedQuery = (
     | TransportResponseGridQuery
     | InterferenceQuery
     | RandomizedEffect
+    | ComplierEffect
     | SwitchbackEffect
     | PolicyValue
     | MultiActionPolicyValue
@@ -1626,6 +1656,7 @@ _PreparedQuery = (
     | PanelDifferenceInDifferences
     | StaggeredAdoption
     | SyntheticControl
+    | SyntheticDifferenceInDifferences
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegimeQuery
@@ -1634,7 +1665,6 @@ _PreparedQuery = (
 
 @dataclass(frozen=True)
 class _Controls:
-    | ComplierEffect
     """Execution controls a study applies to every click unless overridden.
 
     In-process only: none of them is part of the contract, program, or claim.
@@ -1785,7 +1815,7 @@ def _staggered_payload(
 
 
 def _synthetic_control_payload(
-    data: Any, query: SyntheticControl
+    data: Any, query: SyntheticControl | SyntheticDifferenceInDifferences
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
     from .quasi import _integer_column, _raw_columns
 
@@ -1985,11 +2015,13 @@ class _PrepareRoute:
             return self._policy_value()
         if isinstance(query, RandomizedEffect):
             return self._randomized_effect()
+        if isinstance(query, ComplierEffect):
+            return self._complier_effect()
         if isinstance(query, SwitchbackEffect):
             return self._switchback_effect()
         if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
             return self._panel_did()
-        if isinstance(query, SyntheticControl):
+        if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
             return self._synthetic_control()
         if isinstance(query, LongitudinalRegimeQuery):
             return self._longitudinal_regime()
@@ -2002,8 +2034,6 @@ class _PrepareRoute:
         temporal = isinstance(query, (PulseEffect, SustainedEffect, TemporalMediationEffect)) or (
             isinstance(query, (ResponseCurve, InterventionResponse))
             and getattr(query, "is_temporal", False)
-        if isinstance(query, ComplierEffect):
-            return self._complier_effect()
         )
         if self.frame is not None and not temporal:
             raise CausalUnsupportedError(
@@ -2574,23 +2604,6 @@ class _PrepareRoute:
         )
         return native, "average"
 
-    def _randomized_effect(self) -> tuple[Any, Literal["average"]]:
-        query = cast(RandomizedEffect, self.query)
-        if self.graph is not None or self.discovery is not None:
-            raise CausalUnsupportedError(
-                "RandomizedEffect carries its randomization design and does not accept graph= or discovery=",
-                reason_code="option_not_applicable",
-            )
-        assignment = query.design.assignment
-        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization)):
-            raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")
-        self._refuse_ids("RandomizedEffect")
-        self._refuse_estimator_config("RandomizedEffect")
-        if self._explicit_refute():
-            raise CausalUnsupportedError("RandomizedEffect has no refutation route", reason_code="option_not_applicable")
-        n = len(query.design.realized_assignment)
-        blocks: list[str] = []
-        treated_per_row: list[int] = []
     def _complier_effect(self) -> tuple[Any, Literal["average"]]:
         query = cast(ComplierEffect, self.query)
         if self.graph is not None or self.discovery is not None:
@@ -2617,6 +2630,23 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _randomized_effect(self) -> tuple[Any, Literal["average"]]:
+        query = cast(RandomizedEffect, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                "RandomizedEffect carries its randomization design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        assignment = query.design.assignment
+        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization)):
+            raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")
+        self._refuse_ids("RandomizedEffect")
+        self._refuse_estimator_config("RandomizedEffect")
+        if self._explicit_refute():
+            raise CausalUnsupportedError("RandomizedEffect has no refutation route", reason_code="option_not_applicable")
+        n = len(query.design.realized_assignment)
+        blocks: list[str] = []
+        treated_per_row: list[int] = []
         treated_units: int | None = None
         treated_clusters: int | None = None
         if isinstance(assignment, BernoulliAssignment):
@@ -2702,7 +2732,7 @@ class _PrepareRoute:
         return native, "average"
 
     def _synthetic_control(self) -> tuple[Any, Literal["average"]]:
-        query = cast(SyntheticControl, self.query)
+        query = cast(SyntheticControl | SyntheticDifferenceInDifferences, self.query)
         if self.graph is not None or self.discovery is not None:
             raise _not_applicable("graph/discovery", "SyntheticControl")
         self._refuse_ids("SyntheticControl")
@@ -2718,6 +2748,7 @@ class _PrepareRoute:
             self.names, self.columns, query.outcome,
             list(design["units"]), list(design["periods"]),
             query.treated_unit, query.intervention_period,
+            difference_in_differences=isinstance(query, SyntheticDifferenceInDifferences),
             accepted=False, **self._common()
         )
         return native, "average"
@@ -2749,11 +2780,19 @@ class _PrepareRoute:
                 reason_code="route_not_supported",
             )
         assumption = query.observation_assumption
-        if not isinstance(assumption, IndependentGiven) or tuple(assumption.variables):
+        if not isinstance(assumption, IndependentGiven) or (query.known_censoring is None and tuple(assumption.variables)):
             raise CausalUnsupportedError(
-                "the unadjusted survival route requires an explicit marginal IndependentGiven(()) censoring and entry assumption",
+                "survival requires IndependentGiven; conditional censoring also requires known censoring survival",
                 reason_code="route_not_supported",
             )
+        known = query.known_censoring
+        if known is not None:
+            missing = [name for name in (*known.columns, *assumption.variables) if name not in self.names]
+            if missing:
+                raise CausalUnsupportedError(
+                    f"known censoring or conditioning columns are missing: {missing}",
+                    reason_code="route_not_supported",
+                )
         event = query.event_cause if isinstance(query, CompetingRisksOutcome) else query.event_observed
         target_cause = query.target_cause if isinstance(query, CompetingRisksOutcome) else None
         native = _NativePreparedAnalysis.prepare_survival(
@@ -2765,6 +2804,10 @@ class _PrepareRoute:
             float(query.tau),
             target_cause,
             query.delayed_entry,
+            independent_given=list(assumption.variables),
+            censoring_times=list(known.times) if known is not None else [],
+            censoring_columns=list(known.columns) if known is not None else [],
+            censoring_probability_floor=known.minimum_probability if known is not None else None,
             accepted=False,
             **self._common(),
         )
@@ -3997,10 +4040,10 @@ class PreparedAnalysis(Generic[ResultT]):
         rd_args = (running_variable, cutoff, bandwidth)
 
         design_columns = None
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl)):
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
             if isinstance(query, StaggeredAdoption):
                 names, columns, design_columns = _staggered_payload(data, query)
-            elif isinstance(query, SyntheticControl):
+            elif isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
                 names, columns, design_columns = _synthetic_control_payload(data, query)
             else:
                 names, columns, design_columns = _panel_did_payload(data, query)
@@ -4299,10 +4342,10 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         query = self._query
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl)):
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
             names, columns, design = (
                 _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
-                else _synthetic_control_payload(data, query) if isinstance(query, SyntheticControl)
+                else _synthetic_control_payload(data, query) if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences))
                 else _panel_did_payload(data, query)
             )
             if design != self._design_columns:

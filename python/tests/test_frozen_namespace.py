@@ -78,6 +78,7 @@ _EXPECTED_ALL = {
     "SurvivalOutcome",
     "SurvivalEstimate",
     "IPCWSurvivalEstimate",
+    "KnownCensoringSurvival",
     "IPCWCumulativeIncidenceEstimate",
     "estimate_survival",
     "estimate_survival_ipcw",
@@ -370,6 +371,7 @@ _EXPECTED_STAGE_ALL = {
     "survival": {
         "CompetingRisksOutcome", "CumulativeIncidenceEstimate", "IPCWCumulativeIncidenceEstimate",
         "IPCWSurvivalEstimate",
+        "KnownCensoringSurvival",
         "SurvivalEstimate", "SurvivalOutcome", "estimate_cumulative_incidence",
         "estimate_cumulative_incidence_ipcw", "estimate_survival", "estimate_survival_ipcw",
     },

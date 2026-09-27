@@ -3,6 +3,8 @@
 
 use super::*;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
+use antecedent_estimate::synthetic_control::fit_synthetic_did;
+use antecedent_core::SyntheticPanelMethod;
 
 #[derive(Clone)]
 pub(crate) struct CheckedSyntheticControlOperation {
@@ -64,6 +66,9 @@ impl CheckedSyntheticControlOperation {
             _ => return Err(CausalError::Unsupported { message: "synthetic-control outcome must be continuous" }),
         };
         let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
+        if self.query.method == SyntheticPanelMethod::DifferenceInDifferences {
+            return self.execute_did(data, ctx, y, &units);
+        }
         let fit = fit_synthetic_control(y, &units, &self.query.periods, &self.query.treated_unit,
             self.query.intervention_period)
             .map_err(|message| CausalError::Compile { message })?;
@@ -109,6 +114,49 @@ impl CheckedSyntheticControlOperation {
         result.treatment = None;
         Ok(result)
     }
+
+    fn execute_did(
+        &self, data: &TabularData, _ctx: &ExecutionContext, y: &[f64], units: &[String],
+    ) -> Result<StudyResult, CausalError> {
+        let fit = fit_synthetic_did(y, units, &self.query.periods, &self.query.treated_unit,
+            self.query.intervention_period).map_err(|message| CausalError::Compile { message })?;
+        let estimate = EffectEstimate::new(
+            fit.effect, f64::NAN, self.identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context, Some(data), IdentifiedExecuteFinish {
+                physical: &self.physical,
+                identification: self.identification.clone(), estimand: self.estimand.clone(),
+                estimate, identifier_id: IdentifierId::RandomizedDesign,
+                estimator_id: EstimatorId::RandomizedHt,
+                treatment: self.query.outcome, outcome: self.query.outcome,
+                identify_cached: false,
+                extra_diagnostics: vec![Diagnostic::new(
+                    "estimate.quasi.synthetic_did.support",
+                    DiagnosticKind::Scientific, DiagnosticSeverity::Info,
+                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; unit and time simplex weights; no calibrated interval",
+                        fit.n_donors, fit.n_pre_periods, fit.n_post_periods, fit.pre_treatment_rmse),
+                )],
+                refutations: Vec::new(), distribution: None, mediation: None,
+                wall_time_ns: 0, bootstrap_replicates_ok: None,
+                cancelled: false, early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            },
+        );
+        result.synthetic_did = Some(crate::SyntheticDidEstimate {
+            effect: fit.effect,
+            pre_treatment_rmse: fit.pre_treatment_rmse,
+            donor_weights: fit.donor_weights.into_iter().map(|(unit, weight)| (Arc::<str>::from(unit), weight)).collect(),
+            time_weights: fit.time_weights.into(),
+            n_donors: fit.n_donors,
+            n_pre_periods: fit.n_pre_periods,
+            n_post_periods: fit.n_post_periods,
+            uncertainty: Arc::from("point_only_no_interval"),
+        });
+        result.treatment = None;
+        Ok(result)
+    }
 }
 
 impl Study {
@@ -126,7 +174,6 @@ pub(crate) fn synthetic_control_identification(
     for (id, description) in [
         ("no_anticipation", "intervention does not affect pre-treatment outcomes"),
         ("stable_treatment_after_intervention", "the selected unit remains treated after intervention"),
-        ("convex_donor_combination_is_a_valid_counterfactual", "a convex combination of donor outcomes represents the treated unit without intervention"),
         ("no_interference_between_units", "treatment does not change donor outcomes"),
         ("no_concurrent_treated_unit_specific_shock", "no other treated-unit-specific shock starts at intervention"),
         ("balanced_panel", "all donor and treated units are observed at the same periods"),
@@ -138,6 +185,28 @@ pub(crate) fn synthetic_control_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    let (method_assumption, method_description, rule, derivation_description) = match query.method {
+        SyntheticPanelMethod::Control => (
+            "convex_donor_combination_is_a_valid_counterfactual",
+            "a convex combination of donor outcomes represents the treated unit without intervention",
+            "synthetic_control.convex_donor_pre_fit",
+            "the treated unit's post-intervention mean gap from its pre-fitted convex donor counterfactual is identified under the declared donor validity assumptions",
+        ),
+        SyntheticPanelMethod::DifferenceInDifferences => (
+            "convex_unit_and_time_weights_represent_untreated_counterfactual_trends",
+            "convex donor and pre-period weights represent the untreated trend counterfactual",
+            "synthetic_did.convex_unit_time_weights",
+            "the weighted post-versus-pre treated change minus the donor change is identified under the declared trend validity assumptions",
+        ),
+    };
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from(method_assumption), description: Arc::from(method_description),
+        },
+        source: antecedent_core::AssumptionSource::UserDeclared,
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
@@ -148,13 +217,12 @@ pub(crate) fn synthetic_control_identification(
     let functional = arena.intern(antecedent_expr::ExprNode::Expectation {
         function: antecedent_expr::OutcomeExprId::identity(query.outcome), distribution,
     });
-    let rule = "synthetic_control.convex_donor_pre_fit";
     arena.set_derivation(functional, antecedent_expr::DerivationMeta::rule(
         rule, Some(Arc::from("one treated unit and a balanced donor pool bind the observed panel")),
     ));
     let estimand = IdentifiedEstimand::new(rule, Arc::from([]), Arc::from([]), Arc::from([]), functional, None);
     let mut derivation = DerivationTrace::default();
-    derivation.push(rule, "the treated unit's post-intervention mean gap from its pre-fitted convex donor counterfactual is identified under the declared donor validity assumptions");
+    derivation.push(rule, derivation_description);
     let identification = IdentificationResult::identified(
         CausalQuery::SyntheticControl(query.clone()), vec![estimand.clone()], arena,
         derivation, assumptions, IdentificationPerformanceRecord::default(),

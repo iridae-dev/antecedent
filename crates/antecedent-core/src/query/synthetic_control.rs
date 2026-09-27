@@ -5,6 +5,16 @@ use super::QueryError;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
+/// Fitted synthetic-panel contrast.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SyntheticPanelMethod {
+    /// Post-treatment treated-versus-convex-donor outcome contrast.
+    #[default]
+    Control,
+    /// Difference in differences with convex donor and pre-period weights.
+    DifferenceInDifferences,
+}
+
 /// A balanced unit-by-period panel with one treated unit and donor units.
 ///
 /// The causal interpretation requires a valid convex donor counterfactual,
@@ -21,6 +31,8 @@ pub struct SyntheticControlQuery {
     pub treated_unit: Arc<str>,
     /// First treated period; all earlier periods fit donor weights.
     pub intervention_period: i64,
+    /// Distinguishes synthetic control from synthetic difference in differences.
+    pub method: SyntheticPanelMethod,
 }
 
 impl SyntheticControlQuery {
@@ -33,7 +45,14 @@ impl SyntheticControlQuery {
         treated_unit: impl Into<Arc<str>>,
         intervention_period: i64,
     ) -> Self {
-        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period }
+        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control }
+    }
+
+    /// Use the same frozen panel for a synthetic difference-in-differences contrast.
+    #[must_use]
+    pub fn difference_in_differences(mut self) -> Self {
+        self.method = SyntheticPanelMethod::DifferenceInDifferences;
+        self
     }
 
     /// Validate frozen metadata before compiling the analysis.

@@ -306,7 +306,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("temporal_coordinates".into(), "pre_post".into()),
         ],
         CausalQueryWire::SyntheticControl(query) => vec![
-            ("query_kind".into(), "synthetic_control".into()),
+            ("query_kind".into(), if query.difference_in_differences { "synthetic_did" } else { "synthetic_control" }.into()),
             ("outcome".into(), query.outcome.to_string()),
             ("treated_unit".into(), query.treated_unit.clone()),
             ("intervention_period".into(), query.intervention_period.to_string()),

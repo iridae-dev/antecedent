@@ -14,7 +14,7 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
 from .policy import MultiActionPolicyValue, PolicyValue
-from .quasi import PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl
+from .quasi import PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -67,6 +67,7 @@ def analyze(
         | PanelDifferenceInDifferences
         | StaggeredAdoption
         | SyntheticControl
+        | SyntheticDifferenceInDifferences
         | SurvivalOutcome
         | CompetingRisksOutcome
         | PulseEffect

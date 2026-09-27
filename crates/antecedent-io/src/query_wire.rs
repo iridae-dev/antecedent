@@ -831,6 +831,18 @@ pub struct SurvivalQueryWire {
     pub target_cause: Option<i64>,
     /// Caller declaration of marginal independent censoring/entry.
     pub independent_observation: bool,
+    /// Variables conditioning the independent censoring claim.
+    #[serde(default)]
+    pub independent_given: Vec<u32>,
+    /// Caller-supplied censoring survival time grid.
+    #[serde(default)]
+    pub censoring_times: Vec<f64>,
+    /// One row-aligned censoring survival column per grid time.
+    #[serde(default)]
+    pub censoring_columns: Vec<u32>,
+    /// Minimum accepted censoring survival, when a grid is present.
+    #[serde(default)]
+    pub censoring_probability_floor: Option<f64>,
 }
 
 /// Frozen design vectors for a retained panel DiD query.
@@ -875,6 +887,9 @@ pub struct SyntheticControlQueryWire {
     pub treated_unit: String,
     /// First treated period.
     pub intervention_period: i64,
+    /// Whether the panel contrast uses convex unit and pre-period weights.
+    #[serde(default)]
+    pub difference_in_differences: bool,
 }
 
 /// Frozen policy value inputs retained as part of query identity.
@@ -993,6 +1008,9 @@ impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyIn
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RandomizedEffectQueryWire {
+    /// Assignment ITT or randomized-encouragement CACE/LATE.
+    #[serde(default)]
+    pub estimand: RandomizedEstimandWire,
     /// Declared assignment mechanism.
     #[serde(default)]
     pub design: RandomizationDesignWire,
@@ -1008,9 +1026,6 @@ pub struct RandomizedEffectQueryWire {
     pub outcome_units: Vec<String>,
     /// Control and treatment labels.
     pub treatment_arms: (String, String),
-    /// Assignment ITT or randomized-encouragement CACE/LATE.
-    #[serde(default)]
-    pub estimand: RandomizedEstimandWire,
     /// Block labels in row order (stratified designs only).
     #[serde(default)]
     pub blocks: Vec<String>,
@@ -1023,6 +1038,20 @@ pub struct RandomizedEffectQueryWire {
     /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
     #[serde(default)]
     pub fixed_cuped: Option<(u32, f64)>,
+    /// Row-aligned observed receipt for CACE/LATE.
+    #[serde(default)]
+    pub received_treatment: Option<Vec<bool>>,
+}
+
+/// Target estimand serialized with a randomized query.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RandomizedEstimandWire {
+    /// Assignment intention-to-treat contrast.
+    #[default]
+    Itt,
+    /// Wald complier effect under exclusion and monotonicity.
+    CaceLate,
 }
 
 /// Assignment mechanism serialized with a randomized ITT query.
@@ -1038,20 +1067,6 @@ pub enum RandomizationDesignWire {
     /// Complete randomization with a fixed treated count.
     Complete {
         /// Declared number assigned to treatment.
-    /// Row-aligned observed receipt for CACE/LATE.
-    #[serde(default)]
-    pub received_treatment: Option<Vec<bool>>,
-}
-
-/// Target estimand serialized with a randomized query.
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum RandomizedEstimandWire {
-    /// Assignment intention-to-treat contrast.
-    #[default]
-    Itt,
-    /// Wald complier effect under exclusion and monotonicity.
-    CaceLate,
         treated_units: usize,
     },
     /// Complete randomization of assignment clusters.
@@ -1566,6 +1581,10 @@ pub fn causal_query_to_wire_with_registry(
         }
         CausalQuery::RandomizedEffect(q) => {
             CausalQueryWire::RandomizedEffect(RandomizedEffectQueryWire {
+                estimand: match q.estimand {
+                    antecedent_core::RandomizedEstimand::IntentionToTreat => RandomizedEstimandWire::Itt,
+                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => RandomizedEstimandWire::CaceLate,
+                },
                 design: match &q.design {
                     RandomizationDesign::Bernoulli => RandomizationDesignWire::Bernoulli,
                     RandomizationDesign::Complete { treated_units } => {
@@ -1581,10 +1600,6 @@ pub fn causal_query_to_wire_with_registry(
                 realized_assignment: q.realized_assignment.to_vec(),
                 assignment_probabilities: q.assignment_probabilities.to_vec(),
                 assignment_units: q.assignment_units.iter().map(ToString::to_string).collect(),
-                estimand: match q.estimand {
-                    antecedent_core::RandomizedEstimand::IntentionToTreat => RandomizedEstimandWire::Itt,
-                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => RandomizedEstimandWire::CaceLate,
-                },
                 outcome_units: q.outcome_units.iter().map(ToString::to_string).collect(),
                 treatment_arms: (q.treatment_arms.0.to_string(), q.treatment_arms.1.to_string()),
                 blocks: match &q.design {
@@ -1600,6 +1615,7 @@ pub fn causal_query_to_wire_with_registry(
                     _ => Vec::new(),
                 },
                 fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
+                received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
                 periods: match &q.design {
                     RandomizationDesign::Switchback { periods } => periods.iter().map(ToString::to_string).collect(),
                     _ => Vec::new(),
@@ -1615,7 +1631,6 @@ pub fn causal_query_to_wire_with_registry(
             mu0: q.mu0.to_vec(),
             mu1: q.mu1.to_vec(),
             costs: q.costs.to_vec(),
-                received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
             reference_costs: q.reference_costs.to_vec(),
             evaluation_subject_ids: q
                 .evaluation_subject_ids
@@ -1647,6 +1662,7 @@ pub fn causal_query_to_wire_with_registry(
             periods: q.periods.to_vec(),
             treated_unit: q.treated_unit.to_string(),
             intervention_period: q.intervention_period,
+            difference_in_differences: q.method == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
         }),
         CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
             duration: q.duration.raw(),
@@ -1661,7 +1677,14 @@ pub fn causal_query_to_wire_with_registry(
                 }
             },
             independent_observation: matches!(&q.observation_assumption,
-                antecedent_core::ObservationAssumption::IndependentGiven(vars) if vars.is_empty()),
+                antecedent_core::ObservationAssumption::IndependentGiven(_)),
+            independent_given: match &q.observation_assumption {
+                antecedent_core::ObservationAssumption::IndependentGiven(vars) => vars.iter().map(|id| id.raw()).collect(),
+                _ => Vec::new(),
+            },
+            censoring_times: q.known_censoring.as_ref().map_or_else(Vec::new, |known| known.times.to_vec()),
+            censoring_columns: q.known_censoring.as_ref().map_or_else(Vec::new, |known| known.columns.iter().map(|id| id.raw()).collect()),
+            censoring_probability_floor: q.known_censoring.as_ref().map(|known| known.minimum_probability),
         }),
         CausalQuery::LongitudinalRegime(q) => CausalQueryWire::LongitudinalRegime(
             LongitudinalRegimeQueryWire {
@@ -1902,6 +1925,12 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             if let Some((id, coefficient)) = w.fixed_cuped {
                 query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
             }
+            if let Some(receipt) = &w.received_treatment {
+                query = query.with_received_treatment(receipt.clone());
+            }
+            if (w.estimand == RandomizedEstimandWire::CaceLate) != w.received_treatment.is_some() {
+                return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
+            }
             query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::RandomizedEffect(query)
         }
@@ -1925,12 +1954,6 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 disjoint_training_subjects: w.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
                 multi_action: w.multi_action.as_ref().map(Into::into),
-            if let Some(receipt) = &w.received_treatment {
-                query = query.with_received_treatment(receipt.clone());
-            }
-            if (w.estimand == RandomizedEstimandWire::CaceLate) != w.received_treatment.is_some() {
-                return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
-            }
                 uplift_bins: w.uplift_bins.clone().into(),
                 uplift_bin_count: w.uplift_bin_count,
                 uplift_training_subject_ids: w.uplift_training_subject_ids.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
@@ -1985,18 +2008,29 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 Arc::<str>::from(w.treated_unit.as_str()),
                 w.intervention_period,
             );
+            let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::SyntheticControl(q)
         }
         CausalQueryWire::Survival(w) => {
+            if w.censoring_probability_floor.is_none()
+                && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
+            {
+                return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
+            }
             let q = antecedent_core::SurvivalQuery {
                 duration: VariableId::from_raw(w.duration),
                 event: VariableId::from_raw(w.event),
                 treatment: VariableId::from_raw(w.treatment),
                 tau: w.tau,
                 delayed_entry: w.delayed_entry.map(VariableId::from_raw),
+                known_censoring: w.censoring_probability_floor.map(|minimum_probability| antecedent_core::KnownCensoringSurvival {
+                    times: Arc::from(w.censoring_times.clone()),
+                    columns: Arc::from(w.censoring_columns.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()),
+                    minimum_probability,
+                }),
                 observation_assumption: if w.independent_observation {
-                    antecedent_core::ObservationAssumption::IndependentGiven(Arc::from([]))
+                    antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(w.independent_given.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()))
                 } else {
                     return Err(IoError::Convert(
                         "survival requires marginal independent observation declaration".into(),
@@ -2013,11 +2047,6 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::Survival(q)
         }
         CausalQueryWire::LongitudinalRegime(w) => {
-            if w.censoring_probability_floor.is_none()
-                && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
-            {
-                return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
-            }
             let q = antecedent_core::LongitudinalRegimeQuery {
                 outcome: VariableId::from_raw(w.outcome), periods: w.periods,
                 treatment_history: w.treatment_history.clone().into(),
@@ -2291,6 +2320,17 @@ mod tests {
         ));
         let switchback_wire = causal_query_to_wire(&switchback).unwrap();
         assert_eq!(causal_query_from_wire(&switchback_wire).unwrap(), switchback);
+
+        let cace = CausalQuery::RandomizedEffect(
+            RandomizedEffectQuery::bernoulli_itt(
+                VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+                ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+                ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+                ("control", "encouraged"),
+            ).with_received_treatment([true, false, false, false]),
+        );
+        let cace_wire = causal_query_to_wire(&cace).unwrap();
+        assert_eq!(causal_query_from_wire(&cace_wire).unwrap(), cace);
 
         let stratified = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
             RandomizationDesign::Stratified {
