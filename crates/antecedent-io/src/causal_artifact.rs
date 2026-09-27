@@ -523,6 +523,11 @@ pub(crate) fn validate_query_ids(
             validate_id(*outcome, variable_count)
         }
         Q::RandomizedEffect(wire) => {
+            if !matches!(wire.design, crate::RandomizationDesignWire::Factorial2x2)
+                && (!wire.second_factor_assignment.is_empty() || wire.factorial_cell_counts.is_some() || wire.second_factor_arms.is_some())
+            {
+                return Err(IoError::Convert("factorial metadata requires a factorial design".into()));
+            }
             validate_id(wire.outcome, variable_count)?;
             if let Some((covariate, _)) = wire.fixed_cuped {
                 validate_id(covariate, variable_count)?;
@@ -551,6 +556,14 @@ pub(crate) fn validate_query_ids(
                             .collect::<Vec<_>>()
                             .into(),
                         treated_per_row: wire.treated_per_row.clone().into(),
+                    }
+                }
+                crate::RandomizationDesignWire::Factorial2x2 => {
+                    let arms = wire.second_factor_arms.as_ref().ok_or_else(|| IoError::Convert("second-factor labels are missing".into()))?;
+                    antecedent_core::RandomizationDesign::Factorial2x2 {
+                        second_factor_assignment: wire.second_factor_assignment.clone().into(),
+                        cell_counts: wire.factorial_cell_counts.ok_or_else(|| IoError::Convert("factorial cell counts are missing".into()))?,
+                        second_factor_arms: (std::sync::Arc::<str>::from(arms.0.as_str()), std::sync::Arc::<str>::from(arms.1.as_str())),
                     }
                 }
             };

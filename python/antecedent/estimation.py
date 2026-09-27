@@ -55,6 +55,7 @@ from .experiment import (
     BernoulliAssignment,
     ComplierEffect,
     RandomizedEffect,
+    FactorialRandomization,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
     SwitchbackEffect,
@@ -312,6 +313,10 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         received_treatment=tuple(section.received_treatment) if section.received_treatment is not None else None,
         randomization_p_value=section.randomization_p_value,
         randomization_allocations=section.randomization_allocations,
+        second_factor_effect=section.second_factor_effect,
+        factorial_interaction=section.factorial_interaction,
+        second_factor_variance=section.second_factor_variance,
+        factorial_interaction_variance=section.factorial_interaction_variance,
         treatment_arms=(section.control_arm, section.treatment_arm),
         control_units=section.control_units,
         treatment_units=section.treatment_units,
@@ -2679,7 +2684,7 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         assignment = query.design.assignment
-        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization)):
+        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization, FactorialRandomization)):
             raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")
         self._refuse_ids("RandomizedEffect")
         self._refuse_estimator_config("RandomizedEffect")
@@ -2715,6 +2720,9 @@ class _PrepareRoute:
                     "cluster randomization does not combine with block metadata on this route",
                     reason_code="route_not_supported",
                 )
+        elif isinstance(assignment, FactorialRandomization):
+            design_kind = "factorial_2x2"
+            probabilities = [(assignment.cell_counts[1] + assignment.cell_counts[3]) / n] * n
         else:
             design_kind = "stratified"
             assert isinstance(assignment, StratifiedRandomization)
@@ -2738,6 +2746,9 @@ class _PrepareRoute:
             treated_clusters=treated_clusters,
             fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
             exact_randomization_test=query.exact_randomization_test,
+            second_factor_assignment=list(assignment.second_factor_assignment) if isinstance(assignment, FactorialRandomization) else None,
+            factorial_cell_counts=assignment.cell_counts if isinstance(assignment, FactorialRandomization) else None,
+            second_factor_arms=assignment.second_factor_arms if isinstance(assignment, FactorialRandomization) else None,
             accepted=False,
             **self._common(),
         )

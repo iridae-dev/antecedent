@@ -3313,6 +3313,10 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                     .map(|receipt| receipt.to_vec()),
                 randomization_p_value: randomized.randomization_p_value,
                 randomization_allocations: randomized.randomization_allocations,
+                second_factor_effect: randomized.second_factor_effect,
+                factorial_interaction: randomized.factorial_interaction,
+                second_factor_variance: randomized.second_factor_variance,
+                factorial_interaction_variance: randomized.factorial_interaction_variance,
                 variance: randomized.variance_upper_bound,
                 assignment_design: randomized.assignment_design.to_string(),
                 assignment_units: randomized

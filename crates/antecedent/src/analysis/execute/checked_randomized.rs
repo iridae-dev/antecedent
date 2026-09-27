@@ -141,6 +141,7 @@ impl CheckedRandomizedOperation {
                 / (values.len() - 1) as f64
         };
         let mut complier_components = None;
+        let mut factorial_contrasts = None;
         let (
             effect,
             variance,
@@ -343,6 +344,31 @@ impl CheckedRandomizedOperation {
                     "Stratified difference in means weighted by block size, with blockwise Neyman conservative variance estimate; no confidence interval is reported",
                 )
             }
+            antecedent_core::RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => {
+                let mut cells: [Vec<f64>; 4] = std::array::from_fn(|_| Vec::new());
+                for i in 0..n {
+                    let cell = usize::from(self.query.realized_assignment[i])
+                        + 2 * usize::from(second_factor_assignment[i]);
+                    cells[cell].push(outcomes[i]);
+                }
+                let means = cells.each_ref().map(|cell| cell.iter().sum::<f64>() / cell.len() as f64);
+                let components = cells.each_ref().map(|cell| sample_variance(cell) / cell.len() as f64);
+                let primary = 0.5 * (means[1] - means[0] + means[3] - means[2]);
+                let secondary = 0.5 * (means[2] - means[0] + means[3] - means[1]);
+                let interaction = means[3] - means[2] - means[1] + means[0];
+                let total_variance = components.iter().sum::<f64>();
+                factorial_contrasts = Some((secondary, interaction, total_variance / 4.0, total_variance));
+                (
+                    primary,
+                    total_variance / 4.0,
+                    cells[0].len() + cells[2].len(),
+                    cells[1].len() + cells[3].len(),
+                    Arc::from([]), Arc::from([]),
+                    Arc::<str>::from("factorial_2x2"),
+                    Arc::<str>::from("factorial_cell_neyman_variance_upper_bound_no_interval"),
+                    "Fixed-cell 2×2 factorial main effects and interaction from four cell means, with cellwise Neyman conservative variance estimates; no confidence interval is reported",
+                )
+            }
             antecedent_core::RandomizationDesign::Switchback { periods } => {
                 let mut by_sequence = std::collections::BTreeMap::<&str, f64>::new();
                 let mut control_periods = 0;
@@ -448,12 +474,16 @@ impl CheckedRandomizedOperation {
         );
         result.randomized_effect = Some(crate::RandomizedEffectEstimate {
             effect,
-            estimand: Arc::from(if complier_components.is_some() { "cace_late" } else { "itt" }),
+            estimand: Arc::from(if complier_components.is_some() { "cace_late" } else if factorial_contrasts.is_some() { "factorial_primary_main_effect" } else { "itt" }),
             intention_to_treat_effect: complier_components.map(|(itt, _)| itt),
             first_stage_effect: complier_components.map(|(_, stage)| stage),
             received_treatment: self.query.received_treatment.clone(),
             randomization_p_value: exact_test.map(|(p, _)| p),
             randomization_allocations: exact_test.map(|(_, count)| count),
+            second_factor_effect: factorial_contrasts.map(|(effect, _, _, _)| effect),
+            factorial_interaction: factorial_contrasts.map(|(_, effect, _, _)| effect),
+            second_factor_variance: factorial_contrasts.map(|(_, _, variance, _)| variance),
+            factorial_interaction_variance: factorial_contrasts.map(|(_, _, _, variance)| variance),
             variance_upper_bound: variance,
             minimum_assignment_probability: self
                 .query
@@ -820,6 +850,8 @@ pub(crate) fn randomized_identification(
                     "Treatment assignment follows complete randomization with the declared fixed treatment count",
                 antecedent_core::RandomizationDesign::Stratified { .. } =>
                     "Treatment assignment follows independent complete randomization within each declared block",
+                antecedent_core::RandomizationDesign::Factorial2x2 { .. } =>
+                    "The two factors are jointly completely randomized to the declared four fixed cell counts",
                 antecedent_core::RandomizationDesign::Cluster { .. } =>
                     "Treatment assignment follows complete randomization of independent clusters; arbitrary dependence is allowed within clusters",
                 antecedent_core::RandomizationDesign::Switchback { .. } =>
@@ -904,6 +936,7 @@ fn randomized_estimator_id(query: &antecedent_core::RandomizedEffectQuery) -> Es
         },
         antecedent_core::RandomizationDesign::Complete { .. }
         | antecedent_core::RandomizationDesign::Stratified { .. }
+        | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
         | antecedent_core::RandomizationDesign::Cluster { .. } => EstimatorId::RandomizedNeyman,
         antecedent_core::RandomizationDesign::Switchback { .. } => EstimatorId::RandomizedSwitchbackHt,
     }

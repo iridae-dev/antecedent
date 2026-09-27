@@ -516,6 +516,18 @@ pub struct RandomizedEffectWire {
     /// Number of complete-design allocations exhaustively enumerated.
     #[serde(default)]
     pub randomization_allocations: Option<u64>,
+    /// Second-factor marginal effect under fixed four-cell randomization.
+    #[serde(default)]
+    pub second_factor_effect: Option<f64>,
+    /// Interaction contrast: primary effect at B=1 minus primary effect at B=0.
+    #[serde(default)]
+    pub factorial_interaction: Option<f64>,
+    /// Conservative second-factor marginal-effect variance.
+    #[serde(default)]
+    pub second_factor_variance: Option<f64>,
+    /// Conservative interaction variance.
+    #[serde(default)]
+    pub factorial_interaction_variance: Option<f64>,
     /// Design variance estimate or conservative bound, as labeled by uncertainty.
     pub variance: f64,
     /// Assignment design name.
@@ -892,6 +904,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::RandomizationDesignWire::Stratified => {
                 ("stratified", "stratified_neyman_variance_upper_bound_no_interval")
             }
+            crate::RandomizationDesignWire::Factorial2x2 => {
+                ("factorial_2x2", "factorial_cell_neyman_variance_upper_bound_no_interval")
+            }
             crate::RandomizationDesignWire::Switchback => {
                 ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval")
             }
@@ -943,11 +958,22 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || randomized.estimand
                 != if query.estimand == crate::RandomizedEstimandWire::CaceLate {
                     "cace_late"
+                } else if matches!(query.design, crate::RandomizationDesignWire::Factorial2x2) {
+                    "factorial_primary_main_effect"
                 } else {
                     "itt"
                 }
             || randomized.received_treatment != query.received_treatment
             || randomized.randomization_allocations != expected_allocations
+            || (matches!(query.design, crate::RandomizationDesignWire::Factorial2x2)
+                != (randomized.second_factor_effect.is_some()
+                    && randomized.factorial_interaction.is_some()
+                    && randomized.second_factor_variance.is_some()
+                    && randomized.factorial_interaction_variance.is_some()))
+            || randomized.second_factor_effect.is_some_and(|value| !value.is_finite())
+            || randomized.factorial_interaction.is_some_and(|value| !value.is_finite())
+            || randomized.second_factor_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - randomized.variance).abs() > 1e-12)
+            || randomized.factorial_interaction_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - 4.0 * randomized.variance).abs() > 1e-12)
             || (query.exact_randomization_test
                 && randomized.randomization_p_value.is_none_or(|p| !p.is_finite()
                     || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0))

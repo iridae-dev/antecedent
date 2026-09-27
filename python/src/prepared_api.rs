@@ -3369,7 +3369,8 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, received_treatment=None, exact_randomization_test=false, accepted=false, seed=1, threads=None,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, received_treatment=None, exact_randomization_test=false,
+        second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3391,6 +3392,9 @@ impl PyPreparedAnalysis {
         periods: Option<Vec<String>>,
         received_treatment: Option<Vec<bool>>,
         exact_randomization_test: bool,
+        second_factor_assignment: Option<Vec<bool>>,
+        factorial_cell_counts: Option<[usize; 4]>,
+        second_factor_arms: Option<(String, String)>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3427,9 +3431,18 @@ impl PyPreparedAnalysis {
                     periods: periods.ok_or_else(|| py_msg("switchback randomization requires periods"))?
                         .into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
                 },
+                "factorial_2x2" => {
+                    let second = second_factor_assignment.ok_or_else(|| py_msg("factorial second-factor assignment is required"))?;
+                    let counts = factorial_cell_counts.ok_or_else(|| py_msg("factorial four-cell counts are required"))?;
+                    let arms = second_factor_arms.ok_or_else(|| py_msg("factorial second-factor labels are required"))?;
+                    antecedent_core::RandomizationDesign::Factorial2x2 {
+                        second_factor_assignment: second.into(), cell_counts: counts,
+                        second_factor_arms: (Arc::<str>::from(arms.0), Arc::<str>::from(arms.1)),
+                    }
+                },
                 _ => {
                     return Err(py_msg(
-                        "design_kind must be bernoulli, complete, stratified, cluster, or switchback",
+                        "design_kind must be bernoulli, complete, stratified, cluster, switchback, or factorial_2x2",
                     ));
                 }
             };
@@ -3577,12 +3590,20 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
-            let unit_arc: Vec<Arc<str>> = units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect();
+            let unit_arc: Vec<Arc<str>> =
+                units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect();
             let query = antecedent_core::SyntheticControlQuery::new(
-                outcome_id, unit_arc, periods, Arc::<str>::from(treated_unit), intervention_period,
+                outcome_id,
+                unit_arc,
+                periods,
+                Arc::<str>::from(treated_unit),
+                intervention_period,
             );
-            let query = if difference_in_differences { query.difference_in_differences() } else { query };
-            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            let query =
+                if difference_in_differences { query.difference_in_differences() } else { query };
+            query.validate().map_err(|error| {
+                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+            })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;

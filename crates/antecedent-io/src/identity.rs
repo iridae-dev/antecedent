@@ -280,6 +280,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                     crate::RandomizationDesignWire::Complete { .. } => "complete".into(),
                     crate::RandomizationDesignWire::Cluster { .. } => "cluster".into(),
                     crate::RandomizationDesignWire::Stratified => "stratified".into(),
+                    crate::RandomizationDesignWire::Factorial2x2 => "factorial_2x2".into(),
                 },
             ),
             (
@@ -293,6 +294,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 }),
             ),
             ("switchback_periods".into(), query.periods.join(",")),
+            ("factorial_second_assignment".into(), query.second_factor_assignment.iter().map(|value| if *value { '1' } else { '0' }).collect()),
+            ("factorial_cell_counts".into(), format!("{:?}", query.factorial_cell_counts)),
+            ("factorial_second_arms".into(), format!("{:?}", query.second_factor_arms)),
             ("temporal_coordinates".into(), "none".into()),
         ],
         CausalQueryWire::PanelDid(query) => vec![

@@ -46,6 +46,30 @@ class StratifiedRandomization:
 
 
 @dataclass(frozen=True, slots=True)
+class FactorialRandomization:
+    """Fixed four-cell randomization of two binary factors.
+
+    Cell counts are ordered (primary=0, second=0), (1,0), (0,1), (1,1).
+    ``RandomizedEffect`` reports both marginal main effects and their interaction.
+    """
+
+    second_factor_assignment: Sequence[bool]
+    cell_counts: tuple[int, int, int, int]
+    second_factor_arms: tuple[str, str] = ("off", "on")
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "second_factor_assignment", tuple(self.second_factor_assignment))
+        object.__setattr__(self, "cell_counts", tuple(self.cell_counts))
+        object.__setattr__(self, "second_factor_arms", tuple(self.second_factor_arms))
+        if any(type(value) is not bool for value in self.second_factor_assignment):
+            raise CausalValueError("second_factor_assignment entries must be bool")
+        if len(self.cell_counts) != 4 or any(type(count) is not int or count < 2 for count in self.cell_counts):
+            raise CausalValueError("factorial cell_counts must have four counts of at least two")
+        if len(self.second_factor_arms) != 2 or any(not isinstance(arm, str) or not arm.strip() for arm in self.second_factor_arms) or self.second_factor_arms[0] == self.second_factor_arms[1]:
+            raise CausalValueError("second_factor_arms must contain two distinct non-empty labels")
+
+
+@dataclass(frozen=True, slots=True)
 class SwitchbackDesign:
     """Randomized treatment switching over periods within independent sequences.
 
@@ -148,7 +172,7 @@ class SwitchbackEstimate:
 
 
 AssignmentDesign = (
-    BernoulliAssignment | CompleteRandomization | ClusterRandomization | StratifiedRandomization
+    BernoulliAssignment | CompleteRandomization | ClusterRandomization | StratifiedRandomization | FactorialRandomization
 )
 
 
@@ -203,7 +227,7 @@ class ExperimentDesign:
                 "assignment",
                 StratifiedRandomization(dict(self.assignment.treated_per_block)),
             )
-        if not isinstance(self.assignment, (BernoulliAssignment, CompleteRandomization, ClusterRandomization, StratifiedRandomization)):
+        if not isinstance(self.assignment, (BernoulliAssignment, CompleteRandomization, ClusterRandomization, StratifiedRandomization, FactorialRandomization)):
             raise CausalValueError("unsupported experiment assignment design")
         n = len(self.realized_assignment)
         if n == 0 or len(self.assignment_units) != n or len(self.outcome_units) != n:
@@ -290,6 +314,17 @@ class ExperimentDesign:
                     raise CausalValueError(
                         f"realized_assignment must contain exactly {treated_count} treated units in block {block!r}"
                     )
+        if isinstance(self.assignment, FactorialRandomization):
+            factorial = self.assignment
+            if self.blocks is not None:
+                raise CausalValueError("factorial design does not combine with block metadata")
+            if len(factorial.second_factor_assignment) != n or sum(factorial.cell_counts) != n:
+                raise CausalValueError("factorial second-factor assignment and four-cell counts must align with rows")
+            observed = [0, 0, 0, 0]
+            for primary, second in zip(self.realized_assignment, factorial.second_factor_assignment, strict=True):
+                observed[int(primary) + 2 * int(second)] += 1
+            if tuple(observed) != factorial.cell_counts:
+                raise CausalValueError("observed factorial assignments must match the four declared cell counts")
         if self.estimand != "itt":
             raise CausalValueError("RandomizedEffect currently supports the ITT estimand")
 
@@ -332,6 +367,8 @@ class RandomizedEffect:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
             if not isinstance(self.design.assignment, BernoulliAssignment):
                 raise CausalValueError("retained fixed CUPED currently requires Bernoulli assignment")
+        if isinstance(self.design.assignment, FactorialRandomization) and self.exact_randomization_test:
+            raise CausalValueError("exact Fisher inference is only available for unadjusted complete two-arm designs")
         if self.exact_randomization_test:
             if type(self.exact_randomization_test) is not bool or self.cuped is not None or not isinstance(self.design.assignment, CompleteRandomization) or len(self.design.realized_assignment) > 20:
                 raise CausalValueError("exact randomization inference requires an unadjusted complete two-arm design with at most 20 units")
@@ -366,6 +403,11 @@ class RandomizedEffect:
         if self.exact_randomization_test:
             raise CausalUnsupportedError(
                 "exact randomization inference requires analyze or prepare to retain its null distribution contract",
+                reason_code="route_not_supported",
+            )
+        if isinstance(self.design.assignment, FactorialRandomization):
+            raise CausalUnsupportedError(
+                "factorial contrasts require analyze or prepare to retain all three estimands and their variance contracts",
                 reason_code="route_not_supported",
             )
         if self.cuped is not None:
@@ -440,7 +482,7 @@ class RandomizedExperimentEstimate:
 
     effect: float
     variance_upper_bound: float
-    assignment_design: Literal["bernoulli", "complete", "cluster", "stratified", "switchback"]
+    assignment_design: Literal["bernoulli", "complete", "cluster", "stratified", "switchback", "factorial_2x2"]
     assignment_units: tuple[str, ...]
     outcome_units: tuple[str, ...]
     blocks: tuple[str, ...] | None
@@ -451,12 +493,16 @@ class RandomizedExperimentEstimate:
     uncertainty: str
     support_status: str
     periods: tuple[str, ...] | None = None
-    estimand: Literal["itt", "cace_late"] = "itt"
+    estimand: Literal["itt", "cace_late", "factorial_primary_main_effect"] = "itt"
     intention_to_treat_effect: float | None = None
     first_stage_effect: float | None = None
     received_treatment: tuple[bool, ...] | None = None
     randomization_p_value: float | None = None
     randomization_allocations: int | None = None
+    second_factor_effect: float | None = None
+    factorial_interaction: float | None = None
+    second_factor_variance: float | None = None
+    factorial_interaction_variance: float | None = None
 
     @property
     def variance(self) -> float:
@@ -768,6 +814,7 @@ __all__ = [
     "ComplierEffectEstimate",
     "CUPEDEstimate",
     "FixedCUPED",
+    "FactorialRandomization",
     "ExperimentDesign",
     "MultiArmContrast",
     "MultiArmExperimentEstimate",
