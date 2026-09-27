@@ -53,6 +53,9 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
     )));
     assert!(!result.diagnostics.is_empty());
+    assert!(result.diagnostics.iter().any(|diagnostic|
+        diagnostic.code.as_ref() == "identification.quasi.parallel_trends_untestable_two_periods"
+    ));
 
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
@@ -124,6 +127,18 @@ fn panel_did_refuses_missing_wave_and_insufficient_group_clusters() {
 }
 
 #[test]
+fn panel_did_refuses_cluster_shared_across_treatment_groups() {
+    let (data, mut query) = fixture();
+    let mut clusters = query.clusters.to_vec();
+    clusters[8] = clusters[0].clone();
+    clusters[9] = clusters[0].clone();
+    query.clusters = clusters.into();
+    let error = Study::tabular(data).query(query).build().unwrap()
+        .run(&ExecutionContext::for_tests(1)).unwrap_err();
+    assert!(error.to_string().contains("clusters nested within treatment groups"));
+}
+
+#[test]
 fn repeated_cross_section_did_runs_through_study_and_prepared_routes() {
     let outcome = [0.0, 2.0, 2.0, 4.0, 10.0, 12.0, 14.0, 16.0];
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
@@ -151,6 +166,9 @@ fn repeated_cross_section_did_runs_through_study_and_prepared_routes() {
             &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required
         )));
     }
+    assert!(result.diagnostics.iter().any(|diagnostic|
+        diagnostic.code.as_ref() == "identification.quasi.parallel_trends_untestable_two_periods"
+    ));
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let refreshed = prepared.estimate(&data, &context).unwrap();
@@ -193,6 +211,24 @@ fn repeated_cross_section_refuses_duplicate_subject_or_sparse_cell_clusters() {
             .run(&context)
             .is_err()
     );
+}
+
+#[test]
+fn repeated_cross_section_refuses_cluster_shared_across_treatment_groups() {
+    let outcome = [0.0, 2.0, 2.0, 4.0, 10.0, 12.0, 14.0, 16.0];
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let mut clusters = (0..8).map(|i| Arc::<str>::from(format!("cluster-{i}"))).collect::<Vec<_>>();
+    clusters[4] = clusters[0].clone();
+    let query = PanelDidQuery::repeated_cross_section(
+        VariableId::from_raw(0),
+        [false, false, false, false, true, true, true, true],
+        [false, false, true, true, false, false, true, true],
+        (0..8).map(|i| Arc::<str>::from(format!("subject-{i}"))).collect::<Vec<_>>(),
+        clusters,
+    );
+    let error = Study::tabular(data).query(query).build().unwrap()
+        .run(&ExecutionContext::for_tests(1)).unwrap_err();
+    assert!(error.to_string().contains("clusters nested within treatment groups"));
 }
 
 #[test]

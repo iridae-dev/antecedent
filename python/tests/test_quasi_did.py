@@ -117,6 +117,8 @@ def test_panel_did_runs_through_retained_public_prepare_and_analyze_routes():
     assert np.isnan(estimate.estimate.se_analytic)
     assert estimate.plan.estimator == "quasi.panel_change_score"
     assert "parallel_trends" in " ".join(estimate.assumptions or [])
+    assert any(d.startswith("identification.quasi.parallel_trends_untestable_two_periods")
+               for d in estimate.diagnostics)
 
     direct = antecedent.analyze(data, query=query)
     assert direct.panel_did == estimate.panel_did
@@ -192,6 +194,36 @@ def test_repeated_cross_section_did_refuses_duplicate_subject_and_sparse_cell_cl
     collapsed = {**data, "cluster": ["c0", "c0", *data["cluster"][2:]]}
     with pytest.raises(CausalError, match="at least two clusters in each group-period cell"):
         antecedent.analyze(collapsed, query=query)
+
+
+def test_retained_did_refuses_cluster_shared_across_treatment_groups():
+    import antecedent
+    from antecedent.errors import CausalError
+
+    for repeated in (False, True):
+        ids = [f"s{i}" for i in range(8)]
+        groups = [False] * 4 + [True] * 4
+        periods = [False, False, True, True] * 2
+        outcomes = [0., 2., 2., 4., 10., 12., 14., 16.]
+        clusters = [f"c{i}" for i in range(8)]
+        if not repeated:
+            ids = [subject for subject in ids for _ in range(2)]
+            groups = [group for group in groups for _ in range(2)]
+            periods = [after for _ in range(8) for after in (False, True)]
+            outcomes = [float(i + (2 if group and after else 0))
+                        for i, group in enumerate([False] * 4 + [True] * 4)
+                        for after in (False, True)]
+            clusters = [cluster for cluster in clusters for _ in range(2)]
+        clusters[8 if not repeated else 4] = clusters[0]
+        if not repeated:
+            clusters[9] = clusters[0]
+        data = {"y": outcomes, "id": ids, "group": groups,
+                "after": periods, "cluster": clusters}
+        query = (PanelDifferenceInDifferences.repeated_cross_section(
+            "y", "id", "group", "after", cluster="cluster") if repeated else
+            PanelDifferenceInDifferences("y", "id", "group", "after", cluster="cluster"))
+        with pytest.raises(CausalError, match="clusters nested within treatment groups"):
+            antecedent.analyze(data, query=query)
 
 
 def test_prepared_panel_did_refuses_too_few_rows():
