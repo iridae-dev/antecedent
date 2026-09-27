@@ -3728,6 +3728,7 @@ mod tests {
             panel_did: None,
             synthetic_control: None,
             synthetic_did: None,
+            local_polynomial_ratio: None,
             randomized_effect: None,
             survival: None,
             longitudinal_regime: None,
