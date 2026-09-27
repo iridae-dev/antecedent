@@ -215,6 +215,35 @@ pub fn evaluate_g_formula_value(
     })
 }
 
+/// Conditional-on-fixed-known-Q pointwise interval for a two-period g-formula
+/// value over independently sampled subject histories. Each subject contributes
+/// the sum of its two supplied period rewards. This interval excludes any
+/// uncertainty from fitting or selecting the Q law, including cross-fitting.
+/// A retained caller must separately attest that the Q law is fixed and known.
+pub fn g_formula_fixed_q_pointwise_interval_95(
+    summary: &RegimeValueSummary,
+    predictions: &[f64],
+    subjects: usize,
+    periods: usize,
+) -> Option<(f64, [f64; 2])> {
+    if periods != 2 || subjects < 300 || predictions.len() != subjects.checked_mul(periods)?
+        || summary.minimum_action_probability < 0.2
+        || summary.minimum_censoring_probability < 0.8
+        || !summary.value.is_finite()
+    { return None; }
+    let mut centered_sum = 0.0;
+    for subject in 0..subjects {
+        let score = predictions[subject * periods] + predictions[subject * periods + 1];
+        if !score.is_finite() { return None; }
+        centered_sum += (score - summary.value).powi(2);
+    }
+    let se = (centered_sum / (subjects * (subjects - 1)) as f64).sqrt();
+    if !se.is_finite() || se <= 0.0 { return None; }
+    let span = antecedent_stats::normal_ppf(0.975) * se;
+    let bounds = [summary.value - span, summary.value + span];
+    bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
+}
+
 /// Evaluate a caller-prescribed static or history-dependent regime on one row
 /// per subject. All two-dimensional inputs are flattened in subject-major order.
 ///
