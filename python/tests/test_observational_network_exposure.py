@@ -105,7 +105,7 @@ def test_observational_network_analyze_matches_native_utility_and_reports_suppor
     )
     assert result.interference.from_probability_method == "supplied_externally_estimated"
     assert result.interference.support.from_exposed_units == utility.from_exposed_units
-    assert result.interference.support.to_exposed_clusters == utility.to_exposed_clusters
+    assert result.interference.support.to_observed_clusters == utility.to_exposed_clusters
     assert result.interference.support.clusters == utility.clusters
     assert result.interference.support.maximum_exposure_probability == pytest.approx(
         utility.maximum_exposure_probability

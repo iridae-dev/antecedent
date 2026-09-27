@@ -14,7 +14,7 @@ from ._native import (
     estimate_observational_network_exposure as _estimate_observational_network_exposure,
 )
 from ._native import estimate_saturation_interference as _estimate_saturation_interference
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalEstimateError, CausalTypeError, CausalValueError
 
 
 @dataclass(frozen=True, slots=True)
@@ -675,7 +675,7 @@ def estimate_observational_network_exposure(
             p_to,
             propensity_provenance,
         )
-    except ValueError as error:
+    except (ValueError, CausalEstimateError) as error:
         raise CausalValueError(str(error)) from error
     return ObservationalNetworkExposureEstimate(
         float(raw[0]), float(raw[1]), float(raw[2]), int(raw[3]), int(raw[4]),

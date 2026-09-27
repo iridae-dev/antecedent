@@ -602,6 +602,16 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   assignment probabilities are computed in Rust. The variance is a descriptive
   covariance-free proxy; no interval or support-matrix license is claimed.
   Direct and retained Python routes use the same native estimator.
+  `ObservedExposureDesign` is a retained observational construction on the
+  same query. It requires an explicit `PartialInterference` partition, a fixed
+  within-cluster network, both exposure propensities and their known or
+  externally estimated provenance, plus a declared no-unmeasured-network-
+  confounding assumption. It supports neighbor count, fraction, and weighted
+  exposure mappings, and reports exposed-unit and cluster counts, probability
+  bounds, and a descriptive cluster-robust variance. The direct utility and
+  retained analysis share the native estimator. Neither the propensities nor
+  network exchangeability are verified by the library; the result is off-axis
+  and has no licensed interval.
   `interference.estimate` remains an unlicensed utility over every design and
   exposure mapping; it returns bare numbers.
 * **Randomized experiment ITT** (`antecedent.experiment`): `ExperimentDesign`
