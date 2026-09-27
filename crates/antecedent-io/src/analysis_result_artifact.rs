@@ -1124,6 +1124,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::AssignmentDesignWire::TwoStageSaturation { .. } => "saturation_cluster_neyman_welch",
             _ => return Err(IoError::Convert("independent-cluster inference requires a randomized cluster interference design".into())),
         };
+        let minimum_first_stage_clusters = if matches!(&query.assignment,
+            crate::AssignmentDesignWire::TwoStageSaturation { .. }) { 24 } else { 8 };
         if inference.method != expected || inference.from_exposed_units == 0
             || inference.to_exposed_units == 0 || inference.from_exposed_clusters == 0
             || inference.to_exposed_clusters == 0
@@ -1136,7 +1138,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 || interval.lower >= interval.upper
                 || !interval.standard_error.is_finite() || interval.standard_error <= 0.0
                 || !interval.degrees_of_freedom.is_finite() || interval.degrees_of_freedom <= 0.0
-                || interval.first_stage_arm_clusters.iter().any(|&count| count < 8)
+                || interval.first_stage_arm_clusters.iter().any(|&count| count < minimum_first_stage_clusters)
                 || inference.from_exposed_clusters < 8 || inference.to_exposed_clusters < 8
                 || result.estimate.is_none_or(|effect| effect < interval.lower || effect > interval.upper)
             {
