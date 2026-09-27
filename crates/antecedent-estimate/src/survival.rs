@@ -34,6 +34,8 @@ pub struct RandomizedSurvivalSummary {
     pub rmst_treated: Option<f64>,
     /// Smallest positive risk set at an observed event time in either arm.
     pub minimum_event_risk_set: Option<usize>,
+    /// Smallest positive event risk set by control and treated arm.
+    pub minimum_event_risk_set_by_arm: [Option<usize>; 2],
 }
 
 /// Compute randomized arm curves with optional left truncation.
@@ -134,6 +136,7 @@ pub fn randomized_survival_summary(
         rmst_control: control.2,
         rmst_treated: active.2,
         minimum_event_risk_set: control.3.into_iter().chain(active.3).min(),
+        minimum_event_risk_set_by_arm: [control.3, active.3],
     })
 }
 
@@ -229,6 +232,7 @@ pub fn randomized_survival_ipcw_summary(
     let mut curves: [Vec<f64>; 2] = [Vec::with_capacity(m), Vec::with_capacity(m)];
     let mut restricted_means = [0.0_f64; 2];
     let mut minimum_risk_set: Option<usize> = None;
+    let mut minimum_risk_set_by_arm = [None; 2];
     for (arm_index, arm) in [false, true].into_iter().enumerate() {
         let mut survival = 1.0;
         let mut incidence = 0.0;
@@ -265,6 +269,10 @@ pub fn randomized_survival_ipcw_summary(
                 survival *= 1.0 - hazard;
                 minimum_risk_set =
                     Some(minimum_risk_set.map_or(at_risk.len(), |old| old.min(at_risk.len())));
+                minimum_risk_set_by_arm[arm_index] = Some(
+                    minimum_risk_set_by_arm[arm_index]
+                        .map_or(at_risk.len(), |old: usize| old.min(at_risk.len())),
+                );
             }
             curves[arm_index].push(if endpoint == SurvivalEndpoint::Survival {
                 survival
@@ -282,6 +290,7 @@ pub fn randomized_survival_ipcw_summary(
             rmst_control: (endpoint == SurvivalEndpoint::Survival).then_some(restricted_means[0]),
             rmst_treated: (endpoint == SurvivalEndpoint::Survival).then_some(restricted_means[1]),
             minimum_event_risk_set: minimum_risk_set,
+            minimum_event_risk_set_by_arm: minimum_risk_set_by_arm,
         },
         minimum_g,
     ))
