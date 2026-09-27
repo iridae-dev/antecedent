@@ -323,6 +323,7 @@ class InterferenceEstimate:
     )
     pointwise_interval: InterferencePointwiseInterval | None = None
     interval_unavailable_reason: str | None = None
+    support_status: str = "unlicensed_point_utility"
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,6 +2,46 @@
 # threshold is refused. These rows do not inherit geometric support cells.
 
 [[license]]
+family = "interference"
+design = "cluster_randomization_total"
+method = "cluster_total_neyman_welch"
+inference_claim = "exposure_contrast_pointwise_95_student_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 8
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent-estimate/src/interference.rs::cluster_total_interval_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/interference_interval_route.rs::licensed_cluster_total_interval_round_trips_and_refuses_forgery"
+limitations = "Complete cluster randomization on a fixed partial-interference network with within-cluster-only edges and one cluster per unit, the (0,0)-to-(1,1) total-effect contrast under NeighborFraction exposure, at least eight independently randomized clusters in each assignment arm, positive between-cluster Neyman variation, and a published pointwise 95% Welch cluster interval. One 2,000-replication known-truth coverage check re-randomizes the cluster allocation at eight clusters per arm. The interval is pointwise for the total effect only; no direct/spillover decomposition, simultaneous band, or Bernoulli/observational design inherits this row, and partial interference and the exposure mapping are declared, not tested."
+
+[[license]]
+family = "interference"
+design = "two_stage_saturation"
+method = "saturation_cluster_neyman_welch"
+inference_claim = "exposure_contrast_pointwise_95_student_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 24
+min_blocks = 2
+min_block_arm = 8
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent-estimate/src/interference_saturation.rs::saturation_exposure_interval_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/interference_interval_route.rs::licensed_saturation_interval_round_trips_and_refuses_forgery"
+limitations = "Exact two-stage saturation: clusters completely randomized to declared low/high within-cluster treatment probabilities, then independent Bernoulli assignment, on a fixed network with within-cluster-only edges. Licenses a single declared direct, spillover, or total exposure contrast with at least 24 independent clusters in each of the two saturation arms, at least eight exposed clusters at each of the two requested exposure levels, positive between-cluster Welch variation, and a published pointwise 95% cluster interval. One 2,000-replication known-truth coverage check re-randomizes both stages at 24+24 clusters. Each interval is pointwise for its one contrast; no simultaneous curve or joint decomposition, and partial interference and the exposure mapping are declared, not tested."
+
+[[license]]
+family = "interference"
+design = "observational_known_exposure"
+method = "observational_known_exposure_cluster_t"
+inference_claim = "exposure_contrast_pointwise_95_student_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 8
+min_blocks = 30
+min_reported_intervals = 1
+requires_known_density = true
+known_truth_test = "crates/antecedent-estimate/src/interference_observational.rs::observational_known_exposure_interval_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/interference_interval_route.rs::licensed_observational_known_interval_round_trips_and_refuses_forgery"
+limitations = "Observational network-exposure contrast with caller-supplied KNOWN, fixed marginal exposure probabilities and an explicit, caller-declared network-exchangeability (no-unmeasured-network-confounding) assumption that the library cannot verify. Requires a fixed network with within-cluster-only edges, at least 30 independent partial-interference clusters, at least eight clusters exposed at each requested level, positive between-cluster CR1 variation, and a published pointwise 95% cluster-t interval. One 2,000-replication known-truth coverage check re-randomizes per-unit exposure with the supplied probabilities. Externally fitted probabilities carry unknown fitting uncertainty and stay point-only with a descriptive CR1 variance; the network-confounding assumption is a declared, documented limitation, never a licensed claim, and no simultaneous band inherits this row."
+
+[[license]]
 family = "survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_product_limit"

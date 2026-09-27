@@ -356,6 +356,7 @@ class InterferenceSection:
     maximum_exposure_probability: float | None
     pointwise_interval: tuple[float, float, float, float, int, int, str] | None
     interval_unavailable_reason: str | None
+    graphless_support_status: str | None
 
 class RandomizedEffectSection:
     effect: float

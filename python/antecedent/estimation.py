@@ -362,6 +362,10 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
         ]},
         pointwise_interval=pointwise_interval,
         interval_unavailable_reason=section.interval_unavailable_reason,
+        support_status=(
+            "licensed" if section.graphless_support_status == "licensed"
+            else "unlicensed_point_utility"
+        ),
     )
 
 

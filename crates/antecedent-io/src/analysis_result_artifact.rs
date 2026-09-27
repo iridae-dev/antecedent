@@ -934,6 +934,11 @@ pub struct InterferencePointwiseIntervalWire {
 pub struct InterferenceInferenceWire {
     /// Construction identifier.
     pub method: String,
+    /// Exact graphless interference license (`licensed`), when a published
+    /// interval and cluster support match a licensed row. Absent otherwise, and
+    /// on legacy artifacts written before the interference license existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
     /// Pointwise interval when support passes.
     pub interval: Option<InterferencePointwiseIntervalWire>,
     /// Reason the otherwise valid point estimate has no interval.
@@ -1260,6 +1265,18 @@ fn validate_result(
             {
                 return Err(IoError::Convert("interference pointwise interval violates its support or scalar claim".into()));
             }
+        }
+        // A published, support-passing interval on one of the three off-axis
+        // cluster designs is exactly the licensed condition; every invalid or
+        // unsupported interval was already refused above, so recomputing the
+        // license from the published interval catches a forged status.
+        let graphless_licensed = inference.interval.is_some();
+        if inference.graphless_support_status.as_deref() != graphless_licensed.then_some("licensed")
+            && !(allow_legacy_graphless_missing && inference.graphless_support_status.is_none())
+        {
+            return Err(IoError::Convert(
+                "interference graphless license does not match the published interval support".into(),
+            ));
         }
     }
     if matches!(&result.query, crate::CausalQueryWire::RandomizedEffect(query)
