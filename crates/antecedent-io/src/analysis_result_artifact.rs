@@ -794,6 +794,11 @@ pub struct SurvivalDifferenceBandWire {
     pub upper: Vec<f64>,
     /// Subject-bootstrap draws satisfying support.
     pub replicates_ok: u32,
+    /// Exact graphless simultaneous-band license (`licensed`), when the
+    /// published band and arm support match a licensed band row. Absent for
+    /// off-axis bands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
 }
 
 /// Retained randomized survival or competing-risk curve and uncertainty.
@@ -2750,24 +2755,62 @@ fn validate_result(
             (None, None) => true,
             (Some(_), Some(_)) => false,
         };
+        // The paired RMST + horizon survival scalar route is fixed by the
+        // query's entry and censoring facets. Delayed entry, fixed-known-G IPCW,
+        // and the combined route each have a distinct (design, method) licensed
+        // row; cumulative incidence has no RMST companion and is never licensed.
+        let scalar_design = if query.delayed_entry.is_some() {
+            "delayed_entry_two_arm_individual_randomized"
+        } else {
+            "two_arm_individual_randomized"
+        };
+        let scalar_method = if query.censoring_columns.is_empty() {
+            "arm_stratified_subject_bootstrap_product_limit"
+        } else {
+            "arm_stratified_subject_bootstrap_ipcw_product_limit"
+        };
         let scalar_licensed = query.target_cause.is_none()
-            && query.delayed_entry.is_none()
-            && query.censoring_columns.is_empty()
             && pointwise_bootstrap
             && curve.bootstrap_replicates_ok.is_some_and(|ok| ok >= 299)
             && curve.assignment_counts.is_some_and(|[control, treated]| {
                 graphless_data::LICENSES.iter().any(|row| {
                     row.family == "survival"
-                        && row.design == "two_arm_individual_randomized"
-                        && row.method == "arm_stratified_subject_bootstrap_product_limit"
+                        && row.design == scalar_design
+                        && row.method == scalar_method
                         && row.inference_claim == "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
                         && row.assignment_unit == "unit"
                         && control >= row.min_assignment_units_per_arm
                         && treated >= row.min_assignment_units_per_arm
                         && control.saturating_add(treated) >= row.min_rows
                         && row.min_reported_intervals <= 2
+                        && (!row.requires_known_density || !query.censoring_columns.is_empty())
                 })
             });
+        // The simultaneous band is its own licensed claim, carried on the band's
+        // own `graphless_support_status`. It publishes only for the unweighted,
+        // no-entry route, and covers the survival or cumulative-incidence grid.
+        let band_licensed = curve.difference_band.as_ref().is_some_and(|band| {
+            band_valid
+                && band.replicates_ok >= 399
+                && curve.assignment_counts.is_some_and(|[control, treated]| {
+                    let claim = if query.target_cause.is_some() {
+                        "simultaneous_95_cumulative_incidence_difference_band"
+                    } else {
+                        "simultaneous_95_survival_difference_band"
+                    };
+                    graphless_data::LICENSES.iter().any(|row| {
+                        row.family == "survival"
+                            && row.design == "two_arm_individual_randomized"
+                            && row.method == "arm_stratified_subject_bootstrap_supremum_band"
+                            && row.inference_claim == claim
+                            && row.assignment_unit == "unit"
+                            && control >= row.min_assignment_units_per_arm
+                            && treated >= row.min_assignment_units_per_arm
+                            && control.saturating_add(treated) >= row.min_rows
+                            && row.min_reported_intervals <= 1
+                    })
+                })
+        });
         #[allow(clippy::float_cmp, reason = "survival curve endpoints and tau must equal the frozen query/boundary values exactly")]
         if result.estimate.is_some()
             || result.standard_error.is_some()
@@ -2777,6 +2820,8 @@ fn validate_result(
                 != (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
             || !(point_only || pointwise_bootstrap)
             || curve.graphless_support_status.as_deref() != scalar_licensed.then_some("licensed")
+            || curve.difference_band.as_ref().and_then(|band| band.graphless_support_status.as_deref())
+                != band_licensed.then_some("licensed")
             || (curve.assignment_counts.is_some_and(|counts| counts.contains(&0)))
             || !band_valid
             || curve.tau != query.tau

@@ -177,11 +177,41 @@ impl CheckedSurvivalOperation {
                 &duration, &event, &treated, self.query.tau, endpoint,
                 self.bootstrap_replicates, ctx.rng.master_seed() ^ 0x5A7A_BA4D,
             ) {
-                Ok(band) => (Some(crate::result::SurvivalDifferenceBand {
-                    times: band.times.into(), difference: band.difference.into(),
-                    lower: band.lower.into(), upper: band.upper.into(),
-                    replicates_ok: band.replicates_ok,
-                }), None),
+                Ok(band) => {
+                    let band_claim = match self.query.functional {
+                        SurvivalFunctional::SurvivalAndRmst => {
+                            "simultaneous_95_survival_difference_band"
+                        }
+                        SurvivalFunctional::CumulativeIncidence { .. } => {
+                            "simultaneous_95_cumulative_incidence_difference_band"
+                        }
+                    };
+                    let band_support = (band.replicates_ok >= 399
+                        && matches!(crate::support::classify_graphless(
+                            crate::support::GraphlessSupportKey {
+                                family: "survival",
+                                design: "two_arm_individual_randomized",
+                                method: "arm_stratified_subject_bootstrap_supremum_band",
+                                inference_claim: band_claim,
+                            },
+                            crate::support::GraphlessAssignmentSupport {
+                                assignment_unit: "unit",
+                                treated: assignment_counts[1],
+                                control: assignment_counts[0],
+                                rows: self.rows,
+                                interval_95_published: true,
+                                reported_intervals: 1,
+                                ..Default::default()
+                            },
+                        ), crate::support::GraphlessSupportStatus::Licensed { .. }))
+                        .then_some(crate::support::CellStatus::Licensed);
+                    (Some(crate::result::SurvivalDifferenceBand {
+                        times: band.times.into(), difference: band.difference.into(),
+                        lower: band.lower.into(), upper: band.upper.into(),
+                        replicates_ok: band.replicates_ok,
+                        support_status: band_support,
+                    }), None)
+                }
                 Err(reason) => (None, Some(Arc::from(reason))),
             }
         };
@@ -255,15 +285,31 @@ impl CheckedSurvivalOperation {
             difference_band,
             band_unavailable_reason,
         });
-        if self.query.known_censoring.is_none()
-            && self.query.delayed_entry.is_none()
-            && matches!(self.query.functional, SurvivalFunctional::SurvivalAndRmst)
+        // The paired RMST + horizon survival intervals carry a graphless scalar
+        // license once their own route clears its support gate. Delayed entry,
+        // fixed-known-G IPCW, and the combined route each have a distinct
+        // (design, method) key and its own known-truth coverage row; cause-specific
+        // cumulative incidence has no RMST companion and stays off-axis.
+        if matches!(self.query.functional, SurvivalFunctional::SurvivalAndRmst)
             && intervals.as_ref().is_some_and(|value| value.replicates_ok >= 299)
-            && matches!(crate::support::classify_graphless(
+        {
+            let delayed = self.query.delayed_entry.is_some();
+            let ipcw = self.query.known_censoring.is_some();
+            let design = if delayed {
+                "delayed_entry_two_arm_individual_randomized"
+            } else {
+                "two_arm_individual_randomized"
+            };
+            let method = if ipcw {
+                "arm_stratified_subject_bootstrap_ipcw_product_limit"
+            } else {
+                "arm_stratified_subject_bootstrap_product_limit"
+            };
+            if matches!(crate::support::classify_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "survival",
-                    design: "two_arm_individual_randomized",
-                    method: "arm_stratified_subject_bootstrap_product_limit",
+                    design,
+                    method,
                     inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
                 },
                 crate::support::GraphlessAssignmentSupport {
@@ -274,11 +320,13 @@ impl CheckedSurvivalOperation {
                     interval_95_published: intervals.is_some(),
                     reported_intervals: 2,
                     all_reported_intervals: true,
+                    known_density: ipcw,
                     ..Default::default()
                 },
             ), crate::support::GraphlessSupportStatus::Licensed { .. })
-        {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+            {
+                result.support_status = Some(crate::support::CellStatus::Licensed);
+            }
         }
         Ok(result)
     }

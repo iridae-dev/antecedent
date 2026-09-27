@@ -160,6 +160,7 @@ class SurvivalDifferenceBand:
     replicates_ok: int
     level: float = 0.95
     method: str = "subject_stratified_bootstrap_supremum"
+    support_status: str = "unlicensed_simultaneous_band"
 
 
 @dataclass(frozen=True, slots=True)

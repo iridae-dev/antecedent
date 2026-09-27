@@ -372,6 +372,9 @@ pub struct SurvivalDifferenceBand {
     pub upper: Arc<[f64]>,
     /// Bootstrap replicates satisfying the original estimator support contract.
     pub replicates_ok: u32,
+    /// Exact graphless simultaneous-band license, when the published band and
+    /// arm support match a licensed band row. Absent for off-axis bands.
+    pub support_status: Option<crate::support::CellStatus>,
 }
 
 /// Randomized survival or competing-risk result on a shared time grid.

@@ -599,11 +599,17 @@ def _survival_from_raw(
     fixed_g = getattr(query, "known_censoring", None) is not None
     has_interval = section.difference_at_tau_interval is not None
     native_band = section.difference_band
+    # The band license is the sixth tuple element on builds that carry it; older
+    # builds return a five-element tuple, so read it defensively.
+    band_status = (
+        native_band[5] if native_band is not None and len(native_band) > 5 else None
+    )
     difference_band = (
         SurvivalDifferenceBand(
             times=tuple(native_band[0]), difference=tuple(native_band[1]),
             lower=tuple(native_band[2]), upper=tuple(native_band[3]),
             replicates_ok=native_band[4],
+            support_status=band_status or "unlicensed_simultaneous_band",
         ) if native_band is not None else None
     )
     observation_assumptions = (
@@ -619,9 +625,16 @@ def _survival_from_raw(
         )
     provenance = section.censoring_survival_provenance
     scalar_licensed = getattr(raw, "evidence_status", None) == "licensed"
+    band_licensed = band_status == "licensed"
+    # The paired RMST + horizon survival scalar license and the simultaneous
+    # band license are distinct graphless claims. The scalar license takes the
+    # top-level slot when present; a licensed band that stands alone (for example
+    # an off-axis competing-incidence scalar) is reported as such; the band's own
+    # license is always carried on ``difference_band.support_status``.
     support_status = (
-        "unlicensed_simultaneous_band" if difference_band is not None else
         "licensed" if scalar_licensed else
+        "licensed_simultaneous_band" if band_licensed else
+        "unlicensed_simultaneous_band" if difference_band is not None else
         "unlicensed_pointwise_interval" if has_interval else "unlicensed_point_utility"
     )
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:

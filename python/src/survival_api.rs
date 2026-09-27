@@ -5,8 +5,10 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-/// Simultaneous difference band: times, difference, lower, upper, ok replicates.
-type DifferenceBand = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32);
+/// Simultaneous difference band: times, difference, lower, upper, ok replicates,
+/// and the exact graphless band license (`Some("licensed")`) when the published
+/// band and arm support match a licensed band row.
+type DifferenceBand = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32, Option<String>);
 /// IPCW survival curves: times, control, treated, RMSTs, per-arm minimum event
 /// risk sets, and the realized censoring-survival floor.
 type IpcwSurvival = (Vec<f64>, Vec<f64>, Vec<f64>, f64, f64, Option<usize>, Option<usize>, f64);
@@ -60,6 +62,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             difference_band: value.difference_band.as_ref().map(|band| (
                 band.times.to_vec(), band.difference.to_vec(), band.lower.to_vec(),
                 band.upper.to_vec(), band.replicates_ok,
+                band.support_status.map(|status| status.as_str().to_string()),
             )),
             band_unavailable_reason: value.band_unavailable_reason.as_ref().map(ToString::to_string),
         }
