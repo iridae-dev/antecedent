@@ -6,7 +6,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     SurvivalFunctional,
 };
-use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary, randomized_survival_summary};
+use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_bootstrap_difference_band, randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary, randomized_survival_summary};
 
 #[derive(Clone)]
 pub(crate) struct CheckedSurvivalOperation {
@@ -166,6 +166,25 @@ impl CheckedSurvivalOperation {
                 self.query.tau, endpoint, self.bootstrap_replicates, ctx.rng.master_seed(),
             ).map_err(|message| CausalError::Unsupported { message })?)
         } else { None };
+        let (difference_band, band_unavailable_reason) = if self.bootstrap_replicates == 0 {
+            (None, None)
+        } else if entry.is_some() {
+            (None, Some(Arc::from("simultaneous survival band does not cover delayed entry")))
+        } else if censoring_grid.is_some() {
+            (None, Some(Arc::from("simultaneous survival band does not cover caller-supplied censoring weights")))
+        } else {
+            match randomized_survival_bootstrap_difference_band(
+                &duration, &event, &treated, self.query.tau, endpoint,
+                self.bootstrap_replicates, ctx.rng.master_seed() ^ 0x5A7A_BA4D,
+            ) {
+                Ok(band) => (Some(crate::result::SurvivalDifferenceBand {
+                    times: band.times.into(), difference: band.difference.into(),
+                    lower: band.lower.into(), upper: band.upper.into(),
+                    replicates_ok: band.replicates_ok,
+                }), None),
+                Err(reason) => (None, Some(Arc::from(reason))),
+            }
+        };
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -232,6 +251,8 @@ impl CheckedSurvivalOperation {
             bootstrap_replicates_requested: intervals.as_ref().map(|value| value.replicates_requested),
             bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
             censoring_survival_provenance: minimum_censoring_survival.map(|_| Arc::from("caller_supplied_fixed_not_fitted_or_verified")),
+            difference_band,
+            band_unavailable_reason,
         });
         Ok(result)
     }

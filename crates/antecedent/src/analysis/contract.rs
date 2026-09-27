@@ -3407,6 +3407,12 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             bootstrap_replicates_requested: survival.bootstrap_replicates_requested,
             bootstrap_replicates_ok: survival.bootstrap_replicates_ok,
             censoring_survival_provenance: survival.censoring_survival_provenance.as_ref().map(ToString::to_string),
+            difference_band: survival.difference_band.as_ref().map(|band| antecedent_io::SurvivalDifferenceBandWire {
+                times: band.times.to_vec(), difference: band.difference.to_vec(),
+                lower: band.lower.to_vec(), upper: band.upper.to_vec(),
+                replicates_ok: band.replicates_ok,
+            }),
+            band_unavailable_reason: survival.band_unavailable_reason.as_ref().map(ToString::to_string),
         }),
         longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
             antecedent_io::LongitudinalRegimeWire {

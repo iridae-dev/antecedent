@@ -60,7 +60,7 @@ pub use analysis_result_artifact::{
     SyntheticControlWire, SyntheticDidWire, LocalPolynomialRatioWire,
     RandomizedEffectWire,
     StructuralResponseAtomWire,
-    StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalWire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalDifferenceBandWire, SurvivalWire,
     TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,
     TemporalMediationUncertaintyWire, UnitEffectIntervalsWire, UnitEffectsWire,
     decode_analysis_result_artifact, encode_analysis_result_artifact,

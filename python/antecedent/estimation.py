@@ -165,6 +165,7 @@ from .results.response import IntervalInterpretation, SupportStatus, Uncertainty
 from .survival import (
     CompetingRisksOutcome,
     CumulativeIncidenceEstimate,
+    SurvivalDifferenceBand,
     SurvivalEstimate,
     SurvivalOutcome,
 )
@@ -556,6 +557,14 @@ def _survival_from_raw(
     treated = tuple(section.treated)
     fixed_g = getattr(query, "known_censoring", None) is not None
     has_interval = section.difference_at_tau_interval is not None
+    native_band = section.difference_band
+    difference_band = (
+        SurvivalDifferenceBand(
+            times=tuple(native_band[0]), difference=tuple(native_band[1]),
+            lower=tuple(native_band[2]), upper=tuple(native_band[3]),
+            replicates_ok=native_band[4],
+        ) if native_band is not None else None
+    )
     observation_assumptions = (
         ("correct_caller_supplied_conditional_censoring_survival",
          "independent_censoring_given_supplied_history",
@@ -565,7 +574,10 @@ def _survival_from_raw(
     if getattr(query, "delayed_entry", None) is not None:
         observation_assumptions += ("independent_delayed_entry_within_arm",)
     provenance = section.censoring_survival_provenance
-    support_status = "unlicensed_pointwise_interval" if has_interval else "unlicensed_point_utility"
+    support_status = (
+        "unlicensed_simultaneous_band" if difference_band is not None else
+        "unlicensed_pointwise_interval" if has_interval else "unlicensed_point_utility"
+    )
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
         return CumulativeIncidenceEstimate(
             target_cause=int(section.target_cause),
@@ -579,6 +591,8 @@ def _survival_from_raw(
             bootstrap_replicates_requested=section.bootstrap_replicates_requested,
             bootstrap_replicates_ok=section.bootstrap_replicates_ok,
             censoring_survival_provenance=provenance,
+            difference_band=difference_band,
+            band_unavailable_reason=section.band_unavailable_reason,
             support_status=support_status,
             assumptions=("individual_random_assignment", "all_event_causes_coded_distinctly",
                          *observation_assumptions, "consistency", "no_interference"),
@@ -597,6 +611,8 @@ def _survival_from_raw(
         bootstrap_replicates_requested=section.bootstrap_replicates_requested,
         bootstrap_replicates_ok=section.bootstrap_replicates_ok,
         censoring_survival_provenance=provenance,
+        difference_band=difference_band,
+        band_unavailable_reason=section.band_unavailable_reason,
         support_status=support_status,
         assumptions=("individual_random_assignment", *observation_assumptions,
                      "consistency", "no_interference"),

@@ -677,6 +677,23 @@ pub struct RandomizedEffectWire {
 fn default_randomized_itt() -> String { "itt".into() }
 
 /// Randomized arm event-time curves and optional scalar pointwise intervals.
+/// Simultaneous 95% treatment-minus-control band on the reported event grid.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SurvivalDifferenceBandWire {
+    /// Event-time grid, including zero and the restriction horizon.
+    pub times: Vec<f64>,
+    /// Estimated curve difference at each time.
+    pub difference: Vec<f64>,
+    /// Simultaneous lower endpoints.
+    pub lower: Vec<f64>,
+    /// Simultaneous upper endpoints.
+    pub upper: Vec<f64>,
+    /// Subject-bootstrap draws satisfying support.
+    pub replicates_ok: u32,
+}
+
+/// Retained randomized survival or competing-risk curve and uncertainty.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SurvivalWire {
@@ -713,6 +730,12 @@ pub struct SurvivalWire {
     /// Caller-supplied fixed censoring function; absent for unweighted estimates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub censoring_survival_provenance: Option<String>,
+    /// Simultaneous curve-difference band, distinct from scalar pointwise intervals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difference_band: Option<SurvivalDifferenceBandWire>,
+    /// Why an explicit bootstrap request did not produce a curve band.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_unavailable_reason: Option<String>,
 }
 
 /// Subject-owned sequential inverse-probability regime value.
@@ -1993,6 +2016,30 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                         && -curve.tau <= limits[0] && limits[0] <= limits[1] && limits[1] <= curve.tau
                 })
             };
+        let band_valid = match (&curve.difference_band, &curve.band_unavailable_reason) {
+            (Some(band), None) => {
+                let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
+                query.delayed_entry.is_none() && query.censoring_columns.is_empty()
+                    && pointwise_bootstrap && requested >= 399
+                    && band.replicates_ok >= 399
+                    && band.replicates_ok >= requested.saturating_sub(requested / 10)
+                    && band.replicates_ok <= requested
+                    && band.times == curve.times
+                    && band.difference.len() == curve.times.len()
+                    && band.lower.len() == curve.times.len()
+                    && band.upper.len() == curve.times.len()
+                    && band.difference.iter().zip(&curve.treated).zip(&curve.control)
+                        .all(|((&difference, &treated), &control)| (difference - (treated - control)).abs() <= 1e-10)
+                    && band.lower.iter().zip(&band.difference).zip(&band.upper)
+                        .all(|((&lower, &difference), &upper)| {
+                            lower.is_finite() && difference.is_finite() && upper.is_finite()
+                                && -1.0 <= lower && lower <= difference && difference <= upper && upper <= 1.0
+                        })
+            }
+            (None, Some(reason)) => pointwise_bootstrap && !reason.trim().is_empty(),
+            (None, None) => true,
+            (Some(_), Some(_)) => false,
+        };
         if result.estimate.is_some()
             || result.standard_error.is_some()
             || result.interval_lower.is_some()
@@ -2000,6 +2047,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || curve.censoring_survival_provenance.as_deref()
                 != (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
             || !(point_only || pointwise_bootstrap)
+            || !band_valid
             || curve.tau != query.tau
             || curve.target_cause != query.target_cause
             || curve.times.len() < 2

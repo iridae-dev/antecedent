@@ -340,6 +340,21 @@ pub struct PolicyValueEstimate {
     pub multi_action_cate: Vec<antecedent_estimate::policy_value::MultiActionCatePoint>,
 }
 
+/// Full-grid 95% difference band from randomized subject resampling.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurvivalDifferenceBand {
+    /// Observed event-time grid, including zero and the horizon.
+    pub times: Arc<[f64]>,
+    /// Treatment-minus-control curve on the shared grid.
+    pub difference: Arc<[f64]>,
+    /// Simultaneous lower endpoints.
+    pub lower: Arc<[f64]>,
+    /// Simultaneous upper endpoints.
+    pub upper: Arc<[f64]>,
+    /// Bootstrap replicates satisfying the original estimator support contract.
+    pub replicates_ok: u32,
+}
+
 /// Randomized survival or competing-risk result on a shared time grid.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurvivalEstimate {
@@ -371,6 +386,10 @@ pub struct SurvivalEstimate {
     pub bootstrap_replicates_ok: Option<u32>,
     /// Caller-supplied fixed censoring function, when the IPCW route was used.
     pub censoring_survival_provenance: Option<Arc<str>>,
+    /// Simultaneous full-grid difference band; separate from scalar intervals.
+    pub difference_band: Option<SurvivalDifferenceBand>,
+    /// Why an explicit bootstrap request did not produce a full-grid band.
+    pub band_unavailable_reason: Option<Arc<str>>,
 }
 
 /// Identification certificate retained from the actual execution, including class atoms.
