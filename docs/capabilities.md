@@ -630,7 +630,17 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   variance. Cluster assignment uses unit-weighted cluster totals and a
   conservative cluster-level Neyman variance, requiring at least two clusters
   in each arm. The result retains design type, arm counts, block labels and unit
-  IDs, and labels uncertainty without claiming a confidence interval.
+  IDs. The retained route reports a pointwise 95% normal interval for complete
+  randomization with at least 30 units per arm, cluster randomization with at
+  least 30 independent clusters per arm, and stratified randomization with at
+  least four blocks, 15 units per arm in every block, and 60 per arm overall.
+  Bernoulli ITT reports a pointwise 95% independent-unit score interval with at
+  least 400 rows, 30 observed assignments per arm, and both assignment
+  probabilities at least 0.2 on every row. Smaller designs retain their point
+  and labeled variance without an interval. The native estimator's repeated
+  randomization fixtures score each reported interval against a known
+  finite-population effect; these off-axis routes do not gain a support-matrix
+  license from that evidence.
   `SwitchbackEffect` also runs through retained `analyze` with row-aligned
   sequence and period labels, known marginal assignment probabilities, and
   a sequence-clustered sandwich variance. It requires two independent
@@ -645,7 +655,10 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `experiment.FactorialRandomization` carries a fixed four-cell 2×2 design
   through the same retained `RandomizedEffect` route. It requires at least two
   units per cell and reports both marginal main effects and their interaction
-  with cellwise Neyman conservative variance estimates and no interval. The
+  with cellwise Neyman conservative variance estimates. With at least 30 units
+  in each cell, the retained route reports separate pointwise 95% normal
+  intervals for the primary and secondary main effects and their interaction;
+  these are not simultaneous intervals. Smaller cells remain point-only. The
   query and artifact retain the second-factor assignment, cell counts, and
   labels. `MultiArmExperimentDesign` carries three or more named actions,
   observed assignments, distinct assignment and outcome units, and each row's
@@ -653,7 +666,11 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `RandomizedEffect` path. It requires observed support for every action and
   independent unit-level assignment. The result retains Horvitz–Thompson arm
   means and every contrast to the first action, with covariance-free variance
-  bounds and no calibrated interval. The direct multi-arm utility and retained
+  bounds. With at least 400 rows, 30 observed assignments to every action,
+  and each declared action probability at least 0.2 on every row, the retained
+  route also reports separate pointwise 95% score intervals for every action
+  versus the first. These intervals do not have simultaneous coverage and
+  remain off the support-matrix axes. The direct multi-arm utility and retained
   route share the native estimator; multi-arm combinations with CUPED, ANCOVA,
   receipt adjustment, or exact Fisher inference refuse.
   `experiment.estimate_complier_effect` also provides a direct randomized
