@@ -262,6 +262,7 @@ pub fn estimate_observational_exposure(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, clippy::cast_possible_truncation, reason = "fixtures build small integer labels; tests assert exact deterministic values"))]
     use antecedent_core::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance, VariableId};
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 

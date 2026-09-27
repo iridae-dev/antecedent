@@ -58,6 +58,8 @@ pub struct SaturationClusterInterval {
 ///
 /// Refuses invalid randomization, cross-cluster edges, absent realized exposures,
 /// nonpositive exposure probabilities, or neighborhoods above enumeration caps.
+// length reflects the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_lines)]
 pub fn estimate_saturation_interference(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -247,6 +249,7 @@ fn level_probabilities(
     (0..incoming.len()).map(|unit| {
         let mut probability = 0.0;
         for (saturation, saturation_mass) in [(low, 1.0 - high_share), (high, high_share)] {
+            #[allow(clippy::float_cmp, reason = "exposure own-level is a categorical 0.0/1.0 flag, not a measured quantity")]
             let own_mass = if level.own == 1.0 { saturation } else { 1.0 - saturation };
             let neighbors = &incoming[unit];
             let mut neighbor_mass = 0.0;
@@ -321,6 +324,7 @@ fn weighted_mean(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, clippy::cast_sign_loss, clippy::cast_possible_truncation, reason = "fixtures build small integer sizes/labels; tests assert exact deterministic values"))]
     use std::sync::Arc;
 
     use antecedent_core::{AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, VariableId};

@@ -1,4 +1,9 @@
 //! Repeated-sampling evidence for cluster-level saturation intervals.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "calibration fixtures build small nonnegative cluster/unit counts and labels"
+)]
 
 use std::sync::Arc;
 
@@ -33,6 +38,8 @@ struct Contrast {
 }
 
 #[test]
+// length reflects the calibration protocol; refactor would change the simulation
+#[allow(clippy::too_many_lines)]
 fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings() {
     let contrasts = [
         Contrast { mapping: ExposureMapping::NeighborFraction, from: (0.0, 0.5), to: (1.0, 0.5) },
@@ -132,7 +139,7 @@ fn saturation_pointwise_intervals_cover_effects_across_neighbor_mappings() {
         }
     }
     for (index, contrast) in contrasts.iter().enumerate() {
-        let rate = covered[index] as f64 / accepted[index] as f64;
+        let rate = f64::from(covered[index]) / f64::from(accepted[index]);
         eprintln!("saturation contrast {index} {:?}: {}/{}, coverage={rate:.4}",
             contrast.mapping, covered[index], accepted[index]);
         assert!(accepted[index] >= 1_800,

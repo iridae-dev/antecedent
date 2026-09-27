@@ -42,6 +42,7 @@ pub struct PolicyValueIntervals95 {
 /// support and nondegenerate score variance. This is an asymptotic claim: a
 /// caller must separately establish fixed recommendations, known randomized
 /// propensities, independent subjects, and held-out nuisance predictions.
+#[must_use]
 pub fn pointwise_intervals_95(
     scores: &PolicyValueScores,
     evaluation_rows: usize,
@@ -208,7 +209,7 @@ pub fn evaluate_multi_action_cate(
     }
     let n = outcome.len();
     let k = policy.action_labels.len();
-    let mut groups = policy.cate_groups.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
+    let mut groups = policy.cate_groups.iter().map(std::convert::AsRef::as_ref).collect::<Vec<_>>();
     groups.sort_unstable();
     groups.dedup();
     let mut points = Vec::new();
@@ -290,6 +291,8 @@ pub fn evaluate_uplift_bins(
 ///
 /// Propensities and nuisance predictions are caller-supplied design inputs.
 /// Standard errors assume independent evaluation subjects.
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_policy_value_scores(
     outcome: &[f64], assignment: &[bool], actions: &[bool], propensity: &[f64],
     mu0: &[f64], mu1: &[f64], reference: &[bool], costs: &[f64], reference_costs: &[f64],
@@ -323,6 +326,7 @@ pub fn evaluate_multi_action_policy_value_scores(
     let mut non_control = 0usize;
     let mut pmin = f64::INFINITY;
     let mut pmax: f64 = 0.0;
+    #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned per-row slices")]
     for i in 0..n {
         let assigned = policy.assignment[i];
         let action = policy.actions[i];
@@ -357,6 +361,8 @@ pub fn evaluate_multi_action_policy_value_scores(
     })
 }
 
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 fn evaluate_scores(
     outcome: &[f64], assignment: &[bool], actions: &[bool], propensity: &[f64],
     nuisance: Option<(&[f64], &[f64])>, reference: &[bool], costs: &[f64], reference_costs: &[f64],
@@ -411,6 +417,7 @@ fn evaluate_scores(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "fixtures derive small nonnegative counts/indices from deterministic values"))]
     use super::*;
 
     #[test]
@@ -559,7 +566,7 @@ mod tests {
         let mut uniform = || {
             state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
             let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE_4E5B9);
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
             z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
             ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
         };
@@ -690,8 +697,8 @@ mod tests {
             incremental_hits_90 += usize::from((score.incremental_value - truth_incremental).abs() <= z90 * score.incremental_standard_error);
         }
         for (index, (hits, target)) in [(policy_hits_95, 0.95), (incremental_hits_95, 0.95), (policy_hits_90, 0.90), (incremental_hits_90, 0.90)].into_iter().enumerate() {
-            let rate = hits as f64 / simulations as f64;
-            let mcse = (target * (1.0 - target) / simulations as f64).sqrt();
+            let rate = hits as f64 / f64::from(simulations);
+            let mcse = (target * (1.0 - target) / f64::from(simulations)).sqrt();
             assert!((rate - target).abs() <= 3.0 * mcse, "cell {index} coverage {rate} missed target {target}");
         }
     }
@@ -754,9 +761,9 @@ mod tests {
             counts[2] += usize::from(ci.policy[0] <= multi_truth && multi_truth <= ci.policy[1]);
             counts[3] += usize::from(ci.incremental[0] <= multi_truth - 1.0 && multi_truth - 1.0 <= ci.incremental[1]);
         }
-        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         for (index, hits) in counts.into_iter().enumerate() {
-            let coverage = hits as f64 / simulations as f64;
+            let coverage = hits as f64 / f64::from(simulations);
             assert!((coverage - 0.95).abs() <= 3.0 * mcse, "cell {index} coverage {coverage}");
         }
     }

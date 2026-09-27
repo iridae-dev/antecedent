@@ -28,6 +28,7 @@ pub struct RegimeValueSummary {
 /// A finite support floor protects the normal approximation from rare
 /// matched trajectories. The caller must establish known probabilities and
 /// independent subject histories before publishing this interval.
+#[must_use]
 pub fn ipw_pointwise_interval_95(summary: &RegimeValueSummary, subjects: usize) -> Option<[f64; 2]> {
     let se = summary.score_standard_error?;
     let matched = summary.matched_observed_fraction * subjects as f64;
@@ -40,6 +41,8 @@ pub fn ipw_pointwise_interval_95(summary: &RegimeValueSummary, subjects: usize) 
 
 /// Backward-recursive sequential doubly robust score. All histories are
 /// subject-major; a censored subject contributes its last available Q value.
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_sequential_dr_value(
     outcomes: &[f64], outcome_observed: &[bool], observation_history: &[bool],
     treatment: &[bool], actions: &[bool], q_predictions: &[f64],
@@ -56,6 +59,8 @@ pub fn evaluate_sequential_dr_value(
 /// Return one full-history augmentation score per subject for calibration.
 /// Scores alone do not establish independent nuisance fitting or an interval
 /// claim; callers must keep the Q ownership contract separate.
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_sequential_dr_value_with_subject_scores(
     outcomes: &[f64], outcome_observed: &[bool], observation_history: &[bool],
     treatment: &[bool], actions: &[bool], q_predictions: &[f64],
@@ -68,7 +73,7 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
         || [observation_history.len(), treatment.len(), actions.len(), q_predictions.len(),
             treatment_probability.len(), censoring_probability.len()].iter().any(|&len| len != cells)
     { return Err("sequential DR arrays must align by subject and period"); }
-    if !minimum_probability.is_finite() || !(0.0 < minimum_probability && minimum_probability <= 0.5) {
+    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5) {
         return Err("minimum probability must be finite and in (0, 0.5]");
     }
     if !outcome_observed.iter().any(|&observed| observed) {
@@ -134,6 +139,7 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
 /// caller must establish those ownership conditions; this kernel can check
 /// only the score and support inputs. The support floor is deliberately
 /// limited to the randomized designs tested in repeated samples.
+#[must_use]
 pub fn sequential_dr_pointwise_interval_95(
     summary: &RegimeValueSummary, scores: &[f64], periods: usize,
     observed_subjects: usize, observed_matching_subjects: usize,
@@ -183,8 +189,7 @@ pub fn evaluate_g_formula_value(
     {
         return Err("g-formula arrays must align by subject and period");
     }
-    if !minimum_probability.is_finite()
-        || !(0.0 < minimum_probability && minimum_probability <= 0.5)
+    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5)
     {
         return Err("minimum probability must be finite and in (0, 0.5]");
     }
@@ -228,6 +233,7 @@ pub fn evaluate_g_formula_value(
 /// the sum of its two supplied period rewards. This interval excludes any
 /// uncertainty from fitting or selecting the Q law, including cross-fitting.
 /// A retained caller must separately attest that the Q law is fixed and known.
+#[must_use]
 pub fn g_formula_fixed_q_pointwise_interval_95(
     summary: &RegimeValueSummary,
     predictions: &[f64],
@@ -264,6 +270,8 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
 /// `censoring_probability` is the conditional probability of remaining observed
 /// at that decision. Values are unconditional Horvitz--Thompson averages, so
 /// unmatched or censored subjects contribute zero to the numerator.
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_regime_value(
     outcomes: &[f64],
     treatment: &[bool],
@@ -286,8 +294,7 @@ pub fn evaluate_regime_value(
     {
         return Err("regime arrays must align by subject and period");
     }
-    if !minimum_probability.is_finite()
-        || !(0.0 < minimum_probability && minimum_probability <= 0.5)
+    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5)
     {
         return Err("minimum probability must be finite and in (0, 0.5]");
     }
@@ -363,6 +370,7 @@ pub fn evaluate_regime_value(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates and coverage arithmetic"))]
     use super::*;
 
     #[test]
@@ -414,9 +422,9 @@ mod tests {
             }
         }
         assert!(accepted >= 1_800, "three-period support: {accepted}/{simulations}");
-        let coverage = covered as f64 / accepted as f64;
+        let coverage = covered as f64 / f64::from(accepted);
         println!("three-period sequential DR: accepted={accepted}, coverage={coverage}");
-        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / accepted as f64).sqrt());
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / f64::from(accepted)).sqrt());
     }
 
     #[test]
@@ -477,9 +485,9 @@ mod tests {
             }
         }
         assert!(accepted >= 1_800, "three-period excluded-fold support: {accepted}/{simulations}");
-        let coverage = covered as f64 / accepted as f64;
+        let coverage = covered as f64 / f64::from(accepted);
         println!("three-period excluded-fold Q sequential DR: accepted={accepted}, coverage={coverage}");
-        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / accepted as f64).sqrt());
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / f64::from(accepted)).sqrt());
     }
 
     #[test]
@@ -539,8 +547,8 @@ mod tests {
                 <= antecedent_stats::normal_ppf(0.975) * se);
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
-            let coverage = hits as f64 / simulations as f64;
-            let mcse = (nominal * (1.0 - nominal) / simulations as f64).sqrt();
+            let coverage = hits as f64 / f64::from(simulations);
+            let mcse = (nominal * (1.0 - nominal) / f64::from(simulations)).sqrt();
             println!("fixed exogenous Q sequential DR: nominal={nominal}, coverage={coverage}");
             assert!((coverage - nominal).abs() <= 3.0 * mcse,
                 "fixed-Q sequential DR coverage {coverage} at {nominal}");
@@ -618,16 +626,16 @@ mod tests {
                 <= antecedent_stats::normal_ppf(0.975) * se);
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
-            let coverage = hits as f64 / simulations as f64;
-            let mcse = (nominal * (1.0 - nominal) / simulations as f64).sqrt();
+            let coverage = hits as f64 / f64::from(simulations);
+            let mcse = (nominal * (1.0 - nominal) / f64::from(simulations)).sqrt();
             println!("subject-excluded fold Q sequential DR: nominal={nominal}, coverage={coverage}");
             assert!((coverage - nominal).abs() <= 3.0 * mcse,
                 "subject-excluded Q sequential DR coverage {coverage} at {nominal}");
         }
         assert!(gated_total >= 1_400);
-        let coverage = gated_covered as f64 / gated_total as f64;
+        let coverage = gated_covered as f64 / f64::from(gated_total);
         println!("excluded-fold Q supported DR interval: accepted={gated_total}, coverage={coverage}");
-        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / gated_total as f64).sqrt());
+        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / f64::from(gated_total)).sqrt());
     }
 
     #[test]
@@ -666,8 +674,8 @@ mod tests {
                 covered += usize::from(interval[0] <= 4.0 && 4.0 <= interval[1]);
             } else { skipped += 1; }
         }
-        let coverage = covered as f64 / simulations as f64;
-        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        let coverage = covered as f64 / f64::from(simulations);
+        let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         assert!(skipped <= simulations / 100, "weak-support skips {skipped}");
         assert!((coverage - 0.95).abs() <= 3.0 * mcse, "longitudinal IPW coverage {coverage}");
     }

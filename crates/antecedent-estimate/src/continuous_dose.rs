@@ -46,6 +46,9 @@ pub struct DosePolicyValue {
 /// group fractions are fixed at their observed values. Independent subjects,
 /// conditional exchangeability within the supplied groups, a correct known
 /// dose density, and local positivity are required for the pointwise intervals.
+// arity and length mirror the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 pub fn fixed_dose_policy_value(
     outcome: &[f64], dose: &[f64], groups: &[String], density: &[f64],
     policy: &[(String, f64)], reference: &[(String, f64)], bandwidth: f64,
@@ -283,6 +286,7 @@ pub fn conditional_dose_response(
 
 #[cfg(test)]
 mod policy_tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact reproducibility of deterministic estimates"))]
     use super::*;
 
     fn uniform(mut state: u64) -> f64 {
@@ -392,7 +396,7 @@ mod policy_tests {
 
     #[test]
     fn dose_policy_refuses_unmapped_and_unsupported_local_targets() {
-        let outcome = (0..40).map(|i| i as f64 / 40.0).collect::<Vec<_>>();
+        let outcome = (0..40).map(|i| f64::from(i) / 40.0).collect::<Vec<_>>();
         let dose = outcome.clone();
         let groups = vec!["a".to_string(); 40];
         let density = vec![1.0; 40];

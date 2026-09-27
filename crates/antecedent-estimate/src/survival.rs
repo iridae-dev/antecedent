@@ -87,7 +87,7 @@ pub fn randomized_survival_bootstrap_difference_band(
     duration: &[f64], event_code: &[i64], treated: &[bool], tau: f64,
     endpoint: SurvivalEndpoint, replicates: u32, seed: u64,
 ) -> Result<SurvivalDifferenceBand, &'static str> {
-    if replicates < 399 || replicates > 100_000 {
+    if !(399..=100_000).contains(&replicates) {
         return Err("survival simultaneous band requires 399 to 100000 replicates");
     }
     if duration.len() != event_code.len() || duration.len() != treated.len() {
@@ -110,6 +110,7 @@ pub fn randomized_survival_bootstrap_difference_band(
         let mut a = Vec::with_capacity(duration.len());
         for (arm_index, arm) in arms.iter().enumerate() {
             for _ in 0..arm.len() {
+                #[allow(clippy::cast_possible_truncation, reason = "u64 PRNG output is reduced modulo arm length to a valid index")]
                 let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
                 d.push(duration[i]);
                 e.push(event_code[i]);
@@ -129,6 +130,7 @@ pub fn randomized_survival_bootstrap_difference_band(
         return Err("survival simultaneous band lost more than 10% of subject draws to support failures");
     }
     suprema.sort_by(f64::total_cmp);
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ceil of a positive quantile position yields a small nonnegative rank index")]
     let index = ((suprema.len() as f64 + 1.0) * 0.95).ceil() as usize;
     let radius = suprema[index.saturating_sub(1).min(suprema.len() - 1)];
     let lower = difference.iter().map(|point| (point - radius).max(-1.0)).collect();
@@ -161,7 +163,7 @@ pub fn randomized_survival_bootstrap_intervals(
     replicates: u32,
     seed: u64,
 ) -> Result<SurvivalBootstrapIntervals, &'static str> {
-    if replicates < 199 || replicates > 100_000 {
+    if !(199..=100_000).contains(&replicates) {
         return Err("survival pointwise bootstrap requires 199 to 100000 replicates");
     }
     if duration.len() != event_code.len() || duration.len() != treated.len()
@@ -187,6 +189,7 @@ pub fn randomized_survival_bootstrap_intervals(
         let mut g = known_censoring.map(|_| Vec::with_capacity(duration.len() * grid_width));
         for (arm_index, arm) in arms.iter().enumerate() {
             for _ in 0..arm.len() {
+                #[allow(clippy::cast_possible_truncation, reason = "u64 PRNG output is reduced modulo arm length to a valid index")]
                 let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
                 d.push(duration[i]);
                 e.push(event_code[i]);
@@ -240,7 +243,9 @@ fn splitmix64(state: &mut u64) -> u64 {
 fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
     draws.sort_by(f64::total_cmp);
     let n = draws.len();
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ceil of a positive quantile position yields a small nonnegative rank index")]
     let lower = ((n as f64 + 1.0) * 0.025).ceil() as usize;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ceil of a positive quantile position yields a small nonnegative rank index")]
     let upper = ((n as f64 + 1.0) * 0.975).ceil() as usize;
     [draws[lower.saturating_sub(1).min(n - 1)], draws[upper.saturating_sub(1).min(n - 1)]]
 }
@@ -359,6 +364,8 @@ pub fn randomized_survival_summary(
 /// Returns an error for misaligned rows or times, invalid event codes, absent
 /// arm support through `tau`, or censoring probabilities that violate the
 /// declared positivity and monotonicity contract.
+// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
+#[allow(clippy::too_many_arguments)]
 pub fn randomized_survival_ipcw_summary(
     duration: &[f64],
     event_code: &[i64],
@@ -378,7 +385,9 @@ pub fn randomized_survival_ipcw_summary(
 /// Evaluate a fixed-known-censoring curve with marginally independent left entry.
 /// Entry and censoring probabilities remain attached to their subject in a
 /// subject-resampling interval. Conditional or informative entry is not adjusted.
+// arity and length mirror the estimator's fixed statistical contract; refactor would change behavior
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 pub fn randomized_survival_ipcw_summary_with_entry(
     duration: &[f64],
     event_code: &[i64],
@@ -486,6 +495,7 @@ pub fn randomized_survival_ipcw_summary_with_entry(
                 treated[i] == arm && duration[i] >= time
                     && delayed_entry.is_none_or(|entry| entry[i] < time)
             }).collect::<Vec<_>>();
+            #[allow(clippy::float_cmp, reason = "matches rows whose recorded event time equals this exact grid time")]
             let event_rows = at_risk
                 .iter()
                 .copied()
@@ -587,6 +597,7 @@ fn arm_curve(
         }
         let mut all_events = 0;
         let mut target_events = 0;
+        #[allow(clippy::float_cmp, reason = "counts rows whose recorded exit time equals this exact event time")]
         for ((&exit, &cause), &assignment) in duration.iter().zip(event_code).zip(treated) {
             if assignment == arm && exit == time && cause > 0 {
                 all_events += 1;
@@ -604,7 +615,7 @@ fn arm_curve(
             survival *= 1.0 - all_events as f64 / at_risk as f64;
             values.push(survival);
         } else {
-            incidence += survival * target_events as f64 / at_risk as f64;
+            incidence += survival * f64::from(target_events) / at_risk as f64;
             survival *= 1.0 - all_events as f64 / at_risk as f64;
             values.push(incidence);
         }
@@ -623,6 +634,7 @@ fn arm_curve(
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates and match exact event times"))]
     use super::*;
 
     #[test]
