@@ -149,8 +149,12 @@ result.survival.rmst_difference
 The study artifact freezes the grid, column identities, positivity floor, and
 conditioning variables. Prepared refresh reads the censoring columns from the
 new table in the same row order. This path also supports competing-risk
-cumulative incidence. Known censoring survival and delayed entry cannot be
-combined on this estimator.
+cumulative incidence. The retained route also combines known censoring survival
+with delayed entry when `IndependentGiven(())` declares marginally independent
+entry and censoring. It uses `(entry, exit]` risk sets and keeps each subject's
+entry, exit, event cause, and fixed censoring-survival row together in resamples.
+Conditional entry remains unsupported. The direct IPCW utilities do not accept
+delayed entry.
 
 For retained IPCW survival, `bootstrap=399` produces the same RMST and
 fixed-horizon pointwise intervals. The supplied censoring probabilities stay
@@ -170,7 +174,14 @@ not inference. Direct utility results remain point-only; retained results can
 report the pointwise intervals described above. Assumptions include correct
 caller-supplied conditional censoring survival, sequential censoring
 positivity, independent censoring given the supplied history, random assignment,
-consistency, and no interference. Delayed-entry weighting is not implemented.
+consistency, and no interference.
+For combined delayed entry and fixed known censoring, the observation claim is
+the marginal empty-variable form and the supplied censoring probabilities must
+be correct. This combined retained route reports the same scalar pointwise
+intervals with `bootstrap=299`; the censoring probabilities are held fixed.
+Separate 400-study known-truth fixtures covered the RMST contrast in 383,
+survival at `tau` in 376, and target-cause incidence in 386 studies. It reports
+no simultaneous curve band and does not include uncertainty from fitting `G`.
 
 The same supplied-`G` contract is available for competing-risk cumulative
 incidence via `estimate_cumulative_incidence_ipcw(data, competing_query,
@@ -228,9 +239,9 @@ fixture with independent entry, the RMST and survival-at-`tau` intervals covered
 known truth in 375 and 379 studies. A separate two-cause, 400-study fixture
 covered the target-cause incidence contrast in 380 studies. This evidence
 supports the declared marginal-entry design, not arbitrary dependent
-truncation. Delayed entry with caller-supplied fixed censoring weights remains
-refused, and delayed-entry
-curves have no simultaneous band.
+truncation. The retained combined delayed-entry/fixed-known-G route adds its
+own pointwise evidence described above; delayed-entry curves have no
+simultaneous band.
 
 ## Competing risks
 
