@@ -411,6 +411,25 @@ mod tests {
     }
 
     #[test]
+    fn known_censoring_ipcw_competing_risk_known_truth() {
+        let (summary, _) = randomized_survival_ipcw_summary(
+            &[1.0, 2.0, 2.0, 1.0, 2.0, 2.0],
+            &[1, 2, 0, 1, 2, 0],
+            &[false, false, false, true, true, true],
+            &[0.0, 1.0, 2.0],
+            &[1.0; 18],
+            2.0,
+            0.1,
+            SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
+        )
+        .unwrap();
+        assert_eq!(summary.control, [0.0, 1.0 / 3.0, 1.0 / 3.0]);
+        assert_eq!(summary.treated, [0.0, 1.0 / 3.0, 1.0 / 3.0]);
+        assert_eq!(summary.rmst_control, None);
+        assert_eq!(summary.rmst_treated, None);
+    }
+
+    #[test]
     fn randomized_rmst_and_survival_known_truth() {
         let result = randomized_survival_summary(
             &[1.0, 2.0, 2.0, 2.0],
