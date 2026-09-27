@@ -660,7 +660,8 @@ budget checks. It requires known positive action probabilities and still does
 not fit CATEs or validate the held-out split.
 
 `antecedent.policy.PolicyValue` runs a fixed binary policy through retained
-`prepare` / `analyze` using randomized doubly robust row scores. Its
+`prepare` / `analyze` using each evaluation subject's outcome, known
+assignment chance, and supplied outcome predictions. Its
 recommendations, costs, capacity, budget, action availability, nuisance
 predictions, and subject ownership are checked on the prepared evaluation
 rows. A new evaluation sample requires a new prepare; `refresh(new_data)` is
