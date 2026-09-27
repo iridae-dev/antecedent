@@ -67,7 +67,7 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         assert!(result.estimate.se_analytic.is_nan());
         let inference = result.interference_inference.as_ref().unwrap();
         assert!(inference.interval.is_none());
-        assert!(inference.interval_unavailable_reason.unwrap().contains("eight independent clusters"));
+        assert!(inference.interval_unavailable_reason.unwrap().contains("24 independent clusters"));
         assert!(result.estimate.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
         let artifact = prepared.encode_contracted_result(&result, "saturation-exact", &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
@@ -98,11 +98,11 @@ fn saturation_rejects_cross_cluster_edges_at_prepare() {
 
 #[test]
 fn supported_saturation_interval_survives_retained_artifact_round_trip() {
-    let clusters = (0..80).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
+    let clusters = (0..48).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
     let patterns = [[false, false, false], [true, false, false], [true, true, false], [true, true, true]];
-    let assignment = (0..80).flat_map(|cluster| patterns[cluster % 4]).collect::<Vec<_>>();
-    let realized = (0..80).flat_map(|cluster| [if cluster < 40 { 0.2 } else { 0.8 }; 3]).collect::<Vec<_>>();
-    let edges = (0..80).flat_map(|cluster| {
+    let assignment = (0..48).flat_map(|cluster| patterns[cluster % 4]).collect::<Vec<_>>();
+    let realized = (0..48).flat_map(|cluster| [if cluster < 24 { 0.2 } else { 0.8 }; 3]).collect::<Vec<_>>();
+    let edges = (0..48).flat_map(|cluster| {
         let first = cluster * 3;
         (first..first + 3).flat_map(move |from| {
             (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
@@ -126,7 +126,7 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         let query = InterferenceQuery::new(
             AssignmentDesign::TwoStageSaturation {
                 clusters: Arc::from(clusters.clone()), low_probability: 0.2, high_probability: 0.8,
-                high_clusters: 40, realized_saturation: Arc::from(realized.clone()),
+                high_clusters: 24, realized_saturation: Arc::from(realized.clone()),
             },
             ExposureMapping::NeighborFraction,
             InterferenceFunctional::ExposureContrast {
@@ -145,7 +145,7 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
         let result = prepared.estimate(&data, &ctx).unwrap();
         let inference = result.interference_inference.as_ref().unwrap();
         let interval = inference.interval.as_ref().expect("adequate independent cluster and exposure support");
-        assert_eq!(interval.first_stage_arm_clusters, [40, 40], "{name}");
+        assert_eq!(interval.first_stage_arm_clusters, [24, 24], "{name}");
         assert!(interval.lower < truth && truth < interval.upper, "{name}");
         assert!(interval.lower < result.interference.as_ref().unwrap().contrast.horvitz_thompson);
         assert!(result.interference.as_ref().unwrap().contrast.horvitz_thompson < interval.upper);

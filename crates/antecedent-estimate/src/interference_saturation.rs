@@ -192,8 +192,8 @@ fn saturation_cluster_interval(
 ) -> Result<SaturationClusterInterval, &'static str> {
     let k = ids.len();
     let low_count = k - high_count;
-    if high_count < 8 || low_count < 8 {
-        return Err("pointwise saturation inference requires eight independent clusters in each saturation arm");
+    if high_count < 24 || low_count < 24 {
+        return Err("pointwise saturation inference requires 24 independent clusters in each saturation arm");
     }
     if from_clusters < 8 || to_clusters < 8 {
         return Err("pointwise saturation inference requires eight exposed clusters at each requested level");
@@ -348,74 +348,76 @@ mod tests {
         // Fixed finite-population potential outcomes; only the two randomization
         // stages vary. Two units per cluster expose the four (own, neighbor)
         // cells exactly and preserve within-cluster assignment dependence.
-        const CLUSTERS: usize = 80;
         const DRAWS: usize = 2_000;
-        let clusters = (0..CLUSTERS).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
-        let edges = (0..CLUSTERS).flat_map(|cluster| {
-            let first = (2 * cluster) as u32;
-            [
-                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
-            ]
-        }).collect::<Vec<_>>();
         let contrasts = [
             ("direct", (0.0, 1.0), (1.0, 1.0), 1.7),
             ("spillover", (0.0, 0.0), (0.0, 1.0), 0.7),
             ("total", (0.0, 0.0), (1.0, 1.0), 2.4),
         ];
-        let mut covered = [0_usize; 3];
-        let mut supported = [0_usize; 3];
-        let mut rng = Random(0x6473_58ce_9ab2_1def);
-        for _ in 0..DRAWS {
-            let mut order = (0..CLUSTERS).collect::<Vec<_>>();
-            for i in (1..CLUSTERS).rev() {
-                let j = (rng.next() as usize) % (i + 1);
-                order.swap(i, j);
-            }
-            let mut high = [false; CLUSTERS];
-            for &cluster in &order[..CLUSTERS / 2] {
-                high[cluster] = true;
-            }
-            let realized = (0..CLUSTERS).flat_map(|cluster| [if high[cluster] { 0.8 } else { 0.2 }; 2])
-                .collect::<Vec<_>>();
-            let assignment = (0..CLUSTERS * 2).map(|unit| rng.uniform() < realized[unit]).collect::<Vec<_>>();
-            let outcomes = (0..CLUSTERS * 2).map(|unit| {
-                let own = f64::from(assignment[unit]);
-                let neighbor = f64::from(assignment[unit ^ 1]);
-                let baseline = 1.0 + 0.15 * ((unit / 2) as f64 * 0.37).sin()
-                    + 0.09 * (unit % 2) as f64;
-                baseline + 1.2 * own + 0.7 * neighbor + 0.5 * own * neighbor
+        for cluster_count in [48, 80] {
+            let clusters = (0..cluster_count).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+            let edges = (0..cluster_count).flat_map(|cluster| {
+                let first = (2 * cluster) as u32;
+                [
+                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                ]
             }).collect::<Vec<_>>();
-            let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
-            let network = NetworkData::try_new(units, edges.clone()).unwrap();
-            for (index, &(_, from, to, truth)) in contrasts.iter().enumerate() {
-                let query = InterferenceQuery::new(
-                    AssignmentDesign::TwoStageSaturation {
-                        clusters: Arc::from(clusters.clone()),
-                        low_probability: 0.2,
-                        high_probability: 0.8,
-                        high_clusters: CLUSTERS / 2,
-                        realized_saturation: Arc::from(realized.clone()),
-                    },
-                    ExposureMapping::NeighborFraction,
-                    InterferenceFunctional::ExposureContrast {
-                        outcome: VariableId::from_raw(0),
-                        from: ExposureLevel { own: from.0, neighbors: from.1 },
-                        to: ExposureLevel { own: to.0, neighbors: to.1 },
-                    },
-                );
-                let result = estimate_saturation_interference(&query, &network, &assignment).unwrap();
-                if let Some(interval) = result.pointwise_interval {
-                    supported[index] += 1;
-                    covered[index] += usize::from(interval.bounds[0] <= truth && truth <= interval.bounds[1]);
+            let mut covered = [0_usize; 3];
+            let mut supported = [0_usize; 3];
+            let mut rng = Random(0x6473_58ce_9ab2_1def);
+            for _ in 0..DRAWS {
+                let mut order = (0..cluster_count).collect::<Vec<_>>();
+                for i in (1..cluster_count).rev() {
+                    let j = (rng.next() as usize) % (i + 1);
+                    order.swap(i, j);
+                }
+                let mut high = vec![false; cluster_count];
+                for &cluster in &order[..cluster_count / 2] {
+                    high[cluster] = true;
+                }
+                let realized = (0..cluster_count).flat_map(|cluster| [if high[cluster] { 0.8 } else { 0.2 }; 2])
+                    .collect::<Vec<_>>();
+                let assignment = (0..cluster_count * 2).map(|unit| rng.uniform() < realized[unit]).collect::<Vec<_>>();
+                let outcomes = (0..cluster_count * 2).map(|unit| {
+                    let own = f64::from(assignment[unit]);
+                    let neighbor = f64::from(assignment[unit ^ 1]);
+                    let baseline = 1.0 + 0.15 * ((unit / 2) as f64 * 0.37).sin()
+                        + 0.09 * (unit % 2) as f64;
+                    baseline + 1.2 * own + 0.7 * neighbor + 0.5 * own * neighbor
+                }).collect::<Vec<_>>();
+                let units = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+                let network = NetworkData::try_new(units, edges.clone()).unwrap();
+                for (index, &(_, from, to, truth)) in contrasts.iter().enumerate() {
+                    let query = InterferenceQuery::new(
+                        AssignmentDesign::TwoStageSaturation {
+                            clusters: Arc::from(clusters.clone()),
+                            low_probability: 0.2,
+                            high_probability: 0.8,
+                            high_clusters: cluster_count / 2,
+                            realized_saturation: Arc::from(realized.clone()),
+                        },
+                        ExposureMapping::NeighborFraction,
+                        InterferenceFunctional::ExposureContrast {
+                            outcome: VariableId::from_raw(0),
+                            from: ExposureLevel { own: from.0, neighbors: from.1 },
+                            to: ExposureLevel { own: to.0, neighbors: to.1 },
+                        },
+                    );
+                    let result = estimate_saturation_interference(&query, &network, &assignment).unwrap();
+                    if let Some(interval) = result.pointwise_interval {
+                        supported[index] += 1;
+                        covered[index] += usize::from(interval.bounds[0] <= truth && truth <= interval.bounds[1]);
+                    }
                 }
             }
-        }
-        for (index, &(name, _, _, _)) in contrasts.iter().enumerate() {
-            let rate = covered[index] as f64 / supported[index] as f64;
-            eprintln!("saturation {name}: {}/{}, coverage={rate:.4}", covered[index], supported[index]);
-            assert!(supported[index] >= 1_900, "{name}: too many sparse refusals");
-            assert!((0.93..=0.97).contains(&rate), "{name}: pointwise 95% coverage {rate}");
+            for (index, &(name, _, _, _)) in contrasts.iter().enumerate() {
+                let rate = covered[index] as f64 / supported[index] as f64;
+                eprintln!("saturation {name}, {}+{} clusters: {}/{}, coverage={rate:.4}",
+                    cluster_count / 2, cluster_count / 2, covered[index], supported[index]);
+                assert!(supported[index] >= 1_900, "{name}: too many sparse refusals");
+                assert!((0.93..=0.97).contains(&rate), "{name}: pointwise 95% coverage {rate}");
+            }
         }
     }
 
@@ -526,10 +528,10 @@ mod tests {
         let (network, assignment, mut query) = fixture();
         let point = estimate_saturation_interference(&query, &network, &assignment).unwrap();
         assert!(point.pointwise_interval.is_none());
-        assert!(point.interval_unavailable_reason.unwrap().contains("eight independent clusters"));
+        assert!(point.interval_unavailable_reason.unwrap().contains("24 independent clusters"));
         let refused = estimate_saturation_interference_pointwise(&query, &network, &assignment)
             .unwrap_err();
-        assert!(refused.to_string().contains("eight independent clusters"));
+        assert!(refused.to_string().contains("24 independent clusters"));
         // Forty independent clusters would require over 10^11 global high/low
         // allocations; the exact marginal mixture needs only two states per unit.
         let clusters = (0..40).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
@@ -554,17 +556,18 @@ mod tests {
         let expanded = NetworkData::try_new(expanded_data, expanded_edges).unwrap();
         // The observed assignment here is arbitrary; this assertion exercises
         // the exact marginal calculation beyond the old enumeration cap.
-        let result = estimate_saturation_interference(&query, &expanded, &expanded_assignment);
-        assert!(result.is_ok());
+        let result = estimate_saturation_interference(&query, &expanded, &expanded_assignment).unwrap();
+        assert!(result.pointwise_interval.is_none());
+        assert!(result.interval_unavailable_reason.unwrap().contains("24 independent clusters"));
     }
 
     #[test]
     fn pointwise_interval_refuses_sparse_exposure_despite_adequate_cluster_arms() {
-        let clusters = (0..20).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
-        let realized = [vec![0.2; 30], vec![0.8; 30]].concat();
-        let mut assignment = vec![false; 60];
-        assignment[30..33].fill(true);
-        let edges = (0..20).flat_map(|cluster| {
+        let clusters = (0..48).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
+        let realized = [vec![0.2; 72], vec![0.8; 72]].concat();
+        let mut assignment = vec![false; 144];
+        assignment[72..75].fill(true);
+        let edges = (0..48).flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
                 (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
@@ -572,13 +575,13 @@ mod tests {
                 })
             })
         }).collect::<Vec<_>>();
-        let outcomes = (0..60).map(|unit| 1.0 + f64::from(assignment[unit])).collect::<Vec<_>>();
+        let outcomes = (0..144).map(|unit| 1.0 + f64::from(assignment[unit])).collect::<Vec<_>>();
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
         let network = NetworkData::try_new(data, edges).unwrap();
         let query = InterferenceQuery::new(
             AssignmentDesign::TwoStageSaturation {
                 clusters: Arc::from(clusters), low_probability: 0.2, high_probability: 0.8,
-                high_clusters: 10, realized_saturation: Arc::from(realized),
+                high_clusters: 24, realized_saturation: Arc::from(realized),
             },
             ExposureMapping::NeighborFraction,
             InterferenceFunctional::ExposureContrast {
