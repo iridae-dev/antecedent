@@ -138,16 +138,28 @@ mod tests {
         const REPLICATES: usize = 2_000;
         for arms in [2, 3] {
             let mut covered = 0;
+            let mut second_action_covered = 0;
             for rep in 0..REPLICATES {
                 let (outcomes, assignments, probabilities, truth) = study(arms, rep, 400);
                 let fit = independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
                     .unwrap();
                 let [lower, upper] = fit.interval_95.expect("large known-probability trial is supported");
                 covered += usize::from(lower <= truth && truth <= upper);
+                if arms == 3 {
+                    let fit = independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 2)
+                        .unwrap();
+                    let [lower, upper] = fit.interval_95.expect("second action is supported");
+                    second_action_covered += usize::from(lower <= 1.1 && 1.1 <= upper);
+                }
             }
             let rate = covered as f64 / REPLICATES as f64;
             eprintln!("{arms}-arm independent action contrast: {covered}/{REPLICATES} = {rate:.4}");
             assert!((0.93..=0.985).contains(&rate));
+            if arms == 3 {
+                let rate = second_action_covered as f64 / REPLICATES as f64;
+                eprintln!("3-arm second action contrast: {second_action_covered}/{REPLICATES} = {rate:.4}");
+                assert!((0.93..=0.985).contains(&rate));
+            }
         }
     }
 
