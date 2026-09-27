@@ -7,6 +7,8 @@ execution (non-native performance).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -206,6 +208,7 @@ class CausalProvider(Protocol):
     def spec(self) -> CausalProviderSpec:
         """Declared data, identification, fold, output, and inference contract."""
 
+
 @dataclass(frozen=True, slots=True)
 class ProviderExecution:
     """Untrusted provider output with explicit assumptions and uncertainty."""
@@ -250,6 +253,56 @@ class ProviderResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderVerificationFixture:
+    """Caller supplied, independently specified reference for one provider run.
+
+    ``artifact_digest`` checks the encoded bytes. A provider-specific artifact
+    decoder can additionally be supplied to check that those bytes round trip
+    to the expected scientific payload; it must not be the provider under test.
+    """
+
+    name: str
+    request: Mapping[str, Any]
+    expected_estimate: Any
+    expected_uncertainty: Any | None
+    expected_assumptions: tuple[str, ...]
+    expected_support_status: str
+    expected_provenance: Mapping[str, str]
+    artifact_digest: str | None = None
+    artifact_decoder: Any | None = None
+    expected_decoded_artifact: Any | None = None
+    atol: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not self.name or not isinstance(self.name, str):
+            raise ValueError("verification fixture needs a name")
+        if not isinstance(self.request, Mapping):
+            raise TypeError("verification request must be a mapping")
+        if self.atol < 0 or not np.isfinite(self.atol):
+            raise ValueError("verification atol must be finite and non-negative")
+        if self.artifact_decoder is not None and not callable(self.artifact_decoder):
+            raise TypeError("artifact_decoder must be callable")
+        if self.artifact_decoder is not None and self.artifact_digest is None:
+            raise ValueError("artifact_decoder requires an expected artifact_digest")
+        object.__setattr__(self, "request", MappingProxyType(dict(self.request)))
+        object.__setattr__(
+            self, "expected_provenance", MappingProxyType(dict(self.expected_provenance))
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderVerificationReport:
+    """Host recorded evidence for a bounded set of external fixtures."""
+
+    provider: str
+    fixture_names: tuple[str, ...]
+    spec_digest: str
+    evidence_digest: str
+    deterministic_replay_checked: bool
+    evidence_origin: str
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderQuery:
     """Explicit request to run a registered provider through ``analyze``.
 
@@ -276,6 +329,7 @@ class ProviderRegistry:
     def __init__(self) -> None:
         self._providers: dict[str, tuple[CausalProvider, ProviderTrust]] = {}
         self._entry_points: dict[str, str] = {}
+        self._verification: dict[str, ProviderVerificationReport] = {}
 
     def load_entry_point(self, name: str) -> CausalProvider:
         """Explicitly load one installed ``antecedent.providers`` entry point.
@@ -335,12 +389,137 @@ class ProviderRegistry:
         except KeyError as exc:
             raise KeyError(f"provider {name!r} is not explicitly registered") from exc
 
+    def verification_report(self, name: str) -> ProviderVerificationReport:
+        """Return the host's evidence receipt for a verified extension."""
+        try:
+            return self._verification[name]
+        except KeyError as exc:
+            raise KeyError(f"provider {name!r} has no verification report") from exc
+
+    def verify(
+        self,
+        name: str,
+        fixtures: Sequence[ProviderVerificationFixture],
+        *,
+        evidence_origin: str,
+    ) -> ProviderVerificationReport:
+        """Run independent caller fixtures before promoting an external provider.
+
+        This checks the executable contract and supplied references; it does
+        not certify the scientific validity of caller supplied truth or grant
+        native licensing. Promotion is atomic after every fixture passes.
+        """
+        provider, trust = self._providers[name]
+        if trust is not ProviderTrust.EXTERNALLY_ATTESTED:
+            raise ValueError("only externally attested providers can be verified")
+        if not isinstance(evidence_origin, str) or not evidence_origin.strip():
+            raise ValueError("evidence_origin must identify the independent fixture source")
+        fixtures = tuple(fixtures)
+        if any(not isinstance(fixture, ProviderVerificationFixture) for fixture in fixtures):
+            raise TypeError("verification fixtures must be ProviderVerificationFixture")
+        if not fixtures or len({fixture.name for fixture in fixtures}) != len(fixtures):
+            raise ValueError("verification requires distinct, non-empty fixtures")
+        spec = provider.spec
+        spec_digest = _digest(_spec_evidence(spec))
+        observations = []
+        for fixture in fixtures:
+            result = self.execute(name, fixture.request)
+            expected = _provider_array(fixture.expected_estimate, "expected estimate")
+            if result.estimate.shape != expected.shape or not np.allclose(
+                result.estimate, expected, atol=fixture.atol, rtol=0
+            ):
+                raise ValueError(f"fixture {fixture.name!r}: estimate differs from reference")
+            if fixture.expected_uncertainty is None:
+                if result.uncertainty is not None:
+                    raise ValueError(f"fixture {fixture.name!r}: unexpected uncertainty")
+            else:
+                expected_uncertainty = _provider_array(
+                    fixture.expected_uncertainty, "expected uncertainty"
+                )
+                if (
+                    result.uncertainty is None
+                    or result.uncertainty.shape != expected_uncertainty.shape
+                    or not np.allclose(
+                        result.uncertainty, expected_uncertainty, atol=fixture.atol, rtol=0
+                    )
+                ):
+                    raise ValueError(
+                        f"fixture {fixture.name!r}: uncertainty differs from reference"
+                    )
+            if result.uncertainty is not None and spec.uncertainty_semantics == "point_only":
+                raise ValueError(
+                    f"fixture {fixture.name!r}: point-only provider returned uncertainty"
+                )
+            if result.assumptions != tuple(fixture.expected_assumptions):
+                raise ValueError(f"fixture {fixture.name!r}: assumptions differ from reference")
+            if result.support_status != fixture.expected_support_status:
+                raise ValueError(f"fixture {fixture.name!r}: support differs from reference")
+            for key, value in fixture.expected_provenance.items():
+                if result.provenance.get(key) != value:
+                    raise ValueError(f"fixture {fixture.name!r}: provenance {key!r} differs")
+            if fixture.artifact_digest is not None:
+                if (
+                    result.artifact is None
+                    or hashlib.sha256(result.artifact).hexdigest() != fixture.artifact_digest
+                ):
+                    raise ValueError(f"fixture {fixture.name!r}: artifact digest differs")
+            elif result.artifact is not None:
+                raise ValueError(f"fixture {fixture.name!r}: unverified artifact")
+            if fixture.artifact_decoder is not None:
+                decoded = fixture.artifact_decoder(result.artifact)
+                if decoded != fixture.expected_decoded_artifact:
+                    raise ValueError(f"fixture {fixture.name!r}: artifact round trip differs")
+            if spec.deterministic:
+                replay = self.execute(name, fixture.request)
+                if not _same_provider_result(result, replay):
+                    raise ValueError(f"fixture {fixture.name!r}: deterministic replay differs")
+            observations.append(
+                {
+                    "name": fixture.name,
+                    "request": fixture.request,
+                    "expected_estimate": expected,
+                    "expected_uncertainty": fixture.expected_uncertainty,
+                    "atol": fixture.atol,
+                    "result_estimate": result.estimate,
+                    "result_uncertainty": result.uncertainty,
+                    "assumptions": result.assumptions,
+                    "support_status": result.support_status,
+                    "provenance": dict(result.provenance),
+                    "artifact_digest": None
+                    if result.artifact is None
+                    else hashlib.sha256(result.artifact).hexdigest(),
+                    "artifact_round_trip_checked": fixture.artifact_decoder is not None,
+                }
+            )
+        if _digest(_spec_evidence(provider.spec)) != spec_digest:
+            raise ValueError("provider spec changed during verification")
+        report = ProviderVerificationReport(
+            name,
+            tuple(fixture.name for fixture in fixtures),
+            spec_digest,
+            _digest(
+                {
+                    "spec_digest": spec_digest,
+                    "evidence_origin": evidence_origin,
+                    "observations": observations,
+                }
+            ),
+            spec.deterministic,
+            evidence_origin,
+        )
+        self._verification[name] = report
+        self._providers[name] = (provider, ProviderTrust.VERIFIED_EXTENSION)
+        return report
+
     def execute(self, name: str, request: Mapping[str, Any]) -> ProviderResult:
         try:
             provider, trust = self._providers[name]
         except KeyError as exc:
             raise KeyError(f"provider {name!r} is not explicitly registered") from exc
         spec = provider.spec
+        report = self._verification.get(name)
+        if report is not None and _digest(_spec_evidence(spec)) != report.spec_digest:
+            raise ValueError("verified provider spec changed after verification")
         raw = provider.execute(MappingProxyType(dict(request)))
         if not isinstance(raw, ProviderExecution):
             raise TypeError("provider execute() must return ProviderExecution")
@@ -360,6 +539,9 @@ class ProviderRegistry:
         if name in self._entry_points:
             provenance["entry_point"] = self._entry_points[name]
         provenance["trust_boundary"] = trust.value
+        if report is not None:
+            provenance["verification_evidence_digest"] = report.evidence_digest
+            provenance["verification_evidence_origin"] = report.evidence_origin
         return ProviderResult(
             estimate,
             uncertainty,
@@ -381,6 +563,49 @@ def _provider_array(value: Any, label: str) -> NDArray[np.float64]:
     return array
 
 
+def _spec_evidence(spec: CausalProviderSpec) -> dict[str, Any]:
+    return {
+        field: dict(value) if field == "provenance" else value
+        for field, value in ((name, getattr(spec, name)) for name in spec.__dataclass_fields__)
+    }
+
+
+def _digest(value: Any) -> str:
+    def encode(item: Any) -> Any:
+        if isinstance(item, np.ndarray):
+            return item.tolist()
+        if isinstance(item, np.generic):
+            return item.item()
+        if isinstance(item, Mapping):
+            return {str(key): encode(value) for key, value in item.items()}
+        if isinstance(item, (tuple, list)):
+            return [encode(value) for value in item]
+        if isinstance(item, (str, int, float, bool)) or item is None:
+            return item
+        raise TypeError("verification evidence must be JSON serializable")
+
+    payload = json.dumps(encode(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _same_provider_result(a: ProviderResult, b: ProviderResult) -> bool:
+    return (
+        np.array_equal(a.estimate, b.estimate)
+        and (
+            (a.uncertainty is None and b.uncertainty is None)
+            or (
+                a.uncertainty is not None
+                and b.uncertainty is not None
+                and np.array_equal(a.uncertainty, b.uncertainty)
+            )
+        )
+        and a.assumptions == b.assumptions
+        and a.support_status == b.support_status
+        and dict(a.provenance) == dict(b.provenance)
+        and a.artifact == b.artifact
+    )
+
+
 providers = ProviderRegistry()
 
 
@@ -395,6 +620,8 @@ __all__ = [
     "ProviderRegistry",
     "ProviderResult",
     "ProviderQuery",
+    "ProviderVerificationFixture",
+    "ProviderVerificationReport",
     "UtilityFn",
     "providers",
 ]
