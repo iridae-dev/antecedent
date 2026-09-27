@@ -668,10 +668,13 @@ mod tests {
             &durations, &events, &treated, None, None, 3.0,
             SurvivalEndpoint::Survival, 198, 17,
         ).is_err());
+        // Delayed entry is now a supported, separately calibrated bootstrap route
+        // (see delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth),
+        // so supplying entry times is accepted rather than refused.
         assert!(randomized_survival_bootstrap_intervals(
             &durations, &events, &treated, Some(&vec![0.0; 80]), None, 3.0,
             SurvivalEndpoint::Survival, 399, 17,
-        ).is_err());
+        ).is_ok());
     }
 
     #[test]
