@@ -849,8 +849,15 @@ cluster-robust standard errors by default, using subjects as clusters or an
 optional higher-level cluster column. The CR1-style multiplier is `G/(G - 1)`;
 at least two distinct clusters must contribute to each cohort/control
 comparison. Event-study pre-adoption contrasts are descriptive only. Neither
-route reports p-values or intervals, validates assumptions, or adds a
-support-matrix license; both remain `unlicensed_point_utility`.
+route validates parallel trends or adds a support-matrix license. For post-
+adoption event times with at least 24 independent clusters in each cohort and
+never-treated group, 48 distinct clusters overall, and positive cluster SE,
+the retained route reports separate pointwise 95% intervals. The first post-
+adoption contrast also binds its SE and interval to the scalar result.
+Pre-adoption contrasts have no interval; thin clusters remain point-only.
+The intervals are not a simultaneous event-study band or a pretrend test.
+Two 2,000-draw calibrations cover independent and shared-cluster shocks at
+the 24-per-group boundary; native artifact and public Python checks pass.
 
 `antecedent.quasi.SyntheticControl` and
 `SyntheticDifferenceInDifferences` use the same graphless, row-aligned
@@ -863,10 +870,13 @@ portable artifacts. They require a balanced panel, explicit treatment timing,
 no anticipation or interference, and a defensible donor counterfactual or
 untreated trend. Results are point-only, remain `unlicensed_point_utility`,
 and add no support-matrix license or calibrated interval claim.
-For synthetic control only, a declared uniform one-treated-unit assignment
-enables an exact Fisher sharp-null test that refits each possible treated unit.
-It reports the full assignment distribution and a p-value, without converting
-the effect's point estimate into an interval or a licensed matrix cell.
+For either synthetic method, a declared uniform one-treated-unit assignment
+enables an exact Fisher sharp-null test that refits each possible treated unit,
+including both unit and time weights for synthetic DiD. It reports the full
+assignment distribution and a p-value for at most 32 candidate units, without
+converting the effect's point estimate into an interval or a licensed matrix
+cell. The exact synthetic-DiD route has known-truth, oversized-pool refusal,
+artifact-tamper, and public Python evidence.
 An optional positive `augmentation_ridge` on `SyntheticControl` fits a
 donor-trained pre-to-post outcome model and corrects the simplex gap. The
 retained result and artifact preserve the original gap, correction, and adjusted
