@@ -36,5 +36,35 @@ the effect estimate. It is distinct from the descriptive donor-only placebo
 rank. The artifact binds the assignment declaration and rejects a p-value
 that disagrees with the saved assignment statistics. The exact enumeration is
 currently limited to 32 candidate units; synthetic DiD refuses this option.
-The route remains off the support-matrix axis. Augmented synthetic control
-and covariate adjustment remain unavailable.
+The route remains off the support-matrix axis.
+
+Set `augmentation_ridge` to a finite positive penalty to correct the simplex
+gap with a donor-trained outcome model. The native route fits a centered ridge
+model from each donor's pre-period outcomes to its mean post-period outcome,
+then subtracts the treated-versus-weighted-donor prediction difference. It
+reports `unadjusted_effect`, `outcome_model_correction`, and the adjusted
+`estimate`. This can correct the simplex fit when the treated unit lies outside
+the donor convex hull, under the additional declared assumption that the donor
+outcome model transports to the treated unit. The displayed placebo rank still
+describes the unadjusted simplex fit. The adjusted effect has no interval or
+calibrated placebo inference and remains `unlicensed_point_utility` off the
+support-matrix axis. The ridge penalty is fixed by the caller; it is not tuned
+from the panel. Augmentation cannot be combined with synthetic DiD or exact
+unit randomization. The penalty and correction round-trip through the retained
+artifact, which rejects inconsistent saved effect fields.
+
+```python
+from antecedent import analyze
+from antecedent.quasi import SyntheticControl
+
+result = analyze(
+    panel,
+    query=SyntheticControl(
+        "outcome", "unit", "period", "treated", 5,
+        augmentation_ridge=1.0,
+    ),
+)
+adjusted_effect = result.synthetic_control.estimate
+```
+
+Additional unit-level covariate adjustment remains unavailable.
