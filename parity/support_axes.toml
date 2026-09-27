@@ -39,9 +39,11 @@ queries = [
 # Retained routes report off_axis; SwitchbackEffect is a direct utility.
 off_axis_public_queries = [
   "LongitudinalRegimeQuery",
+  "MultiActionPolicyValue",
   "PolicyValue",
   "RandomizedEffect",
   "SurvivalOutcome",
+  "SyntheticControl",
   "SwitchbackEffect",
 ]
 
