@@ -473,6 +473,25 @@ fn staggered_event_study(
     Ok(output)
 }
 
+/// Balanced-panel synthetic control using the shared native estimator.
+#[pyfunction]
+fn synthetic_control(
+    outcome: PyReadonlyArray1<'_, f64>,
+    units: Vec<String>,
+    periods: Vec<i64>,
+    treated_unit: String,
+    intervention_period: i64,
+) -> PyResult<(f64, f64, Vec<(String, f64)>, Vec<f64>, f64, usize, usize)> {
+    let values: Vec<f64> = outcome.as_array().iter().copied().collect();
+    let fit = antecedent_estimate::synthetic_control::fit_synthetic_control(
+        &values, &units, &periods, &treated_unit, intervention_period,
+    ).map_err(PyValueError::new_err)?;
+    Ok((fit.effect, fit.pre_treatment_rmse, fit.donor_weights,
+        fit.placebo_effects, fit.placebo_rank, fit.n_pre_periods, fit.n_post_periods))
+}
+
+/// Balanced-panel synthetic difference in differences using the shared kernel.
+#[pyfunction]
 fn synthetic_difference_in_differences(
     outcome: PyReadonlyArray1<'_, f64>,
     units: Vec<String>,
