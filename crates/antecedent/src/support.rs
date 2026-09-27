@@ -51,7 +51,7 @@ pub struct GraphlessSupportKey<'a> {
 /// Observed independent assignment units in a binary randomized contrast.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphlessAssignmentSupport {
-    /// `unit` or `cluster`, matched to the licensed design.
+    /// `unit`, `cluster`, or independent `sequence`, matched to the licensed design.
     pub assignment_unit: &'static str,
     /// Number assigned to the treatment arm.
     pub treated: usize,
@@ -61,7 +61,7 @@ pub struct GraphlessAssignmentSupport {
     pub interval_95_published: bool,
     /// Number of analyzed outcome rows.
     pub rows: usize,
-    /// Number of separate randomization blocks.
+    /// Number of separate randomization blocks or independent sequences.
     pub blocks: usize,
     /// Smallest realized assignment count in any block arm.
     pub min_block_arm: usize,
@@ -95,6 +95,8 @@ pub struct GraphlessAssignmentSupport {
     pub disjoint_nuisance_training: bool,
     /// Ranking training IDs are declared and disjoint from evaluation IDs.
     pub rank_ownership: bool,
+    /// Every independent sequence has the same observed number of periods.
+    pub balanced_sequences: bool,
 }
 
 /// Runtime status for one exact graphless support key.
@@ -149,6 +151,7 @@ pub fn classify_graphless(
                 && (!row.requires_uncoupled_constraints || observed.uncoupled_constraints)
                 && (!row.requires_disjoint_nuisance_training || observed.disjoint_nuisance_training)
                 && (!row.requires_rank_ownership || observed.rank_ownership)
+                && (!row.requires_balanced_sequences || observed.balanced_sequences)
         })
         .map_or(GraphlessSupportStatus::Refused, |row| GraphlessSupportStatus::Licensed {
             limitations: row.limitations,

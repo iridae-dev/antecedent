@@ -29,10 +29,11 @@ DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesig
 `SwitchbackEffect` describe unit-period assignments with known marginal
 probabilities. Their native ITT estimator allows arbitrary dependence within
 each sequence and uses an independent-sequence cluster sandwich standard
-error; it requires at least two sequences and both arms observed per sequence,
-and assumes no carryover from earlier assignments. `SwitchbackEffect` also
-uses retained `analyze`, preserving sequence and period identity with a
-point-only sequence variance; it does not add a licensed support cell.
+error; it requires at least two sequences and both arms observed across the
+full schedule, and assumes no carryover from earlier assignments.
+`SwitchbackEffect` also uses retained `analyze`, preserving sequence and
+period identity. Its supported sequence-level Student interval has an exact
+graphless license; sparse schedules remain point-only.
 `experiment.ComplierEffect` adds the retained Bernoulli encouragement
 CACE/LATE query with observed receipt, a positive first stage, and no interval;
 its result is also off the support-matrix axis.

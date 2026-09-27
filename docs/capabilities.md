@@ -679,9 +679,15 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   `SwitchbackEffect` also runs through retained `analyze` with row-aligned
   sequence and period labels, known marginal assignment probabilities, and
   a sequence-clustered sandwich variance. It requires two independent
-  sequences with both arms observed, assumes no carryover and no interference
-  between sequences, and reports no interval. Switchback results are off
-  the graphless license table and report `evidence_status="off_axis"`.
+  sequences and both arms observed across the full schedule. At least 30
+  independent sequences with equal observed period counts, 30 observed
+  periods per arm, probabilities from 0.2 through 0.8 on every row, and
+  positive variance yield a pointwise 95% Student interval and an exact
+  graphless license. Six unconditional 2,000-allocation known-truth cells
+  include serial assignment within sequences. Sparse, unequal-length, or
+  weak-probability schedules retain a point and variance without an interval.
+  No carryover and no between-sequence interference remain declared
+  identification assumptions, not empirical diagnostics.
   `experiment.ComplierEffect` uses the same retained randomized study path
   for independent Bernoulli encouragement with row-aligned treatment receipt.
   It reports the outcome ITT, positive receipt first stage, Wald CACE/LATE,
@@ -734,10 +740,10 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   block and multi-arm factorial designs remain gaps. The direct
   `experiment.SwitchbackEffect` utility estimates unit-period ITT with a
   sequence-clustered standard error, requires at least two independent
-  sequences with both arms observed in each, and assumes no carryover. It is
+  sequences with both arms observed globally, and assumes no carryover. It is
   point-only and unlicensed. The retained `SwitchbackEffect` route uses the
   randomized study path and preserves period identity in result artifacts;
-  it adds no licensed coordinate.
+  its supported interval has a separate exact graphless license.
 
 ```python
 design = ant.ExperimentDesign(

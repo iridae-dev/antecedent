@@ -521,6 +521,38 @@ def test_switchback_itt_runs_in_retained_analyze_with_period_identity():
     assert any("switchback_no_carryover" in item for item in result.assumptions or ())
 
 
+def test_switchback_supported_interval_uses_same_native_point_as_direct_utility():
+    sequences = [f"s{i // 24}" for i in range(30 * 24)]
+    periods = [f"p{i % 24}" for i in range(30 * 24)]
+    assignment = [(i * 137 + (i // 24) * 31) % 11 < 5 for i in range(30 * 24)]
+    outcomes = np.asarray([
+        1.0 + 0.5 * np.sin((i // 24) * 0.7) + 0.3 * np.cos((i % 24) * 0.4)
+        + (1.4 if assignment[i] else 0.0)
+        for i in range(30 * 24)
+    ])
+    query = ant.SwitchbackEffect(
+        "y", ant.SwitchbackDesign(assignment, sequences, periods, [0.5] * len(assignment))
+    )
+    retained = ant.analyze({"y": outcomes}, query=query, refute="none")
+    direct = query.estimate({"y": outcomes})
+    fit = retained.randomized_effect
+    assert fit is not None and fit.interval_95 is not None
+    assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
+    assert fit.effect == pytest.approx(direct.effect)
+    assert fit.standard_error == pytest.approx(direct.standard_error)
+    assert fit.uncertainty == "switchback_independent_sequence_student_interval"
+    assert retained.evidence_status == "licensed"
+
+
+def test_switchback_one_arm_within_sequence_is_valid_when_global_arms_observed():
+    design = ant.SwitchbackDesign(
+        [True, True, False, False], ["s0", "s0", "s1", "s1"],
+        ["p0", "p1", "p0", "p1"], [0.5] * 4,
+    )
+    result = ant.SwitchbackEffect("y", design).estimate({"y": [2.0, 2.0, 1.0, 1.0]})
+    assert result.effect == pytest.approx(1.0)
+
+
 def test_switchback_retained_route_refuses_duplicate_periods():
     with pytest.raises(CausalValueError, match="unique within each sequence"):
         ant.SwitchbackDesign(

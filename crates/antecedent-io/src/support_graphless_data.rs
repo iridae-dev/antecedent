@@ -28,6 +28,7 @@ pub(super) struct GraphlessLicenseRow {
     pub(super) requires_uncoupled_constraints: bool,
     pub(super) requires_disjoint_nuisance_training: bool,
     pub(super) requires_rank_ownership: bool,
+    pub(super) requires_balanced_sequences: bool,
 }
 pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
     GraphlessLicenseRow {
@@ -58,6 +59,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "difference_in_differences",
@@ -87,6 +89,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "policy_value",
@@ -116,6 +119,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: true,
         requires_disjoint_nuisance_training: true,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "policy_value",
@@ -145,6 +149,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: true,
         requires_disjoint_nuisance_training: true,
         requires_rank_ownership: true,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "policy_value",
@@ -174,6 +179,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: true,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "policy_value",
@@ -203,6 +209,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: true,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: true,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "policy_value",
@@ -232,6 +239,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: true,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "policy_value",
@@ -261,6 +269,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: true,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -290,6 +299,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -319,6 +329,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -348,6 +359,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -377,6 +389,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -406,6 +419,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -435,6 +449,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -464,6 +479,7 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
     },
     GraphlessLicenseRow {
         family: "randomized_effect",
@@ -493,5 +509,36 @@ pub(super) const LICENSES: &[GraphlessLicenseRow] = &[
         requires_uncoupled_constraints: false,
         requires_disjoint_nuisance_training: false,
         requires_rank_ownership: false,
+        requires_balanced_sequences: false,
+    },
+    GraphlessLicenseRow {
+        family: "randomized_effect",
+        design: "switchback",
+        method: "independent_sequence_ht_score",
+        inference_claim: "pointwise_95_student_interval",
+        assignment_unit: "sequence",
+        known_truth_test: "crates/antecedent-estimate/tests/switchback_calibration.rs::switchback_student_interval_covers_known_truth",
+        retained_route_test: "crates/antecedent/tests/switchback_interval_route.rs::supported_switchback_interval_round_trips_and_rejects_forgery",
+        limitations: "Switchback unit-period HT ITT with at least 30 independent assignment sequences of equal observed period count, at least 30 realized periods in each arm globally, known marginal probabilities at least 0.2 for each arm on every row, positive independent-sequence sandwich variance, and a published pointwise 95% Student interval. No carryover and no between-sequence interference are declared, untestable identification assumptions. Six unconditional 2,000-allocation known-truth fixtures include probability boundaries, varying probabilities, and serial assignment within sequences. Unequal schedules and sparse or weak arm support remain point-only.",
+        min_rows: 0,
+        min_assignment_units_per_arm: 0,
+        min_blocks: 30,
+        min_block_arm: 0,
+        min_factorial_cell: 0,
+        min_action_rows: 30,
+        min_reported_intervals: 1,
+        min_policy_matches: 0,
+        min_reference_matches: 0,
+        min_bin_rows: 0,
+        min_bin_arm_rows: 0,
+        min_group_rows: 0,
+        min_group_arm_rows: 0,
+        max_covariates: 0,
+        min_probability: 0.2,
+        all_reported_intervals: false,
+        requires_uncoupled_constraints: false,
+        requires_disjoint_nuisance_training: false,
+        requires_rank_ownership: false,
+        requires_balanced_sequences: true,
     },
 ];

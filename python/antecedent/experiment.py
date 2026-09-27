@@ -130,10 +130,8 @@ class SwitchbackDesign:
             raise CausalValueError("switchback assignment probabilities must be strictly between zero and one")
         if len(set(self.sequence_ids)) < 2:
             raise CausalValueError("switchback variance requires at least two independent sequences")
-        for sequence in set(self.sequence_ids):
-            arms = {assigned for assigned, label in zip(self.realized_assignment, self.sequence_ids, strict=True) if label == sequence}
-            if len(arms) != 2:
-                raise CausalValueError("each sequence must contain observed treated and control periods")
+        if len(set(self.realized_assignment)) != 2:
+            raise CausalValueError("switchback requires both observed treatment arms across the full schedule")
         if len(self.treatment_arms) != 2 or any(not isinstance(arm, str) or not arm.strip() for arm in self.treatment_arms) or self.treatment_arms[0] == self.treatment_arms[1]:
             raise CausalValueError("treatment_arms must contain two distinct non-empty labels")
 
@@ -195,7 +193,7 @@ class SwitchbackEstimate:
         "known marginal randomization probability for every unit-period",
         "independent assignment sequences with arbitrary within-sequence dependence",
         "no carryover from earlier period assignments to the current period outcome",
-        "both treatment arms observed within every sequence",
+        "both treatment arms observed across the full schedule",
         "consistency and no interference between independent sequences",
     )
 

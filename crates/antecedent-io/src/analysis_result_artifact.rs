@@ -1285,7 +1285,7 @@ fn validate_result(
                 ("factorial_2x2", "factorial_cell_neyman_variance_upper_bound_no_interval", Some("factorial_cell_neyman_pointwise_normal_intervals"))
             }
             crate::RandomizationDesignWire::Switchback => {
-                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval", None)
+                ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval", Some("switchback_independent_sequence_student_interval"))
             }
             crate::RandomizationDesignWire::MultiArm => {
                 ("multi_arm", "multi_arm_covariance_free_variance_bound_no_interval", Some("multi_arm_ht_score_pointwise_normal_intervals"))
@@ -1357,7 +1357,16 @@ fn validate_result(
                         row.iter().all(|p| *p + 1e-12 >= 0.2))
                     && (0..query.multi_arm_labels.len()).all(|arm|
                         query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count() >= 30),
-            crate::RandomizationDesignWire::Switchback => false,
+            crate::RandomizationDesignWire::Switchback => {
+                let mut sizes = std::collections::BTreeMap::<&str, usize>::new();
+                for sequence in &query.assignment_units {
+                    *sizes.entry(sequence.as_str()).or_default() += 1;
+                }
+                sizes.len() >= 30 && control >= 30 && treated >= 30
+                    && sizes.values().next().is_some_and(|first| *first > 0
+                        && sizes.values().all(|size| size == first))
+                    && minimum_probability + 1e-12 >= 0.2
+            },
         };
         let has_interval = randomized.interval_95.is_some();
         let graphless_method = match query.design {
@@ -1371,14 +1380,23 @@ fn validate_result(
             crate::RandomizationDesignWire::Stratified => Some(("stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
             crate::RandomizationDesignWire::Factorial2x2 => Some(("factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals")),
             crate::RandomizationDesignWire::MultiArm => Some(("multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals")),
-            crate::RandomizationDesignWire::Switchback => None,
+            crate::RandomizationDesignWire::Switchback =>
+                Some(("switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval")),
         };
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
-        for (block, assigned) in query.blocks.iter().zip(&query.realized_assignment) {
+        let support_blocks = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
+            &query.assignment_units
+        } else { &query.blocks };
+        for (block, assigned) in support_blocks.iter().zip(&query.realized_assignment) {
             let counts = block_counts.entry(block.as_str()).or_default();
             if *assigned { counts.1 += 1; } else { counts.0 += 1; }
         }
         let min_block_arm = block_counts.values().flat_map(|(c, t)| [*c, *t]).min().unwrap_or(0);
+        let balanced_sequences = matches!(query.design, crate::RandomizationDesignWire::Switchback)
+            && block_counts.values().next().is_some_and(|first| {
+                let size = first.0 + first.1;
+                size > 0 && block_counts.values().all(|counts| counts.0 + counts.1 == size)
+            });
         let min_factorial_cell = query.factorial_cell_counts
             .map(|counts| *counts.iter().min().unwrap_or(&0)).unwrap_or(0);
         let min_action_rows = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
@@ -1423,6 +1441,7 @@ fn validate_result(
                     && min_action_rows >= row.min_action_rows
                     && min_probability + 1e-12 >= row.min_probability
                     && reported_intervals >= row.min_reported_intervals
+                    && (!row.requires_balanced_sequences || balanced_sequences)
                     && (row.max_covariates == 0 || query.ancova_covariates.len() <= row.max_covariates)
                     && (!row.all_reported_intervals || all_reported_intervals)
                     && has_interval
@@ -1432,7 +1451,9 @@ fn validate_result(
         let expected_uncertainty = if has_interval {
             interval_uncertainty.unwrap_or(point_uncertainty)
         } else { point_uncertainty };
-        let z95 = 1.959_963_984_540_054;
+        let z95 = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
+            antecedent_stats::student_t_ppf(0.975, (block_counts.len() - 1) as f64)
+        } else { 1.959_963_984_540_054 };
         let primary_interval_valid = match (randomized.standard_error, randomized.interval_95) {
             (None, None) => result.standard_error.is_none(),
             (Some(se), Some([lower, upper])) => {
