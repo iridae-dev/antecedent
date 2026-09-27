@@ -925,14 +925,16 @@ impl CheckedPolicyValueOperation {
                 self.query.assignment.iter().zip(self.query.reference.iter()).filter(|(a, b)| a == b).count(),
             )
         };
-        // Cross-fitted predictions can share training outcomes across evaluation
-        // rows. Their row-score SE remains descriptive until that covariance is
-        // accounted for; IPW and disjoint held-out AIPW have fixed score rules.
+        // Cross-fitted predictions on caller-declared excluded folds do not use
+        // a row's own outcome, so the independent-row influence-function
+        // variance is valid; IPW and disjoint held-out AIPW have fixed score
+        // rules. Global capacity/budget coupling still withholds the interval.
         let independent_policy_rows = !self.query.global_constraints_present
             && multi.is_none_or(|policy| !policy.global_constraints_couple_rows());
         let minimum_calibrated_rows = if multi.is_some() || !ipw { 300 } else { 120 };
         let intervals = if y.len() >= minimum_calibrated_rows
-            && independent_policy_rows && (ipw || self.query.disjoint_training_subjects) {
+            && independent_policy_rows
+            && (ipw || self.query.disjoint_training_subjects || self.query.crossfit_fold_ownership_valid) {
             antecedent_estimate::policy_value::pointwise_intervals_95(
                 &score, y.len(), policy_matches, reference_matches,
             )
@@ -1015,20 +1017,11 @@ impl CheckedPolicyValueOperation {
             regret,
         });
         let policy = result.policy_value.as_ref().expect("policy value was just attached");
-        let (design, method, claim) = match (multi.is_some(), ipw, !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty()) {
-            (true, _, _, true) => ("multi_action_ipw_cate", "fixed_randomized_multi_action_ipw_fixed_group_scores",
-                "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"),
-            (true, _, _, false) => ("multi_action_ipw", "fixed_randomized_multi_action_ipw_scores",
-                "paired_policy_incremental_pointwise_95_normal_intervals"),
-            (false, true, true, _) => ("binary_ipw_uplift", "fixed_randomized_ipw_frozen_rank_scores",
-                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
-            (false, false, true, _) => ("binary_aipw_uplift", "fixed_held_out_randomized_aipw_frozen_rank_scores",
-                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
-            (false, true, false, _) => ("binary_ipw", "fixed_randomized_ipw_scores",
-                "paired_policy_incremental_pointwise_95_normal_intervals"),
-            (false, false, false, _) => ("binary_aipw", "fixed_held_out_randomized_aipw_scores",
-                "paired_policy_incremental_pointwise_95_normal_intervals"),
-        };
+        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
+            multi.is_some(), ipw, !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty(),
+            self.query.regret.is_some(),
+            !ipw && self.query.crossfit_fold_ownership_valid && !self.query.disjoint_training_subjects,
+        );
         let (treated, control, min_action_rows, min_probability) = if let Some(multi) = multi {
             let k = multi.action_labels.len();
             (multi.assignment.iter().filter(|&&action| action != 0).count(),
@@ -1074,7 +1067,7 @@ impl CheckedPolicyValueOperation {
                     .all(|id| !self.query.evaluation_subject_ids.contains(id)),
             ..Default::default()
         };
-        if self.query.regret.is_none() && matches!(crate::support::classify_graphless(
+        if matches!(crate::support::classify_graphless(
             crate::support::GraphlessSupportKey { family: "policy_value", design, method, inference_claim: claim }, observed,
         ), crate::support::GraphlessSupportStatus::Licensed { .. }) {
             result.support_status = Some(crate::support::CellStatus::Licensed);
