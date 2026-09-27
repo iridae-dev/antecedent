@@ -736,6 +736,8 @@ impl ContinuousResponseEstimator {
                         "response.derivative_interval_withheld"
                             | "response.derivative_interval_bias_corrected"
                             | "response.derivative_interval_delta_method"
+                            | "response.derivative_interval_fieller"
+                            | "response.derivative_interval_unbounded"
                     )
                 });
                 let point_derivative =
@@ -1441,6 +1443,20 @@ impl ContinuousResponseEstimator {
                 delta_method_standard_error(&corrected.coefficient_covariance, &gradient)
             }
         };
+        // A ratio of estimated coordinates needs denominator uncertainty in
+        // the interval itself. A symmetric delta interval can badly under-cover
+        // when the response level is small even though that level is positive.
+        // Fieller inverts the joint normal test for a*m'/m. If its confidence
+        // set is unbounded, a finite scalar interval cannot represent it.
+        let fieller = (order == 1 && scale == DerivativeScale::LogLog).then(|| {
+            fieller_elasticity_interval(
+                corrected.value,
+                corrected.first_derivative,
+                at,
+                &corrected.coefficient_covariance,
+                normal_ppf(0.5 + self.options.confidence_level / 2.0),
+            )
+        });
         let mut support = support_report(
             &[at],
             &sample.treatments,
@@ -1465,8 +1481,20 @@ impl ContinuousResponseEstimator {
                 "no interval is reported: the delta-method variance of this transformed derivative is not finite at this coordinate (a degenerate local covariance or a transform singularity)",
             ));
         }
-        let uncertainty = if standard_error.is_finite() {
-            if delta_transformed {
+        let uncertainty = if standard_error.is_finite()
+            && fieller.as_ref().is_some_and(Option::is_none)
+        {
+            support.warnings.push(Diagnostic::new(
+                "response.derivative_interval_unbounded",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "the Fieller confidence set for elasticity is unbounded because the response level is not separated from zero by its joint-covariance confidence region; no finite scalar interval is reported",
+            ));
+            ResponseUncertainty::None
+        } else if standard_error.is_finite() {
+            if fieller.is_some() {
+                support.warnings.push(fieller_interval_note(estimate, corrected_estimate));
+            } else if delta_transformed {
                 support.warnings.push(delta_method_interval_note(estimate, corrected_estimate));
             } else {
                 support.warnings.push(bias_corrected_interval_note(
@@ -1476,11 +1504,15 @@ impl ContinuousResponseEstimator {
                 ));
             }
             let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
+            let (lower, upper) = fieller.flatten().unwrap_or((
+                corrected_estimate - z * standard_error,
+                corrected_estimate + z * standard_error,
+            ));
             ResponseUncertainty::Scalar {
                 standard_error,
                 level: self.options.confidence_level,
-                lower: corrected_estimate - z * standard_error,
-                upper: corrected_estimate + z * standard_error,
+                lower,
+                upper,
                 interpretation: antecedent_core::IntervalInterpretation::Confidence,
                 draws: None,
             }
@@ -3095,6 +3127,46 @@ fn delta_method_interval_note(conventional: f64, interval_center: f64) -> Diagno
     note
 }
 
+fn fieller_interval_note(conventional: f64, interval_center: f64) -> Diagnostic {
+    let mut note = Diagnostic::new(
+        "response.derivative_interval_fieller",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "the elasticity confidence interval inverts the joint normal test for a*m'/m using the bias-corrected level and slope and their full robust covariance (Fieller's method); the reported standard_error is the local delta-method approximation, while the interval bounds account for denominator uncertainty and need not be symmetric around the printed conventional point or the bias-corrected ratio. The interval conditions on the caller-fixed bandwidth and treats the cross-fitted pseudo-outcome as data",
+    );
+    note.fields = Arc::from(vec![
+        (Arc::from("conventional_point"), Arc::from(conventional.to_string())),
+        (Arc::from("bias_corrected_ratio"), Arc::from(interval_center.to_string())),
+    ]);
+    note
+}
+
+/// Bounded Fieller confidence interval for the elasticity `at * slope / level`.
+/// The complementary case is an unbounded confidence set, which cannot be
+/// encoded by the scalar interval contract.
+fn fieller_elasticity_interval(
+    level: f64,
+    slope: f64,
+    at: f64,
+    covariance: &[[f64; 3]; 3],
+    z: f64,
+) -> Option<(f64, f64)> {
+    let var_level = covariance[0][0];
+    let var_slope = covariance[1][1];
+    let cov_level_slope = covariance[0][1];
+    let a = level * level - z * z * var_level;
+    let b = -2.0 * at * (level * slope - z * z * cov_level_slope);
+    let c = at * at * (slope * slope - z * z * var_slope);
+    let discriminant = b.mul_add(b, -4.0 * a * c);
+    if !(a > 0.0 && discriminant >= 0.0 && discriminant.is_finite()) {
+        return None;
+    }
+    let radius = discriminant.sqrt();
+    let lower = (-b - radius) / (2.0 * a);
+    let upper = (-b + radius) / (2.0 * a);
+    (lower.is_finite() && upper.is_finite() && lower <= upper).then_some((lower, upper))
+}
+
 /// Runtime disclosure attached whenever a point-derivative interval is published.
 fn bias_corrected_interval_note(
     bayesian: bool,
@@ -4611,8 +4683,8 @@ mod tests {
             panic!("expected scalar");
         };
         assert!(value.is_finite() && value > 0.2 && value < 0.7, "elasticity={value}");
-        // The elasticity now publishes a delta-method interval on the joint
-        // local-coordinate covariance, disclosed as such, and no longer withholds.
+        // The elasticity publishes a Fieller interval on the joint
+        // local-coordinate covariance and a delta-method standard error.
         let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = response.uncertainty
         else {
             panic!("expected a published scalar interval, got {:?}", response.uncertainty);
@@ -4624,8 +4696,8 @@ mod tests {
                 .support
                 .warnings
                 .iter()
-                .any(|w| w.code.as_ref() == "response.derivative_interval_delta_method"),
-            "log-scale elasticity must disclose the delta-method interval"
+                .any(|w| w.code.as_ref() == "response.derivative_interval_fieller"),
+            "log-scale elasticity must disclose the Fieller interval"
         );
         assert!(
             !response
@@ -4635,6 +4707,15 @@ mod tests {
                 .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
             "log-scale elasticity no longer withholds its interval"
         );
+    }
+
+    #[test]
+    fn fieller_elasticity_interval_accounts_for_denominator_uncertainty() {
+        let covariance = [[0.01, 0.002, 0.0], [0.002, 0.04, 0.0], [0.0; 3]];
+        let (lower, upper) = fieller_elasticity_interval(1.0, 2.0, 0.5, &covariance, 1.96).unwrap();
+        assert!(lower < 1.0 && 1.0 < upper);
+        assert!(upper - 1.0 > 1.0 - lower, "denominator uncertainty makes asymmetric bounds");
+        assert!(fieller_elasticity_interval(0.1, 2.0, 0.5, &covariance, 1.96).is_none());
     }
 
     #[test]

@@ -35,7 +35,7 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
         assert result.uncertainty.level == pytest.approx(0.95)
         assert result.uncertainty.standard_error > 0
         assert result.uncertainty.lower[0][0] < truth < result.uncertainty.upper[0][0]
-        assert any("response.derivative_interval_delta_method" in warning for warning in result.support.warnings)
+        assert any("response.derivative_interval_fieller" in warning for warning in result.support.warnings)
         artifact = antecedent.artifacts.loads(result.export())
         assert artifact.payload_kind == "analysis_result"
         assert artifact.payload["response"]["uncertainty"]["scalar"]["interpretation"] == "confidence"
