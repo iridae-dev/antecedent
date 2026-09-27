@@ -26,6 +26,16 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
         return Answer("structured", detail="provider_output_requires_family_interpretation")
 
     @property
+    def claim_id(self) -> str | None:
+        """A provider result carries no native execution-claim identity."""
+        return None
+
+    @property
+    def program_id(self) -> str | None:
+        """A provider result carries no native compiled-program identity."""
+        return None
+
+    @property
     def calibration(self) -> CalibrationInfo:
         reason = (
             "extension_fixture_verification_does_not_calibrate_inference"
