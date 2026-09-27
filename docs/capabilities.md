@@ -994,6 +994,13 @@ assignment distribution and a p-value for at most 32 candidate units, without
 converting the effect's point estimate into an interval or a licensed matrix
 cell. The exact synthetic-DiD route has known-truth, oversized-pool refusal,
 artifact-tamper, and public Python evidence.
+The caller may prespecify a finite `sharp_null_effect` to test a nonzero
+constant additive post-treatment effect. The test subtracts that effect from
+the observed treated unit's post outcomes and refits every possible assignment
+on the resulting untreated panel. The returned p-value carries the tested null
+effect in the result and artifact. This sharp-null test requires the declared
+uniform assignment; it does not validate the donor counterfactual assumption
+or provide a confidence interval for a heterogeneous effect.
 An optional positive `augmentation_ridge` on `SyntheticControl` fits a
 donor-trained pre-to-post outcome model and corrects the simplex gap. The
 retained result and artifact preserve the original gap, correction, and adjusted

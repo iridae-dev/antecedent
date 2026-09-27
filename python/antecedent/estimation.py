@@ -3207,10 +3207,10 @@ class _PrepareRoute:
             query.treated_unit, query.intervention_period,
             difference_in_differences=isinstance(query, SyntheticDifferenceInDifferences),
             uniform_unit_randomization=query.uniform_unit_randomization,
+            sharp_null_effect=query.sharp_null_effect,
             augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
             accepted=False, **self._common()
         )
-            sharp_null_effect=query.sharp_null_effect,
         return native, "average"
 
     def _local_polynomial_ratio(self) -> tuple[Any, Literal["average"]]:
