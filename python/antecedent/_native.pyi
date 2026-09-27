@@ -1287,8 +1287,8 @@ class PreparedAnalysis:
         units: list[str], periods: list[int], treated_unit: str,
         intervention_period: int, *, difference_in_differences: bool = False,
         uniform_unit_randomization: bool = False,
-        accepted: bool = False,
         augmentation_ridge: float | None = None,
+        accepted: bool = False,
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
