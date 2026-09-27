@@ -6,6 +6,8 @@
 pub struct MsmSummary {
     /// Weighted additive model intercept.
     pub intercept: f64,
+    /// Subject-clustered CR1 standard error for the intercept.
+    pub intercept_standard_error: f64,
     /// Weighted coefficients in treatment-period order.
     pub period_effects: Vec<f64>,
     /// Pointwise CR1 standard errors in treatment-period order.
@@ -16,6 +18,31 @@ pub struct MsmSummary {
     pub maximum_weight: f64,
     /// Number of observed terminal outcomes used in the fit.
     pub observed_subjects: usize,
+}
+
+/// Pointwise 95% intervals for the intercept and each period coefficient.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MsmIntervals95 {
+    /// Weighted intercept lower and upper endpoints.
+    pub intercept: [f64; 2],
+    /// Period coefficient lower and upper endpoints.
+    pub period_effects: Vec<[f64; 2]>,
+}
+
+/// Form coefficient intervals only with enough independent subjects and
+/// effective weighted support for the subject-clustered CR1 approximation.
+pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIntervals95> {
+    if subjects < 300 || fit.observed_subjects < 200 || fit.effective_sample_size < 150.0
+        || fit.intercept_standard_error <= 0.0
+        || fit.standard_errors.iter().any(|&se| se <= 0.0 || !se.is_finite()) { return None; }
+    let z = antecedent_stats::normal_ppf(0.975);
+    let interval = |center: f64, se: f64| [center - z * se, center + z * se];
+    let result = MsmIntervals95 {
+        intercept: interval(fit.intercept, fit.intercept_standard_error),
+        period_effects: fit.period_effects.iter().zip(&fit.standard_errors)
+            .map(|(&center, &se)| interval(center, se)).collect(),
+    };
+    result.intercept.iter().chain(result.period_effects.iter().flatten()).all(|x| x.is_finite()).then_some(result)
 }
 
 /// Fit one terminal-outcome row per subject; all histories are subject-major.
@@ -99,13 +126,15 @@ pub fn fit_binary_msm(
     let mut covariance = matmul(&matmul(&bread, &meat), &bread);
     let correction = included as f64 / (included - columns) as f64;
     for row in &mut covariance { for v in row { *v *= correction; } }
+    let intercept_standard_error = covariance[0][0].max(0.0).sqrt();
     let standard_errors = (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
     let ess = sum * sum / sumsq;
     if covariance.iter().flatten().any(|v| !v.is_finite())
+        || !intercept_standard_error.is_finite()
         || standard_errors.iter().any(|v| !v.is_finite()) || !ess.is_finite() {
         return Err("MSM covariance is non-finite");
     }
-    Ok(MsmSummary { intercept: beta[0], period_effects: beta[1..].to_vec(),
+    Ok(MsmSummary { intercept: beta[0], intercept_standard_error, period_effects: beta[1..].to_vec(),
         standard_errors, effective_sample_size: ess, maximum_weight: max_weight,
         observed_subjects: included })
 }
@@ -154,7 +183,53 @@ mod tests {
         assert!((result.period_effects[1] - 3.0).abs() < 1e-12);
         assert_eq!(result.observed_subjects, 8);
         assert!(result.standard_errors.iter().all(|v| v.is_finite()));
+        assert!(pointwise_intervals_95(&result, 8).is_none());
         assert!(fit_binary_msm(&y, &a, &[0.0; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01).unwrap_err().contains("positivity"));
         assert!(fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01).unwrap_err().contains("censoring"));
+    }
+
+    #[test]
+    fn subject_clustered_msm_intervals_cover_known_coefficients() {
+        let n = 300;
+        let simulations = 2_000;
+        let mut state = 0x23A9_E381_7D45_BC06_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let probabilities = vec![0.5; n * 2];
+        let censoring = vec![0.9; n * 2];
+        let mut hits = [0_usize; 3];
+        let mut skipped = 0;
+        for _ in 0..simulations {
+            let mut treatment = Vec::with_capacity(n * 2);
+            let mut observed = Vec::with_capacity(n);
+            let mut outcomes = Vec::with_capacity(n);
+            for _ in 0..n {
+                let a0 = uniform() < 0.5;
+                let a1 = uniform() < 0.5;
+                treatment.extend([a0, a1]);
+                observed.push(uniform() < 0.9 && uniform() < 0.9);
+                let noise = (uniform() - 0.5) * 2.0 * (1.0 + f64::from(a0));
+                outcomes.push(1.0 + 2.0 * f64::from(a0) + 3.0 * f64::from(a1) + noise);
+            }
+            let fit = fit_binary_msm(&outcomes, &treatment, &probabilities, &[0.5; 2],
+                &observed, &censoring, 2, 0.01).unwrap();
+            if let Some(intervals) = pointwise_intervals_95(&fit, n) {
+                for (j, (interval, truth)) in [intervals.intercept, intervals.period_effects[0], intervals.period_effects[1]]
+                    .into_iter().zip([1.0, 2.0, 3.0]).enumerate() {
+                    hits[j] += usize::from(interval[0] <= truth && truth <= interval[1]);
+                }
+            } else { skipped += 1; }
+        }
+        let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
+        assert!(skipped <= simulations / 100, "weak-support skips {skipped}");
+        for (j, count) in hits.into_iter().enumerate() {
+            let coverage = count as f64 / simulations as f64;
+            assert!((coverage - 0.95).abs() <= 3.0 * mcse, "MSM coefficient {j} coverage {coverage}");
+        }
     }
 }
