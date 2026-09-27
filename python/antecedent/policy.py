@@ -238,6 +238,40 @@ class PolicyValue:
     uplift_training_subject_ids: Sequence[str] | None = None
     _ownership: str = field(init=False, repr=False, compare=False)
 
+    @classmethod
+    def top_k(
+        cls,
+        scores: Sequence[float],
+        k: int,
+        *,
+        outcome: str,
+        assignment: Sequence[bool],
+        propensity: float | Sequence[float],
+        evaluation_subject_ids: Sequence[str],
+        ranking_training_subject_ids: Sequence[str],
+        available: Sequence[bool] | None = None,
+        costs: float | Sequence[float] = 0.0,
+        budget: float | None = None,
+        uplift_bins: int | None = None,
+    ) -> PolicyValue:
+        """Freeze a held-out top-k policy and evaluate it through ``analyze``.
+
+        Score training subjects must be disjoint from evaluation subjects. The
+        retained query reports randomized value and descending-score uplift
+        bins; its row-score standard errors make no interval coverage claim.
+        """
+        selected = BinaryPolicy.top_k(
+            scores, k, available=available, costs=costs, budget=budget,
+        )
+        bin_count = min(10, len(selected.actions) // 2) if uplift_bins is None else uplift_bins
+        return cls(
+            outcome=outcome, assignment=assignment, propensity=propensity,
+            policy=selected, evaluation_subject_ids=evaluation_subject_ids,
+            available=available, uplift_scores=scores,
+            uplift_bin_count=bin_count,
+            uplift_training_subject_ids=ranking_training_subject_ids,
+        )
+
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome:
             raise CausalValueError("outcome must be a non-empty column name")
@@ -291,7 +325,7 @@ class PolicyValue:
                 raise CausalValueError("uplift_scores must be finite and match evaluation rows")
             if isinstance(self.uplift_bin_count, bool) or not isinstance(self.uplift_bin_count, Integral) or not 1 <= self.uplift_bin_count <= n // 2:
                 raise CausalValueError("uplift_bin_count requires at least two evaluation rows in every bin")
-            training = tuple(self.uplift_training_subject_ids or ())
+            training = tuple(self.uplift_training_subject_ids) if self.uplift_training_subject_ids is not None else ()
             if not training or any(not isinstance(value, str) or not value for value in training) or len(set(training)) != len(training) or set(training) & set(self.evaluation_subject_ids):
                 raise CausalValueError("uplift_training_subject_ids must be unique, non-empty, and disjoint from evaluation subjects")
             object.__setattr__(self, "uplift_scores", tuple(float(v) for v in scores))
