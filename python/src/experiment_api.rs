@@ -59,6 +59,8 @@ pub struct RandomizedEffectSection {
     pub treatment_units: usize,
     /// Explicit uncertainty semantics; never implies a confidence interval.
     pub uncertainty: String,
+    /// Exact graphless matrix status for the retained result, when licensed.
+    pub graphless_support_status: Option<String>,
     /// Assignment units in analyzed row order.
     pub assignment_units: Vec<String>,
     /// Outcome units in analyzed row order.
@@ -99,6 +101,7 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             control_units: value.control_units,
             treatment_units: value.treatment_units,
             uncertainty: value.uncertainty.to_string(),
+            graphless_support_status: None,
             assignment_units: value.assignment_units.iter().map(ToString::to_string).collect(),
             outcome_units: value.outcome_units.iter().map(ToString::to_string).collect(),
             control_arm: value.treatment_arms.0.to_string(),

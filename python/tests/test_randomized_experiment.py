@@ -32,8 +32,8 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
     assert fit.standard_error > 0
     assert fit.uncertainty == "complete_neyman_normal_interval"
-    assert fit.support_status == "off_axis_interval_evidence"
-    assert result.evidence_status == "off_axis"
+    assert fit.support_status == "licensed"
+    assert result.evidence_status == "licensed"
     prepared = ant.prepare(data, query=query, refute="none")
     assert prepared.estimate(data).randomized_effect.interval_95 == fit.interval_95
 
@@ -252,6 +252,23 @@ def test_cluster_assignment_runs_through_retained_analyze_with_cluster_variance(
     assert result.randomized_effect.variance_upper_bound == pytest.approx(0.0)
     assert result.randomized_effect.uncertainty == "cluster_neyman_variance_upper_bound_no_interval"
     assert result.evidence_status == "off_axis"
+
+
+def test_cluster_interval_has_exact_graphless_license():
+    n = 60
+    assignment = [i < 30 for i in range(n)]
+    design = ant.ExperimentDesign(
+        interference.ClusterRandomization(list(range(n)), 30),
+        assignment,
+        [f"cluster-{i}" for i in range(n)],
+        [f"row-{i}" for i in range(n)],
+    )
+    outcomes = np.asarray([1.0 + 2.0 * float(assignment[i])
+                           + 0.5 * np.sin(i * 0.3) for i in range(n)])
+    result = ant.analyze({"outcome": outcomes}, query=ant.RandomizedEffect("outcome", design))
+    assert result.randomized_effect.interval_95 is not None
+    assert result.randomized_effect.support_status == "licensed"
+    assert result.evidence_status == "licensed"
 
 
 def test_cluster_assignment_with_block_metadata_is_refused_on_retained_route():

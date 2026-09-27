@@ -8,6 +8,9 @@
 
 use serde::{Deserialize, Serialize};
 
+#[path = "support_graphless_data.rs"]
+mod graphless_data;
+
 use crate::{
     ArtifactKind, ArtifactManifest, AssumptionRecordWire, CausalQueryWire, CausalResponseWire,
     CompressPolicy, DiagnosticWire, EncodedArtifact, IdentificationResultWire, IoError,
@@ -681,6 +684,9 @@ pub struct RandomizedEffectWire {
     pub minimum_assignment_probability: f64,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
+    /// Exact graphless license status; absent for off-axis results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub graphless_support_status: Option<String>,
 }
 
 fn default_randomized_itt() -> String { "itt".into() }
@@ -1021,7 +1027,7 @@ pub fn encode_analysis_result_artifact_with_contract(
     artifact_id: &str,
     contract: Option<&crate::AnalysisResultContractWire>,
 ) -> Result<EncodedArtifact, IoError> {
-    validate_result(result, &variable_names)?;
+    validate_result(result, &variable_names, false)?;
     if let Some(contract) = contract {
         crate::validate_contract_section(contract)?;
         let header = AnalysisResultHeader { variable_names: variable_names.clone() };
@@ -1095,11 +1101,15 @@ pub fn decode_analysis_result_artifact(
         .ok_or_else(|| IoError::Convert(format!("missing section `{BODY_SECTION}`")))?;
     let decoded_header: AnalysisResultHeader = from_cbor(&header.data)?;
     let decoded_body: AnalysisResultWire = from_cbor(&body.data)?;
-    validate_result(&decoded_body, &decoded_header.variable_names)?;
+    validate_result(&decoded_body, &decoded_header.variable_names, true)?;
     Ok((artifact, decoded_header, decoded_body))
 }
 
-fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Result<(), IoError> {
+fn validate_result(
+    result: &AnalysisResultWire,
+    variable_names: &[String],
+    allow_legacy_graphless_missing: bool,
+) -> Result<(), IoError> {
     use crate::causal_artifact::{
         validate_query_ids, validate_response_result, validate_variable_names,
     };
@@ -1260,6 +1270,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::RandomizationDesignWire::Switchback => false,
         };
         let has_interval = randomized.interval_95.is_some();
+        let graphless_method = match query.design {
+            crate::RandomizationDesignWire::Complete { .. } => Some(("complete", "neyman_difference_in_means", "unit")),
+            crate::RandomizationDesignWire::Cluster { .. } => Some(("cluster", "neyman_unit_weighted_cluster_totals", "cluster")),
+            _ => None,
+        };
+        let graphless_licensed = graphless_method.is_some_and(|(design_key, method, assignment_unit)| {
+            graphless_data::LICENSES.iter().any(|row| {
+                row.family == "randomized_effect"
+                    && row.design == design_key
+                    && row.method == method
+                    && row.inference_claim == "pointwise_95_normal_interval"
+                    && row.assignment_unit == assignment_unit
+                    && control >= row.min_assignment_units_per_arm
+                    && treated >= row.min_assignment_units_per_arm
+                    && has_interval
+            })
+        });
+        let expected_graphless_status = graphless_licensed.then_some("licensed");
         let expected_uncertainty = if has_interval {
             interval_uncertainty.unwrap_or(point_uncertainty)
         } else { point_uncertainty };
@@ -1318,6 +1346,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || !randomized.variance.is_finite()
             || randomized.variance < 0.0
             || randomized.assignment_design != design
+            || (randomized.graphless_support_status.as_deref() != expected_graphless_status
+                && !(allow_legacy_graphless_missing
+                    && randomized.graphless_support_status.is_none()))
             || randomized.uncertainty != expected_uncertainty
             || !extra_intervals_valid
             || !multi_arm_intervals_valid

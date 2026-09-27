@@ -383,6 +383,7 @@ class RandomizedEffectSection:
     control_units: int
     treatment_units: int
     uncertainty: str
+    graphless_support_status: str | None
     assignment_units: list[str]
     outcome_units: list[str]
     control_arm: str

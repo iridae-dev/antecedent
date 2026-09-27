@@ -32,6 +32,104 @@ use crate::inference::InferenceMode;
 use crate::strategy_table::EstimatorId;
 use crate::support_matrix_data::{ALLOWED_RULES, CLOSED_RULES, LICENSED, NA_RULES};
 
+#[path = "support_graphless_data.rs"]
+mod graphless_data;
+
+/// Exact graphless design, method, and inference claim to classify.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GraphlessSupportKey<'a> {
+    /// Query family, such as `randomized_effect`.
+    pub family: &'a str,
+    /// Assignment design, such as `complete` or `cluster`.
+    pub design: &'a str,
+    /// Concrete estimator method; similar methods cannot inherit a license.
+    pub method: &'a str,
+    /// Exact inference claim, including confidence level and pointwise scope.
+    pub inference_claim: &'a str,
+}
+
+/// Observed independent assignment units in a binary randomized contrast.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GraphlessAssignmentSupport {
+    /// `unit` or `cluster`, matched to the licensed design.
+    pub assignment_unit: &'static str,
+    /// Number assigned to the treatment arm.
+    pub treated: usize,
+    /// Number assigned to the reference arm.
+    pub control: usize,
+    /// True only after the estimator actually published its 95% interval.
+    pub interval_95_published: bool,
+}
+
+/// Runtime status for one exact graphless support key.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GraphlessSupportStatus {
+    /// Exact license and assignment support matched.
+    Licensed {
+        /// Scope restrictions published with the license.
+        limitations: &'static str,
+        /// Known-truth calibration test used for the row.
+        known_truth_test: &'static str,
+        /// Retained result/artifact route test used for the row.
+        retained_route_test: &'static str,
+    },
+    /// No exact row or too little independent assignment support.
+    Refused,
+}
+
+/// Classify a graphless design against the separate machine-readable table.
+/// This lookup cannot grant a geometric support-matrix cell by analogy.
+#[must_use]
+pub fn classify_graphless(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+) -> GraphlessSupportStatus {
+    graphless_data::LICENSES
+        .iter()
+        .find(|row| {
+            row.family == key.family
+                && row.design == key.design
+                && row.method == key.method
+                && row.inference_claim == key.inference_claim
+                && row.assignment_unit == observed.assignment_unit
+                && observed.treated >= row.min_assignment_units_per_arm
+                && observed.control >= row.min_assignment_units_per_arm
+                && observed.interval_95_published
+        })
+        .map_or(GraphlessSupportStatus::Refused, |row| GraphlessSupportStatus::Licensed {
+            limitations: row.limitations,
+            known_truth_test: row.known_truth_test,
+            retained_route_test: row.retained_route_test,
+        })
+}
+
+#[cfg(test)]
+mod graphless_support_tests {
+    use super::*;
+
+    #[test]
+    fn exact_randomized_design_claims_require_measured_assignment_support() {
+        let complete = GraphlessSupportKey {
+            family: "randomized_effect", design: "complete",
+            method: "neyman_difference_in_means", inference_claim: "pointwise_95_normal_interval",
+        };
+        let unit_30 = GraphlessAssignmentSupport { assignment_unit: "unit", treated: 30, control: 30, interval_95_published: true };
+        assert!(matches!(classify_graphless(complete, unit_30), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(complete, GraphlessAssignmentSupport { treated: 29, ..unit_30 }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(complete, GraphlessAssignmentSupport { interval_95_published: false, ..unit_30 }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(GraphlessSupportKey { inference_claim: "simultaneous_95_band", ..complete }, unit_30), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(GraphlessSupportKey { design: "bernoulli", ..complete }, unit_30), GraphlessSupportStatus::Refused);
+        let cluster = GraphlessSupportKey {
+            family: "randomized_effect", design: "cluster",
+            method: "neyman_unit_weighted_cluster_totals", inference_claim: "pointwise_95_normal_interval",
+        };
+        let cluster_30 = GraphlessAssignmentSupport { assignment_unit: "cluster", treated: 30, control: 30, interval_95_published: true };
+        assert!(matches!(classify_graphless(cluster, cluster_30), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(cluster, unit_30), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(cluster, GraphlessAssignmentSupport { control: 29, ..cluster_30 }), GraphlessSupportStatus::Refused);
+    }
+}
+
 /// Stable support-matrix refusal id.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]

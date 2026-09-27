@@ -2398,7 +2398,13 @@ pub(crate) fn ate_result_from_analysis(
             .interference
             .as_ref()
             .map(|estimate| crate::transport_interference_api::InterferenceSection::from_estimate(estimate, &result.diagnostics, result.interference_inference.as_ref())),
-        randomized_effect: result.randomized_effect.as_ref().map(Into::into),
+        randomized_effect: result.randomized_effect.as_ref().map(|value| {
+            let mut section = crate::experiment_api::RandomizedEffectSection::from(value);
+            section.graphless_support_status = result.support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
+            section
+        }),
         panel_did: result.panel_did.as_ref().map(Into::into),
         synthetic_control: result.synthetic_control.as_ref().map(Into::into),
         synthetic_did: result.synthetic_did.as_ref().map(Into::into),
