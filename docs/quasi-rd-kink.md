@@ -38,8 +38,14 @@ continuity tests.
 `RegressionKink` query now use this same Rust kernel through retained
 `PreparedAnalysis.prepare` / `estimate`. The prepared query fixes the cutoff,
 bandwidth, variable names, and jump-versus-kink contrast. The result's
-`local_polynomial_ratio` section reports the point estimate, reduced form,
-first stage, local sample counts, and descriptive HC0 standard error. The
-retained route does not publish a confidence interval: `ci_lower` and
-`ci_upper` are `None`, and its artifact rejects fabricated interval fields.
-The result remains `unlicensed_point_utility` and off the support-matrix axis.
+`local_polynomial_ratio` section reports the bias-corrected point estimate,
+reduced form, first stage, cutoff, bandwidth, contrast type, local sample
+counts, and descriptive HC0 standard errors for the ratio and both component
+contrasts. The retained route uses the same native kernel as the direct
+functions. Its uncertainty tag is
+`rbc_point_with_unvalidated_hc0_standard_error_no_interval`. It does not
+publish a confidence interval: `ci_lower` and `ci_upper` are `None`, and its
+artifact rejects fabricated interval fields or design metadata that disagrees
+with the query. The result remains `unlicensed_point_utility` and off the
+support-matrix axis. Focused retained Rust tests pass 2/2; public Python
+tests pass 6/6 on the 2.1.0 wheel.

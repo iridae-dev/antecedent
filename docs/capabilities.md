@@ -770,8 +770,10 @@ support-matrix license.
 Staggered adoption and synthetic-panel designs also run through the retained
 `prepare` / `analyze` flow. Fuzzy regression discontinuity and regression kink
 now use that flow as fixed-bandwidth, graphless local ratio queries, alongside
-their existing direct utilities. Their retained result reports local counts,
-first-stage strength, and a descriptive HC0 standard error, but no interval.
+their existing direct utilities. The retained point is bias corrected by the
+same native kernel and reports the declared cutoff, bandwidth, contrast type,
+local counts, first stage, and descriptive HC0 standard errors for the ratio
+and component contrasts. It publishes no interval.
 Staggered event studies also run through retained `prepare` / `analyze` with
 `StaggeredAdoption(..., event_study=True)`; the direct utility shares its native
 estimator.
