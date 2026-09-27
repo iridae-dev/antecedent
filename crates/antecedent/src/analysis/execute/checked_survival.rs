@@ -41,9 +41,9 @@ impl CheckedSurvivalOperation {
             });
         };
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        if query.delayed_entry.is_some() && study.bootstrap_replicates > 0 {
+        if query.delayed_entry.is_some() && query.known_censoring.is_some() && study.bootstrap_replicates > 0 {
             return Err(CausalError::Unsupported {
-                message: "delayed-entry survival pointwise intervals require separate truncation calibration",
+                message: "combined delayed-entry and fixed-censoring bootstrap requires separate calibration",
             });
         }
         if study.graph.class() != GraphClass::RandomizedTrial

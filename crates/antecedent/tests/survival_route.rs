@@ -193,3 +193,45 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
     tampered.survival.as_mut().unwrap().uncertainty = "point_only_no_interval".into();
     assert!(antecedent_io::encode_analysis_result_artifact(&tampered, header.variable_names, "tampered").is_err());
 }
+
+#[test]
+fn delayed_entry_subject_bootstrap_retains_interval_and_refuses_forgery() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    let mut entry = Vec::new();
+    for arm in [false, true] {
+        for i in 0..60 {
+            let left = if i % 3 == 0 { 1.0 } else { 0.0 };
+            let exit = if left == 0.0 && i % 7 == 0 { 1.0 }
+                else if i % (if arm { 6 } else { 5 }) == 0 { 2.0 }
+                else { 3.0 };
+            duration.push(exit);
+            event.push(if exit < 3.0 { 1.0 } else { 0.0 });
+            treatment.push(f64::from(arm));
+            entry.push(left);
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()), ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()), ("entry", entry.as_slice()),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(279);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::Survival(q))
+        .bootstrap_replicates(299).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let curve = result.survival.as_ref().unwrap();
+    assert_eq!(curve.uncertainty.as_ref(), "subject_stratified_percentile_bootstrap_pointwise_95");
+    assert!(curve.rmst_difference_interval.is_some());
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert_eq!(curve.bootstrap_replicates_ok, Some(299));
+    let encoded = prepared.encode_contracted_result(&result, "delayed-entry-bootstrap", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert_eq!(body.survival.as_ref().unwrap().rmst_difference_interval, curve.rmst_difference_interval);
+    let mut forged = body;
+    forged.survival.as_mut().unwrap().uncertainty = "point_only_no_interval".into();
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged").is_err());
+}
