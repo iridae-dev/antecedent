@@ -146,6 +146,12 @@ pub fn randomized_survival_summary(
 /// probabilities must be known independently of the outcomes used here; this
 /// point kernel does not fit or verify a censoring model. Delayed entry is not
 /// supported by this weighted estimator. No interval is constructed.
+///
+/// # Errors
+///
+/// Returns an error for misaligned rows or times, invalid event codes, absent
+/// arm support through `tau`, or censoring probabilities that violate the
+/// declared positivity and monotonicity contract.
 pub fn randomized_survival_ipcw_summary(
     duration: &[f64],
     event_code: &[i64],
