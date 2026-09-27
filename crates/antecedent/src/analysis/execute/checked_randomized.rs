@@ -744,7 +744,9 @@ impl CheckedPolicyValueOperation {
         // Cross-fitted predictions can share training outcomes across evaluation
         // rows. Their row-score SE remains descriptive until that covariance is
         // accounted for; IPW and disjoint held-out AIPW have fixed score rules.
-        let intervals = if ipw || self.query.disjoint_training_subjects {
+        let independent_policy_rows = !self.query.global_constraints_present
+            && multi.is_none_or(|policy| !policy.global_constraints_couple_rows());
+        let intervals = if independent_policy_rows && (ipw || self.query.disjoint_training_subjects) {
             antecedent_estimate::policy_value::pointwise_intervals_95(
                 &score, y.len(), policy_matches, reference_matches,
             )

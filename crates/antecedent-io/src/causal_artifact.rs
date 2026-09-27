@@ -644,6 +644,7 @@ pub(crate) fn validate_query_ids(
                     .into(),
                 disjoint_training_subjects: wire.disjoint_training_subjects,
                 crossfit_fold_ownership_valid: wire.crossfit_fold_ownership_valid,
+                global_constraints_present: wire.global_constraints_present,
                 multi_action: wire.multi_action.as_ref().map(Into::into),
                 uplift_bins: wire.uplift_bins.clone().into(),
                 uplift_bin_count: wire.uplift_bin_count,

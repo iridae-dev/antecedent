@@ -1369,7 +1369,20 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                      query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
                      query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count())
                 };
+                let multi_constraints_couple = query.multi_action.as_ref().is_some_and(|multi| {
+                    let n = multi.assignment.len();
+                    [(&multi.capacities, &multi.costs, multi.budget),
+                     (&multi.reference_capacities, &multi.reference_costs, multi.reference_budget)]
+                        .into_iter().any(|(capacities, costs, budget)| {
+                            capacities.iter().any(|&limit| limit < n)
+                                || budget.is_some_and(|limit| {
+                                    let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
+                                    limit + 1e-12 < n as f64 * maximum_cost
+                                })
+                        })
+                });
                 n >= 30 && policy_matches >= 10 && reference_matches >= 10
+                    && !query.global_constraints_present && !multi_constraints_couple
                     && (query.multi_action.is_some() || query.mu0.is_empty() || query.disjoint_training_subjects)
                     && policy.policy_standard_error > 0.0 && policy.incremental_standard_error > 0.0
             }
