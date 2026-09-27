@@ -147,6 +147,11 @@ impl CheckedRandomizedOperation {
         let mut complier_components = None;
         let mut factorial_contrasts = None;
         let mut multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]> = Arc::from([]);
+        let mut interval_95 = None;
+        let mut second_factor_interval_95 = None;
+        let mut factorial_interaction_interval_95 = None;
+        let mut multi_arm_intervals_95: Arc<[Option<[f64; 2]>]> = Arc::from([]);
+        let mut interval_standard_error = None;
         let (
             effect,
             variance,
@@ -214,6 +219,23 @@ impl CheckedRandomizedOperation {
                 multi_arm_values = arms.iter().zip(fit.iter()).map(|(label, arm)|
                     (Arc::clone(label), arm.value, arm.variance_bound, arm.observed_support)
                 ).collect::<Vec<_>>().into();
+                let mut intervals = (0..arms.len()).map(|arm| {
+                    if arm == 0 { return None; }
+                    antecedent_estimate::randomized_scores::independent_action_contrast(
+                        outcomes, assignment, probabilities, 0, arm,
+                    ).and_then(|contrast| {
+                        if arm == 1 && contrast.interval_95.is_some() {
+                            interval_standard_error = Some(contrast.variance_upper_bound.sqrt());
+                        }
+                        contrast.interval_95
+                    })
+                }).collect::<Vec<_>>();
+                if intervals.iter().skip(1).any(Option::is_none) {
+                    intervals.fill(None);
+                    interval_standard_error = None;
+                }
+                interval_95 = intervals[1];
+                multi_arm_intervals_95 = intervals.into();
                 (primary, primary_variance, fit[0].observed_support, fit[1].observed_support,
                     Arc::from([]), Arc::from([]), Arc::<str>::from("multi_arm"),
                     Arc::<str>::from("multi_arm_covariance_free_variance_bound_no_interval"),
@@ -249,6 +271,20 @@ impl CheckedRandomizedOperation {
                         } else {
                             y * y * p / ((1.0 - p) * (1.0 - p))
                         };
+                    }
+                }
+                let assignments = self.query.realized_assignment.iter().map(|assigned|
+                    usize::from(*assigned)).collect::<Vec<_>>();
+                let probabilities = self.query.assignment_probabilities.iter().map(|p|
+                    vec![1.0 - p, *p]).collect::<Vec<_>>();
+                if self.query.fixed_cuped.is_none() {
+                    if let Some(contrast) = antecedent_estimate::randomized_scores::independent_action_contrast(
+                        outcomes, &assignments, &probabilities, 0, 1,
+                    ) {
+                        interval_95 = contrast.interval_95;
+                        if interval_95.is_some() {
+                            interval_standard_error = Some(contrast.variance_upper_bound.sqrt());
+                        }
                     }
                 }
                 (
@@ -287,6 +323,8 @@ impl CheckedRandomizedOperation {
                 ).ok_or(CausalError::Unsupported {
                     message: "complete-randomized ITT requires finite outcomes and estimable variance",
                 })?;
+                interval_95 = fit.interval_95;
+                if interval_95.is_some() { interval_standard_error = Some(fit.variance_upper_bound.sqrt()); }
                 (
                     fit.effect,
                     fit.variance_upper_bound,
@@ -322,6 +360,8 @@ impl CheckedRandomizedOperation {
                 ).ok_or(CausalError::Unsupported {
                     message: "cluster-randomized ITT requires finite cluster totals and estimable variance",
                 })?;
+                interval_95 = fit.interval_95;
+                if interval_95.is_some() { interval_standard_error = Some(fit.variance_upper_bound.sqrt()); }
                 (
                     fit.effect,
                     fit.variance_upper_bound,
@@ -353,6 +393,8 @@ impl CheckedRandomizedOperation {
                     .ok_or(CausalError::Unsupported {
                         message: "blocked-randomized ITT requires finite outcomes and estimable within-block variances",
                     })?;
+                interval_95 = fit.interval_95;
+                if interval_95.is_some() { interval_standard_error = Some(fit.variance_upper_bound.sqrt()); }
                 let treatment_units = cells.iter().map(|(treated, _)| treated.len()).sum();
                 let control_units = cells.iter().map(|(_, control)| control.len()).sum();
                 (
@@ -379,6 +421,10 @@ impl CheckedRandomizedOperation {
                 ).ok_or(CausalError::Unsupported {
                     message: "factorial ITT requires finite outcomes and estimable cell variances",
                 })?;
+                interval_95 = fit.primary_interval_95;
+                second_factor_interval_95 = fit.secondary_interval_95;
+                factorial_interaction_interval_95 = fit.interaction_interval_95;
+                if interval_95.is_some() { interval_standard_error = Some(fit.main_effect_variance_upper_bound.sqrt()); }
                 factorial_contrasts = Some((fit.secondary, fit.interaction,
                     fit.main_effect_variance_upper_bound, fit.interaction_variance_upper_bound));
                 (
@@ -431,6 +477,34 @@ impl CheckedRandomizedOperation {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
             });
         }
+        let uncertainty = if interval_95.is_some() {
+            Arc::<str>::from(match self.query.design {
+                antecedent_core::RandomizationDesign::Bernoulli => "bernoulli_ht_score_normal_interval",
+                antecedent_core::RandomizationDesign::Complete { .. } => "complete_neyman_normal_interval",
+                antecedent_core::RandomizationDesign::Cluster { .. } => "cluster_neyman_normal_interval",
+                antecedent_core::RandomizationDesign::Stratified { .. } => "stratified_neyman_normal_interval",
+                antecedent_core::RandomizationDesign::Factorial2x2 { .. } => "factorial_cell_neyman_pointwise_normal_intervals",
+                antecedent_core::RandomizationDesign::MultiArm { .. } => "multi_arm_ht_score_pointwise_normal_intervals",
+                antecedent_core::RandomizationDesign::Switchback { .. } => unreachable!(),
+            })
+        } else { uncertainty };
+        let diagnostic = if interval_95.is_some() {
+            match self.query.design {
+                antecedent_core::RandomizationDesign::Bernoulli =>
+                    "Bernoulli Horvitz-Thompson ITT with known probabilities and an independent-unit score-sandwich pointwise 95% interval",
+                antecedent_core::RandomizationDesign::Complete { .. } =>
+                    "Complete-randomization difference in means with a conservative Neyman variance and pointwise 95% normal interval",
+                antecedent_core::RandomizationDesign::Cluster { .. } =>
+                    "Cluster-randomized ITT over cluster outcome totals with a conservative cluster-level Neyman variance and pointwise 95% normal interval",
+                antecedent_core::RandomizationDesign::Stratified { .. } =>
+                    "Blocked difference in means with blockwise conservative Neyman variance and pointwise 95% normal interval",
+                antecedent_core::RandomizationDesign::Factorial2x2 { .. } =>
+                    "Fixed-cell factorial main effects and interaction with separate conservative cellwise variances and pointwise 95% normal intervals; simultaneous coverage is not claimed",
+                antecedent_core::RandomizationDesign::MultiArm { .. } =>
+                    "Independent multi-arm HT effects with known probabilities; the retained variance is a covariance-free bound, while separate score-sandwich pointwise 95% intervals cover each action versus reference; simultaneous coverage is not claimed",
+                antecedent_core::RandomizationDesign::Switchback { .. } => unreachable!(),
+            }
+        } else { diagnostic };
         let exact_test = if self.query.exact_randomization_test {
             let antecedent_core::RandomizationDesign::Complete { treated_units } = &self.query.design else {
                 unreachable!("validated exact test requires complete randomization")
@@ -451,14 +525,16 @@ impl CheckedRandomizedOperation {
             }
             Some((extreme as f64 / allocations as f64, allocations))
         } else { None };
-        let estimate = EffectEstimate::new(
+        let mut estimate = EffectEstimate::new(
             effect,
-            // The retained design variance lives in randomized_effect. Passing
-            // it as a scalar SE would auto-publish an uncalibrated normal interval.
-            0.0,
+            interval_standard_error.unwrap_or(f64::NAN),
             self.identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
+        if interval_95.is_some() && matches!(self.query.design,
+            antecedent_core::RandomizationDesign::Cluster { .. }) {
+            estimate = estimate.with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
+        }
         let started = Instant::now();
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -511,6 +587,11 @@ impl CheckedRandomizedOperation {
             factorial_interaction_variance: factorial_contrasts.map(|(_, _, _, variance)| variance),
             multi_arm_values,
             variance_upper_bound: variance,
+            standard_error: interval_standard_error,
+            interval_95,
+            second_factor_interval_95,
+            factorial_interaction_interval_95,
+            multi_arm_intervals_95,
             minimum_assignment_probability: if let antecedent_core::RandomizationDesign::MultiArm { probabilities, .. } = &self.query.design {
                 probabilities.iter().flat_map(|row| row.iter().copied()).fold(f64::INFINITY, f64::min)
             } else {
@@ -530,6 +611,7 @@ impl CheckedRandomizedOperation {
             outcome_units: Arc::clone(&self.query.outcome_units),
             treatment_arms: self.query.treatment_arms.clone(),
         });
+        result.rebind_interval(false);
         result.treatment = None;
         Ok(result)
     }

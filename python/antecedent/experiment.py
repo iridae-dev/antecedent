@@ -547,15 +547,24 @@ class RandomizedExperimentEstimate:
     second_factor_variance: float | None = None
     factorial_interaction_variance: float | None = None
     multi_arm_values: tuple[tuple[str, float, float, int], ...] = ()
+    standard_error: float | None = None
+    interval_95: tuple[float, float] | None = None
+    second_factor_interval_95: tuple[float, float] | None = None
+    factorial_interaction_interval_95: tuple[float, float] | None = None
+    multi_arm_intervals_95: tuple[tuple[float, float] | None, ...] = ()
 
     @property
     def multi_arm_contrasts(self) -> tuple[MultiArmContrast, ...]:
-        """All named contrasts to the first arm with covariance-free variance bounds."""
+        """Named contrasts with variance bounds and supported pointwise intervals."""
         if not self.multi_arm_values:
             return ()
         control = self.multi_arm_values[0]
-        return tuple(MultiArmContrast(label, value, value - control[1], 2.0 * (variance + control[2]), support)
-                     for label, value, variance, support in self.multi_arm_values[1:])
+        return tuple(MultiArmContrast(label, value, value - control[1],
+                                     2.0 * (variance + control[2]), support,
+                                     self.multi_arm_intervals_95[index]
+                                     if index < len(self.multi_arm_intervals_95) else None)
+                     for index, (label, value, variance, support)
+                     in enumerate(self.multi_arm_values[1:], start=1))
 
     @property
     def variance(self) -> float:
@@ -790,6 +799,7 @@ class MultiArmContrast:
     effect_vs_control: float
     variance_bound_vs_control: float
     observed_support: int
+    interval_95: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)

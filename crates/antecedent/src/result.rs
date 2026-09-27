@@ -96,8 +96,19 @@ pub struct RandomizedEffectEstimate {
     /// Ordered arm means, variance contributions, and observed counts for multi-arm trials.
     pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
-    /// switchback uses an independent-sequence sandwich estimate. No interval is implied.
+    /// switchback uses an independent-sequence sandwich estimate.
     pub variance_upper_bound: f64,
+    /// Primary contrast SE when a calibrated pointwise interval is reported.
+    pub standard_error: Option<f64>,
+    /// Pointwise 95% primary contrast interval, if supported.
+    pub interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% secondary factorial main-effect interval, if supported.
+    pub second_factor_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% factorial interaction interval, if supported.
+    pub factorial_interaction_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% action-versus-reference intervals, aligned with arm labels;
+    /// the reference arm has no interval.
+    pub multi_arm_intervals_95: Arc<[Option<[f64; 2]>]>,
     /// Smallest declared unit-level inclusion probability.
     pub minimum_assignment_probability: f64,
     /// Assignment design label (`bernoulli`, `complete`, or `stratified`).
@@ -1058,7 +1069,9 @@ impl StudyResult {
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
         let panel_interval = self.panel_did.as_ref().is_some_and(|did| did.interval_95.is_some());
-        let base = if panel_interval { "cluster" } else if self.panel_did.is_some() { "iid" } else { self.base_dependence() };
+        let randomized_cluster_interval = self.randomized_effect.as_ref().is_some_and(|fit|
+            fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster");
+        let base = if panel_interval || randomized_cluster_interval { "cluster" } else if self.panel_did.is_some() { "iid" } else { self.base_dependence() };
         if let Some(response) = &self.response {
             // A Bayesian response publishes credible bands; the draws behind a
             // band are in the referenced posterior artifact, not on the result.
@@ -1133,7 +1146,7 @@ impl StudyResult {
                     let mut binding = IntervalBinding::new(
                         M::AnalyticSe,
                         published.level,
-                        if panel_interval { "cluster" } else { self.se_dependence(estimate.se_kind) },
+                        if panel_interval || randomized_cluster_interval { "cluster" } else { self.se_dependence(estimate.se_kind) },
                     );
                     binding.se_kind = estimate.se_kind;
                     return binding;

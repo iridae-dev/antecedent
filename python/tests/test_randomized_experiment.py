@@ -17,6 +17,51 @@ def _design(assignment: list[bool], *, randomization=None) -> ant.ExperimentDesi
     )
 
 
+def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
+    assignment = [i < 30 for i in range(60)]
+    outcomes = np.asarray([1.0 + 2.0 * float(assignment[i])
+                           + 0.5 * np.sin(i * 0.3) for i in range(60)])
+    query = ant.RandomizedEffect(
+        "outcome", _design(assignment, randomization=interference.CompleteRandomization(30))
+    )
+    data = {"outcome": outcomes}
+    result = ant.analyze(data, query=query, refute="none")
+    fit = result.randomized_effect
+    assert fit is not None
+    assert fit.interval_95 is not None
+    assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
+    assert fit.standard_error > 0
+    assert fit.uncertainty == "complete_neyman_normal_interval"
+    assert fit.support_status == "off_axis_interval_evidence"
+    assert result.evidence_status == "off_axis"
+    prepared = ant.prepare(data, query=query, refute="none")
+    assert prepared.estimate(data).randomized_effect.interval_95 == fit.interval_95
+
+
+def test_calibrated_multi_action_intervals_are_pointwise_for_each_action():
+    labels = ("control", "a", "b", "c")
+    assignment = tuple(labels[i % 4] for i in range(400))
+    design = ant.MultiArmExperimentDesign(
+        assignment, labels, [[0.25] * 4 for _ in range(400)],
+        [f"account-{i}" for i in range(400)], [f"row-{i}" for i in range(400)],
+    )
+    outcomes = np.asarray([1.0 + float(i % 4) + 0.5 * np.sin(i * 0.3)
+                           for i in range(400)])
+    result = ant.analyze({"outcome": outcomes},
+                         query=ant.RandomizedEffect("outcome", design), refute="none")
+    fit = result.randomized_effect
+    assert fit is not None
+    assert fit.interval_95 is not None
+    assert fit.uncertainty == "multi_arm_ht_score_pointwise_normal_intervals"
+    assert fit.multi_arm_intervals_95[0] is None
+    assert len(fit.multi_arm_intervals_95) == 4
+    assert [contrast.interval_95 for contrast in fit.multi_arm_contrasts] == list(
+        fit.multi_arm_intervals_95[1:]
+    )
+    assert all(interval is not None for interval in fit.multi_arm_intervals_95[1:])
+    assert fit.support_status == "off_axis_interval_evidence"
+
+
 def test_randomized_effect_runs_in_the_retained_analysis_lifecycle():
     assignment = [True, False, True, False, True, False, True, False]
     data = {"outcome": 2.0 * np.asarray(assignment, dtype=float)}

@@ -3368,6 +3368,11 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 multi_arm_values: randomized.multi_arm_values.iter().map(|(label, value, variance, support)|
                     (label.to_string(), *value, *variance, *support)).collect(),
                 variance: randomized.variance_upper_bound,
+                standard_error: randomized.standard_error,
+                interval_95: randomized.interval_95,
+                second_factor_interval_95: randomized.second_factor_interval_95,
+                factorial_interaction_interval_95: randomized.factorial_interaction_interval_95,
+                multi_arm_intervals_95: randomized.multi_arm_intervals_95.to_vec(),
                 assignment_design: randomized.assignment_design.to_string(),
                 assignment_units: randomized
                     .assignment_units

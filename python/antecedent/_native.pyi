@@ -371,6 +371,11 @@ class RandomizedEffectSection:
     factorial_interaction_variance: float | None
     multi_arm_values: list[tuple[str, float, float, int]]
     variance_upper_bound: float
+    standard_error: float | None
+    interval_95: tuple[float, float] | None
+    second_factor_interval_95: tuple[float, float] | None
+    factorial_interaction_interval_95: tuple[float, float] | None
+    multi_arm_intervals_95: list[tuple[float, float] | None]
     minimum_assignment_probability: float
     assignment_design: str
     blocks: list[str]
