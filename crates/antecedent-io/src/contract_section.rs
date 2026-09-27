@@ -3735,6 +3735,7 @@ mod tests {
             temporal_identification: Vec::new(),
             estimate: Some(2.0),
             policy_value: None,
+            continuous_dose_response: None,
             panel_did: None,
             synthetic_control: None,
             synthetic_did: None,

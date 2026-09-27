@@ -739,6 +739,18 @@ action, with known positive assignment probabilities. These conditional
 contrasts are frozen in the result artifact; they do not fit a CATE model or
 claim an interval or licensed support-matrix cell.
 
+`policy.ConditionalDoseResponse(...)` carries a fixed target-dose grid through
+`prepare` / `analyze`. Baseline group labels remain bound to the prepared row
+order; the outcome, observed dose, and caller-supplied density travel as native
+table columns. The direct `policy.estimate_continuous_dose_response` utility
+and retained Study route use the same triangular-kernel inverse-density
+estimator. For each group and target, the result reports the local response,
+row count, effective sample size, minimum density, maximum normalized weight,
+and descriptive local outcome SD. The result and artifact declare point-only
+uncertainty. This evaluates a response curve under conditional exchangeability,
+correct supplied density, consistency, no interference, and local positivity;
+it does not learn or evaluate a continuous-dose policy or license an interval.
+
 ## Quasi-experimental point utilities
 
 `antecedent.quasi.DifferenceInDifferences` estimates a repeated-cross-section
