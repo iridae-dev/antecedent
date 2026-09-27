@@ -284,6 +284,7 @@ _QUERY_PAYLOADS["AnomalyAttribution"] = (
             "targets": [1],
             "unit_rows": None,
             "max_units": 100,
+            "reference": None,
         }
     },
     ["t", "y"],
