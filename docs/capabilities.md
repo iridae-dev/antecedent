@@ -1062,7 +1062,13 @@ interval when the caller explicitly declares the outcome predictions fixed and
 known with `known_fixed_outcome_predictions=True`. The interval is conditional
 on that declaration and excludes uncertainty from fitting an outcome model;
 fitted predictions remain point-only. A 2,000-study known-truth fixture covered
-the regime value in 1,897 studies. This route has no support-matrix license.
+the regime value in 1,897 studies, and a separate 2,000-replicate known-truth
+coverage test at 400 subjects confirms nominal coverage of the population
+regime value under the support gate. This two-period fixed-known-Q route now
+carries the exact graphless support-matrix license
+(`graphless:longitudinal_regime/known_sequential_randomized_two_period/fixed_known_q_g_formula_scores/conditional_q_pointwise_95_normal_interval`)
+when the interval publishes; longer horizons, any fitted-Q uncertainty, and the
+sequential DR and MSM intervals are not licensed by it.
 Set `method="sequential_dr"` and provide cross-fitted Q predictions, aligned
 subject and prediction fold IDs, monotone observation histories, treatment
 probabilities, and conditional censoring probabilities to run the backward
@@ -1147,12 +1153,17 @@ coefficients rather than evaluating one policy. With known treatment and
 censoring probabilities, at least 300 independent subjects, 200 observed
 subjects, 150 effective weighted subjects, and positive coefficient standard
 errors, the retained route reports pointwise 95% intervals for the intercept
-and every period effect. A 2,000-replicate randomized two-period calibration
-checks all three coefficients at 95% coverage. Below those floors it reports
-a specific refusal. The intervals are separate, not simultaneous. Both paths
-remain off the support-matrix axis; the direct fit exposes standard errors
-without intervals. Caller-supplied probability fitting is not verified. Each
-row is one subject, so repeated periods cannot be split across analysis units.
+and every period effect. A 2,000-replicate randomized two-period known-truth
+coverage test checks all three coefficients at 95% coverage. Below those floors
+it reports a specific refusal. The intervals are separate, not simultaneous.
+When every reported interval publishes under this gate, the retained additive
+MSM carries the exact graphless support-matrix license
+(`graphless:longitudinal_regime/known_sequential_randomized_additive_msm/stabilized_ipw_cr1_scores/intercept_and_period_effects_pointwise_95_normal_intervals`);
+simultaneous coverage, treatment interactions, unstabilized weights, and the
+g-formula and sequential DR routes are not licensed by it, and the direct fit
+exposes standard errors without intervals. Caller-supplied probability fitting
+is not verified. Each row is one subject, so repeated periods cannot be split
+across analysis units.
 
 ```python
 summary = ant.regimes.evaluate_regime_value(

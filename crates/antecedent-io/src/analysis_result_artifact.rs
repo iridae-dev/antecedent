@@ -1835,21 +1835,54 @@ fn validate_result(
                             && (bounds[1] - (center + span)).abs() <= tolerance
                     })
         };
+        let has_license = |design: &str, method: &str, claim: &str| {
+            graphless_data::LICENSES.iter().any(|row| {
+                row.family == "longitudinal_regime"
+                    && row.design == design
+                    && row.method == method
+                    && row.inference_claim == claim
+            })
+        };
         let graphless_dr_licensed = query.method == "sequential_dr"
             && matches!(query.periods, 2 | 3)
             && eligible_dr
             && regime.value_interval_95.is_some()
-            && graphless_data::LICENSES.iter().any(|row| {
-                row.family == "longitudinal_regime"
-                    && row.design == if query.periods == 2 {
-                        "known_sequential_randomized_two_period"
-                    } else {
-                        "known_sequential_randomized_three_period"
-                    }
-                    && row.method == "subject_excluded_q_sequential_dr_scores"
-                    && row.inference_claim == "conditional_q_pointwise_95_normal_interval"
-            });
-        if regime.graphless_support_status.as_deref() != graphless_dr_licensed.then_some("licensed")
+            && has_license(
+                if query.periods == 2 {
+                    "known_sequential_randomized_two_period"
+                } else {
+                    "known_sequential_randomized_three_period"
+                },
+                "subject_excluded_q_sequential_dr_scores",
+                "conditional_q_pointwise_95_normal_interval",
+            );
+        // Two-period fixed-known-Q g-formula: io recomputes the calibrated
+        // interval in `g_formula_expected`, so the license requires that exact
+        // interval to be published against the two-period fixed-Q row.
+        let graphless_g_formula_licensed = query.method == "g_formula"
+            && query.periods == 2
+            && g_formula_expected.is_some()
+            && regime.value_interval_95.is_some()
+            && has_license(
+                "known_sequential_randomized_two_period",
+                "fixed_known_q_g_formula_scores",
+                "conditional_q_pointwise_95_normal_interval",
+            );
+        // Additive MSM: io establishes support through `eligible_msm` and the
+        // published intercept and per-period coefficient intervals, matched to
+        // the additive-MSM row for the intercept-and-period-effects claim.
+        let graphless_msm_licensed = query.method == "marginal_structural_model"
+            && eligible_msm
+            && regime.value_interval_95.is_some()
+            && regime.period_intervals_95.len() == query.periods
+            && has_license(
+                "known_sequential_randomized_additive_msm",
+                "stabilized_ipw_cr1_scores",
+                "intercept_and_period_effects_pointwise_95_normal_intervals",
+            );
+        let graphless_licensed =
+            graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
+        if regime.graphless_support_status.as_deref() != graphless_licensed.then_some("licensed")
             && !(allow_legacy_graphless_missing && regime.graphless_support_status.is_none())
         {
             return Err(IoError::Convert(

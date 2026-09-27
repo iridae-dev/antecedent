@@ -638,12 +638,30 @@ impl PreparedStudy {
                         let CausalQuery::LongitudinalRegime(query) = self.query() else {
                             unreachable!("licensed longitudinal result must retain its regime query")
                         };
-                        let design = if query.periods == 2 {
-                            "known_sequential_randomized_two_period"
-                        } else {
-                            "known_sequential_randomized_three_period"
+                        let (design, method, claim) = match query.method {
+                            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => (
+                                if query.periods == 2 {
+                                    "known_sequential_randomized_two_period"
+                                } else {
+                                    "known_sequential_randomized_three_period"
+                                },
+                                "subject_excluded_q_sequential_dr_scores",
+                                "conditional_q_pointwise_95_normal_interval",
+                            ),
+                            antecedent_core::LongitudinalRegimeMethod::GFormula => (
+                                "known_sequential_randomized_two_period",
+                                "fixed_known_q_g_formula_scores",
+                                "conditional_q_pointwise_95_normal_interval",
+                            ),
+                            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => (
+                                "known_sequential_randomized_additive_msm",
+                                "stabilized_ipw_cr1_scores",
+                                "intercept_and_period_effects_pointwise_95_normal_intervals",
+                            ),
+                            antecedent_core::LongitudinalRegimeMethod::Ipw =>
+                                unreachable!("only calibrated graphless longitudinal rows can be licensed"),
                         };
-                        Arc::from(format!("graphless:longitudinal_regime/{design}/subject_excluded_q_sequential_dr_scores/conditional_q_pointwise_95_normal_interval"))
+                        Arc::from(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"))
                     });
             }
         }

@@ -209,7 +209,8 @@ mod tests {
         };
         let probabilities = vec![0.5; n * 2];
         let censoring = vec![0.9; n * 2];
-        let mut hits = [0_usize; 3];
+        let truth = [1.0_f64, 2.0, 3.0];
+        let mut covered = [0_usize; 3];
         let mut skipped = 0;
         for _ in 0..simulations {
             let mut treatment = Vec::with_capacity(n * 2);
@@ -226,15 +227,15 @@ mod tests {
             let fit = fit_binary_msm(&outcomes, &treatment, &probabilities, &[0.5; 2],
                 &observed, &censoring, 2, 0.01).unwrap();
             if let Some(intervals) = pointwise_intervals_95(&fit, n) {
-                for (j, (interval, truth)) in [intervals.intercept, intervals.period_effects[0], intervals.period_effects[1]]
-                    .into_iter().zip([1.0, 2.0, 3.0]).enumerate() {
-                    hits[j] += usize::from(interval[0] <= truth && truth <= interval[1]);
+                let bounds = [intervals.intercept, intervals.period_effects[0], intervals.period_effects[1]];
+                for (j, target) in truth.into_iter().enumerate() {
+                    covered[j] += usize::from(bounds[j][0] <= target && target <= bounds[j][1]);
                 }
             } else { skipped += 1; }
         }
         let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         assert!(skipped <= simulations / 100, "weak-support skips {skipped}");
-        for (j, count) in hits.into_iter().enumerate() {
+        for (j, count) in covered.into_iter().enumerate() {
             let coverage = count as f64 / f64::from(simulations);
             assert!((coverage - 0.95).abs() <= 3.0 * mcse, "MSM coefficient {j} coverage {coverage}");
         }

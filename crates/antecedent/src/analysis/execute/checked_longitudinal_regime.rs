@@ -245,6 +245,57 @@ impl CheckedLongitudinalRegimeOperation {
                     ..Default::default()
                 },
             ), crate::support::GraphlessSupportStatus::Licensed { .. });
+        // The two-period fixed-known-Q g-formula interval only publishes after
+        // its own subject, positivity, and censoring floors hold, so its
+        // graphless license is a function of that published interval plus the
+        // exact two-period fixed-Q row. The fixed-known-Q attestation and the
+        // finer floors are enforced upstream by the interval and stated in the
+        // row's limitations; classify_graphless checks the coarse row support.
+        let graphless_g_formula_licensed = self.query.method == LongitudinalRegimeMethod::GFormula
+            && g_formula_interval.is_some()
+            && self.query.periods == 2
+            && matches!(crate::support::classify_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "longitudinal_regime",
+                    design: "known_sequential_randomized_two_period",
+                    method: "fixed_known_q_g_formula_scores",
+                    inference_claim: "conditional_q_pointwise_95_normal_interval",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit", rows: self.rows,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    min_probability: summary.minimum_action_probability,
+                    ..Default::default()
+                },
+            ), crate::support::GraphlessSupportStatus::Licensed { .. });
+        // The additive MSM publishes separate pointwise subject-clustered CR1
+        // intervals for the intercept and every period coefficient only after
+        // its subject, observed-outcome, and effective-weight floors hold, so
+        // its license is a function of those published intervals plus the exact
+        // additive-MSM row. The observed-outcome floor and positive coefficient
+        // SEs are enforced upstream by the intervals and stated in the row.
+        let graphless_msm_licensed = self.query.method == LongitudinalRegimeMethod::MarginalStructuralModel
+            && msm_intervals.is_some()
+            && matches!(crate::support::classify_graphless(
+                crate::support::GraphlessSupportKey {
+                    family: "longitudinal_regime",
+                    design: "known_sequential_randomized_additive_msm",
+                    method: "stabilized_ipw_cr1_scores",
+                    inference_claim: "intercept_and_period_effects_pointwise_95_normal_intervals",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit", rows: self.rows,
+                    interval_95_published: true,
+                    reported_intervals: self.query.periods + 1,
+                    all_reported_intervals: true,
+                    min_probability: summary.minimum_action_probability,
+                    min_effective_sample_size: summary.effective_sample_size,
+                    ..Default::default()
+                },
+            ), crate::support::GraphlessSupportStatus::Licensed { .. });
+        let graphless_licensed =
+            graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -281,12 +332,12 @@ impl CheckedLongitudinalRegimeOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        if graphless_dr_licensed {
+        if graphless_licensed {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         result.longitudinal_regime = Some(crate::LongitudinalRegimeEstimate {
             method: Arc::from(method),
-            graphless_support_status: graphless_dr_licensed.then_some(crate::support::CellStatus::Licensed),
+            graphless_support_status: graphless_licensed.then_some(crate::support::CellStatus::Licensed),
             rule_id: self.query.rule_id.clone(),
             rule_version: self.query.rule_version.clone(),
             rule_provenance: self.query.rule_provenance.clone(),

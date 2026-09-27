@@ -681,6 +681,52 @@ mod tests {
     }
 
     #[test]
+    fn fixed_known_q_g_formula_interval_covers_regime_truth() {
+        // Two-period g-formula value under a fixed, known conditional reward law.
+        // Each subject's supplied period rewards are a fixed measurement, so the
+        // regime value is the sample mean of the summed per-subject rewards and
+        // the pointwise interval is its independent-subject normal CI. The truth
+        // is the population mean of the summed rewards; coverage confirms the
+        // conditional-on-fixed-Q claim holds over repeated subject samples.
+        let subjects = 400;
+        let simulations = 2_000;
+        let truth = 5.0;
+        let mut state = 0x51ED_270B_C7A9_D341_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let actions = vec![true; subjects * 2];
+        let treatment_probabilities = vec![0.5; subjects * 2];
+        let censoring_probabilities = vec![0.9; subjects * 2];
+        let mut covered = 0;
+        let mut skipped = 0;
+        for _ in 0..simulations {
+            let mut predictions = Vec::with_capacity(subjects * 2);
+            for _ in 0..subjects {
+                let q0 = 2.0 + (uniform() - 0.5) * 2.0;
+                let q1 = 3.0 + (uniform() - 0.5) * 2.0;
+                predictions.push(q0);
+                predictions.push(q1);
+            }
+            let summary = evaluate_g_formula_value(&predictions, &actions,
+                &treatment_probabilities, &censoring_probabilities, subjects, 2, 0.01).unwrap();
+            if let Some((_, bounds)) = g_formula_fixed_q_pointwise_interval_95(
+                &summary, &predictions, subjects, 2) {
+                covered += usize::from(bounds[0] <= truth && truth <= bounds[1]);
+            } else { skipped += 1; }
+        }
+        assert!(skipped <= simulations / 100, "fixed-known-Q weak-support skips {skipped}");
+        let coverage = covered as f64 / f64::from(simulations - skipped);
+        let mcse = (0.95_f64 * 0.05 / f64::from(simulations - skipped)).sqrt();
+        println!("fixed-known-Q g-formula: covered={covered}, coverage={coverage}");
+        assert!((coverage - 0.95).abs() <= 3.0 * mcse, "fixed-known-Q g-formula coverage {coverage}");
+    }
+
+    #[test]
     fn known_truth_two_period_bernoulli() {
         let summary = evaluate_regime_value(
             &[4.0, 0.0, 0.0, 0.0],
