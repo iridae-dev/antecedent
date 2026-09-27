@@ -114,6 +114,7 @@ def test_panel_did_runs_through_retained_public_prepare_and_analyze_routes():
     assert estimate.panel_did.estimate == pytest.approx(4.0)
     assert estimate.panel_did.standard_error == pytest.approx(0.0)
     assert estimate.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
+    assert np.isnan(estimate.estimate.se_analytic)
     assert estimate.plan.estimator == "quasi.panel_change_score"
     assert "parallel_trends" in " ".join(estimate.assumptions or [])
 
@@ -140,6 +141,7 @@ def test_repeated_cross_section_did_runs_through_public_flow_and_direct_utility(
     assert result.panel_did.control_subjects == 4
     assert result.panel_did.clusters == 8
     assert result.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
+    assert np.isnan(result.estimate.se_analytic)
     assert result.panel_did.design == "repeated_cross_section_2x2"
     assert "repeated_cross_section" in " ".join(result.assumptions or [])
     assert antecedent.analyze(data, query=query).panel_did == result.panel_did
@@ -215,6 +217,7 @@ def test_selected_staggered_group_time_runs_through_retained_analyze():
     assert result.panel_did.design == "balanced_staggered_adoption_group_time_att"
     assert (result.panel_did.cohort, result.panel_did.period) == (3, 4)
     assert result.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
+    assert np.isnan(result.estimate.se_analytic)
     assert result.panel_did.support_status == "unlicensed_point_utility"
     assert "cohort_specific_parallel_untreated_trends" in result.panel_did.assumptions
     assert result.plan.estimator == "quasi.staggered_group_time_never_treated"
