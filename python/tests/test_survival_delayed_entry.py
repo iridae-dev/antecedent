@@ -3,7 +3,7 @@
 import antecedent
 import pandas as pd
 import pytest
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.observation import IndependentGiven
 
 
@@ -29,7 +29,7 @@ def test_delayed_entry_km_and_rmst_known_truth():
         delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.survival.estimate_survival(_survival_data(), query)
+    result = antecedent.analyze(_survival_data(), query=query).survival
 
     # Counting-process risk sets are (entry, duration], so the entry=2
     # control censor is excluded at t=2 and included by t=3.
@@ -38,8 +38,8 @@ def test_delayed_entry_km_and_rmst_known_truth():
     assert result.rmst_difference == pytest.approx(7 / 3 - 3.3125)
     assert result.control_survival == pytest.approx((1.0, 1.0, 0.75, 0.5625, 0.5625))
     assert result.treated_survival == pytest.approx((1.0, 0.5, 0.5, 1 / 3, 1 / 3))
-    assert "independent_left_truncation_given_IndependentGiven_empty" in result.assumptions
-    assert result.uncertainty == "point_only"
+    assert "independent_delayed_entry_within_arm" in result.assumptions
+    assert result.uncertainty == "point_only_no_interval"
     assert result.support_status == "unlicensed_point_utility"
 
 
@@ -92,13 +92,13 @@ def test_delayed_entry_competing_risks_cif_known_truth():
         delayed_entry="entry",
         observation_assumption=IndependentGiven(()),
     )
-    result = antecedent.survival.estimate_cumulative_incidence(_competing_data(), query)
+    result = antecedent.analyze(_competing_data(), query=query).survival
 
     assert result.control_incidence == pytest.approx((0.0, 0.0, 0.25, 0.25))
     assert result.treated_incidence == pytest.approx((0.0, 0.0, 1 / 6, 1 / 6))
     assert result.incidence_difference == pytest.approx(-1 / 12)
-    assert "independent_left_truncation_given_IndependentGiven_empty" in result.assumptions
-    assert result.uncertainty == "point_only"
+    assert "independent_delayed_entry_within_arm" in result.assumptions
+    assert result.uncertainty == "point_only_no_interval"
     assert result.support_status == "unlicensed_point_utility"
 
 
@@ -108,16 +108,14 @@ def test_delayed_entry_requires_supported_observation_contract(family: str):
         query_type = antecedent.survival.SurvivalOutcome
         args = ("duration", "event", "treated", 4)
         data = _survival_data()
-        estimate = antecedent.survival.estimate_survival
     else:
         query_type = antecedent.survival.CompetingRisksOutcome
         args = ("duration", "cause", "treated", 1, 3)
         data = _competing_data()
-        estimate = antecedent.survival.estimate_cumulative_incidence
 
     with pytest.raises(CausalValueError, match="explicit IndependentGiven"):
         no_assumption = query_type(*args, randomized=True, delayed_entry="entry")
-        estimate(data, no_assumption)
+        antecedent.analyze(data, query=no_assumption)
 
     with pytest.raises(CausalValueError, match="conditional delayed entry is unsupported"):
         conditional = query_type(
@@ -126,7 +124,7 @@ def test_delayed_entry_requires_supported_observation_contract(family: str):
             delayed_entry="entry",
             observation_assumption=IndependentGiven(("z",)),
         )
-        estimate(data, conditional)
+        antecedent.analyze(data, query=conditional)
 
 
 def test_delayed_entry_refuses_invalid_intervals_and_unanchored_origin():
@@ -141,15 +139,15 @@ def test_delayed_entry_refuses_invalid_intervals_and_unanchored_origin():
     )
     invalid = _survival_data()
     invalid.loc[0, "entry"] = invalid.loc[0, "duration"]
-    with pytest.raises(CausalValueError, match="strictly earlier"):
-        antecedent.survival.estimate_survival(invalid, query)
+    with pytest.raises(CausalUnsupportedError, match="earlier than exit"):
+        antecedent.analyze(invalid, query=query)
 
     negative_entry = _survival_data()
     negative_entry.loc[0, "entry"] = -0.5
-    with pytest.raises(CausalValueError, match="finite and non-negative"):
-        antecedent.survival.estimate_survival(negative_entry, query)
+    with pytest.raises(CausalUnsupportedError, match="entry times must be finite, nonnegative"):
+        antecedent.analyze(negative_entry, query=query)
 
     unanchored = _survival_data()
     unanchored.loc[unanchored["treated"] == 0, "entry"] = 0.25
-    with pytest.raises(CausalValueError, match="time-zero entrant in each arm"):
-        antecedent.survival.estimate_survival(unanchored, query)
+    with pytest.raises(CausalUnsupportedError, match="time-zero entrant in each arm"):
+        antecedent.analyze(unanchored, query=query)

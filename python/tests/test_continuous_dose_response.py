@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-import antecedent
-from antecedent import policy
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalCompileError, CausalValueError
+from antecedent.policy import ConditionalDoseResponse
 
 
 def _dose_data():
@@ -24,16 +24,18 @@ def _dose_data():
 
 
 def test_stratified_continuous_dose_response_recovers_known_linear_truth():
-    result = policy.estimate_continuous_dose_response(
+    result = antecedent.analyze(
         _dose_data(),
-        outcome="y",
-        dose="dose",
-        baseline_group="group",
-        dose_density="density",
-        target_doses=[0.0, 0.5],
-        bandwidth=0.6,
-        density_provenance="known",
-    )
+        query=ConditionalDoseResponse(
+            outcome="y",
+            dose="dose",
+            baseline_group="group",
+            dose_density="density",
+            target_doses=(0.0, 0.5),
+            bandwidth=0.6,
+            density_provenance="known",
+        ),
+    ).continuous_dose_response
     expected = {
         ("control", 0.0): 1.0,
         ("control", 0.5): 2.0,
@@ -45,39 +47,41 @@ def test_stratified_continuous_dose_response_recovers_known_linear_truth():
     assert all(point.effective_sample_size == pytest.approx(1682 / 769) for point in result.points)
     assert all(point.minimum_dose_density == pytest.approx(0.5) for point in result.points)
     assert result.policy_value_estimated is False
-    assert result.uncertainty == "point_only"
+    assert result.uncertainty == "point_only_no_interval"
     assert result.support_status == "unlicensed_point_utility"
     assert "no interference" in " ".join(result.assumptions).lower()
 
 
 def test_continuous_dose_response_refuses_zero_density_and_unsupported_targets():
     data = _dose_data()
-    with pytest.raises(CausalValueError, match="densit.*positive"):
-        policy.estimate_continuous_dose_response(
+    with pytest.raises(CausalCompileError, match="densit.*positive"):
+        antecedent.analyze(
             {**data, "density": [0.0] * 10},
-            outcome="y", dose="dose", baseline_group="group", dose_density="density",
-            target_doses=[0.0], bandwidth=0.6, density_provenance="known",
+            query=ConditionalDoseResponse(
+                outcome="y", dose="dose", baseline_group="group", dose_density="density",
+                target_doses=(0.0,), bandwidth=0.6, density_provenance="known",
+            ),
         )
-    with pytest.raises(CausalValueError, match="support failure"):
-        policy.estimate_continuous_dose_response(
+    with pytest.raises(CausalCompileError, match="support failure"):
+        antecedent.analyze(
             data,
-            outcome="y", dose="dose", baseline_group="group", dose_density="density",
-            target_doses=[4.0], bandwidth=0.1, density_provenance="known",
+            query=ConditionalDoseResponse(
+                outcome="y", dose="dose", baseline_group="group", dose_density="density",
+                target_doses=(4.0,), bandwidth=0.1, density_provenance="known",
+            ),
         )
 
 
 def test_continuous_dose_response_refuses_bad_density_source_and_bandwidth():
     with pytest.raises(CausalValueError, match="density_provenance"):
-        policy.estimate_continuous_dose_response(
-            _dose_data(),
+        ConditionalDoseResponse(
             outcome="y", dose="dose", baseline_group="group", dose_density="density",
-            target_doses=[0.0], bandwidth=0.6, density_provenance="guessed",
+            target_doses=(0.0,), bandwidth=0.6, density_provenance="guessed",
         )
     with pytest.raises(CausalValueError, match="bandwidth"):
-        policy.estimate_continuous_dose_response(
-            _dose_data(),
+        ConditionalDoseResponse(
             outcome="y", dose="dose", baseline_group="group", dose_density="density",
-            target_doses=[0.0], bandwidth=0.0, density_provenance="known",
+            target_doses=(0.0,), bandwidth=0.0, density_provenance="known",
         )
 
 
@@ -87,10 +91,7 @@ def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
         outcome="y", dose="dose", baseline_group="group", dose_density="density",
         target_doses=(0.0, 0.5), bandwidth=0.6, density_provenance="known",
     )
-    direct = policy.estimate_continuous_dose_response(
-        data, outcome="y", dose="dose", baseline_group="group", dose_density="density",
-        target_doses=(0.0, 0.5), bandwidth=0.6, density_provenance="known",
-    )
+    direct = antecedent.analyze(data, query=query).continuous_dose_response
     prepared = antecedent.prepare(data, query=query)
     result = prepared.estimate()
     grid = result.continuous_dose_response

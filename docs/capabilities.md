@@ -723,12 +723,12 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   route also reports separate pointwise 95% score intervals for every action
   versus the first. These intervals do not have simultaneous coverage and
   receive the exact multi-arm graphless license when every contrast qualifies.
-  The direct multi-arm utility and retained
-  route share the native estimator; multi-arm combinations with CUPED, ANCOVA,
+  Multi-arm combinations with CUPED, ANCOVA,
   receipt adjustment, or exact Fisher inference refuse.
-  `experiment.estimate_complier_effect` also provides a direct randomized
+  `ComplierEffect` through `analyze(data, query=...).randomized_effect`
+  provides a randomized
   noncompliance ITT and Wald CACE/LATE point estimate with an
-  influence-function standard error;
+  influence-function variance;
   `experiment.estimate_cuped_effect` provides one-covariate CUPED precision
   adjustment with a standard error. `RandomizedEffect(...,
   ancova_covariates=("baseline_a", "baseline_b", "baseline_c"))` carries ANCOVA
@@ -888,10 +888,10 @@ combined row does not license that construction. Neither row authenticates
 the caller's held-out split or claims simultaneous coverage.
 
 `policy.ConditionalDoseResponse(...)` carries a fixed target-dose grid through
-`prepare` / `analyze`. Baseline group labels remain bound to the prepared row
+`prepare` / `analyze`, reporting `result.continuous_dose_response`. Baseline
+group labels remain bound to the prepared row
 order; the outcome, observed dose, and caller-supplied density travel as native
-table columns. The direct `policy.estimate_continuous_dose_response` utility
-and retained Study route use the same triangular-kernel inverse-density
+table columns. The retained Study route uses a triangular-kernel inverse-density
 estimator. For each group and target, the result reports the local response,
 row count, effective sample size, minimum density, maximum normalized weight,
 and descriptive local outcome SD. These target-grid points remain point-only.
@@ -1133,21 +1133,21 @@ caller-supplied Q predictions, treatment/censoring probabilities, and aligned
 subject/prediction fold IDs. It checks dropout monotonicity and ownership
 alignment but cannot verify actual out-of-fold fitting. These three paths remain
 unlicensed point utilities without standard errors or intervals.
-`fit_marginal_structural_model` estimates
+`LongitudinalRegime.marginal_structural_model(...)`, run through
+`prepare` or `analyze` (reporting `result.longitudinal_regime`), estimates
 an additive terminal-outcome MSM with one treatment coefficient per period.
 Callers must provide conditional treatment probabilities and per-period
 stabilizing numerator probabilities; numerator probabilities are never fitted
-from the evaluation sample. Optional conditional censoring survival enters as
+from the evaluation sample. Optional conditional censoring probabilities enter as
 an unstabilized inverse probability. The native fit refuses positivity-floor
 violations, overflow, insufficient observed subjects, or a rank-deficient
 weighted design. Its CR1 subject-clustered sandwich standard errors are
 pointwise. Fold IDs are preserved as subject ownership metadata when
-provided, but propensity fitting and out-of-fold status are not verified. The
-same native MSM kernel now also runs through the retained Study route:
-`LongitudinalRegime.marginal_structural_model(...)` can be passed to
-`prepare` or `analyze`, with subject-level fold ownership, probability and
+provided, but propensity fitting and out-of-fold status are not verified.
+The retained Study route preserves probability and
 numerator positivity checks, assumptions, coefficients, pointwise CR1
-standard errors, and query/result artifact identity preserved. Its concise
+standard errors, and query/result artifact identity. The intercept is
+reported as `result.longitudinal_regime.value`. Its concise
 factory does not ask for a regime action because the MSM fits period
 coefficients rather than evaluating one policy. With known treatment and
 censoring probabilities, at least 300 independent subjects, 200 observed
@@ -1160,8 +1160,7 @@ When every reported interval publishes under this gate, the retained additive
 MSM carries the exact graphless support-matrix license
 (`graphless:longitudinal_regime/known_sequential_randomized_additive_msm/stabilized_ipw_cr1_scores/intercept_and_period_effects_pointwise_95_normal_intervals`);
 simultaneous coverage, treatment interactions, unstabilized weights, and the
-g-formula and sequential DR routes are not licensed by it, and the direct fit
-exposes standard errors without intervals. Caller-supplied probability fitting
+g-formula and sequential DR routes are not licensed by it. Caller-supplied probability fitting
 is not verified. Each row is one subject, so repeated periods cannot be split
 across analysis units.
 
@@ -1177,17 +1176,6 @@ summary = ant.regimes.evaluate_regime_value(
 ```
 
 ```python
-msm = ant.regimes.fit_marginal_structural_model(
-    terminal_outcome,
-    treatment_by_subject_and_period,
-    conditional_treatment_probability,
-    stabilizing_numerator_probabilities=[0.4, 0.3, 0.25],
-    subject_ids=subject_ids,
-    fold_ids=subject_fold_ids,
-    outcome_observed=terminal_outcome_observed,
-    censoring_survival=conditional_remaining_observed_probability,
-)
-
 query = ant.regimes.LongitudinalRegime.marginal_structural_model(
     outcome="terminal_outcome",
     treatment_history=treatment_by_subject_and_period,

@@ -1,8 +1,8 @@
 # Synthetic control point utility
 
 `antecedent.quasi.SyntheticControl` runs through graphless `analyze` and
-`PreparedAnalysis.prepare`, with `estimate_synthetic_control` retained as a
-direct utility. Both use the same native Rust calculation for one treated unit
+`PreparedAnalysis.prepare`, reporting `result.synthetic_control`. The native
+Rust calculation fits one treated unit
 in a balanced panel. The pre-period fit chooses nonnegative donor weights that sum to one by
 projected gradient descent on squared outcome error. The reported effect is
 the treated unit's mean post-period outcome minus the weighted donors' mean.

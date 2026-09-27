@@ -428,22 +428,24 @@ def test_exact_randomization_test_enumerates_the_bernoulli_assignment_space():
 def test_multi_arm_randomized_effect_recovers_known_arm_means_and_contrasts():
     labels = ("control", "dose_low", "dose_high")
     assignment = ["control", "dose_low", "dose_high"] * 2
-    result = ant.experiment.estimate_multi_arm_effect(
-        {"y": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]},
-        outcome="y",
-        assignment=assignment,
-        action_labels=labels,
-        propensities=[[1 / 3, 1 / 3, 1 / 3]] * 6,
+    design = ant.experiment.MultiArmExperimentDesign(
+        assignment, labels, [[1 / 3, 1 / 3, 1 / 3]] * 6,
+        [f"unit-{i}" for i in range(6)], [f"row-{i}" for i in range(6)],
     )
-    assert result.arm_values == (("control", 0.0), ("dose_low", 2.0), ("dose_high", 5.0))
-    assert [item.effect_vs_control for item in result.contrasts] == pytest.approx([2.0, 5.0])
-    assert all(item.variance_bound_vs_control >= 0 for item in result.contrasts)
-    assert result.uncertainty == "covariance_free_variance_bound_no_interval"
-    with pytest.raises(CausalValueError, match="every declared arm needs observed support"):
-        ant.experiment.estimate_multi_arm_effect(
-            {"y": [0.0, 2.0, 0.0]}, outcome="y",
-            assignment=["control", "dose_low", "control"], action_labels=labels,
-            propensities=[[1 / 3] * 3] * 3,
+    result = ant.analyze(
+        {"y": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]},
+        query=ant.experiment.RandomizedEffect("y", design), refute="none",
+    ).randomized_effect
+    assert [(arm[0], arm[1]) for arm in result.multi_arm_values] == [
+        ("control", 0.0), ("dose_low", 2.0), ("dose_high", 5.0)
+    ]
+    assert [item.effect_vs_control for item in result.multi_arm_contrasts] == pytest.approx([2.0, 5.0])
+    assert all(item.variance_bound_vs_control >= 0 for item in result.multi_arm_contrasts)
+    assert result.uncertainty == "multi_arm_covariance_free_variance_bound_no_interval"
+    with pytest.raises(CausalValueError, match="observed support"):
+        ant.experiment.MultiArmExperimentDesign(
+            ["control", "dose_low", "control"], labels, [[1 / 3] * 3] * 3,
+            ("u0", "u1", "u2"), ("r0", "r1", "r2"),
         )
 
 
