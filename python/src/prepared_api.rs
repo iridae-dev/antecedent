@@ -3362,7 +3362,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, accepted=false, seed=1, threads=None,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3380,6 +3380,7 @@ impl PyPreparedAnalysis {
         blocks: Option<Vec<String>>,
         treated_per_row: Option<Vec<usize>>,
         treated_clusters: Option<usize>,
+        fixed_cuped: Option<(String, f64)>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3418,7 +3419,7 @@ impl PyPreparedAnalysis {
                     ));
                 }
             };
-            let query = antecedent_core::RandomizedEffectQuery::with_design(
+            let mut query = antecedent_core::RandomizedEffectQuery::with_design(
                 design,
                 outcome_id,
                 realized_assignment,
@@ -3427,6 +3428,10 @@ impl PyPreparedAnalysis {
                 outcome_units.into_iter().map(Arc::<str>::from).collect::<Vec<_>>(),
                 (Arc::<str>::from(treatment_arms.0), Arc::<str>::from(treatment_arms.1)),
             );
+            if let Some((covariate, coefficient)) = fixed_cuped {
+                let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
+                query = query.with_fixed_cuped(covariate_id, coefficient);
+            }
             query
                 .validate()
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;

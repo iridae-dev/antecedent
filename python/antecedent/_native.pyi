@@ -1188,6 +1188,7 @@ class PreparedAnalysis:
         treated_per_row: list[int] | None = None,
         *,
         treated_clusters: int | None = None,
+        fixed_cuped: tuple[str, float] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

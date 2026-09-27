@@ -15,7 +15,7 @@ from ._native import estimate_multi_arm_effects as _estimate_multi_arm_effects
 from ._native import estimate_stratified_effect as _estimate_stratified_effect
 from ._native import estimate_switchback_effect as _estimate_switchback_effect
 from ._native import exact_randomization_test as _exact_randomization_test
-from .errors import CausalValueError
+from .errors import CausalUnsupportedError, CausalValueError
 from .interference import (
     BernoulliAssignment,
     ClusterRandomization,
@@ -293,6 +293,20 @@ class ExperimentDesign:
 
 
 @dataclass(frozen=True, slots=True)
+class FixedCUPED:
+    """Pre-assignment covariate with a coefficient fixed outside this trial's outcomes."""
+
+    covariate: str
+    coefficient: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.covariate, str) or not self.covariate.strip():
+            raise CausalValueError("CUPED covariate must be a non-empty column name")
+        if not np.isfinite(self.coefficient):
+            raise CausalValueError("fixed CUPED coefficient must be finite")
+
+
+@dataclass(frozen=True, slots=True)
 class RandomizedEffect:
     """Intention-to-treat contrast carried through the ordinary analysis API.
 
@@ -304,11 +318,17 @@ class RandomizedEffect:
     outcome: str
     design: ExperimentDesign
     _: KW_ONLY
+    cuped: FixedCUPED | None = None
     kind: Literal["randomized_effect"] = field(default="randomized_effect", init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty variable name")
+        if self.cuped is not None:
+            if not isinstance(self.cuped, FixedCUPED) or self.cuped.covariate == self.outcome:
+                raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
+            if not isinstance(self.design.assignment, BernoulliAssignment):
+                raise CausalValueError("retained fixed CUPED currently requires Bernoulli assignment")
 
     def to_interference_query(self) -> InterferenceQuery:
         """Lower ITT to the shared native randomization estimator contract."""
@@ -337,6 +357,11 @@ class RandomizedEffect:
         or a support-matrix license. The ordinary ``analyze`` lifecycle still
         requires a licensed support cell.
         """
+        if self.cuped is not None:
+            raise CausalUnsupportedError(
+                "fixed CUPED is available through analyze or prepare; the direct estimator does not retain its coefficient",
+                reason_code="route_not_supported",
+            )
 
         assignment_kind = (
             "bernoulli"
@@ -690,6 +715,7 @@ __all__ = [
     "ANCOVAEstimate",
     "ComplierEffectEstimate",
     "CUPEDEstimate",
+    "FixedCUPED",
     "ExperimentDesign",
     "MultiArmContrast",
     "MultiArmExperimentEstimate",

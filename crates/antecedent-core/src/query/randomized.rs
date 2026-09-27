@@ -50,6 +50,8 @@ pub struct RandomizedEffectQuery {
     pub outcome_units: Arc<[Arc<str>]>,
     /// Control and treatment arm labels.
     pub treatment_arms: (Arc<str>, Arc<str>),
+    /// Pre-assignment covariate and coefficient fixed before outcomes were observed.
+    pub fixed_cuped: Option<(VariableId, f64)>,
 }
 
 impl RandomizedEffectQuery {
@@ -93,11 +95,29 @@ impl RandomizedEffectQuery {
             assignment_units: assignment_units.into(),
             outcome_units: outcome_units.into(),
             treatment_arms: (treatment_arms.0.into(), treatment_arms.1.into()),
+            fixed_cuped: None,
         }
+    }
+
+    /// Declare an externally fixed CUPED coefficient for a pre-assignment covariate.
+    #[must_use]
+    pub fn with_fixed_cuped(mut self, covariate: VariableId, coefficient: f64) -> Self {
+        self.fixed_cuped = Some((covariate, coefficient));
+        self
     }
 
     /// Validate row alignment, allocations, and assignment probabilities.
     pub fn validate(&self) -> Result<(), QueryError> {
+        if let Some((covariate, coefficient)) = self.fixed_cuped {
+            if !matches!(self.design, RandomizationDesign::Bernoulli)
+                || covariate == self.outcome
+                || !coefficient.is_finite()
+            {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient".into(),
+                ));
+            }
+        }
         let n = self.realized_assignment.len();
         if n < 2
             || self.assignment_probabilities.len() != n
@@ -276,6 +296,13 @@ mod tests {
         let mut invalid = query();
         invalid.assignment_probabilities = Arc::from([0.0, 0.5, 0.5, 0.5]);
         assert!(invalid.validate().is_err());
+    }
+
+    #[test]
+    fn fixed_cuped_requires_distinct_covariate_and_finite_coefficient() {
+        assert!(query().with_fixed_cuped(VariableId::from_raw(1), 2.0).validate().is_ok());
+        assert!(query().with_fixed_cuped(VariableId::from_raw(0), 2.0).validate().is_err());
+        assert!(query().with_fixed_cuped(VariableId::from_raw(1), f64::NAN).validate().is_err());
     }
 
     #[test]

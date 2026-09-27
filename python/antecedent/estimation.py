@@ -2446,6 +2446,7 @@ class _PrepareRoute:
             blocks,
             treated_per_row,
             treated_clusters=treated_clusters,
+            fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
             accepted=False,
             **self._common(),
         )

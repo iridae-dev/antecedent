@@ -1444,7 +1444,13 @@ impl StudyBuilder {
         ) {
             if let CausalQuery::RandomizedEffect(randomized) = &query {
                 let expected = match &randomized.design {
-                    antecedent_core::RandomizationDesign::Bernoulli => EstimatorId::RandomizedHt,
+                    antecedent_core::RandomizationDesign::Bernoulli => {
+                        if randomized.fixed_cuped.is_some() {
+                            EstimatorId::RandomizedFixedCupedHt
+                        } else {
+                            EstimatorId::RandomizedHt
+                        }
+                    },
                     antecedent_core::RandomizationDesign::Complete { .. }
                     | antecedent_core::RandomizationDesign::Stratified { .. }
                     | antecedent_core::RandomizationDesign::Cluster { .. } => {
@@ -1488,6 +1494,7 @@ impl StudyBuilder {
                     !matches!(
                         id,
                         EstimatorId::RandomizedHt
+                            | EstimatorId::RandomizedFixedCupedHt
                             | EstimatorId::RandomizedNeyman
                             | EstimatorId::RandomizedSurvivalProductLimit
                             | EstimatorId::LongitudinalIpwRegime

@@ -122,6 +122,7 @@ from .errors import CausalError, ReviewRequired
 from .experiment import (
     ANCOVAEstimate,
     ExperimentDesign,
+    FixedCUPED,
     RandomizedEffect,
     SwitchbackDesign,
     SwitchbackEffect,
@@ -193,6 +194,7 @@ __all__ = [
     "BinaryPolicy",
     "PolicyValue",
     "ExperimentDesign",
+    "FixedCUPED",
     "ANCOVAEstimate",
     "estimate_ancova_effect",
     "RandomizedEffect",

@@ -524,6 +524,9 @@ pub(crate) fn validate_query_ids(
         }
         Q::RandomizedEffect(wire) => {
             validate_id(wire.outcome, variable_count)?;
+            if let Some((covariate, _)) = wire.fixed_cuped {
+                validate_id(covariate, variable_count)?;
+            }
             let design = match &wire.design {
                 crate::RandomizationDesignWire::Bernoulli => {
                     antecedent_core::RandomizationDesign::Bernoulli
@@ -563,7 +566,11 @@ pub(crate) fn validate_query_ids(
                     std::sync::Arc::<str>::from(wire.treatment_arms.0.as_str()),
                     std::sync::Arc::<str>::from(wire.treatment_arms.1.as_str()),
                 ),
-            )
+            );
+            if let Some((covariate, coefficient)) = wire.fixed_cuped {
+                query = query.with_fixed_cuped(antecedent_core::VariableId::from_raw(covariate), coefficient);
+            }
+            query
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
         }
@@ -1509,6 +1516,23 @@ mod tests {
         let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
         let artifact = encode_causal_payload_artifact(&payload, vec!["outcome".into()], "cluster-itt-query").unwrap();
+        assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
+    }
+
+    #[test]
+    fn fixed_cuped_query_round_trips_with_covariate_identity() {
+        let domain = antecedent_core::RandomizedEffectQuery::bernoulli_itt(
+            antecedent_core::VariableId::from_raw(0),
+            [true, false, true, false], [0.5; 4],
+            ["a", "b", "c", "d"].map(std::sync::Arc::<str>::from),
+            ["r0", "r1", "r2", "r3"].map(std::sync::Arc::<str>::from),
+            ("control", "treated"),
+        ).with_fixed_cuped(antecedent_core::VariableId::from_raw(1), 4.0);
+        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
+        let payload = CausalPayloadWire::Query(Box::new(query.clone()));
+        let artifact = encode_causal_payload_artifact(
+            &payload, vec!["outcome".into(), "baseline".into()], "cuped-itt-query"
+        ).unwrap();
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

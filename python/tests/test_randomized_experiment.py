@@ -35,6 +35,44 @@ def test_randomized_effect_runs_in_the_retained_analysis_lifecycle():
     assert result.evidence_status == "off_axis"
 
 
+def test_fixed_cuped_runs_through_retained_analyze_with_declared_uncertainty():
+    assignment = [True, False] * 4
+    covariate = np.asarray([0., 0., 1., 1., 2., 2., 3., 3.])
+    outcomes = 2.0 * np.asarray(assignment, dtype=float) + 4.0 * covariate
+    query = ant.RandomizedEffect(
+        "outcome", _design(assignment),
+        cuped=ant.FixedCUPED("baseline", 4.0),
+    )
+    result = ant.analyze({"outcome": outcomes, "baseline": covariate}, query=query, refute="none")
+
+    assert result.answer.value == pytest.approx(2.0)
+    assert result.randomized_effect.effect == pytest.approx(2.0)
+    assert result.randomized_effect.uncertainty == "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
+    assert result.randomized_effect.variance_upper_bound == pytest.approx(1.0)
+    assert result.evidence_status == "off_axis"
+    assert result.query.cuped == query.cuped
+    assert any("fixed_pre_assignment_cuped" in item for item in result.assumptions or ())
+
+
+def test_fixed_cuped_refuses_unsupported_design_and_missing_baseline():
+    assignment = [True, False] * 4
+    with pytest.raises(CausalValueError, match="Bernoulli"):
+        ant.RandomizedEffect(
+            "outcome", _design(assignment, randomization=interference.CompleteRandomization(4)),
+            cuped=ant.FixedCUPED("baseline", 1.0),
+        )
+    with pytest.raises(Exception, match="baseline"):
+        ant.analyze(
+            {"outcome": np.asarray(assignment, dtype=float)},
+            query=ant.RandomizedEffect("outcome", _design(assignment), cuped=ant.FixedCUPED("baseline", 1.0)),
+            refute="none",
+        )
+    with pytest.raises(CausalUnsupportedError, match="through analyze or prepare"):
+        ant.RandomizedEffect("outcome", _design(assignment), cuped=ant.FixedCUPED("baseline", 1.0)).estimate(
+            {"outcome": np.asarray(assignment, dtype=float), "baseline": np.zeros(8)}
+        )
+
+
 def test_randomized_effect_rejects_non_itt_and_misaligned_units():
     with pytest.raises(CausalValueError, match="supports the ITT"):
         ant.ExperimentDesign(

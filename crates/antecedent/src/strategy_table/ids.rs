@@ -322,6 +322,8 @@ pub enum EstimatorId {
     InterferenceBayesianGaussian,
     /// Horvitz--Thompson design-based Bernoulli ITT.
     RandomizedHt,
+    /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
+    RandomizedFixedCupedHt,
     /// Difference-in-means ITT for complete or stratified randomization.
     RandomizedNeyman,
     /// Doubly robust held-out policy value under known randomized propensities.
@@ -723,6 +725,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "randomized.ht_itt",
             provenance: ("estimate.randomized.ht_itt", "estimate.randomized.ht_itt"),
         },
+        EstimatorId::RandomizedFixedCupedHt => EstimatorData {
+            name: "randomized.fixed_cuped_ht_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.fixed_cuped_ht_itt",
+            provenance: ("estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.fixed_cuped_ht_itt"),
+        },
         EstimatorId::RandomizedNeyman => EstimatorData {
             name: "randomized.neyman_itt",
             parallel_task_dimension: "analysis",
@@ -994,6 +1002,7 @@ pub fn validate_static_pair(
         | (
             IdentifierId::RandomizedDesign,
             EstimatorId::RandomizedHt
+            | EstimatorId::RandomizedFixedCupedHt
             | EstimatorId::RandomizedNeyman
             | EstimatorId::RandomizedDrPolicy
             | EstimatorId::RandomizedIpwPolicy
@@ -1165,7 +1174,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceHtHajek
         | EstimatorId::InterferenceClusterNeyman
         | EstimatorId::InterferenceBayesianGaussian => false,
-        EstimatorId::RandomizedHt | EstimatorId::RandomizedNeyman => {
+        EstimatorId::RandomizedHt | EstimatorId::RandomizedFixedCupedHt | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy => {
