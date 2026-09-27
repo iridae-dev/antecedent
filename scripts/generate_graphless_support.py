@@ -46,6 +46,9 @@ def load_rows() -> list[dict]:
             threshold = row.get(field, 0)
             if type(threshold) is not int or threshold < 0:
                 raise ValueError(f"{key}: invalid {field}")
+        maximum_covariates = row.get("max_covariates", 0)
+        if type(maximum_covariates) is not int or maximum_covariates < 0:
+            raise ValueError(f"{key}: invalid max_covariates")
         probability = row.get("min_probability", 0.0)
         if type(probability) not in (float, int) or not 0 <= probability <= 1:
             raise ValueError(f"{key}: invalid min_probability")
@@ -85,6 +88,7 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         "pub(super) struct GraphlessLicenseRow {",
         *(f"    pub(super) {field}: &'static str," for field in fields),
         *(f"    pub(super) {field}: usize," for field in INTEGER_LIMITS),
+        "    pub(super) max_covariates: usize,",
         "    pub(super) min_probability: f64,",
         "    pub(super) all_reported_intervals: bool,",
         *(f"    pub(super) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
@@ -95,6 +99,7 @@ def rust(rows: list[dict], *, io: bool = False) -> str:
         lines.append("    GraphlessLicenseRow {")
         lines.extend(f"        {field}: {json.dumps(row[field], ensure_ascii=False)}," for field in fields)
         lines.extend(f"        {field}: {row.get(field, 0)}," for field in INTEGER_LIMITS)
+        lines.append(f"        max_covariates: {row.get('max_covariates', 0)},")
         lines.append(f"        min_probability: {float(row.get('min_probability', 0.0))},")
         lines.append(f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},")
         lines.extend(f"        {field}: {str(row.get(field, False)).lower()}," for field in BOOLEAN_REQUIREMENTS)
@@ -126,6 +131,7 @@ def docs(rows: list[dict]) -> str:
                 [*(f"`{row[field]}`" for field in KEYS),
                  ", ".join([
                      *(f">= {row[field]} {field.removeprefix('min_').replace('_', ' ')}" for field in INTEGER_LIMITS if row.get(field)),
+                     *(f"<= {row['max_covariates']} covariates" for _ in [0] if row.get("max_covariates")),
                      *(f"probability >= {row['min_probability']}" for _ in [0] if row.get("min_probability")),
                      "all intervals" if row.get("all_reported_intervals") else "interval published",
                      *(field.removeprefix("requires_").replace("_", " ") for field in BOOLEAN_REQUIREMENTS if row.get(field)),

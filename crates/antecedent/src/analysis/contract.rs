@@ -553,6 +553,10 @@ impl PreparedStudy {
                 support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
                     .then(|| {
                         let (method, claim) = match randomized.assignment_design.as_ref() {
+                            "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_fixed_cuped_ht_score_normal_interval" =>
+                                ("fixed_cuped_ht_score", "pointwise_95_normal_interval"),
+                            "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_ancova_hc0_normal_interval" =>
+                                ("ancova_hc0", "pointwise_95_normal_interval"),
                             "bernoulli" => ("independent_action_ht_score", "pointwise_95_normal_interval"),
                             "complete" => ("neyman_difference_in_means", "pointwise_95_normal_interval"),
                             "cluster" => ("neyman_unit_weighted_cluster_totals", "pointwise_95_normal_interval"),

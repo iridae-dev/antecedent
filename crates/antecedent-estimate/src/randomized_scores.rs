@@ -177,29 +177,38 @@ mod tests {
         const REPLICATES: usize = 2_000;
         const N: usize = 400;
         let coefficient = 1.25;
-        let mut covered = 0;
-        for rep in 0..REPLICATES {
-            let mut adjusted = Vec::with_capacity(N);
-            let mut assignment = Vec::with_capacity(N);
-            let probabilities = vec![vec![0.5, 0.5]; N];
-            let mut truth = 0.0;
-            for i in 0..N {
-                let x = (0.19 * i as f64).sin();
-                let effect = 1.8 + 0.25 * (0.13 * i as f64).cos();
-                truth += effect / N as f64;
-                let treated = uniform((rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)) < 0.5;
-                let outcome = 2.0 + coefficient * x + 0.4 * (0.29 * i as f64).sin()
-                    + f64::from(treated) * effect;
-                adjusted.push(outcome - coefficient * x);
-                assignment.push(usize::from(treated));
+        for probability_case in ["low_boundary", "middle", "high_boundary", "heterogeneous"] {
+            let mut covered = 0;
+            for rep in 0..REPLICATES {
+                let mut adjusted = Vec::with_capacity(N);
+                let mut assignment = Vec::with_capacity(N);
+                let mut probabilities = Vec::with_capacity(N);
+                let mut truth = 0.0;
+                for i in 0..N {
+                    let x = (0.19 * i as f64).sin();
+                    let effect = 1.8 + 0.25 * (0.13 * i as f64).cos();
+                    truth += effect / N as f64;
+                    let p = match probability_case {
+                        "low_boundary" => 0.2,
+                        "middle" => 0.5,
+                        "high_boundary" => 0.8,
+                        _ => 0.2 + 0.6 * (i % 7) as f64 / 6.0,
+                    };
+                    let treated = uniform((rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                        ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)) < p;
+                    let outcome = 2.0 + coefficient * x + 0.4 * (0.29 * i as f64).sin()
+                        + f64::from(treated) * effect;
+                    adjusted.push(outcome - coefficient * x);
+                    assignment.push(usize::from(treated));
+                    probabilities.push(vec![1.0 - p, p]);
+                }
+                let fit = independent_action_contrast(&adjusted, &assignment, &probabilities, 0, 1).unwrap();
+                let [lower, upper] = fit.interval_95.expect("calibrated Bernoulli support");
+                covered += usize::from(lower <= truth && truth <= upper);
             }
-            let fit = independent_action_contrast(&adjusted, &assignment, &probabilities, 0, 1).unwrap();
-            let [lower, upper] = fit.interval_95.expect("calibrated Bernoulli support");
-            covered += usize::from(lower <= truth && truth <= upper);
+            let rate = covered as f64 / REPLICATES as f64;
+            eprintln!("fixed CUPED Bernoulli {probability_case} coverage: {covered}/{REPLICATES} = {rate:.4}");
+            assert!((0.93..=0.985).contains(&rate));
         }
-        let rate = covered as f64 / REPLICATES as f64;
-        eprintln!("fixed CUPED Bernoulli known-truth coverage: {covered}/{REPLICATES} = {rate:.4}");
-        assert!((0.93..=0.985).contains(&rate));
     }
 }
