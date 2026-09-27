@@ -785,7 +785,7 @@ declared treatment costs, availability, capacity, and budget limits. The caller
 must supply evaluation rows held out from policy selection; the API cannot
 verify that separation. This direct utility publishes point estimates only;
 the retained `PolicyValue` interval route is described below. Learned-policy
-guarantees and regret are not claimed. `uplift_by_score` also
+guarantees and unrestricted regret are not claimed. `uplift_by_score` also
 reports held-out HT contrasts and standard errors over caller-supplied ranked
 score bins; it does not fit or verify cross-fitted CATE scores. These are
 point utilities and do not add licensed support-matrix cells. The same module
@@ -820,6 +820,23 @@ Other executed interval designs remain off-axis. The 2,000-replicate binary
 IPW (90% and 95%) and held-out AIPW (95%) calibration tests are in
 `crates/antecedent-estimate/src/policy_value.rs`; route and artifact checks
 are in `crates/antecedent/tests/policy_value_route.rs`.
+The same retained `PolicyValue` query can carry 2–16 prespecified binary
+candidate policies and declare the subjects used to construct and select
+them. The selected policy must be one candidate, its construction IDs must
+be disjoint from evaluation IDs, and all candidates use the selected policy's
+treatment costs and feasible actions. Under known Bernoulli assignment with
+probabilities in [0.2, 0.8], at least 400 independent evaluation subjects,
+and 50 observed matching assignments per candidate, the native route
+estimates the gap between the best member of that finite class and the
+selected member. It reports a simultaneous 95% Bonferroni interval using
+paired candidate-minus-selected row scores. This target does not include
+policies outside the declared class. The artifact binds candidate values,
+paired standard errors, selected index, and interval endpoints, and rejects
+fabricated bounds. In 2,000 known-truth allocations, the interval covered the
+class regret in 1,974 draws at treatment probability 0.2 and 1,980 at 0.5.
+The result is explicitly off the graphless licensed matrix; training
+independence and randomization remain caller-declared. The fresh-wheel public
+policy suite passes 15/15, including retained evaluation and artifact loading.
 `MultiActionPolicyValue(..., baseline_groups=...)` also retains pre-treatment
 group labels and reports each action-versus-control contrast within each group
 as a multi-action CATE. Every group needs observed control and each action,
