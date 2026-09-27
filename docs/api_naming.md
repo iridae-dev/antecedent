@@ -33,6 +33,9 @@ error; it requires at least two sequences and both arms observed per sequence,
 and assumes no carryover from earlier assignments. `SwitchbackEffect` also
 uses retained `analyze`, preserving sequence and period identity with a
 point-only sequence variance; it does not add a licensed support cell.
+`experiment.ComplierEffect` adds the retained Bernoulli encouragement
+CACE/LATE query with observed receipt, a positive first stage, and no interval;
+its result is also off the support-matrix axis.
 `estimate_ancova_effect` complements
 one-covariate CUPED with multiple pre-treatment covariates for independent
 Bernoulli assignment, reporting the OLS treatment coefficient, adjustment

@@ -195,7 +195,7 @@ _EXPECTED_STAGE_ALL = {
     },
     "design": {"DecisionEvaluation", "DesignRanking", "evaluate_decision", "rank_designs"},
     "experiment": {
-        "ANCOVAEstimate", "ComplierEffectEstimate", "CUPEDEstimate", "ExperimentDesign", "FixedCUPED",
+        "ANCOVAEstimate", "ComplierEffect", "ComplierEffectEstimate", "CUPEDEstimate", "ExperimentDesign", "FixedCUPED",
         "MultiArmContrast", "MultiArmExperimentEstimate",
         "RandomizedEffect", "RandomizedExperimentEstimate", "RandomizationTest",
         "StratifiedRandomization",
