@@ -64,6 +64,95 @@ pub fn pointwise_intervals_95(
     intervals.policy.iter().chain(intervals.incremental.iter()).all(|v| v.is_finite()).then_some(intervals)
 }
 
+/// Regret against a prespecified finite class of binary policies, evaluated on
+/// subjects independent of policy selection and construction. The selected
+/// policy must be one member of `candidates`; the oracle is the best member of
+/// this class, not the best unrestricted policy.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixedCandidateRegret {
+    /// Estimated net value of each candidate in input order.
+    pub candidate_values: Vec<f64>,
+    /// Plug-in best-candidate minus selected-candidate value.
+    pub regret: f64,
+    /// Simultaneous 95% interval for finite-class regret. It covers all paired
+    /// candidate contrasts through a Bonferroni family bound.
+    pub interval_95: [f64; 2],
+    /// Index of the prespecified selected candidate.
+    pub selected_index: usize,
+}
+
+/// Evaluate fixed recommendations with known Bernoulli propensities and paired
+/// Horvitz-Thompson scores. `held_out_from_selection` is an explicit caller
+/// declaration; a retained route must bind it to fold/data provenance before
+/// publishing this interval. Candidate actions may depend on baseline features
+/// but cannot depend on these evaluation outcomes or assignments.
+pub fn evaluate_fixed_candidate_regret(
+    outcome: &[f64], assignment: &[bool], propensity: &[f64],
+    candidates: &[Vec<bool>], selected_index: usize, treatment_cost: &[f64],
+    held_out_from_selection: bool,
+) -> Result<FixedCandidateRegret, &'static str> {
+    let n = outcome.len();
+    let k = candidates.len();
+    if !held_out_from_selection {
+        return Err("finite-class regret requires held-out candidate selection and construction");
+    }
+    if n < 400 || !(2..=16).contains(&k) || selected_index >= k
+        || assignment.len() != n || candidates.iter().any(|actions| actions.len() != n)
+        || !(propensity.len() == 1 || propensity.len() == n)
+        || !(treatment_cost.len() == 1 || treatment_cost.len() == n)
+    {
+        return Err("finite-class regret requires 400 subjects and 2–16 aligned fixed candidates");
+    }
+    let at = |values: &[f64], i: usize| values[if values.len() == 1 { 0 } else { i }];
+    if outcome.iter().any(|value| !value.is_finite())
+        || (0..n).any(|i| !at(propensity, i).is_finite()
+            || !(0.2..=0.8).contains(&at(propensity, i))
+            || !at(treatment_cost, i).is_finite() || at(treatment_cost, i) < 0.0)
+    {
+        return Err("finite-class regret requires finite outcomes, costs, and randomized overlap at least 0.2");
+    }
+    let mut scores = Vec::with_capacity(k);
+    for actions in candidates {
+        let matches = (0..n).filter(|&i| assignment[i] == actions[i]).count();
+        if matches < 50 {
+            return Err("each candidate requires at least 50 observed matching assignments");
+        }
+        scores.push((0..n).map(|i| {
+            let p = at(propensity, i);
+            let response = if assignment[i] == actions[i] {
+                outcome[i] / if actions[i] { p } else { 1.0 - p }
+            } else { 0.0 };
+            response - f64::from(actions[i]) * at(treatment_cost, i)
+        }).collect::<Vec<_>>());
+    }
+    let means = scores.iter().map(|row| row.iter().sum::<f64>() / n as f64)
+        .collect::<Vec<_>>();
+    let selected = &scores[selected_index];
+    let critical = antecedent_stats::normal_ppf(1.0 - 0.05 / (2.0 * (k - 1) as f64));
+    let mut lower: f64 = 0.0;
+    let mut upper: f64 = 0.0;
+    let mut regret: f64 = 0.0;
+    for (j, candidate) in scores.iter().enumerate() {
+        if j == selected_index { continue; }
+        let difference = means[j] - means[selected_index];
+        let variance = candidate.iter().zip(selected).map(|(a, b)| {
+            let centered = (a - b) - difference;
+            centered * centered
+        }).sum::<f64>() / (n * (n - 1)) as f64;
+        let span = critical * variance.sqrt();
+        if !span.is_finite() {
+            return Err("finite-class regret paired scores must have finite variance");
+        }
+        regret = regret.max(difference);
+        lower = lower.max(difference - span);
+        upper = upper.max(difference + span);
+    }
+    Ok(FixedCandidateRegret {
+        candidate_values: means, regret,
+        interval_95: [lower, upper], selected_index,
+    })
+}
+
 /// Held-out inverse-probability uplift for one descending score bin.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct UpliftBinScore {
@@ -678,5 +767,66 @@ mod tests {
         assert!(bins[1].effect.abs() < 1e-12);
         assert!(bins.iter().all(|bin| bin.standard_error.is_finite()));
         assert!(evaluate_uplift_bins(&[1.0, 2.0], &[false, true], &[0.5], &[0, 1], 2).is_err());
+    }
+
+    #[test]
+    fn finite_fixed_class_regret_simultaneous_interval_covers_oracle_gap() {
+        const DRAWS: usize = 2_000;
+        const N: usize = 400;
+        let candidates = vec![
+            vec![false; N], vec![true; N],
+            (0..N).map(|i| i % 2 == 0).collect(),
+            (0..N).map(|i| i % 2 == 1).collect(),
+        ];
+        let mut state = 0x6d3a_9f12_98e7_b40d_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        for p in [0.2, 0.5] {
+            let mut covered = 0;
+            for _ in 0..DRAWS {
+                let assignment = (0..N).map(|_| uniform() < p).collect::<Vec<_>>();
+                let outcome = assignment.iter().enumerate().map(|(i, &treated)| {
+                    1.0 + f64::from(i % 2 == 1) * 0.5
+                        + if treated { if i % 2 == 0 { 2.0 } else { -1.0 } } else { 0.0 }
+                        + 2.0 * (uniform() - 0.5)
+                }).collect::<Vec<_>>();
+                let estimate = evaluate_fixed_candidate_regret(
+                    &outcome, &assignment, &[p], &candidates, 1, &[0.2], true,
+                ).unwrap();
+                // The even-subgroup policy is the class oracle. Its net gain
+                // is 0.9, versus 0.3 for selected treat-all: regret = 0.6.
+                covered += usize::from(estimate.interval_95[0] <= 0.6
+                    && 0.6 <= estimate.interval_95[1]);
+                assert!(estimate.interval_95[0] >= 0.0);
+                assert!(estimate.interval_95[0] <= estimate.interval_95[1]);
+            }
+            println!("finite-class regret p={p}: {covered}/{DRAWS} simultaneous intervals cover 0.6");
+            assert!((0.94..=1.0).contains(&(covered as f64 / DRAWS as f64)),
+                "p={p} simultaneous regret coverage {covered}/{DRAWS}");
+        }
+    }
+
+    #[test]
+    fn finite_fixed_class_regret_refuses_unowned_selection_and_sparse_support() {
+        let n = 400;
+        let outcome = vec![1.0; n];
+        let assignments = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
+        let candidates = vec![vec![false; n], vec![true; n]];
+        let evaluate = |assignment: &[bool], p: f64, held_out| {
+            evaluate_fixed_candidate_regret(
+                &outcome, assignment, &[p], &candidates, 0, &[0.0], held_out,
+            )
+        };
+        assert!(evaluate(&assignments, 0.5, false).is_err());
+        assert!(evaluate(&assignments, 0.1, true).is_err());
+        assert!(evaluate(&vec![true; n], 0.5, true).is_err());
+        assert!(evaluate_fixed_candidate_regret(
+            &outcome, &assignments, &[0.5], &candidates, 2, &[0.0], true,
+        ).is_err());
     }
 }
