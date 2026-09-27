@@ -298,3 +298,37 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
             ),
             refute="none",
         )
+
+
+def test_retained_held_out_policy_intervals_and_crossfit_refusal():
+    n = 120
+    assignment = [i % 2 == 1 for i in range(n)]
+    actions = [i % 3 == 0 for i in range(n)]
+    y = [1.0 + 2.0 * int(assignment[i]) + (i % 5) / 10 for i in range(n)]
+    common = dict(
+        outcome="y", assignment=assignment, propensity=0.5,
+        policy=policy.BinaryPolicy(actions, costs=0.1),
+        evaluation_subject_ids=[f"eval-{i}" for i in range(n)],
+        mu0=[1.0] * n, mu1=[3.0] * n,
+    )
+    held_out = policy.PolicyValue(**common, training_subject_ids=["train-1", "train-2"])
+    result = ant.analyze({"y": y}, query=held_out, refute="none")
+    answer = result.policy_value
+    assert answer.policy_value_interval_95 is not None
+    assert answer.incremental_value_interval_95 is not None
+    assert answer.policy_value_interval_95[0] < answer.policy_value < answer.policy_value_interval_95[1]
+    assert answer.incremental_value_interval_95[0] < answer.incremental_value < answer.incremental_value_interval_95[1]
+    assert answer.support_status == "off_axis_pointwise_95"
+    artifact = ant.load(result.export(artifact_id="policy-interval"))
+    assert artifact.answer.structured["policy_interval_95"] == pytest.approx(answer.policy_value_interval_95)
+    assert artifact.answer.structured["incremental_interval_95"] == pytest.approx(answer.incremental_value_interval_95)
+
+    crossfit = policy.PolicyValue(
+        **common,
+        fold_ids=[i % 2 for i in range(n)],
+        prediction_excluded_fold_ids=[i % 2 for i in range(n)],
+    )
+    point_only = ant.analyze({"y": y}, query=crossfit, refute="none").policy_value
+    assert point_only.policy_value_interval_95 is None
+    assert point_only.incremental_value_interval_95 is None
+    assert point_only.support_status == "unlicensed_point_utility"

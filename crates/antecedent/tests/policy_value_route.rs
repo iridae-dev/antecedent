@@ -95,6 +95,45 @@ fn policy_query_refuses_missing_ownership_or_overlap() {
 }
 
 #[test]
+fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only() {
+    let n = 120;
+    let assignment = (0..n).map(|i| i % 2 == 1).collect::<Vec<_>>();
+    let actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + (i % 5) as f64 / 10.0).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let mut q = query();
+    q.assignment = assignment.into();
+    q.actions = actions.into();
+    q.reference = vec![false; n].into();
+    q.mu0 = vec![1.0; n].into();
+    q.mu1 = vec![3.0; n].into();
+    q.evaluation_subject_ids = (0..n).map(|i| Arc::<str>::from(format!("evaluation-{i}"))).collect::<Vec<_>>().into();
+    let ctx = ExecutionContext::for_tests(44);
+    let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let value = result.policy_value.as_ref().unwrap();
+    let policy_ci = value.policy_interval_95.unwrap();
+    let incremental_ci = value.incremental_interval_95.unwrap();
+    assert!(policy_ci[0] < value.policy_value && value.policy_value < policy_ci[1]);
+    assert!(incremental_ci[0] < value.incremental_value && value.incremental_value < incremental_ci[1]);
+    let bytes = prepared.encode_contracted_result(&result, "policy-interval", &ctx).unwrap();
+    let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, Some(policy_ci));
+    assert_eq!(body.policy_value.as_ref().unwrap().incremental_interval_95, Some(incremental_ci));
+    body.policy_value.as_mut().unwrap().incremental_interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-policy").is_err());
+
+    q.disjoint_training_subjects = false;
+    q.crossfit_fold_ownership_valid = true;
+    let crossfit = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q)).build().unwrap();
+    let crossfit_result = crossfit.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    let point_only = crossfit_result.policy_value.unwrap();
+    assert!(point_only.policy_interval_95.is_none());
+    assert!(point_only.incremental_interval_95.is_none());
+}
+
+#[test]
 fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
     let y = [1.0, 3.0, 1.0, 3.0];
     let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
