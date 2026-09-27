@@ -55,8 +55,8 @@ from .experiment import (
     BernoulliAssignment,
     ComplierEffect,
     FactorialRandomization,
-    RandomizedEffect,
     MultiArmExperimentDesign,
+    RandomizedEffect,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
     SwitchbackEffect,
@@ -393,7 +393,9 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         treatment_units=section.treatment_units,
         minimum_assignment_probability=section.minimum_assignment_probability,
         uncertainty=section.uncertainty,
-        support_status="off_axis_interval_evidence" if section.interval_95 is not None else "unlicensed_off_matrix",
+        support_status=(section.graphless_support_status
+                        or ("off_axis_interval_evidence" if section.interval_95 is not None
+                            else "unlicensed_off_matrix")),
     )
 
 

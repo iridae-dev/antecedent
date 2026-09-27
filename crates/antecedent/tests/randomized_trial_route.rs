@@ -20,12 +20,54 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let fit = result.randomized_effect.as_ref().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);
+        assert_eq!(result.support_status, if matches!(design, "complete" | "cluster") {
+            Some(antecedent::support::CellStatus::Licensed)
+        } else {
+            None
+        });
         assert!(lower <= fit.effect && fit.effect <= upper);
         assert!(fit.standard_error.unwrap() > 0.0);
         assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::AnalyticSe);
+        let executed_contract = prepared.contract_for_result(&result).unwrap();
+        assert_eq!(executed_contract.support_status, result.support_status);
+        let support = executed_contract.reasoning.support.as_ref().unwrap();
+        assert_eq!(support.matrix_status.as_ref(), if matches!(design, "complete" | "cluster") {
+            "licensed"
+        } else { "off_axis" });
+        assert_eq!(support.matrix_coordinate.is_some(), matches!(design, "complete" | "cluster"));
         let bytes = prepared.encode_contracted_result(&result, "randomized-interval", &ctx).unwrap();
-        let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+        let (encoded, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
         assert_eq!(artifact.randomized_effect.as_ref().unwrap().interval_95, Some([lower, upper]));
+        assert_eq!(artifact.randomized_effect.as_ref().unwrap().graphless_support_status.as_deref(),
+            matches!(design, "complete" | "cluster").then_some("licensed"));
+        let mut forged_license = artifact.clone();
+        forged_license.randomized_effect.as_mut().unwrap().graphless_support_status =
+            Some(if matches!(design, "complete" | "cluster") { "refused" } else { "licensed" }.into());
+        assert!(antecedent_io::encode_analysis_result_artifact(
+            &forged_license, header.variable_names.clone(), "forged-license").is_err());
+        if matches!(design, "complete" | "cluster") {
+            // A pre-matrix artifact has no support-status field. It remains
+            // readable as a legacy off-axis result, but a new encoder must
+            // restamp the exact licensed status before issuing an artifact.
+            let mut legacy_body = artifact.clone();
+            legacy_body.randomized_effect.as_mut().unwrap().graphless_support_status = None;
+            assert!(antecedent_io::encode_analysis_result_artifact(
+                &legacy_body, header.variable_names.clone(), "legacy-new-encode").is_err());
+            let mut legacy_container = encoded.clone();
+            let body_index = legacy_container.sections.iter().position(|section|
+                section.id == "analysis_result.body").unwrap();
+            let body_bytes = antecedent_io::to_cbor(&legacy_body).unwrap();
+            let (descriptor, section) = antecedent_io::pack_section_shared(
+                "analysis_result.body", "application/cbor", body_bytes.into(),
+                antecedent_io::CompressPolicy::Auto,
+            );
+            legacy_container.sections[body_index] = section;
+            legacy_container.manifest.sections[body_index] = descriptor;
+            let mut old_bytes = Vec::new();
+            legacy_container.write_to(&mut old_bytes).unwrap();
+            let (_, _, old_body) = antecedent_io::decode_analysis_result_artifact(&old_bytes).unwrap();
+            assert!(old_body.randomized_effect.unwrap().graphless_support_status.is_none());
+        }
         let mut tampered = artifact.clone();
         tampered.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
         assert!(antecedent_io::encode_analysis_result_artifact(
@@ -101,6 +143,30 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         VariableId::from_raw(0), first, vec![0.5; n], units(n), units(n),
         ("control", "treated"),
     ), &outcomes, "factorial_2x2");
+}
+
+#[test]
+fn graphless_interval_license_refuses_zero_variance_despite_assignment_support() {
+    use antecedent_core::RandomizationDesign;
+
+    let n = 60;
+    let assignments = (0..n).map(|i| i < 30).collect::<Vec<_>>();
+    let units = (0..n).map(|i| Arc::<str>::from(format!("unit-{i}"))).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| if i < 30 { 3.0 } else { 1.0 }).collect::<Vec<_>>();
+    for design in [
+        RandomizationDesign::Complete { treated_units: 30 },
+        RandomizationDesign::Cluster { treated_clusters: 30 },
+    ] {
+        let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+        let query = RandomizedEffectQuery::with_design(
+            design, VariableId::from_raw(0), assignments.clone(), vec![0.5; n],
+            units.clone(), units.clone(), ("control", "treated"),
+        );
+        let ctx = ExecutionContext::for_tests(0xD364_E123);
+        let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
+        assert_eq!(result.randomized_effect.as_ref().unwrap().interval_95, None);
+        assert_eq!(result.support_status, None);
+    }
 }
 
 #[test]

@@ -1,0 +1,134 @@
+"""Generate exact graphless support licenses for Rust and documentation."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from pathlib import Path
+
+import tomllib
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "parity/support_graphless.toml"
+RUST = ROOT / "crates/antecedent/src/support_graphless_data.rs"
+IO_RUST = ROOT / "crates/antecedent-io/src/support_graphless_data.rs"
+DOC = ROOT / "docs/graphless-support-matrix.md"
+KEYS = ("family", "design", "method", "inference_claim")
+
+
+def load_rows() -> list[dict]:
+    rows = tomllib.loads(SOURCE.read_text())["license"]
+    seen: set[tuple[str, ...]] = set()
+    for row in rows:
+        key = tuple(row[field] for field in KEYS)
+        if key in seen:
+            raise ValueError(f"duplicate graphless support key: {key}")
+        seen.add(key)
+        for field in (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations"):
+            if not isinstance(row.get(field), str) or not row[field].strip():
+                raise ValueError(f"{key}: missing {field}")
+        if row["assignment_unit"] not in ("unit", "cluster"):
+            raise ValueError(f"{key}: unsupported assignment unit")
+        threshold = row.get("min_assignment_units_per_arm")
+        if type(threshold) is not int or threshold < 2:
+            raise ValueError(f"{key}: invalid support threshold")
+        for evidence in ("known_truth_test", "retained_route_test"):
+            path, sep, function = row[evidence].partition("::")
+            if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
+                raise ValueError(f"{key}: invalid {evidence} citation")
+            source = ROOT / path
+            if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text()):
+                raise ValueError(f"{key}: missing {evidence} function")
+            if evidence == "known_truth_test" and row["inference_claim"] == "pointwise_95_normal_interval":
+                body = re.search(
+                    rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
+                    source.read_text(), re.DOTALL,
+                )
+                if body is None or not all(
+                    token in body.group(1)
+                    for token in ("REPLICATES: usize = 2_000", "truth", "covered", "interval_95", "0.93..=0.985")
+                ):
+                    raise ValueError(f"{key}: interval evidence must run the 2,000-allocation known-truth coverage gate")
+    return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
+
+
+def rust(rows: list[dict], *, io: bool = False) -> str:
+    fields = (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations")
+    lines = [
+        "//! Generated from parity/support_graphless.toml; do not edit by hand.",
+        *(["#[allow(dead_code)] // Evidence citations are used by the generator gate, not IO validation."] if io else []),
+        "pub(super) struct GraphlessLicenseRow {",
+        *(f"    pub(super) {field}: &'static str," for field in fields),
+        "    pub(super) min_assignment_units_per_arm: usize,",
+        "}",
+        "pub(super) const LICENSES: &[GraphlessLicenseRow] = &[",
+    ]
+    for row in rows:
+        lines.append("    GraphlessLicenseRow {")
+        lines.extend(f"        {field}: {json.dumps(row[field])}," for field in fields)
+        lines.append(f"        min_assignment_units_per_arm: {row['min_assignment_units_per_arm']},")
+        lines.append("    },")
+    return "\n".join([*lines, "];", ""])
+
+
+def docs(rows: list[dict]) -> str:
+    lines = [
+        "# Graphless design-family support matrix",
+        "",
+        "This table is separate from the graph/structure support axes in",
+        "[the geometric matrix](support-matrix.md). A query is licensed only when",
+        "its exact family, design, method, inference claim, and observed",
+        "assignment-unit counts match a row. All other combinations are refused.",
+        "That refusal means no matrix license; off-axis point results may still",
+        "execute. The route must validate its stated design and assumptions.",
+        "",
+        "| Family | Design | Method | Inference claim | Assignment support | Evidence |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for row in rows:
+        evidence = ", ".join(
+            f"[`{row[field].split('::')[-1]}`](../{row[field].split('::')[0]})"
+            for field in ("known_truth_test", "retained_route_test")
+        )
+        lines.append(
+            "| " + " | ".join(
+                [*(f"`{row[field]}`" for field in KEYS),
+                 f">= {row['min_assignment_units_per_arm']} {row['assignment_unit']}s per arm; interval published",
+                 evidence]
+            ) + " |"
+        )
+    lines.append("")
+    for row in rows:
+        lines.append(f"**{row['design']} limits:** {row['limitations']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true")
+    parser.add_argument("--evidence-tests", action="store_true")
+    args = parser.parse_args()
+    rows = load_rows()
+    if args.evidence_tests:
+        citations = sorted({row[field] for row in rows for field in ("known_truth_test", "retained_route_test")})
+        for citation in citations:
+            path, function = citation.split("::")
+            if path.startswith("crates/antecedent-estimate/src/"):
+                print(f"antecedent-estimate\tlib\t-\t{function}")
+            elif path.startswith("crates/antecedent/tests/"):
+                print(f"antecedent\ttest\t{Path(path).stem}\t{function}")
+            else:
+                raise ValueError(f"unsupported graphless evidence target: {path}")
+        return
+    for target, expected in ((RUST, rust(rows)), (IO_RUST, rust(rows, io=True)), (DOC, docs(rows))):
+        if args.check:
+            if not target.exists() or target.read_text() != expected:
+                raise SystemExit(f"{target.relative_to(ROOT)} is stale; regenerate graphless support")
+        else:
+            target.write_text(expected)
+
+
+if __name__ == "__main__":
+    main()

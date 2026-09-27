@@ -23,6 +23,13 @@ and [docs/development.md](../docs/development.md).
 - [support_n_a.toml](support_n_a.toml)
 - [support_closed.toml](support_closed.toml)
 - [support_licensed.toml](support_licensed.toml)
+- [support_graphless.toml](support_graphless.toml) — exact graphless design,
+  method, and inference licenses with assignment-unit support gates. It is
+  generated into a separate Rust lookup and
+  [graphless support page](../docs/graphless-support-matrix.md); absent keys
+  default to refusal and cannot inherit a geometric cell. Run
+  `bash scripts/gate_graphless_support.sh` to check generated output and execute
+  the cited calibration and retained-route evidence.
 
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 

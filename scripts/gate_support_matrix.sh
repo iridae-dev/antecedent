@@ -23,6 +23,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   exec python3 "$ROOT/scripts/test_evidence_selftest.py"
 fi
 
+bash scripts/gate_graphless_support.sh
+
 python3 - <<'PY'
 from __future__ import annotations
 

@@ -1,0 +1,24 @@
+# Exact graphless design-family licenses. Every absent key and unmet support
+# threshold is refused. These rows do not inherit geometric support cells.
+
+[[license]]
+family = "randomized_effect"
+design = "complete"
+method = "neyman_difference_in_means"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "unit"
+min_assignment_units_per_arm = 30
+known_truth_test = "crates/antecedent-estimate/src/randomized_neyman.rs::complete_interval_support_boundary_covers_known_itt"
+retained_route_test = "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering"
+limitations = "Known complete assignment, independent units, binary ITT, at least 30 units per arm, and an actually published interval (positive realized variance). Conservative Neyman variance and a pointwise 95% normal interval; no simultaneous interval, CACE, adjustment, or other assignment design is licensed by this row."
+
+[[license]]
+family = "randomized_effect"
+design = "cluster"
+method = "neyman_unit_weighted_cluster_totals"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 30
+known_truth_test = "crates/antecedent-estimate/src/randomized_neyman.rs::cluster_interval_support_boundary_covers_known_itt"
+retained_route_test = "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering"
+limitations = "Known complete cluster assignment, independent clusters, binary unit-weighted ITT, at least 30 clusters per arm, and an actually published interval (positive realized variance). Conservative cluster-total variance and a pointwise 95% normal interval; no observational network exposure or other assignment design is licensed by this row."

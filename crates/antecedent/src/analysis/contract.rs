@@ -516,7 +516,28 @@ impl PreparedStudy {
                 detail: "result was not executed under this prepared contract",
             });
         }
-        Ok(compiled)
+        let (mut contract, payloads) = compiled;
+        if let Some(randomized) = &result.randomized_effect {
+            // Preparation cannot know the realized outcome variance. Keep the
+            // program identity fixed, then bind the executed graphless license
+            // in the result-specific reasoning and claim only after estimation.
+            contract.support_status = result.support_status;
+            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
+                support.matrix_status = Arc::from(result.support_status
+                    .map_or("off_axis", CellStatus::as_str));
+                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
+                    .then(|| Arc::from(format!(
+                        "graphless:randomized_effect/{}/{}/pointwise_95_normal_interval",
+                        randomized.assignment_design,
+                        if randomized.assignment_design.as_ref() == "complete" {
+                            "neyman_difference_in_means"
+                        } else {
+                            "neyman_unit_weighted_cluster_totals"
+                        },
+                    )));
+            }
+        }
+        Ok((contract, payloads))
     }
 
     /// Score-table reuse key. Stricter than identification: folds, rows,
@@ -3394,6 +3415,9 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 treatment_units: randomized.treatment_units,
                 minimum_assignment_probability: randomized.minimum_assignment_probability,
                 uncertainty: randomized.uncertainty.to_string(),
+                graphless_support_status: result.support_status
+                    .map(crate::support::CellStatus::as_str)
+                    .map(str::to_string),
             }
         }),
         survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {

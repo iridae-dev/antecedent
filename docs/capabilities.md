@@ -639,8 +639,12 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   probabilities at least 0.2 on every row. Smaller designs retain their point
   and labeled variance without an interval. The native estimator's repeated
   randomization fixtures score each reported interval against a known
-  finite-population effect; these off-axis routes do not gain a support-matrix
-  license from that evidence.
+  finite-population effect. Exact complete-unit and complete-cluster ITT
+  results with at least 30 independent assignment units per arm, positive
+  realized variance, and a published pointwise 95% normal interval are
+  licensed by the separate [graphless support matrix](graphless-support-matrix.md).
+  Sparse or degenerate results and the other randomized interval designs remain
+  off-axis; their intervals do not inherit this license.
   `SwitchbackEffect` also runs through retained `analyze` with row-aligned
   sequence and period labels, known marginal assignment probabilities, and
   a sequence-clustered sandwich variance. It requires two independent

@@ -611,6 +611,32 @@ impl CheckedRandomizedOperation {
             outcome_units: Arc::clone(&self.query.outcome_units),
             treatment_arms: self.query.treatment_arms.clone(),
         });
+        // Graphless licenses are exact design/method/inference claims. A
+        // published interval alone is insufficient: sparse or other designs
+        // must not inherit a geometric matrix coordinate by analogy.
+        let (design, method, assignment_unit) = match self.query.design {
+            antecedent_core::RandomizationDesign::Complete { .. } =>
+                ("complete", "neyman_difference_in_means", "unit"),
+            antecedent_core::RandomizationDesign::Cluster { .. } =>
+                ("cluster", "neyman_unit_weighted_cluster_totals", "cluster"),
+            _ => ("unlicensed", "unlicensed", "unit"),
+        };
+        let claim = if interval_95.is_some() {
+            "pointwise_95_normal_interval"
+        } else {
+            "point_only"
+        };
+        if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "randomized_effect", design, method, inference_claim: claim,
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit, treated: treatment_units, control: control_units,
+                interval_95_published: interval_95.is_some(),
+            },
+        ) {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         result.rebind_interval(false);
         result.treatment = None;
         Ok(result)
