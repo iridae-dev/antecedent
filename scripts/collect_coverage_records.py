@@ -44,6 +44,13 @@ that still owe a re-measurement. Without it the registry is exactly the logs.
 `--retag` rewrites only the `facets` of the existing records (after a change
 to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
 
+For a small independently measured workstream while older records still owe
+re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION`
+adds only new IDs from valid, stamped logs, rejects collisions, preserves every
+older record with its original SHA (including stale records), and syncs only
+the named licensed cells. It leaves the global gate ledger and estimator rows
+alone; preserving an older row does not attest or re-license it.
+
 `--smoke --log-dir <dir> --out <file>` collects the lines of a wiring smoke run
 (`ANTECEDENT_CALIBRATION_SMOKE=1` at a reduced replicate count) into a scratch
 registry. Smoke lines measure nothing: every other invocation refuses them, and
@@ -552,7 +559,10 @@ def replace_pair(
     return "\n".join(kept) + "\n\n"
 
 
-def sync_licensed_cells(records: dict[str, dict]) -> int:
+def sync_licensed_cells(
+    records: dict[str, dict],
+    only_cells: set[tuple[str, str, str, str, str]] | None = None,
+) -> int:
     cells = tomllib.loads(LICENSED.read_text()).get("cell", [])
     by_coordinate: dict[tuple[str, str, str, str], list[str]] = {}
     for rid, rec in records.items():
@@ -562,7 +572,16 @@ def sync_licensed_cells(records: dict[str, dict]) -> int:
     blocks = text.split("[[cell]]")
     out = [blocks[0]]
     changed = 0
+    seen: set[tuple[str, str, str, str, str]] = set()
     for block, cell in zip(blocks[1:], cells, strict=True):
+        cell_key = (
+            cell["query"], cell["graph_class"], cell["structure"],
+            cell["inference"], cell["validation"],
+        )
+        if only_cells is not None and cell_key not in only_cells:
+            out.append(block)
+            continue
+        seen.add(cell_key)
         structures = ["graph_posterior"] if cell["structure"] == "graph_posterior" else ["fixed"]
         ids = sorted(
             rid
@@ -579,6 +598,8 @@ def sync_licensed_cells(records: dict[str, dict]) -> int:
         new_block = replace_pair(block, ids, reason, all_boundary_at_reported_level(ids, records))
         changed += int(new_block != block)
         out.append(new_block)
+    if only_cells is not None and seen != only_cells:
+        raise SystemExit(f"unknown --only-cell coordinates: {sorted(only_cells - seen)}")
     LICENSED.write_text("[[cell]]".join(out))
     return changed
 
@@ -602,9 +623,30 @@ def sync_estimator_rows(records: dict[str, dict]) -> int:
     return changed
 
 
+def append_attested_records(existing: dict[str, dict], measured: dict[str, dict]) -> dict[str, dict]:
+    """Add only new record IDs, preserving old rows and their original SHAs."""
+    collisions = sorted(existing.keys() & measured.keys())
+    if collisions:
+        raise SystemExit("--append-attested refuses existing record ids:\n  " + "\n  ".join(collisions))
+    return {**existing, **measured}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sha", help="commit the logs were measured at (default: HEAD)")
+    parser.add_argument(
+        "--append-attested",
+        action="store_true",
+        help="append new attested records without deleting existing, possibly stale rows; "
+        "requires --only-cell and does not rewrite the global gate ledger",
+    )
+    parser.add_argument(
+        "--only-cell",
+        action="append",
+        default=[],
+        metavar="QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION",
+        help="licensed cell to sync when appending (repeat for each exact cell)",
+    )
     parser.add_argument(
         "--no-cells",
         action="store_true",
@@ -636,6 +678,16 @@ def main() -> int:
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.append_attested and (args.keep_attested or args.no_cells or not args.only_cell):
+        raise SystemExit("--append-attested requires --only-cell and forbids --keep-attested/--no-cells")
+    if args.only_cell and not args.append_attested:
+        raise SystemExit("--only-cell is only valid with --append-attested")
+    only_cells = set()
+    for raw in args.only_cell:
+        parts = tuple(raw.split(":"))
+        if len(parts) != 5 or any(not part for part in parts):
+            raise SystemExit(f"bad --only-cell coordinate: {raw}")
+        only_cells.add(parts)
     if args.smoke or args.out:
         if not (args.smoke and args.out):
             raise SystemExit("--smoke and --out go together: a smoke run writes a scratch registry")
@@ -673,7 +725,10 @@ def main() -> int:
                 "the statistical surface differs from HEAD, so these logs do not describe "
                 "a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
             )
-    if not args.keep_attested:
+    if args.append_attested:
+        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        records = append_attested_records(existing, records)
+    elif not args.keep_attested:
         dropped = sorted(
             {rec["id"] for rec in facets.load_records(OUT)} - set(records) - set(args.allow_removal)
         )
@@ -690,6 +745,11 @@ def main() -> int:
         records = {**kept, **records}
     write_registry(records)
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
+    if args.append_attested:
+        cells = sync_licensed_cells(records, only_cells)
+        print(f"appended {len(records) - len(existing)} records; synced {cells} selected licensed cells")
+        subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
+        return 0
     previous = (
         {g["group"]: g for g in tomllib.loads(GATES.read_text()).get("gate", [])}
         if args.keep_attested and GATES.is_file()
