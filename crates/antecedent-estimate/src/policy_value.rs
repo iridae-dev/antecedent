@@ -769,6 +769,69 @@ mod tests {
     }
 
     #[test]
+    fn crossfit_aipw_policy_intervals_cover_known_values() {
+        // Independently randomized evaluation subjects with five-fold
+        // cross-fitted outcome nuisances: each fold's mu0/mu1 predictions are
+        // the control and treated sample means computed on the other four
+        // folds, so no row uses its own outcome. Cross-fitting removes
+        // own-observation bias and the independent-row influence-function
+        // variance stays valid, so the pointwise 95% coverage holds.
+        const N: usize = 400;
+        const FOLDS: usize = 5;
+        let simulations = 2_000;
+        let mut state = 0x51ED_270B_6A11_C3D7_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
+        };
+        let cost = 0.15;
+        let truth_policy = 1.0 + 2.0 * (1.0 / 3.0) - cost * (1.0 / 3.0);
+        let truth_incremental = truth_policy - 1.0;
+        let reference = vec![false; N];
+        let mut policy_covered = 0usize;
+        let mut incremental_covered = 0usize;
+        for _ in 0..simulations {
+            let actions = (0..N).map(|_| uniform() < 1.0 / 3.0).collect::<Vec<_>>();
+            let assignment = (0..N).map(|_| uniform() < 0.5).collect::<Vec<_>>();
+            let outcomes = assignment.iter()
+                .map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0)
+                .collect::<Vec<_>>();
+            let fold = (0..N).map(|i| i % FOLDS).collect::<Vec<_>>();
+            let mut mu0 = vec![0.0; N];
+            let mut mu1 = vec![0.0; N];
+            for held in 0..FOLDS {
+                let (mut treated_sum, mut treated_n, mut control_sum, mut control_n) = (0.0, 0usize, 0.0, 0usize);
+                for i in 0..N {
+                    if fold[i] == held { continue; }
+                    if assignment[i] { treated_sum += outcomes[i]; treated_n += 1; }
+                    else { control_sum += outcomes[i]; control_n += 1; }
+                }
+                let treated_mean = treated_sum / treated_n as f64;
+                let control_mean = control_sum / control_n as f64;
+                for i in 0..N {
+                    if fold[i] == held { mu1[i] = treated_mean; mu0[i] = control_mean; }
+                }
+            }
+            let score = evaluate_policy_value_scores(
+                &outcomes, &assignment, &actions, &[0.5], &mu0, &mu1, &reference, &[cost], &[0.0],
+            ).unwrap();
+            let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();
+            let reference_matches = assignment.iter().filter(|&&a| !a).count();
+            let interval = pointwise_intervals_95(&score, N, policy_matches, reference_matches).unwrap();
+            policy_covered += usize::from(interval.policy[0] <= truth_policy && truth_policy <= interval.policy[1]);
+            incremental_covered += usize::from(interval.incremental[0] <= truth_incremental && truth_incremental <= interval.incremental[1]);
+        }
+        for (label, hits) in [("policy", policy_covered), ("incremental", incremental_covered)] {
+            let coverage = hits as f64 / f64::from(simulations);
+            eprintln!("crossfit AIPW {label} known-truth coverage: {hits}/{simulations} = {coverage:.4}");
+            assert!((0.93..=0.985).contains(&coverage), "crossfit {label} coverage {coverage}");
+        }
+    }
+
+    #[test]
     fn ranked_uplift_recovers_known_bin_contrasts_and_refuses_singletons() {
         let bins = evaluate_uplift_bins(
             &[9.0, 5.0, 9.0, 5.0, 5.0, 5.0, 5.0, 5.0],
@@ -785,6 +848,10 @@ mod tests {
     fn finite_fixed_class_regret_simultaneous_interval_covers_oracle_gap() {
         const DRAWS: usize = 2_000;
         const N: usize = 400;
+        // The even-subgroup policy is the class oracle. Its net gain is 0.9,
+        // versus 0.3 for selected treat-all, so the finite-class regret truth
+        // is 0.6. This is the target the simultaneous interval must cover.
+        const ORACLE_REGRET_TRUTH: f64 = 0.6;
         let candidates = vec![
             vec![false; N], vec![true; N],
             (0..N).map(|i| i % 2 == 0).collect(),
@@ -810,15 +877,14 @@ mod tests {
                 let estimate = evaluate_fixed_candidate_regret(
                     &outcome, &assignment, &[p], &candidates, 1, &[0.2], true,
                 ).unwrap();
-                // The even-subgroup policy is the class oracle. Its net gain
-                // is 0.9, versus 0.3 for selected treat-all: regret = 0.6.
-                covered += usize::from(estimate.interval_95[0] <= 0.6
-                    && 0.6 <= estimate.interval_95[1]);
+                covered += usize::from(estimate.interval_95[0] <= ORACLE_REGRET_TRUTH
+                    && ORACLE_REGRET_TRUTH <= estimate.interval_95[1]);
                 assert!(estimate.interval_95[0] >= 0.0);
                 assert!(estimate.interval_95[0] <= estimate.interval_95[1]);
             }
-            println!("finite-class regret p={p}: {covered}/{DRAWS} simultaneous intervals cover 0.6");
-            assert!((0.94..=1.0).contains(&(covered as f64 / DRAWS as f64)),
+            let coverage = covered as f64 / DRAWS as f64;
+            println!("finite-class regret p={p}: {covered}/{DRAWS} simultaneous intervals cover {ORACLE_REGRET_TRUTH}");
+            assert!((0.94..=1.0).contains(&coverage),
                 "p={p} simultaneous regret coverage {covered}/{DRAWS}");
         }
     }

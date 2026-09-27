@@ -67,13 +67,21 @@ fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
     let regret = policy.regret.as_ref().unwrap();
     assert!(regret.regret > 0.0);
     assert!(regret.interval_95[0] <= regret.regret && regret.regret <= regret.interval_95[1]);
-    assert_eq!(result.support_status, None, "regret has no exact graphless row yet");
+    // The finite-class simultaneous regret bound is now an exact graphless row.
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "fixed-class-regret", &ctx).unwrap();
-    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.as_ref().unwrap().regret.as_ref().unwrap().selected_index, 1);
-    body.policy_value.as_mut().unwrap().regret.as_mut().unwrap().interval_95[1] += 0.5;
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names,
+    assert_eq!(body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    let mut forged = body.clone();
+    forged.policy_value.as_mut().unwrap().regret.as_mut().unwrap().interval_95[1] += 0.5;
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names.clone(),
         "forged-regret-bound").is_err());
+    // Forging the licensed status onto a scalar-only payload must also be rejected.
+    let mut forged_status = body.clone();
+    forged_status.policy_value.as_mut().unwrap().regret = None;
+    assert!(antecedent_io::encode_analysis_result_artifact(&forged_status, header.variable_names,
+        "forged-regret-status").is_err());
     q.regret.as_mut().unwrap().training_subject_ids = Arc::from([Arc::<str>::from("eval-0")]);
     assert!(q.validate().is_err());
 }
@@ -198,7 +206,7 @@ fn policy_query_refuses_missing_ownership_or_overlap() {
 }
 
 #[test]
-fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only() {
+fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
     let n = 300;
     let assignment = (0..n).map(|i| i % 2 == 1).collect::<Vec<_>>();
     let actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>();
@@ -229,15 +237,6 @@ fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only()
     body.policy_value.as_mut().unwrap().incremental_interval_95 = Some([0.0, 0.0]);
     assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-policy").is_err());
 
-    q.disjoint_training_subjects = false;
-    q.crossfit_fold_ownership_valid = true;
-    let crossfit = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q)).build().unwrap();
-    let crossfit_result = crossfit.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
-    assert_eq!(crossfit_result.support_status, None);
-    let point_only = crossfit_result.policy_value.unwrap();
-    assert!(point_only.policy_interval_95.is_none());
-    assert!(point_only.incremental_interval_95.is_none());
-
     let mut constrained_query = query();
     constrained_query.assignment = (0..n).map(|i| i % 2 == 1).collect::<Vec<_>>().into();
     constrained_query.actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>().into();
@@ -249,6 +248,43 @@ fn retained_held_out_policy_intervals_round_trip_and_crossfit_stays_point_only()
     let constrained = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(constrained_query)).build().unwrap();
     let constrained_result = constrained.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     assert!(constrained_result.policy_value.unwrap().policy_interval_95.is_none());
+}
+
+#[test]
+fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
+    let n = 300;
+    let assignment = (0..n).map(|i| i % 2 == 1).collect::<Vec<_>>();
+    let actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + (i % 5) as f64 / 10.0).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let mut q = query();
+    q.assignment = assignment.into();
+    q.actions = actions.into();
+    q.reference = vec![false; n].into();
+    q.mu0 = vec![1.0; n].into();
+    q.mu1 = vec![3.0; n].into();
+    // Cross-fitted nuisance ownership: caller-declared excluded folds, not
+    // disjoint training subjects. The interval is licensed on this row.
+    q.disjoint_training_subjects = false;
+    q.crossfit_fold_ownership_valid = true;
+    q.evaluation_subject_ids = (0..n).map(|i| Arc::<str>::from(format!("evaluation-{i}"))).collect::<Vec<_>>().into();
+    let ctx = ExecutionContext::for_tests(77);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone()))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let value = result.policy_value.as_ref().unwrap();
+    let policy_ci = value.policy_interval_95.expect("cross-fitted AIPW publishes a policy interval");
+    let incremental_ci = value.incremental_interval_95.expect("cross-fitted AIPW publishes an incremental interval");
+    assert!(policy_ci[0] < value.policy_value && value.policy_value < policy_ci[1]);
+    assert!(incremental_ci[0] < value.incremental_value && value.incremental_value < incremental_ci[1]);
+    assert_eq!(value.prediction_ownership.as_ref(), "caller_declared_cross_fitted_excluded_fold_ids");
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let bytes = prepared.encode_contracted_result(&result, "crossfit-policy", &ctx).unwrap();
+    let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(body.policy_value.as_ref().unwrap().policy_interval_95, Some(policy_ci));
+    body.policy_value.as_mut().unwrap().incremental_interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-crossfit").is_err());
 }
 
 #[test]

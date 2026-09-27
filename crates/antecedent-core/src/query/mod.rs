@@ -53,7 +53,10 @@ pub use interference::{
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
-pub use policy_value::{FixedCandidateRegretInputs, MultiActionPolicyInputs, PolicyValueQuery};
+pub use policy_value::{
+    policy_graphless_coordinate, FixedCandidateRegretInputs, MultiActionPolicyInputs,
+    PolicyValueQuery,
+};
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use randomized::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
 pub use response::{

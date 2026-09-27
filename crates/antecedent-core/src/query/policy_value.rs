@@ -110,6 +110,74 @@ impl MultiActionPolicyInputs {
     }
 }
 
+/// Exact graphless coordinate (design, method, inference claim) for a policy
+/// value result, given the structural flags of the executed query. The same
+/// mapping is used by execution, contract emission, and artifact validation so
+/// the licensed coordinate is computed identically everywhere.
+///
+/// `regret` takes precedence (finite-class simultaneous claim), then the
+/// multi-action and uplift shapes, then the binary IPW/AIPW distinction, with
+/// `crossfit` selecting the cross-fitted AIPW row when nuisance ownership is by
+/// caller-declared excluded folds rather than disjoint training subjects.
+#[must_use]
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "each flag is an independent structural property of the executed query, decided upstream; they select one exact license coordinate and are not a refactorable state object"
+)]
+pub fn policy_graphless_coordinate(
+    multi: bool,
+    ipw: bool,
+    uplift: bool,
+    cate: bool,
+    regret: bool,
+    crossfit: bool,
+) -> (&'static str, &'static str, &'static str) {
+    if regret {
+        return (
+            "binary_ipw_regret",
+            "fixed_randomized_ipw_finite_class_scores",
+            "finite_class_regret_simultaneous_95_normal_interval",
+        );
+    }
+    match (multi, ipw, uplift, cate) {
+        (true, _, _, true) => (
+            "multi_action_ipw_cate",
+            "fixed_randomized_multi_action_ipw_fixed_group_scores",
+            "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals",
+        ),
+        (true, _, _, false) => (
+            "multi_action_ipw",
+            "fixed_randomized_multi_action_ipw_scores",
+            "paired_policy_incremental_pointwise_95_normal_intervals",
+        ),
+        (false, true, true, _) => (
+            "binary_ipw_uplift",
+            "fixed_randomized_ipw_frozen_rank_scores",
+            "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals",
+        ),
+        (false, false, true, _) => (
+            "binary_aipw_uplift",
+            "fixed_held_out_randomized_aipw_frozen_rank_scores",
+            "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals",
+        ),
+        (false, true, false, _) => (
+            "binary_ipw",
+            "fixed_randomized_ipw_scores",
+            "paired_policy_incremental_pointwise_95_normal_intervals",
+        ),
+        (false, false, false, _) if crossfit => (
+            "binary_aipw_crossfit",
+            "fixed_crossfit_randomized_aipw_scores",
+            "paired_policy_incremental_pointwise_95_normal_intervals",
+        ),
+        (false, false, false, _) => (
+            "binary_aipw",
+            "fixed_held_out_randomized_aipw_scores",
+            "paired_policy_incremental_pointwise_95_normal_intervals",
+        ),
+    }
+}
+
 /// Fixed randomized policy value query evaluated on independent subjects.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PolicyValueQuery {

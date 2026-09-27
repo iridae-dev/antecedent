@@ -2045,7 +2045,8 @@ fn validate_result(
                 n >= (if query.multi_action.is_some() || !query.mu0.is_empty() { 300 } else { 120 })
                     && policy_matches >= 10 && reference_matches >= 10
                     && !query.global_constraints_present && !multi_constraints_couple
-                    && (query.multi_action.is_some() || query.mu0.is_empty() || query.disjoint_training_subjects)
+                    && (query.multi_action.is_some() || query.mu0.is_empty()
+                        || query.disjoint_training_subjects || query.crossfit_fold_ownership_valid)
                     && policy.policy_standard_error > 0.0 && policy.incremental_standard_error > 0.0
             }
             _ => false,
@@ -2114,7 +2115,6 @@ fn validate_result(
                 || design.candidates.iter().any(|candidate| candidate.len() != n
                     || query.assignment.iter().zip(candidate).filter(|(a, b)| a == b).count() < 50)
                 || design.candidates[design.selected_index] != query.actions
-                || policy.graphless_support_status.is_some()
             {
                 return Err(IoError::Convert("finite-class regret support or ownership is invalid".into()));
             }
@@ -2212,21 +2212,13 @@ fn validate_result(
         } else if !policy.multi_action_cate.is_empty() {
             return Err(IoError::Convert("multi-action CATE requires a multi-action query".into()));
         }
-        let (design, method, claim) = match (query.multi_action.is_some(), query.mu0.is_empty(),
-            !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty()) {
-            (true, _, _, true) => ("multi_action_ipw_cate", "fixed_randomized_multi_action_ipw_fixed_group_scores",
-                "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"),
-            (true, _, _, false) => ("multi_action_ipw", "fixed_randomized_multi_action_ipw_scores",
-                "paired_policy_incremental_pointwise_95_normal_intervals"),
-            (false, true, true, _) => ("binary_ipw_uplift", "fixed_randomized_ipw_frozen_rank_scores",
-                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
-            (false, false, true, _) => ("binary_aipw_uplift", "fixed_held_out_randomized_aipw_frozen_rank_scores",
-                "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
-            (false, true, false, _) => ("binary_ipw", "fixed_randomized_ipw_scores",
-                "paired_policy_incremental_pointwise_95_normal_intervals"),
-            (false, false, false, _) => ("binary_aipw", "fixed_held_out_randomized_aipw_scores",
-                "paired_policy_incremental_pointwise_95_normal_intervals"),
-        };
+        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
+            query.multi_action.is_some(), query.mu0.is_empty(),
+            !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty(),
+            query.regret.is_some(),
+            !query.mu0.is_empty() && query.crossfit_fold_ownership_valid
+                && !query.disjoint_training_subjects,
+        );
         let (treated, control, min_action_rows, min_probability, policy_matches, reference_matches, uncoupled) =
             if let Some(multi) = &query.multi_action {
                 let n = multi.assignment.len();

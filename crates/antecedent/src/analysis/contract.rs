@@ -538,14 +538,10 @@ impl PreparedStudy {
                         let uplift = query.uplift_bin_count > 0;
                         let cate = query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty());
                         let ipw = query.mu0.is_empty();
-                        let (design, method, claim) = match (multi, ipw, uplift, cate) {
-                            (true, _, _, true) => ("multi_action_ipw_cate", "fixed_randomized_multi_action_ipw_fixed_group_scores", "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"),
-                            (true, _, _, false) => ("multi_action_ipw", "fixed_randomized_multi_action_ipw_scores", "paired_policy_incremental_pointwise_95_normal_intervals"),
-                            (false, true, true, _) => ("binary_ipw_uplift", "fixed_randomized_ipw_frozen_rank_scores", "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
-                            (false, false, true, _) => ("binary_aipw_uplift", "fixed_held_out_randomized_aipw_frozen_rank_scores", "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"),
-                            (false, true, false, _) => ("binary_ipw", "fixed_randomized_ipw_scores", "paired_policy_incremental_pointwise_95_normal_intervals"),
-                            (false, false, false, _) => ("binary_aipw", "fixed_held_out_randomized_aipw_scores", "paired_policy_incremental_pointwise_95_normal_intervals"),
-                        };
+                        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
+                            multi, ipw, uplift, cate, query.regret.is_some(),
+                            !ipw && query.crossfit_fold_ownership_valid && !query.disjoint_training_subjects,
+                        );
                         Arc::from(format!("graphless:policy_value/{design}/{method}/{claim}"))
                     });
             }

@@ -116,6 +116,7 @@ pub use query::{
     FixedCandidateRegretInputs, MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
+    policy_graphless_coordinate,
     PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
     ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig, ShapleyMode,
