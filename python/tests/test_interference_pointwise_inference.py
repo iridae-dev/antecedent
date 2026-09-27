@@ -51,22 +51,34 @@ def test_cluster_total_interval_is_retained_and_sealed() -> None:
     assert body["interference_inference"]["interval"]["upper"] == pytest.approx(interval.upper)
 
 
-def test_saturation_direct_interval_and_support_round_trip() -> None:
-    labels, edges = _network()
+@pytest.mark.parametrize(
+    ("name", "from_level", "to_level", "truth"),
+    [
+        ("direct", (0.0, 0.5), (1.0, 0.5), 2.0),
+        ("spillover", (0.0, 0.0), (0.0, 1.0), 3.0),
+        ("total", (0.0, 0.0), (1.0, 1.0), 5.0),
+    ],
+)
+@pytest.mark.parametrize("cluster_count", [48, 80])
+def test_saturation_interval_and_support_round_trip(
+    name: str, from_level: tuple[float, float], to_level: tuple[float, float], truth: float,
+    cluster_count: int,
+) -> None:
+    labels, edges = _network(cluster_count)
     patterns = ([False, False, False], [True, False, False],
                 [True, True, False], [True, True, True])
-    assignment = [value for cluster in range(80) for value in patterns[cluster % 4]]
-    realized = [0.2 if cluster < 40 else 0.8 for cluster in labels]
+    assignment = [value for cluster in range(cluster_count) for value in patterns[cluster % 4]]
+    realized = [0.2 if cluster < cluster_count // 2 else 0.8 for cluster in labels]
     outcome = []
     for row, own in enumerate(assignment):
         first = row // 3 * 3
         neighbors = sum(assignment[j] for j in range(first, first + 3) if j != row) / 2
         outcome.append(5.0 + 0.1 * (labels[row] % 9) + 2.0 * own + 3.0 * neighbors)
     query = interference.InterferenceQuery(
-        interference.SaturationDesign(labels, 0.2, 0.8, 40, realized),
+        interference.SaturationDesign(labels, 0.2, 0.8, cluster_count // 2, realized),
         interference.NeighborFraction(),
         interference.ExposureContrast(
-            "y", interference.ExposureLevel(0.0, 0.5), interference.ExposureLevel(1.0, 0.5)
+            "y", interference.ExposureLevel(*from_level), interference.ExposureLevel(*to_level)
         ),
         network=edges,
         realized_assignment=assignment,
@@ -75,31 +87,46 @@ def test_saturation_direct_interval_and_support_round_trip() -> None:
     result = ant.analyze({"y": np.asarray(outcome)}, graph=[], query=query)
     interval = result.interference.pointwise_interval
     assert interval is not None
-    assert interval.first_stage_arm_clusters == (40, 40)
+    assert interval.first_stage_arm_clusters == (cluster_count // 2, cluster_count // 2)
+    assert interval.lower < truth < interval.upper, name
     assert interval.lower < result.interference.contrast.horvitz_thompson < interval.upper
     assert result.interference.support.from_observed_clusters >= 8
     assert result.interference.support.to_observed_clusters >= 8
     body = ant.load(result.export()).artifact.payload
     assert body["interference_inference"]["method"] == "saturation_cluster_neyman_welch"
     assert body["interference_inference"]["from_exposed_clusters"] >= 8
+    assert body["interference_inference"]["interval"]["lower"] == pytest.approx(interval.lower)
+    tampered = bytearray(result.export())
+    tampered[len(tampered) // 2] ^= 0x40
+    with pytest.raises(Exception):
+        ant.load(bytes(tampered))
 
 
-def test_saturation_thin_arms_remain_explicitly_point_only() -> None:
-    labels, edges = _network(4)
-    assignment = [False] * 3 + [True, False, False] + [True, True, False] + [True] * 3
-    realized = [0.2] * 6 + [0.8] * 6
+@pytest.mark.parametrize(
+    ("from_level", "to_level"),
+    [((0.0, 0.5), (1.0, 0.5)), ((0.0, 0.0), (0.0, 1.0)), ((0.0, 0.0), (1.0, 1.0))],
+)
+@pytest.mark.parametrize("cluster_count", [4, 40])
+def test_saturation_thin_arms_remain_explicitly_point_only(
+    from_level: tuple[float, float], to_level: tuple[float, float], cluster_count: int,
+) -> None:
+    labels, edges = _network(cluster_count)
+    patterns = ([False, False, False], [True, False, False],
+                [True, True, False], [True, True, True])
+    assignment = [value for cluster in range(cluster_count) for value in patterns[cluster % 4]]
+    realized = [0.2 if cluster < cluster_count // 2 else 0.8 for cluster in labels]
     query = interference.InterferenceQuery(
-        interference.SaturationDesign(labels, 0.2, 0.8, 2, realized),
+        interference.SaturationDesign(labels, 0.2, 0.8, cluster_count // 2, realized),
         interference.NeighborFraction(),
         interference.ExposureContrast(
-            "y", interference.ExposureLevel(0.0, 0.5), interference.ExposureLevel(1.0, 0.5)
+            "y", interference.ExposureLevel(*from_level), interference.ExposureLevel(*to_level)
         ),
         network=edges,
         realized_assignment=assignment,
         partial_interference=interference.PartialInterference(labels),
     )
-    result = ant.analyze({"y": np.arange(12, dtype=float)}, graph=[], query=query)
+    result = ant.analyze({"y": np.arange(3 * cluster_count, dtype=float)}, graph=[], query=query)
     assert result.interference.pointwise_interval is None
-    assert "eight independent clusters" in result.interference.interval_unavailable_reason
+    assert "24 independent clusters" in result.interference.interval_unavailable_reason
     body = ant.load(result.export()).artifact.payload
     assert body["interference_inference"]["interval"] is None
