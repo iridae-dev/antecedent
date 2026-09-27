@@ -79,7 +79,7 @@ pub struct UpliftBinScore {
     pub interval_95: Option<[f64; 2]>,
 }
 
-/// Point estimate of one randomized action effect against control in a fixed baseline stratum.
+/// One randomized action effect against control in a fixed baseline stratum.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MultiActionCatePoint {
     /// Pre-treatment group label.
@@ -88,6 +88,10 @@ pub struct MultiActionCatePoint {
     pub action: String,
     /// Horvitz-Thompson action minus control contrast.
     pub effect: f64,
+    /// Standard error of the paired action-minus-control row scores.
+    pub standard_error: f64,
+    /// Pointwise interval conditional on a fixed stratum and randomized support.
+    pub interval_95: Option<[f64; 2]>,
     /// Total evaluation rows in this group.
     pub evaluation_rows: usize,
     /// Rows assigned this action.
@@ -97,7 +101,9 @@ pub struct MultiActionCatePoint {
 }
 
 /// Estimate stratum-specific multi-action effects using known randomization probabilities.
-/// Groups must have been fixed before observing evaluation outcomes. No interval is licensed.
+/// Groups must have been fixed before observing evaluation outcomes. Intervals
+/// additionally require independent held-out subjects, known assignment
+/// probabilities, and enough observed rows in both compared arms.
 pub fn evaluate_multi_action_cate(
     outcome: &[f64], policy: &antecedent_core::MultiActionPolicyInputs,
 ) -> Result<Vec<MultiActionCatePoint>, &'static str> {
@@ -118,18 +124,30 @@ pub fn evaluate_multi_action_cate(
         if rows.len() < 2 || control_rows == 0 {
             return Err("each CATE stratum requires at least two rows and an observed control");
         }
-        let control = rows.iter().map(|&i| {
-            if policy.assignment[i] == 0 { outcome[i] / policy.propensities[i * k] } else { 0.0 }
-        }).sum::<f64>() / rows.len() as f64;
         for action in 1..k {
             let action_rows = rows.iter().filter(|&&i| policy.assignment[i] == action).count();
             if action_rows == 0 { return Err("each CATE stratum requires an observed row for every action"); }
-            let treated = rows.iter().map(|&i| {
-                if policy.assignment[i] == action { outcome[i] / policy.propensities[i * k + action] } else { 0.0 }
-            }).sum::<f64>() / rows.len() as f64;
+            let scores = rows.iter().map(|&i| match policy.assignment[i] {
+                assigned if assigned == action => outcome[i] / policy.propensities[i * k + action],
+                0 => -outcome[i] / policy.propensities[i * k],
+                _ => 0.0,
+            }).collect::<Vec<_>>();
+            let effect = scores.iter().sum::<f64>() / rows.len() as f64;
+            let standard_error = (scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>()
+                / (rows.len() * (rows.len() - 1)) as f64).sqrt();
+            let strong_overlap = rows.iter().all(|&i| {
+                policy.propensities[i * k] >= 0.2
+                    && policy.propensities[i * k + action] >= 0.2
+            });
+            let interval_95 = if rows.len() >= 300 && action_rows >= 50 && control_rows >= 50
+                && strong_overlap && standard_error.is_finite() && standard_error > 0.0 {
+                let span = antecedent_stats::normal_ppf(0.975) * standard_error;
+                let bounds = [effect - span, effect + span];
+                bounds.iter().all(|value| value.is_finite()).then_some(bounds)
+            } else { None };
             points.push(MultiActionCatePoint {
                 group: group.to_owned(), action: policy.action_labels[action].to_string(),
-                effect: treated - control, evaluation_rows: rows.len(),
+                effect, standard_error, interval_95, evaluation_rows: rows.len(),
                 observed_action_rows: action_rows, observed_control_rows: control_rows,
             });
         }
@@ -300,6 +318,93 @@ fn evaluate_scores(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support() {
+        use std::sync::Arc;
+        const PER_GROUP: usize = 300;
+        const DRAWS: usize = 2_000;
+        let n = 2 * PER_GROUP;
+        let groups = (0..n).map(|i| Arc::<str>::from(if i < PER_GROUP { "g0" } else { "g1" }))
+            .collect::<Vec<_>>();
+        let truths = [2.0, 3.0, 1.0, 4.0];
+        let mut covered = [0_usize; 4];
+        let mut supported = [0_usize; 4];
+        let mut state = 0x8a71_b65d_53cc_f093_u64;
+        let mut uniform = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        for _ in 0..DRAWS {
+            let assignment = (0..n).map(|_| (3.0 * uniform()).floor() as usize).collect::<Vec<_>>();
+            let outcome = assignment.iter().enumerate().map(|(i, &action)| {
+                let group = usize::from(i >= PER_GROUP);
+                let action_effects = if group == 0 { [0.0, 2.0, 3.0] } else { [0.0, 1.0, 4.0] };
+                1.0 + action_effects[action] + 2.0 * (uniform() - 0.5)
+            }).collect::<Vec<_>>();
+            let policy = antecedent_core::MultiActionPolicyInputs {
+                action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
+                assignment: Arc::from(assignment), actions: Arc::from(vec![0; n]),
+                reference: Arc::from(vec![0; n]),
+                propensities: Arc::from((0..n).flat_map(|_| [1.0 / 3.0; 3]).collect::<Vec<_>>()),
+                available: Arc::from(vec![true; n * 3]), costs: Arc::from([0.0; 3]),
+                reference_costs: Arc::from([0.0; 3]), capacities: Arc::from([n; 3]),
+                reference_capacities: Arc::from([n; 3]), budget: None, reference_budget: None,
+                cate_groups: Arc::from(groups.clone()),
+            };
+            let points = evaluate_multi_action_cate(&outcome, &policy).unwrap();
+            assert_eq!(points.len(), 4);
+            for (index, point) in points.iter().enumerate() {
+                if let Some(bounds) = point.interval_95 {
+                    supported[index] += 1;
+                    covered[index] += usize::from(bounds[0] <= truths[index] && truths[index] <= bounds[1]);
+                }
+            }
+        }
+        for (index, hits) in covered.into_iter().enumerate() {
+            let rate = hits as f64 / supported[index] as f64;
+            eprintln!("multi-action CATE {index}: {hits}/{}, coverage={rate:.4}", supported[index]);
+            assert!(supported[index] >= 1_990);
+            assert!((0.93..=0.97).contains(&rate), "CATE contrast {index} coverage {rate}");
+        }
+
+        // The interval requires at least 300 rows in each fixed baseline stratum.
+        let mut assignment = (0..299).map(|i| i % 3).collect::<Vec<_>>();
+        let outcome = assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
+        let policy = antecedent_core::MultiActionPolicyInputs {
+            action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
+            assignment: Arc::from(std::mem::take(&mut assignment)), actions: Arc::from(vec![0; 299]),
+            reference: Arc::from(vec![0; 299]),
+            propensities: Arc::from((0..299).flat_map(|_| [1.0 / 3.0; 3]).collect::<Vec<_>>()),
+            available: Arc::from(vec![true; 299 * 3]), costs: Arc::from([0.0; 3]),
+            reference_costs: Arc::from([0.0; 3]), capacities: Arc::from([299; 3]),
+            reference_capacities: Arc::from([299; 3]), budget: None, reference_budget: None,
+            cate_groups: Arc::from(vec![Arc::<str>::from("g0"); 299]),
+        };
+        assert!(evaluate_multi_action_cate(&outcome, &policy).unwrap().iter().all(|p| p.interval_95.is_none()));
+        let mut sparse = policy.clone();
+        sparse.assignment = Arc::from((0..300).map(|i| if i < 49 { 1 } else if i < 149 { 0 } else { 2 }).collect::<Vec<_>>());
+        sparse.actions = Arc::from(vec![0; 300]);
+        sparse.reference = Arc::from(vec![0; 300]);
+        sparse.propensities = Arc::from((0..300).flat_map(|_| [1.0 / 3.0; 3]).collect::<Vec<_>>());
+        sparse.available = Arc::from(vec![true; 300 * 3]);
+        sparse.capacities = Arc::from([300; 3]);
+        sparse.reference_capacities = Arc::from([300; 3]);
+        sparse.cate_groups = Arc::from(vec![Arc::<str>::from("g0"); 300]);
+        let outcome = sparse.assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
+        let points = evaluate_multi_action_cate(&outcome, &sparse).unwrap();
+        assert_eq!(points[0].observed_action_rows, 49);
+        assert!(points[0].interval_95.is_none());
+        let mut weak_overlap = sparse.clone();
+        weak_overlap.assignment = Arc::from((0..300).map(|i| i % 3).collect::<Vec<_>>());
+        weak_overlap.propensities = Arc::from((0..300).flat_map(|_| [0.45, 0.45, 0.10]).collect::<Vec<_>>());
+        let outcome = weak_overlap.assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
+        let points = evaluate_multi_action_cate(&outcome, &weak_overlap).unwrap();
+        assert!(points[1].interval_95.is_none());
+    }
 
     #[test]
     fn held_out_uplift_bin_intervals_cover_fixed_rank_truth() {
