@@ -30,8 +30,10 @@ DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesig
 probabilities. Their native ITT estimator allows arbitrary dependence within
 each sequence and uses an independent-sequence cluster sandwich standard
 error; it requires at least two sequences and both arms observed per sequence,
-and assumes no carryover from earlier assignments. The estimate is point-only
-and does not add a licensed support cell. `estimate_ancova_effect` complements
+and assumes no carryover from earlier assignments. `SwitchbackEffect` also
+uses retained `analyze`, preserving sequence and period identity with a
+point-only sequence variance; it does not add a licensed support cell.
+`estimate_ancova_effect` complements
 one-covariate CUPED with multiple pre-treatment covariates for independent
 Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
 coefficients, support counts, and an HC0 standard error without an interval.
