@@ -663,13 +663,13 @@ pub(crate) fn validate_query_ids(
             );
             let query = if wire.difference_in_differences { query.difference_in_differences() } else { query };
             let query = if wire.uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
+            let query = if let Some(ridge) = wire.augmentation_ridge { query.with_augmentation(ridge) } else { query };
             query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::LocalPolynomialRatio(wire) => {
             validate_ids([wire.outcome, wire.treatment, wire.running], variable_count)?;
             antecedent_core::LocalPolynomialRatioQuery {
                 outcome: antecedent_core::VariableId::from_raw(wire.outcome),
-            let query = if let Some(ridge) = wire.augmentation_ridge { query.with_augmentation(ridge) } else { query };
                 treatment: antecedent_core::VariableId::from_raw(wire.treatment),
                 running: antecedent_core::VariableId::from_raw(wire.running),
                 cutoff: wire.cutoff,

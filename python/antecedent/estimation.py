@@ -2871,6 +2871,7 @@ class _PrepareRoute:
             query.treated_unit, query.intervention_period,
             difference_in_differences=isinstance(query, SyntheticDifferenceInDifferences),
             uniform_unit_randomization=isinstance(query, SyntheticControl) and query.uniform_unit_randomization,
+            augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
             accepted=False, **self._common()
         )
         return native, "average"
@@ -2878,7 +2879,6 @@ class _PrepareRoute:
     def _local_polynomial_ratio(self) -> tuple[Any, Literal["average"]]:
         query = cast(FuzzyRegressionDiscontinuity | RegressionKink, self.query)
         if self.graph is not None or self.discovery is not None:
-            augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
             raise _not_applicable("graph/discovery", "local polynomial ratio")
         self._refuse_ids("local polynomial ratio")
         self._refuse_estimator_config("local polynomial ratio")
