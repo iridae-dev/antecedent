@@ -282,13 +282,14 @@ impl CheckedRandomizedOperation {
                     .zip(self.query.realized_assignment.iter())
                     .filter_map(|(&y, &z)| (!z).then_some(y))
                     .collect();
-                let effect = treated.iter().sum::<f64>() / treated.len() as f64
-                    - control.iter().sum::<f64>() / control.len() as f64;
-                let variance = sample_variance(&treated) / treated.len() as f64
-                    + sample_variance(&control) / control.len() as f64;
+                let fit = antecedent_estimate::randomized_neyman::complete_unit_itt(
+                    &treated, &control,
+                ).ok_or(CausalError::Unsupported {
+                    message: "complete-randomized ITT requires finite outcomes and estimable variance",
+                })?;
                 (
-                    effect,
-                    variance,
+                    fit.effect,
+                    fit.variance_upper_bound,
                     n - treated_units,
                     *treated_units,
                     Arc::from([]),
@@ -346,25 +347,17 @@ impl CheckedRandomizedOperation {
                         group.1.push(outcomes[i]);
                     }
                 }
-                let mut effect = 0.0;
-                let mut variance = 0.0;
-                let mut control_units = 0;
-                let mut treatment_units = 0;
-                for (_, (treated, control, _)) in &grouped {
-                    let size = treated.len() + control.len();
-                    let weight = size as f64 / n as f64;
-                    effect += weight
-                        * (treated.iter().sum::<f64>() / treated.len() as f64
-                            - control.iter().sum::<f64>() / control.len() as f64);
-                    variance += weight.powi(2)
-                        * (sample_variance(treated) / treated.len() as f64
-                            + sample_variance(control) / control.len() as f64);
-                    treatment_units += treated.len();
-                    control_units += control.len();
-                }
+                let cells = grouped.values().map(|(treated, control, _)|
+                    (treated.as_slice(), control.as_slice())).collect::<Vec<_>>();
+                let fit = antecedent_estimate::randomized_neyman::blocked_unit_itt(&cells)
+                    .ok_or(CausalError::Unsupported {
+                        message: "blocked-randomized ITT requires finite outcomes and estimable within-block variances",
+                    })?;
+                let treatment_units = cells.iter().map(|(treated, _)| treated.len()).sum();
+                let control_units = cells.iter().map(|(_, control)| control.len()).sum();
                 (
-                    effect,
-                    variance,
+                    fit.effect,
+                    fit.variance_upper_bound,
                     control_units,
                     treatment_units,
                     Arc::clone(blocks),
