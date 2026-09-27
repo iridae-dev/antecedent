@@ -1,6 +1,6 @@
 # Survival outcomes: current 2.1.0 slice
 
-The current survival API is an explicitly limited point-estimation utility for
+The direct survival API is an explicitly limited point-estimation utility for
 two-arm, individually randomized studies with right-censored follow-up. It
 computes arm-specific Kaplan–Meier step curves and restricted mean survival
 time (RMST) through a user-specified horizon. A declared treatment assignment
@@ -24,7 +24,7 @@ summary.times, summary.control_survival, summary.treated_survival
 The same unadjusted survival and competing-risk queries can use the retained
 `prepare` / `analyze` flow when the caller explicitly supplies the marginal
 observation assumption. The result exposes `result.survival`, a structured
-point-only answer, and a portable study artifact:
+answer and a portable study artifact:
 
 ```python
 from antecedent.observation import IndependentGiven
@@ -43,7 +43,7 @@ result.survival.rmst_difference
 
 The unweighted retained route requires `randomized=True` and
 `IndependentGiven(())` for marginally independent censoring, including when
-there is no delayed entry. It publishes no scalar ATE or interval.
+there is no delayed entry. It publishes no scalar ATE.
 
 Rows with `event_observed=False` are treated as right-censored: they remain in
 the risk set through their recorded duration and do not count as events. The
@@ -52,10 +52,36 @@ implementation requires both arms to have observed follow-up at least through
 within each arm, consistency, and no interference. These assumptions are
 reported but cannot be verified from the table.
 
-The returned survival curves and RMST contrast are **point-only**. This
-utility does not provide standard errors, confidence intervals, hypothesis
-tests, or calibration evidence and does not add a support-matrix license.
-Longitudinal or observational survival estimands remain unsupported.
+The direct utility remains point-only. The retained `prepare` / `analyze`
+route can compute **pointwise** two-sided 95% percentile intervals for the
+RMST treatment-minus-control contrast and the survival-probability contrast
+at `tau` when `bootstrap` is explicitly requested:
+
+```python
+result = antecedent.analyze(data, query=query, bootstrap=399, seed=17)
+result.survival.rmst_difference_interval
+result.survival.survival_at_tau_difference_interval
+result.survival.bootstrap_replicates_ok
+```
+
+The native estimator resamples whole subjects separately within the two
+randomized arms and recomputes the complete risk-set estimator. The seed makes
+the draws repeatable. It requires at least eight subjects per arm, 199–100,000
+requested replicates, and at least 90% replicates satisfying the estimator's
+original support contract. A failed support gate refuses the interval instead
+of silently dropping it. The intervals cover the **two scalar contrasts**;
+they are not simultaneous bands for the survival curves. The result's
+`uncertainty` string and artifact identify the method and valid replicate
+count. The support matrix still treats these survival queries as outside its
+licensed axes, so the Python result labels this interval available but
+unlicensed. Longitudinal or observational survival estimands remain unsupported.
+
+Repeated-sampling native fixtures exercise 400 uncensored two-arm studies and
+240 studies with fixed, heterogeneous known censoring probabilities. Each
+fixture has an analytic contrast and requires at least 90% empirical coverage
+for the nominal 95% interval. These checks provide evidence for the declared
+designs; they do not establish finite-sample coverage under every censoring
+or event-time law.
 
 ## Caller-supplied censoring weights
 
@@ -106,13 +132,22 @@ new table in the same row order. This path also supports competing-risk
 cumulative incidence. Known censoring survival and delayed entry cannot be
 combined on this estimator.
 
+For retained IPCW survival, `bootstrap=399` produces the same RMST and
+fixed-horizon pointwise intervals. The supplied censoring probabilities stay
+with their subject in every resample; they are **held fixed**, never refit.
+The result and artifact label them
+`caller_supplied_fixed_not_fitted_or_verified`. These intervals therefore
+exclude uncertainty from fitting or validating the censoring model. The
+reported assumptions name conditional independent censoring, correct supplied
+probabilities, and censoring positivity.
+
 The native estimator uses inverse-`G` weighted event and risk counts at each
 observed event time, then integrates its right-continuous curve for RMST. It
 refuses probabilities below the declared positivity floor, probabilities
 outside `(0, 1]`, non-monotone rows, and weighted event counts exceeding the
 risk set. The reported minimum `G` and event-time risk-set sizes are diagnostics,
-not inference. Results remain point-only and unlicensed: no standard errors,
-confidence intervals, or tests are provided. Assumptions include correct
+not inference. Direct utility results remain point-only; retained results can
+report the pointwise intervals described above. Assumptions include correct
 caller-supplied conditional censoring survival, sequential censoring
 positivity, independent censoring given the supplied history, random assignment,
 consistency, and no interference. Delayed-entry weighting is not implemented.
@@ -124,8 +159,12 @@ failures and all-cause event-free survival in the Aalen–Johansen recursion;
 positive non-target causes remain competing events. It requires at least two
 distinct observed causes, a present target cause, both randomized arms through
 `tau`, and the same time-grid and positivity checks. The result reports minimum
-event-time risk-set sizes and minimum supplied `G`, but remains point-only and
-unlicensed, with no interval or test claim. Delayed entry is refused.
+event-time risk-set sizes and minimum supplied `G`. Its direct utility remains
+point-only; the retained route offers a pointwise interval for the target-cause
+incidence difference at `tau` under `bootstrap=399`. A 240-study known-G,
+two-event-time, two-cause repeated-sampling fixture checks its nominal 95%
+interval against an analytic truth with a 90% empirical-coverage floor.
+Delayed entry is refused.
 
 ## Delayed entry and left truncation
 
@@ -158,8 +197,9 @@ as an RMST from the origin.
 
 The empty `IndependentGiven(())` claim asserts marginal independent entry and
 right censoring; it does not verify either condition. Conditional delayed entry,
-interval censoring remain refused. Delayed
-entry results remain point-only and unlicensed.
+interval censoring remain refused. Delayed-entry results remain point-only.
+The retained route explicitly refuses `bootstrap>0` for delayed entry because
+subject resampling with left truncation needs separate calibration evidence.
 
 ## Competing risks
 
@@ -184,8 +224,10 @@ cif = antecedent.survival.estimate_cumulative_incidence(data, query)
 cif.incidence_difference
 ```
 
-This is also **point-only and unlicensed**, with no interval or calibration
-claim. Its assumptions include individual random assignment, complete and
+The direct utility is **point-only**. The retained route can provide the
+pointwise incidence-difference interval described above; it does not report a
+simultaneous cumulative-incidence curve band. Its assumptions include
+individual random assignment, complete and
 distinct coding of competing causes, independent right censoring within each
 arm, consistency, and no interference. The implementation requires both arms
 to have observed follow-up through `tau`. Delayed entry uses the same explicit
