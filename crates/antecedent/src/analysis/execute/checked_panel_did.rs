@@ -346,6 +346,36 @@ impl CheckedPanelDidOperation {
         let representative = &effects[representative_index];
         let representative_interval = event_time_intervals_95[representative_index];
         let any_interval = event_time_intervals_95.iter().any(Option::is_some);
+        // License the post-adoption event-time intervals only when the interval
+        // is actually published and each side clears the independent-cluster
+        // support gate. Capture the support before `effects` moves into the
+        // result. Pre-adoption leads and event time -1 stay point-only.
+        let representative_treated_clusters = self.query.clusters.iter().zip(self.query.cohorts.iter())
+            .filter(|(_, cohort)| **cohort == representative.cohort)
+            .map(|(cluster, _)| cluster.as_ref())
+            .collect::<BTreeSet<_>>()
+            .len();
+        let published_intervals = event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
+        let graphless_licensed = representative_interval.is_some()
+            && matches!(
+                crate::support::classify_graphless(
+                    crate::support::GraphlessSupportKey {
+                        family: "difference_in_differences",
+                        design: "staggered_event_study",
+                        method: "never_treated_event_study_cluster_cr1",
+                        inference_claim: "post_adoption_event_time_pointwise_95_normal_intervals",
+                    },
+                    crate::support::GraphlessAssignmentSupport {
+                        assignment_unit: "cluster",
+                        treated: representative_treated_clusters,
+                        control: control_clusters.len(),
+                        interval_95_published: true,
+                        reported_intervals: published_intervals,
+                        ..Default::default()
+                    },
+                ),
+                crate::support::GraphlessSupportStatus::Licensed { .. },
+            );
         let pretrend_diagnostic = match antecedent_estimate::staggered_event_study::pretrend_falsification_statistic(&effects) {
             Ok(statistic) => Diagnostic::new(
                 "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z",
@@ -410,6 +440,9 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95: event_time_intervals_95.into(),
             augmented: None,
         });
+        if graphless_licensed {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
         result.treatment = None;
         result.rebind_interval(false);
         Ok(result)

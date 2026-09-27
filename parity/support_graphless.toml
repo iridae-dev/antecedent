@@ -213,6 +213,18 @@ retained_route_test = "crates/antecedent/tests/panel_did_route.rs::supported_rep
 limitations = "Repeated cross-section 2×2 DiD with unique subjects, clusters nested within treatment groups, at least 30 distinct independent clusters in every group-by-period cell, positive CR1 score variation, and a published pointwise 95% normal interval. Parallel untreated trends and no anticipation are declared. No panel, staggered, or augmented DiD inherits this row."
 
 [[license]]
+family = "difference_in_differences"
+design = "staggered_event_study"
+method = "never_treated_event_study_cluster_cr1"
+inference_claim = "post_adoption_event_time_pointwise_95_normal_intervals"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 24
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent/tests/panel_did_interval_calibration.rs::retained_staggered_event_study_post_adoption_interval_covers_parallel_trends_truth"
+retained_route_test = "crates/antecedent/tests/panel_did_route.rs::supported_staggered_event_study_interval_round_trips_and_rejects_forged_license"
+limitations = "Balanced staggered-adoption event study against never-treated controls (cohort zero): each subject observed in every period, adoption cohort and cluster stable within subject, clusters nested within the adoption cohort and the never-treated controls. Licenses the separate pointwise 95% normal cluster interval for each post-adoption event-time contrast (event time at least zero), including the representative group-time ATT, only when the compared adoption cohort and the never-treated controls each have at least 24 independent clusters, at least 48 clusters total, positive CR1 score variation, and a published interval. One 2,000-replication known-truth coverage check re-randomizes cluster shocks at 24 clusters per group. Pre-adoption leads and the omitted event time -1 stay descriptive and point-only, as does the joint pre-trend statistic; cohort-specific parallel untreated trends and no anticipation are declared, not tested; each interval is pointwise and never a simultaneous event-study band, and under-supported cohorts, the single-target group-time design, and augmented or two-period DiD do not inherit this row."
+
+[[license]]
 family = "policy_value"
 design = "binary_aipw"
 method = "fixed_held_out_randomized_aipw_scores"
