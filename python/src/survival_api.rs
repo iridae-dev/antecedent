@@ -5,6 +5,17 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+/// Simultaneous difference band: times, difference, lower, upper, ok replicates.
+type DifferenceBand = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32);
+/// IPCW survival curves: times, control, treated, RMSTs, per-arm minimum event
+/// risk sets, and the realized censoring-survival floor.
+type IpcwSurvival = (Vec<f64>, Vec<f64>, Vec<f64>, f64, f64, Option<usize>, Option<usize>, f64);
+/// IPCW cumulative incidence: times, control, treated, per-arm minimum event
+/// risk sets, and the realized censoring-survival floor.
+type IpcwIncidence = (Vec<f64>, Vec<f64>, Vec<f64>, Option<usize>, Option<usize>, f64);
+/// Two-arm curves aligned on a shared grid with per-arm RMST.
+type ArmCurves = (Vec<f64>, Vec<f64>, Vec<f64>, f64, f64);
+
 /// Retained randomized survival or competing-risk result from Study execution.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -24,7 +35,7 @@ pub struct SurvivalSection {
     pub bootstrap_replicates_ok: Option<u32>,
     pub assignment_counts: (usize, usize),
     pub censoring_survival_provenance: Option<String>,
-    pub difference_band: Option<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, u32)>,
+    pub difference_band: Option<DifferenceBand>,
     pub band_unavailable_reason: Option<String>,
 }
 
@@ -55,6 +66,10 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "event times are exact recorded durations matched against grid points, not approximate quantities"
+)]
 fn km_curve(times: &[f64], events: &[bool], tau: f64) -> (Vec<f64>, Vec<f64>, f64) {
     let mut event_times: Vec<f64> = times
         .iter()
@@ -86,6 +101,10 @@ fn km_curve(times: &[f64], events: &[bool], tau: f64) -> (Vec<f64>, Vec<f64>, f6
     (curve_times, curve_survival, rmst)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "event times are exact recorded durations matched against grid points, not approximate quantities"
+)]
 fn delayed_entry_km_curve(
     times: &[f64],
     entry: &[f64],
@@ -126,6 +145,10 @@ fn delayed_entry_km_curve(
     (curve_times, curve_survival, rmst)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "event times are exact recorded durations matched against grid points, not approximate quantities"
+)]
 fn delayed_entry_cif_curve(
     times: &[f64],
     entry: &[f64],
@@ -221,6 +244,10 @@ fn validate_delayed_entry(
 
 /// IPCW weighted product-limit curves using caller supplied censoring survival.
 #[pyfunction]
+#[allow(
+    clippy::float_cmp,
+    reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
+)]
 fn randomized_survival_ipcw(
     duration: PyReadonlyArray1<'_, f64>,
     event_observed: Vec<bool>,
@@ -229,7 +256,7 @@ fn randomized_survival_ipcw(
     censoring_survival: PyReadonlyArray2<'_, f64>,
     tau: f64,
     minimum_probability: f64,
-) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, f64, f64, Option<usize>, Option<usize>, f64)> {
+) -> PyResult<IpcwSurvival> {
     let duration = duration.as_array();
     let g = censoring_survival.as_array();
     let n = duration.len();
@@ -323,6 +350,10 @@ fn randomized_survival_ipcw(
 
 /// IPCW Aalen-Johansen cumulative incidence with caller-supplied censoring survival.
 #[pyfunction]
+#[allow(
+    clippy::float_cmp,
+    reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
+)]
 fn randomized_cumulative_incidence_ipcw(
     duration: PyReadonlyArray1<'_, f64>,
     event_cause: Vec<i64>,
@@ -332,7 +363,7 @@ fn randomized_cumulative_incidence_ipcw(
     tau: f64,
     target_cause: i64,
     minimum_probability: f64,
-) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, Option<usize>, Option<usize>, f64)> {
+) -> PyResult<IpcwIncidence> {
     let duration = duration.as_array();
     let g = censoring_survival.as_array();
     let n = duration.len();
@@ -429,12 +460,16 @@ fn randomized_cumulative_incidence_ipcw(
 
 /// Two-arm randomized Kaplan-Meier curves and restricted mean survival time.
 #[pyfunction]
+#[allow(
+    clippy::float_cmp,
+    reason = "grid deduplication compares exact recorded event times, not approximate quantities"
+)]
 fn randomized_survival(
     duration: PyReadonlyArray1<'_, f64>,
     event_observed: Vec<bool>,
     treated: Vec<bool>,
     tau: f64,
-) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, f64, f64)> {
+) -> PyResult<ArmCurves> {
     let duration = duration.as_array();
     let n = duration.len();
     if n == 0 || event_observed.len() != n || treated.len() != n {
@@ -498,13 +533,17 @@ fn randomized_survival(
 
 /// Left-truncated two-arm randomized Kaplan-Meier curves and RMST.
 #[pyfunction]
+#[allow(
+    clippy::float_cmp,
+    reason = "grid deduplication compares exact recorded event times, not approximate quantities"
+)]
 fn randomized_survival_delayed_entry(
     duration: PyReadonlyArray1<'_, f64>,
     delayed_entry: PyReadonlyArray1<'_, f64>,
     event_observed: Vec<bool>,
     treated: Vec<bool>,
     tau: f64,
-) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, f64, f64)> {
+) -> PyResult<ArmCurves> {
     let duration = duration.as_array().to_vec();
     let entry = delayed_entry.as_array().to_vec();
     validate_delayed_entry(&duration, &entry, &treated, tau)?;
@@ -550,6 +589,10 @@ fn randomized_survival_delayed_entry(
     Ok((grid, aligned0, aligned1, rmst0, rmst1))
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "event times are exact recorded durations matched against grid points, not approximate quantities"
+)]
 fn cumulative_incidence_curve(
     times: &[f64],
     causes: &[i64],
@@ -590,6 +633,10 @@ fn cumulative_incidence_curve(
 
 /// Cause-specific cumulative incidence in a two-arm randomized study.
 #[pyfunction]
+#[allow(
+    clippy::float_cmp,
+    reason = "grid deduplication compares exact recorded event times, not approximate quantities"
+)]
 fn randomized_cumulative_incidence(
     duration: PyReadonlyArray1<'_, f64>,
     event_cause: Vec<i64>,
@@ -676,6 +723,10 @@ fn randomized_cumulative_incidence(
 
 /// Left-truncated competing-risk cumulative incidence in randomized arms.
 #[pyfunction]
+#[allow(
+    clippy::float_cmp,
+    reason = "grid deduplication compares exact recorded event times, not approximate quantities"
+)]
 fn randomized_cumulative_incidence_delayed_entry(
     duration: PyReadonlyArray1<'_, f64>,
     delayed_entry: PyReadonlyArray1<'_, f64>,

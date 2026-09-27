@@ -6,6 +6,19 @@ use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+/// One descending frozen-score uplift bin: index, uplift, cost, rows, interval.
+type UpliftBin = (usize, f64, f64, usize, Option<(f64, f64)>);
+/// One conditional contrast: group, action, effect, total and observed rows,
+/// standard error, and optional interval.
+type MultiActionContrast = (String, String, f64, usize, usize, usize, f64, Option<(f64, f64)>);
+/// Finite-class regret: gap, simultaneous bounds, values, paired SEs, index.
+type FiniteClassRegret = (f64, (f64, f64), Vec<f64>, Vec<f64>, usize);
+/// One conditional continuous-dose grid point: group, target, response, local
+/// rows, effective N, minimum density, maximum normalized weight, local SD.
+type DoseResponsePoint = (String, f64, f64, usize, f64, f64, f64, f64);
+/// The scalar policy-value summary returned to Python.
+type PolicyValueScalars = (f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64);
+
 /// Typed held-out policy answer. It is deliberately separate from an ATE.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -43,11 +56,11 @@ pub struct PolicyValueSection {
     /// Exact graphless support license, when its policy row matches.
     pub graphless_support_status: Option<String>,
     /// Held-out randomized uplift by descending frozen score bin.
-    pub uplift_bins: Vec<(usize, f64, f64, usize, Option<(f64, f64)>)>,
+    pub uplift_bins: Vec<UpliftBin>,
     /// Conditional contrasts: group, action, effect, total and observed rows, SE, interval.
-    pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize, f64, Option<(f64, f64)>)>,
+    pub multi_action_cate: Vec<MultiActionContrast>,
     /// Finite-class regret: gap, simultaneous bounds, values, paired SEs, selected index.
-    pub regret: Option<(f64, (f64, f64), Vec<f64>, Vec<f64>, usize)>,
+    pub regret: Option<FiniteClassRegret>,
 }
 
 /// Fixed group-dose policy value under a kernel-smoothed intervention.
@@ -77,7 +90,7 @@ pub struct DosePolicyValueSection {
 pub struct ContinuousDoseResponseSection {
     /// Group, target, response, local rows, effective N, minimum density,
     /// maximum normalized weight, and descriptive local outcome SD.
-    pub points: Vec<(String, f64, f64, usize, f64, f64, f64, f64)>,
+    pub points: Vec<DoseResponsePoint>,
     /// Prespecified kernel bandwidth.
     pub bandwidth: f64,
     /// Caller-declared density provenance.
@@ -289,7 +302,7 @@ fn evaluate_binary_policy_doubly_robust(
     reference: Option<Vec<bool>>,
     costs: Vec<f64>,
     reference_costs: Option<Vec<f64>>,
-) -> PyResult<(f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64)> {
+) -> PyResult<PolicyValueScalars> {
     let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let p = propensity.as_array();
     let mu0 = mu0.as_array();
@@ -338,7 +351,7 @@ fn evaluate_binary_policy_doubly_robust(
         &costs,
         &reference_costs,
     )
-    .map_err(|message| PyValueError::new_err(message))?;
+    .map_err(PyValueError::new_err)?;
     let policy_value = scores.policy_value;
     let reference_value = scores.reference_value;
     let incremental = scores.incremental_value;

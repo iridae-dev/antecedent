@@ -4000,7 +4000,7 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
-            if regret_selected_index.is_some() != !regret_candidates.is_empty()
+            if regret_selected_index.is_some() == regret_candidates.is_empty()
                 || (regret_selected_index.is_none() && !regret_training_subject_ids.is_empty()) {
                 return Err(py_err(antecedent::CausalError::Compile {
                     message: "finite-class regret candidates, selected index, and training subjects must be supplied together".into(),
