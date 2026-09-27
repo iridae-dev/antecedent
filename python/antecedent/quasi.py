@@ -240,11 +240,12 @@ class StaggeredEventTimeEffect:
     treated_subjects: int
     control_subjects: int
     clusters: int
+    interval_95: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class StaggeredEventStudyEstimate:
-    """Cohort-specific event-time contrasts with pointwise SEs and no pretrend test."""
+    """Cohort event times with supported post-adoption pointwise intervals."""
 
     effects: tuple[StaggeredEventTimeEffect, ...]
     control_group: str = "never_treated_cohort_0"
@@ -267,7 +268,8 @@ class StaggeredEventStudyEstimate:
         "comparison_support_counts_reported_per_cohort_event_time",
         "positivity_not_inferred_from_counts",
         "pointwise_cluster_robust_se_uses_g_over_g_minus_one_correction",
-        "no_p_values_or_confidence_intervals_reported",
+        "post_adoption_intervals_are_pointwise_not_simultaneous",
+        "pre_adoption_contrasts_have_no_intervals_or_pretrend_test",
     )
 @dataclass(frozen=True, slots=True)
 class SyntheticControl:
@@ -669,8 +671,10 @@ def estimate_staggered_event_study(
     Pre-adoption coefficients are descriptive checks, not a parallel-trends
     test. Pointwise standard errors aggregate subject-level influence scores
     into independent clusters and apply G/(G-1). Supply a higher-level cluster
-    column when appropriate; subject IDs are the default. No p-values or
-    confidence intervals are reported, and this does not validate assumptions.
+    column when appropriate; subject IDs are the default. The retained event
+    study reports separate post-adoption pointwise intervals only with the
+    calibrated cluster support. It does not validate parallel trends or form
+    simultaneous bands.
     """
     if not isinstance(query, StaggeredAdoption):
         raise CausalValueError("query must be a StaggeredAdoption")

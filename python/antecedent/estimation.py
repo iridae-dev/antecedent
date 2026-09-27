@@ -415,14 +415,25 @@ def _panel_did_from_raw(
             uncertainty=section.uncertainty,
         )
     if isinstance(query, StaggeredAdoption) and query.event_study:
-        return StaggeredEventStudyEstimate(tuple(
+        intervals = section.event_time_intervals_95
+        if len(intervals) != len(section.event_time_effects):
+            raise CausalValueError("event-time intervals must align with cohort contrasts")
+        effects = tuple(
             StaggeredEventTimeEffect(
                 int(cohort), int(period), int(event_time), float(effect), float(se),
                 int(treated), int(controls), int(clusters),
+                tuple(interval) if interval is not None else None,
             )
-            for cohort, period, event_time, effect, treated, controls, se, clusters
-            in section.event_time_effects
-        ))
+            for (cohort, period, event_time, effect, treated, controls, se, clusters), interval
+            in zip(section.event_time_effects, intervals, strict=True)
+        )
+        supported = any(effect.interval_95 is not None for effect in effects)
+        return StaggeredEventStudyEstimate(
+            effects,
+            uncertainty=("event_time_pointwise_normal_intervals_independent_clusters" if supported
+                         else "cluster_robust_se_only_pointwise_cr1_unlicensed"),
+            support_status=("off_axis_pointwise_95" if supported else "unlicensed_point_utility"),
+        )
     repeated = isinstance(query, PanelDifferenceInDifferences) and query.sampling == "repeated_cross_section"
     staggered = isinstance(query, StaggeredAdoption)
     return PanelDifferenceInDifferencesEstimate(

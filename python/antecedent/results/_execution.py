@@ -232,8 +232,13 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer("structured", detail=detail, structured=dict(regime))
     panel = payload.get("panel_did")
     if kind == "point" and isinstance(panel, Mapping):
-        detail = ("panel_did_independent_cluster_interval" if panel.get("interval_95") is not None
-                  else "panel_did_point_only")
+        if panel.get("event_time_effects"):
+            detail = ("staggered_event_post_pointwise_intervals" if any(
+                interval is not None for interval in panel.get("event_time_intervals_95", ()))
+                else "staggered_event_point_only")
+        else:
+            detail = ("panel_did_independent_cluster_interval" if panel.get("interval_95") is not None
+                      else "panel_did_point_only")
         return Answer("structured", detail=detail, structured=dict(panel))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
@@ -406,8 +411,13 @@ class ResultAPI:
         if panel is not None:
             from dataclasses import asdict
 
-            detail = ("panel_did_independent_cluster_interval" if getattr(panel, "interval_95", None) is not None
-                      else "panel_did_point_only")
+            if getattr(panel, "effects", None):
+                detail = ("staggered_event_post_pointwise_intervals" if any(
+                    effect.interval_95 is not None for effect in panel.effects)
+                    else "staggered_event_point_only")
+            else:
+                detail = ("panel_did_independent_cluster_interval" if getattr(panel, "interval_95", None) is not None
+                          else "panel_did_point_only")
             return Answer("structured", detail=detail, structured=asdict(panel))
         policy = getattr(self, "policy_value", None)
         if policy is not None:
@@ -483,6 +493,16 @@ class ResultAPI:
                 "Point-only; no calibrated interval."
             )
         panel = getattr(self, "panel_did", None)
+        if panel is not None and getattr(panel, "design", None) == "balanced_staggered_adoption_event_study":
+            supported = sum(effect.interval_95 is not None for effect in panel.effects)
+            if supported:
+                return (f"Staggered adoption event study with {len(panel.effects)} cohort-period contrasts. "
+                        f"{supported} post-adoption contrasts have separate pointwise 95% intervals "
+                        "requiring at least 24 independent clusters in both the adoption cohort and "
+                        "never-treated controls. Pre-adoption contrasts are descriptive without intervals; "
+                        "parallel untreated trends are assumed, and no simultaneous band is claimed.")
+            return (f"Staggered adoption event study with {len(panel.effects)} cohort-period contrasts. "
+                    "Point-only at this cluster support; pre-adoption contrasts are descriptive.")
         if panel is not None and hasattr(panel, "estimate"):
             interval = getattr(panel, "interval_95", None)
             if interval is not None:

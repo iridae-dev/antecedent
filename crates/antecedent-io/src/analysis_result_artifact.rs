@@ -494,6 +494,9 @@ pub struct PanelDidWire {
     /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
+    /// Optional post-adoption pointwise intervals aligned with event_time_effects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub event_time_intervals_95: Vec<Option<[f64; 2]>>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmented: Option<(f64, f64, f64, bool)>,
@@ -1811,6 +1814,44 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 && representative.is_some_and(|effect| did.effect == effect.3
                     && did.standard_error == Some(effect.6))
         } else { did.event_time_effects.is_empty() };
+        let event_intervals_valid = if query.staggered_event_study {
+            if did.event_time_intervals_95.is_empty() {
+                did.interval_95.is_none()
+                    && did.uncertainty == "cluster_robust_standard_error_no_interval"
+            } else if did.event_time_intervals_95.len() != did.event_time_effects.len() {
+                false
+            } else {
+                let mut clusters_by_cohort = std::collections::BTreeMap::<i64, std::collections::BTreeSet<&str>>::new();
+                for (cohort, cluster) in query.cohorts.iter().zip(&query.clusters) {
+                    clusters_by_cohort.entry(*cohort).or_default().insert(cluster);
+                }
+                let controls = clusters_by_cohort.get(&0).map_or(0, std::collections::BTreeSet::len);
+                let valid = did.event_time_effects.iter().zip(&did.event_time_intervals_95)
+                    .all(|(effect, interval)| {
+                        let treated = clusters_by_cohort.get(&effect.0).map_or(0, std::collections::BTreeSet::len);
+                        let supported = effect.2 >= 0 && treated >= 24 && controls >= 24
+                            && effect.7 >= 48 && effect.6.is_finite() && effect.6 > 0.0;
+                        match interval {
+                            Some(bounds) if supported => {
+                                let span = antecedent_stats::normal_ppf(0.975) * effect.6;
+                                let tolerance = 1e-10 * (1.0 + effect.3.abs() + span.abs());
+                                bounds[0].is_finite() && bounds[1].is_finite()
+                                    && (bounds[0] - (effect.3 - span)).abs() <= tolerance
+                                    && (bounds[1] - (effect.3 + span)).abs() <= tolerance
+                            }
+                            None => !supported,
+                            _ => false,
+                        }
+                    });
+                let representative_interval = did.event_time_effects.iter().position(|effect| effect.2 >= 0)
+                    .and_then(|index| did.event_time_intervals_95[index]);
+                let expected_uncertainty = if did.event_time_intervals_95.iter().any(Option::is_some) {
+                    "event_time_pointwise_normal_intervals_independent_clusters"
+                } else { "cluster_robust_standard_error_no_interval" };
+                valid && did.interval_95 == representative_interval
+                    && did.uncertainty == expected_uncertainty
+            }
+        } else { did.event_time_intervals_95.is_empty() };
         let (treated_subjects, comparison_subjects) = if query.staggered_event_study {
             representative.map(|effect| (effect.4, effect.5)).unwrap_or((0, 0))
         } else if let Some((target, _)) = query.staggered_target {
@@ -1864,7 +1905,16 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             } else {
                 group_clusters.iter().all(|members| members.len() >= 30)
             };
-        let interval_valid = match (did.interval_95, did.standard_error) {
+        let interval_valid = if query.staggered_event_study {
+            let representative_scalar_valid = match (did.interval_95, did.standard_error, result.standard_error) {
+                (Some(_), Some(section_se), Some(reported_se)) =>
+                    section_se.is_finite() && section_se > 0.0
+                        && (reported_se - section_se).abs() <= 1e-10 * (1.0 + section_se.abs()),
+                (None, _, None) => true,
+                _ => false,
+            };
+            representative_scalar_valid && event_intervals_valid
+        } else { match (did.interval_95, did.standard_error) {
             (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
                 let radius = 1.959963984540054 * se;
                 let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
@@ -1877,7 +1927,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             (None, _) => result.standard_error.is_none()
                 && (query.augmented.is_some() || did.uncertainty == "cluster_robust_standard_error_no_interval"),
             _ => false,
-        };
+        }};
         if result.estimate != Some(did.effect)
             || !interval_valid
             || !did.effect.is_finite()
@@ -1887,6 +1937,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || did.comparison_subjects != comparison_subjects
             || did.clusters != clusters
             || !event_study_valid
+            || !event_intervals_valid
             || !augmented_valid
             || (query.repeated_cross_section
                 && (duplicate_subject
@@ -2563,6 +2614,7 @@ mod tests {
             clusters: 4,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
             event_time_effects: vec![],
+            event_time_intervals_95: vec![],
             augmented: None,
         });
         let encoded = encode_analysis_result_artifact(
@@ -2602,6 +2654,7 @@ mod tests {
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
             event_time_effects: vec![],
+            event_time_intervals_95: vec![],
             augmented: None,
         });
         let encoded = encode_analysis_result_artifact(
@@ -2658,6 +2711,7 @@ mod tests {
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
             event_time_effects: vec![],
+            event_time_intervals_95: vec![],
             augmented: None,
         });
         let encoded = encode_analysis_result_artifact(

@@ -347,7 +347,9 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
     for clusters_per_group in [8, 24] {
         let (data, query) = staggered_interval_fixture(clusters_per_group);
         let context = ExecutionContext::for_tests(111);
-        let result = Study::tabular(data).query(query).build().unwrap().run(&context).unwrap();
+        let study = Study::tabular(data.clone()).query(query).build().unwrap();
+        let prepared = study.prepare(&context).unwrap();
+        let result = prepared.estimate(&data, &context).unwrap();
         let panel = result.panel_did.as_ref().unwrap();
         assert_eq!(panel.event_time_effects.len(), 3);
         for (effect, truth) in panel.event_time_effects.iter().zip([0.0, 4.0, 4.0]) {
@@ -356,6 +358,31 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
             assert_eq!(effect.clusters, 2 * clusters_per_group);
             assert_eq!(effect.treated_subjects, clusters_per_group);
             assert_eq!(effect.comparison_subjects, clusters_per_group);
+        }
+        assert_eq!(panel.event_time_intervals_95.len(), 3);
+        assert_eq!(panel.event_time_intervals_95[0], None);
+        if clusters_per_group == 24 {
+            for (bounds, truth) in panel.event_time_intervals_95[1..].iter().zip([4.0, 4.0]) {
+                let bounds = bounds.expect("calibrated post-adoption interval");
+                assert!(bounds[0] < truth && truth < bounds[1]);
+            }
+            assert_eq!(panel.interval_95, panel.event_time_intervals_95[1]);
+            assert_eq!(panel.uncertainty.as_ref(), "event_time_pointwise_normal_intervals_independent_clusters");
+            assert!(result.estimate.as_effect().unwrap().se_analytic > 0.0);
+            assert_ne!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+        } else {
+            assert!(panel.event_time_intervals_95.iter().all(Option::is_none));
+            assert_eq!(panel.interval_95, None);
+            assert_eq!(panel.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
+            assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+        }
+        let bytes = prepared.encode_contracted_result(&result, "staggered-event-interval", &context).unwrap();
+        let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(body.panel_did.as_ref().unwrap().event_time_intervals_95.len(), 3);
+        if clusters_per_group == 24 {
+            body.panel_did.as_mut().unwrap().event_time_intervals_95[1] = Some([0.0, 0.0]);
+            assert!(antecedent_io::encode_analysis_result_artifact(
+                &body, header.variable_names, "forged-staggered-interval").is_err());
         }
     }
 }

@@ -25,6 +25,7 @@ pub struct PanelDidSection {
     pub uncertainty: String,
     /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
     pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
+    pub event_time_intervals_95: Vec<Option<(f64, f64)>>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
     pub augmented: Option<(f64, f64, f64, bool)>,
 }
@@ -44,6 +45,8 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
                 effect.treated_subjects, effect.comparison_subjects,
                 effect.standard_error, effect.clusters,
             )).collect(),
+            event_time_intervals_95: value.event_time_intervals_95.iter()
+                .map(|interval| interval.map(|bounds| (bounds[0], bounds[1]))).collect(),
             augmented: value.augmented,
         }
     }

@@ -150,6 +150,9 @@ pub struct PanelDidEstimate {
     pub uncertainty: Arc<str>,
     /// Cohort-specific contrasts for a retained event study; empty for scalar DiD.
     pub event_time_effects: Arc<[antecedent_estimate::staggered_event_study::EventTimeEffect]>,
+    /// Pointwise post-adoption intervals aligned with event-time effects;
+    /// pre-adoption descriptive contrasts always have no interval.
+    pub event_time_intervals_95: Arc<[Option<[f64; 2]>]>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
     pub augmented: Option<(f64, f64, f64, bool)>,
 }

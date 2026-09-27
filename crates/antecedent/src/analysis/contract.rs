@@ -3294,6 +3294,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 effect.treated_subjects, effect.comparison_subjects,
                 effect.standard_error, effect.clusters,
             )).collect(),
+            event_time_intervals_95: did.event_time_intervals_95.to_vec(),
             augmented: did.augmented,
         }),
         synthetic_control: result.synthetic_control.as_ref().map(|fit| {

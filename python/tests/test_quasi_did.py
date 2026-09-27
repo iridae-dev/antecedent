@@ -419,6 +419,22 @@ def test_staggered_event_known_truth_fixture_spans_thin_and_supported_clusters()
             assert effect.clusters == 2 * clusters_per_group
             assert effect.treated_subjects == clusters_per_group
             assert effect.control_subjects == clusters_per_group
+        assert effects[0].interval_95 is None
+        if clusters_per_group == 24:
+            for effect in effects[1:]:
+                assert effect.interval_95[0] < 4.0 < effect.interval_95[1]
+            assert result.estimate.se_analytic > 0.0
+            assert result.panel_did.support_status == "off_axis_pointwise_95"
+            assert result.answer.detail == "staggered_event_post_pointwise_intervals"
+            assert "no simultaneous band" in result.claim()
+        else:
+            assert all(effect.interval_95 is None for effect in effects)
+            assert np.isnan(result.estimate.se_analytic)
+            assert result.panel_did.support_status == "unlicensed_point_utility"
+            assert result.answer.detail == "staggered_event_point_only"
+        assert estimate_staggered_event_study(data, query) == result.panel_did
+        artifact = antecedent.load(result.export(artifact_id="staggered-event-boundary"))
+        assert len(artifact.artifact.payload["panel_did"]["event_time_intervals_95"]) == 3
 
 
 def test_staggered_event_study_refuses_no_never_treated_comparison_group():
