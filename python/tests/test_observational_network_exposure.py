@@ -122,3 +122,44 @@ def test_observational_network_analyze_refuses_unsupported_design():
         _query(assume_network_exchangeability=False)
     with pytest.raises(ValueError, match="crosses cluster boundary"):
         ant.analyze(data, graph=[], query=_query(edges=[*edges, (0, 2)]))
+
+
+def test_known_exposure_probabilities_publish_retained_cluster_interval():
+    clusters = [cluster for cluster in range(60) for _ in range(2)]
+    assignment = [cluster % 2 == 1 for cluster in clusters]
+    edges = [(2 * cluster + 1 - unit, 2 * cluster + unit) for cluster in range(60) for unit in range(2)]
+    outcomes = np.array([
+        1.0 + (cluster % 7) / 10.0 + 2.0 * float(cluster % 2 == 1)
+        for cluster in clusters
+    ])
+    design = interference.ObservedExposureDesign(
+        clusters=clusters,
+        propensity_from=[0.5] * 120,
+        propensity_to=[0.5] * 120,
+        propensity_provenance="known",
+        assume_network_exchangeability=True,
+    )
+    query = interference.InterferenceQuery(
+        design,
+        interference.NeighborCount(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0, 0.0), interference.ExposureLevel(1.0, 1.0)
+        ),
+        network=edges,
+        realized_assignment=assignment,
+        partial_interference=interference.PartialInterference(clusters),
+    )
+    result = ant.analyze({"y": outcomes}, graph=[], query=query)
+    interval = result.interference.pointwise_interval
+    assert interval is not None
+    assert interval.lower < 2.0 < interval.upper
+    assert interval.first_stage_arm_clusters == (30, 30)
+    assert interval.degrees_of_freedom == 59.0
+    assert result.interference.interval_unavailable_reason is None
+    assert "Pointwise 95% cluster t interval" in result.interference.uncertainty_semantics
+    assert result.evidence_status == "off_axis"
+
+
+def test_observational_network_refuses_incoherent_exposure_probabilities():
+    with pytest.raises(ValueError, match="summing above one"):
+        _estimate(propensity_from=[0.7] * 4, propensity_to=[0.7] * 4)

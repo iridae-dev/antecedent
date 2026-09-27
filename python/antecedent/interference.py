@@ -178,11 +178,6 @@ class ObservationalNetworkExposureEstimate:
         "Supplied exposure probabilities are correctly specified or known.",
     )
     support_status: str = "unlicensed_point_utility"
-    uncertainty_semantics: str = (
-        "Exact marginal exposure probabilities and a covariance-free Young variance bound "
-        "that covers dependence from both randomization stages; no interval is reported and no confidence interval "
-        "or calibration claim is made."
-    )
 
 
 @dataclass(frozen=True, slots=True)

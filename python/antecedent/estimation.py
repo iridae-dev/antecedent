@@ -309,8 +309,11 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
     )
     if observational:
         uncertainty = (
-            "Descriptive cluster CR1 variance for the HT contrast, treating supplied exposure "
-            "probabilities as fixed; no interval or calibration claim is made."
+            "Pointwise 95% cluster t interval for the HT contrast under known fixed exposure "
+            "probabilities, independent clusters, and declared network exchangeability."
+            if pointwise_interval is not None else
+            "Descriptive cluster CR1 variance for the HT contrast; pointwise interval withheld "
+            "because exposure probabilities were fitted or cluster support failed."
         )
     elif estimator_id == "interference.saturation_exact":
         uncertainty = (
