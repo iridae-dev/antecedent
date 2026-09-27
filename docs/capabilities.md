@@ -845,6 +845,18 @@ rows. The answer is point-only with no effect or interval placeholder.
 Caller-estimated probabilities are refused on this retained path, and no
 support-matrix license or cross-fitting claim is made.
 
+`LongitudinalRegimeQuery.from_dynamic_rule(...)` resolves a binary callback
+against each subject's observed history before `prepare` or `analyze`. At
+decision `t`, the callback receives only actions before `t` and covariates
+available through `t`; it must return a boolean. The caller must supply a
+stable rule ID, version, and provenance. Rust freezes the resulting action
+matrix and carries that identity through the query, result, and artifacts.
+The callback itself is caller code and cannot be replayed or verified from an
+artifact. A declared dropout skips later callback calls and permits absent
+later covariates. The retained estimator uses the same subject-level folds,
+dropout, positivity, and point-only contracts as an explicit action matrix.
+A change to the callback requires a new version and a new prepared study.
+
 Set `method="g_formula"` and provide subject-by-period conditional reward
 predictions to evaluate a prespecified regime through the same retained
 query, native estimator, result, and artifact path. The predictions and
