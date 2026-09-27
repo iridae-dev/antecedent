@@ -195,3 +195,66 @@ fn complete_cluster_randomization_pointwise_total_interval_covers_truth() {
     }
     assert!(covered >= 360, "cluster total coverage {covered}/400");
 }
+
+#[test]
+fn complete_cluster_total_interval_calibrates_at_support_boundary() {
+    const DRAWS: usize = 2_000;
+    for cluster_count in [16, 80] {
+        let edges = (0..cluster_count).flat_map(|cluster| {
+            let first = (3 * cluster) as u32;
+            (0..3).map(move |within| NetworkEdge {
+                from: first + ((within + 1) % 3) as u32,
+                to: first + within as u32,
+                weight: 1.0,
+            })
+        }).collect::<Vec<_>>();
+        let clusters = (0..cluster_count).flat_map(|id| [id as u32; 3]).collect::<Vec<_>>();
+        let effects = (0..cluster_count)
+            .map(|cluster| 2.0 + 0.4 * (0.41 * cluster as f64).cos())
+            .collect::<Vec<_>>();
+        let truth = effects.iter().sum::<f64>() / cluster_count as f64;
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(clusters), treated_clusters: cluster_count / 2,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let mut state = 0x8b63_13ac_7f9d_2e51;
+        let mut covered = 0_usize;
+        for _ in 0..DRAWS {
+            let mut order = (0..cluster_count).collect::<Vec<_>>();
+            for i in (1..cluster_count).rev() {
+                order.swap(i, next_u64(&mut state) as usize % (i + 1));
+            }
+            let mut treated = vec![false; cluster_count];
+            for &cluster in &order[..cluster_count / 2] {
+                treated[cluster] = true;
+            }
+            let assignment = (0..cluster_count)
+                .flat_map(|cluster| [treated[cluster]; 3]).collect::<Vec<_>>();
+            let outcomes = (0..3 * cluster_count).map(|unit| {
+                let cluster = unit / 3;
+                5.0 + 0.6 * (0.37 * cluster as f64).sin() + 0.1 * (unit % 3) as f64
+                    + effects[cluster] * f64::from(treated[cluster])
+            }).collect::<Vec<_>>();
+            let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
+            let network = NetworkData::try_new(data, edges.clone()).unwrap();
+            let (_, interval) = estimate_cluster_interference_total_with_inference(
+                &query, &network, &assignment,
+            ).unwrap();
+            let interval = interval.expect("boundary includes eight randomized clusters per arm");
+            assert_eq!((interval.control_clusters, interval.treated_clusters),
+                (cluster_count / 2, cluster_count / 2));
+            covered += usize::from(interval.bounds[0] <= truth && truth <= interval.bounds[1]);
+        }
+        let rate = covered as f64 / DRAWS as f64;
+        eprintln!("cluster-total {}+{}: {covered}/{DRAWS}, coverage={rate:.4}",
+            cluster_count / 2, cluster_count / 2);
+        assert!((0.93..=0.97).contains(&rate), "cluster-total 95% coverage {rate}");
+    }
+}
