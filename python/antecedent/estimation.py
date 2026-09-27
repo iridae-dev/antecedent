@@ -2416,6 +2416,12 @@ class _PrepareRoute:
 
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
+        # running_variable / cutoff / bandwidth belong to the sharp-RD AverageEffect
+        # cell alone. Refuse them for every other query up front so the graphless
+        # families (which return before the AverageEffect fall-through) can never
+        # accept and silently drop them.
+        if not isinstance(query, AverageEffect):
+            self._refuse_rd(f"{type(query).__name__}")
         if isinstance(query, (PolicyValue, MultiActionPolicyValue)):
             return self._policy_value()
         if isinstance(query, ConditionalDoseResponse):
@@ -2459,8 +2465,7 @@ class _PrepareRoute:
             return self._interference()
         if isinstance(query, (AnomalyAttribution, ChangeAttribution)):
             return self._attribution()
-        if not isinstance(query, AverageEffect):
-            self._refuse_rd(f"{type(query).__name__}")
+        # (RD kwargs already refused for non-AverageEffect queries at the top.)
         if isinstance(query, _RESPONSE_FAMILY):
             # A requested replicate count is refused before the structural
             # refusals: it is the caller's own request, not the cell's shape.

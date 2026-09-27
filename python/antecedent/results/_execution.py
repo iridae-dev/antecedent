@@ -529,7 +529,7 @@ class ResultAPI:
                 f"Held-out randomized policy value {policy.policy_value:g}; reference value "
                 f"{policy.reference_value:g}; incremental value {policy.incremental_value:g}; "
                 f"treatment rate {policy.treatment_rate:.3f}. Its paired row-score SE is "
-                f"{policy.incremental_standard_error:g}; uncertainty assumes independent subjects."
+                f"{policy.incremental_value_standard_error:g}; uncertainty assumes independent subjects."
             )
         dose = getattr(self, "continuous_dose_response", None)
         if dose is not None:
