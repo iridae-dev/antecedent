@@ -194,9 +194,9 @@ def test_every_population_scoped_class_has_the_field() -> None:
         assert field.default is None and field.kw_only, cls.__name__
     for cls in unscoped:
         assert "target_population" not in {f.name for f in fields(cls)}, cls.__name__
-    assert len(scoped) + len(unscoped) == len(
-        [name for name in ant.query.__all__ if name in ant.__all__]
-    )
+    query_names = {name for name in ant.query.__all__ if name in ant.__all__}
+    # AnomalyReference configures a query; it is not itself a query target.
+    assert query_names - {"AnomalyReference"} == {cls.__name__ for cls in scoped | unscoped}
 
 
 @pytest.mark.parametrize(
