@@ -203,6 +203,7 @@ _EXPECTED_STAGE_ALL = {
         "RandomizedEffect", "RandomizedExperimentEstimate", "RandomizationTest",
         "StratifiedRandomization",
         "SwitchbackDesign", "SwitchbackEffect", "SwitchbackEstimate",
+        "TreatmentOnTreated",
         "estimate_complier_effect", "estimate_cuped_effect",
         "estimate_ancova_effect",
         "exact_randomization_test",
