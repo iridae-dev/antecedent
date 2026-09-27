@@ -191,8 +191,16 @@ class LongitudinalRegimeQuery:
             raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
         n, periods = history.shape
         covariates = np.asarray(predecision_covariates, dtype=np.float64)
-        if covariates.ndim != 3 or covariates.shape[:2] != (n, periods) or covariates.shape[2] == 0 or not np.isfinite(covariates).all():
+        if covariates.ndim != 3 or covariates.shape[:2] != (n, periods) or covariates.shape[2] == 0:
             raise ValueError("predecision_covariates must be finite subject-by-period-by-feature values")
+        observed = np.ones((n, periods), dtype=bool) if observation_history is None else np.asarray(observation_history)
+        if observed.shape != (n, periods) or not np.isin(observed, (0, 1, False, True)).all():
+            raise ValueError("observation_history must be binary subject-by-period values")
+        observed = observed.astype(bool)
+        if np.any((~observed[:, :-1]) & observed[:, 1:]):
+            raise ValueError("observation_history must be monotone after dropout")
+        if not np.isfinite(covariates[observed]).all():
+            raise ValueError("observed predecision_covariates must be finite")
         if not callable(rule):
             raise ValueError("rule must be callable")
         if any(not isinstance(value, str) or not value.strip() for value in (rule_id, rule_version, rule_provenance)):
@@ -201,6 +209,9 @@ class LongitudinalRegimeQuery:
         for subject in range(n):
             row: list[bool] = []
             for period in range(periods):
+                if not observed[subject, period]:
+                    row.append(False)
+                    continue
                 past = tuple(bool(value) for value in history[subject, :period])
                 available = tuple(tuple(float(value) for value in covariates[subject, t]) for t in range(period + 1))
                 decision = rule(period, past, available)

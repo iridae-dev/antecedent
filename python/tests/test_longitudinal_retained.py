@@ -99,6 +99,43 @@ def test_dynamic_rule_refuses_invalid_identity_future_covariate_shape_and_nonbin
         LongitudinalRegimeQuery.from_dynamic_rule(**args, rule=lambda *_: 1)
 
 
+def test_dynamic_rule_skips_decisions_and_covariates_after_dropout():
+    _, static = fixture()
+    calls = []
+
+    def rule(period, past, covariates):
+        calls.append((period, past, covariates))
+        return True
+
+    query = LongitudinalRegimeQuery.from_dynamic_rule(
+        outcome="y", treatment_history=static.treatment_history,
+        predecision_covariates=[[[1.0], [2.0]], [[1.0], [float("nan")]],
+                                [[1.0], [2.0]], [[1.0], [2.0]]],
+        rule=rule, rule_id="dropout-aware", rule_version="v1", rule_provenance="protocol",
+        treatment_probabilities=static.treatment_probabilities,
+        subject_ids=static.subject_ids, method="sequential_dr",
+        q_predictions=[[1.0, 1.0]] * 4,
+        observation_history=[[True, True], [True, False], [True, True], [True, True]],
+        outcome_observed=[True, False, True, True],
+        fold_ids=[0, 0, 1, 1], prediction_fold_ids=[0, 0, 1, 1],
+        excluded_fold_predictions=True,
+    )
+    assert len(calls) == 7
+    assert query.actions[1] == (True, False)
+    with pytest.raises(ValueError, match="monotone after dropout"):
+        LongitudinalRegimeQuery.from_dynamic_rule(
+            outcome="y", treatment_history=static.treatment_history,
+            predecision_covariates=[[[1.0], [2.0]]] * 4,
+            rule=rule, rule_id="bad-dropout", rule_version="v1", rule_provenance="protocol",
+            treatment_probabilities=static.treatment_probabilities,
+            subject_ids=static.subject_ids, method="sequential_dr",
+            q_predictions=[[1.0, 1.0]] * 4,
+            observation_history=[[True, True], [False, True], [True, True], [True, True]],
+            outcome_observed=[True] * 4, fold_ids=[0, 0, 1, 1],
+            prediction_fold_ids=[0, 0, 1, 1], excluded_fold_predictions=True,
+        )
+
+
 def test_longitudinal_refuses_unsupported_nuisance_ownership_and_bad_subjects():
     data, query = fixture()
     with pytest.raises(ValueError, match="distinct non-empty"):
