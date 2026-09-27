@@ -16,7 +16,7 @@ estimator selectors, and the two error names most callers catch. The specialized
 difference-in-differences and other quasi-experimental designs, survival, and
 longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
 ``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
-``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegimeQuery``),
+``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegime``),
 not at the root. The eighteen root-exported stage modules are:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,

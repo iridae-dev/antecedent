@@ -85,7 +85,7 @@ def _randomized_query() -> Any:
 def _longitudinal_query() -> Any:
     n = 500
     history = [[(i % 4 in (0, 1)), (i % 4 in (0, 2))] for i in range(n)]
-    return regimes.LongitudinalRegimeQuery(
+    return regimes.LongitudinalRegime(
         outcome="y", treatment_history=history, actions=[True, True],
         treatment_probabilities=[[0.5, 0.5]] * n,
         subject_ids=[f"subject-{i}" for i in range(n)], fold_ids=[i % 5 for i in range(n)],

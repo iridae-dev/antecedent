@@ -27,7 +27,7 @@ _IDS_RS = (
 
 def _rust_wire_ids() -> tuple[set[str], set[str]]:
     """Wire ids from the two ``*_data`` tables: identifiers, then estimators."""
-    text = _IDS_RS.read_text()
+    text = _IDS_RS.read_text(encoding="utf-8")
     split = text.index("fn estimator_data")
     name = re.compile(r'name:\s*"([a-z0-9_.]+)"')
     identifiers = set(name.findall(text[:split]))
