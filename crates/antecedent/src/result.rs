@@ -160,6 +160,12 @@ pub struct SyntheticControlEstimate {
     pub randomization_p_value: Option<f64>,
     /// Absolute gap for every possible treated unit under the sharp null.
     pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
+    /// Unadjusted simplex gap when a donor outcome model corrects the point estimate.
+    pub unadjusted_effect: Option<f64>,
+    /// Donor outcome-model prediction difference subtracted from the simplex gap.
+    pub outcome_model_correction: Option<f64>,
+    /// Positive ridge penalty used for the donor outcome model.
+    pub augmentation_ridge: Option<f64>,
 }
 
 /// Point-only synthetic difference-in-differences result with fitted simplex weights.

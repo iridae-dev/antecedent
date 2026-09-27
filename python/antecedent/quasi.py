@@ -275,10 +275,18 @@ class SyntheticControl:
     treated_unit: str
     intervention_period: int
     uniform_unit_randomization: bool = False
+    augmentation_ridge: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
+        if self.augmentation_ridge is not None:
+            if (not isinstance(self.augmentation_ridge, (int, float, np.integer, np.floating))
+                or isinstance(self.augmentation_ridge, (bool, np.bool_))
+                or not np.isfinite(self.augmentation_ridge) or self.augmentation_ridge <= 0):
+                raise CausalValueError("augmentation_ridge must be finite and positive")
+            if self.uniform_unit_randomization:
+                raise CausalValueError("augmentation cannot be combined with exact unit randomization")
         fields = (self.outcome, self.unit, self.period)
         if any(not isinstance(value, str) or not value.strip() for value in fields):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")
@@ -307,6 +315,9 @@ class SyntheticControlEstimate:
     n_post_periods: int
     randomization_p_value: float | None = None
     randomization_statistics: tuple[tuple[str, float], ...] = ()
+    unadjusted_effect: float | None = None
+    outcome_model_correction: float | None = None
+    augmentation_ridge: float | None = None
     uncertainty: str = "point_only_with_unlicensed_placebo_rank"
     support_status: str = "unlicensed_point_utility"
     diagnostics: tuple[str, ...] = (
@@ -690,7 +701,7 @@ def estimate_synthetic_control(data: Any, query: SyntheticControl) -> SyntheticC
 
     if not isinstance(query, SyntheticControl):
         raise CausalValueError("query must be a SyntheticControl")
-    if query.uniform_unit_randomization:
+    if query.uniform_unit_randomization or query.augmentation_ridge is not None:
         from .estimation import PreparedAnalysis
 
         result = PreparedAnalysis.prepare(data, query=query).estimate(data).synthetic_control

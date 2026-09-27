@@ -418,16 +418,22 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
         n_post_periods=section.n_post_periods,
         randomization_p_value=section.randomization_p_value,
         randomization_statistics=tuple((str(unit), float(statistic)) for unit, statistic in section.randomization_statistics),
+        unadjusted_effect=section.unadjusted_effect,
+        outcome_model_correction=section.outcome_model_correction,
+        augmentation_ridge=section.augmentation_ridge,
         uncertainty=section.uncertainty,
         assumptions=(
             "no_anticipation", "stable_treatment_after_intervention",
             "convex_donor_combination_is_a_valid_counterfactual",
             "no_interference_between_units", "no_concurrent_treated_unit_specific_shock",
-        ) + (("uniform_single_treated_unit_assignment",)
+        ) + (("donor_ridge_outcome_model_transports", "donor_outcome_model_correction_is_valid")
+             if section.augmentation_ridge is not None else ()) + (("uniform_single_treated_unit_assignment",)
              if section.randomization_p_value is not None else ()),
-        diagnostics=("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
+        diagnostics=("donor_ridge_outcome_model_correction", "unadjusted_placebo_rank_is_descriptive", "no_confidence_interval")
+            if section.augmentation_ridge is not None else
+            (("exact_uniform_unit_randomization_sharp_null_test", "no_confidence_interval")
             if section.randomization_p_value is not None
-            else ("placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",),
+            else ("placebo_rank_assumes_exchangeable_donors_and_is_not_calibrated",)),
     )
 
 
@@ -2866,6 +2872,7 @@ class _PrepareRoute:
     def _local_polynomial_ratio(self) -> tuple[Any, Literal["average"]]:
         query = cast(FuzzyRegressionDiscontinuity | RegressionKink, self.query)
         if self.graph is not None or self.discovery is not None:
+            augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
             raise _not_applicable("graph/discovery", "local polynomial ratio")
         self._refuse_ids("local polynomial ratio")
         self._refuse_estimator_config("local polynomial ratio")

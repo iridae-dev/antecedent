@@ -3586,13 +3586,13 @@ impl PyPreparedAnalysis {
     /// Freeze one treated unit and its balanced donor pool for native synthetic control.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,
-        intervention_period, *, difference_in_differences=false, uniform_unit_randomization=false,
+        intervention_period, *, difference_in_differences=false, uniform_unit_randomization=false, augmentation_ridge=None,
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_synthetic_control(
         py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
         outcome: String, units: Vec<String>, periods: Vec<i64>, treated_unit: String,
-        intervention_period: i64, difference_in_differences: bool, uniform_unit_randomization: bool, accepted: bool, seed: u64, threads: Option<u32>,
+        intervention_period: i64, difference_in_differences: bool, uniform_unit_randomization: bool, augmentation_ridge: Option<f64>, accepted: bool, seed: u64, threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3620,6 +3620,7 @@ impl PyPreparedAnalysis {
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            let query = if let Some(ridge) = augmentation_ridge { query.with_augmentation(ridge) } else { query };
             Ok(finished_prepared(prepared, names, false))
         })
     }

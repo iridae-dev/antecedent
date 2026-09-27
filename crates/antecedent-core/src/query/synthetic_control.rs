@@ -35,6 +35,8 @@ pub struct SyntheticControlQuery {
     pub method: SyntheticPanelMethod,
     /// Declare uniform assignment of exactly one treated unit for a sharp-null test.
     pub uniform_unit_randomization: bool,
+    /// Optional donor-trained ridge outcome-model correction to the simplex fit.
+    pub augmentation_ridge: Option<f64>,
 }
 
 impl SyntheticControlQuery {
@@ -47,7 +49,7 @@ impl SyntheticControlQuery {
         treated_unit: impl Into<Arc<str>>,
         intervention_period: i64,
     ) -> Self {
-        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control, uniform_unit_randomization: false }
+        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control, uniform_unit_randomization: false, augmentation_ridge: None }
     }
 
     /// Use the same frozen panel for a synthetic difference-in-differences contrast.
@@ -61,6 +63,13 @@ impl SyntheticControlQuery {
     #[must_use]
     pub fn with_uniform_unit_randomization(mut self) -> Self {
         self.uniform_unit_randomization = true;
+        self
+    }
+
+    /// Correct the simplex contrast with a donor-trained ridge outcome model.
+    #[must_use]
+    pub fn with_augmentation(mut self, ridge_penalty: f64) -> Self {
+        self.augmentation_ridge = Some(ridge_penalty);
         self
     }
 
@@ -79,6 +88,18 @@ impl SyntheticControlQuery {
             return Err(QueryError::InvalidRandomizedEffect(
                 "unit-randomization inference currently applies only to synthetic control".into(),
             ));
+        }
+        if let Some(ridge) = self.augmentation_ridge {
+            if !ridge.is_finite() || ridge <= 0.0 {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "augmented synthetic control requires a finite positive ridge penalty".into(),
+                ));
+            }
+            if self.method != SyntheticPanelMethod::Control || self.uniform_unit_randomization {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "augmented synthetic control cannot be combined with synthetic DiD or exact unit randomization".into(),
+                ));
+            }
         }
         Ok(())
     }

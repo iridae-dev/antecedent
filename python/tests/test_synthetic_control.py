@@ -123,3 +123,30 @@ def test_uniform_unit_randomization_reports_exact_sharp_null_p_value_only():
     assert math.isnan(result.estimate.se_analytic)
     assert estimate_synthetic_control(rows, query) == fit
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
+
+
+def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_invalid_options():
+    rows: dict[str, list[object]] = {"y": [], "unit": [], "period": []}
+    for unit, position in (("a", 0.0), ("b", 1.0), ("c", 2.0), ("treated", 3.0)):
+        for period in range(1, 5):
+            rows["unit"].append(unit)
+            rows["period"].append(period)
+            rows["y"].append(position * period if period < 4 else 4 * position + (5 if unit == "treated" else 0))
+    query = SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=1e-8)
+    result = analyze(rows, query=query)
+    fit = result.synthetic_control
+    assert fit is not None
+    assert fit.unadjusted_effect == pytest.approx(9.0, abs=1e-5)
+    assert fit.outcome_model_correction == pytest.approx(4.0, abs=1e-4)
+    assert fit.estimate == pytest.approx(5.0, abs=1e-4)
+    assert fit.uncertainty == "point_only_augmented_no_interval"
+    assert fit.support_status == "unlicensed_point_utility"
+    assert "donor_ridge_outcome_model_transports" in fit.assumptions
+    assert math.isnan(result.estimate.se_analytic)
+    assert estimate_synthetic_control(rows, query) == fit
+    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
+    with pytest.raises(CausalValueError, match="positive"):
+        SyntheticControl("y", "unit", "period", "treated", 4, augmentation_ridge=0.0)
+    with pytest.raises(CausalValueError, match="cannot be combined"):
+        SyntheticControl("y", "unit", "period", "treated", 4,
+                         uniform_unit_randomization=True, augmentation_ridge=1.0)

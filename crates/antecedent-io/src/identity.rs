@@ -341,6 +341,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         }
         CausalQueryWire::LocalPolynomialRatio(query) => vec![
             ("query_kind".into(), if query.kink { "regression_kink" } else { "fuzzy_rd" }.into()),
+            if let Some(ridge) = query.augmentation_ridge {
+                dimensions.push(("augmentation_ridge".into(), ridge.to_string()));
+            }
             ("outcome".into(), query.outcome.to_string()),
             ("treatment".into(), query.treatment.to_string()),
             ("running".into(), query.running.to_string()),

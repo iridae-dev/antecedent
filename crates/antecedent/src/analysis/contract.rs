@@ -3285,6 +3285,9 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 randomization_p_value: fit.randomization_p_value,
                 randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
                     (unit.to_string(), *statistic)).collect(),
+                unadjusted_effect: fit.unadjusted_effect,
+                outcome_model_correction: fit.outcome_model_correction,
+                augmentation_ridge: fit.augmentation_ridge,
             }
         }),
         synthetic_did: result.synthetic_did.as_ref().map(|fit| antecedent_io::SyntheticDidWire {
