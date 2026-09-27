@@ -28,6 +28,7 @@ fn exact_synthetic_did_assignment_round_trips_and_rejects_tampering() {
     let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.synthetic_did.as_ref().unwrap();
+    assert!((fit.effect - 5.0).abs() < 1e-8);
     assert_eq!(fit.randomization_statistics.len(), 4);
     let observed = fit.randomization_statistics.iter()
         .find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
