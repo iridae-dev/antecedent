@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from antecedent import analyze
 from antecedent.errors import CausalValueError
+from antecedent.estimation import PreparedAnalysis
 from antecedent.quasi import (
     AugmentedPanelDiD,
     SyntheticDifferenceInDifferences,
@@ -40,6 +42,23 @@ def test_synthetic_did_recovers_known_effect_with_additive_unit_and_time_effects
     assert result.uncertainty == "point_only"
     assert result.support_status == "unlicensed_point_utility"
     assert "no_concurrent_treated_unit_specific_shock" in result.assumptions
+
+
+def test_retained_synthetic_did_matches_direct_and_preserves_point_only_weights():
+    rows = _synthetic_did_panel()
+    query = SyntheticDifferenceInDifferences("y", "unit", "period", "treated", 4)
+    direct = estimate_synthetic_did(rows, query)
+    result = analyze(rows, query=query)
+    fit = result.synthetic_did
+    assert fit is not None
+    assert fit.estimate == pytest.approx(direct.estimate)
+    assert dict(fit.donor_weights) == pytest.approx(dict(direct.donor_weights))
+    assert dict(fit.time_weights) == pytest.approx(dict(direct.time_weights))
+    assert fit.support_status == "unlicensed_point_utility"
+    assert fit.uncertainty == "point_only"
+    assert np.isnan(result.estimate.se_analytic)
+    prepared = PreparedAnalysis.prepare(rows, query=query)
+    assert prepared.estimate(rows).synthetic_did == fit
 
 
 def test_synthetic_did_refuses_unbalanced_and_insufficient_pre_support():

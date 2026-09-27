@@ -70,6 +70,34 @@ def _validate_entry_contract(
 
 
 @dataclass(frozen=True, slots=True)
+class KnownCensoringSurvival:
+    """Known censoring survival columns on a shared grid through ``tau``.
+
+    Columns contain one probability per subject and remain aligned with the
+    data during prepared refresh. The caller owns the censoring model and its
+    independent censoring claim; no model is fitted by this route.
+    """
+
+    times: tuple[float, ...]
+    columns: tuple[str, ...]
+    minimum_probability: float = 0.01
+
+    def __post_init__(self) -> None:
+        times = tuple(float(value) for value in self.times)
+        columns = tuple(self.columns)
+        if (len(times) < 2 or len(columns) != len(times) or times[0] != 0.0
+            or any(not np.isfinite(value) for value in times)
+            or any(right <= left for left, right in zip(times, times[1:], strict=False))
+            or any(not isinstance(name, str) or not name.strip() for name in columns)
+            or len(set(columns)) != len(columns)
+            or not np.isfinite(self.minimum_probability)
+            or not 0.0 < self.minimum_probability <= 1.0):
+            raise CausalValueError("known censoring requires aligned increasing times, distinct columns, and a positive probability floor")
+        object.__setattr__(self, "times", times)
+        object.__setattr__(self, "columns", columns)
+
+
+@dataclass(frozen=True, slots=True)
 class SurvivalOutcome:
     """A two-arm randomized survival query using right-censored follow-up.
 
@@ -87,6 +115,7 @@ class SurvivalOutcome:
     randomized: bool = False
     delayed_entry: str | None = None
     observation_assumption: IndependentGiven | None = None
+    known_censoring: KnownCensoringSurvival | None = None
 
     def __post_init__(self) -> None:
         for name in ("duration", "event_observed", "treatment"):
@@ -99,7 +128,17 @@ class SurvivalOutcome:
             raise CausalValueError("tau must be finite and positive")
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
-        _validate_entry_contract(self.delayed_entry, self.observation_assumption)
+        if self.known_censoring is None:
+            _validate_entry_contract(self.delayed_entry, self.observation_assumption)
+        else:
+            if not isinstance(self.known_censoring, KnownCensoringSurvival):
+                raise CausalValueError("known_censoring must be KnownCensoringSurvival")
+            if self.delayed_entry is not None:
+                raise CausalValueError("known censoring survival does not combine with delayed entry")
+            if not isinstance(self.observation_assumption, IndependentGiven):
+                raise CausalValueError("known censoring requires an explicit IndependentGiven observation assumption")
+            if abs(self.known_censoring.times[-1] - self.tau) > 1e-10:
+                raise CausalValueError("known censoring time grid must end at tau")
         if self.delayed_entry in {self.duration, self.event_observed, self.treatment}:
             raise CausalValueError("delayed_entry must name a distinct column")
 
@@ -198,6 +237,7 @@ class CompetingRisksOutcome:
     randomized: bool = False
     delayed_entry: str | None = None
     observation_assumption: IndependentGiven | None = None
+    known_censoring: KnownCensoringSurvival | None = None
 
     def __post_init__(self) -> None:
         for name in ("duration", "event_cause", "treatment"):
@@ -217,7 +257,17 @@ class CompetingRisksOutcome:
             raise CausalValueError("tau must be finite and positive")
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
-        _validate_entry_contract(self.delayed_entry, self.observation_assumption)
+        if self.known_censoring is None:
+            _validate_entry_contract(self.delayed_entry, self.observation_assumption)
+        else:
+            if not isinstance(self.known_censoring, KnownCensoringSurvival):
+                raise CausalValueError("known_censoring must be KnownCensoringSurvival")
+            if self.delayed_entry is not None:
+                raise CausalValueError("known censoring survival does not combine with delayed entry")
+            if not isinstance(self.observation_assumption, IndependentGiven):
+                raise CausalValueError("known censoring requires an explicit IndependentGiven observation assumption")
+            if abs(self.known_censoring.times[-1] - self.tau) > 1e-10:
+                raise CausalValueError("known censoring time grid must end at tau")
         if self.delayed_entry in {self.duration, self.event_cause, self.treatment}:
             raise CausalValueError("delayed_entry must name a distinct column")
 
@@ -255,6 +305,8 @@ def estimate_survival(data: Any, query: SurvivalOutcome) -> SurvivalEstimate:
 
     if not isinstance(query, SurvivalOutcome):
         raise CausalValueError("query must be a SurvivalOutcome")
+    if query.known_censoring is not None:
+        raise CausalValueError("known censoring survival belongs in analyze(data, query=...) for retained IPCW execution")
     if not query.randomized:
         raise CausalValueError("causal survival estimates currently require declared individual random assignment")
     names, columns = as_columns(data)
@@ -328,6 +380,8 @@ def estimate_cumulative_incidence(
 
     if not isinstance(query, CompetingRisksOutcome):
         raise CausalValueError("query must be a CompetingRisksOutcome")
+    if query.known_censoring is not None:
+        raise CausalValueError("known censoring survival belongs in analyze(data, query=...) for retained IPCW execution")
     if not query.randomized:
         raise CausalValueError("causal cumulative incidence requires declared individual random assignment")
     names, columns = as_columns(data)
@@ -413,6 +467,8 @@ def estimate_survival_ipcw(
     """
     if not isinstance(query, SurvivalOutcome):
         raise CausalValueError("query must be a SurvivalOutcome")
+    if query.known_censoring is not None:
+        raise CausalValueError("query already carries known censoring columns; use analyze(data, query=...)")
     if not query.randomized:
         raise CausalValueError("causal survival estimates currently require declared individual random assignment")
     if query.delayed_entry is not None:
@@ -468,6 +524,8 @@ def estimate_cumulative_incidence_ipcw(
     """
     if not isinstance(query, CompetingRisksOutcome):
         raise CausalValueError("query must be a CompetingRisksOutcome")
+    if query.known_censoring is not None:
+        raise CausalValueError("query already carries known censoring columns; use analyze(data, query=...)")
     if not query.randomized:
         raise CausalValueError("causal cumulative incidence requires declared individual random assignment")
     if query.delayed_entry is not None:
@@ -527,6 +585,7 @@ __all__ = [
     "CumulativeIncidenceEstimate",
     "IPCWCumulativeIncidenceEstimate",
     "IPCWSurvivalEstimate",
+    "KnownCensoringSurvival",
     "SurvivalEstimate",
     "SurvivalOutcome",
     "estimate_cumulative_incidence",

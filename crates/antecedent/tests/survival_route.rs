@@ -5,7 +5,7 @@ use std::sync::Arc;
 use antecedent::prelude::ExecutionContext;
 use antecedent::{PrimaryEstimate, Study};
 use antecedent_core::{
-    CausalQuery, ObservationAssumption, SurvivalFunctional, SurvivalQuery, VariableId,
+    CausalQuery, KnownCensoringSurvival, ObservationAssumption, SurvivalFunctional, SurvivalQuery, VariableId,
 };
 use antecedent_data::TabularData;
 
@@ -16,9 +16,58 @@ fn query(functional: SurvivalFunctional) -> SurvivalQuery {
         treatment: VariableId::from_raw(2),
         tau: 2.0,
         delayed_entry: None,
+        known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional,
     }
+}
+
+#[test]
+fn known_censoring_survival_is_retained_and_refuses_positivity_violation() {
+    let duration = [1.0, 3.0, 1.0, 3.0];
+    let event = [1.0, 0.0, 1.0, 0.0];
+    let treatment = [0.0, 0.0, 1.0, 1.0];
+    let g0 = [1.0; 4];
+    let g1 = [1.0, 0.5, 0.5, 0.5];
+    let g3 = g1;
+    let data = TabularData::from_f64_columns([
+        ("duration", &duration[..]), ("event", &event[..]),
+        ("treatment", &treatment[..]), ("g0", &g0[..]),
+        ("g1", &g1[..]), ("g3", &g3[..]),
+    ]).unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    q.known_censoring = Some(KnownCensoringSurvival {
+        times: Arc::from([0.0, 1.0, 3.0]),
+        columns: Arc::from([VariableId::from_raw(3), VariableId::from_raw(4), VariableId::from_raw(5)]),
+        minimum_probability: 0.01,
+    });
+    let ctx = ExecutionContext::for_tests(88);
+    let study = Study::tabular(data.clone()).query(CausalQuery::Survival(q.clone())).build().unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let curve = result.survival.as_ref().unwrap();
+    assert!((curve.control[1] - 2.0 / 3.0).abs() < 1e-12);
+    assert!((curve.treated[1] - 0.5).abs() < 1e-12);
+    assert_eq!(curve.uncertainty.as_ref(), "point_only_no_interval");
+    let encoded = prepared.encode_contracted_result(&result, "ipcw-survival", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    assert!(body.interval_lower.is_none());
+    assert!(matches!(body.query, antecedent_io::CausalQueryWire::Survival(ref wire) if wire.censoring_columns.len() == 3));
+    let mut tampered = body.clone();
+    if let antecedent_io::CausalQueryWire::Survival(ref mut wire) = tampered.query {
+        wire.censoring_probability_floor = None;
+    }
+    assert!(antecedent_io::encode_analysis_result_artifact(
+        &tampered, vec!["duration".into(), "event".into(), "treatment".into(), "g0".into(), "g1".into(), "g3".into()], "tampered",
+    ).is_err());
+    let bad_g1 = [1.0, 0.001, 0.5, 0.5];
+    let bad = TabularData::from_f64_columns([
+        ("duration", &duration[..]), ("event", &event[..]),
+        ("treatment", &treatment[..]), ("g0", &g0[..]),
+        ("g1", &bad_g1[..]), ("g3", &g3[..]),
+    ]).unwrap();
+    assert!(prepared.refresh(bad, &ctx).is_err());
 }
 
 #[test]

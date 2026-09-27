@@ -212,6 +212,7 @@ class AteAnalysisResult:
     randomized_effect: RandomizedEffectSection | None
     panel_did: PanelDidSection | None
     synthetic_control: SyntheticControlSection | None
+    synthetic_did: SyntheticDidSection | None
     survival: SurvivalSection | None
     longitudinal_regime: LongitudinalRegimeSection | None
     policy_value: PolicyValueSection | None
@@ -348,11 +349,11 @@ class InterferenceSection:
 
 class RandomizedEffectSection:
     effect: float
-    variance_upper_bound: float
     estimand: str
     intention_to_treat_effect: float | None
     first_stage_effect: float | None
     received_treatment: list[bool] | None
+    variance_upper_bound: float
     minimum_assignment_probability: float
     assignment_design: str
     blocks: list[str]
@@ -380,6 +381,16 @@ class SyntheticControlSection:
     placebo_effects: list[float]
     placebo_rank: float
     effective_donors: float
+    n_pre_periods: int
+    n_post_periods: int
+    uncertainty: str
+
+class SyntheticDidSection:
+    effect: float
+    pre_treatment_rmse: float
+    donor_weights: list[tuple[str, float]]
+    time_weights: list[tuple[int, float]]
+    n_donors: int
     n_pre_periods: int
     n_post_periods: int
     uncertainty: str
@@ -1208,6 +1219,7 @@ class PreparedAnalysis:
         treated_clusters: int | None = None,
         fixed_cuped: tuple[str, float] | None = None,
         periods: list[str] | None = None,
+        received_treatment: list[bool] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1219,7 +1231,6 @@ class PreparedAnalysis:
         post: list[bool], subjects: list[str], clusters: list[str], *,
         repeated_cross_section: bool = False, accepted: bool = False, seed: int = 1,
         threads: int | None = None, options: dict[str, Any] | None = None,
-        received_treatment: list[bool] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_staggered_group_time(
@@ -1233,7 +1244,8 @@ class PreparedAnalysis:
     def prepare_synthetic_control(
         names: list[str], columns: Sequence[Any], outcome: str,
         units: list[str], periods: list[int], treated_unit: str,
-        intervention_period: int, *, accepted: bool = False,
+        intervention_period: int, *, difference_in_differences: bool = False,
+        accepted: bool = False,
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
@@ -1241,7 +1253,12 @@ class PreparedAnalysis:
     def prepare_survival(
         names: list[str], columns: Sequence[Any], duration: str, event: str,
         treatment: str, tau: float, target_cause: int | None = None,
-        delayed_entry: str | None = None, *, accepted: bool = False,
+        delayed_entry: str | None = None, *,
+        independent_given: list[str] = [],
+        censoring_times: list[float] = [],
+        censoring_columns: list[str] = [],
+        censoring_probability_floor: float | None = None,
+        accepted: bool = False,
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...

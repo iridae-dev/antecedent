@@ -711,12 +711,21 @@ impl super::Study {
                 }
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
-                        plan_id: Arc::from("quasi.synthetic_control"),
+                        plan_id: Arc::from(match q.method {
+                            antecedent_core::SyntheticPanelMethod::Control => "quasi.synthetic_control",
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => "quasi.synthetic_did",
+                        }),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
-                        identifier: Some(Arc::from("quasi.convex_donor_counterfactual")),
-                        estimator: Some(Arc::from("quasi.synthetic_control_simplex")),
+                        identifier: Some(Arc::from(match q.method {
+                            antecedent_core::SyntheticPanelMethod::Control => "quasi.convex_donor_counterfactual",
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => "quasi.convex_unit_time_trends",
+                        })),
+                        estimator: Some(Arc::from(match q.method {
+                            antecedent_core::SyntheticPanelMethod::Control => "quasi.synthetic_control_simplex",
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => "quasi.synthetic_did_simplex",
+                        })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },

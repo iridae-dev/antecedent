@@ -3,6 +3,22 @@
 
 use super::{ObservationAssumption, QueryError};
 use crate::ids::VariableId;
+use std::sync::Arc;
+
+/// Caller-supplied censoring survival on a common time grid.
+///
+/// Each column contains the probability of remaining uncensored through its
+/// corresponding time for every observation. The probabilities are treated as
+/// known; this query does not fit or validate a censoring model.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KnownCensoringSurvival {
+    /// Common time grid beginning at zero and ending at the query horizon.
+    pub times: Arc<[f64]>,
+    /// Data columns holding each subject's censoring survival at those times.
+    pub columns: Arc<[VariableId]>,
+    /// Strict positivity floor applied to every supplied probability.
+    pub minimum_probability: f64,
+}
 
 /// Requested functional of a right-censored event-time distribution.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -34,6 +50,8 @@ pub struct SurvivalQuery {
     pub tau: f64,
     /// Left-truncation entry time, when observed.
     pub delayed_entry: Option<VariableId>,
+    /// Optional known conditional censoring survival, aligned by data row.
+    pub known_censoring: Option<KnownCensoringSurvival>,
     /// Explicit independent-censoring and entry assumption.
     pub observation_assumption: ObservationAssumption,
     /// Requested curve or competing-risk functional.
@@ -63,10 +81,32 @@ impl SurvivalQuery {
                 "target cause must be a positive event code".into(),
             ));
         }
-        if !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if vars.is_empty())
-        {
+        if let Some(known) = &self.known_censoring {
+            if self.delayed_entry.is_some() {
+                return Err(QueryError::InvalidSurvival(
+                    "known censoring survival does not combine with delayed entry".into(),
+                ));
+            }
+            if known.times.len() < 2
+                || known.columns.len() != known.times.len()
+                || known.times[0] != 0.0
+                || (known.times[known.times.len() - 1] - self.tau).abs() > 1e-10
+                || known.times.iter().any(|time| !time.is_finite())
+                || known.times.windows(2).any(|pair| pair[0] >= pair[1])
+                || !known.minimum_probability.is_finite()
+                || !(0.0..=1.0).contains(&known.minimum_probability)
+                || known.minimum_probability == 0.0
+                || known.columns.iter().any(|id| *id == self.duration || *id == self.event || *id == self.treatment)
+                || known.columns.iter().enumerate().any(|(index, id)| known.columns[..index].contains(id))
+            {
+                return Err(QueryError::InvalidSurvival(
+                    "known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor".into(),
+                ));
+            }
+        }
+        if !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if self.known_censoring.is_some() || vars.is_empty()) {
             return Err(QueryError::InvalidSurvival(
-                "the unadjusted randomized survival route requires explicit marginal IndependentGiven([]) censoring/entry assumptions".into(),
+                "randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival".into(),
             ));
         }
         Ok(())
@@ -85,6 +125,7 @@ mod tests {
             treatment: VariableId::from_raw(2),
             tau: 2.0,
             delayed_entry: None,
+            known_censoring: None,
             observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
             functional: SurvivalFunctional::SurvivalAndRmst,
         }
@@ -100,6 +141,23 @@ mod tests {
         let mut q = query();
         q.observation_assumption =
             ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(3)]));
+        assert!(q.validate().is_err());
+    }
+
+    #[test]
+    fn accepts_conditional_censoring_with_known_grid_and_refuses_entry_combination() {
+        let mut q = query();
+        q.observation_assumption =
+            ObservationAssumption::IndependentGiven(Arc::from([VariableId::from_raw(3)]));
+        q.known_censoring = Some(KnownCensoringSurvival {
+            times: Arc::from([0.0, 1.0, 2.0]),
+            columns: Arc::from([
+                VariableId::from_raw(4), VariableId::from_raw(5), VariableId::from_raw(6),
+            ]),
+            minimum_probability: 0.01,
+        });
+        assert!(q.validate().is_ok());
+        q.delayed_entry = Some(VariableId::from_raw(7));
         assert!(q.validate().is_err());
     }
 }

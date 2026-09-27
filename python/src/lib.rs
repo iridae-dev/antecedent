@@ -1136,6 +1136,9 @@ pub(crate) struct AteAnalysisResult {
     /// Synthetic-control point result and donor-support diagnostics.
     #[pyo3(get)]
     synthetic_control: Option<quasi_api::SyntheticControlSection>,
+    /// Synthetic DiD point result and both fitted weight vectors.
+    #[pyo3(get)]
+    synthetic_did: Option<quasi_api::SyntheticDidSection>,
     /// Randomized survival or competing-risk curves with no interval claim.
     #[pyo3(get)]
     survival: Option<survival_api::SurvivalSection>,

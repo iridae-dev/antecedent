@@ -450,12 +450,46 @@ pub struct SyntheticControlWire {
     pub uncertainty: String,
 }
 
+/// Point-only synthetic DiD result with unit and time simplex weights.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SyntheticDidWire {
+    /// Post-treatment difference-in-differences contrast.
+    pub effect: f64,
+    /// Pre-treatment root mean squared treated-versus-synthetic gap.
+    pub pre_treatment_rmse: f64,
+    /// Convex donor weights in stable unit order.
+    pub donor_weights: Vec<(String, f64)>,
+    /// Convex pre-period weights in calendar order.
+    pub time_weights: Vec<(i64, f64)>,
+    /// Number of donor units.
+    pub n_donors: usize,
+    /// Number of pre-treatment periods.
+    pub n_pre_periods: usize,
+    /// Number of post-treatment periods.
+    pub n_post_periods: usize,
+    /// Explicit no-interval uncertainty tag.
+    pub uncertainty: String,
+}
+
 /// Retained randomized ITT design metadata and design-aware variance.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RandomizedEffectWire {
     /// Intention-to-treat contrast.
     pub effect: f64,
+    /// `itt` or `cace_late`.
+    #[serde(default = "default_randomized_itt")]
+    pub estimand: String,
+    /// Outcome assignment effect for CACE/LATE.
+    #[serde(default)]
+    pub intention_to_treat_effect: Option<f64>,
+    /// Treatment-receipt first stage for CACE/LATE.
+    #[serde(default)]
+    pub first_stage_effect: Option<f64>,
+    /// Row-aligned observed receipt for CACE/LATE.
+    #[serde(default)]
+    pub received_treatment: Option<Vec<bool>>,
     /// Design variance estimate or conservative bound, as labeled by uncertainty.
     pub variance: f64,
     /// Assignment design name.
@@ -478,19 +512,9 @@ pub struct RandomizedEffectWire {
     pub minimum_assignment_probability: f64,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
-    /// `itt` or `cace_late`.
-    #[serde(default = "default_randomized_itt")]
-    pub estimand: String,
-    /// Outcome assignment effect for CACE/LATE.
-    #[serde(default)]
-    pub intention_to_treat_effect: Option<f64>,
-    /// Treatment-receipt first stage for CACE/LATE.
-    #[serde(default)]
-    pub first_stage_effect: Option<f64>,
-    /// Row-aligned observed receipt for CACE/LATE.
-    #[serde(default)]
-    pub received_treatment: Option<Vec<bool>>,
 }
+
+fn default_randomized_itt() -> String { "itt".into() }
 
 /// Randomized arm event-time curves with an explicit point-only uncertainty contract.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -514,8 +538,6 @@ pub struct SurvivalWire {
     pub minimum_event_risk_set: Option<usize>,
     /// Explicit uncertainty semantics; no interval is licensed.
     pub uncertainty: String,
-fn default_randomized_itt() -> String { "itt".into() }
-
 }
 
 /// Subject-owned sequential inverse-probability regime value.
@@ -564,6 +586,9 @@ pub struct AnalysisResultWire {
     /// Synthetic-control result with donor and placebo diagnostics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synthetic_control: Option<SyntheticControlWire>,
+    /// Synthetic DiD point result and fitted simplex weights.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synthetic_did: Option<SyntheticDidWire>,
     /// Retained randomized experiment design and variance semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub randomized_effect: Option<RandomizedEffectWire>,
@@ -807,6 +832,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             return Err(IoError::Convert("randomized result section is attached to a different query".into()));
         };
         let (design, uncertainty) = match &query.design {
+            crate::RandomizationDesignWire::Bernoulli if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
+                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval"),
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() =>
                 ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"),
             crate::RandomizationDesignWire::Bernoulli =>
@@ -832,8 +859,6 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
              query.realized_assignment.iter().filter(|assigned| **assigned).count())
         };
         let minimum_probability = query.assignment_probabilities.iter().copied()
-            crate::RandomizationDesignWire::Bernoulli if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
-                ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval"),
             .map(|p| if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
                 p.min(1.0 - p)
             } else { p })
@@ -847,6 +872,14 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || randomized.variance < 0.0
             || randomized.assignment_design != design
             || randomized.uncertainty != uncertainty
+            || randomized.estimand != if query.estimand == crate::RandomizedEstimandWire::CaceLate { "cace_late" } else { "itt" }
+            || randomized.received_treatment != query.received_treatment
+            || (query.estimand == crate::RandomizedEstimandWire::CaceLate
+                && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
+                    || randomized.first_stage_effect.is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)
+                    || (randomized.effect - randomized.intention_to_treat_effect.unwrap() / randomized.first_stage_effect.unwrap()).abs() > 1e-10))
+            || (query.estimand == crate::RandomizedEstimandWire::Itt
+                && (randomized.intention_to_treat_effect.is_some() || randomized.first_stage_effect.is_some()))
             || randomized.assignment_units != query.assignment_units
             || randomized.outcome_units != query.outcome_units
             || randomized.blocks != query.blocks
@@ -864,22 +897,18 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             "panel DiD artifact is missing its design-specific result section".into(),
         ));
     }
-    if matches!(result.query, crate::CausalQueryWire::SyntheticControl(_))
-        && result.synthetic_control.is_none()
-    {
-        return Err(IoError::Convert("synthetic-control artifact is missing its donor-support result section".into()));
+    if let crate::CausalQueryWire::SyntheticControl(query) = &result.query {
+        if query.difference_in_differences {
+            if result.synthetic_did.is_none() || result.synthetic_control.is_some() {
+                return Err(IoError::Convert("synthetic DiD artifact requires its distinct weight result section".into()));
+            }
+        } else if result.synthetic_control.is_none() || result.synthetic_did.is_some() {
+            return Err(IoError::Convert("synthetic-control artifact requires its donor-support result section".into()));
+        }
     }
     if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
         return Err(IoError::Convert(
             "survival artifact is missing its curve result section".into(),
-            || randomized.estimand != if query.estimand == crate::RandomizedEstimandWire::CaceLate { "cace_late" } else { "itt" }
-            || randomized.received_treatment != query.received_treatment
-            || (query.estimand == crate::RandomizedEstimandWire::CaceLate
-                && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
-                    || randomized.first_stage_effect.is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)
-                    || (randomized.effect - randomized.intention_to_treat_effect.unwrap() / randomized.first_stage_effect.unwrap()).abs() > 1e-10))
-            || (query.estimand == crate::RandomizedEstimandWire::Itt
-                && (randomized.intention_to_treat_effect.is_some() || randomized.first_stage_effect.is_some()))
         ));
     }
     if matches!(result.query, crate::CausalQueryWire::LongitudinalRegime(_))
@@ -1071,6 +1100,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
             return Err(IoError::Convert("synthetic-control result is attached to a different query".into()));
         };
+        if query.difference_in_differences {
+            return Err(IoError::Convert("synthetic-control result is attached to a synthetic DiD query".into()));
+        }
         let donors: std::collections::BTreeSet<&str> = query.units.iter()
             .map(String::as_str).filter(|unit| *unit != query.treated_unit.as_str()).collect();
         let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
@@ -1097,6 +1129,33 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
         {
             return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
+        }
+    }
+    if let Some(fit) = &result.synthetic_did {
+        let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
+            return Err(IoError::Convert("synthetic DiD result is attached to a different query".into()));
+        };
+        let donors: std::collections::BTreeSet<&str> = query.units.iter().map(String::as_str)
+            .filter(|unit| *unit != query.treated_unit.as_str()).collect();
+        let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
+            .filter(|period| *period < query.intervention_period).collect();
+        let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
+            .filter(|period| *period >= query.intervention_period).collect();
+        if !query.difference_in_differences
+            || result.estimate != Some(fit.effect)
+            || result.standard_error.is_some() || result.interval_lower.is_some() || result.interval_upper.is_some()
+            || !fit.effect.is_finite() || !fit.pre_treatment_rmse.is_finite() || fit.pre_treatment_rmse < 0.0
+            || donors.len() < 2 || pre.len() < 2 || post.is_empty()
+            || fit.n_donors != donors.len() || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
+            || fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>() != donors.iter().copied().collect::<Vec<_>>()
+            || fit.donor_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
+            || (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
+            || fit.time_weights.iter().map(|(period, _)| *period).collect::<Vec<_>>() != pre.iter().copied().collect::<Vec<_>>()
+            || fit.time_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
+            || (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
+            || fit.uncertainty != "point_only_no_interval"
+        {
+            return Err(IoError::Convert("invalid synthetic DiD weights, support, or fabricated interval".into()));
         }
     }
     if let Some(curve) = &result.survival {

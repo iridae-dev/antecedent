@@ -146,6 +146,27 @@ pub struct SyntheticControlEstimate {
     pub uncertainty: Arc<str>,
 }
 
+/// Point-only synthetic difference-in-differences result with fitted simplex weights.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyntheticDidEstimate {
+    /// Post-treatment difference-in-differences contrast.
+    pub effect: f64,
+    /// Root mean squared treated-versus-synthetic pre-period gap.
+    pub pre_treatment_rmse: f64,
+    /// Unit weights over donor units.
+    pub donor_weights: Arc<[(Arc<str>, f64)]>,
+    /// Time weights over pre-intervention periods.
+    pub time_weights: Arc<[(i64, f64)]>,
+    /// Number of donor units.
+    pub n_donors: usize,
+    /// Number of pre-intervention periods.
+    pub n_pre_periods: usize,
+    /// Number of post-intervention periods.
+    pub n_post_periods: usize,
+    /// Explicit point-only uncertainty statement.
+    pub uncertainty: Arc<str>,
+}
+
 /// Point value of a prespecified treatment regime over subject histories.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LongitudinalRegimeEstimate {
@@ -456,6 +477,8 @@ pub struct StudyResult {
     pub panel_did: Option<PanelDidEstimate>,
     /// Synthetic-control point result with donor and placebo diagnostics.
     pub synthetic_control: Option<SyntheticControlEstimate>,
+    /// Synthetic DiD point result and both fitted weight vectors.
+    pub synthetic_did: Option<SyntheticDidEstimate>,
     /// Held-out doubly robust policy evaluation; never an ATE.
     pub policy_value: Option<PolicyValueEstimate>,
     /// Randomized right-censored survival or competing-risk curve.

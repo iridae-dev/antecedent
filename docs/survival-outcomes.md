@@ -41,10 +41,9 @@ result = antecedent.analyze(data, query=query)
 result.survival.rmst_difference
 ```
 
-The retained route requires `randomized=True` and `IndependentGiven(())` for
-marginally independent censoring, including when there is no delayed entry.
-Conditional independent censoring requires an adjusted route and is refused
-here. It publishes no scalar ATE or interval.
+The unweighted retained route requires `randomized=True` and
+`IndependentGiven(())` for marginally independent censoring, including when
+there is no delayed entry. It publishes no scalar ATE or interval.
 
 Rows with `event_observed=False` are treated as right-censored: they remain in
 the risk set through their recorded duration and do not count as events. The
@@ -60,7 +59,7 @@ Longitudinal or observational survival estimands remain unsupported.
 
 ## Caller-supplied censoring weights
 
-`estimate_survival_ipcw` provides a separate weighted product-limit path for
+`estimate_survival_ipcw` provides a direct weighted product-limit path for
 right-censored randomized studies. It takes a strictly increasing time grid
 from zero through `tau`, including each recorded event/censor time, and a
 subjects-by-grid matrix `censoring_survival`. Each matrix entry is the
@@ -79,6 +78,33 @@ weighted = antecedent.survival.estimate_survival_ipcw(
 weighted.rmst_difference
 weighted.censoring_survival_provenance
 ```
+
+The same native IPCW kernel now runs through retained `prepare` / `analyze`.
+Place the subject-specific probabilities in data columns, one per time point,
+and specify their order on the query. The observation assumption may name the
+variables under which censoring is independent:
+
+```python
+from antecedent.observation import IndependentGiven
+
+query = antecedent.SurvivalOutcome(
+    "follow_up_days", "event", "treated", tau=180, randomized=True,
+    observation_assumption=IndependentGiven(("baseline_risk",)),
+    known_censoring=antecedent.KnownCensoringSurvival(
+        times=(0, 30, 60, 180),
+        columns=("g_0", "g_30", "g_60", "g_180"),
+        minimum_probability=0.01,
+    ),
+)
+result = antecedent.analyze(data, query=query)
+result.survival.rmst_difference
+```
+
+The study artifact freezes the grid, column identities, positivity floor, and
+conditioning variables. Prepared refresh reads the censoring columns from the
+new table in the same row order. This path also supports competing-risk
+cumulative incidence. Known censoring survival and delayed entry cannot be
+combined on this estimator.
 
 The native estimator uses inverse-`G` weighted event and risk counts at each
 observed event time, then integrates its right-continuous curve for RMST. It
@@ -132,7 +158,7 @@ as an RMST from the origin.
 
 The empty `IndependentGiven(())` claim asserts marginal independent entry and
 right censoring; it does not verify either condition. Conditional delayed entry,
-covariate-adjusted censoring, and interval censoring remain refused. Delayed
+interval censoring remain refused. Delayed
 entry results remain point-only and unlicensed.
 
 ## Competing risks
