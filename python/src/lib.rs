@@ -1136,6 +1136,9 @@ pub(crate) struct AteAnalysisResult {
     /// Randomized survival or competing-risk curves with no interval claim.
     #[pyo3(get)]
     survival: Option<survival_api::SurvivalSection>,
+    /// Sequential randomized regime value and support diagnostics.
+    #[pyo3(get)]
+    longitudinal_regime: Option<regimes_api::LongitudinalRegimeSection>,
     /// Per-target GCM anomaly scores (AnomalyAttribution).
     #[pyo3(get)]
     anomaly: Option<Vec<gcm_api::AnomalyScores>>,

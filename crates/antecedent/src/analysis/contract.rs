@@ -972,7 +972,10 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if self.policy_value.is_some() || self.survival.is_some() {
+        let calibration = if self.policy_value.is_some()
+            || self.survival.is_some()
+            || self.longitudinal_regime.is_some()
+        {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
             // dedicated result sections.
@@ -3258,6 +3261,16 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             tau: survival.tau,
             minimum_event_risk_set: survival.minimum_event_risk_set,
             uncertainty: survival.uncertainty.to_string(),
+        }),
+        longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| antecedent_io::LongitudinalRegimeWire {
+            value: regime.value,
+            effective_sample_size: regime.effective_sample_size,
+            matched_observed_fraction: regime.matched_observed_fraction,
+            maximum_weight: regime.maximum_weight,
+            minimum_action_probability: regime.minimum_action_probability,
+            minimum_censoring_probability: regime.minimum_censoring_probability,
+            uncertainty: regime.uncertainty.to_string(),
+            probability_ownership: regime.probability_ownership.to_string(),
         }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {
             antecedent_io::InterventionalDistributionWire {

@@ -7,6 +7,35 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
+/// Retained sequential randomized regime value; no interval claim.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct LongitudinalRegimeSection {
+    pub value: f64,
+    pub effective_sample_size: f64,
+    pub matched_observed_fraction: f64,
+    pub maximum_weight: f64,
+    pub minimum_action_probability: f64,
+    pub minimum_censoring_probability: f64,
+    pub uncertainty: String,
+    pub probability_ownership: String,
+}
+
+impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection {
+    fn from(value: &antecedent::LongitudinalRegimeEstimate) -> Self {
+        Self {
+            value: value.value,
+            effective_sample_size: value.effective_sample_size,
+            matched_observed_fraction: value.matched_observed_fraction,
+            maximum_weight: value.maximum_weight,
+            minimum_action_probability: value.minimum_action_probability,
+            minimum_censoring_probability: value.minimum_censoring_probability,
+            uncertainty: value.uncertainty.to_string(),
+            probability_ownership: value.probability_ownership.to_string(),
+        }
+    }
+}
+
 /// Point-only Horvitz--Thompson value of a static or dynamic regime.
 #[pyfunction]
 fn evaluate_longitudinal_regime_value(
@@ -36,68 +65,29 @@ fn evaluate_longitudinal_regime_value(
             "regime arrays must have matching subject and period dimensions",
         ));
     }
-    let mut weighted_total = 0.0;
-    let mut weight_sum = 0.0;
-    let mut weight_square_sum = 0.0;
-    let mut max_weight: f64 = 0.0;
-    let mut supported = 0usize;
-    for i in 0..n {
-        if !y[i].is_finite() {
-            return Err(PyValueError::new_err("outcomes must be finite"));
-        }
-        let mut matches = true;
-        let mut weight = 1.0;
-        for t in 0..periods {
-            let probability_treated = p[[i, t]];
-            let censor_probability = g[[i, t]];
-            if !probability_treated.is_finite()
-                || probability_treated <= 0.0
-                || probability_treated >= 1.0
-            {
-                return Err(PyValueError::new_err(
-                    "treatment probabilities must be strictly between zero and one",
-                ));
-            }
-            if !censor_probability.is_finite()
-                || censor_probability <= 0.0
-                || censor_probability > 1.0
-            {
-                return Err(PyValueError::new_err(
-                    "censoring survival probabilities must be in (0, 1]",
-                ));
-            }
-            if a[[i, t]] != d[[i, t]] {
-                matches = false;
-                continue;
-            }
-            if !matches {
-                continue;
-            }
-            let action_probability =
-                if a[[i, t]] { probability_treated } else { 1.0 - probability_treated };
-            weight /= action_probability * censor_probability;
-            if !weight.is_finite() {
-                return Err(PyValueError::new_err(
-                    "sequential inverse-probability weight overflowed; raise the positivity floor or shorten the horizon",
-                ));
-            }
-        }
-        if matches && r[i] {
-            supported += 1;
-            weighted_total += weight * y[i];
-            weight_sum += weight;
-            weight_square_sum += weight * weight;
-            max_weight = max_weight.max(weight);
-        }
-    }
-    if supported == 0 {
-        return Err(PyValueError::new_err(
-            "no observed trajectories followed the requested regime",
-        ));
-    }
-    let ess =
-        if weight_square_sum > 0.0 { weight_sum * weight_sum / weight_square_sum } else { 0.0 };
-    Ok((weighted_total / n as f64, ess, supported as f64 / n as f64, max_weight))
+    let summary = antecedent_estimate::longitudinal_regime::evaluate_regime_value(
+        &y.iter().copied().collect::<Vec<_>>(),
+        &a.iter().copied().collect::<Vec<_>>(),
+        &d.iter().copied().collect::<Vec<_>>(),
+        &p.iter().copied().collect::<Vec<_>>(),
+        &r.iter().copied().collect::<Vec<_>>(),
+        &g.iter().copied().collect::<Vec<_>>(),
+        periods,
+        f64::EPSILON,
+    )
+    .map_err(|message| {
+        PyValueError::new_err(if message.contains("no observed subjects") {
+            "no observed trajectories followed the requested regime"
+        } else {
+            message
+        })
+    })?;
+    Ok((
+        summary.value,
+        summary.effective_sample_size,
+        summary.matched_observed_fraction,
+        summary.maximum_weight,
+    ))
 }
 
 /// Additive marginal structural mean model with sequential stabilized weights.
@@ -560,6 +550,7 @@ fn evaluate_sequential_doubly_robust(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<LongitudinalRegimeSection>()?;
     module.add_function(wrap_pyfunction!(evaluate_longitudinal_regime_value, module)?)?;
     module.add_function(wrap_pyfunction!(fit_binary_msm, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_sequential_gformula, module)?)?;

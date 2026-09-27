@@ -75,14 +75,37 @@ impl CheckedInterferenceOperation {
         }
         let (procedure, estimator) = match &study.inference {
             InferenceMode::Frequentist => {
-                if !matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-                    || query.exposure != antecedent_core::ExposureMapping::NeighborCount
-                {
+                let bernoulli =
+                    matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+                        && query.exposure == antecedent_core::ExposureMapping::NeighborCount;
+                let cluster = matches!(
+                    query.assignment,
+                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                ) && query.exposure
+                    == antecedent_core::ExposureMapping::NeighborFraction;
+                if !bernoulli && !cluster {
                     return Err(CausalError::Unsupported {
-                        message: "the licensed design based interference route requires Bernoulli assignment with NeighborCount exposure",
+                        message: "design based interference requires Bernoulli/NeighborCount or cluster-randomized/NeighborFraction total effects",
                     });
                 }
-                (InterferenceProcedure::DesignBasedYoung, EstimatorId::InterferenceHtHajek)
+                if cluster {
+                    // Reject unsupported neighborhood, assignment, and arm sizes during prepare,
+                    // before the checked operation is retained or an interval can be requested.
+                    antecedent_estimate::estimate_cluster_interference_total(
+                        query,
+                        &design.network,
+                        &design.assignment,
+                    )
+                    .map_err(CausalError::from)?;
+                }
+                (
+                    InterferenceProcedure::DesignBasedYoung,
+                    if cluster {
+                        EstimatorId::InterferenceClusterNeyman
+                    } else {
+                        EstimatorId::InterferenceHtHajek
+                    },
+                )
             }
             InferenceMode::Bayesian(config) => {
                 if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
@@ -138,6 +161,10 @@ impl CheckedInterferenceOperation {
             CausalQuery::Interference(query.clone()),
             outcome,
             &procedure,
+            matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            ),
         );
         Ok(Self {
             graph: graph.clone(),
@@ -204,14 +231,29 @@ impl CheckedInterferenceOperation {
             InterferenceProcedure::DesignBasedYoung => {
                 let seed =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Transport, 0x1F7E).next_u64();
-                let estimated = antecedent_estimate::estimate_interference(
-                    &self.query,
-                    &network,
-                    &self.assignment,
-                    seed,
-                )
+                let estimated = if matches!(
+                    self.query.assignment,
+                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                ) {
+                    antecedent_estimate::estimate_cluster_interference_total(
+                        &self.query,
+                        &network,
+                        &self.assignment,
+                    )
+                } else {
+                    antecedent_estimate::estimate_interference(
+                        &self.query,
+                        &network,
+                        &self.assignment,
+                        seed,
+                    )
+                }
                 .map_err(CausalError::from)?;
                 let se = estimated.contrast.conservative_variance.sqrt();
+                let cluster = matches!(
+                    self.query.assignment,
+                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                );
                 (
                     Some(estimated.clone()),
                     None,
@@ -222,10 +264,18 @@ impl CheckedInterferenceOperation {
                         OverlapPolicy::ExplicitOverride,
                     ),
                     Diagnostic::new(
-                        "estimate.interference.young_bound",
+                        if cluster {
+                            "estimate.interference.cluster_neyman"
+                        } else {
+                            "estimate.interference.young_bound"
+                        },
                         DiagnosticKind::Scientific,
                         DiagnosticSeverity::Info,
-                        "conservative Young variance bound; not the Aronow–Samii joint-exposure variance",
+                        if cluster {
+                            "cluster-level Neyman conservative variance for the total effect under partial interference; interval calibration is not claimed"
+                        } else {
+                            "conservative Young variance bound; not the Aronow–Samii joint-exposure variance"
+                        },
                     ),
                 )
             }
@@ -315,12 +365,17 @@ fn interference_identification(
     query: CausalQuery,
     outcome: VariableId,
     procedure: &InterferenceProcedure,
+    cluster: bool,
 ) -> (IdentificationResult, IdentifiedEstimand) {
     let (rule, note, assumptions) = match procedure {
         InterferenceProcedure::DesignBasedYoung => (
             "interference.design",
-            "Identification is the known Bernoulli assignment and NeighborCount exposure mapping (Horvitz–Thompson/Hájek); the DAG binds the outcome schema only.",
-            design_identification_assumptions(),
+            if cluster {
+                "Identification is complete randomization of clusters and partial interference within disjoint clusters; the (0,0) to (1,1) contrast is the total effect of assigning an entire cluster."
+            } else {
+                "Identification is the known Bernoulli assignment and NeighborCount exposure mapping (Horvitz–Thompson/Hájek); the DAG binds the outcome schema only."
+            },
+            design_identification_assumptions(cluster),
         ),
         InterferenceProcedure::ConjugateGaussian { prior_sd, .. } => (
             "interference.bayesian_gaussian",
@@ -370,7 +425,7 @@ fn interference_identification(
     (identification, estimand)
 }
 
-fn design_identification_assumptions() -> antecedent_core::AssumptionSet {
+fn design_identification_assumptions(cluster: bool) -> antecedent_core::AssumptionSet {
     use antecedent_core::{
         Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
         AssumptionStatus,
@@ -385,6 +440,17 @@ fn design_identification_assumptions() -> antecedent_core::AssumptionSet {
         scope: AssumptionScope::Identification,
         status: AssumptionStatus::Declared,
     });
+    if cluster {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("interference.partial_interference"),
+                description: Arc::from("Potential outcomes may depend on assignments within the unit's cluster, but not on assignments in other clusters; the fixed exposure mapping summarizes within-cluster assignments."),
+            },
+            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("interference.cluster_neyman") },
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
     assumptions
 }
 
@@ -474,6 +540,80 @@ mod checked_interference_tests {
                 to: ExposureLevel { own: 1.0, neighbors: 0.0 },
             },
         )
+    }
+
+    fn cluster_total_query() -> InterferenceQuery {
+        InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from([0, 0, 1, 1, 2, 2, 3, 3]),
+                treated_clusters: 2,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        )
+    }
+
+    fn cluster_edges() -> Vec<NetworkEdge> {
+        (0..4)
+            .flat_map(|cluster| {
+                let first = cluster * 2;
+                [
+                    NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                    NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                ]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn cluster_total_effect_retains_known_truth_variance_and_artifact() {
+        let data =
+            TabularData::from_f64_columns([("y", &[4.0, 4.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0][..])])
+                .unwrap();
+        let operation = operation(
+            &data,
+            dag(),
+            cluster_total_query(),
+            cluster_edges(),
+            vec![true, true, true, true, false, false, false, false],
+            InferenceMode::Frequentist,
+        );
+        let result = operation.execute(&data, &context()).unwrap();
+        assert!((result.estimate.ate - 3.0).abs() < 1e-12);
+        assert!((result.estimate.se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
+        let interference = result.interference.as_ref().unwrap();
+        assert_eq!(interference.minimum_exposure_probability, 0.5);
+        let wire = antecedent_io::interference_estimate_to_wire(interference);
+        assert_eq!(antecedent_io::interference_estimate_from_wire(&wire), *interference);
+        assert!(result.estimate.assumptions.entries.iter().any(|entry| matches!(
+            &entry.assumption,
+            antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.partial_interference"
+        )));
+    }
+
+    #[test]
+    fn cluster_partial_interference_refuses_cross_cluster_edge_during_prepare() {
+        let data =
+            TabularData::from_f64_columns([("y", &[4.0, 4.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0][..])])
+                .unwrap();
+        let mut edges = cluster_edges();
+        edges.push(NetworkEdge { from: 0, to: 2, weight: 1.0 });
+        let study = crate::Study::tabular(data.clone())
+            .graph(dag())
+            .query(CausalQuery::Interference(cluster_total_query()))
+            .interference(crate::InterferenceSpec {
+                network: NetworkData::try_new(data.clone(), edges).unwrap(),
+                assignment: Arc::from([true, true, true, true, false, false, false, false]),
+            })
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let physical = study.plan(&context()).unwrap();
+        assert!(CheckedInterferenceOperation::checked(&study, &data, &physical).is_err());
     }
 
     #[test]

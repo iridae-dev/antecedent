@@ -1,4 +1,4 @@
-//! Query contract for individually randomized two-arm experiments.
+//! Query contract for two-arm randomized experiments.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
@@ -14,6 +14,11 @@ pub enum RandomizationDesign {
     Complete {
         /// Number of units assigned to treatment.
         treated_units: usize,
+    },
+    /// Complete randomization of assignment clusters, with outcome rows nested in them.
+    Cluster {
+        /// Number of clusters selected for treatment.
+        treated_clusters: usize,
     },
     /// Complete randomization independently within named blocks.
     Stratified {
@@ -115,12 +120,16 @@ impl RandomizedEffectQuery {
                 "assignment and outcome unit labels must be non-empty".into(),
             ));
         }
-        if self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
-            || self.outcome_units.iter().collect::<std::collections::HashSet<_>>().len() != n
+        if self.outcome_units.iter().collect::<std::collections::HashSet<_>>().len() != n {
+            return Err(QueryError::InvalidRandomizedEffect(
+                "retained randomized ITT requires one outcome unit per row".into(),
+            ));
+        }
+        if !matches!(self.design, RandomizationDesign::Cluster { .. })
+            && self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
         {
             return Err(QueryError::InvalidRandomizedEffect(
-                "retained randomized ITT requires one assignment unit and one outcome unit per row"
-                    .into(),
+                "individual randomization requires one assignment unit per row".into(),
             ));
         }
         if self.treatment_arms.0.trim().is_empty()
@@ -158,6 +167,40 @@ impl RandomizedEffectQuery {
                 if self.assignment_probabilities.iter().any(|p| (*p - expected).abs() > 1e-12) {
                     return Err(QueryError::InvalidRandomizedEffect(
                         "complete assignment probabilities must equal treated_units / n".into(),
+                    ));
+                }
+            }
+            RandomizationDesign::Cluster { treated_clusters } => {
+                let mut clusters = std::collections::BTreeMap::<&str, (bool, f64)>::new();
+                for i in 0..n {
+                    let assignment = self.realized_assignment[i];
+                    let probability = self.assignment_probabilities[i];
+                    if let Some((prior_assignment, prior_probability)) =
+                        clusters.insert(&self.assignment_units[i], (assignment, probability))
+                    {
+                        if prior_assignment != assignment
+                            || (prior_probability - probability).abs() > 1e-12
+                        {
+                            return Err(QueryError::InvalidRandomizedEffect(
+                                "assignment and probability must be constant within each randomized cluster".into(),
+                            ));
+                        }
+                    }
+                }
+                let total = clusters.len();
+                if *treated_clusters < 2 || total.saturating_sub(*treated_clusters) < 2 {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "cluster-randomization variance requires at least two clusters in each arm"
+                            .into(),
+                    ));
+                }
+                let observed = clusters.values().filter(|(treated, _)| *treated).count();
+                let expected_probability = *treated_clusters as f64 / total as f64;
+                if observed != *treated_clusters
+                    || clusters.values().any(|(_, p)| (*p - expected_probability).abs() > 1e-12)
+                {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "cluster assignment must match declared treated count and inclusion probability".into(),
                     ));
                 }
             }

@@ -569,6 +569,11 @@ impl super::Study {
                         estimator: Some(Arc::from(
                             if matches!(self.inference, InferenceMode::Bayesian(_)) {
                                 "interference.bayesian_gaussian"
+                            } else if matches!(
+                                q.assignment,
+                                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                            ) {
+                                "interference.cluster_neyman"
                             } else {
                                 "interference.ht_hajek"
                             },
@@ -601,7 +606,8 @@ impl super::Study {
                         estimator: Some(Arc::from(match &q.design {
                             antecedent_core::RandomizationDesign::Bernoulli => "randomized.ht_itt",
                             antecedent_core::RandomizationDesign::Complete { .. }
-                            | antecedent_core::RandomizationDesign::Stratified { .. } => {
+                            | antecedent_core::RandomizationDesign::Stratified { .. }
+                            | antecedent_core::RandomizationDesign::Cluster { .. } => {
                                 "randomized.neyman_itt"
                             }
                         })),
@@ -685,6 +691,35 @@ impl super::Study {
                         estimator: Some(Arc::from("randomized.survival_product_limit")),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.duration, q.event, q.treatment]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::LongitudinalRegime(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.subject_ids.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "longitudinal subject histories must align with outcome rows"
+                            .into(),
+                    });
+                }
+                data.schema()
+                    .get(q.outcome)
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("longitudinal.ipw_regime"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from("longitudinal.ipw_regime")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
                     },
                     query: self.query.clone(),
                     split: None,
@@ -918,6 +953,9 @@ impl super::Study {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {

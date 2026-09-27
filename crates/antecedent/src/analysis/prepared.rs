@@ -4031,6 +4031,7 @@ pub(crate) enum PreparedExecution {
     PolicyValue(super::execute::CheckedPolicyValueOperation),
     PanelDid(super::execute::CheckedPanelDidOperation),
     Survival(super::execute::CheckedSurvivalOperation),
+    LongitudinalRegime(super::execute::CheckedLongitudinalRegimeOperation),
     TemporalClassEffect(super::execute::CheckedTemporalClassEffectExecution),
     Distribution(CheckedDistributionOperation),
     BayesianGcomp(super::execute::CheckedBayesianDagAteExecution),
@@ -4121,6 +4122,7 @@ impl PreparedExecution {
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
             | Self::Survival(_)
+            | Self::LongitudinalRegime(_)
             | Self::TemporalClassEffect(_)
             | Self::BayesianGcomp(_)
             | Self::BayesianBasisAte(_)
@@ -6810,6 +6812,10 @@ impl PreparedStudy {
             let result = operation.execute(data, ctx)?;
             return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
         }
+        if let PreparedExecution::LongitudinalRegime(operation) = &self.execution {
+            let result = operation.execute(data, ctx)?;
+            return self.stamp(&DataInput::Tabular(data.clone()), result).map(Some);
+        }
         Ok(None)
     }
 
@@ -8584,6 +8590,7 @@ impl Study {
             }
             (DataInput::Tabular(_), CausalQuery::PolicyValue(_), None) => {}
             (DataInput::Tabular(_), CausalQuery::Survival(_), None) => {}
+            (DataInput::Tabular(_), CausalQuery::LongitudinalRegime(_), None) => {}
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
@@ -10213,6 +10220,17 @@ impl Study {
             }
             _ => None,
         };
+        let checked_longitudinal_regime = match (&self.data, &self.query, analysis.graph.class()) {
+            (DataInput::Tabular(data), CausalQuery::LongitudinalRegime(_), GraphClass::RandomizedTrial)
+                if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                    && analysis.graph_posterior.is_none()
+                    && analysis.tiered.is_none()
+                    && analysis.split.is_none() =>
+            {
+                Some(super::execute::CheckedLongitudinalRegimeOperation::checked(&analysis, data, &plan)?)
+            }
+            _ => None,
+        };
         let temporal_mediation_operation = match (
             &self.data,
             &self.query,
@@ -10787,6 +10805,8 @@ impl Study {
             PreparedExecution::PanelDid(operation)
         } else if let Some(operation) = checked_survival {
             PreparedExecution::Survival(operation)
+        } else if let Some(operation) = checked_longitudinal_regime {
+            PreparedExecution::LongitudinalRegime(operation)
         } else if let Some(operation) = temporal_mediation_operation {
             PreparedExecution::TemporalMediation(operation)
         } else if let Some(operation) = temporal_dag_effect_operation {
@@ -11924,6 +11944,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported {
                     message: "Survival requires a graphless randomized trial",
                 });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::LongitudinalRegime(_)) => {
+            if analysis.graph.class() != GraphClass::RandomizedTrial
+                || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
+            {
+                return Err(CausalError::Unsupported { message: "LongitudinalRegime requires a graphless sequential randomized trial" });
             }
         }
         (DataInput::Tabular(_), CausalQuery::Mediation(_)) => {

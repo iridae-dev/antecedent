@@ -100,3 +100,73 @@ fn graphless_complete_and_stratified_itt_use_neyman_variance() {
         "stratified_neyman_variance_upper_bound_no_interval"
     );
 }
+
+#[test]
+fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units() {
+    let outcomes = [6.0, 8.0, 4.0, 1.0, 3.0, 2.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Cluster { treated_clusters: 2 },
+        VariableId::from_raw(0),
+        [true, true, true, false, false, false],
+        [0.5; 6],
+        ["a", "a", "b", "c", "c", "d"].map(Arc::<str>::from),
+        ["r0", "r1", "r2", "r3", "r4", "r5"].map(Arc::<str>::from),
+        ("control", "treated"),
+    );
+    let context = ExecutionContext::for_tests(37);
+    let result =
+        Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&context).unwrap();
+    let estimate = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(estimate.effect, 4.0);
+    assert!((estimate.variance_upper_bound - 104.0 / 9.0).abs() < 1e-12);
+    assert_eq!(estimate.control_units, 2);
+    assert_eq!(estimate.treatment_units, 2);
+    assert_eq!(estimate.assignment_design.as_ref(), "cluster");
+    assert_eq!(estimate.uncertainty.as_ref(), "cluster_neyman_variance_upper_bound_no_interval");
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "no_between_cluster_interference"
+    )));
+    assert_eq!(result.support_status, None);
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    assert_eq!(
+        prepared.estimate(&data, &context).unwrap().randomized_effect,
+        result.randomized_effect
+    );
+}
+
+#[test]
+fn cluster_randomized_itt_refuses_inconsistent_assignment_or_sparse_arms() {
+    let outcomes = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let make = |assignment: Vec<bool>, treated_clusters: usize| {
+        RandomizedEffectQuery::with_design(
+            antecedent_core::RandomizationDesign::Cluster { treated_clusters },
+            VariableId::from_raw(0),
+            assignment,
+            [0.5; 6],
+            ["a", "a", "b", "c", "c", "d"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3", "r4", "r5"].map(Arc::<str>::from),
+            ("control", "treated"),
+        )
+    };
+    let context = ExecutionContext::for_tests(38);
+    assert!(
+        Study::tabular(data.clone())
+            .query(make(vec![true, false, true, false, false, false], 2))
+            .build()
+            .unwrap()
+            .run(&context)
+            .is_err()
+    );
+    assert!(
+        Study::tabular(data)
+            .query(make(vec![true, true, false, false, false, false], 1))
+            .build()
+            .unwrap()
+            .run(&context)
+            .is_err()
+    );
+}

@@ -49,7 +49,7 @@ impl CheckedRandomizedOperation {
             || study.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "randomized ITT supports Bernoulli, complete, and stratified design-based estimation only, without a graph, validation suite, or bootstrap",
+                message: "randomized ITT supports Bernoulli, complete, stratified, and cluster design-based estimation only, without a graph, validation suite, or bootstrap",
             });
         }
         if query.realized_assignment.len() != data.row_count() {
@@ -182,6 +182,42 @@ impl CheckedRandomizedOperation {
                     Arc::<str>::from("complete"),
                     Arc::<str>::from("complete_neyman_variance_upper_bound_no_interval"),
                     "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval is reported",
+                )
+            }
+            antecedent_core::RandomizationDesign::Cluster { treated_clusters } => {
+                let mut cluster_totals: std::collections::BTreeMap<&str, (bool, f64)> =
+                    std::collections::BTreeMap::new();
+                for (i, outcome) in outcomes.iter().enumerate() {
+                    let entry = cluster_totals
+                        .entry(self.query.assignment_units[i].as_ref())
+                        .or_insert((self.query.realized_assignment[i], 0.0));
+                    entry.1 += outcome;
+                }
+                let treated: Vec<f64> = cluster_totals
+                    .values()
+                    .filter_map(|(assigned, total)| assigned.then_some(*total))
+                    .collect();
+                let control: Vec<f64> = cluster_totals
+                    .values()
+                    .filter_map(|(assigned, total)| (!assigned).then_some(*total))
+                    .collect();
+                let clusters = cluster_totals.len();
+                let scale = clusters as f64 / n as f64;
+                let effect = scale
+                    * (treated.iter().sum::<f64>() / treated.len() as f64
+                        - control.iter().sum::<f64>() / control.len() as f64);
+                let variance = scale.powi(2)
+                    * (sample_variance(&treated) / treated.len() as f64
+                        + sample_variance(&control) / control.len() as f64);
+                (
+                    effect,
+                    variance,
+                    clusters - treated_clusters,
+                    *treated_clusters,
+                    Arc::from([]),
+                    Arc::<str>::from("cluster"),
+                    Arc::<str>::from("cluster_neyman_variance_upper_bound_no_interval"),
+                    "Complete cluster-randomization HT ITT over cluster outcome totals, with Neyman conservative variance; no confidence interval is reported",
                 )
             }
             antecedent_core::RandomizationDesign::Stratified { blocks, treated_per_row } => {
@@ -478,10 +514,24 @@ pub(crate) fn randomized_identification(
     query: &antecedent_core::RandomizedEffectQuery,
 ) -> (IdentificationResult, IdentifiedEstimand) {
     let mut assumptions = antecedent_core::AssumptionSet::default();
-    for assumption in [Assumption::Consistency, Assumption::NoInterference, Assumption::Positivity]
-    {
+    let mut standard = vec![Assumption::Consistency, Assumption::Positivity];
+    if !matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. }) {
+        standard.push(Assumption::NoInterference);
+    }
+    for assumption in standard {
         assumptions.push(AssumptionRecord {
             assumption,
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
+    if matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. }) {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("no_between_cluster_interference"),
+                description: Arc::from("one cluster's assignment does not affect outcomes in another cluster; effects within a cluster are included in the cluster-assignment ITT"),
+            },
             source: AssumptionSource::UserDeclared,
             scope: AssumptionScope::Identification,
             status: AssumptionStatus::Declared,
@@ -497,6 +547,8 @@ pub(crate) fn randomized_identification(
                     "Treatment assignment follows complete randomization with the declared fixed treatment count",
                 antecedent_core::RandomizationDesign::Stratified { .. } =>
                     "Treatment assignment follows independent complete randomization within each declared block",
+                antecedent_core::RandomizationDesign::Cluster { .. } =>
+                    "Treatment assignment follows complete randomization of independent clusters; arbitrary dependence is allowed within clusters",
             }),
         },
         source: AssumptionSource::UserDeclared,
@@ -552,6 +604,7 @@ fn randomized_estimator_id(design: &antecedent_core::RandomizationDesign) -> Est
     match design {
         antecedent_core::RandomizationDesign::Bernoulli => EstimatorId::RandomizedHt,
         antecedent_core::RandomizationDesign::Complete { .. }
-        | antecedent_core::RandomizationDesign::Stratified { .. } => EstimatorId::RandomizedNeyman,
+        | antecedent_core::RandomizationDesign::Stratified { .. }
+        | antecedent_core::RandomizationDesign::Cluster { .. } => EstimatorId::RandomizedNeyman,
     }
 }

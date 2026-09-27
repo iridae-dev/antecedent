@@ -26,6 +26,9 @@ pub enum QueryError {
     /// Invalid survival or competing-risk observation contract.
     #[error("invalid survival query: {0}")]
     InvalidSurvival(String),
+    /// Invalid longitudinal regime value or subject-level fold contract.
+    #[error("invalid longitudinal-regime query: {0}")]
+    InvalidLongitudinalRegime(String),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {

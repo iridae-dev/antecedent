@@ -269,6 +269,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 match &query.design {
                     crate::RandomizationDesignWire::Bernoulli => "bernoulli".into(),
                     crate::RandomizationDesignWire::Complete { .. } => "complete".into(),
+                    crate::RandomizationDesignWire::Cluster { .. } => "cluster".into(),
                     crate::RandomizationDesignWire::Stratified => "stratified".into(),
                 },
             ),
@@ -314,6 +315,13 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ),
             ("observation".into(), "independent_marginal".into()),
             ("temporal_coordinates".into(), "event_time".into()),
+        ],
+        CausalQueryWire::LongitudinalRegime(query) => vec![
+            ("query_kind".into(), "longitudinal_regime".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("periods".into(), query.periods.to_string()),
+            ("subjects".into(), query.subject_ids.len().to_string()),
+            ("temporal_coordinates".into(), "subject_history".into()),
         ],
         CausalQueryWire::AnomalyAttribution { targets, .. } => {
             named_outcomes("anomaly_attribution", targets)

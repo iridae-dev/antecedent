@@ -166,6 +166,7 @@ fn receipt_body(
         policy_value: None,
         panel_did: None,
         survival: None,
+        longitudinal_regime: None,
         interventional_distribution: None,
         standard_error: None,
         interval_lower: None,

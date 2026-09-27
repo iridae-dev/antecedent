@@ -106,7 +106,8 @@ pub use options::FdrControl;
 pub use query::*;
 pub use result::{
     AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES, PanelDidEstimate,
-    PolicyValueEstimate, PrimaryEstimate, PublishedScalarUncertainty, RandomizedEffectEstimate,
+    LongitudinalRegimeEstimate, PolicyValueEstimate, PrimaryEstimate,
+    PublishedScalarUncertainty, RandomizedEffectEstimate,
     SurvivalEstimate,
     RowWeightsBinding, StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
 };

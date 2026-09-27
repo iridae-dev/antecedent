@@ -944,12 +944,22 @@ impl super::Study {
             }
             AnalysisRoute::Interference => {
                 let CausalQuery::Interference(q) = &self.query else { unreachable!() };
-                self.execute_interference(data, q, physical, ctx)
+                if matches!(
+                    q.assignment,
+                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                ) {
+                    CheckedInterferenceOperation::checked(self, data, physical)?.execute(data, ctx)
+                } else {
+                    self.execute_interference(data, q, physical, ctx)
+                }
             }
             AnalysisRoute::RandomizedEffect => self.execute_randomized(data, physical, ctx),
             AnalysisRoute::PolicyValue => self.execute_policy_value(data, physical, ctx),
             AnalysisRoute::PanelDid => self.execute_panel_did(data, physical, ctx),
             AnalysisRoute::Survival => self.execute_survival(data, physical, ctx),
+            AnalysisRoute::LongitudinalRegime => {
+                self.execute_longitudinal_regime(data, physical, ctx)
+            }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
             | AnalysisRoute::TemporalResponse

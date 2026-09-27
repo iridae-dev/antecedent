@@ -27,6 +27,74 @@ fn query() -> InterferenceQuery {
     )
 }
 
+fn cluster_query() -> InterferenceQuery {
+    InterferenceQuery::new(
+        AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from([0, 0, 1, 1, 2, 2, 3, 3]),
+            treated_clusters: 2,
+        },
+        ExposureMapping::NeighborFraction,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+        },
+    )
+}
+
+#[test]
+fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_artifact_flow() {
+    let data =
+        TabularData::from_f64_columns([("y", &[4.0, 4.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0][..])])
+            .unwrap();
+    let edges = (0..4)
+        .flat_map(|cluster| {
+            let first = cluster * 2;
+            [
+                NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+            ]
+        })
+        .collect::<Vec<_>>();
+    let network = NetworkData::try_new(data.clone(), edges).unwrap();
+    let study = Study::tabular(data.clone())
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(cluster_query()))
+        .interference(InterferenceSpec {
+            network,
+            assignment: Arc::from([true, true, true, true, false, false, false, false]),
+        })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let ctx = ExecutionContext::for_tests(6194);
+    let direct = study.run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    assert_eq!(prepared.checked_interference_info().unwrap().query, cluster_query());
+    assert_eq!(
+        prepared.checked_interference_info().unwrap().estimator,
+        EstimatorId::InterferenceClusterNeyman
+    );
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!((direct.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    assert_eq!(direct.support_status, result.support_status);
+    assert_eq!(result.support_status, None);
+    assert!((result.estimate.ate - 3.0).abs() < 1e-12);
+    assert!((result.estimate.se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
+    assert!(result.estimate.simultaneous_interval.is_none());
+    assert_eq!(result.interference.as_ref().unwrap().minimum_exposure_probability, 0.5);
+    let artifact =
+        prepared.encode_contracted_result(&result, "cluster-total-effect", &ctx).unwrap();
+    let consumed = consume_analysis_result(&artifact).unwrap();
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|item| item.as_ref() == "dependencies.checked_interference_operation")
+    );
+}
+
 fn design_fixture() -> (TabularData, Vec<bool>, Vec<NetworkEdge>, serde_json::Value) {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/randomized_interference/expected.json"
