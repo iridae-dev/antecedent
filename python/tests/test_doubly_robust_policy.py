@@ -207,6 +207,31 @@ def test_retained_policy_reports_held_out_ranked_uplift_bins():
         )
 
 
+def test_top_k_policy_uses_retained_native_value_and_frozen_ranking():
+    query = policy.PolicyValue.top_k(
+        [8, 7, 6, 5, 4, 3, 2, 1], 4,
+        outcome="y", assignment=[True, False] * 4, propensity=0.5,
+        evaluation_subject_ids=[f"eval-{i}" for i in range(8)],
+        ranking_training_subject_ids=["rank-train"], uplift_bins=2,
+    )
+    assert query.policy.actions == (True, True, True, True, False, False, False, False)
+    result = ant.analyze({"y": [9, 5, 9, 5, 5, 5, 5, 5]}, query=query, refute="none")
+    assert result.policy_value.policy_value == pytest.approx(7.0)
+    assert result.policy_value.incremental_value == pytest.approx(2.0)
+    assert result.policy_value.treatment_rate == pytest.approx(0.5)
+    assert [bin.effect for bin in result.policy_value.uplift_bins] == pytest.approx([4.0, 0.0])
+    loaded = ant.load(result.export(artifact_id="top-k-policy"))
+    assert loaded.answer.structured["policy_value"] == pytest.approx(7.0)
+
+    with pytest.raises(CausalValueError, match="disjoint"):
+        policy.PolicyValue.top_k(
+            [8, 7, 6, 5, 4, 3, 2, 1], 4,
+            outcome="y", assignment=[True, False] * 4, propensity=0.5,
+            evaluation_subject_ids=[f"eval-{i}" for i in range(8)],
+            ranking_training_subject_ids=["eval-0"], uplift_bins=2,
+        )
+
+
 def test_retained_multi_action_policy_matches_direct_native_value_and_artifact():
     labels = ("control", "A", "B")
     assigned = ["control", "A", "B"] * 3
