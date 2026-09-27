@@ -493,6 +493,7 @@ def _synthetic_control_from_raw(raw: Any) -> SyntheticControlEstimate | None:
         n_pre_periods=section.n_pre_periods,
         n_post_periods=section.n_post_periods,
         randomization_p_value=section.randomization_p_value,
+        randomization_null_effect=section.randomization_null_effect,
         randomization_statistics=tuple((str(unit), float(statistic)) for unit, statistic in section.randomization_statistics),
         unadjusted_effect=section.unadjusted_effect,
         outcome_model_correction=section.outcome_model_correction,
@@ -526,6 +527,7 @@ def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimat
         n_pre_periods=section.n_pre_periods,
         n_post_periods=section.n_post_periods,
         randomization_p_value=section.randomization_p_value,
+        randomization_null_effect=section.randomization_null_effect,
         randomization_statistics=tuple((str(unit), float(statistic)) for unit, statistic in section.randomization_statistics),
         uncertainty=(section.uncertainty if section.randomization_p_value is not None else "point_only"),
         assumptions=(
@@ -3206,6 +3208,7 @@ class _PrepareRoute:
             augmentation_ridge=query.augmentation_ridge if isinstance(query, SyntheticControl) else None,
             accepted=False, **self._common()
         )
+            sharp_null_effect=query.sharp_null_effect,
         return native, "average"
 
     def _local_polynomial_ratio(self) -> tuple[Any, Literal["average"]]:

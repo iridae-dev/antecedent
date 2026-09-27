@@ -154,6 +154,28 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
 }
 
 #[test]
+fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
+    let (data, query) = fixture();
+    assert!(query.clone().with_sharp_null_effect(5.0).validate().is_err());
+    assert!(query.clone().with_uniform_unit_randomization()
+        .with_sharp_null_effect(f64::NAN).validate().is_err());
+    let query = query.with_uniform_unit_randomization().with_sharp_null_effect(5.0);
+    let ctx = ExecutionContext::for_tests(19);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap()
+        .prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.synthetic_control.as_ref().unwrap();
+    let observed = fit.randomization_statistics.iter()
+        .find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
+    assert!(observed < 1e-5);
+    assert_eq!(fit.randomization_p_value, Some(1.0));
+    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+    let bytes = prepared.encode_contracted_result(&result, "constant-effect-null", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.synthetic_control.as_ref().unwrap().randomization_p_value, Some(1.0));
+}
+
+#[test]
 fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
     let (data, query) = fixture();
     let query = query.with_augmentation(0.1).with_uniform_unit_randomization();

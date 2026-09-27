@@ -700,6 +700,7 @@ pub(crate) fn validate_query_ids(
             );
             let query = if wire.difference_in_differences { query.difference_in_differences() } else { query };
             let query = if wire.uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
+            let query = if let Some(effect) = wire.sharp_null_effect { query.with_sharp_null_effect(effect) } else { query };
             let query = if let Some(ridge) = wire.augmentation_ridge { query.with_augmentation(ridge) } else { query };
             query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }

@@ -8,6 +8,7 @@ use antecedent_estimate::synthetic_control::exact_synthetic_unit_randomization_t
 use antecedent_estimate::synthetic_control::exact_augmented_synthetic_unit_randomization_test;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
 use antecedent_estimate::synthetic_control::exact_synthetic_did_unit_randomization_test;
+use antecedent_estimate::synthetic_control::{exact_synthetic_constant_effect_test, SyntheticConstantEffectMethod};
 use antecedent_core::SyntheticPanelMethod;
 
 #[derive(Clone)]
@@ -83,7 +84,14 @@ impl CheckedSyntheticControlOperation {
         };
         let effect = augmentation.as_ref().map_or(fit.effect, |augmented| augmented.effect);
         let randomization = if self.query.uniform_unit_randomization {
-            Some(if let Some(ridge) = self.query.augmentation_ridge {
+            Some(if let Some(null_effect) = self.query.sharp_null_effect {
+                exact_synthetic_constant_effect_test(y, &units, &self.query.periods,
+                    &self.query.treated_unit, self.query.intervention_period, null_effect,
+                    self.query.augmentation_ridge.map_or(
+                        SyntheticConstantEffectMethod::Control,
+                        |ridge_penalty| SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty },
+                    ))
+            } else if let Some(ridge) = self.query.augmentation_ridge {
                 exact_augmented_synthetic_unit_randomization_test(y, &units, &self.query.periods,
                     &self.query.treated_unit, self.query.intervention_period, ridge)
             } else {
@@ -109,11 +117,11 @@ impl CheckedSyntheticControlOperation {
                 extra_diagnostics: vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; effective donors {}; unadjusted leave-one-donor-out placebo rank {} is descriptive and uncalibrated; donor ridge correction {:?}; exact unit-randomization p-value {:?} applies only under declared uniform one-unit assignment and the sharp null; no interval",
+                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; effective donors {}; unadjusted leave-one-donor-out placebo rank {} is descriptive and uncalibrated; donor ridge correction {:?}; exact unit-randomization p-value {:?} tests the prespecified constant additive sharp null effect {} under declared uniform one-unit assignment; no interval",
                         fit.donor_weights.len(), fit.n_pre_periods, fit.n_post_periods,
                         fit.pre_treatment_rmse, effective_donors, fit.placebo_rank,
                         augmentation.as_ref().map(|fit| fit.outcome_model_correction),
-                        randomization.as_ref().map(|test| test.p_value)),
+                        randomization.as_ref().map(|test| test.p_value), self.query.sharp_null_effect.unwrap_or(0.0)),
                 )],
                 refutations: Vec::new(), distribution: None, mediation: None,
                 wall_time_ns: 0, bootstrap_replicates_ok: None,
@@ -139,6 +147,7 @@ impl CheckedSyntheticControlOperation {
                 "point_only_with_exact_unit_randomization_p_value_no_interval"
             } else { "point_only_with_unlicensed_placebo_rank" }),
             randomization_p_value: randomization.as_ref().map(|test| test.p_value),
+            randomization_null_effect: randomization.as_ref().map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
             randomization_statistics: randomization.map_or_else(
                 || Arc::from([]),
                 |test| test.statistics.into_iter().map(|(unit, statistic)|
@@ -158,10 +167,14 @@ impl CheckedSyntheticControlOperation {
         let fit = fit_synthetic_did(y, units, &self.query.periods, &self.query.treated_unit,
             self.query.intervention_period).map_err(|message| CausalError::Compile { message })?;
         let randomization = if self.query.uniform_unit_randomization {
-            Some(exact_synthetic_did_unit_randomization_test(
-                y, units, &self.query.periods, &self.query.treated_unit,
-                self.query.intervention_period,
-            ).map_err(|message| CausalError::Compile { message })?)
+            Some(if let Some(null_effect) = self.query.sharp_null_effect {
+                exact_synthetic_constant_effect_test(y, units, &self.query.periods,
+                    &self.query.treated_unit, self.query.intervention_period, null_effect,
+                    SyntheticConstantEffectMethod::DifferenceInDifferences)
+            } else {
+                exact_synthetic_did_unit_randomization_test(y, units, &self.query.periods,
+                    &self.query.treated_unit, self.query.intervention_period)
+            }.map_err(|message| CausalError::Compile { message })?)
         } else { None };
         let estimate = EffectEstimate::new(
             fit.effect, f64::NAN, self.identification.required_assumptions.clone(),
@@ -178,9 +191,9 @@ impl CheckedSyntheticControlOperation {
                 extra_diagnostics: vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; unit and time simplex weights; exact unit-randomization p-value {:?} applies only under declared uniform one-unit assignment and the sharp null; no interval",
+                    format!("{} donors; {} pre-periods; {} post-periods; pre-fit RMSE {}; unit and time simplex weights; exact unit-randomization p-value {:?} tests the prespecified constant additive sharp null effect {} under declared uniform one-unit assignment; no interval",
                         fit.n_donors, fit.n_pre_periods, fit.n_post_periods, fit.pre_treatment_rmse,
-                        randomization.as_ref().map(|test| test.p_value)),
+                        randomization.as_ref().map(|test| test.p_value), self.query.sharp_null_effect.unwrap_or(0.0)),
                 )],
                 refutations: Vec::new(), distribution: None, mediation: None,
                 wall_time_ns: 0, bootstrap_replicates_ok: None,
@@ -200,6 +213,7 @@ impl CheckedSyntheticControlOperation {
                 "point_only_with_exact_unit_randomization_p_value_no_interval"
             } else { "point_only_no_interval" }),
             randomization_p_value: randomization.as_ref().map(|test| test.p_value),
+            randomization_null_effect: randomization.as_ref().map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
             randomization_statistics: randomization.map_or_else(
                 || Arc::from([]),
                 |test| test.statistics.into_iter().map(|(unit, statistic)|
@@ -242,6 +256,17 @@ pub(crate) fn synthetic_control_identification(
             assumption: antecedent_core::Assumption::Custom {
                 id: Arc::from("uniform_single_treated_unit_assignment"),
                 description: Arc::from("exactly one treated unit was selected uniformly before outcomes were observed"),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if query.sharp_null_effect.is_some() {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("constant_additive_post_treatment_effect_sharp_null"),
+                description: Arc::from("the prespecified additive effect applies to every possible selected unit and every post-intervention period"),
             },
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,

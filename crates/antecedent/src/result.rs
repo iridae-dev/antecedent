@@ -180,6 +180,8 @@ pub struct SyntheticControlEstimate {
     pub uncertainty: Arc<str>,
     /// Exact Fisher p-value when uniform one-unit assignment was declared.
     pub randomization_p_value: Option<f64>,
+    /// Prespecified constant additive effect tested by the Fisher p-value.
+    pub randomization_null_effect: Option<f64>,
     /// Absolute gap for every possible treated unit under the sharp null.
     pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
     /// Unadjusted simplex gap when a donor outcome model corrects the point estimate.
@@ -226,6 +228,8 @@ pub struct SyntheticDidEstimate {
     pub uncertainty: Arc<str>,
     /// Exact sharp-null p-value under declared uniform single-unit assignment.
     pub randomization_p_value: Option<f64>,
+    /// Prespecified constant additive effect tested by the Fisher p-value.
+    pub randomization_null_effect: Option<f64>,
     /// Absolute synthetic-DiD contrast for every candidate treated unit.
     pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
 }
