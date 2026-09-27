@@ -13,7 +13,6 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent._native import analyze_ate
 from antecedent.estimators import (
     DML,
     UNSET,

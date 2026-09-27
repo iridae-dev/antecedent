@@ -77,10 +77,6 @@ def test_sequential_dr_refuses_positivity_and_observation_failures():
 def test_sequential_dr_checks_prediction_fold_alignment_and_unique_subject_rows():
     base = _base()
     with pytest.raises(ValueError, match="fold ownership must match"):
-        evaluate_sequential_doubly_robust(
-            **{**base, "prediction_fold_ids": [1, 1, 0]}
-        )
+        evaluate_sequential_doubly_robust(**{**base, "prediction_fold_ids": [1, 1, 0]})
     with pytest.raises(ValueError, match="one row per unique subject"):
-        evaluate_sequential_doubly_robust(
-            **{**base, "subject_ids": ["s1", "s1", "s3"]}
-        )
+        evaluate_sequential_doubly_robust(**{**base, "subject_ids": ["s1", "s1", "s3"]})

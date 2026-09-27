@@ -358,7 +358,10 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
     assert identities["identification"]
     assert identities["data_snapshot"]
     assert forwarded.artifact.contract["identities"] == identities
-    assert forwarded.artifact.contract["claim"]["claim_id"] == loaded.artifact.contract["claim"]["claim_id"]
+    assert (
+        forwarded.artifact.contract["claim"]["claim_id"]
+        == loaded.artifact.contract["claim"]["claim_id"]
+    )
     assert forwarded.artifact.contract["claim"]["attested"] == attested
     assert loaded.calibration.status == "unavailable"
     assert loaded.calibration.reason == "attested_not_reverifiable"

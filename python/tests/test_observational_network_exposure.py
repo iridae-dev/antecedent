@@ -13,7 +13,10 @@ def _fixture():
     # Potential outcome is 2*own treatment + 4*treated-neighbor count.
     neighbor_count = [0, 0, 1, 1]
     outcome = np.array(
-        [2 * own + 4 * neighbors for own, neighbors in zip(assignment, neighbor_count, strict=True)],
+        [
+            2 * own + 4 * neighbors
+            for own, neighbors in zip(assignment, neighbor_count, strict=True)
+        ],
         dtype=float,
     )
     return {"y": outcome}, clusters, edges, assignment
@@ -127,11 +130,12 @@ def test_observational_network_analyze_refuses_unsupported_design():
 def test_known_exposure_probabilities_publish_retained_cluster_interval():
     clusters = [cluster for cluster in range(60) for _ in range(2)]
     assignment = [cluster % 2 == 1 for cluster in clusters]
-    edges = [(2 * cluster + 1 - unit, 2 * cluster + unit) for cluster in range(60) for unit in range(2)]
-    outcomes = np.array([
-        1.0 + (cluster % 7) / 10.0 + 2.0 * float(cluster % 2 == 1)
-        for cluster in clusters
-    ])
+    edges = [
+        (2 * cluster + 1 - unit, 2 * cluster + unit) for cluster in range(60) for unit in range(2)
+    ]
+    outcomes = np.array(
+        [1.0 + (cluster % 7) / 10.0 + 2.0 * float(cluster % 2 == 1) for cluster in clusters]
+    )
     design = interference.ObservedExposureDesign(
         clusters=clusters,
         propensity_from=[0.5] * 120,

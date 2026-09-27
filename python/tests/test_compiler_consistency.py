@@ -197,7 +197,13 @@ ESTIMATOR_ROUTES: list[tuple[str, Callable[[], Any], Any, Any, dict[str, Any]]] 
         ant.AverageEffect("t", "y"),
         {"identifier": "frontdoor"},
     ),
-    ("rd", lambda: _rd(1), None, ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3), {}),
+    (
+        "rd",
+        lambda: _rd(1),
+        None,
+        ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3),
+        {},
+    ),
     (
         "conditional",
         lambda: _static(1),

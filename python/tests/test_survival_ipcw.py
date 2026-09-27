@@ -12,17 +12,18 @@ def _data():
     # At t=1 each arm has one event and one censor. Supplied G gives the
     # censored row weight 2 and the event row weight 1 (control), so weighted
     # KM survival is 2/3. Treated has two equal G=.5, giving survival 1/2.
-    return pd.DataFrame({
-        "duration": [1.0, 3.0, 1.0, 3.0],
-        "event": [1, 0, 1, 0],
-        "treated": [0, 0, 1, 1],
-    })
+    return pd.DataFrame(
+        {
+            "duration": [1.0, 3.0, 1.0, 3.0],
+            "event": [1, 0, 1, 0],
+            "treated": [0, 0, 1, 1],
+        }
+    )
 
 
 def test_ipcw_survival_known_truth_and_explicit_point_semantics():
     query = antecedent.survival.SurvivalOutcome("duration", "event", "treated", 3, randomized=True)
-    g = np.array([[1.0, 1.0, 1.0], [1.0, 0.5, 0.5],
-                  [1.0, 0.5, 0.5], [1.0, 0.5, 0.5]])
+    g = np.array([[1.0, 1.0, 1.0], [1.0, 0.5, 0.5], [1.0, 0.5, 0.5], [1.0, 0.5, 0.5]])
     result = antecedent.survival.estimate_survival_ipcw(
         _data(), query, times=[0.0, 1.0, 3.0], censoring_survival=g
     )
@@ -52,22 +53,31 @@ def test_ipcw_survival_refuses_unsupported_or_positivity_violating_inputs():
             _data(), query, times=[0.0, 1.0, 3.0], censoring_survival=g
         )
     delayed = antecedent.survival.SurvivalOutcome(
-        "duration", "event", "treated", 3, randomized=True,
-        delayed_entry="entry", observation_assumption=IndependentGiven(())
+        "duration",
+        "event",
+        "treated",
+        3,
+        randomized=True,
+        delayed_entry="entry",
+        observation_assumption=IndependentGiven(()),
     )
     with pytest.raises(CausalValueError, match="refuses delayed-entry"):
         antecedent.survival.estimate_survival_ipcw(
-            _data().assign(entry=0.0), delayed, times=[0.0, 1.0, 3.0],
-            censoring_survival=np.full((4, 3), 0.5)
+            _data().assign(entry=0.0),
+            delayed,
+            times=[0.0, 1.0, 3.0],
+            censoring_survival=np.full((4, 3), 0.5),
         )
 
 
 def _competing_data():
-    return pd.DataFrame({
-        "duration": [1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 2.0],
-        "cause": [1, 2, 0, 0, 1, 2, 0, 0],
-        "treated": [0, 0, 0, 0, 1, 1, 1, 1],
-    })
+    return pd.DataFrame(
+        {
+            "duration": [1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 2.0],
+            "cause": [1, 2, 0, 0, 1, 2, 0, 0],
+            "treated": [0, 0, 0, 0, 1, 1, 1, 1],
+        }
+    )
 
 
 def test_ipcw_competing_risks_known_truth_and_diagnostics():
@@ -76,10 +86,18 @@ def test_ipcw_competing_risks_known_truth_and_diagnostics():
     )
     # Control weighted risk at t=1 is 1 + 2 + 2 + 2 = 7; all-cause
     # weighted failure is 3 and target-cause failure is 1. Treated uses G=1.
-    g = np.array([
-        [1.0, 1.0, 1.0], [1.0, 0.5, 0.5], [1.0, 0.5, 0.5], [1.0, 0.5, 0.5],
-        [1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0],
-    ])
+    g = np.array(
+        [
+            [1.0, 1.0, 1.0],
+            [1.0, 0.5, 0.5],
+            [1.0, 0.5, 0.5],
+            [1.0, 0.5, 0.5],
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ]
+    )
     result = antecedent.survival.estimate_cumulative_incidence_ipcw(
         _competing_data(), query, times=[0.0, 1.0, 2.0], censoring_survival=g
     )
@@ -111,11 +129,19 @@ def test_ipcw_competing_risks_refuses_invalid_codes_grid_and_positivity():
             data, query, times=[0.0, 1.0, 2.0], censoring_survival=bad_g
         )
     delayed = antecedent.survival.CompetingRisksOutcome(
-        "duration", "cause", "treated", target_cause=1, tau=2, randomized=True,
-        delayed_entry="entry", observation_assumption=IndependentGiven(()),
+        "duration",
+        "cause",
+        "treated",
+        target_cause=1,
+        tau=2,
+        randomized=True,
+        delayed_entry="entry",
+        observation_assumption=IndependentGiven(()),
     )
     with pytest.raises(CausalValueError, match="refuses delayed-entry"):
         antecedent.survival.estimate_cumulative_incidence_ipcw(
-            data.assign(entry=0.0), delayed, times=[0.0, 1.0, 2.0],
+            data.assign(entry=0.0),
+            delayed,
+            times=[0.0, 1.0, 2.0],
             censoring_survival=np.ones((8, 3)),
         )

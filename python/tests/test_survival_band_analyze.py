@@ -14,11 +14,13 @@ def _study_data(*, competing: bool = False) -> dict[str, list[float]]:
     treatment = []
     for arm in (0.0, 1.0):
         for i in range(100):
-            duration.append(1.0 if i % (4 if arm else 5) == 0 else
-                            2.0 if i % 7 == 0 else 3.0)
+            duration.append(1.0 if i % (4 if arm else 5) == 0 else 2.0 if i % 7 == 0 else 3.0)
             event.append(
-                (1.0 if i % 2 == 0 else 2.0) if competing and duration[-1] < 3.0 else
-                1.0 if duration[-1] < 3.0 else 0.0
+                (1.0 if i % 2 == 0 else 2.0)
+                if competing and duration[-1] < 3.0
+                else 1.0
+                if duration[-1] < 3.0
+                else 0.0
             )
             treatment.append(arm)
     return {"duration": duration, "event": event, "treatment": treatment}
@@ -29,11 +31,22 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
     data = _study_data(competing=competing)
     query = (
         CompetingRisksOutcome(
-            "duration", "event", "treatment", target_cause=1, tau=3.0,
-            randomized=True, observation_assumption=IndependentGiven(()),
-        ) if competing else SurvivalOutcome(
-            "duration", "event", "treatment", 3.0,
-            randomized=True, observation_assumption=IndependentGiven(()),
+            "duration",
+            "event",
+            "treatment",
+            target_cause=1,
+            tau=3.0,
+            randomized=True,
+            observation_assumption=IndependentGiven(()),
+        )
+        if competing
+        else SurvivalOutcome(
+            "duration",
+            "event",
+            "treatment",
+            3.0,
+            randomized=True,
+            observation_assumption=IndependentGiven(()),
         )
     )
     first = ant.analyze(data, query=query, bootstrap=399, seed=923)
@@ -45,8 +58,10 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
     assert band.replicates_ok >= 399
     assert band.times == first.survival.times
     assert len(band.lower) == len(band.upper) == len(band.difference)
-    assert all(lower <= point <= upper for lower, point, upper in
-               zip(band.lower, band.difference, band.upper, strict=True))
+    assert all(
+        lower <= point <= upper
+        for lower, point, upper in zip(band.lower, band.difference, band.upper, strict=True)
+    )
     assert first.survival.band_unavailable_reason is None
     body = ant.load(first.export()).artifact.payload
     assert body["survival"]["difference_band"]["lower"] == pytest.approx(band.lower)
@@ -55,13 +70,23 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
 
 def test_simultaneous_band_refuses_fixed_censoring_weights_and_delayed_entry() -> None:
     data = _study_data()
-    data.update({"g0": [1.0] * 200, "g1": [1.0] * 200, "g2": [1.0] * 200,
-                 "g3": [1.0] * 200, "entry": [0.0] * 200})
+    data.update(
+        {
+            "g0": [1.0] * 200,
+            "g1": [1.0] * 200,
+            "g2": [1.0] * 200,
+            "g3": [1.0] * 200,
+            "entry": [0.0] * 200,
+        }
+    )
     weighted = SurvivalOutcome(
-        "duration", "event", "treatment", 3.0, randomized=True,
+        "duration",
+        "event",
+        "treatment",
+        3.0,
+        randomized=True,
         observation_assumption=IndependentGiven(()),
-        known_censoring=KnownCensoringSurvival((0.0, 1.0, 2.0, 3.0),
-                                                ("g0", "g1", "g2", "g3")),
+        known_censoring=KnownCensoringSurvival((0.0, 1.0, 2.0, 3.0), ("g0", "g1", "g2", "g3")),
     )
     weighted_result = ant.analyze(data, query=weighted, bootstrap=399, seed=923).survival
     assert weighted_result.difference_band is None
@@ -69,8 +94,13 @@ def test_simultaneous_band_refuses_fixed_censoring_weights_and_delayed_entry() -
     assert weighted_result.rmst_difference_interval is not None
 
     delayed = SurvivalOutcome(
-        "duration", "event", "treatment", 3.0, randomized=True,
-        delayed_entry="entry", observation_assumption=IndependentGiven(()),
+        "duration",
+        "event",
+        "treatment",
+        3.0,
+        randomized=True,
+        delayed_entry="entry",
+        observation_assumption=IndependentGiven(()),
     )
     delayed_result = ant.analyze(data, query=delayed, bootstrap=399, seed=923).survival
     assert delayed_result.difference_band is None
@@ -83,7 +113,11 @@ def test_simultaneous_band_withholds_thin_arms_but_keeps_scalar_interval() -> No
     for column in data:
         data[column] = data[column][:60] + data[column][100:160]
     query = SurvivalOutcome(
-        "duration", "event", "treatment", 3.0, randomized=True,
+        "duration",
+        "event",
+        "treatment",
+        3.0,
+        randomized=True,
         observation_assumption=IndependentGiven(()),
     )
     result = ant.analyze(data, query=query, bootstrap=399, seed=923).survival

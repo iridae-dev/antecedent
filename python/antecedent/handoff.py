@@ -268,11 +268,19 @@ class EconMLProviderAdapter:
         if not isinstance(result, Mapping) or "effect" not in result or "learner" not in result:
             raise CausalValueError("EconML executor must return learner and effect")
         allowed = {
-            "learner", "learner_config", "effect", "interval", "label", "value_types", "contrast"
+            "learner",
+            "learner_config",
+            "effect",
+            "interval",
+            "label",
+            "value_types",
+            "contrast",
         }
         unknown = set(result) - allowed
         if unknown:
-            raise CausalValueError(f"EconML executor returned unsupported fields: {sorted(unknown)}")
+            raise CausalValueError(
+                f"EconML executor returned unsupported fields: {sorted(unknown)}"
+            )
         receipt = self.handoff.attach(
             learner=result["learner"],
             learner_config=result.get("learner_config"),
@@ -288,7 +296,10 @@ class EconMLProviderAdapter:
             uncertainty=None,
             assumptions=self.spec.identification_requirements,
             support_status=self.handoff.status,
-            provenance={"adapter": "antecedent.handoff.EconMLProviderAdapter", "claim_id": receipt.claim_id},
+            provenance={
+                "adapter": "antecedent.handoff.EconMLProviderAdapter",
+                "claim_id": receipt.claim_id,
+            },
             artifact=receipt.export(),
         )
 

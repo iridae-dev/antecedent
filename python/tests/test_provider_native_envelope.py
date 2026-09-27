@@ -20,21 +20,31 @@ from antecedent.extensibility import (
 
 class External:
     spec = CausalProviderSpec(
-        query_family="effect", identification_requirements=("caller_identified",),
-        observed_distributions=("Y,T",), nuisance_functions=(),
+        query_family="effect",
+        identification_requirements=("caller_identified",),
+        observed_distributions=("Y,T",),
+        nuisance_functions=(),
         support_conditions=("positive_action_support",),
-        data_dependence=("caller_supplied_rows",), inference_claims=("point_only",),
-        influence_function=None, fold_policy="provider_owned", output_shape=(1,),
-        uncertainty_semantics="point_only", artifact_codec="external-receipt-v1",
-        deterministic=True, provenance={"package": "independent-provider"},
+        data_dependence=("caller_supplied_rows",),
+        inference_claims=("point_only",),
+        influence_function=None,
+        fold_policy="provider_owned",
+        output_shape=(1,),
+        uncertainty_semantics="point_only",
+        artifact_codec="external-receipt-v1",
+        deterministic=True,
+        provenance={"package": "independent-provider"},
     )
 
     def execute(self, request):
         value = float(request["effect"])
         return ProviderExecution(
-            estimate=[value], uncertainty=None,
-            assumptions=("caller identified",), support_status="caller_asserted",
-            provenance={"version": "0.1"}, artifact=f"external:{value}".encode(),
+            estimate=[value],
+            uncertainty=None,
+            assumptions=("caller identified",),
+            support_status="caller_asserted",
+            provenance={"version": "0.1"},
+            artifact=f"external:{value}".encode(),
         )
 
 
@@ -63,15 +73,24 @@ def test_verified_envelope_requires_host_receipt_for_exact_request():
     registry = ProviderRegistry()
     registry.register("external", External())
     receipt = b"external:2.0"
-    report = registry.verify("external", [ProviderVerificationFixture(
-        name="known-effect", request={"effect": 2.0}, expected_estimate=[2.0],
-        expected_uncertainty=None, expected_assumptions=("caller identified",),
-        expected_support_status="caller_asserted",
-        expected_provenance={"version": "0.1"},
-        artifact_digest=hashlib.sha256(receipt).hexdigest(),
-        artifact_decoder=lambda raw: raw.decode(),
-        expected_decoded_artifact="external:2.0",
-    )], evidence_origin="independent-known-effect/v1")
+    report = registry.verify(
+        "external",
+        [
+            ProviderVerificationFixture(
+                name="known-effect",
+                request={"effect": 2.0},
+                expected_estimate=[2.0],
+                expected_uncertainty=None,
+                expected_assumptions=("caller identified",),
+                expected_support_status="caller_asserted",
+                expected_provenance={"version": "0.1"},
+                artifact_digest=hashlib.sha256(receipt).hexdigest(),
+                artifact_decoder=lambda raw: raw.decode(),
+                expected_decoded_artifact="external:2.0",
+            )
+        ],
+        evidence_origin="independent-known-effect/v1",
+    )
     exact = registry.execute("external", {"effect": 2.0})
     assert exact.trust is ProviderTrust.VERIFIED_EXTENSION
     with pytest.raises(ValueError, match="host verification"):
@@ -86,13 +105,17 @@ def test_verified_envelope_requires_host_receipt_for_exact_request():
     assert external == receipt
     with pytest.raises(ValueError, match="host verification"):
         _native.open_provider_result(
-            exact.host_artifact, verified_spec_digest=report.spec_digest,
+            exact.host_artifact,
+            verified_spec_digest=report.spec_digest,
             verified_request_digest="0" * 64,
             verified_evidence_digest=report.evidence_digest,
         )
     unseen = registry.execute("external", {"effect": 3.0})
     assert unseen.trust is ProviderTrust.EXTERNALLY_ATTESTED
-    assert json.loads(_native.open_provider_result(unseen.host_artifact)[0])["trust"] == "externally_attested"
+    assert (
+        json.loads(_native.open_provider_result(unseen.host_artifact)[0])["trust"]
+        == "externally_attested"
+    )
 
 
 def test_installed_entry_point_provider_analyze_needs_no_rebuild(monkeypatch):
@@ -118,4 +141,7 @@ def test_installed_entry_point_provider_analyze_needs_no_rebuild(monkeypatch):
     assert analyzed.provider_result.artifact == b"external:2.0"
     assert analyzed.export() == b"external:2.0"
     host = analyzed.export_host()
-    assert json.loads(antecedent._native.open_provider_result(host)[0])["provenance"]["entry_point"] == EntryPoint.value
+    assert (
+        json.loads(antecedent._native.open_provider_result(host)[0])["provenance"]["entry_point"]
+        == EntryPoint.value
+    )

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import antecedent
 import numpy as np
 import pytest
-
-import antecedent
 
 
 def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact() -> None:
@@ -14,9 +13,7 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
     t = 0.5 * x + rng.normal(size=500)
     y = 5.0 + 2.0 * np.sin(t) + x + rng.normal(size=500)
     data = {"t": t, "x": x, "y": y}
-    dag = antecedent.Dag.from_edges(
-        ["t", "x", "y"], [("x", "t"), ("x", "y"), ("t", "y")]
-    )
+    dag = antecedent.Dag.from_edges(["t", "x", "y"], [("x", "t"), ("x", "y"), ("t", "y")])
     query = antecedent.Elasticity("t", "y", at=0.5)
     options = {"query": query, "estimator_config": {"bandwidth": 0.35}, "refute": False, "seed": 29}
 
@@ -35,10 +32,14 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
         assert result.uncertainty.level == pytest.approx(0.95)
         assert result.uncertainty.standard_error > 0
         assert result.uncertainty.lower[0][0] < truth < result.uncertainty.upper[0][0]
-        assert any("response.derivative_interval_fieller" in warning for warning in result.support.warnings)
+        assert any(
+            "response.derivative_interval_fieller" in warning for warning in result.support.warnings
+        )
         artifact = antecedent.artifacts.loads(result.export())
         assert artifact.payload_kind == "analysis_result"
-        assert artifact.payload["response"]["uncertainty"]["scalar"]["interpretation"] == "confidence"
+        assert (
+            artifact.payload["response"]["uncertainty"]["scalar"]["interpretation"] == "confidence"
+        )
 
     assert explicit.estimate == prepared.estimate == accepted.estimate
     assert explicit.uncertainty == prepared.uncertainty == accepted.uncertainty
