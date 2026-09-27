@@ -316,6 +316,36 @@ mod tests {
         let too_few = fit_synthetic_control(&y[..18], &units[..18], &periods[..18], "a", 5);
         assert!(too_few.unwrap_err().contains("at least three donor"));
     }
+
+    #[test]
+    fn uniform_unit_sharp_null_tail_is_finite_sample_superuniform() {
+        let mut outcome = Vec::new();
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        for (unit, baseline, trend) in [
+            ("a", 0.0, 0.1), ("b", 1.0, -0.2), ("c", 2.0, 0.3), ("d", 3.0, -0.1),
+        ] {
+            for period in 1..=6 {
+                units.push(unit.to_string());
+                periods.push(period);
+                outcome.push(baseline + trend * period as f64 + (period % 3) as f64 * 0.25);
+            }
+        }
+        // Under the sharp null this one observed panel is the outcome table for
+        // every possible uniformly selected treated unit.
+        let assignments = ["a", "b", "c", "d"];
+        let tests: Vec<_> = assignments.iter().map(|unit|
+            exact_synthetic_unit_randomization_test(&outcome, &units, &periods, unit, 5).unwrap()
+        ).collect();
+        for test in &tests[1..] {
+            assert_eq!(test.statistics, tests[0].statistics);
+        }
+        for numerator in 1..=assignments.len() {
+            let alpha = numerator as f64 / assignments.len() as f64;
+            let rejections = tests.iter().filter(|test| test.p_value <= alpha).count();
+            assert!(rejections <= numerator);
+        }
+    }
 }
 
 /// Point-only balanced-panel synthetic difference-in-differences fit.
