@@ -232,11 +232,16 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
         || !summary.value.is_finite()
     { return None; }
     let mut centered_sum = 0.0;
+    let mut total = 0.0;
     for subject in 0..subjects {
         let score = predictions[subject * periods] + predictions[subject * periods + 1];
         if !score.is_finite() { return None; }
+        total += score;
         centered_sum += (score - summary.value).powi(2);
     }
+    if !total.is_finite()
+        || (total / subjects as f64 - summary.value).abs() > 1e-10 * (1.0 + summary.value.abs())
+    { return None; }
     let se = (centered_sum / (subjects * (subjects - 1)) as f64).sqrt();
     if !se.is_finite() || se <= 0.0 { return None; }
     let span = antecedent_stats::normal_ppf(0.975) * se;

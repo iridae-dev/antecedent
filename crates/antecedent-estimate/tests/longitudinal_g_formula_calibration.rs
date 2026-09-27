@@ -44,6 +44,11 @@ fn fixed_known_q_subject_intervals_cover_two_period_regime_truth() {
         assert!(se > 0.0 && bounds[0] <= summary.value && summary.value <= bounds[1]);
         covered += usize::from(bounds[0] <= 3.0 && 3.0 <= bounds[1]);
         if trial == 0 {
+            let mut mismatched = summary;
+            mismatched.value += 1.0;
+            assert!(g_formula_fixed_q_pointwise_interval_95(
+                &mismatched, &predictions, SUBJECTS, 2,
+            ).is_none());
             assert!(g_formula_fixed_q_pointwise_interval_95(
                 &summary, &predictions[..100], 50, 2,
             ).is_none());
