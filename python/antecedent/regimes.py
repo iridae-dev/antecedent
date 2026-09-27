@@ -49,6 +49,9 @@ class LongitudinalRegimeQuery:
     excluded_fold_predictions: bool = False
     probabilities_known_by_design: bool = True
     minimum_probability: float = 0.01
+    rule_id: str | None = None
+    rule_version: str | None = None
+    rule_provenance: str | None = None
     kind: Literal["longitudinal_regime"] = field(default="longitudinal_regime", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -58,6 +61,12 @@ class LongitudinalRegimeQuery:
         if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
             raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
         n, periods = history.shape
+        identity = (self.rule_id, self.rule_version, self.rule_provenance)
+        if any(value is not None for value in identity):
+            if any(not isinstance(value, str) or not value.strip() for value in identity):
+                raise ValueError("dynamic rule requires non-empty rule_id, rule_version, and rule_provenance")
+            if self.method == "marginal_structural_model":
+                raise ValueError("dynamic rule identity is not applicable to marginal_structural_model")
         if self.method not in ("ipw", "g_formula", "sequential_dr", "marginal_structural_model"):
             raise ValueError("unknown longitudinal method")
         numerator = None if self.stabilizing_numerator_probabilities is None else np.asarray(self.stabilizing_numerator_probabilities, dtype=np.float64)
@@ -146,6 +155,73 @@ class LongitudinalRegimeQuery:
         return len(self.treatment_history[0])
 
     @classmethod
+    def from_dynamic_rule(
+        cls,
+        *,
+        outcome: str,
+        treatment_history: Sequence[Sequence[bool]],
+        predecision_covariates: Sequence[Sequence[Sequence[float]]],
+        rule: HistoryPolicy,
+        rule_id: str,
+        rule_version: str,
+        rule_provenance: str,
+        treatment_probabilities: Sequence[Sequence[float]],
+        subject_ids: Sequence[str],
+        method: Literal["ipw", "g_formula", "sequential_dr"] = "ipw",
+        period_outcome_predictions: Sequence[Sequence[float]] | None = None,
+        q_predictions: Sequence[Sequence[float]] | None = None,
+        observation_history: Sequence[Sequence[bool]] | None = None,
+        prediction_fold_ids: Sequence[int] | None = None,
+        censoring_probabilities: Sequence[Sequence[float]] | None = None,
+        outcome_observed: Sequence[bool] | None = None,
+        fold_ids: Sequence[int] | None = None,
+        excluded_fold_predictions: bool = False,
+        probabilities_known_by_design: bool = True,
+        minimum_probability: float = 0.01,
+    ) -> LongitudinalRegimeQuery:
+        """Freeze a binary rule against observed pre-decision histories.
+
+        At period ``t``, ``rule(t, past_actions, covariates_through_t)`` sees
+        actions from periods ``<t`` and covariates from periods ``<=t`` only.
+        The callable is caller code: artifacts retain its identity and resolved
+        actions, but cannot replay or verify its implementation.
+        """
+        history = np.asarray(treatment_history)
+        if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
+            raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
+        n, periods = history.shape
+        covariates = np.asarray(predecision_covariates, dtype=np.float64)
+        if covariates.ndim != 3 or covariates.shape[:2] != (n, periods) or covariates.shape[2] == 0 or not np.isfinite(covariates).all():
+            raise ValueError("predecision_covariates must be finite subject-by-period-by-feature values")
+        if not callable(rule):
+            raise ValueError("rule must be callable")
+        if any(not isinstance(value, str) or not value.strip() for value in (rule_id, rule_version, rule_provenance)):
+            raise ValueError("dynamic rule requires non-empty rule_id, rule_version, and rule_provenance")
+        actions: list[list[bool]] = []
+        for subject in range(n):
+            row: list[bool] = []
+            for period in range(periods):
+                past = tuple(bool(value) for value in history[subject, :period])
+                available = tuple(tuple(float(value) for value in covariates[subject, t]) for t in range(period + 1))
+                decision = rule(period, past, available)
+                if not isinstance(decision, (bool, np.bool_)):
+                    raise ValueError("dynamic rule must return a binary bool at every decision")
+                row.append(bool(decision))
+            actions.append(row)
+        return cls(
+            outcome=outcome, treatment_history=treatment_history, actions=actions,
+            treatment_probabilities=treatment_probabilities, subject_ids=subject_ids,
+            method=method, period_outcome_predictions=period_outcome_predictions,
+            q_predictions=q_predictions, observation_history=observation_history,
+            prediction_fold_ids=prediction_fold_ids,
+            censoring_probabilities=censoring_probabilities, outcome_observed=outcome_observed,
+            fold_ids=fold_ids, excluded_fold_predictions=excluded_fold_predictions,
+            probabilities_known_by_design=probabilities_known_by_design,
+            minimum_probability=minimum_probability, rule_id=rule_id,
+            rule_version=rule_version, rule_provenance=rule_provenance,
+        )
+
+    @classmethod
     def marginal_structural_model(
         cls,
         *,
@@ -200,6 +276,9 @@ class LongitudinalRegimeEstimate:
     standard_errors: tuple[float, ...] | None = None
     stabilizing_numerator_probabilities: tuple[float, ...] | None = None
     observed_subjects: int | None = None
+    rule_id: str | None = None
+    rule_version: str | None = None
+    rule_provenance: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

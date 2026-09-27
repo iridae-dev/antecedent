@@ -61,11 +61,26 @@ pub struct LongitudinalRegimeQuery {
     pub probabilities_known_by_design: bool,
     /// Minimum accepted conditional action and censoring probability.
     pub minimum_probability: f64,
+    /// Stable caller identity of a Python history-adaptive rule, if used.
+    pub rule_id: Option<Arc<str>>,
+    /// Stable caller-declared rule version.
+    pub rule_version: Option<Arc<str>>,
+    /// Caller-declared source or provenance of the rule implementation.
+    pub rule_provenance: Option<Arc<str>>,
 }
 
 impl LongitudinalRegimeQuery {
     /// Validate shape, subject ownership, and sequential positivity metadata.
     pub fn validate(&self) -> Result<(), QueryError> {
+        let identity = [&self.rule_id, &self.rule_version, &self.rule_provenance];
+        if identity.iter().any(|value| value.is_some())
+            && (identity.iter().any(|value| value.as_ref().is_none_or(|text| text.trim().is_empty()))
+                || self.method == LongitudinalRegimeMethod::MarginalStructuralModel)
+        {
+            return Err(QueryError::InvalidLongitudinalRegime(
+                "dynamic rule requires a nonempty ID, version, and provenance and a regime-value method".into(),
+            ));
+        }
         let n = self.subject_ids.len();
         let cells = n
             .checked_mul(self.periods)
@@ -179,6 +194,9 @@ mod tests {
             excluded_fold_predictions: true,
             probabilities_known_by_design: false,
             minimum_probability: 0.01,
+            rule_id: None,
+            rule_version: None,
+            rule_provenance: None,
         };
         assert!(q.validate().is_ok());
         q.subject_ids = Arc::from([Arc::<str>::from("a"), Arc::<str>::from("a")]);

@@ -677,6 +677,15 @@ pub struct LongitudinalRegimeWire {
     /// Named point method, defaulting to IPW for older artifacts.
     #[serde(default = "default_longitudinal_result_method")]
     pub method: String,
+    /// Identity of materialized caller rule; source code is not replayable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_id: Option<String>,
+    /// Stable caller-declared rule version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_version: Option<String>,
+    /// Caller-declared source or provenance of the rule implementation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_provenance: Option<String>,
     /// Horvitz--Thompson regime value.
     pub value: f64,
     /// Effective sample size among matching observed histories.
@@ -1200,6 +1209,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             ));
         };
         if regime.method != query.method
+            || regime.rule_id != query.rule_id
+            || regime.rule_version != query.rule_version
+            || regime.rule_provenance != query.rule_provenance
             || result.estimate.is_some()
             || result.standard_error.is_some()
             || result.interval_lower.is_some()

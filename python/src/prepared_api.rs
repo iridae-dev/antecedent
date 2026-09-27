@@ -3779,7 +3779,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
-        *, method="ipw", period_outcome_predictions=Vec::new(), stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), accepted=false, seed=1, threads=None, options=None))]
+        *, method="ipw", period_outcome_predictions=Vec::new(), stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
@@ -3803,6 +3803,9 @@ impl PyPreparedAnalysis {
         q_predictions: Vec<f64>,
         observation_history: Vec<bool>,
         prediction_fold_ids: Vec<u32>,
+        rule_id: Option<String>,
+        rule_version: Option<String>,
+        rule_provenance: Option<String>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3852,6 +3855,9 @@ impl PyPreparedAnalysis {
                 excluded_fold_predictions,
                 probabilities_known_by_design,
                 minimum_probability,
+                rule_id: rule_id.as_deref().map(Arc::<str>::from),
+                rule_version: rule_version.as_deref().map(Arc::<str>::from),
+                rule_provenance: rule_provenance.as_deref().map(Arc::<str>::from),
             };
             query
                 .validate()

@@ -12,6 +12,9 @@ use std::collections::HashSet;
 #[derive(Clone)]
 pub struct LongitudinalRegimeSection {
     pub method: String,
+    pub rule_id: Option<String>,
+    pub rule_version: Option<String>,
+    pub rule_provenance: Option<String>,
     pub value: f64,
     pub effective_sample_size: f64,
     pub matched_observed_fraction: f64,
@@ -30,6 +33,9 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
     fn from(value: &antecedent::LongitudinalRegimeEstimate) -> Self {
         Self {
             method: value.method.to_string(),
+            rule_id: value.rule_id.as_ref().map(ToString::to_string),
+            rule_version: value.rule_version.as_ref().map(ToString::to_string),
+            rule_provenance: value.rule_provenance.as_ref().map(ToString::to_string),
             value: value.value,
             effective_sample_size: value.effective_sample_size,
             matched_observed_fraction: value.matched_observed_fraction,

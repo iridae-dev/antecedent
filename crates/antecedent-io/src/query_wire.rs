@@ -833,6 +833,15 @@ pub struct LongitudinalRegimeQueryWire {
     pub probabilities_known_by_design: bool,
     /// Sequential positivity floor.
     pub minimum_probability: f64,
+    /// Caller supplied identity for a materialized history-adaptive rule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_id: Option<String>,
+    /// Stable caller-declared rule version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_version: Option<String>,
+    /// Caller-declared source or provenance of the rule implementation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_provenance: Option<String>,
 }
 
 fn default_longitudinal_method() -> String {
@@ -1928,6 +1937,9 @@ pub fn causal_query_to_wire_with_registry(
                 excluded_fold_predictions: q.excluded_fold_predictions,
                 probabilities_known_by_design: q.probabilities_known_by_design,
                 minimum_probability: q.minimum_probability,
+                rule_id: q.rule_id.as_ref().map(ToString::to_string),
+                rule_version: q.rule_version.as_ref().map(ToString::to_string),
+                rule_provenance: q.rule_provenance.as_ref().map(ToString::to_string),
             })
         }
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
@@ -2393,6 +2405,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 excluded_fold_predictions: w.excluded_fold_predictions,
                 probabilities_known_by_design: w.probabilities_known_by_design,
                 minimum_probability: w.minimum_probability,
+                rule_id: w.rule_id.as_deref().map(Arc::<str>::from),
+                rule_version: w.rule_version.as_deref().map(Arc::<str>::from),
+                rule_provenance: w.rule_provenance.as_deref().map(Arc::<str>::from),
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::LongitudinalRegime(q)

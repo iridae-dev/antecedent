@@ -48,6 +48,57 @@ def test_known_truth_regime_value_prepare_analyze_and_artifact():
         prepared.refresh({"y": [1.0, 2.0]})
 
 
+def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_value():
+    data, static = fixture()
+    seen = []
+
+    def rule(period, past_actions, covariates_through_period):
+        seen.append((period, past_actions, covariates_through_period))
+        return bool(covariates_through_period[0][0] > 0) if period == 0 else past_actions[0]
+
+    query = LongitudinalRegimeQuery.from_dynamic_rule(
+        outcome="y", treatment_history=static.treatment_history,
+        predecision_covariates=[[[1.0], [99.0]], [[1.0], [99.0]],
+                                [[-1.0], [99.0]], [[-1.0], [99.0]]],
+        rule=rule, rule_id="adaptive-threshold", rule_version="v1",
+        rule_provenance="study-protocol-7",
+        treatment_probabilities=static.treatment_probabilities,
+        subject_ids=static.subject_ids, fold_ids=[0, 0, 1, 1],
+    )
+    assert query.actions == ((True, True), (True, True), (False, False), (False, False))
+    assert seen[0] == (0, (), ((1.0,),))
+    assert seen[1] == (1, (True,), ((1.0,), (99.0,)))
+    prepared = antecedent.prepare(data, query=query)
+    fit = prepared.estimate().longitudinal_regime
+    assert fit.value == pytest.approx(4.0)
+    assert fit.rule_id == "adaptive-threshold"
+    assert fit.rule_version == "v1"
+    assert fit.rule_provenance == "study-protocol-7"
+    assert fit.uncertainty == "point_only_no_interval"
+    assert fit.support_status == "unlicensed_point_utility"
+    assert antecedent.analyze(data, query=query).longitudinal_regime == fit
+    result_wire = antecedent.load(prepared.export()).artifact.payload["longitudinal_regime"]
+    assert result_wire["rule_provenance"] == "study-protocol-7"
+    query_wire = antecedent.artifacts.loads(prepared.export_artifact(payload="query")).payload["longitudinal_regime"]
+    assert query_wire["rule_id"] == "adaptive-threshold"
+    assert query_wire["regime_actions"] == [True, True, True, True, False, False, False, False]
+
+
+def test_dynamic_rule_refuses_invalid_identity_future_covariate_shape_and_nonbinary_return():
+    _, static = fixture()
+    args = dict(outcome="y", treatment_history=static.treatment_history,
+                predecision_covariates=[[[1.0], [2.0]]] * 4,
+                treatment_probabilities=static.treatment_probabilities,
+                subject_ids=static.subject_ids, rule_id="rule", rule_version="v1",
+                rule_provenance="protocol")
+    with pytest.raises(ValueError, match="rule_provenance"):
+        LongitudinalRegimeQuery.from_dynamic_rule(**{**args, "rule_provenance": ""}, rule=lambda *_: True)
+    with pytest.raises(ValueError, match="subject-by-period-by-feature"):
+        LongitudinalRegimeQuery.from_dynamic_rule(**{**args, "predecision_covariates": [[1.0, 2.0]] * 4}, rule=lambda *_: True)
+    with pytest.raises(ValueError, match="binary bool"):
+        LongitudinalRegimeQuery.from_dynamic_rule(**args, rule=lambda *_: 1)
+
+
 def test_longitudinal_refuses_unsupported_nuisance_ownership_and_bad_subjects():
     data, query = fixture()
     with pytest.raises(ValueError, match="distinct non-empty"):

@@ -242,6 +242,12 @@ pub struct LocalPolynomialRatioEstimate {
 pub struct LongitudinalRegimeEstimate {
     /// Named method: IPW, g-formula, sequential DR, or additive MSM.
     pub method: Arc<str>,
+    /// Identity of the caller rule whose actions were frozen in the query.
+    pub rule_id: Option<Arc<str>>,
+    /// Stable caller-declared rule version.
+    pub rule_version: Option<Arc<str>>,
+    /// Caller-declared source or provenance of the rule implementation.
+    pub rule_provenance: Option<Arc<str>>,
     /// Regime mean, or the additive MSM intercept for the MSM method.
     pub value: f64,
     /// Effective sample size: matching weighted histories for IPW, subject count for g-formula.
