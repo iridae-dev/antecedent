@@ -192,8 +192,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
 | Anomaly / change attribution | `CausalQuery::AnomalyAttribution` / `ChangeAttribution` | `AnomalyAttribution` / `ChangeAttribution` on `analyze(data, graph=Dag or edges, query=...)`; identification `gcm.parametric`, estimator `gcm.fit` |
-| Identifier strategy | `IdentifierId::BackdoorAdjustment` | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"` |
-| Estimator strategy | `EstimatorId::LinearAdjustmentAte` | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"` |
+| Identifier strategy | `IdentifierId::BackdoorAdjustment` (16 wire ids) | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"`; the enum mirrors every `IdentifierId` wire id one-for-one (`tests/test_enum_parity.py` fails on drift) |
+| Estimator strategy | `EstimatorId::LinearAdjustmentAte` (63 wire ids) | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"`; the enum mirrors every `EstimatorId` wire id one-for-one, so `Estimator(result.estimate.estimator_id)` always resolves (`tests/test_enum_parity.py` fails on drift) |
 | Per-estimator tuning | `EstimatorSpec::LinearAdjustmentAte { .. }` (builder setters) | `analyze(..., estimator_config={...})` — one table-driven dict kwarg; see `python/src/estimator_config.rs` for the estimator-id → valid-keys table |
 | Discovery algorithm | `discover_pc` / `discover_ges` / … (still free functions) | `antecedent.discovery.PC(...).run(...)` / `.accept(...)` (config dataclass, not a free `discover_*` function) |
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.from_discovery(...)` / `.from_graph(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |
