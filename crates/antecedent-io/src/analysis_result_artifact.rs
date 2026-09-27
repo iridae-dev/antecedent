@@ -1213,6 +1213,17 @@ pub fn decode_analysis_result_artifact(
     Ok((artifact, decoded_header, decoded_body))
 }
 
+/// Whether a stored graphless support status matches the independently
+/// recomputed license for a row. This is only the status comparison shared
+/// across the families; each family's eligibility recompute (`*_licensed`) is
+/// deliberately kept self-contained as a forgery check across the trust
+/// boundary and is never routed through the execute/contract classifier.
+/// `allow_legacy_missing` permits a `None` status to stand in for an
+/// unlicensed row on artifacts written before the field existed.
+fn graphless_status_ok(actual: Option<&str>, licensed: bool, allow_legacy_missing: bool) -> bool {
+    actual == licensed.then_some("licensed") || (allow_legacy_missing && actual.is_none())
+}
+
 // allow(too_many_lines): single dispatch over every result-variant validator; splitting hides the total contract
 #[allow(clippy::too_many_lines)]
 fn validate_result(
@@ -1279,8 +1290,7 @@ fn validate_result(
         // unsupported interval was already refused above, so recomputing the
         // license from the published interval catches a forged status.
         let graphless_licensed = inference.interval.is_some();
-        if inference.graphless_support_status.as_deref() != graphless_licensed.then_some("licensed")
-            && !(allow_legacy_graphless_missing && inference.graphless_support_status.is_none())
+        if !graphless_status_ok(inference.graphless_support_status.as_deref(), graphless_licensed, allow_legacy_graphless_missing)
         {
             return Err(IoError::Convert(
                 "interference graphless license does not match the published interval support".into(),
@@ -1506,7 +1516,6 @@ fn validate_result(
                     && has_interval
             })
         });
-        let expected_graphless_status = graphless_licensed.then_some("licensed");
         let expected_uncertainty = if has_interval {
             interval_uncertainty.unwrap_or(point_uncertainty)
         } else { point_uncertainty };
@@ -1567,9 +1576,7 @@ fn validate_result(
             || !randomized.variance.is_finite()
             || randomized.variance < 0.0
             || randomized.assignment_design != design
-            || (randomized.graphless_support_status.as_deref() != expected_graphless_status
-                && !(allow_legacy_graphless_missing
-                    && randomized.graphless_support_status.is_none()))
+            || !graphless_status_ok(randomized.graphless_support_status.as_deref(), graphless_licensed, allow_legacy_graphless_missing)
             || randomized.uncertainty != expected_uncertainty
             || !extra_intervals_valid
             || !multi_arm_intervals_valid
@@ -1703,8 +1710,7 @@ fn validate_result(
             || fit.n_left < 3
             || fit.n_right < 3
             || (!legacy_point_only && fit.uncertainty != "rbc_hc0_delta_normal_fixed_bandwidth")
-            || fit.graphless_support_status.as_deref().is_some_and(|status|
-                Some(status) != ratio_licensed.then_some("licensed"))
+            || !graphless_status_ok(fit.graphless_support_status.as_deref(), ratio_licensed, true)
         {
             return Err(IoError::Convert("invalid local ratio support or fabricated interval".into()));
         }
@@ -1882,8 +1888,7 @@ fn validate_result(
             );
         let graphless_licensed =
             graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
-        if regime.graphless_support_status.as_deref() != graphless_licensed.then_some("licensed")
-            && !(allow_legacy_graphless_missing && regime.graphless_support_status.is_none())
+        if !graphless_status_ok(regime.graphless_support_status.as_deref(), graphless_licensed, allow_legacy_graphless_missing)
         {
             return Err(IoError::Convert(
                 "longitudinal regime graphless license does not match evidenced support".into(),
@@ -2072,8 +2077,7 @@ fn validate_result(
                 || !(0.0..=1.0).contains(&value.maximum_normalized_weight)
                 || !value.minimum_dose_density.is_finite() || value.minimum_dose_density <= 0.0
                 || policy_interval != supported
-                || (fit.graphless_support_status.as_deref() != supported.then_some("licensed")
-                    && !(allow_legacy_graphless_missing && fit.graphless_support_status.is_none()))
+                || !graphless_status_ok(fit.graphless_support_status.as_deref(), supported, allow_legacy_graphless_missing)
                 || intervals.iter().any(|interval| interval.is_some() != policy_interval)
                 || intervals.iter().zip(centers).zip(variances).any(|((interval, center), variance)| {
                     interval.is_some_and(|[lower, upper]| {
@@ -2366,8 +2370,7 @@ fn validate_result(
                         .all(|id| !query.evaluation_subject_ids.contains(id))))
                 && scalar_intervals == 2
         });
-        if policy.graphless_support_status.as_deref().is_some_and(|status|
-            Some(status) != licensed.then_some("licensed")) {
+        if !graphless_status_ok(policy.graphless_support_status.as_deref(), licensed, true) {
             return Err(IoError::Convert("policy graphless support status does not match exact design and interval evidence".into()));
         }
     }
@@ -2603,8 +2606,7 @@ fn validate_result(
             || !event_study_valid
             || !event_intervals_valid
             || !augmented_valid
-            || did.graphless_support_status.as_deref().is_some_and(|status|
-                Some(status) != did_licensed.then_some("licensed"))
+            || !graphless_status_ok(did.graphless_support_status.as_deref(), did_licensed, true)
             || (query.repeated_cross_section
                 && (duplicate_subject
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
@@ -2852,9 +2854,10 @@ fn validate_result(
             || curve.censoring_survival_provenance.as_deref()
                 != (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
             || !(point_only || pointwise_bootstrap)
-            || curve.graphless_support_status.as_deref() != scalar_licensed.then_some("licensed")
-            || curve.difference_band.as_ref().and_then(|band| band.graphless_support_status.as_deref())
-                != band_licensed.then_some("licensed")
+            || !graphless_status_ok(curve.graphless_support_status.as_deref(), scalar_licensed, false)
+            || !graphless_status_ok(
+                curve.difference_band.as_ref().and_then(|band| band.graphless_support_status.as_deref()),
+                band_licensed, false)
             || (curve.assignment_counts.is_some_and(|counts| counts.contains(&0)))
             || !band_valid
             || curve.tau != query.tau
