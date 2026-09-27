@@ -5,7 +5,7 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-/// Retained panel DiD result; cluster-robust SE is exposed without an interval claim.
+/// Retained panel DiD result with support-gated pointwise uncertainty.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct PanelDidSection {
@@ -13,6 +13,8 @@ pub struct PanelDidSection {
     pub effect: f64,
     /// Cluster-robust standard error.
     pub standard_error: Option<f64>,
+    /// Supported pointwise 95% interval for a scalar two-period design.
+    pub interval_95: Option<(f64, f64)>,
     /// Treated subject count.
     pub treated_subjects: usize,
     /// Comparison subject count.
@@ -32,6 +34,7 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
         Self {
             effect: value.effect,
             standard_error: if value.augmented.is_some() { None } else { Some(value.standard_error) },
+            interval_95: value.interval_95.map(|bounds| (bounds[0], bounds[1])),
             treated_subjects: value.treated_subjects,
             comparison_subjects: value.comparison_subjects,
             clusters: value.clusters,

@@ -3284,6 +3284,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         panel_did: result.panel_did.as_ref().map(|did| antecedent_io::PanelDidWire {
             effect: did.effect,
             standard_error: if did.augmented.is_some() { None } else { Some(did.standard_error) },
+            interval_95: did.interval_95,
             treated_subjects: did.treated_subjects,
             comparison_subjects: did.comparison_subjects,
             clusters: did.clusters,

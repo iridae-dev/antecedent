@@ -55,7 +55,10 @@ fn retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth() {
                 }
             }
             let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
-            let fit = prepared.estimate(&data, &ctx).unwrap().panel_did.unwrap();
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            let fit = result.panel_did.unwrap();
+            assert_eq!(fit.uncertainty.as_ref(), "cluster_robust_normal_interval_independent_clusters");
+            assert!(fit.interval_95.is_some());
             covered += usize::from((fit.effect - TRUTH).abs() <= CRITICAL_95 * fit.standard_error);
         }
         let rate = covered as f64 / REPLICATIONS as f64;
@@ -96,7 +99,10 @@ fn retained_repeated_cross_section_did_interval_covers_parallel_trends_truth() {
                 + TRUTH * f64::from(active && after) + standard_normal(&mut rng)
         }).collect();
         let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
-        let fit = prepared.estimate(&data, &ctx).unwrap().panel_did.unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let fit = result.panel_did.unwrap();
+        assert_eq!(fit.uncertainty.as_ref(), "cluster_robust_normal_interval_independent_clusters");
+        assert!(fit.interval_95.is_some());
         covered += usize::from((fit.effect - TRUTH).abs() <= CRITICAL_95 * fit.standard_error);
     }
     let rate = covered as f64 / REPLICATIONS as f64;

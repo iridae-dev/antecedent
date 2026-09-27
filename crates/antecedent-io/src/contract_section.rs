@@ -1532,13 +1532,17 @@ fn calibration_basis_matches_contract(
                 && structure == key.structure
                 && inference == key.inference
         }) || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
-            // Off-axis point utilities have no matrix coordinate to compare.
-            // Their `none` calibration key is still bound to the sealed graph
-            // and program below, and cannot license an interval.
+            // Off-axis design results retain their interval construction in
+            // the claim even though the support matrix has no licensed cell.
+            // The query-specific payload validator verifies its support and
+            // endpoints; calibration remains unavailable on this axis.
             slot.matrix_status == "off_axis"
                 && slot.matrix_coordinate.is_none()
                 && key.query == "Unknown"
-                && key.interval_method == "none"
+                && (key.interval_method == "none"
+                    || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
+                        && key.interval_method == "analytic_se"
+                        && key.dependence == "cluster"))
                 && key.graph_class == contract.graph_class
                 && key.structure == "fixed"
         });
@@ -1555,7 +1559,9 @@ fn calibration_basis_matches_contract(
             && snapshot.modality == key.modality
             && match snapshot.modality.as_str() {
                 "panel" => key.dependence == "panel_cluster",
-                "tabular" => key.dependence == "iid",
+                "tabular" => key.dependence == "iid"
+                    || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
+                        && key.dependence == "cluster"),
                 _ => key.dependence != "panel_cluster",
             }
     });

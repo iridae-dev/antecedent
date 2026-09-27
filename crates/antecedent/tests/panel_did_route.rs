@@ -61,6 +61,44 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
 }
 
 #[test]
+fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
+    let mut ids = Vec::new();
+    let mut clusters = Vec::new();
+    let mut treated = Vec::new();
+    let mut post = Vec::new();
+    let mut outcome = Vec::new();
+    for group in [false, true] {
+        for cluster in 0..30 {
+            for after in [false, true] {
+                ids.push(Arc::<str>::from(format!("subject-{group}-{cluster}")));
+                clusters.push(Arc::<str>::from(format!("cluster-{group}-{cluster}")));
+                treated.push(group);
+                post.push(after);
+                outcome.push(if after { cluster as f64 * 0.1 + if group { 2.0 } else { 0.0 } } else { 0.0 });
+            }
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let query = PanelDidQuery::new(VariableId::from_raw(0), treated, post, ids, clusters);
+    let context = ExecutionContext::for_tests(91);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let result = prepared.estimate(&data, &context).unwrap();
+    let did = result.panel_did.as_ref().unwrap();
+    assert!((did.effect - 2.0).abs() < 1e-12);
+    assert_eq!(did.uncertainty.as_ref(), "cluster_robust_normal_interval_independent_clusters");
+    let bounds = did.interval_95.unwrap();
+    assert!(bounds[0] <= did.effect && did.effect <= bounds[1]);
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::AnalyticSe);
+    assert_eq!(result.interval.as_ref().unwrap().dependence, "cluster");
+    let bytes = prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
+    let mut fabricated = body.clone();
+    fabricated.panel_did.as_mut().unwrap().interval_95 = Some([bounds[0] - 1.0, bounds[1]]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+}
+
+#[test]
 fn panel_did_refuses_missing_wave_and_insufficient_group_clusters() {
     let context = ExecutionContext::for_tests(1);
     let (data, query) = fixture();
