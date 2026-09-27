@@ -877,6 +877,9 @@ pub struct PanelDidQueryWire {
     pub outcome: u32,
     /// True for repeated cross sections; absent in older balanced-panel artifacts.
     #[serde(default)]
+    /// Pre outcome, propensity, untreated-change prediction, and cross-fit declaration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmented: Option<(u32, u32, u32, bool)>,
     pub repeated_cross_section: bool,
     /// Selected staggered cohort-period comparison, when present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1825,6 +1828,8 @@ pub fn causal_query_to_wire_with_registry(
                 bandwidth: q.bandwidth,
                 kink: q.kink,
             })
+            augmented: q.augmented.as_ref().map(|n| (n.outcome_pre.raw(), n.propensity.raw(),
+                n.untreated_change_prediction.raw(), n.predictions_cross_fitted)),
         }
         CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
             duration: q.duration.raw(),
@@ -2183,7 +2188,20 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::PolicyValue(q)
         }
         CausalQueryWire::PanelDid(w) => {
-            let q = if w.staggered_event_study {
+            let q = if let Some((pre, propensity, prediction, cross_fitted)) = w.augmented {
+                if w.staggered_event_study || w.staggered_target.is_some() || w.repeated_cross_section
+                    || !w.periods.is_empty() || !w.cohorts.is_empty() {
+                    return Err(IoError::Convert("augmented panel DiD cannot also select another sampling design".into()));
+                }
+                PanelDidQuery::augmented_panel(
+                    VariableId::from_raw(w.outcome), VariableId::from_raw(pre),
+                    VariableId::from_raw(propensity), VariableId::from_raw(prediction),
+                    w.treated.clone(),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    cross_fitted,
+                )
+            } else if w.staggered_event_study {
                 if w.repeated_cross_section || w.staggered_target.is_some() {
                     return Err(IoError::Convert("event study cannot also select a group-time target or repeated cross section".into()));
                 }
@@ -2220,7 +2238,7 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
                 )
             };
-            if (w.staggered_target.is_some() || w.staggered_event_study)
+            if (w.staggered_target.is_some() || w.staggered_event_study || w.augmented.is_some())
                 && (q.treated.as_ref() != w.treated.as_slice()
                     || q.post.as_ref() != w.post.as_slice())
             {

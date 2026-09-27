@@ -114,3 +114,31 @@ def test_augmented_panel_did_refuses_nonoverlap_and_duplicate_subjects():
         estimate_augmented_panel_did(data, query)
     with pytest.raises(CausalValueError, match="unique subject"):
         estimate_augmented_panel_did({**data, "id": ["a", "a", "c", "d"]}, query)
+
+
+def test_augmented_panel_did_uses_retained_prepare_analyze_and_artifact():
+    import antecedent
+
+    query = AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True)
+    data = {
+        "id": [f"s{i}" for i in range(6)],
+        "pre": [10.0, 12.0, 13.0, 9.0, 15.0, 11.0],
+        "post": [15.0, 17.0, 18.0, 11.0, 17.0, 13.0],
+        "treated": [True, True, True, False, False, False],
+        "p": [0.5] * 6,
+        "m0": [2.0] * 6,
+    }
+    direct = estimate_augmented_panel_did(data, query)
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    assert result.panel_did.estimate == pytest.approx(3.0)
+    assert result.panel_did.effective_control_sample_size == pytest.approx(3.0)
+    assert result.panel_did.uncertainty == "point_only_no_standard_error"
+    assert result.panel_did.estimate == direct.estimate
+    assert antecedent.analyze(data, query=query).panel_did == result.panel_did
+    assert prepared.estimate({**data, "post": [x + 1 for x in data["post"]]}).panel_did == result.panel_did
+    artifact = result.export()
+    loaded = antecedent.load(artifact)
+    assert loaded.export() == artifact
+    with pytest.raises((CausalValueError, ValueError), match="overlap|strictly between"):
+        antecedent.analyze({**data, "p": [0.0] + [0.5] * 5}, query=query)

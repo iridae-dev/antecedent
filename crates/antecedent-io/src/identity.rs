@@ -307,9 +307,12 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         CausalQueryWire::PanelDid(query) => vec![
             ("query_kind".into(), "panel_did".into()),
             ("outcome".into(), query.outcome.to_string()),
+            ("augmented_nuisance".into(), format!("{:?}", query.augmented)),
             (
                 "design".into(),
-                if query.repeated_cross_section {
+                if query.augmented.is_some() {
+                    "augmented_panel"
+                } else if query.repeated_cross_section {
                     "repeated_cross_section"
                 } else {
                     "balanced_two_period_panel"

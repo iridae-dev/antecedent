@@ -265,3 +265,4 @@ pub use static_mediation::{
     MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,
     estimate_static_mediation_bayesian_outcome_prior, linear_no_interaction_restriction,
 };
+pub mod augmented_panel_did;

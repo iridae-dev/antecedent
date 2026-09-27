@@ -23,6 +23,8 @@ pub struct PanelDidSection {
     pub uncertainty: String,
     /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
     pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
+    /// Propensity range, effective control count, and caller cross-fit declaration.
+    pub augmented: Option<(f64, f64, f64, bool)>,
 }
 
 impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
@@ -39,6 +41,7 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
                 effect.treated_subjects, effect.comparison_subjects,
                 effect.standard_error, effect.clusters,
             )).collect(),
+            augmented: value.augmented,
         }
     }
 }
@@ -494,63 +497,15 @@ fn augmented_panel_difference_in_differences(
     let post = outcome_post.as_array();
     let propensity = propensity.as_array();
     let prediction = untreated_change_prediction.as_array();
-    let n = pre.len();
-    if n == 0
-        || post.len() != n
-        || treated.len() != n
-        || propensity.len() != n
-        || prediction.len() != n
-    {
-        return Err(PyValueError::new_err(
-            "pre/post outcomes, treatment, propensity, and outcome predictions must have equal non-zero length",
-        ));
-    }
-    if pre.iter().chain(post.iter()).chain(prediction.iter()).any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes and nuisance predictions must be finite"));
-    }
-    if propensity.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value >= 1.0) {
-        return Err(PyValueError::new_err(
-            "augmented DiD overlap failure: propensity scores must be strictly between zero and one",
-        ));
-    }
-    let treated_count = treated.iter().filter(|&&value| value).count();
-    let control_count = n - treated_count;
-    if treated_count == 0 || control_count == 0 {
-        return Err(PyValueError::new_err("augmented DiD requires treated and control subjects"));
-    }
-    let mut treated_change = 0.0;
-    let mut predicted_counterfactual = 0.0;
-    let mut control_residual_correction = 0.0;
-    let mut control_weight = 0.0;
-    let mut propensity_min = f64::INFINITY;
-    let mut propensity_max: f64 = 0.0;
-    let mut squared_weights = 0.0;
-    for i in 0..n {
-        let p = propensity[i];
-        propensity_min = propensity_min.min(p);
-        propensity_max = propensity_max.max(p);
-        let change = post[i] - pre[i];
-        if treated[i] {
-            treated_change += change;
-            predicted_counterfactual += prediction[i];
-        } else {
-            let weight = p / (1.0 - p);
-            control_weight += weight;
-            squared_weights += weight * weight;
-            control_residual_correction += weight * (change - prediction[i]);
-        }
-    }
-    treated_change /= treated_count as f64;
-    predicted_counterfactual /= treated_count as f64;
-    let counterfactual_change =
-        predicted_counterfactual + control_residual_correction / treated_count as f64;
-    let effect = treated_change - counterfactual_change;
-    let effective_controls =
-        if squared_weights > 0.0 { control_weight.powi(2) / squared_weights } else { 0.0 };
-    if !effect.is_finite() || !effective_controls.is_finite() {
-        return Err(PyValueError::new_err("augmented DiD estimate overflowed finite precision"));
-    }
-    Ok((effect, treated_count, control_count, propensity_min, propensity_max, effective_controls))
+    let fit = antecedent_estimate::augmented_panel_did::estimate(
+        pre.as_slice().ok_or_else(|| PyValueError::new_err("pre outcome must be contiguous"))?,
+        post.as_slice().ok_or_else(|| PyValueError::new_err("post outcome must be contiguous"))?,
+        &treated,
+        propensity.as_slice().ok_or_else(|| PyValueError::new_err("propensity must be contiguous"))?,
+        prediction.as_slice().ok_or_else(|| PyValueError::new_err("prediction must be contiguous"))?,
+    ).map_err(PyValueError::new_err)?;
+    Ok((fit.effect, fit.treated_subjects, fit.control_subjects,
+        fit.propensity_min, fit.propensity_max, fit.effective_control_sample_size))
 }
 
 /// Local quadratic fuzzy RD or kink with cubic-pilot bias correction and HC0 inference.

@@ -50,6 +50,12 @@ impl CheckedPanelDidOperation {
         data.schema()
             .get(query.outcome)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        if let Some(nuisance) = &query.augmented {
+            for variable in [nuisance.outcome_pre, nuisance.propensity,
+                nuisance.untreated_change_prediction] {
+                data.schema().get(variable).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            }
+        }
         let (identification, estimand) = panel_did_identification(query);
         Ok(Self {
             query: query.clone(),
@@ -85,6 +91,9 @@ impl CheckedPanelDidOperation {
                 });
             }
         };
+        if self.query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
+            return self.execute_augmented_panel(data, y);
+        }
         if self.query.design == antecedent_core::DidSamplingDesign::StaggeredEventStudy {
             return self.execute_staggered_event_study(data, y);
         }
@@ -211,6 +220,63 @@ impl CheckedPanelDidOperation {
             clusters: g,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
+            augmented: None,
+        });
+        result.treatment = None;
+        Ok(result)
+    }
+
+    fn execute_augmented_panel(
+        &self, data: &TabularData, post: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let nuisance = self.query.augmented.as_ref().expect("validated augmented panel");
+        let numeric_column = |variable| -> Result<Vec<f64>, CausalError> {
+            match data.column(variable).map_err(CausalError::from)? {
+                antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
+                _ => Err(CausalError::Unsupported { message: "augmented panel DiD requires continuous outcome and nuisance columns" }),
+            }
+        };
+        let pre = numeric_column(nuisance.outcome_pre)?;
+        let propensity = numeric_column(nuisance.propensity)?;
+        let prediction = numeric_column(nuisance.untreated_change_prediction)?;
+        let fit = antecedent_estimate::augmented_panel_did::estimate(
+            &pre, post, &self.query.treated, &propensity, &prediction,
+        ).map_err(|message| CausalError::Compile { message: message.into() })?;
+        let estimate = EffectEstimate::new(
+            fit.effect, f64::NAN, self.identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context, Some(data), IdentifiedExecuteFinish {
+                physical: &self.physical,
+                identification: self.identification.clone(),
+                estimand: self.estimand.clone(), estimate,
+                identifier_id: IdentifierId::RandomizedDesign,
+                estimator_id: EstimatorId::RandomizedHt,
+                treatment: self.query.outcome, outcome: self.query.outcome,
+                identify_cached: false,
+                extra_diagnostics: vec![Diagnostic::new(
+                    "estimate.quasi.augmented_panel_did.supplied_nuisance",
+                    DiagnosticKind::Scientific, DiagnosticSeverity::Info,
+                    "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval",
+                )],
+                refutations: Vec::new(), distribution: None, mediation: None,
+                wall_time_ns: 0, bootstrap_replicates_ok: None,
+                cancelled: false, early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            },
+        );
+        result.panel_did = Some(crate::PanelDidEstimate {
+            effect: fit.effect,
+            // The field is a wire-compatible placeholder, not a standard error.
+            standard_error: 0.0,
+            treated_subjects: fit.treated_subjects,
+            comparison_subjects: fit.control_subjects,
+            clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
+            uncertainty: Arc::from("point_only_no_standard_error"),
+            event_time_effects: Arc::from([]),
+            augmented: Some((fit.propensity_min, fit.propensity_max,
+                fit.effective_control_sample_size, nuisance.predictions_cross_fitted)),
         });
         result.treatment = None;
         Ok(result)
@@ -266,6 +332,7 @@ impl CheckedPanelDidOperation {
             clusters: representative.clusters,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: effects.into(),
+            augmented: None,
         });
         result.treatment = None;
         Ok(result)
@@ -391,6 +458,7 @@ impl CheckedPanelDidOperation {
             clusters: cluster_count,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
+            augmented: None,
         });
         result.treatment = None;
         Ok(result)
@@ -492,6 +560,7 @@ impl CheckedPanelDidOperation {
             clusters: g,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
+            augmented: None,
         });
         result.treatment = None;
         Ok(result)
@@ -526,8 +595,10 @@ pub(crate) fn panel_did_identification(
     let staggered = matches!(query.design, antecedent_core::DidSamplingDesign::StaggeredGroupTime | antecedent_core::DidSamplingDesign::StaggeredEventStudy);
     for (id, description) in [
         (
-            if staggered { "cohort_specific_parallel_untreated_trends" } else { "parallel_trends" },
-            "in the absence of treatment, the selected cohort and never-treated comparison would have had equal mean outcome changes",
+            if staggered { "cohort_specific_parallel_untreated_trends" }
+            else if query.design == antecedent_core::DidSamplingDesign::AugmentedPanel { "conditional_parallel_untreated_trends_or_correct_untreated_change_model" }
+            else { "parallel_trends" },
+            "the untreated outcome change is identified under the declared design and nuisance-model assumptions",
         ),
         ("no_anticipation", "treatment does not affect pre-period outcomes"),
         (
@@ -558,6 +629,20 @@ pub(crate) fn panel_did_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    if query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
+        for (id, description) in [
+            ("correct_propensity_model_or_correct_untreated_change_model", "at least one supplied nuisance model is correct"),
+            ("strict_propensity_overlap", "every supplied propensity lies strictly between zero and one"),
+            ("supplied_nuisance_predictions_valid_for_evaluation_rows", "nuisance predictions apply to these subject rows; caller-declared cross-fitting is not verified"),
+        ] {
+            assumptions.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+                source: antecedent_core::AssumptionSource::UserDeclared,
+                scope: antecedent_core::AssumptionScope::Identification,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+        }
+    }
     let (design_id, design_description) = match query.design {
         antecedent_core::DidSamplingDesign::BalancedPanel => (
             "balanced_panel",
@@ -574,6 +659,10 @@ pub(crate) fn panel_did_identification(
         antecedent_core::DidSamplingDesign::StaggeredEventStudy => (
             "balanced_staggered_adoption_event_study",
             "each subject has every observed period; cohort zero supplies never-treated controls for cohort-specific event-time contrasts",
+        ),
+        antecedent_core::DidSamplingDesign::AugmentedPanel => (
+            "augmented_two_period_panel",
+            "each subject contributes one row with pre and post outcomes and supplied nuisance predictions",
         ),
     };
     assumptions.push(antecedent_core::AssumptionRecord {
@@ -610,6 +699,7 @@ pub(crate) fn panel_did_identification(
         antecedent_core::DidSamplingDesign::StaggeredEventStudy => {
             "did.staggered_event_study_never_treated"
         }
+        antecedent_core::DidSamplingDesign::AugmentedPanel => "did.augmented_panel_supplied_nuisance",
     };
     arena.set_derivation(
         functional,

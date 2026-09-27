@@ -704,6 +704,9 @@ impl super::Study {
                             antecedent_core::DidSamplingDesign::StaggeredEventStudy => {
                                 "quasi.staggered_event_study_never_treated"
                             }
+                            antecedent_core::DidSamplingDesign::AugmentedPanel => {
+                                "quasi.augmented_panel_supplied_nuisance"
+                            }
                         })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),

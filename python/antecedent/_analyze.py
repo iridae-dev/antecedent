@@ -14,7 +14,7 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
 from .policy import MultiActionPolicyValue, PolicyValue
-from .quasi import PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
+from .quasi import AugmentedPanelDiD, PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -66,6 +66,7 @@ def analyze(
         | MultiActionPolicyValue
         | PanelDifferenceInDifferences
         | StaggeredAdoption
+        | AugmentedPanelDiD
         | SyntheticControl
         | SyntheticDifferenceInDifferences
         | FuzzyRegressionDiscontinuity

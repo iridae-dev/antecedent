@@ -92,6 +92,8 @@ from .quasi import (
     FuzzyRegressionDiscontinuity,
     LocalPolynomialRatioEstimate,
     PanelDifferenceInDifferences,
+    AugmentedPanelDiD,
+    AugmentedPanelDiDEstimate,
     PanelDifferenceInDifferencesEstimate,
     RegressionKink,
     StaggeredAdoption,
@@ -367,13 +369,24 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
 
 def _panel_did_from_raw(
     raw: Any, query: Any = None
-) -> PanelDifferenceInDifferencesEstimate | StaggeredEventStudyEstimate | None:
+) -> PanelDifferenceInDifferencesEstimate | StaggeredEventStudyEstimate | AugmentedPanelDiDEstimate | None:
     section = getattr(raw, "panel_did", None)
     if section is None:
         return None
     if isinstance(query, StaggeredAdoption) and query.event_study:
         return StaggeredEventStudyEstimate(tuple(
             StaggeredEventTimeEffect(
+    if isinstance(query, AugmentedPanelDiD):
+        if section.augmented is None:
+            raise CausalValueError("augmented panel DiD result is missing overlap diagnostics")
+        p_min, p_max, ess, declared = section.augmented
+        return AugmentedPanelDiDEstimate(
+            estimate=section.effect, treated_subjects=section.treated_subjects,
+            control_subjects=section.comparison_subjects, propensity_min=p_min,
+            propensity_max=p_max, effective_control_sample_size=ess,
+            nuisance_predictions_cross_fitted=declared, clusters=section.clusters,
+            uncertainty=section.uncertainty,
+        )
                 int(cohort), int(period), int(event_time), float(effect), float(se),
                 int(treated), int(controls), int(clusters),
             )
@@ -1798,6 +1811,7 @@ class _Controls:
 
     cancel: Any | None = None
     on_progress: Any | None = None
+    | AugmentedPanelDiD
     on_stage: Any | None = None
 
     def kwargs(self) -> dict[str, Any]:
@@ -1927,6 +1941,36 @@ def _staggered_payload(
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
     periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
+def _augmented_panel_did_payload(
+    data: Any, query: AugmentedPanelDiD
+) -> tuple[list[str], list[Any], dict[str, tuple[Any, ...]]]:
+    """Bind subject and cluster ownership while keeping outcome/nuisance columns numeric."""
+    from .quasi import _binary, _raw_columns
+
+    raw_names, raw_columns = _raw_columns(data)
+    raw = dict(zip(raw_names, raw_columns, strict=True))
+    numeric = (query.outcome_pre, query.outcome_post, query.propensity,
+               query.untreated_change_prediction)
+    required = (*numeric, query.subject, query.treated)
+    if query.cluster is not None:
+        required += (query.cluster,)
+    missing = [name for name in required if name not in raw]
+    if missing:
+        raise CausalValueError(f"required augmented panel DiD columns are missing: {missing}")
+    subjects = tuple(raw[query.subject])
+    clusters = subjects if query.cluster is None else tuple(raw[query.cluster])
+    if any(not isinstance(value, str) or not value.strip() for value in (*subjects, *clusters)):
+        raise CausalValueError("subject and cluster IDs must be non-empty strings")
+    if len(set(subjects)) != len(subjects):
+        raise CausalValueError("augmented panel DiD requires one unique row per subject")
+    design = {
+        "subjects": subjects, "clusters": clusters,
+        "treated": tuple(_binary(raw[query.treated], query.treated)),
+    }
+    names, columns = ingest_columns({name: raw[name] for name in numeric})
+    return names, columns, design
+
+
     cohorts = tuple(_integer_column(raw[query.cohort], "cohort", minimum=0))
     design = {
         "subjects": subjects,
@@ -2151,7 +2195,7 @@ class _PrepareRoute:
             return self._complier_effect()
         if isinstance(query, SwitchbackEffect):
             return self._switchback_effect()
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption)):
+        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, AugmentedPanelDiD)):
             return self._panel_did()
         if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
             return self._synthetic_control()
@@ -2864,7 +2908,7 @@ class _PrepareRoute:
         return native, "average"
 
     def _panel_did(self) -> tuple[Any, Literal["average"]]:
-        query = cast(PanelDifferenceInDifferences | StaggeredAdoption, self.query)
+        query = cast(PanelDifferenceInDifferences | StaggeredAdoption | AugmentedPanelDiD, self.query)
         if self.graph is not None or self.discovery is not None:
             raise CausalUnsupportedError("PanelDifferenceInDifferences carries its own design and does not accept graph= or discovery=", reason_code="option_not_applicable")
         self._refuse_ids("PanelDifferenceInDifferences")
@@ -2877,7 +2921,14 @@ class _PrepareRoute:
         design = self.design_columns
         if design is None:
             raise CausalValueError("panel DiD design columns were not bound at prepare")
-        if isinstance(query, StaggeredAdoption):
+        if isinstance(query, AugmentedPanelDiD):
+            native = _NativePreparedAnalysis.prepare_augmented_panel_did(
+                names, columns, query.outcome_pre, query.outcome_post, query.propensity,
+                query.untreated_change_prediction, list(design["treated"]),
+                list(design["subjects"]), list(design["clusters"]),
+                query.predictions_cross_fitted, accepted=False, **self._common(),
+            )
+        elif isinstance(query, StaggeredAdoption):
             prepare = (_NativePreparedAnalysis.prepare_staggered_event_study
                        if query.event_study else _NativePreparedAnalysis.prepare_staggered_group_time)
             arguments = [
@@ -4243,8 +4294,10 @@ class PreparedAnalysis(Generic[ResultT]):
         rd_args = (running_variable, cutoff, bandwidth)
 
         design_columns = None
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
-            if isinstance(query, StaggeredAdoption):
+        if isinstance(query, (PanelDifferenceInDifferences, AugmentedPanelDiD, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
+            if isinstance(query, AugmentedPanelDiD):
+                names, columns, design_columns = _augmented_panel_did_payload(data, query)
+            elif isinstance(query, StaggeredAdoption):
                 names, columns, design_columns = _staggered_payload(data, query)
             elif isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
                 names, columns, design_columns = _synthetic_control_payload(data, query)
@@ -4545,9 +4598,10 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         query = self._query
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
+        if isinstance(query, (PanelDifferenceInDifferences, AugmentedPanelDiD, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
             names, columns, design = (
-                _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
+                _augmented_panel_did_payload(data, query) if isinstance(query, AugmentedPanelDiD)
+                else _staggered_payload(data, query) if isinstance(query, StaggeredAdoption)
                 else _synthetic_control_payload(data, query) if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences))
                 else _panel_did_payload(data, query)
             )
