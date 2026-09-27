@@ -41,6 +41,11 @@ impl CheckedSurvivalOperation {
             });
         };
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        if query.delayed_entry.is_some() && study.bootstrap_replicates > 0 {
+            return Err(CausalError::Unsupported {
+                message: "delayed-entry survival pointwise intervals require separate truncation calibration",
+            });
+        }
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)

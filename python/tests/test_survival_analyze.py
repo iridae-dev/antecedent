@@ -148,10 +148,13 @@ def test_retained_survival_pointwise_intervals_round_trip_and_refuse_thin_draws(
     assert section.bootstrap_replicates_ok == 399
     assert section.rmst_difference_interval[0] <= section.rmst_difference <= section.rmst_difference_interval[1]
     assert section.survival_at_tau_difference_interval[0] <= 0.1 <= section.survival_at_tau_difference_interval[1]
+    assert result.answer.detail == "randomized_survival_pointwise_bootstrap"
+    assert "Pointwise 95% subject-bootstrap interval" in result.claim()
     assert prepared.refresh(data).survival == section
     loaded = antecedent.load(prepared.export(artifact_id="survival-pointwise-interval"))
     assert loaded.answer.structured["rmst_difference_interval"] == list(section.rmst_difference_interval)
     assert loaded.answer.structured["bootstrap_replicates_ok"] == 399
+    assert loaded.answer.detail == "randomized_survival_pointwise_bootstrap"
     with pytest.raises(Exception, match="199"):
         antecedent.analyze(data, query=query, bootstrap=198)
 

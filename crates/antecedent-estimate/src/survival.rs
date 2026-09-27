@@ -83,8 +83,8 @@ pub fn randomized_survival_bootstrap_intervals(
     {
         return Err("survival bootstrap subject arrays must be row-aligned");
     }
-    if delayed_entry.is_some() && known_censoring.is_some() {
-        return Err("known censoring survival does not combine with delayed entry");
+    if delayed_entry.is_some() {
+        return Err("delayed-entry survival pointwise intervals require separate truncation calibration");
     }
     let arms = [false, true].map(|arm| {
         treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
@@ -541,6 +541,10 @@ mod tests {
             &durations, &events, &treated, None, None, 3.0,
             SurvivalEndpoint::Survival, 198, 17,
         ).is_err());
+        assert!(randomized_survival_bootstrap_intervals(
+            &durations, &events, &treated, Some(&vec![0.0; 80]), None, 3.0,
+            SurvivalEndpoint::Survival, 399, 17,
+        ).is_err());
     }
 
     #[test]
@@ -629,7 +633,7 @@ mod tests {
             ).unwrap().rmst_difference.unwrap();
             covered += u32::from(interval[0] <= 0.30 && 0.30 <= interval[1]);
         }
-        assert!(covered >= 211, "fixed-G IPCW RMST coverage: {covered}/240");
+        assert!(covered >= 216, "fixed-G IPCW RMST coverage: {covered}/240");
     }
 
     #[test]
@@ -640,28 +644,41 @@ mod tests {
             let mut durations = Vec::with_capacity(320);
             let mut events = Vec::with_capacity(320);
             let mut treated = Vec::with_capacity(320);
-            let mut g = Vec::with_capacity(320 * 4);
+            let mut g = Vec::with_capacity(320 * 5);
             for i in 0..320 {
                 let arm = i >= 160;
                 let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
                 let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                 let cause_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                 let censored = censor_u >= keep_probability;
-                let cause_one = cause_u < if arm { 0.15 } else { 0.30 };
-                let cause_two = !cause_one && cause_u < if arm { 0.25 } else { 0.40 };
-                durations.push(if censored { 0.5 } else if cause_one || cause_two { 1.0 } else { 3.0 });
-                events.push(if censored { 0 } else if cause_one { 1 } else if cause_two { 2 } else { 0 });
+                let first_target = if arm { 0.10 } else { 0.20 };
+                let first_competing = first_target + 0.10;
+                let later_target = first_competing + 0.10;
+                let later_competing = later_target + 0.10;
+                let (event_time, cause) = if cause_u < first_target {
+                    (1.0, 1)
+                } else if cause_u < first_competing {
+                    (1.0, 2)
+                } else if cause_u < later_target {
+                    (2.0, 1)
+                } else if cause_u < later_competing {
+                    (2.0, 2)
+                } else {
+                    (3.0, 0)
+                };
+                durations.push(if censored { 0.5 } else { event_time });
+                events.push(if censored { 0 } else { cause });
                 treated.push(arm);
-                g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
+                g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability, keep_probability]);
             }
             let interval = randomized_survival_bootstrap_intervals(
                 &durations, &events, &treated, None,
-                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)), 3.0,
+                Some((&[0.0, 0.5, 1.0, 2.0, 3.0], &g, 0.01)), 3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 }, 299, trial + 2700,
             ).unwrap().difference_at_tau;
-            covered += u32::from(interval[0] <= -0.15 && -0.15 <= interval[1]);
+            covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
         }
-        assert!(covered >= 211, "fixed-G competing-risk CIF coverage: {covered}/240");
+        assert!(covered >= 216, "fixed-G competing-risk CIF coverage: {covered}/240");
     }
 
     #[test]

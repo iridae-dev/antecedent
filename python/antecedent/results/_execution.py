@@ -215,7 +215,10 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer("structured", detail="continuous_dose_response_point_only", structured=dict(dose))
     survival = payload.get("survival")
     if kind == "point" and isinstance(survival, Mapping):
-        return Answer("structured", detail="randomized_survival_point_only", structured=dict(survival))
+        detail = ("randomized_survival_pointwise_bootstrap"
+                  if survival.get("difference_at_tau_interval") is not None
+                  else "randomized_survival_point_only")
+        return Answer("structured", detail=detail, structured=dict(survival))
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
         detail = "longitudinal_msm_pointwise_cr1" if regime.get("method") == "marginal_structural_model" else "longitudinal_regime_point_only"
@@ -370,7 +373,10 @@ class ResultAPI:
         if survival is not None:
             from dataclasses import asdict
 
-            return Answer("structured", detail="randomized_survival_point_only", structured=asdict(survival))
+            detail = ("randomized_survival_pointwise_bootstrap"
+                      if getattr(survival, "bootstrap_replicates_ok", None) is not None
+                      else "randomized_survival_point_only")
+            return Answer("structured", detail=detail, structured=asdict(survival))
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
             from dataclasses import asdict
@@ -408,14 +414,22 @@ class ResultAPI:
         survival = getattr(self, "survival", None)
         if survival is not None:
             if hasattr(survival, "rmst_difference"):
+                interval = getattr(survival, "rmst_difference_interval", None)
+                suffix = (f" Pointwise 95% subject-bootstrap interval "
+                          f"[{interval[0]:g}, {interval[1]:g}]; full curves have no bands."
+                          if interval is not None else " Point-only; no calibrated interval.")
                 return (
                     f"Randomized survival through {survival.tau:g}: restricted mean survival "
-                    f"difference {survival.rmst_difference:g}. Point-only; no calibrated interval."
+                    f"difference {survival.rmst_difference:g}." + suffix
                 )
+            interval = getattr(survival, "incidence_difference_interval", None)
+            suffix = (f" Pointwise 95% subject-bootstrap interval "
+                      f"[{interval[0]:g}, {interval[1]:g}]; full curves have no bands."
+                      if interval is not None else " Point-only; no calibrated interval.")
             return (
                 f"Randomized competing-risk cumulative incidence through {survival.tau:g}: "
-                f"cause {survival.target_cause} difference {survival.incidence_difference:g}. "
-                "Point-only; no calibrated interval."
+                f"cause {survival.target_cause} difference {survival.incidence_difference:g}."
+                + suffix
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
