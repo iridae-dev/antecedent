@@ -335,6 +335,37 @@ def test_multi_arm_randomized_effect_recovers_known_arm_means_and_contrasts():
         )
 
 
+def test_multi_arm_randomized_effect_uses_retained_analyze_and_prepare():
+    labels = ("control", "low", "high")
+    assignment = ("control", "low", "high") * 2
+    design = ant.MultiArmExperimentDesign(
+        assignment, labels, [[1 / 3] * 3] * 6,
+        [f"account-{i}" for i in range(6)],
+        [f"row-{i}" for i in range(6)],
+    )
+    query = ant.RandomizedEffect("outcome", design)
+    data = {"outcome": [0.0, 2.0, 5.0, 0.0, 2.0, 5.0]}
+    result = ant.analyze(data, query=query, refute="none")
+    assert result.answer.value == pytest.approx(2.0)
+    fit = result.randomized_effect
+    assert fit is not None
+    assert [arm[0] for arm in fit.multi_arm_values] == list(labels)
+    assert [arm[1] for arm in fit.multi_arm_values] == pytest.approx([0.0, 2.0, 5.0])
+    assert [arm[3] for arm in fit.multi_arm_values] == [2, 2, 2]
+    assert [contrast.effect_vs_control for contrast in fit.multi_arm_contrasts] == pytest.approx([2.0, 5.0])
+    assert fit.uncertainty == "multi_arm_covariance_free_variance_bound_no_interval"
+    assert fit.support_status == "unlicensed_off_matrix"
+    assert result.evidence_status == "off_axis"
+    prepared = ant.prepare(data, query=query, refute="none")
+    refreshed = prepared.estimate(data)
+    assert refreshed.randomized_effect.multi_arm_values == fit.multi_arm_values
+    with pytest.raises(CausalValueError, match="observed support"):
+        ant.MultiArmExperimentDesign(
+            ("control", "low", "low"), labels, [[1 / 3] * 3] * 3,
+            ("u0", "u1", "u2"), ("r0", "r1", "r2"),
+        )
+
+
 def test_switchback_itt_uses_sequence_clustered_native_variance():
     sequence_ids = [f"s{sequence}" for sequence in range(4) for _ in range(4)]
     assignment = [True, False, False, True] * 4

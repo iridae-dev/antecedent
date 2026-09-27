@@ -32,6 +32,8 @@ pub struct RandomizedEffectSection {
     pub second_factor_variance: Option<f64>,
     /// Conservative variance of the factorial interaction.
     pub factorial_interaction_variance: Option<f64>,
+    /// Ordered multi-arm arm means, variance contributions, and observed support.
+    pub multi_arm_values: Vec<(String, f64, f64, usize)>,
     /// Design variance or conservative bound as labeled by uncertainty;
     /// switchback uses a sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
@@ -73,6 +75,8 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             factorial_interaction: value.factorial_interaction,
             second_factor_variance: value.second_factor_variance,
             factorial_interaction_variance: value.factorial_interaction_variance,
+            multi_arm_values: value.multi_arm_values.iter().map(|(label, mean, variance, support)|
+                (label.to_string(), *mean, *variance, *support)).collect(),
             variance_upper_bound: value.variance_upper_bound,
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),
@@ -308,45 +312,10 @@ fn estimate_multi_arm_effects(
 ) -> PyResult<Vec<(f64, f64, usize)>> {
     let y = outcome.as_array();
     let p = probabilities.as_array();
-    let n = y.len();
-    let arms = p.ncols();
-    if n == 0 || arms < 2 || assignment.len() != n || p.nrows() != n {
-        return Err(PyValueError::new_err(
-            "outcome, assignment, and multi-arm probability rows must align",
-        ));
-    }
-    if y.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-    let mut means = vec![0.0; arms];
-    let mut variance_bounds = vec![0.0; arms];
-    let mut support = vec![0usize; arms];
-    for i in 0..n {
-        if assignment[i] >= arms {
-            return Err(PyValueError::new_err("assigned action index is outside the action set"));
-        }
-        let row = p.row(i);
-        let total = row.iter().sum::<f64>();
-        if row.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value > 1.0)
-            || (total - 1.0).abs() > 1e-8
-        {
-            return Err(PyValueError::new_err(
-                "each action propensity must be positive and rows must sum to one",
-            ));
-        }
-        let arm = assignment[i];
-        let probability = p[[i, arm]];
-        means[arm] += y[i] / probability / n as f64;
-        variance_bounds[arm] +=
-            (1.0 - probability) * y[i].powi(2) / probability.powi(2) / (n as f64).powi(2);
-        support[arm] += 1;
-    }
-    if support.contains(&0) {
-        return Err(PyValueError::new_err(
-            "multi-arm positivity failure: every declared arm needs observed support",
-        ));
-    }
-    Ok((0..arms).map(|arm| (means[arm], variance_bounds[arm], support[arm])).collect())
+    let rows = p.rows().into_iter().map(|row| row.to_vec()).collect::<Vec<_>>();
+    antecedent_estimate::multi_arm::estimate_multi_arm(&y.to_vec(), &assignment, &rows)
+        .map(|arms| arms.into_iter().map(|arm| (arm.value, arm.variance_bound, arm.observed_support)).collect())
+        .map_err(PyValueError::new_err)
 }
 
 /// Horvitz--Thompson switchback ITT with independent-sequence sandwich variance.

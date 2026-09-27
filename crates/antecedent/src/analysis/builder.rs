@@ -1475,6 +1475,7 @@ impl StudyBuilder {
                     | antecedent_core::RandomizationDesign::Cluster { .. } => {
                         EstimatorId::RandomizedNeyman
                     }
+                    antecedent_core::RandomizationDesign::MultiArm { .. } => EstimatorId::RandomizedHt,
                     antecedent_core::RandomizationDesign::Switchback { .. } => {
                         EstimatorId::RandomizedSwitchbackHt
                     }

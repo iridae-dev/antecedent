@@ -93,6 +93,8 @@ pub struct RandomizedEffectEstimate {
     pub second_factor_variance: Option<f64>,
     /// Conservative variance for the interaction contrast.
     pub factorial_interaction_variance: Option<f64>,
+    /// Ordered arm means, variance contributions, and observed counts for multi-arm trials.
+    pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
     /// switchback uses an independent-sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,

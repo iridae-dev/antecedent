@@ -6,7 +6,7 @@ use crate::ids::VariableId;
 use std::sync::Arc;
 
 /// Supported assignment mechanisms for retained two-arm randomized ITT.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RandomizationDesign {
     /// Independent Bernoulli assignment with row-level inclusion probabilities.
     Bernoulli,
@@ -35,6 +35,15 @@ pub enum RandomizationDesign {
         cell_counts: [usize; 4],
         /// Labels for the second factor's control and active levels.
         second_factor_arms: (Arc<str>, Arc<str>),
+    },
+    /// Independent assignment among three or more declared actions.
+    MultiArm {
+        /// Observed action indices aligned with outcome rows.
+        assignment: Arc<[usize]>,
+        /// Known action probabilities in declared label order for each row.
+        probabilities: Arc<[Vec<f64>]>,
+        /// Ordered action labels; the first is the reference arm.
+        arms: Arc<[Arc<str>]>,
     },
     /// Unit-period assignment within independent switching sequences.
     Switchback {
@@ -165,6 +174,46 @@ impl RandomizedEffectQuery {
 
     /// Validate row alignment, allocations, and assignment probabilities.
     pub fn validate(&self) -> Result<(), QueryError> {
+        if let RandomizationDesign::MultiArm { assignment, probabilities, arms } = &self.design {
+            let n = assignment.len();
+            if self.estimand != RandomizedEstimand::IntentionToTreat || self.received_treatment.is_some()
+                || self.fixed_cuped.is_some() || !self.ancova_covariates.is_empty()
+                || self.exact_randomization_test
+            {
+                return Err(QueryError::InvalidRandomizedEffect("multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference".into()));
+            }
+            if n < 3 || arms.len() < 3 || probabilities.len() != n
+                || self.realized_assignment.len() != n || self.assignment_probabilities.len() != n
+                || self.assignment_units.len() != n || self.outcome_units.len() != n
+                || arms.iter().any(|arm| arm.trim().is_empty())
+                || arms.iter().collect::<std::collections::HashSet<_>>().len() != arms.len()
+                || self.assignment_units.iter().any(|unit| unit.trim().is_empty())
+                || self.outcome_units.iter().any(|unit| unit.trim().is_empty())
+                || self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
+                || self.outcome_units.iter().collect::<std::collections::HashSet<_>>().len() != n
+                || self.treatment_arms.0 != arms[0] || self.treatment_arms.1 != arms[1]
+            {
+                return Err(QueryError::InvalidRandomizedEffect("multi-arm labels, assignment, probabilities, and distinct unit identities must align".into()));
+            }
+            let mut observed = vec![0_usize; arms.len()];
+            for i in 0..n {
+                let arm = assignment[i];
+                let row = &probabilities[i];
+                if arm >= arms.len() || row.len() != arms.len()
+                    || row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0)
+                    || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
+                    || self.realized_assignment[i] != (arm != 0)
+                    || (self.assignment_probabilities[i] - row[arm]).abs() > 1e-12
+                {
+                    return Err(QueryError::InvalidRandomizedEffect("multi-arm observed actions and known probability rows must agree".into()));
+                }
+                observed[arm] += 1;
+            }
+            if observed.contains(&0) {
+                return Err(QueryError::InvalidRandomizedEffect("multi-arm positivity failure: every declared arm needs observed support".into()));
+            }
+            return Ok(());
+        }
         if self.exact_randomization_test
             && (!matches!(self.design, RandomizationDesign::Complete { .. })
                 || self.received_treatment.is_some()
@@ -273,6 +322,7 @@ impl RandomizedEffectQuery {
         }
         match &self.design {
             RandomizationDesign::Bernoulli => {}
+            RandomizationDesign::MultiArm { .. } => unreachable!("validated above"),
             RandomizationDesign::Complete { treated_units } => {
                 if *treated_units < 2 || n.saturating_sub(*treated_units) < 2 {
                     return Err(QueryError::InvalidRandomizedEffect(

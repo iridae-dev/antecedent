@@ -567,6 +567,9 @@ pub struct RandomizedEffectWire {
     /// Conservative interaction variance.
     #[serde(default)]
     pub factorial_interaction_variance: Option<f64>,
+    /// Ordered multi-arm labels, HT means, variance contributions, and support.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_values: Vec<(String, f64, f64, usize)>,
     /// Design variance estimate or conservative bound, as labeled by uncertainty.
     pub variance: f64,
     /// Assignment design name.
@@ -952,9 +955,17 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::RandomizationDesignWire::Switchback => {
                 ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval")
             }
+            crate::RandomizationDesignWire::MultiArm => {
+                ("multi_arm", "multi_arm_covariance_free_variance_bound_no_interval")
+            }
         };
         let (control, treated) =
-            if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
+            if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+                (
+                    query.multi_arm_assignment.iter().filter(|&&arm| arm == 0).count(),
+                    query.multi_arm_assignment.iter().filter(|&&arm| arm == 1).count(),
+                )
+            } else if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
                 let mut clusters = std::collections::BTreeMap::new();
                 for (unit, assignment) in
                     query.assignment_units.iter().zip(&query.realized_assignment)
@@ -1002,6 +1013,8 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                     "cace_late"
                 } else if matches!(query.design, crate::RandomizationDesignWire::Factorial2x2) {
                     "factorial_primary_main_effect"
+                } else if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+                    "multi_arm_itt"
                 } else {
                     "itt"
                 }
@@ -1016,6 +1029,17 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || randomized.factorial_interaction.is_some_and(|value| !value.is_finite())
             || randomized.second_factor_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - randomized.variance).abs() > 1e-12)
             || randomized.factorial_interaction_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - 4.0 * randomized.variance).abs() > 1e-12)
+            || (matches!(query.design, crate::RandomizationDesignWire::MultiArm)
+                != !randomized.multi_arm_values.is_empty())
+            || (matches!(query.design, crate::RandomizationDesignWire::MultiArm) && (
+                randomized.multi_arm_values.len() != query.multi_arm_labels.len()
+                || randomized.multi_arm_values.iter().enumerate().any(|(i, (label, value, variance, support))|
+                    label != &query.multi_arm_labels[i] || !value.is_finite() || !variance.is_finite() || *variance < 0.0
+                    || *support != query.multi_arm_assignment.iter().filter(|&&arm| arm == i).count())
+                || randomized.multi_arm_values.get(1).is_none_or(|(_, value, variance, _)|
+                    (randomized.effect - (value - randomized.multi_arm_values[0].1)).abs() > 1e-10
+                    || (randomized.variance - 2.0 * (variance + randomized.multi_arm_values[0].2)).abs() > 1e-10)
+            ))
             || (query.exact_randomization_test
                 && randomized.randomization_p_value.is_none_or(|p| !p.is_finite()
                     || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0))

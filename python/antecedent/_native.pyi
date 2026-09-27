@@ -366,6 +366,7 @@ class RandomizedEffectSection:
     factorial_interaction: float | None
     second_factor_variance: float | None
     factorial_interaction_variance: float | None
+    multi_arm_values: list[tuple[str, float, float, int]]
     variance_upper_bound: float
     minimum_assignment_probability: float
     assignment_design: str
@@ -1262,6 +1263,9 @@ class PreparedAnalysis:
         second_factor_assignment: list[bool] | None = None,
         factorial_cell_counts: tuple[int, int, int, int] | None = None,
         second_factor_arms: tuple[str, str] | None = None,
+        multi_arm_labels: list[str] | None = None,
+        multi_arm_assignment: list[int] | None = None,
+        multi_arm_probabilities: list[list[float]] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

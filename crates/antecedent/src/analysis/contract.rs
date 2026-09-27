@@ -3334,6 +3334,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 factorial_interaction: randomized.factorial_interaction,
                 second_factor_variance: randomized.second_factor_variance,
                 factorial_interaction_variance: randomized.factorial_interaction_variance,
+                multi_arm_values: randomized.multi_arm_values.iter().map(|(label, value, variance, support)|
+                    (label.to_string(), *value, *variance, *support)).collect(),
                 variance: randomized.variance_upper_bound,
                 assignment_design: randomized.assignment_design.to_string(),
                 assignment_units: randomized

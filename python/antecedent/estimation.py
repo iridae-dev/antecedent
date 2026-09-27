@@ -56,6 +56,7 @@ from .experiment import (
     ComplierEffect,
     FactorialRandomization,
     RandomizedEffect,
+    MultiArmExperimentDesign,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
     SwitchbackEffect,
@@ -354,6 +355,7 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         factorial_interaction=section.factorial_interaction,
         second_factor_variance=section.second_factor_variance,
         factorial_interaction_variance=section.factorial_interaction_variance,
+        multi_arm_values=tuple(tuple(item) for item in section.multi_arm_values),
         treatment_arms=(section.control_arm, section.treatment_arm),
         control_units=section.control_units,
         treatment_units=section.treatment_units,
@@ -2762,6 +2764,25 @@ class _PrepareRoute:
                 "RandomizedEffect carries its randomization design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
+        if isinstance(query.design, MultiArmExperimentDesign):
+            self._refuse_ids("RandomizedEffect")
+            self._refuse_estimator_config("RandomizedEffect")
+            if self._explicit_refute():
+                raise CausalUnsupportedError("RandomizedEffect has no refutation route", reason_code="option_not_applicable")
+            design = query.design
+            indices = [design.action_labels.index(action) for action in design.realized_assignment]
+            native = _NativePreparedAnalysis.prepare_randomized_effect(
+                self.names, self.columns, query.outcome,
+                [index != 0 for index in indices],
+                [float(design.assignment_probabilities[i][index]) for i, index in enumerate(indices)],
+                list(design.assignment_units), list(design.outcome_units),
+                (design.action_labels[0], design.action_labels[1]), "multi_arm",
+                multi_arm_labels=list(design.action_labels),
+                multi_arm_assignment=indices,
+                multi_arm_probabilities=[list(row) for row in design.assignment_probabilities],
+                accepted=False, **self._common(),
+            )
+            return native, "average"
         assignment = query.design.assignment
         if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization, FactorialRandomization)):
             raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")

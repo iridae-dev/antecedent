@@ -1109,6 +1109,15 @@ pub struct RandomizedEffectQueryWire {
     /// Labels for the second factor's two levels.
     #[serde(default)]
     pub second_factor_arms: Option<(String, String)>,
+    /// Ordered multi-arm labels, first being the reference action.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_labels: Vec<String>,
+    /// Observed multi-arm action indices in row order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_assignment: Vec<usize>,
+    /// Known action probabilities in declared label order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_probabilities: Vec<Vec<f64>>,
 }
 
 /// Target estimand serialized with a randomized query.
@@ -1146,6 +1155,8 @@ pub enum RandomizationDesignWire {
     Stratified,
     /// Joint complete randomization to four fixed 2×2 cells.
     Factorial2x2,
+    /// Independent assignment among three or more actions.
+    MultiArm,
 }
 
 impl CausalQueryWire {
@@ -1697,6 +1708,7 @@ pub fn causal_query_to_wire_with_registry(
                     }
                     RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
                     RandomizationDesign::Factorial2x2 { .. } => RandomizationDesignWire::Factorial2x2,
+                    RandomizationDesign::MultiArm { .. } => RandomizationDesignWire::MultiArm,
                     RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
                 },
                 outcome: q.outcome.raw(),
@@ -1732,6 +1744,18 @@ pub fn causal_query_to_wire_with_registry(
                 second_factor_arms: match &q.design {
                     RandomizationDesign::Factorial2x2 { second_factor_arms, .. } => Some((second_factor_arms.0.to_string(), second_factor_arms.1.to_string())),
                     _ => None,
+                },
+                multi_arm_labels: match &q.design {
+                    RandomizationDesign::MultiArm { arms, .. } => arms.iter().map(ToString::to_string).collect(),
+                    _ => Vec::new(),
+                },
+                multi_arm_assignment: match &q.design {
+                    RandomizationDesign::MultiArm { assignment, .. } => assignment.to_vec(),
+                    _ => Vec::new(),
+                },
+                multi_arm_probabilities: match &q.design {
+                    RandomizationDesign::MultiArm { probabilities, .. } => probabilities.to_vec(),
+                    _ => Vec::new(),
                 },
                 periods: match &q.design {
                     RandomizationDesign::Switchback { periods } => {
@@ -2050,6 +2074,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::Interference(interference_query_from_wire(w)?)
         }
         CausalQueryWire::RandomizedEffect(w) => {
+            if !matches!(w.design, RandomizationDesignWire::MultiArm)
+                && (!w.multi_arm_labels.is_empty() || !w.multi_arm_assignment.is_empty() || !w.multi_arm_probabilities.is_empty())
+            {
+                return Err(IoError::Convert("multi-arm metadata requires a multi-arm design".into()));
+            }
             if !matches!(w.design, RandomizationDesignWire::Factorial2x2)
                 && (!w.second_factor_assignment.is_empty() || w.factorial_cell_counts.is_some() || w.second_factor_arms.is_some())
             {
@@ -2079,6 +2108,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                         let arms = w.second_factor_arms.as_ref().ok_or_else(|| IoError::Convert("second-factor labels are missing".into()))?;
                         (Arc::<str>::from(arms.0.as_str()), Arc::<str>::from(arms.1.as_str()))
                     },
+                },
+                RandomizationDesignWire::MultiArm => RandomizationDesign::MultiArm {
+                    assignment: w.multi_arm_assignment.clone().into(),
+                    probabilities: w.multi_arm_probabilities.clone().into(),
+                    arms: w.multi_arm_labels.iter().map(|arm| Arc::<str>::from(arm.as_str())).collect::<Vec<_>>().into(),
                 },
                 RandomizationDesignWire::Switchback => RandomizationDesign::Switchback {
                     periods: w.periods.iter().map(|period| Arc::<str>::from(period.as_str())).collect::<Vec<_>>().into(),
@@ -2663,6 +2697,25 @@ mod tests {
         let bytes = to_cbor(&wire).unwrap();
         let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
         assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
+    }
+
+    #[test]
+    fn multi_arm_randomized_query_round_trips_with_all_probability_rows() {
+        let assignment = [0_usize, 1, 2, 0, 1, 2];
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::MultiArm {
+                assignment: assignment.into(),
+                probabilities: vec![vec![1.0 / 3.0; 3]; 6].into(),
+                arms: ["control", "low", "high"].map(Arc::<str>::from).into(),
+            },
+            VariableId::from_raw(0),
+            assignment.map(|arm| arm != 0), [1.0 / 3.0; 6],
+            (0..6).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..6).map(|i| Arc::<str>::from(format!("r{i}"))).collect::<Vec<_>>(),
+            ("control", "low"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
     }
 
     #[test]
