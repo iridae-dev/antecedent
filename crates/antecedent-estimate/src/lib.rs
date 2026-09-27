@@ -27,6 +27,7 @@ pub mod bayesian_robust_ate;
 pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
+pub mod continuous_dose;
 pub mod crossfit_aipw;
 pub mod design_compile;
 pub mod dml;

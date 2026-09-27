@@ -102,6 +102,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         synthetic_did: None,
         local_polynomial_ratio: None,
         policy_value: None,
+        continuous_dose_response: None,
         survival: None,
         longitudinal_regime: None,
         refutations: args.refutations,

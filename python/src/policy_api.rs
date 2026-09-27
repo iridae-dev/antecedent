@@ -42,6 +42,36 @@ pub struct PolicyValueSection {
     pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize)>,
 }
 
+/// Retained conditional continuous-dose grid; no interval or policy value.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct ContinuousDoseResponseSection {
+    /// Group, target, response, local rows, effective N, minimum density,
+    /// maximum normalized weight, and descriptive local outcome SD.
+    pub points: Vec<(String, f64, f64, usize, f64, f64, f64, f64)>,
+    /// Prespecified kernel bandwidth.
+    pub bandwidth: f64,
+    /// Caller-declared density provenance.
+    pub density_provenance: String,
+    /// Point-only uncertainty semantics.
+    pub uncertainty: String,
+}
+
+impl From<&antecedent::ContinuousDoseResponseEstimate> for ContinuousDoseResponseSection {
+    fn from(value: &antecedent::ContinuousDoseResponseEstimate) -> Self {
+        Self {
+            points: value.points.iter().map(|point| (
+                point.baseline_group.clone(), point.target_dose, point.response,
+                point.local_rows, point.effective_sample_size, point.minimum_dose_density,
+                point.maximum_normalized_weight, point.local_outcome_sd,
+            )).collect(),
+            bandwidth: value.bandwidth,
+            density_provenance: value.density_provenance.to_string(),
+            uncertainty: value.uncertainty.to_string(),
+        }
+    }
+}
+
 impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
     fn from(value: &antecedent::PolicyValueEstimate) -> Self {
         Self {
@@ -493,6 +523,7 @@ fn uplift_by_score(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PolicyValueSection>()?;
+    module.add_class::<ContinuousDoseResponseSection>()?;
     module.add_function(wrap_pyfunction!(evaluate_binary_policy, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_binary_policy_doubly_robust, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_multi_action_policy, module)?)?;

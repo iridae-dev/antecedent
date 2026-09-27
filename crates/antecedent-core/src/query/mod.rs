@@ -7,6 +7,7 @@
 mod attribution;
 mod average;
 mod counterfactual;
+mod continuous_dose;
 mod did;
 mod distribution;
 mod error;
@@ -38,6 +39,7 @@ pub use attribution::{
 };
 pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
+pub use continuous_dose::ContinuousDoseResponseQuery;
 pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
@@ -117,6 +119,8 @@ pub enum CausalQuery {
     RandomizedEffect(RandomizedEffectQuery),
     /// Fixed randomized binary or multi-action policy value.
     PolicyValue(PolicyValueQuery),
+    /// Local conditional continuous-dose response with supplied dose density.
+    ContinuousDoseResponse(ContinuousDoseResponseQuery),
     /// Balanced two-period panel difference in differences.
     PanelDid(PanelDidQuery),
     /// Balanced-panel synthetic control with one treated unit and donor pool.
@@ -413,6 +417,7 @@ impl CausalQuery {
             | Self::Interference(_) => None,
             Self::RandomizedEffect(_) => None,
             Self::PolicyValue(_) => None,
+            Self::ContinuousDoseResponse(_) => None,
             Self::PanelDid(_) => None,
             Self::SyntheticControl(_) => None,
             Self::LocalPolynomialRatio(_) => None,
@@ -441,6 +446,7 @@ impl CausalQuery {
             | Self::Interference(_) => None,
             Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
@@ -515,6 +521,7 @@ impl CausalQuery {
             Self::Interference(q) => q.validate(),
             Self::RandomizedEffect(q) => q.validate(),
             Self::PolicyValue(q) => q.validate(),
+            Self::ContinuousDoseResponse(q) => q.validate(),
             Self::PanelDid(q) => q.validate(),
             Self::SyntheticControl(q) => q.validate(),
             Self::LocalPolynomialRatio(q) => q.validate(),

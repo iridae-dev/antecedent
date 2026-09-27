@@ -866,6 +866,9 @@ pub(crate) struct AteAnalysisResult {
     /// Held-out doubly robust policy answer.
     #[pyo3(get)]
     pub(crate) policy_value: Option<policy_api::PolicyValueSection>,
+    /// Conditional continuous-dose response grid.
+    #[pyo3(get)]
+    pub(crate) continuous_dose_response: Option<policy_api::ContinuousDoseResponseSection>,
     #[pyo3(get)]
     pub(crate) structural_weight_basis: Option<String>,
     #[pyo3(get)]

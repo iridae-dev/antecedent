@@ -80,6 +80,9 @@ from .interference import (
 )
 from .policy import (
     BinaryPolicy,
+    ConditionalDoseResponse,
+    ConditionalDoseResponseEstimate,
+    ConditionalDoseResponsePoint,
     DoublyRobustPolicyEvaluation,
     MultiActionPolicy,
     MultiActionPolicyValue,
@@ -89,11 +92,11 @@ from .policy import (
 )
 from .population import coerce_target_population
 from .quasi import (
+    AugmentedPanelDiD,
+    AugmentedPanelDiDEstimate,
     FuzzyRegressionDiscontinuity,
     LocalPolynomialRatioEstimate,
     PanelDifferenceInDifferences,
-    AugmentedPanelDiD,
-    AugmentedPanelDiDEstimate,
     PanelDifferenceInDifferencesEstimate,
     RegressionKink,
     StaggeredAdoption,
@@ -373,9 +376,6 @@ def _panel_did_from_raw(
     section = getattr(raw, "panel_did", None)
     if section is None:
         return None
-    if isinstance(query, StaggeredAdoption) and query.event_study:
-        return StaggeredEventStudyEstimate(tuple(
-            StaggeredEventTimeEffect(
     if isinstance(query, AugmentedPanelDiD):
         if section.augmented is None:
             raise CausalValueError("augmented panel DiD result is missing overlap diagnostics")
@@ -387,6 +387,9 @@ def _panel_did_from_raw(
             nuisance_predictions_cross_fitted=declared, clusters=section.clusters,
             uncertainty=section.uncertainty,
         )
+    if isinstance(query, StaggeredAdoption) and query.event_study:
+        return StaggeredEventStudyEstimate(tuple(
+            StaggeredEventTimeEffect(
                 int(cohort), int(period), int(event_time), float(effect), float(se),
                 int(treated), int(controls), int(clusters),
             )
@@ -561,6 +564,21 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         standard_errors=tuple(section.standard_errors) if section.standard_errors is not None else None,
         stabilizing_numerator_probabilities=tuple(section.stabilizing_numerator_probabilities) if section.stabilizing_numerator_probabilities is not None else None,
         observed_subjects=section.observed_subjects,
+    )
+
+
+def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | None:
+    section = getattr(raw, "continuous_dose_response", None)
+    if section is None:
+        return None
+    return ConditionalDoseResponseEstimate(
+        points=tuple(ConditionalDoseResponsePoint(
+            str(group), float(target), float(response), int(local_rows),
+            float(effective_n), float(min_density), float(max_weight), float(local_sd),
+        ) for group, target, response, local_rows, effective_n, min_density, max_weight, local_sd in section.points),
+        bandwidth=float(section.bandwidth),
+        density_provenance=str(section.density_provenance),
+        uncertainty=str(section.uncertainty),
     )
 
 
@@ -960,6 +978,7 @@ def _wrap_ate(
         synthetic_did=_synthetic_did_from_raw(raw),
         local_polynomial_ratio=_local_polynomial_ratio_from_raw(raw, query),
         policy_value=_policy_value_from_raw(raw),
+        continuous_dose_response=_continuous_dose_from_raw(raw),
         survival=_survival_from_raw(raw, query),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
@@ -1787,10 +1806,12 @@ _PreparedQuery = (
     | ComplierEffect
     | SwitchbackEffect
     | PolicyValue
+    | ConditionalDoseResponse
     | MultiActionPolicyValue
     | AnomalyAttribution
     | ChangeAttribution
     | PanelDifferenceInDifferences
+    | AugmentedPanelDiD
     | StaggeredAdoption
     | SyntheticControl
     | SyntheticDifferenceInDifferences
@@ -1811,7 +1832,6 @@ class _Controls:
 
     cancel: Any | None = None
     on_progress: Any | None = None
-    | AugmentedPanelDiD
     on_stage: Any | None = None
 
     def kwargs(self) -> dict[str, Any]:
@@ -1921,26 +1941,6 @@ def _panel_did_payload(
     return names, columns, design
 
 
-def _staggered_payload(
-    data: Any, query: StaggeredAdoption
-) -> tuple[list[str], list[Any], dict[str, Any]]:
-    from .quasi import _integer_column, _raw_columns
-
-    if not query.event_study and (query.target_cohort is None or query.target_period is None):
-        raise CausalValueError("analyze with StaggeredAdoption requires target_cohort and target_period")
-    raw_names, raw_columns = _raw_columns(data)
-    raw = dict(zip(raw_names, raw_columns, strict=True))
-    required = (query.outcome, query.subject, query.period, query.cohort)
-    if query.cluster is not None:
-        required += (query.cluster,)
-    missing = [name for name in required if name not in raw]
-    if missing:
-        raise CausalValueError(f"required staggered DiD columns are missing: {missing}")
-    subjects = tuple(str(value) for value in raw[query.subject])
-    clusters = subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
-    if any(not value.strip() for value in (*subjects, *clusters)):
-        raise CausalValueError("subject and cluster IDs must be non-empty")
-    periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
 def _augmented_panel_did_payload(
     data: Any, query: AugmentedPanelDiD
 ) -> tuple[list[str], list[Any], dict[str, tuple[Any, ...]]]:
@@ -1971,6 +1971,26 @@ def _augmented_panel_did_payload(
     return names, columns, design
 
 
+def _staggered_payload(
+    data: Any, query: StaggeredAdoption
+) -> tuple[list[str], list[Any], dict[str, Any]]:
+    from .quasi import _integer_column, _raw_columns
+
+    if not query.event_study and (query.target_cohort is None or query.target_period is None):
+        raise CausalValueError("analyze with StaggeredAdoption requires target_cohort and target_period")
+    raw_names, raw_columns = _raw_columns(data)
+    raw = dict(zip(raw_names, raw_columns, strict=True))
+    required = (query.outcome, query.subject, query.period, query.cohort)
+    if query.cluster is not None:
+        required += (query.cluster,)
+    missing = [name for name in required if name not in raw]
+    if missing:
+        raise CausalValueError(f"required staggered DiD columns are missing: {missing}")
+    subjects = tuple(str(value) for value in raw[query.subject])
+    clusters = subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+    if any(not value.strip() for value in (*subjects, *clusters)):
+        raise CausalValueError("subject and cluster IDs must be non-empty")
+    periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
     cohorts = tuple(_integer_column(raw[query.cohort], "cohort", minimum=0))
     design = {
         "subjects": subjects,
@@ -2001,6 +2021,24 @@ def _synthetic_control_payload(
     periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
     names, columns = ingest_columns({query.outcome: raw[query.outcome]})
     return names, columns, {"units": units, "periods": periods}
+
+
+def _continuous_dose_payload(
+    data: Any, query: ConditionalDoseResponse
+) -> tuple[list[str], list[Any], dict[str, Any]]:
+    from .quasi import _raw_columns
+
+    raw_names, raw_columns = _raw_columns(data)
+    raw = dict(zip(raw_names, raw_columns, strict=True))
+    required = (query.outcome, query.dose, query.baseline_group, query.dose_density)
+    missing = [name for name in required if name not in raw]
+    if missing:
+        raise CausalValueError(f"required continuous-dose columns are missing: {missing}")
+    groups = tuple(raw[query.baseline_group])
+    if any(not isinstance(group, str) or not group for group in groups):
+        raise CausalValueError("baseline group labels must be non-empty strings")
+    names, columns = ingest_columns({name: raw[name] for name in (query.outcome, query.dose, query.dose_density)})
+    return names, columns, {"baseline_groups": groups}
 
 
 def _longitudinal_regime_payload(
@@ -2189,6 +2227,8 @@ class _PrepareRoute:
         query = self.query
         if isinstance(query, (PolicyValue, MultiActionPolicyValue)):
             return self._policy_value()
+        if isinstance(query, ConditionalDoseResponse):
+            return self._continuous_dose_response()
         if isinstance(query, RandomizedEffect):
             return self._randomized_effect()
         if isinstance(query, ComplierEffect):
@@ -2673,6 +2713,26 @@ class _PrepareRoute:
             bandwidth=bandwidth,
             accepted=self.accepted,
             **self._common(),
+        )
+        return native, "average"
+
+    def _continuous_dose_response(self) -> tuple[Any, Literal["average"]]:
+        query = cast(ConditionalDoseResponse, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", "ConditionalDoseResponse")
+        self._refuse_ids("ConditionalDoseResponse")
+        self._refuse_estimator_config("ConditionalDoseResponse")
+        self._refuse_rd("ConditionalDoseResponse")
+        if self._explicit_refute() or self.bootstrap:
+            raise _not_applicable("refute/bootstrap", "ConditionalDoseResponse")
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise _not_applicable("inference", "ConditionalDoseResponse")
+        design = self.design_columns or {}
+        native = _NativePreparedAnalysis.prepare_continuous_dose_response(
+            self.names, self.columns, query.outcome, query.dose, query.dose_density,
+            list(design["baseline_groups"]), list(query.target_doses), query.bandwidth,
+            query.density_provenance, min_local_support=query.min_local_support,
+            accepted=self.accepted, **self._common(),
         )
         return native, "average"
 
@@ -4304,6 +4364,9 @@ class PreparedAnalysis(Generic[ResultT]):
             else:
                 names, columns, design_columns = _panel_did_payload(data, query)
             frame = None
+        elif isinstance(query, ConditionalDoseResponse):
+            names, columns, design_columns = _continuous_dose_payload(data, query)
+            frame = None
         elif isinstance(query, LongitudinalRegimeQuery):
             names, columns = _longitudinal_regime_payload(data, query)
             frame = None
@@ -4598,6 +4661,11 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         query = self._query
+        if isinstance(query, ConditionalDoseResponse):
+            names, columns, design = _continuous_dose_payload(data, query)
+            if design != self._design_columns:
+                raise CausalUnsupportedError("continuous-dose refresh requires prepared baseline-group row order", reason_code="invalid_argument")
+            return names, columns, None
         if isinstance(query, (PanelDifferenceInDifferences, AugmentedPanelDiD, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences)):
             names, columns, design = (
                 _augmented_panel_did_payload(data, query) if isinstance(query, AugmentedPanelDiD)

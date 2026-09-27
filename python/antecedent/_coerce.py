@@ -158,7 +158,7 @@ def coerce_query(value: Any) -> Any:
     """
     from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect
     from .interference import InterferenceQuery
-    from .policy import MultiActionPolicyValue, PolicyValue
+    from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
     from .quasi import PanelDifferenceInDifferences, StaggeredAdoption, SyntheticControl, SyntheticDifferenceInDifferences, FuzzyRegressionDiscontinuity, RegressionKink
     from .query import (
         AnomalyAttribution,
@@ -212,6 +212,7 @@ def coerce_query(value: Any) -> Any:
         Transport,
         InterferenceQuery,
         PolicyValue,
+        ConditionalDoseResponse,
         MultiActionPolicyValue,
         RandomizedEffect,
         ComplierEffect,

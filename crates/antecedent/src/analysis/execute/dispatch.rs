@@ -957,6 +957,7 @@ impl super::Study {
             }
             AnalysisRoute::RandomizedEffect => self.execute_randomized(data, physical, ctx),
             AnalysisRoute::PolicyValue => self.execute_policy_value(data, physical, ctx),
+            AnalysisRoute::ContinuousDoseResponse => self.execute_continuous_dose_response(data, physical, ctx),
             AnalysisRoute::PanelDid => self.execute_panel_did(data, physical, ctx),
             AnalysisRoute::SyntheticControl => self.execute_synthetic_control(data, physical, ctx),
             AnalysisRoute::LocalPolynomialRatio => self.execute_local_polynomial_ratio(data, physical, ctx),

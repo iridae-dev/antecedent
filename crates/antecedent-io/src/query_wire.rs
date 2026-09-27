@@ -773,6 +773,8 @@ pub enum CausalQueryWire {
     RandomizedEffect(RandomizedEffectQueryWire),
     /// Held-out doubly robust policy value.
     PolicyValue(PolicyValueQueryWire),
+    /// Fixed conditional continuous-dose response grid.
+    ContinuousDoseResponse(ContinuousDoseResponseQueryWire),
     /// Balanced two-period panel difference-in-differences.
     PanelDid(PanelDidQueryWire),
     /// Balanced-panel synthetic-control design.
@@ -875,11 +877,11 @@ pub struct SurvivalQueryWire {
 pub struct PanelDidQueryWire {
     /// Outcome column id.
     pub outcome: u32,
-    /// True for repeated cross sections; absent in older balanced-panel artifacts.
-    #[serde(default)]
     /// Pre outcome, propensity, untreated-change prediction, and cross-fit declaration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmented: Option<(u32, u32, u32, bool)>,
+    /// True for repeated cross sections; absent in older balanced-panel artifacts.
+    #[serde(default)]
     pub repeated_cross_section: bool,
     /// Selected staggered cohort-period comparison, when present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -986,6 +988,28 @@ pub struct PolicyValueQueryWire {
     /// Caller-declared ranking training subjects, disjoint from evaluation subjects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub uplift_training_subject_ids: Vec<String>,
+}
+
+/// Portable caller-supplied conditional continuous-dose response design.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousDoseResponseQueryWire {
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Observed dose variable id.
+    pub dose: u32,
+    /// Supplied dose-density variable id.
+    pub dose_density: u32,
+    /// Pre-treatment group labels aligned by row.
+    pub baseline_groups: Vec<String>,
+    /// Prespecified target dose grid.
+    pub target_doses: Vec<f64>,
+    /// Triangular-kernel bandwidth.
+    pub bandwidth: f64,
+    /// Minimum local rows per group-target cell.
+    pub min_local_support: usize,
+    /// Known or externally estimated density.
+    pub density_provenance: String,
 }
 
 fn is_zero(value: &usize) -> bool { *value == 0 }
@@ -1196,6 +1220,7 @@ impl CausalQueryWire {
             | Self::Interference(_)
             | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
@@ -1230,6 +1255,7 @@ impl CausalQueryWire {
             | Self::Interference(_)
             | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
             | Self::LocalPolynomialRatio(_)
@@ -1793,8 +1819,17 @@ pub fn causal_query_to_wire_with_registry(
             uplift_bin_count: q.uplift_bin_count,
             uplift_training_subject_ids: q.uplift_training_subject_ids.iter().map(ToString::to_string).collect(),
         }),
+        CausalQuery::ContinuousDoseResponse(q) => CausalQueryWire::ContinuousDoseResponse(ContinuousDoseResponseQueryWire {
+            outcome: q.outcome.raw(), dose: q.dose.raw(), dose_density: q.dose_density.raw(),
+            baseline_groups: q.baseline_groups.iter().map(ToString::to_string).collect(),
+            target_doses: q.target_doses.to_vec(), bandwidth: q.bandwidth,
+            min_local_support: q.min_local_support,
+            density_provenance: q.density_provenance.to_string(),
+        }),
         CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
             outcome: q.outcome.raw(),
+            augmented: q.augmented.as_ref().map(|n| (n.outcome_pre.raw(), n.propensity.raw(),
+                n.untreated_change_prediction.raw(), n.predictions_cross_fitted)),
             repeated_cross_section: q.design
                 == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
             staggered_target: q.target,
@@ -1828,8 +1863,6 @@ pub fn causal_query_to_wire_with_registry(
                 bandwidth: q.bandwidth,
                 kink: q.kink,
             })
-            augmented: q.augmented.as_ref().map(|n| (n.outcome_pre.raw(), n.propensity.raw(),
-                n.untreated_change_prediction.raw(), n.predictions_cross_fitted)),
         }
         CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
             duration: q.duration.raw(),
@@ -2186,6 +2219,19 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PolicyValue(q)
+        }
+        CausalQueryWire::ContinuousDoseResponse(w) => {
+            let q = antecedent_core::ContinuousDoseResponseQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                dose: VariableId::from_raw(w.dose),
+                dose_density: VariableId::from_raw(w.dose_density),
+                baseline_groups: w.baseline_groups.iter().map(|value| Arc::<str>::from(value.as_str())).collect::<Vec<_>>().into(),
+                target_doses: w.target_doses.clone().into(), bandwidth: w.bandwidth,
+                min_local_support: w.min_local_support,
+                density_provenance: Arc::from(w.density_provenance.as_str()),
+            };
+            q.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+            CausalQuery::ContinuousDoseResponse(q)
         }
         CausalQueryWire::PanelDid(w) => {
             let q = if let Some((pre, propensity, prediction, cross_fitted)) = w.augmented {

@@ -2236,6 +2236,7 @@ pub(crate) fn ate_result_from_analysis(
         refutation_count: validation.count,
         refutations,
         policy_value: result.policy_value.as_ref().map(Into::into),
+        continuous_dose_response: result.continuous_dose_response.as_ref().map(Into::into),
         assumption_count: result.identification.required_assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
         method,

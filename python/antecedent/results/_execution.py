@@ -210,6 +210,9 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         if not isinstance(policy, Mapping):
             return Answer("unavailable", detail="policy_value_payload_missing")
         return Answer("policy_value", detail="held_out_randomized_dr", structured=dict(policy))
+    dose = payload.get("continuous_dose_response")
+    if kind == "point" and isinstance(dose, Mapping):
+        return Answer("structured", detail="continuous_dose_response_point_only", structured=dict(dose))
     survival = payload.get("survival")
     if kind == "point" and isinstance(survival, Mapping):
         return Answer("structured", detail="randomized_survival_point_only", structured=dict(survival))
@@ -358,6 +361,11 @@ class ResultAPI:
     @property
     def answer(self) -> Answer:
         """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
+        dose = getattr(self, "continuous_dose_response", None)
+        if dose is not None:
+            from dataclasses import asdict
+
+            return Answer("structured", detail="continuous_dose_response_point_only", structured=asdict(dose))
         survival = getattr(self, "survival", None)
         if survival is not None:
             from dataclasses import asdict
@@ -426,6 +434,9 @@ class ResultAPI:
                 f"treatment rate {policy.treatment_rate:.3f}. Its paired row-score SE is "
                 f"{policy.incremental_standard_error:g}; uncertainty assumes independent subjects."
             )
+        dose = getattr(self, "continuous_dose_response", None)
+        if dose is not None:
+            return f"Conditional continuous-dose response at {len(dose.points)} group-target cells. Point-only; no calibrated interval or policy value."
         from .._claim import result_claim
 
         identification = getattr(self, "identification", None)

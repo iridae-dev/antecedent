@@ -377,6 +377,16 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             }
             dimensions
         }
+        CausalQueryWire::ContinuousDoseResponse(query) => vec![
+            ("query_kind".into(), "continuous_dose_response".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("dose".into(), query.dose.to_string()),
+            ("dose_density".into(), query.dose_density.to_string()),
+            ("group_count".into(), query.baseline_groups.len().to_string()),
+            ("target_doses".into(), format!("{:?}", query.target_doses)),
+            ("bandwidth".into(), query.bandwidth.to_string()),
+            ("density_provenance".into(), query.density_provenance.clone()),
+        ],
         CausalQueryWire::Survival(query) => vec![
             ("query_kind".into(), "survival".into()),
             ("duration".into(), query.duration.to_string()),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import antecedent
 from antecedent import policy
 from antecedent.errors import CausalValueError
 
@@ -78,3 +79,42 @@ def test_continuous_dose_response_refuses_bad_density_source_and_bandwidth():
             outcome="y", dose="dose", baseline_group="group", dose_density="density",
             target_doses=[0.0], bandwidth=0.0, density_provenance="known",
         )
+
+
+def test_retained_continuous_dose_matches_direct_kernel_and_artifact():
+    data = _dose_data()
+    query = antecedent.ConditionalDoseResponse(
+        outcome="y", dose="dose", baseline_group="group", dose_density="density",
+        target_doses=(0.0, 0.5), bandwidth=0.6, density_provenance="known",
+    )
+    direct = policy.estimate_continuous_dose_response(
+        data, outcome="y", dose="dose", baseline_group="group", dose_density="density",
+        target_doses=(0.0, 0.5), bandwidth=0.6, density_provenance="known",
+    )
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    grid = result.continuous_dose_response
+    assert grid is not None
+    assert grid.points == direct.points
+    assert grid.uncertainty == "point_only_no_interval"
+    assert result.estimate.ate is None
+    assert prepared.refresh(data).continuous_dose_response == grid
+    assert antecedent.analyze(data, query=query).continuous_dose_response == grid
+    loaded = antecedent.load(prepared.export(artifact_id="continuous-dose-study"))
+    assert loaded.answer.kind == "structured"
+    assert loaded.answer.structured["points"][3]["response"] == pytest.approx(11.0)
+
+
+def test_retained_continuous_dose_refuses_support_and_row_rebinding():
+    data = _dose_data()
+    query = antecedent.ConditionalDoseResponse(
+        "y", "dose", "group", "density", (4.0,), 0.1, "known",
+    )
+    with pytest.raises(Exception, match="support failure"):
+        antecedent.analyze(data, query=query)
+    query = antecedent.ConditionalDoseResponse(
+        "y", "dose", "group", "density", (0.0,), 0.6, "known",
+    )
+    prepared = antecedent.prepare(data, query=query)
+    with pytest.raises(Exception, match="baseline-group row order"):
+        prepared.refresh({**data, "group": list(reversed(data["group"]))})

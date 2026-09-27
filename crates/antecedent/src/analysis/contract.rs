@@ -977,6 +977,7 @@ impl StudyResult {
             || self.synthetic_did.is_some()
             || self.local_polynomial_ratio.is_some()
             || self.policy_value.is_some()
+            || self.continuous_dose_response.is_some()
             || self.survival.is_some()
             || self.longitudinal_regime.is_some()
         {
@@ -3087,6 +3088,13 @@ fn result_reasoning(
             false,
         ));
     }
+    if let Some(dose) = &body.continuous_dose_response {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            format!("continuous_dose_{}", dose.uncertainty),
+            false,
+        ));
+    }
     // A function-valued posterior can carry its band directly on the response,
     // without a scalar posterior or SE on StudyResult. Its portable reasoning
     // must not call that published parameter uncertainty "omitted". This runs for
@@ -3259,6 +3267,18 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         temporal_identification,
         estimate: effect.and_then(|_| executed_scalar(result)),
         policy_value,
+        continuous_dose_response: result.continuous_dose_response.as_ref().map(|fit| antecedent_io::analysis_result_artifact::ContinuousDoseResponseWire {
+            points: fit.points.iter().map(|point| antecedent_io::analysis_result_artifact::ContinuousDosePointWire {
+                baseline_group: point.baseline_group.clone(), target_dose: point.target_dose,
+                response: point.response, local_rows: point.local_rows,
+                effective_sample_size: point.effective_sample_size,
+                minimum_dose_density: point.minimum_dose_density,
+                maximum_normalized_weight: point.maximum_normalized_weight,
+                local_outcome_sd: point.local_outcome_sd,
+            }).collect(),
+            bandwidth: fit.bandwidth, density_provenance: fit.density_provenance.to_string(),
+            uncertainty: fit.uncertainty.to_string(),
+        }),
         panel_did: result.panel_did.as_ref().map(|did| antecedent_io::PanelDidWire {
             effect: did.effect,
             standard_error: did.standard_error,
@@ -3271,6 +3291,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 effect.treated_subjects, effect.comparison_subjects,
                 effect.standard_error, effect.clusters,
             )).collect(),
+            augmented: did.augmented,
         }),
         synthetic_control: result.synthetic_control.as_ref().map(|fit| {
             antecedent_io::SyntheticControlWire {
@@ -3291,7 +3312,6 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
                     (unit.to_string(), *statistic)).collect(),
                 unadjusted_effect: fit.unadjusted_effect,
-            augmented: did.augmented,
                 outcome_model_correction: fit.outcome_model_correction,
                 augmentation_ridge: fit.augmentation_ridge,
             }

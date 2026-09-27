@@ -397,6 +397,42 @@ pub struct PolicyValueWire {
     pub multi_action_cate: Vec<MultiActionCateWire>,
 }
 
+/// One conditional dose-response cell with explicit local support diagnostics.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousDosePointWire {
+    /// Baseline group label.
+    pub baseline_group: String,
+    /// Prespecified target dose.
+    pub target_dose: f64,
+    /// Point response.
+    pub response: f64,
+    /// Number of local rows.
+    pub local_rows: usize,
+    /// Effective local sample size.
+    pub effective_sample_size: f64,
+    /// Lowest supplied local density.
+    pub minimum_dose_density: f64,
+    /// Largest normalized local weight.
+    pub maximum_normalized_weight: f64,
+    /// Descriptive local outcome SD, not a standard error.
+    pub local_outcome_sd: f64,
+}
+
+/// Point-only conditional continuous-dose response grid.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousDoseResponseWire {
+    /// Group-target cells in stable group and target order.
+    pub points: Vec<ContinuousDosePointWire>,
+    /// Prespecified kernel bandwidth.
+    pub bandwidth: f64,
+    /// Caller-declared density provenance.
+    pub density_provenance: String,
+    /// Explicit absence of interval inference.
+    pub uncertainty: String,
+}
+
 /// One point-only randomized multi-action conditional effect.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -448,6 +484,9 @@ pub struct PanelDidWire {
     /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
+    /// Propensity range, effective control count, and caller cross-fit declaration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmented: Option<(f64, f64, f64, bool)>,
 }
 
 /// Synthetic-control point result and donor-support diagnostics.
@@ -484,9 +523,6 @@ pub struct SyntheticControlWire {
     /// Donor ridge prediction difference subtracted from the simplex gap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_model_correction: Option<f64>,
-    /// Propensity range, effective control count, and caller cross-fit declaration.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub augmented: Option<(f64, f64, f64, bool)>,
     /// Positive donor outcome-model ridge penalty.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmentation_ridge: Option<f64>,
@@ -694,6 +730,9 @@ pub struct AnalysisResultWire {
     /// Policy-value answer, never encoded as an ATE.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_value: Option<PolicyValueWire>,
+    /// Conditional continuous-dose response; never encoded as policy value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuous_dose_response: Option<ContinuousDoseResponseWire>,
     /// Balanced two-period panel DiD metadata and cluster uncertainty semantics.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panel_did: Option<PanelDidWire>,
@@ -1244,6 +1283,39 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             "analysis scalar estimate must be finite when present".into(),
         ));
     }
+    if matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_))
+        != result.continuous_dose_response.is_some()
+    {
+        return Err(IoError::Convert("continuous-dose query and result section must appear together".into()));
+    }
+    if let Some(fit) = &result.continuous_dose_response {
+        let crate::CausalQueryWire::ContinuousDoseResponse(query) = &result.query else {
+            return Err(IoError::Convert("continuous-dose result is attached to a different query".into()));
+        };
+        let groups: std::collections::BTreeSet<&str> = query.baseline_groups.iter().map(String::as_str).collect();
+        if result.estimate.is_some() || result.standard_error.is_some()
+            || result.interval_lower.is_some() || result.interval_upper.is_some()
+            || fit.bandwidth != query.bandwidth || fit.density_provenance != query.density_provenance
+            || fit.uncertainty != "point_only_no_interval"
+            || fit.points.len() != groups.len() * query.target_doses.len()
+        {
+            return Err(IoError::Convert("continuous-dose result must match its query and carry point-only uncertainty".into()));
+        }
+        for (index, point) in fit.points.iter().enumerate() {
+            let group = groups.iter().nth(index / query.target_doses.len()).copied().unwrap_or("");
+            let target = query.target_doses[index % query.target_doses.len()];
+            if point.baseline_group != group || point.target_dose != target
+                || point.local_rows < query.min_local_support
+                || ![point.response, point.effective_sample_size, point.minimum_dose_density,
+                    point.maximum_normalized_weight, point.local_outcome_sd].iter().all(|value| value.is_finite())
+                || point.effective_sample_size <= 0.0 || point.minimum_dose_density <= 0.0
+                || !(0.0..=1.0).contains(&point.maximum_normalized_weight)
+                || point.local_outcome_sd < 0.0
+            {
+                return Err(IoError::Convert("continuous-dose point or local support is invalid".into()));
+            }
+        }
+    }
     if let Some(policy) = &result.policy_value {
         let expected_uncertainty = match &result.query {
             crate::CausalQueryWire::PolicyValue(query) if query.multi_action.is_some() => {
@@ -1381,6 +1453,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         } else {
             query.clusters.iter().collect::<std::collections::BTreeSet<_>>().len()
         };
+        let augmented_valid = match (&query.augmented, &did.augmented) {
+            (Some((pre, propensity, prediction, declared)), Some((p_min, p_max, ess, recorded))) => {
+                let variables = [query.outcome, *pre, *propensity, *prediction];
+                variables.iter().collect::<std::collections::BTreeSet<_>>().len() == 4
+                    && !duplicate_subject && query.post.iter().all(|post| *post)
+                    && query.periods.is_empty() && query.cohorts.is_empty()
+                    && query.staggered_target.is_none() && !query.staggered_event_study
+                    && !query.repeated_cross_section
+                    && *declared == *recorded
+                    && p_min.is_finite() && p_max.is_finite()
+                    && *p_min > 0.0 && *p_min <= *p_max && *p_max < 1.0
+                    && ess.is_finite() && *ess > 0.0 && *ess <= comparison_subjects as f64 + 1e-9
+                    && did.standard_error == 0.0
+                    && did.uncertainty == "point_only_no_standard_error"
+            }
+            (None, None) => true,
+            _ => false,
+        };
         if result.estimate != Some(did.effect)
             || result.standard_error.is_some()
             || !did.effect.is_finite()
@@ -1390,6 +1480,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || did.comparison_subjects != comparison_subjects
             || did.clusters != clusters
             || !event_study_valid
+            || !augmented_valid
             || (query.repeated_cross_section
                 && (duplicate_subject
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
@@ -1453,24 +1544,6 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 || fit.randomization_statistics.len() > 32
                 || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
                     != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
-        let augmented_valid = match (&query.augmented, &did.augmented) {
-            (Some((pre, propensity, prediction, declared)), Some((p_min, p_max, ess, recorded))) => {
-                let variables = [query.outcome, *pre, *propensity, *prediction];
-                variables.iter().collect::<std::collections::BTreeSet<_>>().len() == 4
-                    && !duplicate_subject && query.post.iter().all(|post| *post)
-                    && query.periods.is_empty() && query.cohorts.is_empty()
-                    && query.staggered_target.is_none() && !query.staggered_event_study
-                    && !query.repeated_cross_section
-                    && *declared == *recorded
-                    && p_min.is_finite() && p_max.is_finite()
-                    && *p_min > 0.0 && *p_min <= *p_max && *p_max < 1.0
-                    && ess.is_finite() && *ess > 0.0 && *ess <= comparison_subjects as f64 + 1e-9
-                    && did.standard_error == 0.0
-                    && did.uncertainty == "point_only_no_standard_error"
-            }
-            (None, None) => true,
-            _ => false,
-        };
                 || fit.randomization_statistics.iter().any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
                 || fit.randomization_p_value != fit.randomization_statistics.iter()
                     .find(|(unit, _)| unit == &query.treated_unit)
@@ -1480,7 +1553,6 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         {
             return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
         }
-            || !augmented_valid
     }
     if let Some(fit) = &result.synthetic_did {
         let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
@@ -2034,6 +2106,7 @@ mod tests {
             clusters: 4,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
             event_time_effects: vec![],
+            augmented: None,
         });
         let encoded = encode_analysis_result_artifact(
             &result,
@@ -2071,6 +2144,7 @@ mod tests {
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
             event_time_effects: vec![],
+            augmented: None,
         });
         let encoded = encode_analysis_result_artifact(
             &result,
@@ -2106,7 +2180,6 @@ mod tests {
                 periods.push(period);
                 cohorts.push(if unit < 4 { 0 } else if unit < 8 { 3 } else { 4 });
             }
-            augmented: None,
         }
         let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(
             antecedent_core::PanelDidQuery::staggered_group_time(
@@ -2126,6 +2199,7 @@ mod tests {
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
             event_time_effects: vec![],
+            augmented: None,
         });
         let encoded = encode_analysis_result_artifact(
             &result, vec!["treatment".into(), "outcome".into()], "staggered-did-result",
@@ -2144,7 +2218,6 @@ mod tests {
         result.interventional_distribution.as_mut().unwrap().atoms[0].probability = 0.2;
         assert!(validate_interventional_distribution(&result).is_err());
 
-            augmented: None,
         let mut result = distribution_fixture();
         result.interventional_distribution.as_mut().unwrap().atoms[1].outcomes[0].0 = 0;
         assert!(validate_interventional_distribution(&result).is_err());
@@ -2199,7 +2272,6 @@ mod tests {
         let names = vec!["x".into(), "y".into()];
         let artifact = encode_analysis_result_artifact(&result, names.clone(), "temporal").unwrap();
         let mut bytes = Vec::new();
-            augmented: None,
         artifact.write_to(&mut bytes).unwrap();
         let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
         assert_eq!(decoded, result);
