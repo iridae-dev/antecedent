@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import antecedent as ant
 import numpy as np
 import pytest
 from antecedent import interference
@@ -70,3 +71,54 @@ def test_observational_network_exposure_requires_multiple_clusters_and_provenanc
         _estimate(clusters=[0] * 4, partial_interference=interference.PartialInterference([0] * 4))
     with pytest.raises(ValueError, match="known or externally_estimated"):
         _estimate(propensity_provenance="guessed")
+
+
+def _query(*, edges=None, assume_network_exchangeability=True):
+    _, clusters, fixture_edges, assignment = _fixture()
+    design = interference.ObservedExposureDesign(
+        clusters=clusters,
+        propensity_from=[0.5] * 4,
+        propensity_to=[0.5] * 4,
+        propensity_provenance="externally_estimated",
+        assume_network_exchangeability=assume_network_exchangeability,
+    )
+    return interference.InterferenceQuery(
+        design,
+        interference.NeighborCount(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0, 0.0), interference.ExposureLevel(1.0, 1.0)
+        ),
+        network=fixture_edges if edges is None else edges,
+        realized_assignment=assignment,
+        partial_interference=interference.PartialInterference(clusters),
+    )
+
+
+def test_observational_network_analyze_matches_native_utility_and_reports_support():
+    data, _, _, _ = _fixture()
+    result = ant.analyze(data, graph=[], query=_query())
+    utility = _estimate()
+    assert result.estimate.ate == pytest.approx(utility.horvitz_thompson)
+    assert result.interference.contrast.hajek == pytest.approx(utility.hajek)
+    assert result.interference.contrast.conservative_variance == pytest.approx(
+        utility.cluster_robust_variance
+    )
+    assert result.interference.from_probability_method == "supplied_externally_estimated"
+    assert result.interference.support.from_exposed_units == utility.from_exposed_units
+    assert result.interference.support.to_exposed_clusters == utility.to_exposed_clusters
+    assert result.interference.support.clusters == utility.clusters
+    assert result.interference.support.maximum_exposure_probability == pytest.approx(
+        utility.maximum_exposure_probability
+    )
+    assert result.evidence_status == "off_axis"
+    assert np.isnan(result.estimate.se_analytic)
+    assert "no interval" in result.interference.uncertainty_semantics
+    assert "network_exchangeability" in " ".join(result.assumptions or [])
+
+
+def test_observational_network_analyze_refuses_unsupported_design():
+    data, _, edges, _ = _fixture()
+    with pytest.raises(ValueError, match="assume_network_exchangeability"):
+        _query(assume_network_exchangeability=False)
+    with pytest.raises(ValueError, match="crosses cluster boundary"):
+        ant.analyze(data, graph=[], query=_query(edges=[*edges, (0, 2)]))

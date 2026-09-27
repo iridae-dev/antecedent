@@ -347,6 +347,12 @@ class InterferenceSection:
     from_probability_method: str
     to_probability_method: str
     minimum_exposure_probability: float
+    from_exposed_units: int | None
+    to_exposed_units: int | None
+    from_exposed_clusters: int | None
+    to_exposed_clusters: int | None
+    clusters: int | None
+    maximum_exposure_probability: float | None
 
 class RandomizedEffectSection:
     effect: float
@@ -1218,6 +1224,10 @@ class PreparedAnalysis:
         low_probability: float = 0.0,
         high_probability: float = 0.0,
         realized_saturation: list[float] | None = None,
+        propensity_from: list[float] | None = None,
+        propensity_to: list[float] | None = None,
+        propensity_provenance: str = "known",
+        assume_network_exchangeability: bool = False,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

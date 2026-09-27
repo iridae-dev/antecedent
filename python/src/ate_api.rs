@@ -2396,7 +2396,7 @@ pub(crate) fn ate_result_from_analysis(
         interference: result
             .interference
             .as_ref()
-            .map(crate::transport_interference_api::InterferenceSection::from_estimate),
+            .map(|estimate| crate::transport_interference_api::InterferenceSection::from_estimate(estimate, &result.diagnostics)),
         randomized_effect: result.randomized_effect.as_ref().map(Into::into),
         panel_did: result.panel_did.as_ref().map(Into::into),
         synthetic_control: result.synthetic_control.as_ref().map(Into::into),

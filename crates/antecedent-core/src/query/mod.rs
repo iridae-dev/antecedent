@@ -44,7 +44,8 @@ pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery}
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
 pub use interference::{
-    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
+    AssignmentDesign, ExposureLevel, ExposureMapping, ExposurePropensityProvenance,
+    InterferenceFunctional, InterferenceQuery,
     EXPOSURE_LEVEL_TOLERANCE,
 };
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};

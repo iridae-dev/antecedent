@@ -41,6 +41,7 @@ pub mod gcomp;
 pub mod glm_adjustment;
 pub mod identified_set;
 pub mod interference;
+pub mod interference_observational;
 pub mod interference_saturation;
 pub mod iv;
 pub mod joint_if;
@@ -158,6 +159,7 @@ pub use interference::{
     estimate_interference, estimate_interference_bayesian, own_treatment_level,
 };
 pub use interference_saturation::{SaturationInterferenceEstimate, estimate_saturation_interference};
+pub use interference_observational::{ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure};
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
     TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,

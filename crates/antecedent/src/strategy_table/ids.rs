@@ -320,6 +320,8 @@ pub enum EstimatorId {
     InterferenceClusterNeyman,
     /// Exact two-stage saturation exposure contrast, point and variance proxy only.
     InterferenceSaturationExact,
+    /// Supplied-propensity observational network exposure point contrast.
+    InterferenceObservationalIpw,
     /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
     InterferenceBayesianGaussian,
     /// Horvitz--Thompson design-based Bernoulli ITT.
@@ -729,6 +731,15 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.interference.saturation_exact",
             ),
         },
+        EstimatorId::InterferenceObservationalIpw => EstimatorData {
+            name: "interference.observational_ipw",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.observational_ipw",
+            provenance: (
+                "estimate.interference.observational_ipw",
+                "estimate.interference.observational_ipw",
+            ),
+        },
         EstimatorId::InterferenceBayesianGaussian => EstimatorData {
             name: "interference.bayesian_gaussian",
             parallel_task_dimension: "analysis",
@@ -1044,6 +1055,7 @@ pub fn validate_static_pair(
             EstimatorId::InterferenceHtHajek
             | EstimatorId::InterferenceClusterNeyman
             | EstimatorId::InterferenceSaturationExact
+            | EstimatorId::InterferenceObservationalIpw
             | EstimatorId::InterferenceBayesianGaussian,
         )
         | (
@@ -1225,6 +1237,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceHtHajek
         | EstimatorId::InterferenceClusterNeyman
         | EstimatorId::InterferenceSaturationExact
+        | EstimatorId::InterferenceObservationalIpw
         | EstimatorId::InterferenceBayesianGaussian => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt

@@ -154,13 +154,15 @@ fn refuse_unlicensed_interference(
                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
             ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction))
             || (matches!(query.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. })
+                && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure))
+            || (matches!(query.assignment, antecedent_core::AssignmentDesign::ObservedExposure { .. })
                 && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure));
     if licensed {
         Ok(())
     } else {
         Err(crate::support_reason!(
             "construction_not_licensed",
-            "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, or exact two-stage saturation with built-in neighbor exposure"
+            "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
         ))
     }
 }
@@ -694,6 +696,9 @@ fn refuse_estimator_inference_mismatch(
                 }
                 EstimatorId::InterferenceSaturationExact => {
                     frequentist!("interference.saturation_exact")
+                }
+                EstimatorId::InterferenceObservationalIpw => {
+                    frequentist!("interference.observational_ipw")
                 }
                 _ => Ok(()),
             }
@@ -2042,7 +2047,7 @@ impl StudyBuilder {
         // NeighborCount and its Young-bound calibration. A cluster total effect has
         // separate execution evidence but no matrix cell or interval calibration yet.
         if matches!(&query, CausalQuery::Interference(q)
-            if matches!(q.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. } | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }))
+            if matches!(q.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. } | antecedent_core::AssignmentDesign::TwoStageSaturation { .. } | antecedent_core::AssignmentDesign::ObservedExposure { .. }))
         {
             support_status = None;
         }
