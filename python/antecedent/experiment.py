@@ -408,9 +408,14 @@ class RandomizedEffect:
                 raise CausalValueError("ANCOVA requires residual degrees of freedom")
         if isinstance(self.design.assignment, FactorialRandomization) and self.exact_randomization_test:
             raise CausalValueError("exact Fisher inference is only available for unadjusted complete two-arm designs")
-        if self.exact_randomization_test:
-            if type(self.exact_randomization_test) is not bool or self.cuped is not None or self.ancova_covariates or not isinstance(self.design.assignment, CompleteRandomization) or len(self.design.realized_assignment) > 20:
-                raise CausalValueError("exact randomization inference requires an unadjusted complete two-arm design with at most 20 units")
+        if self.exact_randomization_test and (
+            type(self.exact_randomization_test) is not bool
+            or self.cuped is not None
+            or self.ancova_covariates
+            or not isinstance(self.design.assignment, CompleteRandomization)
+            or len(self.design.realized_assignment) > 20
+        ):
+            raise CausalValueError("exact randomization inference requires an unadjusted complete two-arm design with at most 20 units")
 
     def to_interference_query(self) -> InterferenceQuery:
         """Lower ITT to the shared native randomization estimator contract."""
