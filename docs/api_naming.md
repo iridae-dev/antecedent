@@ -44,6 +44,9 @@ it remains off the support-matrix axis and reports no interval.
 one-covariate CUPED with multiple pre-treatment covariates for independent
 Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
 coefficients, support counts, and an HC0 standard error without an interval.
+The same native fit is available through retained `prepare` / `analyze` via
+`RandomizedEffect(..., ancova_covariates=("x1", "x2"))`; its query and
+artifact retain the covariate identities and report point-only HC0 uncertainty.
 The licensed trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the 2.0 compiler is
 `antecedent.transport.Transport` and is not a root export.
