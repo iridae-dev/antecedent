@@ -39,7 +39,7 @@ pub use attribution::{
 };
 pub use average::AverageEffectQuery;
 pub use counterfactual::CounterfactualQuery;
-pub use continuous_dose::ContinuousDoseResponseQuery;
+pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
 pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};

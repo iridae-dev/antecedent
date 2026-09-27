@@ -5,6 +5,37 @@ use super::QueryError;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
+/// Frozen group-to-dose policy and reference rules for a local intervention.
+/// Each group named by the query must appear exactly once in both rules.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FixedGroupDosePolicy {
+    /// Prespecified policy target dose for each baseline group.
+    pub policy_doses: Arc<[(Arc<str>, f64)]>,
+    /// Prespecified reference target dose for each baseline group.
+    pub reference_doses: Arc<[(Arc<str>, f64)]>,
+}
+
+impl FixedGroupDosePolicy {
+    /// Check that both rules cover the frozen pre-treatment groups exactly.
+    pub fn validate(&self, baseline_groups: &[Arc<str>]) -> Result<(), QueryError> {
+        let observed = baseline_groups.iter().map(|group| group.as_ref())
+            .collect::<std::collections::BTreeSet<_>>();
+        if observed.is_empty() { return Err(QueryError::InvalidPolicyValue(
+            "fixed dose rules require observed baseline groups".into())); }
+        for rule in [&self.policy_doses, &self.reference_doses] {
+            let mut seen = std::collections::BTreeSet::new();
+            if rule.len() != observed.len() || rule.iter().any(|(group, target)|
+                !target.is_finite() || !observed.contains(group.as_ref())
+                    || !seen.insert(group.as_ref()))
+            {
+                return Err(QueryError::InvalidPolicyValue(
+                    "fixed dose rules must name every observed baseline group exactly once with finite targets".into()));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A fixed local response grid under group-level exchangeability.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousDoseResponseQuery {
@@ -46,5 +77,28 @@ impl ContinuousDoseResponseQuery {
             ));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+
+    #[test]
+    fn fixed_group_rules_require_exact_finite_group_coverage() {
+        let groups: Arc<[Arc<str>]> = Arc::from([Arc::from("a"), Arc::from("b")]);
+        let policy = FixedGroupDosePolicy {
+            policy_doses: Arc::from([(Arc::from("a"), 0.3), (Arc::from("b"), 0.7)]),
+            reference_doses: Arc::from([(Arc::from("a"), 0.2), (Arc::from("b"), 0.4)]),
+        };
+        assert!(policy.validate(&groups).is_ok());
+        assert!(FixedGroupDosePolicy {
+            reference_doses: Arc::from([(Arc::from("a"), 0.2), (Arc::from("a"), 0.4)]),
+            ..policy.clone()
+        }.validate(&groups).is_err());
+        assert!(FixedGroupDosePolicy {
+            policy_doses: Arc::from([(Arc::from("a"), f64::NAN), (Arc::from("b"), 0.7)]),
+            ..policy
+        }.validate(&groups).is_err());
     }
 }
