@@ -950,7 +950,8 @@ the regime value in 1,897 studies. This route has no support-matrix license.
 Set `method="sequential_dr"` and provide cross-fitted Q predictions, aligned
 subject and prediction fold IDs, monotone observation histories, treatment
 probabilities, and conditional censoring probabilities to run the backward
-recursive doubly robust score through the same retained Study path. The
+recursive doubly robust score through the same retained Study path under
+declared nuisance and exchangeability assumptions. The
 caller owns nuisance fitting and the sequential exchangeability claim. The
 result and artifact preserve the fold and dropout contract and weight
 diagnostics. For a two-period regime with known randomization probabilities,
