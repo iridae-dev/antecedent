@@ -26,6 +26,22 @@ pub struct InterferenceEstimate {
     pub minimum_exposure_probability: f64,
 }
 
+/// Conservative pointwise total-effect interval for independently randomized
+/// clusters under a complete cluster allocation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClusterTotalInterval {
+    /// Two-sided 95% interval for the Horvitz--Thompson total contrast.
+    pub bounds: [f64; 2],
+    /// Cluster-level Neyman standard error.
+    pub standard_error: f64,
+    /// Welch--Satterthwaite degrees of freedom.
+    pub degrees_of_freedom: f64,
+    /// Independent clusters observed in each assignment arm.
+    pub control_clusters: usize,
+    /// Independently randomized treated clusters.
+    pub treated_clusters: usize,
+}
+
 /// Model based posterior for a finite network exposure contrast.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BayesianInterferenceEstimate {
@@ -249,6 +265,18 @@ pub fn estimate_cluster_interference_total(
     data: &NetworkData,
     assignment: &[bool],
 ) -> Result<InterferenceEstimate, EstimationError> {
+    estimate_cluster_interference_total_with_inference(query, data, assignment)
+        .map(|(estimate, _)| estimate)
+}
+
+/// Estimate the same cluster total contrast and a pointwise interval when at
+/// least eight independent clusters occur in each assignment arm. Thin-arm
+/// designs retain their point estimate but withhold interval inference.
+pub fn estimate_cluster_interference_total_with_inference(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+) -> Result<(InterferenceEstimate, Option<ClusterTotalInterval>), EstimationError> {
     use antecedent_core::{ExposureMapping, InterferenceFunctional};
     query.validate()?;
     let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } =
@@ -327,8 +355,9 @@ pub fn estimate_cluster_interference_total(
         values.iter().map(|value| (value - center).powi(2)).sum::<f64>() / (values.len() - 1) as f64
     };
     let effect = mean(&treated_totals) - mean(&control_totals);
-    let variance = sample_variance(&treated_totals) / treated_totals.len() as f64
-        + sample_variance(&control_totals) / control_totals.len() as f64;
+    let treated_component = sample_variance(&treated_totals) / treated_totals.len() as f64;
+    let control_component = sample_variance(&control_totals) / control_totals.len() as f64;
+    let variance = treated_component + control_component;
     let p = *treated_clusters as f64 / k as f64;
     let treated_weighted =
         by_cluster.values().filter(|entry| entry.0).map(|entry| entry.1 / p).sum::<f64>();
@@ -340,7 +369,7 @@ pub fn estimate_cluster_interference_total(
     let hajek = treated_weighted / (treated_units as f64 / p)
         - control_weighted / (control_units as f64 / (1.0 - p));
     let direction = if forward { 1.0 } else { -1.0 };
-    Ok(InterferenceEstimate {
+    let estimate = InterferenceEstimate {
         contrast: RandomizationContrast {
             horvitz_thompson: direction * effect,
             hajek: direction * hajek,
@@ -349,7 +378,39 @@ pub fn estimate_cluster_interference_total(
         from_probability_method: ExposureProbabilityMethod::Exact,
         to_probability_method: ExposureProbabilityMethod::Exact,
         minimum_exposure_probability: p.min(1.0 - p),
-    })
+    };
+    let interval = if treated_totals.len() >= 8 && control_totals.len() >= 8 && variance > 0.0 && variance.is_finite() {
+        let df = variance.powi(2) / (treated_component.powi(2) / (treated_totals.len() - 1) as f64
+            + control_component.powi(2) / (control_totals.len() - 1) as f64);
+        let critical = antecedent_stats::student_t_ppf(0.975, df);
+        (critical.is_finite() && critical > 0.0).then(|| {
+            let se = variance.sqrt();
+            ClusterTotalInterval {
+                bounds: [estimate.contrast.horvitz_thompson - critical * se,
+                    estimate.contrast.horvitz_thompson + critical * se],
+                standard_error: se,
+                degrees_of_freedom: df,
+                control_clusters: control_totals.len(),
+                treated_clusters: treated_totals.len(),
+            }
+        })
+    } else { None };
+    Ok((estimate, interval))
+}
+
+/// Require the calibrated pointwise cluster interval. This entry point
+/// explicitly refuses thin arms or degenerate between-cluster variation;
+/// callers needing a point estimate may use [`estimate_cluster_interference_total`].
+pub fn estimate_cluster_interference_total_pointwise(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+) -> Result<(InterferenceEstimate, ClusterTotalInterval), EstimationError> {
+    let (estimate, interval) = estimate_cluster_interference_total_with_inference(query, data, assignment)?;
+    let interval = interval.ok_or_else(|| EstimationError::unsupported(
+        "cluster total-effect interval requires eight independent clusters in each arm and positive cluster variation",
+    ))?;
+    Ok((estimate, interval))
 }
 
 /// Convenience exposure level for an own-treatment contrast on an empty network.
@@ -366,6 +427,35 @@ mod tests {
     use antecedent_data::TabularData;
 
     use super::*;
+
+    #[test]
+    fn cluster_total_pointwise_refuses_thin_assignment_arms() {
+        let outcomes = [1.0, 2.0, 2.0, 3.0, 8.0, 9.0, 9.0, 10.0];
+        let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
+        let edges = (0..4).flat_map(|cluster| {
+            let first = cluster * 2;
+            [
+                antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+            ]
+        }).collect::<Vec<_>>();
+        let network = NetworkData::try_new(table, edges).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from([0_u32, 0, 1, 1, 2, 2, 3, 3]),
+                treated_clusters: 2,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let assignment = [false, false, false, false, true, true, true, true];
+        assert!(estimate_cluster_interference_total(&query, &network, &assignment).is_ok());
+        assert!(estimate_cluster_interference_total_pointwise(&query, &network, &assignment).is_err());
+    }
 
     #[test]
     fn empty_network_matches_ordinary_randomized_difference() {
