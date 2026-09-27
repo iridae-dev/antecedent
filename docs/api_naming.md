@@ -18,7 +18,7 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 85 names as of 2.1**.
+The root namespace (`import antecedent`) is **frozen at 86 names as of 2.1**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
@@ -40,6 +40,11 @@ its result is also off the support-matrix axis.
 retained `RandomizedEffect` analysis. The result reports both marginal main
 effects and their interaction with separate conservative cellwise variances;
 it remains off the support-matrix axis and reports no interval.
+`MultiArmExperimentDesign` carries three or more actions and their known
+row-level assignment probabilities through retained `RandomizedEffect`
+analysis. The result reports all action contrasts to the reference arm with
+covariance-free variance bounds, observed arm support, and no interval or
+support-matrix license.
 `estimate_ancova_effect` complements
 one-covariate CUPED with multiple pre-treatment covariates for independent
 Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
@@ -81,7 +86,7 @@ the module path rather than importing it flat:
 ``antecedent.validation``.
 
 Each of those seventeen modules has an explicit, separately frozen `__all__`
-surface. The 85-name count is only the package-root contract; it does not add
+surface. The 86-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
 **18** further modules are reachable as ``antecedent.<name>`` (nothing stops
