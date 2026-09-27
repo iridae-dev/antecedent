@@ -667,8 +667,8 @@ def estimate_staggered_event_study(
     if not isinstance(query, StaggeredAdoption):
         raise CausalValueError("query must be a StaggeredAdoption")
     if query.event_study:
-        from .estimation import analyze
-        result = analyze(data, query)
+        from ._analyze import analyze
+        result = analyze(data, query=query)
         if result.panel_did is None or not isinstance(result.panel_did, StaggeredEventStudyEstimate):
             raise CausalValueError("retained event study did not return cohort-specific effects")
         return result.panel_did
