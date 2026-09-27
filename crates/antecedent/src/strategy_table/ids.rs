@@ -340,6 +340,8 @@ pub enum EstimatorId {
     RandomizedSurvivalProductLimit,
     /// Prespecified sequential inverse-probability regime value.
     LongitudinalIpwRegime,
+    /// Prespecified sequential g-formula value from supplied conditional rewards.
+    LongitudinalGFormulaRegime,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
     /// Doubly robust CATE learner (DRLearner).
@@ -788,6 +790,15 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "longitudinal.ipw_regime",
             provenance: ("estimate.longitudinal.ipw_regime", "estimate.longitudinal.ipw_regime"),
         },
+        EstimatorId::LongitudinalGFormulaRegime => EstimatorData {
+            name: "longitudinal.g_formula_regime",
+            parallel_task_dimension: "subject",
+            kernel_label: "longitudinal.g_formula_regime",
+            provenance: (
+                "estimate.longitudinal.g_formula_regime",
+                "estimate.longitudinal.g_formula_regime",
+            ),
+        },
         EstimatorId::Dml => EstimatorData {
             name: "dml",
             parallel_task_dimension: "crossfit.fold",
@@ -1034,7 +1045,8 @@ pub fn validate_static_pair(
             | EstimatorId::RandomizedIpwPolicy
             | EstimatorId::RandomizedMultiActionIpwPolicy
             | EstimatorId::RandomizedSurvivalProductLimit
-            | EstimatorId::LongitudinalIpwRegime,
+            | EstimatorId::LongitudinalIpwRegime
+            | EstimatorId::LongitudinalGFormulaRegime,
         )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
@@ -1201,15 +1213,20 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceHtHajek
         | EstimatorId::InterferenceClusterNeyman
         | EstimatorId::InterferenceBayesianGaussian => false,
-        EstimatorId::RandomizedHt | EstimatorId::RandomizedFixedCupedHt | EstimatorId::RandomizedWaldCace | EstimatorId::RandomizedSwitchbackHt | EstimatorId::RandomizedNeyman => {
+        EstimatorId::RandomizedHt
+        | EstimatorId::RandomizedFixedCupedHt
+        | EstimatorId::RandomizedWaldCace
+        | EstimatorId::RandomizedSwitchbackHt
+        | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
-        EstimatorId::RandomizedDrPolicy | EstimatorId::RandomizedIpwPolicy
+        EstimatorId::RandomizedDrPolicy
+        | EstimatorId::RandomizedIpwPolicy
         | EstimatorId::RandomizedMultiActionIpwPolicy => {
             matches!(method, EstimandMethod::RandomizedPolicyValue)
         }
         EstimatorId::RandomizedSurvivalProductLimit => false,
-        EstimatorId::LongitudinalIpwRegime => false,
+        EstimatorId::LongitudinalIpwRegime | EstimatorId::LongitudinalGFormulaRegime => false,
     }
 }
 

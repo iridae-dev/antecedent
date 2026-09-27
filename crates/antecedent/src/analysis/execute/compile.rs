@@ -776,12 +776,26 @@ impl super::Study {
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
-                        plan_id: Arc::from("longitudinal.ipw_regime"),
+                        plan_id: Arc::from(match q.method {
+                            antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                                "longitudinal.ipw_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                                "longitudinal.g_formula_regime"
+                            }
+                        }),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
-                        estimator: Some(Arc::from("longitudinal.ipw_regime")),
+                        estimator: Some(Arc::from(match q.method {
+                            antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                                "longitudinal.ipw_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                                "longitudinal.g_formula_regime"
+                            }
+                        })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },

@@ -544,6 +544,9 @@ pub struct SurvivalWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LongitudinalRegimeWire {
+    /// Named point method, defaulting to IPW for older artifacts.
+    #[serde(default = "default_longitudinal_result_method")]
+    pub method: String,
     /// Horvitz--Thompson regime value.
     pub value: f64,
     /// Effective sample size among matching observed histories.
@@ -560,6 +563,10 @@ pub struct LongitudinalRegimeWire {
     pub uncertainty: String,
     /// Known randomized probabilities or caller-declared excluded-fold predictions.
     pub probability_ownership: String,
+}
+
+fn default_longitudinal_result_method() -> String {
+    "ipw".into()
 }
 
 /// Composite result body. Every scientific axis is independently optional.
@@ -914,29 +921,44 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     if matches!(result.query, crate::CausalQueryWire::LongitudinalRegime(_))
         && result.longitudinal_regime.is_none()
     {
-        return Err(IoError::Convert("longitudinal regime artifact is missing its value section".into()));
+        return Err(IoError::Convert(
+            "longitudinal regime artifact is missing its value section".into(),
+        ));
     }
     if let Some(regime) = &result.longitudinal_regime {
         let crate::CausalQueryWire::LongitudinalRegime(query) = &result.query else {
-            return Err(IoError::Convert("longitudinal regime result is attached to a different query".into()));
+            return Err(IoError::Convert(
+                "longitudinal regime result is attached to a different query".into(),
+            ));
         };
-        if result.estimate.is_some() || result.standard_error.is_some()
-            || result.interval_lower.is_some() || result.interval_upper.is_some()
-            || !regime.value.is_finite() || !regime.effective_sample_size.is_finite()
-            || regime.effective_sample_size <= 0.0 || regime.effective_sample_size > query.subject_ids.len() as f64
+        if regime.method != query.method
+            || result.estimate.is_some()
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
+            || !regime.value.is_finite()
+            || !regime.effective_sample_size.is_finite()
+            || regime.effective_sample_size <= 0.0
+            || regime.effective_sample_size > query.subject_ids.len() as f64
             || !regime.matched_observed_fraction.is_finite()
             || !(0.0 < regime.matched_observed_fraction && regime.matched_observed_fraction <= 1.0)
-            || !regime.maximum_weight.is_finite() || regime.maximum_weight < 1.0
+            || !regime.maximum_weight.is_finite()
+            || regime.maximum_weight < 1.0
             || !regime.minimum_action_probability.is_finite()
             || regime.minimum_action_probability < query.minimum_probability
             || !regime.minimum_censoring_probability.is_finite()
             || regime.minimum_censoring_probability < query.minimum_probability
             || regime.uncertainty != "point_only_no_interval"
-            || regime.probability_ownership != if query.probabilities_known_by_design {
-                "known_sequential_randomization"
-            } else { "caller_declared_subject_excluded_fold_predictions" }
+            || regime.probability_ownership
+                != if query.probabilities_known_by_design {
+                    "known_sequential_randomization"
+                } else {
+                    "caller_declared_subject_excluded_fold_predictions"
+                }
         {
-            return Err(IoError::Convert("invalid longitudinal regime payload or fabricated interval".into()));
+            return Err(IoError::Convert(
+                "invalid longitudinal regime payload or fabricated interval".into(),
+            ));
         }
     }
     crate::causal_query_from_wire(&result.query)?;

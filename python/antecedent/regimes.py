@@ -37,6 +37,8 @@ class LongitudinalRegimeQuery:
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
     subject_ids: Sequence[str]
+    method: Literal["ipw", "g_formula"] = "ipw"
+    period_outcome_predictions: Sequence[Sequence[float]] | None = None
     censoring_probabilities: Sequence[Sequence[float]] | None = None
     outcome_observed: Sequence[bool] | None = None
     fold_ids: Sequence[int] | None = None
@@ -52,6 +54,14 @@ class LongitudinalRegimeQuery:
         if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
             raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
         n, periods = history.shape
+        if self.method not in ("ipw", "g_formula"):
+            raise ValueError("method must be 'ipw' or 'g_formula'")
+        predictions = None if self.period_outcome_predictions is None else np.asarray(self.period_outcome_predictions, dtype=np.float64)
+        if self.method == "g_formula":
+            if predictions is None or predictions.shape != (n, periods) or not np.isfinite(predictions).all():
+                raise ValueError("g_formula requires finite subject-by-period outcome predictions")
+        elif predictions is not None:
+            raise ValueError("ipw does not accept period_outcome_predictions")
         actions = np.asarray(self.actions)
         if actions.shape == (periods,):
             actions = np.broadcast_to(actions, (n, periods))
@@ -86,6 +96,8 @@ class LongitudinalRegimeQuery:
         object.__setattr__(self, "outcome_observed", tuple(map(bool, observed)))
         object.__setattr__(self, "subject_ids", ids)
         object.__setattr__(self, "fold_ids", folds)
+        if predictions is not None:
+            object.__setattr__(self, "period_outcome_predictions", tuple(tuple(map(float, row)) for row in predictions))
 
     @property
     def periods(self) -> int:
@@ -100,6 +112,7 @@ class LongitudinalRegimeEstimate:
     maximum_weight: float
     minimum_action_probability: float
     minimum_censoring_probability: float
+    method: str = "ipw"
     uncertainty: str = "point_only_no_interval"
     probability_ownership: str = "known_sequential_randomization"
     support_status: str = "unlicensed_point_utility"

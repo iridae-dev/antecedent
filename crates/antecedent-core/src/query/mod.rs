@@ -42,20 +42,20 @@ pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery}
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
 pub use interference::{
-    AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
-    InterferenceFunctional, InterferenceQuery,
+    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
+    EXPOSURE_LEVEL_TOLERANCE,
 };
-pub use longitudinal_regime::LongitudinalRegimeQuery;
+pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use policy_value::{MultiActionPolicyInputs, PolicyValueQuery};
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use randomized::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
 pub use response::{
-    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
-    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
-    TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
+    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec, ObservationAssumption,
+    ObservationSpec, ResponseFunctional, ResponseQuery, TemporalResponseLicense,
+    TemporalResponseSpec, MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
+    MAX_TEMPORAL_RESPONSE_HORIZONS, TEMPORAL_OBSERVATION_UNLICENSED,
 };
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
 pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};

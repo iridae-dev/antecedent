@@ -64,3 +64,43 @@ def test_longitudinal_refuses_unsupported_nuisance_ownership_and_bad_subjects():
     )
     with pytest.raises(CausalUnsupportedError, match="known sequential randomization"):
         antecedent.analyze(data, query=unsupported)
+
+
+def test_g_formula_regime_uses_main_analysis_and_round_trips_method():
+    data, base = fixture()
+    query = LongitudinalRegimeQuery(
+        outcome="y",
+        treatment_history=base.treatment_history,
+        actions=base.actions,
+        treatment_probabilities=base.treatment_probabilities,
+        subject_ids=base.subject_ids,
+        method="g_formula",
+        period_outcome_predictions=[[1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0]],
+        fold_ids=[0, 1, 0, 1],
+        excluded_fold_predictions=True,
+    )
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    assert result.longitudinal_regime.value == pytest.approx(3.5)
+    assert result.longitudinal_regime.method == "g_formula"
+    assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
+    assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert "conditional_period_reward_validity" in " ".join(result.assumptions or [])
+    assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
+    artifact = antecedent.load(prepared.export()).artifact
+    assert artifact.payload["longitudinal_regime"]["method"] == "g_formula"
+    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    assert query_artifact.payload["longitudinal_regime"]["method"] == "g_formula"
+
+
+def test_g_formula_query_refuses_missing_or_nonfinite_predictions():
+    _, base = fixture()
+    args = dict(
+        outcome="y", treatment_history=base.treatment_history, actions=base.actions,
+        treatment_probabilities=base.treatment_probabilities, subject_ids=base.subject_ids,
+        method="g_formula",
+    )
+    with pytest.raises(ValueError, match="requires finite"):
+        LongitudinalRegimeQuery(**args)
+    with pytest.raises(ValueError, match="requires finite"):
+        LongitudinalRegimeQuery(**args, period_outcome_predictions=[[float("nan"), 1.0]] * 4)

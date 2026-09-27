@@ -343,6 +343,7 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         ],
         CausalQueryWire::LongitudinalRegime(query) => vec![
             ("query_kind".into(), "longitudinal_regime".into()),
+            ("method".into(), query.method.clone()),
             ("outcome".into(), query.outcome.to_string()),
             ("periods".into(), query.periods.to_string()),
             ("subjects".into(), query.subject_ids.len().to_string()),

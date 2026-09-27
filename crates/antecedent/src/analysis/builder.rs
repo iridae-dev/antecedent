@@ -1493,12 +1493,20 @@ impl StudyBuilder {
                     message: "randomized survival requires the product-limit estimator",
                 });
             }
-            if matches!(query, CausalQuery::LongitudinalRegime(_))
-                && self.estimator.is_some_and(|id| id != EstimatorId::LongitudinalIpwRegime)
-            {
-                return Err(CausalError::Unsupported {
-                    message: "longitudinal regime value requires the sequential IPW estimator",
-                });
+            if let CausalQuery::LongitudinalRegime(regime) = &query {
+                let expected = match regime.method {
+                    antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                        EstimatorId::LongitudinalIpwRegime
+                    }
+                    antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                        EstimatorId::LongitudinalGFormulaRegime
+                    }
+                };
+                if self.estimator.is_some_and(|id| id != expected) {
+                    return Err(CausalError::Unsupported {
+                        message: "longitudinal regime estimator must match the selected method",
+                    });
+                }
             }
             if graph.class() != GraphClass::RandomizedTrial {
                 return Err(CausalError::Unsupported {
@@ -1521,6 +1529,7 @@ impl StudyBuilder {
                             | EstimatorId::RandomizedNeyman
                             | EstimatorId::RandomizedSurvivalProductLimit
                             | EstimatorId::LongitudinalIpwRegime
+                            | EstimatorId::LongitudinalGFormulaRegime
                     )
                 })
                 || self.estimator_spec.is_some()

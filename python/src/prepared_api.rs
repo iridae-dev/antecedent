@@ -3585,7 +3585,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
-        *, accepted=false, seed=1, threads=None, options=None))]
+        *, method="ipw", period_outcome_predictions=Vec::new(), accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
@@ -3603,6 +3603,8 @@ impl PyPreparedAnalysis {
         excluded_fold_predictions: bool,
         probabilities_known_by_design: bool,
         minimum_probability: f64,
+        method: &str,
+        period_outcome_predictions: Vec<f64>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3614,8 +3616,23 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let method = match method {
+                "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
+                "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                _ => {
+                    return Err(py_err(antecedent::CausalError::Compile {
+                        message: "unknown longitudinal regime method".into(),
+                    }))
+                }
+            };
             let query = antecedent_core::LongitudinalRegimeQuery {
                 outcome: outcome_id,
+                method,
+                period_outcome_predictions: if period_outcome_predictions.is_empty() {
+                    None
+                } else {
+                    Some(period_outcome_predictions.into())
+                },
                 periods,
                 treatment_history: treatment_history.into(),
                 regime_actions: regime_actions.into(),
