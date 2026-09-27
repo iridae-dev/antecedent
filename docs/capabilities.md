@@ -772,8 +772,15 @@ Staggered adoption and synthetic-panel designs also run through the retained
 now use that flow as fixed-bandwidth, graphless local ratio queries, alongside
 their existing direct utilities. The retained point is bias corrected by the
 same native kernel and reports the declared cutoff, bandwidth, contrast type,
-local counts, first stage, and descriptive HC0 standard errors for the ratio
-and component contrasts. It publishes no interval.
+local counts, first stage, and HC0 standard errors for the ratio and component
+contrasts. The retained result publishes a pointwise 95% normal interval when
+the first stage passes its weak-stage check and the ratio SE is positive. The
+fuzzy jump uses a cubic pilot; the kink uses a quartic pilot to remove the
+wide-bandwidth quartic-trend bias found in stress calibration. Fixed-bandwidth
+known-truth repeated sampling covered 1,898/2,000 fuzzy-jump draws and
+1,906/2,000 kink draws, including a quartic-trend kink fixture. These
+graphless routes remain outside the geometric support matrix; the coverage
+fixtures do not validate arbitrary bandwidth choices or weak first stages.
 Staggered event studies also run through retained `prepare` / `analyze` with
 `StaggeredAdoption(..., event_study=True)`; the direct utility shares its native
 estimator.

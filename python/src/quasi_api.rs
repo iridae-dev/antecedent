@@ -117,7 +117,7 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
     }
 }
 
-/// Retained local ratio result with a descriptive HC0 standard error and no interval.
+/// Retained local ratio result with a fixed-bandwidth normal interval.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub struct LocalPolynomialRatioSection {
@@ -130,6 +130,8 @@ pub struct LocalPolynomialRatioSection {
     pub n_left: usize,
     pub n_right: usize,
     pub standard_error: f64,
+    pub ci_lower: Option<f64>,
+    pub ci_upper: Option<f64>,
     pub reduced_form_standard_error: f64,
     pub first_stage_standard_error: f64,
     pub uncertainty: String,
@@ -147,6 +149,8 @@ impl From<&antecedent::LocalPolynomialRatioEstimate> for LocalPolynomialRatioSec
             n_left: value.n_left,
             n_right: value.n_right,
             standard_error: value.standard_error,
+            ci_lower: value.ci_lower,
+            ci_upper: value.ci_upper,
             reduced_form_standard_error: value.reduced_form_standard_error,
             first_stage_standard_error: value.first_stage_standard_error,
             uncertainty: value.uncertainty.to_string(),

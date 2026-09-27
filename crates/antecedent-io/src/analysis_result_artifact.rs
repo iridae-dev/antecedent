@@ -557,7 +557,7 @@ pub struct SyntheticDidWire {
     pub uncertainty: String,
 }
 
-/// Retained local ratio point result, without a calibrated interval.
+/// Retained local ratio result and its fixed-bandwidth normal interval.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct LocalPolynomialRatioWire {
@@ -577,13 +577,19 @@ pub struct LocalPolynomialRatioWire {
     pub n_left: usize,
     /// Local observations on or above the cutoff.
     pub n_right: usize,
-    /// Descriptive HC0 standard error.
+    /// HC0 delta-method standard error.
     pub standard_error: f64,
+    /// Pointwise normal lower endpoint when the ratio interval is finite.
+    #[serde(default)]
+    pub ci_lower: Option<f64>,
+    /// Pointwise normal upper endpoint when the ratio interval is finite.
+    #[serde(default)]
+    pub ci_upper: Option<f64>,
     /// Descriptive HC0 reduced-form standard error.
     pub reduced_form_standard_error: f64,
     /// Descriptive HC0 first-stage standard error.
     pub first_stage_standard_error: f64,
-    /// Point-only uncertainty semantics.
+    /// Interval construction or legacy point-only uncertainty semantics.
     pub uncertainty: String,
 }
 
@@ -1184,11 +1190,24 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::CausalQueryWire::LocalPolynomialRatio(query) => query,
             _ => return Err(IoError::Convert("local ratio result requires matching query".into())),
         };
+        let legacy_point_only = fit.uncertainty == "rbc_point_with_unvalidated_hc0_standard_error_no_interval";
+        let interval_available = !legacy_point_only && fit.standard_error > 0.0;
+        let z = antecedent_stats::normal_ppf(0.975);
+        let lower = fit.effect - z * fit.standard_error;
+        let upper = fit.effect + z * fit.standard_error;
+        let tolerance = 1e-10 * (1.0 + fit.effect.abs() + (z * fit.standard_error).abs());
+        let bounds_match = |bounds: Option<f64>, expected: f64| {
+            if interval_available {
+                bounds.is_some_and(|value| value.is_finite() && (value - expected).abs() <= tolerance)
+            } else { bounds.is_none() }
+        };
         if fit.cutoff != query.cutoff
             || fit.bandwidth != query.bandwidth
             || fit.kink != query.kink
             || result.estimate != Some(fit.effect)
-            || result.standard_error.is_some()
+            || (if interval_available { result.standard_error != Some(fit.standard_error) } else { result.standard_error.is_some() })
+            || !bounds_match(fit.ci_lower, lower)
+            || !bounds_match(fit.ci_upper, upper)
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
             || !fit.effect.is_finite()
@@ -1203,7 +1222,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || fit.first_stage_standard_error < 0.0
             || fit.n_left < 3
             || fit.n_right < 3
-            || fit.uncertainty != "rbc_point_with_unvalidated_hc0_standard_error_no_interval"
+            || (!legacy_point_only && fit.uncertainty != "rbc_hc0_delta_normal_fixed_bandwidth")
         {
             return Err(IoError::Convert("invalid local ratio support or fabricated interval".into()));
         }

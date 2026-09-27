@@ -427,6 +427,8 @@ class LocalPolynomialRatioSection:
     n_left: int
     n_right: int
     standard_error: float
+    ci_lower: float | None
+    ci_upper: float | None
     reduced_form_standard_error: float
     first_stage_standard_error: float
     uncertainty: str

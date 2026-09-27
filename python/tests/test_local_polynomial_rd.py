@@ -40,8 +40,8 @@ def test_fuzzy_rd_local_quadratic_recovers_known_local_effect():
     assert result.observations_right == 316
     assert result.standard_error > 0
     assert result.ci_lower < result.estimate < result.ci_upper
-    assert result.uncertainty == "local_quadratic_rbc_hc0_delta_normal_unvalidated"
-    assert result.support_status == "unlicensed_point_utility"
+    assert result.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
+    assert result.support_status == "off_axis_interval_evidence"
     assert "exclusion_restriction_for_threshold_instrument" in result.assumptions
     assert "cubic_pilot_bias_correction_at_same_bandwidth" in result.diagnostics
     assert "normal_approximation_interval_not_calibrated_or_licensed" in result.diagnostics
@@ -59,11 +59,12 @@ def test_fuzzy_regression_kink_recovers_known_local_effect():
     assert result.first_stage_discontinuity == pytest.approx(0.8, abs=1e-10)
     assert result.design == "fuzzy_regression_kink_local_quadratic"
     assert "potential_outcome_derivatives_are_smooth_at_cutoff" in result.assumptions
-    assert result.uncertainty == "local_quadratic_rbc_hc0_delta_normal_unvalidated"
+    assert result.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
+    assert "quartic_pilot_bias_correction_at_same_bandwidth" in result.diagnostics
 
 
 @pytest.mark.parametrize("kink", [False, True])
-def test_retained_local_ratio_uses_main_analyze_flow_without_interval(kink: bool):
+def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(kink: bool):
     running: list[float] = []
     treatment: list[float] = []
     outcome: list[float] = []
@@ -83,17 +84,17 @@ def test_retained_local_ratio_uses_main_analyze_flow_without_interval(kink: bool
     fit = result.local_polynomial_ratio
     assert fit is not None
     assert fit.estimate == pytest.approx(3.0, abs=1e-7)
-    assert fit.ci_lower is None and fit.ci_upper is None
-    assert np.isnan(result.estimate.se_analytic)
+    assert fit.ci_lower < 3.0 < fit.ci_upper
+    assert result.estimate.se_analytic == pytest.approx(fit.standard_error)
     direct = (estimate_regression_kink if kink else estimate_fuzzy_rd)(rows, query)
     assert fit.standard_error == pytest.approx(direct.standard_error)
     assert fit.reduced_form_standard_error == pytest.approx(direct.reduced_form_standard_error)
     assert fit.first_stage_standard_error == pytest.approx(direct.first_stage_standard_error)
     assert (fit.cutoff, fit.bandwidth, fit.kink) == (query.cutoff, query.bandwidth, kink)
-    assert fit.uncertainty == "rbc_point_with_unvalidated_hc0_standard_error_no_interval"
+    assert fit.uncertainty == "rbc_hc0_delta_normal_fixed_bandwidth"
     assert fit.observations_left == fit.observations_right == 316
-    assert "no_calibrated_interval" in fit.diagnostics
-    assert "cubic_pilot_bias_correction_at_same_bandwidth" in fit.diagnostics
+    assert "calibrated_strong_first_stage_fixture" in fit.diagnostics
+    assert ("quartic_pilot_bias_correction_at_same_bandwidth" if kink else "cubic_pilot_bias_correction_at_same_bandwidth") in fit.diagnostics
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).local_polynomial_ratio == fit
 
 

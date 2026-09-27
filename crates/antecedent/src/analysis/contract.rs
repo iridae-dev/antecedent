@@ -3342,6 +3342,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             n_left: fit.n_left,
             n_right: fit.n_right,
             standard_error: fit.standard_error,
+            ci_lower: fit.ci_lower,
+            ci_upper: fit.ci_upper,
             reduced_form_standard_error: fit.reduced_form_standard_error,
             first_stage_standard_error: fit.first_stage_standard_error,
             uncertainty: fit.uncertainty.to_string(),

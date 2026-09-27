@@ -1,7 +1,7 @@
 //! Shared native local-polynomial fuzzy RD and regression-kink kernel.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Bias-corrected local ratio and descriptive HC0 uncertainty.
+/// Bias-corrected local ratio and HC0 delta-method uncertainty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LocalPolynomialRatioFit {
     /// Reduced-form to first-stage ratio.
@@ -16,9 +16,9 @@ pub struct LocalPolynomialRatioFit {
     pub n_right: usize,
     /// HC0 delta-method standard error.
     pub standard_error: f64,
-    /// Unvalidated normal interval lower endpoint for direct-utility compatibility.
+    /// Normal interval lower endpoint at the fixed bandwidth.
     pub ci_lower: f64,
-    /// Unvalidated normal interval upper endpoint for direct-utility compatibility.
+    /// Normal interval upper endpoint at the fixed bandwidth.
     pub ci_upper: f64,
     /// Reduced-form HC0 standard error.
     pub reduced_form_standard_error: f64,
@@ -165,6 +165,94 @@ fn sandwich_four(inverse: [[f64; 4]; 4], meat: [[f64; 4]; 4]) -> [[f64; 4]; 4] {
     covariance
 }
 
+#[derive(Clone, Copy)]
+struct LocalQuarticSlopeFit {
+    slope_y: f64,
+    slope_t: f64,
+    var_y: f64,
+    var_t: f64,
+    cov_yt: f64,
+    count: usize,
+}
+
+fn invert_five(mut matrix: [[f64; 5]; 5]) -> Option<[[f64; 5]; 5]> {
+    let mut inverse = [[0.0; 5]; 5];
+    for index in 0..5 { inverse[index][index] = 1.0; }
+    for column in 0..5 {
+        let pivot = (column..5).max_by(|left, right| {
+            matrix[*left][column].abs().total_cmp(&matrix[*right][column].abs())
+        })?;
+        if matrix[pivot][column].abs() < 1e-12 { return None; }
+        matrix.swap(column, pivot);
+        inverse.swap(column, pivot);
+        let scale = matrix[column][column];
+        for index in 0..5 {
+            matrix[column][index] /= scale;
+            inverse[column][index] /= scale;
+        }
+        for row in 0..5 {
+            if row == column { continue; }
+            let scale = matrix[row][column];
+            for index in 0..5 {
+                matrix[row][index] -= scale * matrix[column][index];
+                inverse[row][index] -= scale * inverse[column][index];
+            }
+        }
+    }
+    Some(inverse)
+}
+
+fn local_quartic_slope_side(
+    running: &[f64], outcome: &[f64], treatment: &[f64], cutoff: f64,
+    bandwidth: f64, right_side: bool,
+) -> Option<LocalQuarticSlopeFit> {
+    let mut gram = [[0.0; 5]; 5];
+    let mut rhs_y = [0.0; 5];
+    let mut rhs_t = [0.0; 5];
+    let mut rows = Vec::new();
+    for index in 0..running.len() {
+        let distance = (running[index] - cutoff) / bandwidth;
+        if distance == 0.0 || distance.abs() >= 1.0
+            || (right_side && distance < 0.0) || (!right_side && distance > 0.0) {
+            continue;
+        }
+        let basis = [1.0, distance, distance.powi(2), distance.powi(3), distance.powi(4)];
+        let weight = 1.0 - distance.abs();
+        rows.push((basis, weight, outcome[index], treatment[index]));
+        for row in 0..5 {
+            rhs_y[row] += weight * basis[row] * outcome[index];
+            rhs_t[row] += weight * basis[row] * treatment[index];
+            for column in 0..5 { gram[row][column] += weight * basis[row] * basis[column]; }
+        }
+    }
+    let inverse = invert_five(gram)?;
+    let mut beta_y = [0.0; 5];
+    let mut beta_t = [0.0; 5];
+    for row in 0..5 {
+        for column in 0..5 {
+            beta_y[row] += inverse[row][column] * rhs_y[column];
+            beta_t[row] += inverse[row][column] * rhs_t[column];
+        }
+    }
+    let mut var_y = 0.0;
+    let mut var_t = 0.0;
+    let mut cov_yt = 0.0;
+    for (basis, weight, value_y, value_t) in rows.iter() {
+        let leverage = (0..5).map(|index| inverse[1][index] * basis[index]).sum::<f64>();
+        let score_y = weight * leverage
+            * (value_y - (0..5).map(|index| beta_y[index] * basis[index]).sum::<f64>());
+        let score_t = weight * leverage
+            * (value_t - (0..5).map(|index| beta_t[index] * basis[index]).sum::<f64>());
+        var_y += score_y * score_y;
+        var_t += score_t * score_t;
+        cov_yt += score_y * score_t;
+    }
+    Some(LocalQuarticSlopeFit {
+        slope_y: beta_y[1], slope_t: beta_t[1], var_y, var_t, cov_yt,
+        count: rows.len(),
+    })
+}
+
 fn local_cubic_side(
     running: &[f64],
     outcome: &[f64],
@@ -267,7 +355,7 @@ fn cubic_bias_projection(
     Some(projection)
 }
 
-/// Fit local quadratic jumps or slopes with cubic-pilot bias correction.
+/// Fit local quadratic jumps with a cubic pilot, or kinks with a quartic pilot.
 pub fn fit_local_polynomial_ratio(
     running: &[f64],
     outcome: &[f64],
@@ -329,25 +417,41 @@ pub fn fit_local_polynomial_ratio(
     let corrected_t_left = left_t_p[coefficient] - left_projection[coefficient] * left_q.beta_t[3];
     let corrected_t_right =
         right_t_p[coefficient] - right_projection[coefficient] * right_q.beta_t[3];
-    let reduced_form = (corrected_y_right - corrected_y_left) * scale;
-    let first_stage = (corrected_t_right - corrected_t_left) * scale;
+    let mut reduced_form = (corrected_y_right - corrected_y_left) * scale;
+    let mut first_stage = (corrected_t_right - corrected_t_left) * scale;
     if first_stage.abs() < 1e-10 {
         return Err(String::from(
             "local treatment discontinuity is too small to form a fuzzy design estimate",
         ));
     }
-    let variance_y = (left_q.var_y[coefficient][coefficient]
+    let mut variance_y = (left_q.var_y[coefficient][coefficient]
         + right_q.var_y[coefficient][coefficient])
         * scale
         * scale;
-    let variance_t = (left_q.var_t[coefficient][coefficient]
+    let mut variance_t = (left_q.var_t[coefficient][coefficient]
         + right_q.var_t[coefficient][coefficient])
         * scale
         * scale;
-    let covariance_yt = (left_q.cov_yt[coefficient][coefficient]
+    let mut covariance_yt = (left_q.cov_yt[coefficient][coefficient]
         + right_q.cov_yt[coefficient][coefficient])
         * scale
         * scale;
+    if kink {
+        // A fixed, wide bandwidth can leave a common quartic outcome trend
+        // in the q=3 local slopes. A q=4 pilot removes that term from the
+        // slope contrast and supplies the matching HC0 joint covariance.
+        let left = local_quartic_slope_side(&running, &outcome, &treatment, cutoff, bandwidth, false)
+            .filter(|fit| fit.count >= 6)
+            .ok_or_else(|| String::from("kink bias correction lacks quartic support on the left side"))?;
+        let right = local_quartic_slope_side(&running, &outcome, &treatment, cutoff, bandwidth, true)
+            .filter(|fit| fit.count >= 6)
+            .ok_or_else(|| String::from("kink bias correction lacks quartic support on the right side"))?;
+        reduced_form = (right.slope_y - left.slope_y) / bandwidth;
+        first_stage = (right.slope_t - left.slope_t) / bandwidth;
+        variance_y = (left.var_y + right.var_y) / bandwidth.powi(2);
+        variance_t = (left.var_t + right.var_t) / bandwidth.powi(2);
+        covariance_yt = (left.cov_yt + right.cov_yt) / bandwidth.powi(2);
+    }
     let se_first = variance_t.max(0.0).sqrt();
     if first_stage.abs() <= 1.96 * se_first {
         return Err(String::from(

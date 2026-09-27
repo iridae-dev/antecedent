@@ -35,7 +35,7 @@ impl CheckedLocalPolynomialRatioOperation {
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
         {
-            return Err(CausalError::Unsupported { message: "local ratio requires a graphless, fixed-bandwidth, point-only frequentist design" });
+            return Err(CausalError::Unsupported { message: "local ratio requires a graphless, fixed-bandwidth frequentist design" });
         }
         for variable in [query.outcome, query.treatment, query.running] {
             data.schema().get(variable).map_err(|error| CausalError::Compile { message: error.to_string() })?;
@@ -65,15 +65,19 @@ impl CheckedLocalPolynomialRatioOperation {
             column(self.query.running)?, column(self.query.outcome)?, column(self.query.treatment)?,
             self.query.cutoff, self.query.bandwidth, self.query.kink,
         ).map_err(|message| CausalError::Compile { message })?;
-        let estimate = EffectEstimate::new(fit.estimate, f64::NAN,
+        let interval_available = fit.standard_error.is_finite() && fit.standard_error > 0.0;
+        let estimate = EffectEstimate::new(fit.estimate,
+            if interval_available { fit.standard_error } else { f64::NAN },
             self.identification.required_assumptions.clone(), antecedent_estimate::OverlapPolicy::ExplicitOverride);
         let mut result = finish_identified_execute_with_context(&self.result_context, Some(data), IdentifiedExecuteFinish {
             physical: &self.physical, identification: self.identification.clone(), estimand: self.estimand.clone(),
             estimate, identifier_id: IdentifierId::RandomizedDesign, estimator_id: EstimatorId::RandomizedHt,
             treatment: self.query.treatment, outcome: self.query.outcome, identify_cached: false,
             extra_diagnostics: vec![Diagnostic::new("estimate.quasi.local_ratio.support", DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info, format!("{} left and {} right local observations; first stage {}; fixed bandwidth {}; HC0 standard error is descriptive; no calibrated interval",
-                fit.n_left, fit.n_right, fit.first_stage, self.query.bandwidth))],
+                DiagnosticSeverity::Info, format!("{} left and {} right local observations; first stage {}; fixed bandwidth {}; {} pilot and HC0 delta-method ratio SE; 95% normal interval calibrated on strong-first-stage known-truth fixtures{}",
+                fit.n_left, fit.n_right, fit.first_stage, self.query.bandwidth,
+                if self.query.kink { "quartic" } else { "cubic" },
+                if interval_available { "" } else { "; no positive finite SE, interval withheld" }))],
             refutations: Vec::new(), distribution: None, mediation: None,
             wall_time_ns: 0, bootstrap_replicates_ok: None, cancelled: false, early_stopped: false,
             extras: IdentifiedExecuteExtras::default(),
@@ -82,9 +86,11 @@ impl CheckedLocalPolynomialRatioOperation {
             effect: fit.estimate, reduced_form: fit.reduced_form, first_stage: fit.first_stage,
             cutoff: self.query.cutoff, bandwidth: self.query.bandwidth, kink: self.query.kink,
             n_left: fit.n_left, n_right: fit.n_right, standard_error: fit.standard_error,
+            ci_lower: interval_available.then_some(fit.ci_lower),
+            ci_upper: interval_available.then_some(fit.ci_upper),
             reduced_form_standard_error: fit.reduced_form_standard_error,
             first_stage_standard_error: fit.first_stage_standard_error,
-            uncertainty: Arc::from("rbc_point_with_unvalidated_hc0_standard_error_no_interval"),
+            uncertainty: Arc::from("rbc_hc0_delta_normal_fixed_bandwidth"),
         });
         Ok(result)
     }
