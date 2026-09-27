@@ -149,6 +149,7 @@ mod tests {
                     }
                 }
             }
+            let mut covered_90 = [0_usize; 2];
             let mut covered_95 = [0_usize; 2];
             for _ in 0..simulations {
                 let outcomes = cohorts.iter().zip(&periods).map(|(&cohort, &period)| {
@@ -167,13 +168,18 @@ mod tests {
                         assert_eq!(bounds[0] <= 2.0 && 2.0 <= bounds[1],
                             (fit.effect - 2.0).abs() <= antecedent_stats::normal_ppf(0.975) * fit.standard_error);
                     }
+                    covered_90[target] += usize::from((fit.effect - 2.0).abs()
+                        <= antecedent_stats::normal_ppf(0.95) * fit.standard_error);
                 }
             }
-            let coverage = covered_95.map(|hits| hits as f64 / simulations as f64);
-            println!("staggered event 95% coverage, clusters/group={clusters_per_group}: {coverage:?}");
+            let coverage_90 = covered_90.map(|hits| hits as f64 / simulations as f64);
+            let coverage_95 = covered_95.map(|hits| hits as f64 / simulations as f64);
+            println!("staggered event coverage, clusters/group={clusters_per_group}: 90%={coverage_90:?}, 95%={coverage_95:?}");
             if clusters_per_group >= 24 {
-                let mcse = (0.95_f64 * 0.05 / simulations as f64).sqrt();
-                assert!(coverage.iter().all(|rate| (rate - 0.95).abs() <= 3.0 * mcse));
+                for (nominal, coverage) in [(0.90_f64, coverage_90), (0.95, coverage_95)] {
+                    let mcse = (nominal * (1.0 - nominal) / simulations as f64).sqrt();
+                    assert!(coverage.iter().all(|rate| (rate - nominal).abs() <= 3.0 * mcse));
+                }
             }
         }
     }

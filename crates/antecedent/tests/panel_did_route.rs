@@ -314,3 +314,48 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
     );
     assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
 }
+
+fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelDidQuery) {
+    let mut outcome = Vec::new();
+    let mut subjects = Vec::new();
+    let mut clusters = Vec::new();
+    let mut periods = Vec::new();
+    let mut cohorts = Vec::new();
+    for (group, cohort) in [("control", 0), ("treated", 3)] {
+        for cluster in 0..clusters_per_group {
+            let id = Arc::<str>::from(format!("{group}-{cluster}"));
+            for period in 1..=4 {
+                subjects.push(id.clone());
+                clusters.push(id.clone());
+                periods.push(period);
+                cohorts.push(cohort);
+                let noise = ((cluster % 7) as f64 - 3.0) * ((period % 3) as f64 - 1.0) / 10.0;
+                outcome.push(5.0 + 2.0 * period as f64 + noise
+                    + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 });
+            }
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let query = PanelDidQuery::staggered_event_study(
+        VariableId::from_raw(0), subjects, clusters, periods, cohorts,
+    );
+    (data, query)
+}
+
+#[test]
+fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
+    for clusters_per_group in [8, 24] {
+        let (data, query) = staggered_interval_fixture(clusters_per_group);
+        let context = ExecutionContext::for_tests(111);
+        let result = Study::tabular(data).query(query).build().unwrap().run(&context).unwrap();
+        let panel = result.panel_did.as_ref().unwrap();
+        assert_eq!(panel.event_time_effects.len(), 3);
+        for (effect, truth) in panel.event_time_effects.iter().zip([0.0, 4.0, 4.0]) {
+            assert!((effect.effect - truth).abs() < 1e-10);
+            assert!(effect.standard_error > 0.0);
+            assert_eq!(effect.clusters, 2 * clusters_per_group);
+            assert_eq!(effect.treated_subjects, clusters_per_group);
+            assert_eq!(effect.comparison_subjects, clusters_per_group);
+        }
+    }
+}
