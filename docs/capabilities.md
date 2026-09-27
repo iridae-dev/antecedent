@@ -587,6 +587,11 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   exposure mapping, and exposure-contrast estimands with Horvitz–Thompson and
   Hájek estimates (`result.interference`). The network and realized assignment
   are fixed and supplied by the caller on `InterferenceQuery`.
+  A second retained frequentist construction accepts completely randomized
+  clusters with an explicit matching `PartialInterference` partition,
+  `NeighborFraction`, and the total exposure contrast `(0, 0)` to `(1, 1)`.
+  It requires at least two clusters per arm and reports a conservative
+  cluster-level variance without an interval or a Bernoulli calibration claim.
   `interference.estimate` remains an unlicensed utility over every design and
   exposure mapping; it returns bare numbers.
 * **Randomized experiment ITT** (`antecedent.experiment`): `ExperimentDesign`
@@ -594,14 +599,16 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   intention-to-treat contrast into graphless `analyze` / `prepare`. The native
   Rust route retains the original `RandomizedEffect` query and experiment
   identity rather than treating it as an interference query. Bernoulli,
-  complete, and stratified assignment are retained. Bernoulli uses
+  complete, stratified, and cluster assignment are retained. Bernoulli uses
   a Horvitz–Thompson contrast and its assignment-design variance; complete
   randomization uses difference in means with a Neyman conservative variance;
   stratified assignment uses block-weighted differences and blockwise Neyman
-  variance. The result retains design type, arm counts, block labels and unit
+  variance. Cluster assignment uses unit-weighted cluster totals and a
+  conservative cluster-level Neyman variance, requiring at least two clusters
+  in each arm. The result retains design type, arm counts, block labels and unit
   IDs, and labels uncertainty without claiming a confidence interval. These
   design queries are off the support-matrix axis and do not imply a license;
-  results report `evidence_status="off_axis"`. Cluster assignment, multi-arm,
+  results report `evidence_status="off_axis"`. Multi-arm,
   factorial, switchback, and noncompliance remain explicit refusals on this
   retained query route.
   `experiment.estimate_complier_effect` provides randomized
@@ -698,10 +705,21 @@ support-matrix license; both remain `unlicensed_point_utility`.
 
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no
-interval. The retained `analyze` route supports Bernoulli, complete, and
-stratified designs; other design families still refuse there.
+interval. The retained `analyze` route supports Bernoulli, complete,
+stratified, and cluster designs; other design families still refuse there.
 
-## Longitudinal regime value (point utility)
+## Longitudinal regime value
+
+`antecedent.regimes.LongitudinalRegimeQuery` retains one outcome row per
+subject and the subject's complete binary treatment history in graphless
+`prepare` / `analyze`. It accepts a static action sequence or a prespecified
+action matrix, known sequential randomization probabilities, optional
+censoring probabilities and observed-outcome flags, unique subject IDs, and
+one fold ID per subject. The study freezes these design facts, reports the
+regime value and weight diagnostics, and refreshes only the aligned outcome
+rows. The answer is point-only with no effect or interval placeholder.
+Caller-estimated probabilities are refused on this retained path, and no
+support-matrix license or cross-fitting claim is made.
 
 `antecedent.regimes.evaluate_regime_value` evaluates a prespecified static or
 history-adaptive binary regime from subject-level treatment histories. It uses

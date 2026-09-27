@@ -18,7 +18,7 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 78 names as of 2.1**.
+The root namespace (`import antecedent`) is **frozen at 80 names as of 2.1**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
@@ -166,6 +166,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
 | Structural transport (1.10 trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the 2.0 compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
+| Longitudinal regime value | `LongitudinalRegimeQuery` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegimeQuery(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and off the support-matrix axis |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
