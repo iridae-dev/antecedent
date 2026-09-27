@@ -3286,7 +3286,8 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, outcome, network, realized_assignment,
         assignment_kind, assignment_probabilities, treated, clusters, treated_clusters, exposure,
-        from_level, to_level, *, probability_draws=10_000, accepted=false, seed=1, threads=None,
+        from_level, to_level, *, probability_draws=10_000, low_probability=0.0,
+        high_probability=0.0, realized_saturation=Vec::new(), accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_interference(
@@ -3306,6 +3307,9 @@ impl PyPreparedAnalysis {
         from_level: (f64, f64),
         to_level: (f64, f64),
         probability_draws: u32,
+        low_probability: f64,
+        high_probability: f64,
+        realized_saturation: Vec<f64>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3325,6 +3329,9 @@ impl PyPreparedAnalysis {
                     treated,
                     clusters,
                     treated_clusters,
+                    low_probability,
+                    high_probability,
+                    realized_saturation,
                     exposure,
                     from_level,
                     to_level,

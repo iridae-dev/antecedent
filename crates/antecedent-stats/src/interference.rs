@@ -151,6 +151,11 @@ pub fn exposure_probabilities(
     monte_carlo_draws: u32,
     seed: u64,
 ) -> Result<ExposureProbabilities, StatsError> {
+    if matches!(design, AssignmentDesign::TwoStageSaturation { .. }) {
+        return Err(StatsError::Backend(
+            "two-stage saturation uses the exact saturation estimator, not generic assignment enumeration".into(),
+        ));
+    }
     let n = incoming.len();
     validate_design(design, n)?;
     let support_dim = match design {
@@ -335,6 +340,9 @@ fn validate_design(design: &AssignmentDesign, n: usize) -> Result<(), StatsError
                 Ok(())
             }
         }
+        AssignmentDesign::TwoStageSaturation { .. } => {
+            return Err(StatsError::Backend("use the exact two-stage saturation estimator".into()));
+        }
         _ => Ok(()),
     }
 }
@@ -383,6 +391,9 @@ fn enumerate_assignments(
                 }
             }
         }
+        AssignmentDesign::TwoStageSaturation { .. } => {
+            return Err(StatsError::Backend("use the exact two-stage saturation estimator".into()));
+        }
     }
     Ok(())
 }
@@ -424,6 +435,7 @@ impl AssignmentSampler {
             AssignmentDesign::CompleteRandomization { .. } => n,
             AssignmentDesign::ClusterRandomization { .. } => cluster_ids.len(),
             AssignmentDesign::Bernoulli { .. } => 0,
+            AssignmentDesign::TwoStageSaturation { .. } => 0,
         };
         let chosen = vec![false; cluster_ids.len()];
         Self { cluster_ids, unit_cluster_pos, keys: Vec::with_capacity(key_capacity), chosen }
@@ -465,6 +477,9 @@ impl AssignmentSampler {
                 for (slot, &pos) in out.iter_mut().zip(&self.unit_cluster_pos) {
                     *slot = self.chosen[pos];
                 }
+            }
+            AssignmentDesign::TwoStageSaturation { .. } => {
+                unreachable!("two-stage saturation is refused before generic sampling")
             }
         }
     }

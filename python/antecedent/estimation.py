@@ -3061,6 +3061,7 @@ class _PrepareRoute:
     def _interference(self) -> tuple[Any, Any]:
         from .interference import (
             ClusterRandomization,
+            SaturationDesign,
             _assignment_args,
             _edge_values,
             _exposure_name,
@@ -3069,7 +3070,10 @@ class _PrepareRoute:
 
         query = cast(InterferenceQuery, self.query)
         self._refuse_design_options(
-            "InterferenceQuery", "interference.design", "interference.ht_hajek"
+            "InterferenceQuery", "interference.design",
+            "interference.saturation_exact" if isinstance(query.assignment, SaturationDesign)
+            else "interference.cluster_neyman" if isinstance(query.assignment, ClusterRandomization)
+            else "interference.ht_hajek",
         )
         if query.network is None or query.realized_assignment is None:
             raise CausalValueError(
@@ -3077,9 +3081,9 @@ class _PrepareRoute:
                 "exposure edges) and realized_assignment="
             )
         if query.partial_interference is not None:
-            if not isinstance(query.assignment, ClusterRandomization):
+            if not isinstance(query.assignment, (ClusterRandomization, SaturationDesign)):
                 raise CausalValueError(
-                    "partial_interference requires ClusterRandomization so cluster assignment is explicit"
+                    "partial_interference requires cluster or saturation randomization so cluster assignment is explicit"
                 )
             partial_clusters = list(query.partial_interference.clusters)
             assignment_clusters = list(query.assignment.clusters)
@@ -3110,7 +3114,7 @@ class _PrepareRoute:
                 raise CausalValueError(
                     "partial-interference assumption violated: network edge crosses cluster boundary"
                 )
-        elif isinstance(query.assignment, ClusterRandomization):
+        elif isinstance(query.assignment, (ClusterRandomization, SaturationDesign)):
             raise CausalValueError(
                 "cluster interference requires partial_interference=PartialInterference(clusters)"
             )
@@ -3132,6 +3136,9 @@ class _PrepareRoute:
             (contrast.from_.own, contrast.from_.neighbors),
             (contrast.to.own, contrast.to.neighbors),
             probability_draws=query.probability_draws,
+            low_probability=design.get("low_probability", 0.0),
+            high_probability=design.get("high_probability", 0.0),
+            realized_saturation=design.get("realized_saturation", []),
             accepted=self.accepted,
             **self._common(),
         )

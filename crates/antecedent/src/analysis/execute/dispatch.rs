@@ -947,6 +947,7 @@ impl super::Study {
                 if matches!(
                     q.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                        | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
                 ) {
                     CheckedInterferenceOperation::checked(self, data, physical)?.execute(data, ctx)
                 } else {

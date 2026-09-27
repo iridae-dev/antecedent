@@ -152,13 +152,15 @@ fn refuse_unlicensed_interference(
             || (matches!(
                 query.assignment,
                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-            ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction));
+            ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction))
+            || (matches!(query.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. })
+                && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure));
     if licensed {
         Ok(())
     } else {
         Err(crate::support_reason!(
             "construction_not_licensed",
-            "InterferenceQuery supports NeighborCount under Bernoulli assignment or NeighborFraction total effects under cluster randomization"
+            "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, or exact two-stage saturation with built-in neighbor exposure"
         ))
     }
 }
@@ -689,6 +691,9 @@ fn refuse_estimator_inference_mismatch(
                 EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
                 EstimatorId::InterferenceClusterNeyman => {
                     frequentist!("interference.cluster_neyman")
+                }
+                EstimatorId::InterferenceSaturationExact => {
+                    frequentist!("interference.saturation_exact")
                 }
                 _ => Ok(()),
             }
@@ -2036,7 +2041,7 @@ impl StudyBuilder {
         // NeighborCount and its Young-bound calibration. A cluster total effect has
         // separate execution evidence but no matrix cell or interval calibration yet.
         if matches!(&query, CausalQuery::Interference(q)
-            if matches!(q.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. }))
+            if matches!(q.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. } | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }))
         {
             support_status = None;
         }

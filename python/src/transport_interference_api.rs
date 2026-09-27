@@ -518,6 +518,9 @@ pub(crate) struct InterferenceArgs {
     pub(crate) treated: usize,
     pub(crate) clusters: Vec<u32>,
     pub(crate) treated_clusters: usize,
+    pub(crate) low_probability: f64,
+    pub(crate) high_probability: f64,
+    pub(crate) realized_saturation: Vec<f64>,
     pub(crate) exposure: String,
     pub(crate) from_level: (f64, f64),
     pub(crate) to_level: (f64, f64),
@@ -537,6 +540,13 @@ pub(crate) fn interference_query(
         "cluster" => AssignmentDesign::ClusterRandomization {
             clusters: args.clusters.into(),
             treated_clusters: args.treated_clusters,
+        },
+        "saturation" => AssignmentDesign::TwoStageSaturation {
+            clusters: args.clusters.into(),
+            low_probability: args.low_probability,
+            high_probability: args.high_probability,
+            high_clusters: args.treated_clusters,
+            realized_saturation: args.realized_saturation.into(),
         },
         _ => return Err(PyValueError::new_err("unknown assignment design")),
     };
@@ -1049,6 +1059,9 @@ fn estimate_network_interference(
             treated,
             clusters,
             treated_clusters,
+            low_probability: 0.0,
+            high_probability: 0.0,
+            realized_saturation: Vec::new(),
             exposure,
             from_level,
             to_level,

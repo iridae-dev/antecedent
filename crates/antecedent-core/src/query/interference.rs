@@ -28,6 +28,19 @@ pub enum AssignmentDesign {
         /// Number of treated clusters.
         treated_clusters: usize,
     },
+    /// Clusters are allocated to low/high saturation, then units receive independent Bernoulli assignment.
+    TwoStageSaturation {
+        /// Cluster label in unit-row order.
+        clusters: Arc<[u32]>,
+        /// Lower within-cluster treatment probability.
+        low_probability: f64,
+        /// Higher within-cluster treatment probability.
+        high_probability: f64,
+        /// Number of clusters allocated to the higher probability.
+        high_clusters: usize,
+        /// Realized probability for each unit, constant within a cluster.
+        realized_saturation: Arc<[f64]>,
+    },
 }
 
 /// Built-in map from the global assignment vector to unit exposure.
@@ -136,6 +149,21 @@ impl InterferenceQuery {
                 return Err(QueryError::InvalidInterference(
                     "cluster randomization requires clusters and at least one treated cluster"
                         .into(),
+                ));
+            }
+            AssignmentDesign::TwoStageSaturation {
+                clusters, low_probability, high_probability, high_clusters, realized_saturation,
+            } if clusters.is_empty()
+                || clusters.len() != realized_saturation.len()
+                || !low_probability.is_finite()
+                || !high_probability.is_finite()
+                || *low_probability <= 0.0
+                || *high_probability >= 1.0
+                || low_probability >= high_probability
+                || *high_clusters == 0 =>
+            {
+                return Err(QueryError::InvalidInterference(
+                    "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0".into(),
                 ));
             }
             _ => {}
