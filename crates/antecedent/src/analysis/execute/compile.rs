@@ -604,7 +604,13 @@ impl super::Study {
                         graph_review_required: false,
                         identifier: Some(Arc::from("randomized.design")),
                         estimator: Some(Arc::from(match &q.design {
-                            antecedent_core::RandomizationDesign::Bernoulli => "randomized.ht_itt",
+                            antecedent_core::RandomizationDesign::Bernoulli => {
+                                if q.fixed_cuped.is_some() {
+                                    "randomized.fixed_cuped_ht_itt"
+                                } else {
+                                    "randomized.ht_itt"
+                                }
+                            },
                             antecedent_core::RandomizationDesign::Complete { .. }
                             | antecedent_core::RandomizationDesign::Stratified { .. }
                             | antecedent_core::RandomizationDesign::Cluster { .. } => {
