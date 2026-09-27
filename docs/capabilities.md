@@ -76,8 +76,12 @@ The randomized survival and competing-risk curves run through retained
 `prepare` / `analyze` as well as the direct utilities. The unweighted route
 requires marginal `IndependentGiven(())`; the retained IPCW route accepts
 caller-supplied censoring survival columns and an explicit conditional
-`IndependentGiven` claim. They remain point-only and unlicensed; supplied
-probabilities are not fit or independently verified. See [Survival outcomes](survival-outcomes.md).
+`IndependentGiven` claim. An explicit bootstrap count adds arm-stratified
+subject-resampling pointwise intervals for RMST and fixed-horizon survival or
+cause-specific incidence contrasts; full curves have no simultaneous bands.
+Known censoring probabilities stay fixed with their subjects and are not fit
+or independently verified. Delayed-entry intervals are refused. The queries
+remain outside the licensed support-matrix axes. See [Survival outcomes](survival-outcomes.md).
 
 ## Graph primitives
 
@@ -731,13 +735,33 @@ predictions, and subject ownership are checked on the prepared evaluation
 rows. A new evaluation sample requires a new prepare; `refresh(new_data)` is
 refused because those row-bound inputs cannot be verified against replacement
 rows. The result reports paired row-score standard errors under independent
-evaluation subjects but no interval or licensed support-matrix cell.
+evaluation subjects. For fixed recommendations on independently sampled,
+held-out randomized subjects with known propensities, it also reports
+pointwise 95% intervals for policy value and policy-minus-reference value.
+The latter uses paired score differences, including policy/reference
+covariance. Binary IPW requires at least 120 subjects; held-out AIPW requires
+at least 300 and nuisance predictions trained on disjoint subjects. Each
+policy needs at least 10 realized assignment matches for policy and reference.
+Cross-fitted nuisance predictions, potentially binding global capacity or
+budget selection, smaller samples, and degenerate score variance remain
+point-only. Direct `evaluate_policy` and `evaluate_policy_doubly_robust`
+remain point utilities. These retained intervals are off-axis in the support
+matrix and do not create a licensed support cell. The 2,000-replicate binary
+IPW (90% and 95%) and held-out AIPW (95%) calibration tests are in
+`crates/antecedent-estimate/src/policy_value.rs`; route and artifact checks
+are in `crates/antecedent/tests/policy_value_route.rs`.
 `MultiActionPolicyValue(..., baseline_groups=...)` also retains pre-treatment
 group labels and reports each action-versus-control contrast within each group
 as a point-only multi-action CATE. Every group needs observed control and each
 action, with known positive assignment probabilities. These conditional
 contrasts are frozen in the result artifact; they do not fit a CATE model or
-claim an interval or licensed support-matrix cell.
+claim a conditional CATE interval or licensed support-matrix cell. The
+multi-action policy and incremental values have pointwise 95% intervals from
+at least 300 independent randomized subjects when capacities and budgets
+cannot couple recommendations across rows. The 2,000-replicate known-truth
+calibration is in `crates/antecedent-estimate/src/policy_value.rs`. A
+120-subject multi-action probe covered only 0.932 at nominal 0.95, so the
+runtime withholds that interval below 300 subjects.
 
 `policy.ConditionalDoseResponse(...)` carries a fixed target-dose grid through
 `prepare` / `analyze`. Baseline group labels remain bound to the prepared row
