@@ -92,7 +92,8 @@ def test_policy_artifact_answer_preserves_typed_values_and_uncertainty():
 def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
     n = 400
     assignment = [i % 4 < 2 for i in range(n)]
-    outcome = [1.0 + (2.0 if assigned else 0.0) + 0.01 * (i % 7)
+    outcome = [1.0 + ((2.0 if i % 2 == 0 else -1.0) if assigned else 0.0)
+               + 0.01 * (i % 7)
                for i, assigned in enumerate(assignment)]
     selected = policy.BinaryPolicy([True] * n, costs=0.2)
     candidates = (
