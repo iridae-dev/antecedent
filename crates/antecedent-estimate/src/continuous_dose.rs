@@ -351,6 +351,46 @@ mod policy_tests {
     }
 
     #[test]
+    fn fixed_group_dose_policy_support_boundary_covers_known_truth() {
+        const N: usize = 600;
+        const REPLICATES: usize = 2_000;
+        let groups = (0..N).map(|i| if i < N / 2 { "a" } else { "b" }.to_string())
+            .collect::<Vec<_>>();
+        let density = vec![1.0; N];
+        let policy = [("a".to_string(), 0.7), ("b".to_string(), 0.8)];
+        let reference = [("a".to_string(), 0.3), ("b".to_string(), 0.4)];
+        let baseline_mean = (0..N).map(|i| 1.0 + f64::from(i >= N / 2)
+            + 0.35 * (0.13 * i as f64).sin()).sum::<f64>() / N as f64;
+        let truth_policy = baseline_mean + (1.5 * 0.7 + 2.0 * 0.8) / 2.0;
+        let truth_reference = baseline_mean + (1.5 * 0.3 + 2.0 * 0.4) / 2.0;
+        let truth = [truth_policy, truth_reference, truth_policy - truth_reference];
+        let mut covered = [0_usize; 3];
+        for rep in 0..REPLICATES {
+            let dose = (0..N).map(|i| uniform(
+                (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
+            )).collect::<Vec<_>>();
+            let outcome = (0..N).map(|i| 1.0 + f64::from(i >= N / 2)
+                + 0.35 * (0.13 * i as f64).sin()
+                + if i < N / 2 { 1.5 * dose[i] } else { 2.0 * dose[i] })
+                .collect::<Vec<_>>();
+            let fit = fixed_dose_policy_value(&outcome, &dose, &groups, &density,
+                &policy, &reference, 0.2, 80, true).unwrap();
+            let intervals = [fit.policy_interval_95, fit.reference_interval_95,
+                fit.incremental_interval_95];
+            for (j, interval) in intervals.into_iter().enumerate() {
+                let [lower, upper] = interval.expect("support-boundary interval");
+                covered[j] += usize::from(lower <= truth[j] && truth[j] <= upper);
+            }
+        }
+        for (name, count) in ["policy", "reference", "incremental"].into_iter().zip(covered) {
+            let rate = count as f64 / REPLICATES as f64;
+            eprintln!("fixed dose support-boundary {name} coverage: {count}/{REPLICATES} = {rate:.4}");
+            assert!((0.93..=0.985).contains(&rate));
+        }
+    }
+
+    #[test]
     fn dose_policy_refuses_unmapped_and_unsupported_local_targets() {
         let outcome = (0..40).map(|i| i as f64 / 40.0).collect::<Vec<_>>();
         let dose = outcome.clone();
