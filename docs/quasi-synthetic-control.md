@@ -46,11 +46,12 @@ reports `unadjusted_effect`, `outcome_model_correction`, and the adjusted
 `estimate`. This can correct the simplex fit when the treated unit lies outside
 the donor convex hull, under the additional declared assumption that the donor
 outcome model transports to the treated unit. The displayed placebo rank still
-describes the unadjusted simplex fit. The adjusted effect has no interval or
-calibrated placebo inference and remains `unlicensed_point_utility` off the
+describes the unadjusted simplex fit. With declared uniform one-unit assignment,
+the exact Fisher test refits both the donor weights and ridge correction for
+every candidate unit and tests the adjusted effect under the sharp null. The
+adjusted effect has no interval and remains `unlicensed_point_utility` off the
 support-matrix axis. The ridge penalty is fixed by the caller; it is not tuned
-from the panel. Augmentation cannot be combined with synthetic DiD or exact
-unit randomization. The penalty and correction round-trip through the retained
+from the panel. Augmentation cannot be combined with synthetic DiD. The penalty and correction round-trip through the retained
 artifact, which rejects inconsistent saved effect fields.
 
 ```python

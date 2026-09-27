@@ -901,7 +901,9 @@ An optional positive `augmentation_ridge` on `SyntheticControl` fits a
 donor-trained pre-to-post outcome model and corrects the simplex gap. The
 retained result and artifact preserve the original gap, correction, and adjusted
 point estimate. This declares outcome-model transport to the treated unit;
-the adjusted effect remains point-only and off the support-matrix axis.
+the adjusted effect remains point-only and off the support-matrix axis. Under
+declared uniform one-unit assignment, its exact sharp-null p-value refits the
+donor and ridge models for every candidate unit.
 
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no
