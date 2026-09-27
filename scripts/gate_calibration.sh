@@ -382,6 +382,8 @@ run_ignored_derivative semi_elasticity_log_outcome_bayesian_nominal_90_coverage
 run_ignored_derivative elasticity_bayesian_nominal_90_coverage
 run_ignored_derivative elasticity_dag_frequentist_nominal_90_coverage
 run_ignored_derivative elasticity_dag_accepted_frequentist_nominal_90_coverage
+run_ignored_derivative elasticity_dag_frequentist_nominal_95_coverage
+run_ignored_derivative elasticity_dag_accepted_frequentist_nominal_95_coverage
 # Boundary cell: coordinate 0 of the GAM-gradient band measures 0.883 at 2000
 # replicates on the gate's seeds; the band covers 0.892-0.897 over 10 000 designs.
 run_ignored_derivative response_jacobian_bayesian_boundary_within_band
