@@ -250,3 +250,53 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
     q.multi_action.as_mut().unwrap().propensities = vec![0.0; 27].into();
     assert!(q.validate().is_err());
 }
+
+#[test]
+fn multi_action_intervals_require_nonbinding_global_constraints() {
+    let n = 90;
+    let assigned = (0..n).map(|i| i % 3).collect::<Vec<_>>();
+    let y = (0..n).map(|i| [1.0, 2.0, 4.0][assigned[i]] + (i % 7) as f64 / 10.0).collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
+    let mut q = query();
+    q.assignment = Arc::from([]);
+    q.propensity = Arc::from([]);
+    q.actions = Arc::from([]);
+    q.reference = Arc::from([]);
+    q.mu0 = Arc::from([]);
+    q.mu1 = Arc::from([]);
+    q.costs = Arc::from([]);
+    q.reference_costs = Arc::from([]);
+    q.disjoint_training_subjects = false;
+    q.evaluation_subject_ids = (0..n).map(|i| Arc::<str>::from(format!("multi-{i}"))).collect::<Vec<_>>().into();
+    q.multi_action = Some(MultiActionPolicyInputs {
+        action_labels: ["control", "A", "B"].map(Arc::<str>::from).into(),
+        assignment: assigned.clone().into(), actions: assigned.into(),
+        reference: vec![0; n].into(),
+        propensities: vec![1.0 / 3.0; n * 3].into(),
+        available: vec![true; n * 3].into(),
+        costs: [0.0, 0.1, 0.2].into(), reference_costs: [0.0; 3].into(),
+        capacities: [n; 3].into(), reference_capacities: [n; 3].into(),
+        budget: Some(n as f64 * 0.2), reference_budget: None,
+        cate_groups: Arc::from([]),
+    });
+    let ctx = ExecutionContext::for_tests(45);
+    let study = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let value = result.policy_value.as_ref().unwrap();
+    assert!(value.policy_interval_95.is_some());
+    assert!(value.incremental_interval_95.is_some());
+    let bytes = prepared.encode_contracted_result(&result, "multi-interval", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.policy_value.unwrap().policy_interval_95, value.policy_interval_95);
+
+    q.multi_action.as_mut().unwrap().budget = Some(10.0);
+    let constrained = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
+    let constrained_value = constrained.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().policy_value.unwrap();
+    assert!(constrained_value.policy_interval_95.is_none());
+    q.multi_action.as_mut().unwrap().budget = None;
+    q.multi_action.as_mut().unwrap().capacities = [n, n, n / 3].into();
+    let capped = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q)).build().unwrap();
+    let capped_value = capped.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().policy_value.unwrap();
+    assert!(capped_value.policy_interval_95.is_none());
+}
