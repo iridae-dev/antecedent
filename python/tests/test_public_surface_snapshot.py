@@ -231,6 +231,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "panel_did",
         "synthetic_control",
         "synthetic_did",
+        "local_polynomial_ratio",
         "plan",
         "policy_value",
         "survival",
