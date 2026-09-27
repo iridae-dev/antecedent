@@ -669,6 +669,10 @@ impl CheckedPolicyValueOperation {
             }
         };
         let multi = self.query.multi_action.as_ref();
+        let multi_action_cate = if let Some(policy) = multi {
+            antecedent_estimate::policy_value::evaluate_multi_action_cate(y, policy)
+                .map_err(|message| CausalError::Unsupported { message })?
+        } else { Vec::new() };
         let ipw = self.query.mu0.is_empty();
         let uplift_bins = if self.query.uplift_bin_count > 0 {
             antecedent_estimate::policy_value::evaluate_uplift_bins(
@@ -763,6 +767,7 @@ impl CheckedPolicyValueOperation {
                 "row_score_standard_error_independent_subjects"
             }),
             uplift_bins,
+            multi_action_cate,
         });
         Ok(result)
     }

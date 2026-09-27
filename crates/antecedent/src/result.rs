@@ -256,6 +256,8 @@ pub struct PolicyValueEstimate {
     pub uncertainty: Arc<str>,
     /// Held-out uplift across descending frozen score bins, when requested.
     pub uplift_bins: Vec<antecedent_estimate::policy_value::UpliftBinScore>,
+    /// Point-only action effects versus control within fixed baseline strata.
+    pub multi_action_cate: Vec<antecedent_estimate::policy_value::MultiActionCatePoint>,
 }
 
 /// Point-only randomized survival or competing-risk result on a shared time grid.

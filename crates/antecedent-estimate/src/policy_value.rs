@@ -41,6 +41,64 @@ pub struct UpliftBinScore {
     pub evaluation_rows: usize,
 }
 
+/// Point estimate of one randomized action effect against control in a fixed baseline stratum.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MultiActionCatePoint {
+    /// Pre-treatment group label.
+    pub group: String,
+    /// Action label compared with the first (control) action.
+    pub action: String,
+    /// Horvitz-Thompson action minus control contrast.
+    pub effect: f64,
+    /// Total evaluation rows in this group.
+    pub evaluation_rows: usize,
+    /// Rows assigned this action.
+    pub observed_action_rows: usize,
+    /// Rows assigned control.
+    pub observed_control_rows: usize,
+}
+
+/// Estimate stratum-specific multi-action effects using known randomization probabilities.
+/// Groups must have been fixed before observing evaluation outcomes. No interval is licensed.
+pub fn evaluate_multi_action_cate(
+    outcome: &[f64], policy: &antecedent_core::MultiActionPolicyInputs,
+) -> Result<Vec<MultiActionCatePoint>, &'static str> {
+    if policy.cate_groups.is_empty() { return Ok(Vec::new()); }
+    policy.validate().map_err(|_| "invalid multi-action CATE design")?;
+    if outcome.len() != policy.assignment.len() || outcome.iter().any(|y| !y.is_finite()) {
+        return Err("multi-action CATE outcomes must be finite and row-aligned");
+    }
+    let n = outcome.len();
+    let k = policy.action_labels.len();
+    let mut groups = policy.cate_groups.iter().map(|x| x.as_ref()).collect::<Vec<_>>();
+    groups.sort_unstable();
+    groups.dedup();
+    let mut points = Vec::new();
+    for group in groups {
+        let rows = (0..n).filter(|&i| policy.cate_groups[i].as_ref() == group).collect::<Vec<_>>();
+        let control_rows = rows.iter().filter(|&&i| policy.assignment[i] == 0).count();
+        if rows.len() < 2 || control_rows == 0 {
+            return Err("each CATE stratum requires at least two rows and an observed control");
+        }
+        let control = rows.iter().map(|&i| {
+            if policy.assignment[i] == 0 { outcome[i] / policy.propensities[i * k] } else { 0.0 }
+        }).sum::<f64>() / rows.len() as f64;
+        for action in 1..k {
+            let action_rows = rows.iter().filter(|&&i| policy.assignment[i] == action).count();
+            if action_rows == 0 { return Err("each CATE stratum requires an observed row for every action"); }
+            let treated = rows.iter().map(|&i| {
+                if policy.assignment[i] == action { outcome[i] / policy.propensities[i * k + action] } else { 0.0 }
+            }).sum::<f64>() / rows.len() as f64;
+            points.push(MultiActionCatePoint {
+                group: group.to_owned(), action: policy.action_labels[action].to_string(),
+                effect: treated - control, evaluation_rows: rows.len(),
+                observed_action_rows: action_rows, observed_control_rows: control_rows,
+            });
+        }
+    }
+    Ok(points)
+}
+
 /// Evaluate frozen held-out score bins using known binary randomization probabilities.
 pub fn evaluate_uplift_bins(
     outcome: &[f64], assignment: &[bool], propensity: &[f64],

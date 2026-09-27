@@ -997,6 +997,9 @@ pub struct MultiActionPolicyInputsWire {
     pub budget: Option<f64>,
     /// Reference budget, if constrained.
     pub reference_budget: Option<f64>,
+    /// Frozen baseline strata for conditional action effects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cate_groups: Vec<String>,
 }
 
 impl From<&antecedent_core::MultiActionPolicyInputs> for MultiActionPolicyInputsWire {
@@ -1014,6 +1017,7 @@ impl From<&antecedent_core::MultiActionPolicyInputs> for MultiActionPolicyInputs
             reference_capacities: value.reference_capacities.to_vec(),
             budget: value.budget,
             reference_budget: value.reference_budget,
+            cate_groups: value.cate_groups.iter().map(ToString::to_string).collect(),
         }
     }
 }
@@ -1033,6 +1037,7 @@ impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyIn
             reference_capacities: value.reference_capacities.clone().into(),
             budget: value.budget,
             reference_budget: value.reference_budget,
+            cate_groups: value.cate_groups.iter().map(|group| Arc::<str>::from(group.as_str())).collect::<Vec<_>>().into(),
         }
     }
 }

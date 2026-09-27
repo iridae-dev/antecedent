@@ -38,6 +38,8 @@ pub struct PolicyValueSection {
     pub uncertainty: String,
     /// Held-out randomized uplift by descending frozen score bin.
     pub uplift_bins: Vec<(usize, f64, f64, usize)>,
+    /// Point-only conditional contrasts: group, action, effect, total and observed rows.
+    pub multi_action_cate: Vec<(String, String, f64, usize, usize, usize)>,
 }
 
 impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
@@ -58,6 +60,10 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             uncertainty: value.uncertainty.to_string(),
             uplift_bins: value.uplift_bins.iter().map(|bin| (
                 bin.rank, bin.effect, bin.standard_error, bin.evaluation_rows,
+            )).collect(),
+            multi_action_cate: value.multi_action_cate.iter().map(|point| (
+                point.group.clone(), point.action.clone(), point.effect,
+                point.evaluation_rows, point.observed_action_rows, point.observed_control_rows,
             )).collect(),
         }
     }
