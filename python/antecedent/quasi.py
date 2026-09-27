@@ -274,8 +274,11 @@ class SyntheticControl:
     period: str
     treated_unit: str
     intervention_period: int
+    uniform_unit_randomization: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.uniform_unit_randomization, bool):
+            raise CausalValueError("uniform_unit_randomization must be boolean")
         fields = (self.outcome, self.unit, self.period)
         if any(not isinstance(value, str) or not value.strip() for value in fields):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")
@@ -302,6 +305,8 @@ class SyntheticControlEstimate:
     n_donors: int
     n_pre_periods: int
     n_post_periods: int
+    randomization_p_value: float | None = None
+    randomization_statistics: tuple[tuple[str, float], ...] = ()
     uncertainty: str = "point_only_with_unlicensed_placebo_rank"
     support_status: str = "unlicensed_point_utility"
     diagnostics: tuple[str, ...] = (
@@ -685,6 +690,12 @@ def estimate_synthetic_control(data: Any, query: SyntheticControl) -> SyntheticC
 
     if not isinstance(query, SyntheticControl):
         raise CausalValueError("query must be a SyntheticControl")
+    if query.uniform_unit_randomization:
+        from .estimation import PreparedAnalysis
+
+        result = PreparedAnalysis.prepare(data, query=query).estimate(data).synthetic_control
+        assert result is not None
+        return result
     names, columns = _raw_columns(data)
     for name in (query.outcome, query.unit, query.period):
         if name not in names:

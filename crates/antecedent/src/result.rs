@@ -156,6 +156,10 @@ pub struct SyntheticControlEstimate {
     pub n_post_periods: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: Arc<str>,
+    /// Exact Fisher p-value when uniform one-unit assignment was declared.
+    pub randomization_p_value: Option<f64>,
+    /// Absolute gap for every possible treated unit under the sharp null.
+    pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
 }
 
 /// Point-only synthetic difference-in-differences result with fitted simplex weights.

@@ -104,3 +104,22 @@ def test_retained_synthetic_control_refuses_changed_design_and_bad_donors():
              for key, values in rows.items()}
     with pytest.raises((CausalValueError, CausalCompileError), match="at least three donor units"):
         analyze(short, query=query)
+
+
+def test_uniform_unit_randomization_reports_exact_sharp_null_p_value_only():
+    rows = _synthetic_truth()
+    query = SyntheticControl("y", "unit", "period", "treated", 5, uniform_unit_randomization=True)
+    result = analyze(rows, query=query)
+    fit = result.synthetic_control
+    assert fit is not None
+    assert fit.estimate == pytest.approx(5.0, abs=1e-5)
+    assert len(fit.randomization_statistics) == 4
+    observed = dict(fit.randomization_statistics)["treated"]
+    assert fit.randomization_p_value == pytest.approx(
+        sum(statistic >= observed for _, statistic in fit.randomization_statistics) / 4
+    )
+    assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
+    assert "exact_uniform_unit_randomization_sharp_null_test" in fit.diagnostics
+    assert math.isnan(result.estimate.se_analytic)
+    assert estimate_synthetic_control(rows, query) == fit
+    assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit

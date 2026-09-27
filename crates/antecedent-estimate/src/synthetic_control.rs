@@ -22,6 +22,15 @@ pub struct SyntheticControlFit {
     pub n_post_periods: usize,
 }
 
+/// Exhaustive sharp-null test over a declared uniform choice of one treated unit.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyntheticUnitRandomizationTest {
+    /// Absolute post-intervention gaps for every possible treated unit, in unit order.
+    pub statistics: Vec<(String, f64)>,
+    /// Exact two-sided finite-assignment tail fraction under the sharp null.
+    pub p_value: f64,
+}
+
 fn project_simplex(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
     sorted.sort_by(|left, right| right.total_cmp(left));
@@ -224,6 +233,49 @@ pub fn fit_synthetic_control(
         placebo_rank,
         n_pre_periods: pre.len(),
         n_post_periods: post.len(),
+    })
+}
+
+/// Refit every possible treated unit against all other units under the sharp null.
+///
+/// This is an exact Fisher test only when the one treated unit was selected
+/// uniformly from the observed balanced panel before outcomes were seen.
+/// The test statistic is the absolute post-treatment synthetic gap. No
+/// confidence interval or observational placebo interpretation follows.
+pub fn exact_synthetic_unit_randomization_test(
+    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    intervention_period: i64,
+) -> Result<SyntheticUnitRandomizationTest, String> {
+    fit_synthetic_control(outcome, units, periods, treated_unit, intervention_period)?;
+    let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
+    let mut period_set = BTreeSet::new();
+    for ((unit, period), value) in units.iter().zip(periods).zip(outcome) {
+        panel.entry(unit).or_default().insert(*period, *value);
+        period_set.insert(*period);
+    }
+    if panel.len() > 32 {
+        return Err("exact synthetic unit randomization currently supports at most 32 candidate units".into());
+    }
+    let pre: Vec<i64> = period_set.iter().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> = period_set.iter().copied().filter(|period| *period >= intervention_period).collect();
+    let mut statistics = Vec::with_capacity(panel.len());
+    for (candidate, values) in &panel {
+        let donors: Vec<_> = panel.iter().filter(|(unit, _)| *unit != candidate).collect();
+        let target_pre: Vec<f64> = pre.iter().map(|period| values[period]).collect();
+        let donor_pre: Vec<Vec<f64>> = donors.iter().map(|(_, values)| pre.iter().map(|period| values[period]).collect()).collect();
+        let (weights, _) = fit_weights(&target_pre, &donor_pre);
+        let treated_post = post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64;
+        let donor_post: f64 = donors.iter().zip(&weights).map(|((_, values), weight)| {
+            *weight * post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64
+        }).sum();
+        statistics.push(((*candidate).to_string(), (treated_post - donor_post).abs()));
+    }
+    let observed = statistics.iter().find(|(unit, _)| unit == treated_unit)
+        .ok_or_else(|| "treated unit is absent from exact randomization distribution".to_string())?.1;
+    let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
+    Ok(SyntheticUnitRandomizationTest {
+        p_value: extreme as f64 / statistics.len() as f64,
+        statistics,
     })
 }
 

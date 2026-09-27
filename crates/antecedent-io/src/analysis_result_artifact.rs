@@ -448,6 +448,12 @@ pub struct SyntheticControlWire {
     pub n_post_periods: usize,
     /// Explicit point-only uncertainty statement.
     pub uncertainty: String,
+    /// Exact sharp-null p-value under declared uniform single-unit assignment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomization_p_value: Option<f64>,
+    /// Absolute post-gap statistics for every candidate treated unit.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub randomization_statistics: Vec<(String, f64)>,
 }
 
 /// Point-only synthetic DiD result with unit and time simplex weights.
@@ -1276,7 +1282,21 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || fit.placebo_effects.len() != donors.len()
             || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
             || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
-            || fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
+            || (!query.uniform_unit_randomization && (
+                fit.uncertainty != "point_only_with_unlicensed_placebo_rank"
+                || fit.randomization_p_value.is_some() || !fit.randomization_statistics.is_empty()))
+            || (query.uniform_unit_randomization && (
+                fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval"
+                || fit.randomization_statistics.len() != donors.len() + 1
+                || fit.randomization_statistics.len() > 32
+                || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
+                    != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
+                || fit.randomization_statistics.iter().any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
+                || fit.randomization_p_value != fit.randomization_statistics.iter()
+                    .find(|(unit, _)| unit == &query.treated_unit)
+                    .map(|(_, observed)| fit.randomization_statistics.iter()
+                        .filter(|(_, statistic)| statistic >= observed).count() as f64
+                        / fit.randomization_statistics.len() as f64)))
         {
             return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
         }

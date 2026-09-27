@@ -49,6 +49,8 @@ pub struct SyntheticControlSection {
     pub n_pre_periods: usize,
     pub n_post_periods: usize,
     pub uncertainty: String,
+    pub randomization_p_value: Option<f64>,
+    pub randomization_statistics: Vec<(String, f64)>,
 }
 
 impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
@@ -63,6 +65,9 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
             n_pre_periods: value.n_pre_periods,
             n_post_periods: value.n_post_periods,
             uncertainty: value.uncertainty.to_string(),
+            randomization_p_value: value.randomization_p_value,
+            randomization_statistics: value.randomization_statistics.iter().map(|(unit, statistic)|
+                (unit.to_string(), *statistic)).collect(),
         }
     }
 }

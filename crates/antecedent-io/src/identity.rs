@@ -313,7 +313,8 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ),
             ("temporal_coordinates".into(), "pre_post".into()),
         ],
-        CausalQueryWire::SyntheticControl(query) => vec![
+        CausalQueryWire::SyntheticControl(query) => {
+            let mut dimensions = vec![
             (
                 "query_kind".into(),
                 if query.difference_in_differences { "synthetic_did" } else { "synthetic_control" }
@@ -332,7 +333,12 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                     .saturating_sub(1)
                     .to_string(),
             ),
-        ],
+            ];
+            if query.uniform_unit_randomization {
+                dimensions.push(("uniform_unit_randomization".into(), "true".into()));
+            }
+            dimensions
+        }
         CausalQueryWire::LocalPolynomialRatio(query) => vec![
             ("query_kind".into(), if query.kink { "regression_kink" } else { "fuzzy_rd" }.into()),
             ("outcome".into(), query.outcome.to_string()),
