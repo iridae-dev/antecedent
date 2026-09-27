@@ -900,8 +900,18 @@ probabilities, and conditional censoring probabilities to run the backward
 recursive doubly robust score through the same retained Study path. The
 caller owns nuisance fitting and the sequential exchangeability claim. The
 result and artifact preserve the fold and dropout contract and weight
-diagnostics; the value remains point-only without a calibrated interval or
-support-matrix license.
+diagnostics. For a two-period regime with known randomization probabilities,
+caller-declared Q predictions trained outside each subject's fold, at least
+300 independent subjects, 200 observed endpoints, 50 observed histories
+matching the regime, prescribed-action probability at least 0.4, and
+remaining-observed probability at least 0.85, the retained result reports a
+whole-history subject-score standard error and pointwise 95% interval.
+Below those floors the value is point-only with a specific reason. Two
+2,000-replicate randomized calibrations covered known truth at 0.9535 and
+0.9521 after applying the support gate; one used fixed Q and the other fit
+Q on subject-excluded folds. Antecedent checks prediction-fold IDs and keeps
+the declaration in the query artifact, but cannot inspect model training.
+This conditional interval remains outside the current support-matrix axes.
 
 For retained IPW with known sequential randomization and one independent row
 per subject, the native result also reports a whole-history subject-score
