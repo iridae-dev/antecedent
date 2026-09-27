@@ -470,6 +470,8 @@ class PolicyValueSection:
     policy_standard_error: float
     reference_standard_error: float
     incremental_standard_error: float
+    policy_interval_95: tuple[float, float] | None
+    incremental_interval_95: tuple[float, float] | None
     prediction_ownership: str
     propensity_min: float
     propensity_max: float

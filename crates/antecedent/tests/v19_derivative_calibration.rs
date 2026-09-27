@@ -273,9 +273,16 @@ fn scalar_value(response: &CausalResponse) -> f64 {
 }
 
 fn scalar_interval(response: &CausalResponse) -> Option<(f64, f64)> {
+    scalar_interval_at(response, LEVEL)
+}
+
+fn scalar_interval_at(response: &CausalResponse, expected_level: f64) -> Option<(f64, f64)> {
     match response.uncertainty {
         ResponseUncertainty::Scalar { lower, upper, level, .. } => {
-            assert!((level - LEVEL).abs() < 1e-12, "interval level {level} != {LEVEL}");
+            assert!(
+                (level - expected_level).abs() < 1e-12,
+                "interval level {level} != {expected_level}"
+            );
             Some((lower, upper))
         }
         _ => None,
@@ -672,7 +679,10 @@ fn elasticity_frequentist_coverage(
                 if rep == 0 {
                     // The interval must be a published Confidence scalar, and its
                     // construction the Kennedy-DR point-derivative under analytic_se.
-                    assert!(scalar_interval(response).is_some(), "{test}: interval must publish");
+                    assert!(
+                        scalar_interval_at(response, level).is_some(),
+                        "{test}: interval must publish"
+                    );
                     let contract = study.inspect().expect("inspect");
                     let methods: Vec<_> =
                         common::calibration_bind::constructions(&contract, result)
@@ -685,7 +695,7 @@ fn elasticity_frequentist_coverage(
                     );
                 }
                 bind(&mut tally, study, result);
-                tally.record(scalar_interval(response), truth);
+                tally.record(scalar_interval_at(response, level), truth);
             }
             Err(error) => {
                 eprintln!("{test}: replicate {rep} refused: {error}");
