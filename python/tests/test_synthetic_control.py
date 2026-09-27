@@ -125,6 +125,23 @@ def test_uniform_unit_randomization_reports_exact_sharp_null_p_value_only():
     assert PreparedAnalysis.prepare(rows, query=query).estimate(rows).synthetic_control == fit
 
 
+def test_nonzero_constant_effect_sharp_null_is_explicit_in_public_result():
+    rows = _synthetic_truth()
+    with pytest.raises(CausalValueError, match="uniform_unit_randomization"):
+        SyntheticControl("y", "unit", "period", "treated", 5, sharp_null_effect=5.0)
+    with pytest.raises(CausalValueError, match="finite"):
+        SyntheticControl("y", "unit", "period", "treated", 5,
+                         uniform_unit_randomization=True, sharp_null_effect=float("nan"))
+    query = SyntheticControl("y", "unit", "period", "treated", 5,
+                             uniform_unit_randomization=True, sharp_null_effect=5.0)
+    fit = analyze(rows, query=query).synthetic_control
+    assert fit is not None
+    assert fit.randomization_null_effect == 5.0
+    assert fit.randomization_p_value == 1.0
+    assert dict(fit.randomization_statistics)["treated"] == pytest.approx(0.0, abs=1e-5)
+    assert fit.uncertainty == "point_only_with_exact_unit_randomization_p_value_no_interval"
+
+
 def test_augmented_synthetic_control_uses_retained_donor_model_and_refuses_invalid_options():
     rows: dict[str, list[object]] = {"y": [], "unit": [], "period": []}
     for unit, position in (("a", 0.0), ("b", 1.0), ("c", 2.0), ("treated", 3.0)):

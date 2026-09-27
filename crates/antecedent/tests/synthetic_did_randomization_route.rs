@@ -49,6 +49,32 @@ fn exact_synthetic_did_assignment_round_trips_and_rejects_tampering() {
 }
 
 #[test]
+fn nonzero_synthetic_did_sharp_null_carries_tested_effect() {
+    let mut units = Vec::new();
+    let mut periods = Vec::new();
+    let mut outcomes = Vec::new();
+    for (unit, baseline) in [("a", 1.0), ("b", 2.0), ("c", 3.0), ("treated", 2.5)] {
+        for period in 1..=4 {
+            units.push(Arc::<str>::from(unit));
+            periods.push(period);
+            outcomes.push(baseline + period as f64 * 0.4
+                + if unit == "treated" && period == 4 { 5.0 } else { 0.0 });
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let query = SyntheticControlQuery::new(
+        VariableId::from_raw(0), units, periods, "treated", 4,
+    ).difference_in_differences().with_uniform_unit_randomization().with_sharp_null_effect(5.0);
+    let ctx = ExecutionContext::for_tests(33);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.synthetic_did.as_ref().unwrap();
+    assert_eq!(fit.randomization_null_effect, Some(5.0));
+    assert_eq!(fit.randomization_p_value, Some(1.0));
+    assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
+}
+
+#[test]
 fn exact_synthetic_did_assignment_refuses_more_than_32_candidate_units() {
     let mut units = Vec::new();
     let mut periods = Vec::new();

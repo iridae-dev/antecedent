@@ -69,6 +69,7 @@ pub struct SyntheticControlSection {
     pub n_post_periods: usize,
     pub uncertainty: String,
     pub randomization_p_value: Option<f64>,
+    pub randomization_null_effect: Option<f64>,
     pub randomization_statistics: Vec<(String, f64)>,
     pub unadjusted_effect: Option<f64>,
     pub outcome_model_correction: Option<f64>,
@@ -88,6 +89,7 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
             n_post_periods: value.n_post_periods,
             uncertainty: value.uncertainty.to_string(),
             randomization_p_value: value.randomization_p_value,
+            randomization_null_effect: value.randomization_null_effect,
             randomization_statistics: value.randomization_statistics.iter().map(|(unit, statistic)|
                 (unit.to_string(), *statistic)).collect(),
             unadjusted_effect: value.unadjusted_effect,
@@ -110,6 +112,7 @@ pub struct SyntheticDidSection {
     pub n_post_periods: usize,
     pub uncertainty: String,
     pub randomization_p_value: Option<f64>,
+    pub randomization_null_effect: Option<f64>,
     pub randomization_statistics: Vec<(String, f64)>,
 }
 
@@ -125,6 +128,7 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
             n_post_periods: value.n_post_periods,
             uncertainty: value.uncertainty.to_string(),
             randomization_p_value: value.randomization_p_value,
+            randomization_null_effect: value.randomization_null_effect,
             randomization_statistics: value.randomization_statistics.iter().map(|(unit, statistic)|
                 (unit.to_string(), *statistic)).collect(),
         }

@@ -346,6 +346,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             if query.uniform_unit_randomization {
                 dimensions.push(("uniform_unit_randomization".into(), "true".into()));
             }
+            if let Some(effect) = query.sharp_null_effect {
+                dimensions.push(("sharp_null_effect".into(), effect.to_string()));
+            }
             if let Some(ridge) = query.augmentation_ridge {
                 dimensions.push(("augmentation_ridge".into(), ridge.to_string()));
             }

@@ -418,6 +418,63 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
     })
 }
 
+/// Exact Fisher test of a prespecified constant additive post-treatment effect.
+///
+/// Under the null, removing `null_effect` from the observed treated unit's
+/// post-period outcomes recovers every unit's untreated outcome panel. The
+/// selected method is then refitted for every possible uniform one-unit
+/// assignment. This tests the *sharp* constant-effect null; it does not give
+/// an observational placebo p-value or an effect confidence interval.
+pub fn exact_synthetic_constant_effect_test(
+    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    intervention_period: i64, null_effect: f64,
+    method: SyntheticConstantEffectMethod,
+) -> Result<SyntheticUnitRandomizationTest, String> {
+    if !null_effect.is_finite() {
+        return Err("synthetic sharp-null effect must be finite".into());
+    }
+    if outcome.len() != units.len() || outcome.len() != periods.len() {
+        return Err("outcome, unit, and period vectors must have equal length".into());
+    }
+    let mut untreated = outcome.to_vec();
+    let mut treated_post = 0usize;
+    for ((value, unit), period) in untreated.iter_mut().zip(units).zip(periods) {
+        if unit == treated_unit && *period >= intervention_period {
+            *value -= null_effect;
+            treated_post += 1;
+        }
+    }
+    if treated_post == 0 {
+        return Err("treated unit has no observed post-intervention outcome".into());
+    }
+    match method {
+        SyntheticConstantEffectMethod::Control => exact_synthetic_unit_randomization_test(
+            &untreated, units, periods, treated_unit, intervention_period,
+        ),
+        SyntheticConstantEffectMethod::DifferenceInDifferences => exact_synthetic_did_unit_randomization_test(
+            &untreated, units, periods, treated_unit, intervention_period,
+        ),
+        SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty } =>
+            exact_augmented_synthetic_unit_randomization_test(
+                &untreated, units, periods, treated_unit, intervention_period, ridge_penalty,
+            ),
+    }
+}
+
+/// Statistic refitted for each candidate assignment under a sharp null.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SyntheticConstantEffectMethod {
+    /// Simplex synthetic control.
+    Control,
+    /// Unit and time weighted synthetic DiD.
+    DifferenceInDifferences,
+    /// Ridge-augmented simplex synthetic control.
+    AugmentedControl {
+        /// Positive donor outcome-model penalty.
+        ridge_penalty: f64,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,5 +821,89 @@ mod synthetic_did_tests {
         assert!(exact_synthetic_did_unit_randomization_test(
             &outcome, &units, &periods, "missing", 5,
         ).is_err());
+    }
+}
+
+#[cfg(test)]
+mod constant_effect_null_tests {
+    use super::{exact_synthetic_constant_effect_test, exact_synthetic_did_unit_randomization_test,
+        exact_augmented_synthetic_unit_randomization_test, SyntheticConstantEffectMethod};
+
+    #[test]
+    fn prespecified_nonzero_sharp_null_is_exact_over_2000_assignments() {
+        let candidates = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        let mut untreated = Vec::new();
+        for (index, unit) in candidates.iter().enumerate() {
+            for period in 1..=5 {
+                units.push((*unit).to_string());
+                periods.push(period);
+                untreated.push(index as f64 * 0.27 + period as f64 * 0.13
+                    + ((index * 11 + period as usize * 7) % 13) as f64 * 0.09);
+            }
+        }
+        let null_effect = 2.75;
+        let mut p_values = Vec::new();
+        for candidate in candidates {
+            let observed: Vec<f64> = untreated.iter().zip(&units).zip(&periods)
+                .map(|((value, unit), period)| value + if unit == candidate && *period >= 5 {
+                    null_effect
+                } else { 0.0 })
+                .collect();
+            let test = exact_synthetic_constant_effect_test(
+                &observed, &units, &periods, candidate, 5, null_effect,
+                SyntheticConstantEffectMethod::Control,
+            ).unwrap();
+            p_values.push(test.p_value);
+        }
+        // Each candidate is selected exactly 250 times, giving 2,000 draws
+        // from the declared uniform assignment mechanism on a fixed Y(0) panel.
+        for alpha in [0.05, 0.125, 0.25, 0.5] {
+            let rejections: usize = (0..2_000)
+                .filter(|draw| p_values[draw % candidates.len()] <= alpha).count();
+            assert!(rejections as f64 / 2_000.0 <= alpha);
+        }
+        assert!(exact_synthetic_constant_effect_test(
+            &untreated, &units, &periods, "a", 5, f64::NAN,
+            SyntheticConstantEffectMethod::Control,
+        ).unwrap_err().contains("finite"));
+    }
+
+    #[test]
+    fn nonzero_null_refits_sdid_and_augmented_statistics() {
+        let candidates = ["a", "b", "c", "treated"];
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        let mut observed = Vec::new();
+        for (index, unit) in candidates.iter().enumerate() {
+            for period in 1..=4 {
+                units.push((*unit).to_string());
+                periods.push(period);
+                observed.push(index as f64 * 0.25 + period as f64 * 0.3
+                    + if *unit == "treated" && period == 4 { 3.0 } else { 0.0 });
+            }
+        }
+        for method in [
+            SyntheticConstantEffectMethod::DifferenceInDifferences,
+            SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty: 0.1 },
+        ] {
+            let test = exact_synthetic_constant_effect_test(
+                &observed, &units, &periods, "treated", 4, 3.0, method,
+            ).unwrap();
+            let untreated: Vec<f64> = observed.iter().zip(&units).zip(&periods)
+                .map(|((value, unit), period)| value - if unit == "treated" && *period == 4 { 3.0 } else { 0.0 })
+                .collect();
+            let expected = match method {
+                SyntheticConstantEffectMethod::DifferenceInDifferences =>
+                    exact_synthetic_did_unit_randomization_test(&untreated, &units, &periods, "treated", 4).unwrap(),
+                SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty } =>
+                    exact_augmented_synthetic_unit_randomization_test(&untreated, &units, &periods, "treated", 4, ridge_penalty).unwrap(),
+                SyntheticConstantEffectMethod::Control => unreachable!(),
+            };
+            assert_eq!(test.statistics.len(), 4);
+            assert_eq!(test, expected);
+            assert!(test.statistics.iter().all(|(_, statistic)| statistic.is_finite()));
+        }
     }
 }

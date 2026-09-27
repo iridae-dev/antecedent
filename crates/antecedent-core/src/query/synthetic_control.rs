@@ -37,6 +37,9 @@ pub struct SyntheticControlQuery {
     pub method: SyntheticPanelMethod,
     /// Declare uniform assignment of exactly one treated unit for a sharp-null test.
     pub uniform_unit_randomization: bool,
+    /// Prespecified constant additive effect for an exact sharp-null test.
+    /// Requires declared uniform assignment; absent means the zero-effect null.
+    pub sharp_null_effect: Option<f64>,
     /// Optional donor-trained ridge outcome-model correction to the simplex fit.
     pub augmentation_ridge: Option<f64>,
 }
@@ -51,7 +54,7 @@ impl SyntheticControlQuery {
         treated_unit: impl Into<Arc<str>>,
         intervention_period: i64,
     ) -> Self {
-        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control, uniform_unit_randomization: false, augmentation_ridge: None }
+        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control, uniform_unit_randomization: false, sharp_null_effect: None, augmentation_ridge: None }
     }
 
     /// Use the same frozen panel for a synthetic difference-in-differences contrast.
@@ -65,6 +68,14 @@ impl SyntheticControlQuery {
     #[must_use]
     pub fn with_uniform_unit_randomization(mut self) -> Self {
         self.uniform_unit_randomization = true;
+        self
+    }
+
+    /// Test a prespecified constant additive post-treatment effect under a
+    /// declared uniform choice of one treated unit.
+    #[must_use]
+    pub fn with_sharp_null_effect(mut self, effect: f64) -> Self {
+        self.sharp_null_effect = Some(effect);
         self
     }
 
@@ -95,6 +106,13 @@ impl SyntheticControlQuery {
             if self.method != SyntheticPanelMethod::Control {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "augmented synthetic control cannot be combined with synthetic DiD".into(),
+                ));
+            }
+        }
+        if let Some(effect) = self.sharp_null_effect {
+            if !effect.is_finite() || !self.uniform_unit_randomization {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "a finite sharp-null effect requires declared uniform single-unit randomization".into(),
                 ));
             }
         }

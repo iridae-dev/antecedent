@@ -282,11 +282,18 @@ class SyntheticControl:
     treated_unit: str
     intervention_period: int
     uniform_unit_randomization: bool = False
+    sharp_null_effect: float | None = None
     augmentation_ridge: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
+        if self.sharp_null_effect is not None:
+            if (not self.uniform_unit_randomization
+                or isinstance(self.sharp_null_effect, (bool, np.bool_))
+                or not isinstance(self.sharp_null_effect, (int, float, np.integer, np.floating))
+                or not np.isfinite(self.sharp_null_effect)):
+                raise CausalValueError("finite sharp_null_effect requires uniform_unit_randomization")
         if self.augmentation_ridge is not None:
             if (not isinstance(self.augmentation_ridge, (int, float, np.integer, np.floating))
                 or isinstance(self.augmentation_ridge, (bool, np.bool_))
@@ -319,6 +326,7 @@ class SyntheticControlEstimate:
     n_pre_periods: int
     n_post_periods: int
     randomization_p_value: float | None = None
+    randomization_null_effect: float | None = None
     randomization_statistics: tuple[tuple[str, float], ...] = ()
     unadjusted_effect: float | None = None
     outcome_model_correction: float | None = None
@@ -348,10 +356,17 @@ class SyntheticDifferenceInDifferences:
     treated_unit: str
     intervention_period: int
     uniform_unit_randomization: bool = False
+    sharp_null_effect: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.uniform_unit_randomization, bool):
             raise CausalValueError("uniform_unit_randomization must be boolean")
+        if self.sharp_null_effect is not None:
+            if (not self.uniform_unit_randomization
+                or isinstance(self.sharp_null_effect, (bool, np.bool_))
+                or not isinstance(self.sharp_null_effect, (int, float, np.integer, np.floating))
+                or not np.isfinite(self.sharp_null_effect)):
+                raise CausalValueError("finite sharp_null_effect requires uniform_unit_randomization")
         if any(not isinstance(value, str) or not value.strip() for value in (self.outcome, self.unit, self.period)):
             raise CausalValueError("outcome, unit, and period must be non-empty column names")
         if len({self.outcome, self.unit, self.period}) != 3:
@@ -374,6 +389,7 @@ class SyntheticDifferenceInDifferencesEstimate:
     n_pre_periods: int
     n_post_periods: int
     randomization_p_value: float | None = None
+    randomization_null_effect: float | None = None
     randomization_statistics: tuple[tuple[str, float], ...] = ()
     uncertainty: str = "point_only"
     design: str = "balanced_panel_synthetic_difference_in_differences"
