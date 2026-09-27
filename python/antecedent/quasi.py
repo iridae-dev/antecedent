@@ -99,8 +99,10 @@ class PanelDifferenceInDifferences:
     stable within subject. Repeated cross sections sample each subject once.
     Estimation reports a pointwise cluster-robust
     standard error, using subject IDs by default or an optional higher-level
-    cluster column. The design does not support staggered adoption or missing
-    waves.
+    cluster column. Clusters must belong to one treatment group; a shared
+    cluster across groups is refused. With two periods, parallel untreated
+    trends is an identifying assumption and cannot be tested from pre-trends.
+    The design does not support staggered adoption or missing waves.
     """
 
     outcome: str

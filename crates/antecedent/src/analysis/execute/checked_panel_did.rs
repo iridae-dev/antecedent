@@ -170,6 +170,11 @@ impl CheckedPanelDidOperation {
                 message: "cluster SE requires at least two clusters in each group",
             });
         }
+        if !clusters[0].is_disjoint(&clusters[1]) {
+            return Err(CausalError::Unsupported {
+                message: "panel DiD requires clusters nested within treatment groups for cluster inference",
+            });
+        }
         let g = scores.len();
         let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
         let se = variance.sqrt();
@@ -200,12 +205,20 @@ impl CheckedPanelDidOperation {
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.quasi.panel_did.cluster_se",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "two-period subject change-score DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per arm",
-                )],
+                extra_diagnostics: vec![
+                    Diagnostic::new(
+                        "estimate.quasi.panel_did.cluster_se",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "two-period subject change-score DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per arm",
+                    ),
+                    Diagnostic::new(
+                        "identification.quasi.parallel_trends_untestable_two_periods",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
+                    ),
+                ],
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,
@@ -532,6 +545,14 @@ impl CheckedPanelDidOperation {
                 message: "repeated-cross-section cluster SE requires at least two clusters in each group-period cell",
             });
         }
+        let group_clusters: [BTreeSet<&str>; 2] = std::array::from_fn(|group| {
+            cell_clusters[group][0].union(&cell_clusters[group][1]).copied().collect()
+        });
+        if !group_clusters[0].is_disjoint(&group_clusters[1]) {
+            return Err(CausalError::Unsupported {
+                message: "repeated-cross-section DiD requires clusters nested within treatment groups for cluster inference",
+            });
+        }
         let means: [[f64; 2]; 2] = std::array::from_fn(|group| {
             std::array::from_fn(|period| sums[group][period] / counts[group][period] as f64)
         });
@@ -573,12 +594,20 @@ impl CheckedPanelDidOperation {
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.quasi.repeated_cross_section_did.cluster_se",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "four-cell repeated-cross-section DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per cell",
-                )],
+                extra_diagnostics: vec![
+                    Diagnostic::new(
+                        "estimate.quasi.repeated_cross_section_did.cluster_se",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "four-cell repeated-cross-section DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per cell",
+                    ),
+                    Diagnostic::new(
+                        "identification.quasi.parallel_trends_untestable_two_periods",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
+                    ),
+                ],
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,
