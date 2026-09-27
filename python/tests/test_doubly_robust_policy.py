@@ -337,6 +337,40 @@ def test_retained_multi_action_policy_matches_direct_native_value_and_artifact()
         )
 
 
+def test_retained_multi_action_cate_interval_and_sparse_refusal():
+    n = 300
+    labels = ("control", "A", "B")
+    assigned = [labels[i % 3] for i in range(n)]
+    outcomes = [1.0 + (0.0, 1.0, 3.0)[i % 3] + (i % 7) / 10.0 for i in range(n)]
+    fixed = policy.MultiActionPolicy(labels, ["control"] * n)
+    query = policy.MultiActionPolicyValue(
+        outcome="y", assignment=assigned,
+        propensities=[[1.0 / 3.0] * 3 for _ in range(n)],
+        policy=fixed, evaluation_subject_ids=[f"cate-{i}" for i in range(n)],
+        baseline_groups=["g0"] * n,
+    )
+    result = ant.analyze({"y": outcomes}, query=query, refute="none")
+    points = result.policy_value.multi_action_cate
+    assert len(points) == 2
+    for point, truth in zip(points, (1.0, 3.0)):
+        assert point.uncertainty == "pointwise_95"
+        assert point.standard_error > 0.0
+        assert point.interval_95[0] < truth < point.interval_95[1]
+    loaded = ant.load(result.export(artifact_id="multi-cate-interval"))
+    assert loaded.answer.structured["multi_action_cate"][0]["interval_95"] == pytest.approx(points[0].interval_95)
+
+    thin = policy.MultiActionPolicyValue(
+        outcome="y", assignment=assigned[:299],
+        propensities=[[1.0 / 3.0] * 3 for _ in range(299)],
+        policy=policy.MultiActionPolicy(labels, ["control"] * 299),
+        evaluation_subject_ids=[f"thin-cate-{i}" for i in range(299)],
+        baseline_groups=["g0"] * 299,
+    )
+    thin_result = ant.analyze({"y": outcomes[:299]}, query=thin, refute="none")
+    assert all(point.interval_95 is None and point.uncertainty == "point_only"
+               for point in thin_result.policy_value.multi_action_cate)
+
+
 def test_retained_held_out_policy_intervals_and_crossfit_refusal():
     n = 300
     assignment = [i % 2 == 1 for i in range(n)]

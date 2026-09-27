@@ -397,7 +397,7 @@ class MultiActionPolicyValue:
 
 @dataclass(frozen=True, slots=True)
 class MultiActionCatePoint:
-    """Point-only randomized action effect versus control in one baseline group."""
+    """Randomized action effect versus control in one fixed baseline group."""
 
     group: str
     action: str
@@ -405,6 +405,8 @@ class MultiActionCatePoint:
     evaluation_rows: int
     observed_action_rows: int
     observed_control_rows: int
+    standard_error: float = 0.0
+    interval_95: tuple[float, float] | None = None
     uncertainty: str = "point_only"
 
 

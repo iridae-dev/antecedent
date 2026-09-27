@@ -3283,6 +3283,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         }).collect(),
         multi_action_cate: policy.multi_action_cate.iter().map(|point| antecedent_io::analysis_result_artifact::MultiActionCateWire {
             group: point.group.clone(), action: point.action.clone(), effect: point.effect,
+            standard_error: point.standard_error, interval_95: point.interval_95,
             evaluation_rows: point.evaluation_rows,
             observed_action_rows: point.observed_action_rows,
             observed_control_rows: point.observed_control_rows,
