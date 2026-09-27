@@ -336,6 +336,32 @@ def test_staggered_event_study_reports_cohort_event_time_and_descriptive_preperi
     assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.diagnostics
 
 
+def test_staggered_event_study_runs_through_retained_analyze_with_direct_parity():
+    import antecedent
+
+    ids = [f"s{i}" for i in range(8) for _ in range(4)]
+    periods = [period for _ in range(8) for period in range(1, 5)]
+    cohorts = [0 if i < 4 else 3 for i in range(8) for _ in range(4)]
+    outcomes = [
+        float(int(subject[1:]) + 2 * period + (4 if cohort == 3 and period >= 3 else 0))
+        for subject, period, cohort in zip(ids, periods, cohorts, strict=True)
+    ]
+    data = {"y": outcomes, "id": ids, "period": periods, "cohort": cohorts}
+    direct = estimate_staggered_event_study(data, StaggeredAdoption("y", "id", "period", "cohort"))
+    query = StaggeredAdoption("y", "id", "period", "cohort", event_study=True)
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    assert result.panel_did == direct
+    assert result.plan.estimator == "quasi.staggered_event_study_never_treated"
+    assert np.isnan(result.estimate.se_analytic)
+    assert result.panel_did.support_status == "unlicensed_point_utility"
+    assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.panel_did.diagnostics
+    assert antecedent.analyze(data, query=query).panel_did == direct
+    assert prepared.estimate({**data, "y": [value + 1 for value in outcomes]}).panel_did == direct
+    with pytest.raises(Exception, match="never-treated"):
+        antecedent.analyze({**data, "cohort": [3] * len(cohorts)}, query=query)
+
+
 def test_staggered_event_study_refuses_no_never_treated_comparison_group():
     with pytest.raises(CausalValueError, match="never-treated controls"):
         estimate_staggered_event_study(

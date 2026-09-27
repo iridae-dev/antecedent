@@ -133,6 +133,8 @@ pub struct PanelDidEstimate {
     pub clusters: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: Arc<str>,
+    /// Cohort-specific contrasts for a retained event study; empty for scalar DiD.
+    pub event_time_effects: Arc<[antecedent_estimate::staggered_event_study::EventTimeEffect]>,
 }
 
 /// Balanced-panel synthetic-control point result and donor-support diagnostics.
@@ -946,7 +948,10 @@ impl StudyResult {
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
-        let base = self.base_dependence();
+        // Retained panel DiD is bound through a tabular snapshot and publishes
+        // no interval. Its pointwise cluster SE lives in the design section;
+        // the absent primary interval has no panel resampling dependence.
+        let base = if self.panel_did.is_some() { "iid" } else { self.base_dependence() };
         if let Some(response) = &self.response {
             // A Bayesian response publishes credible bands; the draws behind a
             // band are in the referenced posterior artifact, not on the result.

@@ -21,6 +21,8 @@ pub struct PanelDidSection {
     pub clusters: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: String,
+    /// Cohort, period, event time, estimate, treated, controls, SE, clusters.
+    pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
 }
 
 impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
@@ -32,6 +34,11 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
             comparison_subjects: value.comparison_subjects,
             clusters: value.clusters,
             uncertainty: value.uncertainty.to_string(),
+            event_time_effects: value.event_time_effects.iter().map(|effect| (
+                effect.cohort, effect.period, effect.event_time, effect.effect,
+                effect.treated_subjects, effect.comparison_subjects,
+                effect.standard_error, effect.clusters,
+            )).collect(),
         }
     }
 }
@@ -418,126 +425,15 @@ fn staggered_event_study(
     cohorts: Vec<i64>,
     clusters: Vec<String>,
 ) -> PyResult<Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>> {
-    use std::collections::{BTreeMap, BTreeSet};
-    let values = outcome.as_array();
-    let n = values.len();
-    if n == 0
-        || subjects.len() != n
-        || periods.len() != n
-        || cohorts.len() != n
-        || clusters.len() != n
-    {
-        return Err(PyValueError::new_err(
-            "outcome, subject, period, and cohort vectors must have equal non-zero length",
-        ));
-    }
-    if values.iter().any(|v| !v.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-    let mut units: BTreeMap<&str, (Option<i64>, BTreeMap<i64, f64>, Option<&str>)> =
-        BTreeMap::new();
-    let mut all_periods = BTreeSet::new();
-    for i in 0..n {
-        if subjects[i].is_empty() {
-            return Err(PyValueError::new_err("subject IDs must be non-empty strings"));
-        }
-        if periods[i] <= 0 || cohorts[i] < 0 {
-            return Err(PyValueError::new_err(
-                "periods must be positive integers and cohort 0 denotes never treated",
-            ));
-        }
-        all_periods.insert(periods[i]);
-        if clusters[i].is_empty() {
-            return Err(PyValueError::new_err("cluster IDs must be non-empty strings"));
-        }
-        let unit = units.entry(subjects[i].as_str()).or_insert((None, BTreeMap::new(), None));
-        if unit.0.is_some_and(|g| g != cohorts[i]) {
-            return Err(PyValueError::new_err(
-                "adoption cohort must be constant within each subject",
-            ));
-        }
-        unit.0 = Some(cohorts[i]);
-        if unit.2.is_some_and(|cluster| cluster != clusters[i]) {
-            return Err(PyValueError::new_err("cluster ID must be constant within each subject"));
-        }
-        unit.2 = Some(clusters[i].as_str());
-        if unit.1.insert(periods[i], values[i]).is_some() {
-            return Err(PyValueError::new_err(
-                "each subject must have exactly one observation per period",
-            ));
-        }
-    }
-    let ps: Vec<i64> = all_periods.into_iter().collect();
-    if ps.len() < 2 {
-        return Err(PyValueError::new_err("event study requires at least two periods"));
-    }
-    if units
-        .values()
-        .any(|u| u.1.len() != ps.len() || ps.iter().any(|p| !u.1.contains_key(p)) || u.2.is_none())
-    {
-        return Err(PyValueError::new_err(
-            "event study requires a balanced panel with the same periods for every subject",
-        ));
-    }
-    let gs: BTreeSet<i64> = units.values().filter_map(|u| u.0).collect();
-    if !gs.contains(&0) {
-        return Err(PyValueError::new_err(
-            "event study requires never-treated controls (cohort 0)",
-        ));
-    }
-    let controls: Vec<_> = units.values().filter(|u| u.0 == Some(0)).collect();
-    let mut output = Vec::new();
-    for g in gs.into_iter().filter(|g| *g > 0) {
-        let baseline = g - 1;
-        if !ps.contains(&baseline) || !ps.contains(&g) {
-            return Err(PyValueError::new_err(
-                "each adoption cohort needs an observed immediately pre-treatment baseline and adoption period",
-            ));
-        }
-        let treated: Vec<_> = units.values().filter(|u| u.0 == Some(g)).collect();
-        for t in ps.iter().copied().filter(|t| *t != baseline) {
-            let dt: f64 = treated.iter().map(|u| u.1[&t] - u.1[&baseline]).sum::<f64>()
-                / treated.len() as f64;
-            let dc: f64 = controls.iter().map(|u| u.1[&t] - u.1[&baseline]).sum::<f64>()
-                / controls.len() as f64;
-            let estimate = dt - dc;
-            let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
-            let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
-            for (group, cohort_units, mean, denominator) in
-                [(1usize, &treated, dt, treated.len()), (0usize, &controls, dc, controls.len())]
-            {
-                for unit in cohort_units {
-                    let delta = unit.1[&t] - unit.1[&baseline];
-                    let cluster = unit.2.expect("cluster validated above");
-                    group_clusters[group].insert(cluster);
-                    *scores.entry(cluster).or_default() +=
-                        (if group == 1 { 1.0 } else { -1.0 }) * (delta - mean) / denominator as f64;
-                }
-            }
-            if group_clusters.iter().any(|set| set.len() < 2) {
-                return Err(PyValueError::new_err(
-                    "cluster-robust standard error requires at least two clusters in each cohort/control group",
-                ));
-            }
-            let cluster_count = scores.len();
-            let variance = cluster_count as f64 / (cluster_count - 1) as f64
-                * scores.values().map(|score| score * score).sum::<f64>();
-            output.push((
-                g,
-                t,
-                t - g,
-                estimate,
-                treated.len(),
-                controls.len(),
-                variance.max(0.0).sqrt(),
-                cluster_count,
-            ));
-        }
-    }
-    if output.is_empty() {
-        return Err(PyValueError::new_err("no supported event-time comparisons are available"));
-    }
-    Ok(output)
+    let values: Vec<f64> = outcome.as_array().iter().copied().collect();
+    let effects = antecedent_estimate::staggered_event_study::estimate(
+        &values, &subjects, &periods, &cohorts, &clusters,
+    ).map_err(PyValueError::new_err)?;
+    Ok(effects.into_iter().map(|effect| (
+        effect.cohort, effect.period, effect.event_time, effect.effect,
+        effect.treated_subjects, effect.comparison_subjects,
+        effect.standard_error, effect.clusters,
+    )).collect())
 }
 
 /// Balanced-panel synthetic control using the shared native estimator.

@@ -1594,6 +1594,7 @@ mod tests {
             outcome: 0,
             repeated_cross_section: false,
             staggered_target: None,
+            staggered_event_study: false,
             periods: Vec::new(),
             cohorts: Vec::new(),
             treated: vec![true, true, false, false],

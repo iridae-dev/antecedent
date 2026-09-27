@@ -3266,6 +3266,11 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             comparison_subjects: did.comparison_subjects,
             clusters: did.clusters,
             uncertainty: did.uncertainty.to_string(),
+            event_time_effects: did.event_time_effects.iter().map(|effect| (
+                effect.cohort, effect.period, effect.event_time, effect.effect,
+                effect.treated_subjects, effect.comparison_subjects,
+                effect.standard_error, effect.clusters,
+            )).collect(),
         }),
         synthetic_control: result.synthetic_control.as_ref().map(|fit| {
             antecedent_io::SyntheticControlWire {

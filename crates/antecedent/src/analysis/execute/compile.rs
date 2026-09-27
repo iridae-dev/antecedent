@@ -700,6 +700,9 @@ impl super::Study {
                             antecedent_core::DidSamplingDesign::StaggeredGroupTime => {
                                 "quasi.staggered_group_time_never_treated"
                             }
+                            antecedent_core::DidSamplingDesign::StaggeredEventStudy => {
+                                "quasi.staggered_event_study_never_treated"
+                            }
                         })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),

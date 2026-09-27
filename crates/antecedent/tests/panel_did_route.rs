@@ -225,3 +225,54 @@ fn staggered_group_time_runs_as_retained_native_study() {
     );
     assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
 }
+
+#[test]
+fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
+    let mut outcome = Vec::new();
+    let mut subjects = Vec::new();
+    let mut clusters = Vec::new();
+    let mut periods = Vec::new();
+    let mut cohorts = Vec::new();
+    for subject in 0..8 {
+        for period in 1..=4 {
+            let cohort = if subject < 4 { 0 } else { 3 };
+            subjects.push(Arc::<str>::from(format!("s{subject}")));
+            clusters.push(Arc::<str>::from(format!("c{subject}")));
+            periods.push(period);
+            cohorts.push(cohort);
+            outcome.push(subject as f64 + 2.0 * period as f64
+                + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 });
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let query = PanelDidQuery::staggered_event_study(
+        VariableId::from_raw(0), subjects, clusters, periods, cohorts,
+    );
+    let context = ExecutionContext::for_tests(7);
+    let result = Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&context).unwrap();
+    let panel = result.panel_did.as_ref().unwrap();
+    assert_eq!(panel.event_time_effects.len(), 3);
+    assert_eq!(panel.event_time_effects.iter().map(|effect| effect.event_time).collect::<Vec<_>>(), vec![-2, 0, 1]);
+    assert_eq!(panel.event_time_effects.iter().map(|effect| effect.effect).collect::<Vec<_>>(), vec![0.0, 4.0, 4.0]);
+    assert_eq!(panel.event_time_effects[1].standard_error, 0.0);
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "cohort_specific_parallel_untreated_trends"
+    )));
+    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&context).unwrap();
+    let retained = prepared.estimate(&data, &context).unwrap();
+    assert_eq!(retained.panel_did, result.panel_did);
+    let bytes = prepared.encode_contracted_result(&retained, "staggered-event-study", &context).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.panel_did.as_ref().unwrap().event_time_effects.len(), 3);
+    assert!(body.interval_lower.is_none() && body.interval_upper.is_none());
+    let mut fabricated = body.clone();
+    fabricated.panel_did.as_mut().unwrap().event_time_effects[1].6 = f64::INFINITY;
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    let no_controls = PanelDidQuery::staggered_event_study(
+        query.outcome, query.subjects.to_vec(), query.clusters.to_vec(),
+        query.periods.to_vec(), vec![3; query.cohorts.len()],
+    );
+    assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+}
