@@ -21,6 +21,78 @@ pub struct RegimeValueSummary {
     pub minimum_censoring_probability: f64,
 }
 
+/// Backward-recursive sequential doubly robust score. All histories are
+/// subject-major; a censored subject contributes its last available Q value.
+pub fn evaluate_sequential_dr_value(
+    outcomes: &[f64], outcome_observed: &[bool], observation_history: &[bool],
+    treatment: &[bool], actions: &[bool], q_predictions: &[f64],
+    treatment_probability: &[f64], censoring_probability: &[f64],
+    periods: usize, minimum_probability: f64,
+) -> Result<RegimeValueSummary, &'static str> {
+    let n = outcomes.len();
+    let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
+    if n == 0 || periods == 0 || outcome_observed.len() != n
+        || [observation_history.len(), treatment.len(), actions.len(), q_predictions.len(),
+            treatment_probability.len(), censoring_probability.len()].iter().any(|&len| len != cells)
+    { return Err("sequential DR arrays must align by subject and period"); }
+    if !minimum_probability.is_finite() || !(0.0 < minimum_probability && minimum_probability <= 0.5) {
+        return Err("minimum probability must be finite and in (0, 0.5]");
+    }
+    if !outcome_observed.iter().any(|&observed| observed) {
+        return Err("at least one terminal outcome must be observed for sequential augmentation");
+    }
+    let mut total = 0.0;
+    let mut min_action: f64 = 1.0;
+    let mut min_censor: f64 = 1.0;
+    let mut maximum_weight: f64 = 1.0;
+    for i in 0..n {
+        if outcome_observed[i] && !outcomes[i].is_finite() {
+            return Err("observed terminal outcomes must be finite");
+        }
+        if observation_history[i * periods + periods - 1] != outcome_observed[i] {
+            return Err("terminal outcome observation must agree with the final observation-history period");
+        }
+        let mut next = if outcome_observed[i] { outcomes[i] } else { 0.0 };
+        for t in (0..periods).rev() {
+            let j = i * periods + t;
+            if t > 0 && !observation_history[j - 1] && observation_history[j] {
+                return Err("observation_history must be monotone after censoring or dropout");
+            }
+            let q = q_predictions[j];
+            let p = treatment_probability[j];
+            let c = censoring_probability[j];
+            if !q.is_finite() { return Err("q_prediction values must be finite"); }
+            if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
+                return Err("sequential treatment positivity is violated at the declared probability floor");
+            }
+            if !c.is_finite() || c < minimum_probability || c > 1.0 {
+                return Err("sequential censoring positivity is violated at the declared probability floor");
+            }
+            let action_p = if actions[j] { p } else { 1.0 - p };
+            min_action = min_action.min(action_p);
+            min_censor = min_censor.min(c);
+            next = if observation_history[j] && treatment[j] == actions[j] {
+                q + (next - q) / (action_p * c)
+            } else { q };
+            if !next.is_finite() { return Err("sequential augmentation overflowed; raise the positivity floor or shorten the horizon"); }
+        }
+        let mut weight = 1.0;
+        for t in 0..periods {
+            let j = i * periods + t;
+            if !observation_history[j] || treatment[j] != actions[j] { break; }
+            let ap = if actions[j] { treatment_probability[j] } else { 1.0 - treatment_probability[j] };
+            weight /= ap * censoring_probability[j];
+            if !weight.is_finite() { return Err("sequential weight overflowed"); }
+            maximum_weight = maximum_weight.max(weight);
+        }
+        total += next;
+        if !total.is_finite() { return Err("sequential augmented values overflowed across subjects"); }
+    }
+    Ok(RegimeValueSummary { value: total / n as f64,
+        effective_sample_size: n as f64, matched_observed_fraction: outcome_observed.iter().filter(|&&x| x).count() as f64 / n as f64,
+        maximum_weight, minimum_action_probability: min_action, minimum_censoring_probability: min_censor })
+}
+
 /// Evaluate supplied conditional period rewards under a prescribed regime.
 /// Predictions are subject-major and must be produced without reusing the
 /// subject's outcome when excluded-fold ownership is declared upstream.

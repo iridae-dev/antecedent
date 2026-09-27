@@ -104,3 +104,56 @@ def test_g_formula_query_refuses_missing_or_nonfinite_predictions():
         LongitudinalRegimeQuery(**args)
     with pytest.raises(ValueError, match="requires finite"):
         LongitudinalRegimeQuery(**args, period_outcome_predictions=[[float("nan"), 1.0]] * 4)
+
+
+def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
+    from antecedent.regimes import evaluate_sequential_doubly_robust
+
+    data = {"y": [7.0, 99.0, float("nan"), 8.0]}
+    query = LongitudinalRegimeQuery(
+        outcome="y", method="sequential_dr",
+        treatment_history=[[False, False], [False, True], [False, False], [True, True]],
+        actions=[False, False],
+        treatment_probabilities=[[0.5, 0.5]] * 4,
+        censoring_probabilities=[[0.8, 0.8]] * 4,
+        outcome_observed=[True, True, False, True],
+        observation_history=[[True, True], [True, True], [True, False], [True, True]],
+        q_predictions=[[1.0, 3.0], [5.0, 4.0], [2.0, 6.0], [1.0, 1.0]],
+        subject_ids=["s1", "s2", "s3", "s4"], fold_ids=[0, 1, 0, 1],
+        prediction_fold_ids=[0, 1, 0, 1], excluded_fold_predictions=True,
+    )
+    direct = evaluate_sequential_doubly_robust(
+        outcomes=data["y"], outcome_observed=query.outcome_observed,
+        observation_history=query.observation_history,
+        treatment_history=query.treatment_history, regime=[False, False],
+        q_predictions=query.q_predictions, treatment_probabilities=query.treatment_probabilities,
+        censoring_probabilities=query.censoring_probabilities,
+        subject_ids=query.subject_ids, fold_ids=query.fold_ids,
+        prediction_fold_ids=query.prediction_fold_ids,
+    )
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    assert result.longitudinal_regime.method == "sequential_dr"
+    assert result.longitudinal_regime.value == pytest.approx(direct.value)
+    assert result.longitudinal_regime.uncertainty == "point_only_no_interval"
+    assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
+    assert "subject_excluded_fold_predictions" in " ".join(result.assumptions or [])
+    assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
+    artifact = antecedent.load(prepared.export()).artifact
+    assert artifact.payload["longitudinal_regime"]["method"] == "sequential_dr"
+    query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
+    assert query_artifact.payload["longitudinal_regime"]["q_predictions"] == [1.0, 3.0, 5.0, 4.0, 2.0, 6.0, 1.0, 1.0]
+
+
+def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation():
+    _, base = fixture()
+    args = dict(outcome="y", method="sequential_dr", treatment_history=base.treatment_history,
+                actions=base.actions, treatment_probabilities=base.treatment_probabilities,
+                subject_ids=base.subject_ids, fold_ids=[0, 1, 0, 1],
+                excluded_fold_predictions=True, q_predictions=[[1.0, 1.0]] * 4,
+                observation_history=[[True, True]] * 4)
+    with pytest.raises(ValueError, match="fold ownership"):
+        LongitudinalRegimeQuery(**args, prediction_fold_ids=[1, 1, 0, 1])
+    with pytest.raises(ValueError, match="monotone"):
+        LongitudinalRegimeQuery(**{**args, "observation_history": [[False, True]] + [[True, True]] * 3},
+                                prediction_fold_ids=[0, 1, 0, 1])

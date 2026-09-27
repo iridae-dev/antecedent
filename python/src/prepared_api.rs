@@ -3660,7 +3660,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
-        *, method="ipw", period_outcome_predictions=Vec::new(), accepted=false, seed=1, threads=None, options=None))]
+        *, method="ipw", period_outcome_predictions=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
@@ -3680,6 +3680,9 @@ impl PyPreparedAnalysis {
         minimum_probability: f64,
         method: &str,
         period_outcome_predictions: Vec<f64>,
+        q_predictions: Vec<f64>,
+        observation_history: Vec<bool>,
+        prediction_fold_ids: Vec<u32>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3694,6 +3697,7 @@ impl PyPreparedAnalysis {
             let method = match method {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
                 _ => {
                     return Err(py_err(antecedent::CausalError::Compile {
                         message: "unknown longitudinal regime method".into(),
@@ -3708,6 +3712,9 @@ impl PyPreparedAnalysis {
                 } else {
                     Some(period_outcome_predictions.into())
                 },
+                q_predictions: if q_predictions.is_empty() { None } else { Some(q_predictions.into()) },
+                observation_history: if observation_history.is_empty() { None } else { Some(observation_history.into()) },
+                prediction_fold_ids: if prediction_fold_ids.is_empty() { None } else { Some(prediction_fold_ids.into()) },
                 periods,
                 treatment_history: treatment_history.into(),
                 regime_actions: regime_actions.into(),

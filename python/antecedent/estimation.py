@@ -1950,6 +1950,12 @@ def _longitudinal_regime_payload(
     outcome = raw_columns[raw_names.index(query.outcome)]
     if len(outcome) != len(query.subject_ids):
         raise CausalValueError("longitudinal outcome rows must align with subject histories")
+    if query.method == "sequential_dr":
+        values = np.asarray(outcome, dtype=np.float64)
+        observed = np.asarray(query.outcome_observed, dtype=bool)
+        if not np.isfinite(values[observed]).all():
+            raise CausalValueError("observed terminal outcomes must be finite")
+        outcome = np.where(observed, values, 0.0)
     return ingest_columns({query.outcome: outcome})
 
 
@@ -2981,6 +2987,9 @@ class _PrepareRoute:
             query.excluded_fold_predictions, query.probabilities_known_by_design,
             query.minimum_probability, method=query.method,
             period_outcome_predictions=flatten(query.period_outcome_predictions) if query.period_outcome_predictions is not None else [],
+            q_predictions=flatten(query.q_predictions) if query.q_predictions is not None else [],
+            observation_history=flatten(query.observation_history) if query.observation_history is not None else [],
+            prediction_fold_ids=list(query.prediction_fold_ids) if query.prediction_fold_ids is not None else [],
             accepted=False, **self._common(),
         )
         return native, "average"

@@ -37,8 +37,11 @@ class LongitudinalRegimeQuery:
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
     subject_ids: Sequence[str]
-    method: Literal["ipw", "g_formula"] = "ipw"
+    method: Literal["ipw", "g_formula", "sequential_dr"] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
+    q_predictions: Sequence[Sequence[float]] | None = None
+    observation_history: Sequence[Sequence[bool]] | None = None
+    prediction_fold_ids: Sequence[int] | None = None
     censoring_probabilities: Sequence[Sequence[float]] | None = None
     outcome_observed: Sequence[bool] | None = None
     fold_ids: Sequence[int] | None = None
@@ -54,14 +57,25 @@ class LongitudinalRegimeQuery:
         if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
             raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
         n, periods = history.shape
-        if self.method not in ("ipw", "g_formula"):
-            raise ValueError("method must be 'ipw' or 'g_formula'")
+        if self.method not in ("ipw", "g_formula", "sequential_dr"):
+            raise ValueError("method must be 'ipw', 'g_formula', or 'sequential_dr'")
         predictions = None if self.period_outcome_predictions is None else np.asarray(self.period_outcome_predictions, dtype=np.float64)
         if self.method == "g_formula":
             if predictions is None or predictions.shape != (n, periods) or not np.isfinite(predictions).all():
                 raise ValueError("g_formula requires finite subject-by-period outcome predictions")
         elif predictions is not None:
             raise ValueError("ipw does not accept period_outcome_predictions")
+        q = None if self.q_predictions is None else np.asarray(self.q_predictions, dtype=np.float64)
+        observation = None if self.observation_history is None else np.asarray(self.observation_history)
+        if self.method == "sequential_dr":
+            if q is None or q.shape != (n, periods) or not np.isfinite(q).all():
+                raise ValueError("sequential_dr requires finite subject-by-period Q predictions")
+            if observation is None or observation.shape != (n, periods) or not np.isin(observation, (0, 1, False, True)).all():
+                raise ValueError("sequential_dr requires binary subject-by-period observation history")
+            if self.prediction_fold_ids is None:
+                raise ValueError("sequential_dr requires Q prediction fold ownership")
+        elif q is not None or observation is not None or self.prediction_fold_ids is not None:
+            raise ValueError("Q predictions and observation history require sequential_dr")
         actions = np.asarray(self.actions)
         if actions.shape == (periods,):
             actions = np.broadcast_to(actions, (n, periods))
@@ -84,6 +98,17 @@ class LongitudinalRegimeQuery:
             raise ValueError("fold_ids must contain one non-negative u32 per subject")
         if self.excluded_fold_predictions and len(set(folds)) < 2:
             raise ValueError("excluded-fold predictions require at least two subject folds")
+        if self.method == "sequential_dr":
+            if not self.excluded_fold_predictions:
+                raise ValueError("sequential_dr requires declared excluded-fold Q predictions")
+            if tuple(self.prediction_fold_ids) != folds:
+                raise ValueError("Q prediction fold ownership must match subject folds")
+            if not np.array_equal(observation[:, -1], observed):
+                raise ValueError("terminal observation must match the final observation-history period")
+            if np.any((~observation[:, :-1].astype(bool)) & observation[:, 1:].astype(bool)):
+                raise ValueError("observation_history must be monotone after dropout")
+            if not observed.any():
+                raise ValueError("sequential_dr requires at least one observed terminal outcome")
         if not self.probabilities_known_by_design and not self.excluded_fold_predictions:
             raise ValueError("probabilities require known sequential randomization or excluded-fold predictions")
         floor = self.minimum_probability
@@ -98,6 +123,10 @@ class LongitudinalRegimeQuery:
         object.__setattr__(self, "fold_ids", folds)
         if predictions is not None:
             object.__setattr__(self, "period_outcome_predictions", tuple(tuple(map(float, row)) for row in predictions))
+        if q is not None:
+            object.__setattr__(self, "q_predictions", tuple(tuple(map(float, row)) for row in q))
+            object.__setattr__(self, "observation_history", tuple(tuple(map(bool, row)) for row in observation))
+            object.__setattr__(self, "prediction_fold_ids", tuple(self.prediction_fold_ids))
 
     @property
     def periods(self) -> int:

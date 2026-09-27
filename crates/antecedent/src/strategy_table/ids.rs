@@ -346,6 +346,8 @@ pub enum EstimatorId {
     LongitudinalIpwRegime,
     /// Prespecified sequential g-formula value from supplied conditional rewards.
     LongitudinalGFormulaRegime,
+    /// Sequentially augmented regime value from supplied Q scores.
+    LongitudinalSequentialDrRegime,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
     /// Doubly robust CATE learner (DRLearner).
@@ -821,6 +823,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
                 "estimate.longitudinal.g_formula_regime",
             ),
         },
+        EstimatorId::LongitudinalSequentialDrRegime => EstimatorData {
+            name: "longitudinal.sequential_dr_regime",
+            parallel_task_dimension: "subject",
+            kernel_label: "longitudinal.sequential_dr_regime",
+            provenance: ("estimate.longitudinal.sequential_dr_regime", "estimate.longitudinal.sequential_dr_regime"),
+        },
         EstimatorId::Dml => EstimatorData {
             name: "dml",
             parallel_task_dimension: "crossfit.fold",
@@ -1070,7 +1078,8 @@ pub fn validate_static_pair(
             | EstimatorId::RandomizedMultiActionIpwPolicy
             | EstimatorId::RandomizedSurvivalProductLimit
             | EstimatorId::LongitudinalIpwRegime
-            | EstimatorId::LongitudinalGFormulaRegime,
+            | EstimatorId::LongitudinalGFormulaRegime
+            | EstimatorId::LongitudinalSequentialDrRegime,
         )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
@@ -1252,7 +1261,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
             matches!(method, EstimandMethod::RandomizedPolicyValue)
         }
         EstimatorId::RandomizedSurvivalProductLimit => false,
-        EstimatorId::LongitudinalIpwRegime | EstimatorId::LongitudinalGFormulaRegime => false,
+        EstimatorId::LongitudinalIpwRegime | EstimatorId::LongitudinalGFormulaRegime | EstimatorId::LongitudinalSequentialDrRegime => false,
     }
 }
 

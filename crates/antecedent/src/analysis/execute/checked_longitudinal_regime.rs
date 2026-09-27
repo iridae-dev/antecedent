@@ -6,7 +6,7 @@ use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
-use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value};
+use antecedent_estimate::longitudinal_regime::{evaluate_g_formula_value, evaluate_regime_value, evaluate_sequential_dr_value};
 
 #[derive(Clone)]
 pub(crate) struct CheckedLongitudinalRegimeOperation {
@@ -61,6 +61,7 @@ impl CheckedLongitudinalRegimeOperation {
         let estimator_id = match query.method {
             LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
             LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
+            LongitudinalRegimeMethod::SequentialDoublyRobust => EstimatorId::LongitudinalSequentialDrRegime,
         };
         if physical.logical.query != study.query
             || physical.logical.record.identifier.as_deref()
@@ -123,6 +124,17 @@ impl CheckedLongitudinalRegimeOperation {
                     self.query.minimum_probability),
                 EstimatorId::LongitudinalGFormulaRegime, "g_formula", "estimate.longitudinal.g_formula_regime.point_only",
                 "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
+            ),
+            LongitudinalRegimeMethod::SequentialDoublyRobust => (
+                evaluate_sequential_dr_value(outcome, &self.query.outcome_observed,
+                    self.query.observation_history.as_deref().expect("validated observation history"),
+                    &self.query.treatment_history, &self.query.regime_actions,
+                    self.query.q_predictions.as_deref().expect("validated Q predictions"),
+                    &self.query.treatment_probabilities, &self.query.censoring_probabilities,
+                    self.query.periods, self.query.minimum_probability),
+                EstimatorId::LongitudinalSequentialDrRegime, "sequential_dr",
+                "estimate.longitudinal.sequential_dr_regime.point_only",
+                "backward-recursive augmented regime value from caller-supplied subject-owned Q scores and known sequential probabilities; no interval or calibration claim",
             ),
         };
         let summary = summary.map_err(|message| CausalError::Unsupported { message })?;
@@ -247,6 +259,16 @@ fn longitudinal_identification(
             });
         }
     }
+    if query.method == LongitudinalRegimeMethod::SequentialDoublyRobust {
+        for (id, description) in [
+            ("sequential_q_validity", "supplied Q is the conditional mean of the next recursive pseudo-outcome under the prescribed regime"),
+            ("subject_excluded_fold_predictions", "caller declares every Q prediction excludes the subject's entire history fold"),
+            ("monotone_observation_history", "dropout is monotone and terminal observation agrees with the final history period"),
+        ] {
+            assumptions.push(AssumptionRecord { assumption: Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+                source: AssumptionSource::UserDeclared, scope: AssumptionScope::Identification, status: AssumptionStatus::Declared });
+        }
+    }
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();
@@ -260,6 +282,7 @@ fn longitudinal_identification(
     let rule = match query.method {
         LongitudinalRegimeMethod::Ipw => "longitudinal.sequential_randomization",
         LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula",
+        LongitudinalRegimeMethod::SequentialDoublyRobust => "longitudinal.sequential_dr",
     };
     arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from("known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean"))));
     let estimand = IdentifiedEstimand::new(

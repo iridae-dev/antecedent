@@ -728,6 +728,7 @@ pub(crate) fn validate_query_ids(
             let method = match wire.method.as_str() {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
                 _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
             };
             antecedent_core::LongitudinalRegimeQuery {
@@ -738,6 +739,9 @@ pub(crate) fn validate_query_ids(
                 } else {
                     Some(wire.period_outcome_predictions.clone().into())
                 },
+                q_predictions: if wire.q_predictions.is_empty() { None } else { Some(wire.q_predictions.clone().into()) },
+                observation_history: if wire.observation_history.is_empty() { None } else { Some(wire.observation_history.clone().into()) },
+                prediction_fold_ids: if wire.prediction_fold_ids.is_empty() { None } else { Some(wire.prediction_fold_ids.clone().into()) },
                 periods: wire.periods,
                 treatment_history: wire.treatment_history.clone().into(),
                 regime_actions: wire.regime_actions.clone().into(),
