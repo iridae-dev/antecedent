@@ -205,7 +205,11 @@ class InterferenceQuery:
     :func:`antecedent.analyze` estimates the licensed cell (explicit ``Dag``,
     Frequentist, validation ``none``): NeighborCount exposure under Bernoulli
     assignment, Horvitz–Thompson / Hájek with the conservative Young variance
-    bound. It needs the keyword-only design facts: ``network``, the fixed
+    bound. A separate unlicensed construction accepts cluster randomization,
+    NeighborFraction, an explicit partial-interference partition, and the
+    total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
+    has no interval claim. Both paths need the keyword-only design facts:
+    ``network``, the fixed
     directed exposure edges between unit rows (``NetworkEdge`` or
     ``(from, to[, weight])``; an empty sequence is a network without edges),
     and ``realized_assignment``, the binary assignment in unit-row order. Both
@@ -358,7 +362,8 @@ def estimate(
     Carlo seed. It calls the interference estimator directly and returns bare
     numbers, with no study, contract, export or calibration slot.
     ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
-    realized_assignment=))`` is the licensed, study-retaining path.
+    realized_assignment=))`` retains a study for the licensed Bernoulli cell
+    and the separately checked, unlicensed cluster total-effect construction.
     """
 
     if not isinstance(query, InterferenceQuery):

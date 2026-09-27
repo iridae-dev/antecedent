@@ -103,6 +103,7 @@ from ._native import (
     Pag,
     TemporalDag,
 )
+from .regimes import LongitudinalRegimeEstimate, LongitudinalRegimeQuery
 
 if getattr(_native_module, "__build_optimized__", True) is False:
     import warnings as _warnings
@@ -193,6 +194,8 @@ __all__ = [
     "ANCOVAEstimate",
     "estimate_ancova_effect",
     "RandomizedEffect",
+    "LongitudinalRegimeQuery",
+    "LongitudinalRegimeEstimate",
     "SwitchbackDesign",
     "SwitchbackEffect",
     "SwitchbackEstimate",

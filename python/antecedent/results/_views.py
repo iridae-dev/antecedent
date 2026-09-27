@@ -694,6 +694,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     panel_did: Any | None = None
     policy_value: DoublyRobustPolicyEvaluation | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
+    longitudinal_regime: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: list[AnomalyScores] | None = None

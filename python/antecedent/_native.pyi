@@ -212,6 +212,7 @@ class AteAnalysisResult:
     randomized_effect: RandomizedEffectSection | None
     panel_did: PanelDidSection | None
     survival: SurvivalSection | None
+    longitudinal_regime: LongitudinalRegimeSection | None
     policy_value: PolicyValueSection | None
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
@@ -376,6 +377,16 @@ class SurvivalSection:
     tau: float
     minimum_event_risk_set: int | None
     uncertainty: str
+
+class LongitudinalRegimeSection:
+    value: float
+    effective_sample_size: float
+    matched_observed_fraction: float
+    maximum_weight: float
+    minimum_action_probability: float
+    minimum_censoring_probability: float
+    uncertainty: str
+    probability_ownership: str
 
 class PolicyValueSection:
     policy_value: float
@@ -1175,6 +1186,7 @@ class PreparedAnalysis:
         blocks: list[str] | None = None,
         treated_per_row: list[int] | None = None,
         *,
+        treated_clusters: int | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1194,6 +1206,16 @@ class PreparedAnalysis:
         delayed_entry: str | None = None, *, accepted: bool = False,
         seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_longitudinal_regime(
+        names: list[str], columns: Sequence[Any], outcome: str, periods: int,
+        treatment_history: list[bool], regime_actions: list[bool],
+        treatment_probabilities: list[float], censoring_probabilities: list[float],
+        outcome_observed: list[bool], subject_ids: list[str], fold_ids: list[int],
+        excluded_fold_predictions: bool, probabilities_known_by_design: bool,
+        minimum_probability: float, *, accepted: bool = False, seed: int = 1,
+        threads: int | None = None, options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_policy_value(

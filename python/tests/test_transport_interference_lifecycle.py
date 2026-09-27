@@ -247,6 +247,48 @@ def test_route_interference_tabular_explicit():
     assert updated.interference.contrast == fresh.interference.contrast
 
 
+def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_edges():
+    clusters = [0, 0, 1, 1, 2, 2, 3, 3]
+    assignment = [False] * 4 + [True] * 4
+    edges = [(i, i + 1) for i in range(0, 8, 2)] + [
+        (i + 1, i) for i in range(0, 8, 2)
+    ]
+    contrast = interference.ExposureContrast(
+        "y", interference.ExposureLevel(0.0, 0.0), interference.ExposureLevel(1.0, 1.0)
+    )
+    query = ant.InterferenceQuery(
+        interference.ClusterRandomization(clusters, treated_clusters=2),
+        interference.NeighborFraction(),
+        contrast,
+        network=edges,
+        realized_assignment=assignment,
+        partial_interference=interference.PartialInterference(clusters),
+    )
+    data = {"y": [1.0] * 4 + [3.0] * 4}
+    result = ant.analyze(data, graph=[], query=query)
+    assert result.estimate.ate == pytest.approx(2.0)
+    assert result.interference.contrast.hajek == pytest.approx(2.0)
+    assert result.estimate.se_analytic == pytest.approx(0.0)
+    assert result.answer.kind == "point"
+    assert result.evidence_status == "off_axis"
+    assert result.inspect().to_dict()["calibration"]["status"] == "unavailable"
+    assert "partial_interference" in " ".join(result.assumptions or [])
+    assert result.study.refresh({"y": [2.0] * 4 + [5.0] * 4}).estimate.ate == pytest.approx(3.0)
+    loaded = ant.load(result.export())
+    assert loaded.artifact.payload["estimate"] == pytest.approx(2.0)
+
+    crossed = ant.InterferenceQuery(
+        query.assignment,
+        query.exposure,
+        contrast,
+        network=[*edges, (0, 2)],
+        realized_assignment=assignment,
+        partial_interference=query.partial_interference,
+    )
+    with pytest.raises(ValueError, match="crosses cluster boundary"):
+        ant.analyze(data, graph=[], query=crossed)
+
+
 def test_transport_analyze_reproduces_the_conformance_pin():
     names = ["a", "y", "trial", "s", "e"]
     data = {

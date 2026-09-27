@@ -41,6 +41,8 @@ _EXPECTED_ALL = {
     "AnalysisResult",
     "BinaryPolicy",
     "PolicyValue",
+    "LongitudinalRegimeQuery",
+    "LongitudinalRegimeEstimate",
     # Queries
     "AnomalyAttribution",
     "AverageDerivative",

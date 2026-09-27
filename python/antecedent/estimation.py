@@ -96,6 +96,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
+from .regimes import LongitudinalRegimeEstimate, LongitudinalRegimeQuery
 from .results import (
     AnalysisResult,
     CausalResponseView,
@@ -348,6 +349,22 @@ def _survival_from_raw(
         rmst_difference=float(section.rmst_treated - section.rmst_control),
         tau=section.tau,
         uncertainty=section.uncertainty,
+    )
+
+
+def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None:
+    section = getattr(raw, "longitudinal_regime", None)
+    if section is None:
+        return None
+    return LongitudinalRegimeEstimate(
+        value=section.value,
+        effective_sample_size=section.effective_sample_size,
+        matched_observed_fraction=section.matched_observed_fraction,
+        maximum_weight=section.maximum_weight,
+        minimum_action_probability=section.minimum_action_probability,
+        minimum_censoring_probability=section.minimum_censoring_probability,
+        uncertainty=section.uncertainty,
+        probability_ownership=section.probability_ownership,
     )
 
 
@@ -691,6 +708,7 @@ def _wrap_ate(
         panel_did=_panel_did_from_raw(raw, query),
         policy_value=_policy_value_from_raw(raw),
         survival=_survival_from_raw(raw, query),
+        longitudinal_regime=_longitudinal_regime_from_raw(raw),
         anomaly=getattr(raw, "anomaly", None),
         change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,
@@ -1519,6 +1537,7 @@ _PreparedQuery = (
     | PanelDifferenceInDifferences
     | SurvivalOutcome
     | CompetingRisksOutcome
+    | LongitudinalRegimeQuery
 )
 
 
@@ -1638,6 +1657,21 @@ def _panel_did_payload(
     }
     names, columns = ingest_columns({query.outcome: raw[query.outcome]})
     return names, columns, design
+
+
+def _longitudinal_regime_payload(
+    data: Any, query: LongitudinalRegimeQuery
+) -> tuple[list[str], list[Any]]:
+    """Send the numeric endpoint to Rust; histories remain frozen query metadata."""
+    from .quasi import _raw_columns
+
+    raw_names, raw_columns = _raw_columns(data)
+    if query.outcome not in raw_names:
+        raise CausalValueError(f"longitudinal outcome column {query.outcome!r} is missing")
+    outcome = raw_columns[raw_names.index(query.outcome)]
+    if len(outcome) != len(query.subject_ids):
+        raise CausalValueError("longitudinal outcome rows must align with subject histories")
+    return ingest_columns({query.outcome: outcome})
 
 
 def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
@@ -1809,6 +1843,8 @@ class _PrepareRoute:
             return self._randomized_effect()
         if isinstance(query, PanelDifferenceInDifferences):
             return self._panel_did()
+        if isinstance(query, LongitudinalRegimeQuery):
+            return self._longitudinal_regime()
         if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
             return self._survival()
         if self.discovery is not None:
@@ -2335,12 +2371,7 @@ class _PrepareRoute:
                 reason_code="option_not_applicable",
             )
         assignment = query.design.assignment
-        if isinstance(assignment, (ClusterRandomization,)):
-            raise CausalUnsupportedError(
-                "analyze supports Bernoulli, complete, and stratified randomized ITT; cluster, multi-arm, factorial, and switchback designs remain explicit refusals",
-                reason_code="route_not_supported",
-            )
-        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization)):
+        if not isinstance(assignment, (BernoulliAssignment, CompleteRandomization, StratifiedRandomization, ClusterRandomization)):
             raise CausalUnsupportedError("unsupported randomized assignment design", reason_code="route_not_supported")
         self._refuse_ids("RandomizedEffect")
         self._refuse_estimator_config("RandomizedEffect")
@@ -2350,6 +2381,7 @@ class _PrepareRoute:
         blocks: list[str] = []
         treated_per_row: list[int] = []
         treated_units: int | None = None
+        treated_clusters: int | None = None
         if isinstance(assignment, BernoulliAssignment):
             design_kind = "bernoulli"
             probabilities = assignment.probabilities
@@ -2365,6 +2397,16 @@ class _PrepareRoute:
             probabilities = [treated_units / n] * n
             if query.design.blocks is not None:
                 raise CausalUnsupportedError("complete design does not use block metadata; choose StratifiedRandomization", reason_code="route_not_supported")
+        elif isinstance(assignment, ClusterRandomization):
+            design_kind = "cluster"
+            treated_clusters = assignment.treated_clusters
+            cluster_count = len(set(query.design.assignment_units))
+            probabilities = [treated_clusters / cluster_count] * n
+            if query.design.blocks is not None:
+                raise CausalUnsupportedError(
+                    "cluster randomization does not combine with block metadata on this route",
+                    reason_code="route_not_supported",
+                )
         else:
             design_kind = "stratified"
             assert isinstance(assignment, StratifiedRandomization)
@@ -2385,6 +2427,7 @@ class _PrepareRoute:
             treated_units,
             blocks,
             treated_per_row,
+            treated_clusters=treated_clusters,
             accepted=False,
             **self._common(),
         )
@@ -2457,6 +2500,42 @@ class _PrepareRoute:
             query.delayed_entry,
             accepted=False,
             **self._common(),
+        )
+        return native, "average"
+
+    def _longitudinal_regime(self) -> tuple[Any, Literal["average"]]:
+        query = cast(LongitudinalRegimeQuery, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise CausalUnsupportedError(
+                "LongitudinalRegimeQuery carries its own sequential design and does not accept graph= or discovery=",
+                reason_code="option_not_applicable",
+            )
+        self._refuse_ids("LongitudinalRegimeQuery")
+        self._refuse_estimator_config("LongitudinalRegimeQuery")
+        if self._explicit_refute() or self.bootstrap:
+            raise CausalUnsupportedError(
+                "LongitudinalRegimeQuery has no refutation or bootstrap route",
+                reason_code="option_not_applicable",
+            )
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise CausalUnsupportedError(
+                "LongitudinalRegimeQuery reports a point-only value",
+                reason_code="option_not_applicable",
+            )
+        if not query.probabilities_known_by_design:
+            raise CausalUnsupportedError(
+                "retained longitudinal regime value requires known sequential randomization probabilities",
+                reason_code="route_not_supported",
+            )
+        def flatten(matrix: Any) -> list[Any]:
+            return [value for row in matrix for value in row]
+        native = _NativePreparedAnalysis.prepare_longitudinal_regime(
+            self.names, self.columns, query.outcome, query.periods,
+            flatten(query.treatment_history), flatten(query.actions),
+            flatten(query.treatment_probabilities), flatten(query.censoring_probabilities),
+            list(query.outcome_observed), list(query.subject_ids), list(query.fold_ids),
+            query.excluded_fold_predictions, query.probabilities_known_by_design,
+            query.minimum_probability, accepted=False, **self._common(),
         )
         return native, "average"
 
@@ -2609,14 +2688,15 @@ class _PrepareRoute:
         return native, "average"
 
     def _interference(self) -> tuple[Any, Any]:
-        from .interference import _assignment_args, _edge_values, _exposure_name
+        from .interference import (
+            ClusterRandomization,
+            _assignment_args,
+            _edge_values,
+            _exposure_name,
+            _partition,
+        )
 
         query = cast(InterferenceQuery, self.query)
-        if query.partial_interference is not None:
-            raise CausalUnsupportedError(
-                "partial-interference diagnostics are available only in interference.estimate; "
-                "the licensed analyze contract does not include this assumption"
-            )
         self._refuse_design_options(
             "InterferenceQuery", "interference.design", "interference.ht_hajek"
         )
@@ -2624,6 +2704,44 @@ class _PrepareRoute:
             raise CausalValueError(
                 "InterferenceQuery on analyze reads its design: pass network= (the fixed "
                 "exposure edges) and realized_assignment="
+            )
+        if query.partial_interference is not None:
+            if not isinstance(query.assignment, ClusterRandomization):
+                raise CausalValueError(
+                    "partial_interference requires ClusterRandomization so cluster assignment is explicit"
+                )
+            partial_clusters = list(query.partial_interference.clusters)
+            assignment_clusters = list(query.assignment.clusters)
+            if (
+                len(partial_clusters) != len(assignment_clusters)
+                or len(partial_clusters) != len(self.columns[0])
+            ):
+                raise CausalValueError(
+                    "partial-interference and assignment clusters must match data rows"
+                )
+            edges = _edge_values(query.network)
+            if any(
+                source < 0
+                or target < 0
+                or source >= len(partial_clusters)
+                or target >= len(partial_clusters)
+                for source, target, _ in edges
+            ):
+                raise CausalValueError("network edge index is outside data rows")
+            if _partition(partial_clusters) != _partition(assignment_clusters):
+                raise CausalValueError(
+                    "partial-interference clusters must match the cluster-randomization partition"
+                )
+            if any(
+                partial_clusters[source] != partial_clusters[target]
+                for source, target, _ in edges
+            ):
+                raise CausalValueError(
+                    "partial-interference assumption violated: network edge crosses cluster boundary"
+                )
+        elif isinstance(query.assignment, ClusterRandomization):
+            raise CausalValueError(
+                "cluster interference requires partial_interference=PartialInterference(clusters)"
             )
         design = _assignment_args(query.assignment)
         contrast = query.functional
@@ -3609,6 +3727,9 @@ class PreparedAnalysis(Generic[ResultT]):
         if isinstance(query, PanelDifferenceInDifferences):
             names, columns, design_columns = _panel_did_payload(data, query)
             frame = None
+        elif isinstance(query, LongitudinalRegimeQuery):
+            names, columns = _longitudinal_regime_payload(data, query)
+            frame = None
         else:
             names, columns, frame = _frame_payload(data)
         predicates, distributions = registry_wire(population_registry)
@@ -3907,6 +4028,9 @@ class PreparedAnalysis(Generic[ResultT]):
                     "panel DiD refresh requires the prepared subject, cluster, treatment, and period row order",
                     reason_code="invalid_argument",
                 )
+            return names, columns, None
+        if isinstance(query, LongitudinalRegimeQuery):
+            names, columns = _longitudinal_regime_payload(data, query)
             return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column

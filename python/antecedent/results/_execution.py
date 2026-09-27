@@ -213,6 +213,9 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     survival = payload.get("survival")
     if kind == "point" and isinstance(survival, Mapping):
         return Answer("structured", detail="randomized_survival_point_only", structured=dict(survival))
+    regime = payload.get("longitudinal_regime")
+    if kind == "point" and isinstance(regime, Mapping):
+        return Answer("structured", detail="longitudinal_regime_point_only", structured=dict(regime))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
     bounds = None
@@ -359,6 +362,11 @@ class ResultAPI:
             from dataclasses import asdict
 
             return Answer("structured", detail="randomized_survival_point_only", structured=asdict(survival))
+        regime = getattr(self, "longitudinal_regime", None)
+        if regime is not None:
+            from dataclasses import asdict
+
+            return Answer("structured", detail="longitudinal_regime_point_only", structured=asdict(regime))
         policy = getattr(self, "policy_value", None)
         if policy is not None:
             from dataclasses import asdict
@@ -397,6 +405,12 @@ class ResultAPI:
             return (
                 f"Randomized competing-risk cumulative incidence through {survival.tau:g}: "
                 f"cause {survival.target_cause} difference {survival.incidence_difference:g}. "
+                "Point-only; no calibrated interval."
+            )
+        regime = getattr(self, "longitudinal_regime", None)
+        if regime is not None:
+            return (
+                f"Sequential randomized regime value {regime.value:g}. "
                 "Point-only; no calibrated interval."
             )
         policy = getattr(self, "policy_value", None)

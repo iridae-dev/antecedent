@@ -10,9 +10,9 @@ probabilities or adds a support-matrix license.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import isfinite
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -21,6 +21,88 @@ from . import _native
 
 HistoryPolicy: TypeAlias = Callable[[int, tuple[bool, ...], tuple[tuple[float, ...], ...]], bool]
 Regime: TypeAlias = Sequence[bool] | HistoryPolicy
+
+
+@dataclass(frozen=True, slots=True)
+class LongitudinalRegimeQuery:
+    """Prespecified binary regime over complete subject histories.
+
+    Each outcome row belongs to one subject. Assignment probabilities are
+    known from the sequential randomized design; the retained route reports
+    a regime value without an interval.
+    """
+
+    outcome: str
+    treatment_history: Sequence[Sequence[bool]]
+    actions: Sequence[bool] | Sequence[Sequence[bool]]
+    treatment_probabilities: Sequence[Sequence[float]]
+    subject_ids: Sequence[str]
+    censoring_probabilities: Sequence[Sequence[float]] | None = None
+    outcome_observed: Sequence[bool] | None = None
+    fold_ids: Sequence[int] | None = None
+    excluded_fold_predictions: bool = False
+    probabilities_known_by_design: bool = True
+    minimum_probability: float = 0.01
+    kind: Literal["longitudinal_regime"] = field(default="longitudinal_regime", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, str) or not self.outcome.strip():
+            raise ValueError("outcome must name a non-empty column")
+        history = np.asarray(self.treatment_history)
+        if history.ndim != 2 or not history.size or not np.isin(history, (0, 1, False, True)).all():
+            raise ValueError("treatment_history must be a non-empty binary subject-by-period array")
+        n, periods = history.shape
+        actions = np.asarray(self.actions)
+        if actions.shape == (periods,):
+            actions = np.broadcast_to(actions, (n, periods))
+        if actions.shape != (n, periods) or not np.isin(actions, (0, 1, False, True)).all():
+            raise ValueError("actions must be binary, with one period row or one subject-by-period row")
+        probabilities = np.asarray(self.treatment_probabilities, dtype=np.float64)
+        if probabilities.shape != (n, periods) or not np.isfinite(probabilities).all():
+            raise ValueError("treatment_probabilities must match treatment_history")
+        censor = np.ones((n, periods)) if self.censoring_probabilities is None else np.asarray(self.censoring_probabilities, dtype=np.float64)
+        if censor.shape != (n, periods) or not np.isfinite(censor).all():
+            raise ValueError("censoring_probabilities must match treatment_history")
+        observed = np.ones(n, dtype=bool) if self.outcome_observed is None else np.asarray(self.outcome_observed)
+        if observed.shape != (n,) or not np.isin(observed, (0, 1, False, True)).all():
+            raise ValueError("outcome_observed must contain one binary value per subject")
+        ids = tuple(self.subject_ids)
+        if len(ids) != n or any(not isinstance(value, str) or not value.strip() for value in ids) or len(set(ids)) != n:
+            raise ValueError("subject_ids must contain one distinct non-empty ID per outcome row")
+        folds = (0,) * n if self.fold_ids is None else tuple(self.fold_ids)
+        if len(folds) != n or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 2**32 - 1 for value in folds):
+            raise ValueError("fold_ids must contain one non-negative u32 per subject")
+        if self.excluded_fold_predictions and len(set(folds)) < 2:
+            raise ValueError("excluded-fold predictions require at least two subject folds")
+        if not self.probabilities_known_by_design and not self.excluded_fold_predictions:
+            raise ValueError("probabilities require known sequential randomization or excluded-fold predictions")
+        floor = self.minimum_probability
+        if not isfinite(floor) or not 0 < floor <= 0.5 or np.any(probabilities < floor) or np.any(probabilities > 1 - floor) or np.any(censor < floor) or np.any(censor > 1):
+            raise ValueError("sequential treatment or censoring positivity fails at the declared floor")
+        object.__setattr__(self, "treatment_history", tuple(tuple(map(bool, row)) for row in history))
+        object.__setattr__(self, "actions", tuple(tuple(map(bool, row)) for row in actions))
+        object.__setattr__(self, "treatment_probabilities", tuple(tuple(map(float, row)) for row in probabilities))
+        object.__setattr__(self, "censoring_probabilities", tuple(tuple(map(float, row)) for row in censor))
+        object.__setattr__(self, "outcome_observed", tuple(map(bool, observed)))
+        object.__setattr__(self, "subject_ids", ids)
+        object.__setattr__(self, "fold_ids", folds)
+
+    @property
+    def periods(self) -> int:
+        return len(self.treatment_history[0])
+
+
+@dataclass(frozen=True, slots=True)
+class LongitudinalRegimeEstimate:
+    value: float
+    effective_sample_size: float
+    matched_observed_fraction: float
+    maximum_weight: float
+    minimum_action_probability: float
+    minimum_censoring_probability: float
+    uncertainty: str = "point_only_no_interval"
+    probability_ownership: str = "known_sequential_randomization"
+    support_status: str = "unlicensed_point_utility"
 
 
 @dataclass(frozen=True, slots=True)
