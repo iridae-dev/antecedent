@@ -1274,19 +1274,65 @@ fn validate_result(
         };
         let has_interval = randomized.interval_95.is_some();
         let graphless_method = match query.design {
-            crate::RandomizationDesignWire::Complete { .. } => Some(("complete", "neyman_difference_in_means", "unit")),
-            crate::RandomizationDesignWire::Cluster { .. } => Some(("cluster", "neyman_unit_weighted_cluster_totals", "cluster")),
-            _ => None,
+            crate::RandomizationDesignWire::Bernoulli => Some(("bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Complete { .. } => Some(("complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Cluster { .. } => Some(("cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Stratified => Some(("stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
+            crate::RandomizationDesignWire::Factorial2x2 => Some(("factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals")),
+            crate::RandomizationDesignWire::MultiArm => Some(("multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals")),
+            crate::RandomizationDesignWire::Switchback => None,
         };
-        let graphless_licensed = graphless_method.is_some_and(|(design_key, method, assignment_unit)| {
+        let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
+        for (block, assigned) in query.blocks.iter().zip(&query.realized_assignment) {
+            let counts = block_counts.entry(block.as_str()).or_default();
+            if *assigned { counts.1 += 1; } else { counts.0 += 1; }
+        }
+        let min_block_arm = block_counts.values().flat_map(|(c, t)| [*c, *t]).min().unwrap_or(0);
+        let min_factorial_cell = query.factorial_cell_counts
+            .map(|counts| *counts.iter().min().unwrap_or(&0)).unwrap_or(0);
+        let min_action_rows = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+            (0..query.multi_arm_labels.len()).map(|arm|
+                query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count())
+                .min().unwrap_or(0)
+        } else { control.min(treated) };
+        let min_probability = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+            query.multi_arm_probabilities.iter().flat_map(|row| row.iter().copied())
+                .fold(f64::INFINITY, f64::min)
+        } else {
+            query.assignment_probabilities.iter().copied().map(|p| p.min(1.0 - p))
+                .fold(f64::INFINITY, f64::min)
+        };
+        let reported_intervals = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+            randomized.multi_arm_intervals_95.iter().filter(|interval| interval.is_some()).count()
+        } else {
+            usize::from(has_interval)
+                + usize::from(randomized.second_factor_interval_95.is_some())
+                + usize::from(randomized.factorial_interaction_interval_95.is_some())
+        };
+        let all_reported_intervals = match query.design {
+            crate::RandomizationDesignWire::Factorial2x2 => reported_intervals == 3,
+            crate::RandomizationDesignWire::MultiArm =>
+                randomized.multi_arm_intervals_95.len() == query.multi_arm_labels.len()
+                    && reported_intervals + 1 == query.multi_arm_labels.len(),
+            _ => has_interval,
+        };
+        let graphless_licensed = graphless_method.is_some_and(|(design_key, method, assignment_unit, claim)| {
             graphless_data::LICENSES.iter().any(|row| {
                 row.family == "randomized_effect"
                     && row.design == design_key
                     && row.method == method
-                    && row.inference_claim == "pointwise_95_normal_interval"
+                    && row.inference_claim == claim
                     && row.assignment_unit == assignment_unit
                     && control >= row.min_assignment_units_per_arm
                     && treated >= row.min_assignment_units_per_arm
+                    && query.realized_assignment.len() >= row.min_rows
+                    && block_counts.len() >= row.min_blocks
+                    && min_block_arm >= row.min_block_arm
+                    && min_factorial_cell >= row.min_factorial_cell
+                    && min_action_rows >= row.min_action_rows
+                    && min_probability + 1e-12 >= row.min_probability
+                    && reported_intervals >= row.min_reported_intervals
+                    && (!row.all_reported_intervals || all_reported_intervals)
                     && has_interval
             })
         });
