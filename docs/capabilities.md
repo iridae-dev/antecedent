@@ -762,6 +762,13 @@ rows. The answer is point-only with no effect or interval placeholder.
 Caller-estimated probabilities are refused on this retained path, and no
 support-matrix license or cross-fitting claim is made.
 
+Set `method="g_formula"` and provide subject-by-period conditional reward
+predictions to evaluate a prespecified regime through the same retained
+query, native estimator, result, and artifact path. The predictions and
+subject/fold ownership are frozen with the study. The caller owns the outcome
+model and must justify its predictions; Antecedent does not fit or verify it.
+This route reports a point value without an interval or support-matrix license.
+
 `antecedent.regimes.evaluate_regime_value` evaluates a prespecified static or
 history-adaptive binary regime from subject-level treatment histories. It uses
 caller-supplied sequential probabilities for treatment and remaining observed
