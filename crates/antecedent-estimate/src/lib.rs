@@ -66,6 +66,7 @@ pub mod se;
 pub mod serial_dependence;
 pub mod statistical_transport;
 pub mod survival;
+pub mod switchback;
 pub mod synthetic_control;
 pub mod staggered_event_study;
 pub mod local_polynomial_ratio;
