@@ -145,7 +145,7 @@ class SurvivalOutcome:
 
 @dataclass(frozen=True, slots=True)
 class SurvivalEstimate:
-    """Kaplan-Meier step curves and RMST values, without interval estimates."""
+    """Kaplan-Meier step curves and RMST with optional pointwise contrasts."""
 
     times: tuple[float, ...]
     control_survival: tuple[float, ...]
@@ -155,6 +155,10 @@ class SurvivalEstimate:
     rmst_difference: float
     tau: float
     uncertainty: str = "point_only"
+    rmst_difference_interval: tuple[float, float] | None = None
+    survival_at_tau_difference_interval: tuple[float, float] | None = None
+    bootstrap_replicates_requested: int | None = None
+    bootstrap_replicates_ok: int | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
@@ -274,7 +278,7 @@ class CompetingRisksOutcome:
 
 @dataclass(frozen=True, slots=True)
 class CumulativeIncidenceEstimate:
-    """Arm-specific Aalen–Johansen CIF step curves, without intervals."""
+    """Arm-specific Aalen–Johansen curves with an optional pointwise contrast."""
 
     target_cause: int
     times: tuple[float, ...]
@@ -283,6 +287,9 @@ class CumulativeIncidenceEstimate:
     incidence_difference: float
     tau: float
     uncertainty: str = "point_only"
+    incidence_difference_interval: tuple[float, float] | None = None
+    bootstrap_replicates_requested: int | None = None
+    bootstrap_replicates_ok: int | None = None
     support_status: str = "unlicensed_point_utility"
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",

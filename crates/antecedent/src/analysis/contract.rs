@@ -3394,6 +3394,10 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             tau: survival.tau,
             minimum_event_risk_set: survival.minimum_event_risk_set,
             uncertainty: survival.uncertainty.to_string(),
+            rmst_difference_interval: survival.rmst_difference_interval,
+            difference_at_tau_interval: survival.difference_at_tau_interval,
+            bootstrap_replicates_requested: survival.bootstrap_replicates_requested,
+            bootstrap_replicates_ok: survival.bootstrap_replicates_ok,
         }),
         longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
             antecedent_io::LongitudinalRegimeWire {

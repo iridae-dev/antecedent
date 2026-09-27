@@ -441,6 +441,10 @@ class SurvivalSection:
     tau: float
     minimum_event_risk_set: int | None
     uncertainty: str
+    rmst_difference_interval: list[float] | None
+    difference_at_tau_interval: list[float] | None
+    bootstrap_replicates_requested: int | None
+    bootstrap_replicates_ok: int | None
 
 class LongitudinalRegimeSection:
     method: str

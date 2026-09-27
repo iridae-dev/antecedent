@@ -6,7 +6,7 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     SurvivalFunctional,
 };
-use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_ipcw_summary, randomized_survival_summary};
+use antecedent_estimate::survival::{SurvivalEndpoint, randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary, randomized_survival_summary};
 
 #[derive(Clone)]
 pub(crate) struct CheckedSurvivalOperation {
@@ -17,6 +17,7 @@ pub(crate) struct CheckedSurvivalOperation {
     estimand: IdentifiedEstimand,
     physical: PhysicalExecutionPlan,
     result_context: IdentifiedResultContext,
+    bootstrap_replicates: u32,
 }
 
 impl std::fmt::Debug for CheckedSurvivalOperation {
@@ -44,13 +45,12 @@ impl CheckedSurvivalOperation {
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
-            || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
             || study.graph_posterior.is_some()
             || study.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
-                message: "survival requires a graphless randomized trial, explicit marginal observation assumptions, and point-only frequentist execution",
+                message: "survival requires a graphless randomized trial, an explicit observation assumption, and frequentist execution",
             });
         }
         for id in
@@ -84,6 +84,7 @@ impl CheckedSurvivalOperation {
             estimand,
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
+            bootstrap_replicates: study.bootstrap_replicates,
         })
     }
 
@@ -134,14 +135,17 @@ impl CheckedSurvivalOperation {
                 SurvivalEndpoint::CumulativeIncidence { target_cause }
             }
         };
+        let mut censoring_grid = None;
         let (summary, minimum_censoring_survival) = if let Some(known) = &self.query.known_censoring {
             let columns = known.columns.iter().map(|id| numeric_column(data, *id)).collect::<Result<Vec<_>, _>>()?;
             let mut probabilities = Vec::with_capacity(self.rows * columns.len());
             for row in 0..self.rows {
                 probabilities.extend(columns.iter().map(|column| column[row]));
             }
+            censoring_grid = Some((known.times.as_ref(), probabilities, known.minimum_probability));
+            let (_, probabilities, _) = censoring_grid.as_ref().expect("just set");
             let (summary, minimum) = randomized_survival_ipcw_summary(
-                &duration, &event, &treated, &known.times, &probabilities,
+                &duration, &event, &treated, &known.times, probabilities,
                 self.query.tau, known.minimum_probability, endpoint,
             ).map_err(|message| CausalError::Unsupported { message })?;
             (summary, Some(minimum))
@@ -150,6 +154,13 @@ impl CheckedSurvivalOperation {
                 &duration, &event, &treated, entry.as_deref(), self.query.tau, endpoint,
             ).map_err(|message| CausalError::Unsupported { message })?, None)
         };
+        let intervals = if self.bootstrap_replicates > 0 {
+            Some(randomized_survival_bootstrap_intervals(
+                &duration, &event, &treated, entry.as_deref(),
+                censoring_grid.as_ref().map(|(times, probabilities, floor)| (*times, probabilities.as_slice(), *floor)),
+                self.query.tau, endpoint, self.bootstrap_replicates, ctx.rng.master_seed(),
+            ).map_err(|message| CausalError::Unsupported { message })?)
+        } else { None };
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -169,11 +180,15 @@ impl CheckedSurvivalOperation {
                 outcome: self.query.duration,
                 identify_cached: true,
                 extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.survival.point_only",
+                    if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    if minimum_censoring_survival.is_some() {
-                        "randomized IPCW estimate using caller-supplied censoring survival; no interval or calibrated uncertainty is reported"
+                    if intervals.is_some() && minimum_censoring_survival.is_some() {
+                        "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
+                    } else if intervals.is_some() {
+                        "arm-stratified subject bootstrap for RMST and restriction-horizon contrasts; scalar intervals are pointwise, not curve bands"
+                    } else if minimum_censoring_survival.is_some() {
+                        "randomized IPCW estimate using caller-supplied censoring survival; no interval is reported"
                     } else {
                         "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported"
                     },
@@ -206,7 +221,11 @@ impl CheckedSurvivalOperation {
             },
             tau: self.query.tau,
             minimum_event_risk_set: summary.minimum_event_risk_set,
-            uncertainty: Arc::from("point_only_no_interval"),
+            uncertainty: Arc::from(if intervals.is_some() { "subject_stratified_percentile_bootstrap_pointwise_95" } else { "point_only_no_interval" }),
+            rmst_difference_interval: intervals.as_ref().and_then(|value| value.rmst_difference),
+            difference_at_tau_interval: intervals.as_ref().map(|value| value.difference_at_tau),
+            bootstrap_replicates_requested: intervals.as_ref().map(|value| value.replicates_requested),
+            bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
         });
         Ok(result)
     }

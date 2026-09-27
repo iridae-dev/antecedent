@@ -533,6 +533,9 @@ def _survival_from_raw(
             incidence_difference=treated[-1] - control[-1],
             tau=section.tau,
             uncertainty=section.uncertainty,
+            incidence_difference_interval=(tuple(section.difference_at_tau_interval) if section.difference_at_tau_interval is not None else None),
+            bootstrap_replicates_requested=section.bootstrap_replicates_requested,
+            bootstrap_replicates_ok=section.bootstrap_replicates_ok,
         )
     return SurvivalEstimate(
         times=times,
@@ -543,6 +546,10 @@ def _survival_from_raw(
         rmst_difference=float(section.rmst_treated - section.rmst_control),
         tau=section.tau,
         uncertainty=section.uncertainty,
+        rmst_difference_interval=(tuple(section.rmst_difference_interval) if section.rmst_difference_interval is not None else None),
+        survival_at_tau_difference_interval=(tuple(section.difference_at_tau_interval) if section.difference_at_tau_interval is not None else None),
+        bootstrap_replicates_requested=section.bootstrap_replicates_requested,
+        bootstrap_replicates_ok=section.bootstrap_replicates_ok,
     )
 
 
@@ -3066,14 +3073,14 @@ class _PrepareRoute:
             )
         self._refuse_ids("randomized survival")
         self._refuse_estimator_config("randomized survival")
-        if self._explicit_refute() or self.bootstrap:
+        if self._explicit_refute():
             raise CausalUnsupportedError(
-                "randomized survival has no refutation or bootstrap route",
+                "randomized survival has no refutation route",
                 reason_code="option_not_applicable",
             )
         if self.inference is not None and not isinstance(self.inference, Frequentist):
             raise CausalUnsupportedError(
-                "randomized survival reports point-only uncertainty",
+                "randomized survival supports only frequentist subject-bootstrap inference",
                 reason_code="option_not_applicable",
             )
         if not query.randomized:

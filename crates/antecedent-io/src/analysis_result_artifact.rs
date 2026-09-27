@@ -652,7 +652,7 @@ pub struct RandomizedEffectWire {
 
 fn default_randomized_itt() -> String { "itt".into() }
 
-/// Randomized arm event-time curves with an explicit point-only uncertainty contract.
+/// Randomized arm event-time curves and optional scalar pointwise intervals.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SurvivalWire {
@@ -672,8 +672,20 @@ pub struct SurvivalWire {
     pub tau: f64,
     /// Smallest event risk set in either arm.
     pub minimum_event_risk_set: Option<usize>,
-    /// Explicit uncertainty semantics; no interval is licensed.
+    /// Explicit uncertainty semantics for the scalar contrasts.
     pub uncertainty: String,
+    /// Pointwise RMST treatment-minus-control interval when requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rmst_difference_interval: Option<[f64; 2]>,
+    /// Pointwise treatment-minus-control survival/CIF interval at tau.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difference_at_tau_interval: Option<[f64; 2]>,
+    /// Requested arm-stratified subject-bootstrap replicates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap_replicates_requested: Option<u32>,
+    /// Supported arm-stratified subject-bootstrap replicates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bootstrap_replicates_ok: Option<u32>,
 }
 
 /// Subject-owned sequential inverse-probability regime value.
@@ -1636,11 +1648,34 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 "survival result section is attached to a different query".into(),
             ));
         };
+        let point_only = curve.uncertainty == "point_only_no_interval"
+            && curve.rmst_difference_interval.is_none()
+            && curve.difference_at_tau_interval.is_none()
+            && curve.bootstrap_replicates_requested.is_none()
+            && curve.bootstrap_replicates_ok.is_none();
+        let pointwise_bootstrap = curve.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
+            && curve.bootstrap_replicates_requested.is_some_and(|n| (199..=100_000).contains(&n))
+            && curve.bootstrap_replicates_ok.is_some_and(|ok| {
+                let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
+                ok >= 199 && ok >= requested.saturating_sub(requested / 10) && ok <= requested
+            })
+            && curve.difference_at_tau_interval.is_some_and(|limits| {
+                limits[0].is_finite() && limits[1].is_finite()
+                    && -1.0 <= limits[0] && limits[0] <= limits[1] && limits[1] <= 1.0
+            })
+            && if query.target_cause.is_some() {
+                curve.rmst_difference_interval.is_none()
+            } else {
+                curve.rmst_difference_interval.is_some_and(|limits| {
+                    limits[0].is_finite() && limits[1].is_finite()
+                        && -curve.tau <= limits[0] && limits[0] <= limits[1] && limits[1] <= curve.tau
+                })
+            };
         if result.estimate.is_some()
             || result.standard_error.is_some()
             || result.interval_lower.is_some()
             || result.interval_upper.is_some()
-            || curve.uncertainty != "point_only_no_interval"
+            || !(point_only || pointwise_bootstrap)
             || curve.tau != query.tau
             || curve.target_cause != query.target_cause
             || curve.times.len() < 2

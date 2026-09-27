@@ -314,7 +314,7 @@ pub struct PolicyValueEstimate {
     pub multi_action_cate: Vec<antecedent_estimate::policy_value::MultiActionCatePoint>,
 }
 
-/// Point-only randomized survival or competing-risk result on a shared time grid.
+/// Randomized survival or competing-risk result on a shared time grid.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurvivalEstimate {
     /// Event-time grid including zero and the restriction horizon.
@@ -333,8 +333,16 @@ pub struct SurvivalEstimate {
     pub tau: f64,
     /// Smallest event risk set seen in either arm.
     pub minimum_event_risk_set: Option<usize>,
-    /// Explicit uncertainty statement. No interval is constructed.
+    /// Explicit uncertainty statement for the scalar contrasts.
     pub uncertainty: Arc<str>,
+    /// Pointwise 95% subject-bootstrap RMST difference interval, when requested.
+    pub rmst_difference_interval: Option<[f64; 2]>,
+    /// Pointwise 95% subject-bootstrap difference at the restriction horizon.
+    pub difference_at_tau_interval: Option<[f64; 2]>,
+    /// Requested arm-stratified subject-bootstrap draws.
+    pub bootstrap_replicates_requested: Option<u32>,
+    /// Draws satisfying the estimator's original support contract.
+    pub bootstrap_replicates_ok: Option<u32>,
 }
 
 /// Identification certificate retained from the actual execution, including class atoms.

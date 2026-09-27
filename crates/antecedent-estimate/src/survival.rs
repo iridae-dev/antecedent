@@ -38,6 +38,130 @@ pub struct RandomizedSurvivalSummary {
     pub minimum_event_risk_set_by_arm: [Option<usize>; 2],
 }
 
+/// Pointwise, percentile subject-bootstrap intervals for the randomized contrasts.
+///
+/// The two treatment arms are resampled separately. A caller-supplied censoring
+/// grid is held fixed with each subject: its nuisance function is not refitted.
+/// These intervals do not cover the entire curve simultaneously.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurvivalBootstrapIntervals {
+    /// RMST treatment minus control interval, for a survival endpoint.
+    pub rmst_difference: Option<[f64; 2]>,
+    /// Treatment minus control curve at the restriction horizon. This is a
+    /// survival difference or a target-cause cumulative-incidence difference.
+    pub difference_at_tau: [f64; 2],
+    /// Requested number of subject-bootstrap replicates.
+    pub replicates_requested: u32,
+    /// Replicates meeting the original estimator's support contract.
+    pub replicates_ok: u32,
+}
+
+/// Resample individual subjects within randomized arms and recompute the
+/// complete product-limit or Aalen-Johansen estimator on each draw.
+///
+/// A replicate that loses required cause or horizon support is omitted. At
+/// least 90% of requested draws and at least 199 valid draws are required for
+/// a two-sided 95% interval; otherwise the interval is refused. The resampling
+/// seed is an explicit input so results are independent of execution threads.
+#[allow(clippy::too_many_arguments)]
+pub fn randomized_survival_bootstrap_intervals(
+    duration: &[f64],
+    event_code: &[i64],
+    treated: &[bool],
+    delayed_entry: Option<&[f64]>,
+    known_censoring: Option<(&[f64], &[f64], f64)>,
+    tau: f64,
+    endpoint: SurvivalEndpoint,
+    replicates: u32,
+    seed: u64,
+) -> Result<SurvivalBootstrapIntervals, &'static str> {
+    if replicates < 199 || replicates > 100_000 {
+        return Err("survival pointwise bootstrap requires 199 to 100000 replicates");
+    }
+    if duration.len() != event_code.len() || duration.len() != treated.len()
+        || delayed_entry.is_some_and(|entry| entry.len() != duration.len())
+    {
+        return Err("survival bootstrap subject arrays must be row-aligned");
+    }
+    if delayed_entry.is_some() && known_censoring.is_some() {
+        return Err("known censoring survival does not combine with delayed entry");
+    }
+    let arms = [false, true].map(|arm| {
+        treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
+    });
+    if arms.iter().any(|arm| arm.len() < 8) {
+        return Err("survival bootstrap requires at least eight subjects in each randomized arm");
+    }
+    let grid_width = known_censoring.map_or(0, |(grid, _, _)| grid.len());
+    let mut rng = seed ^ 0x8BB8_E832_F975_6D5D;
+    let mut draws_rmst = Vec::with_capacity(replicates as usize);
+    let mut draws_tau = Vec::with_capacity(replicates as usize);
+    for _ in 0..replicates {
+        let mut d = Vec::with_capacity(duration.len());
+        let mut e = Vec::with_capacity(duration.len());
+        let mut a = Vec::with_capacity(duration.len());
+        let mut left = delayed_entry.map(|_| Vec::with_capacity(duration.len()));
+        let mut g = known_censoring.map(|_| Vec::with_capacity(duration.len() * grid_width));
+        for (arm_index, arm) in arms.iter().enumerate() {
+            for _ in 0..arm.len() {
+                let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
+                d.push(duration[i]);
+                e.push(event_code[i]);
+                a.push(arm_index == 1);
+                if let (Some(source), Some(out)) = (delayed_entry, left.as_mut()) {
+                    out.push(source[i]);
+                }
+                if let (Some((_, source, _)), Some(out)) = (known_censoring, g.as_mut()) {
+                    out.extend_from_slice(&source[i * grid_width..(i + 1) * grid_width]);
+                }
+            }
+        }
+        let estimate = match known_censoring {
+            Some((grid, _, floor)) => randomized_survival_ipcw_summary(
+                &d, &e, &a, grid, g.as_deref().unwrap_or(&[]), tau, floor, endpoint,
+            ).map(|(summary, _)| summary),
+            None => randomized_survival_summary(&d, &e, &a, left.as_deref(), tau, endpoint),
+        };
+        let Ok(estimate) = estimate else { continue };
+        let last = estimate.treated.last().zip(estimate.control.last());
+        if let Some((&treated_tau, &control_tau)) = last {
+            draws_tau.push(treated_tau - control_tau);
+            if let (Some(t), Some(c)) = (estimate.rmst_treated, estimate.rmst_control) {
+                draws_rmst.push(t - c);
+            }
+        }
+    }
+    let ok = u32::try_from(draws_tau.len()).map_err(|_| "too many survival bootstrap draws")?;
+    if ok < 199 || ok < replicates.saturating_sub(replicates / 10) {
+        return Err("survival bootstrap lost more than 10% of subject draws to support failures");
+    }
+    if endpoint == SurvivalEndpoint::Survival && draws_rmst.len() != draws_tau.len() {
+        return Err("survival bootstrap lost RMST estimates");
+    }
+    Ok(SurvivalBootstrapIntervals {
+        rmst_difference: (endpoint == SurvivalEndpoint::Survival).then(|| percentile_95(&mut draws_rmst)),
+        difference_at_tau: percentile_95(&mut draws_tau),
+        replicates_requested: replicates,
+        replicates_ok: ok,
+    })
+}
+
+fn splitmix64(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut x = *state;
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ (x >> 31)
+}
+
+fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
+    draws.sort_by(f64::total_cmp);
+    let n = draws.len();
+    let lower = ((n as f64 + 1.0) * 0.025).ceil() as usize;
+    let upper = ((n as f64 + 1.0) * 0.975).ceil() as usize;
+    [draws[lower.saturating_sub(1).min(n - 1)], draws[upper.saturating_sub(1).min(n - 1)]]
+}
+
 /// Compute randomized arm curves with optional left truncation.
 ///
 /// Event code zero means censoring. `Survival` accepts only codes zero and one;
@@ -385,6 +509,160 @@ fn arm_curve(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn subject_bootstrap_known_truth_deterministic_and_refuses_thin_arms() {
+        let mut durations = vec![3.0; 80];
+        let mut events = vec![0; 80];
+        let treated = (0..80).map(|i| i >= 40).collect::<Vec<_>>();
+        for i in 0..40 {
+            if i % 5 == 0 { durations[i] = 1.0; events[i] = 1; }
+        }
+        for i in 40..80 {
+            if i % 10 == 0 { durations[i] = 1.0; events[i] = 1; }
+        }
+        let first = randomized_survival_bootstrap_intervals(
+            &durations, &events, &treated, None, None, 3.0,
+            SurvivalEndpoint::Survival, 399, 17,
+        ).unwrap();
+        let repeated = randomized_survival_bootstrap_intervals(
+            &durations, &events, &treated, None, None, 3.0,
+            SurvivalEndpoint::Survival, 399, 17,
+        ).unwrap();
+        assert_eq!(first, repeated);
+        assert_eq!(first.replicates_ok, 399);
+        assert!(first.rmst_difference.unwrap()[0] <= 0.2);
+        assert!(first.rmst_difference.unwrap()[1] >= 0.2);
+        assert!(randomized_survival_bootstrap_intervals(
+            &durations[..8], &events[..8], &treated[..8], None, None, 3.0,
+            SurvivalEndpoint::Survival, 399, 17,
+        ).is_err());
+        assert!(randomized_survival_bootstrap_intervals(
+            &durations, &events, &treated, None, None, 3.0,
+            SurvivalEndpoint::Survival, 198, 17,
+        ).is_err());
+    }
+
+    #[test]
+    fn competing_risk_bootstrap_carries_fixed_known_g_with_subjects() {
+        let mut durations = vec![3.0; 80];
+        let mut events = vec![0; 80];
+        let treated = (0..80).map(|i| i >= 40).collect::<Vec<_>>();
+        let mut g = Vec::with_capacity(80 * 3);
+        for i in 0..80 {
+            if i % 5 == 0 { durations[i] = 1.0; events[i] = 1; }
+            else if i % 7 == 0 { durations[i] = 1.0; events[i] = 2; }
+            g.extend_from_slice(&[1.0, if i % 2 == 0 { 0.8 } else { 0.9 }, 0.7]);
+        }
+        let result = randomized_survival_bootstrap_intervals(
+            &durations, &events, &treated, None,
+            Some((&[0.0, 1.0, 3.0], &g, 0.01)), 3.0,
+            SurvivalEndpoint::CumulativeIncidence { target_cause: 1 }, 399, 19,
+        ).unwrap();
+        assert!(result.rmst_difference.is_none());
+        assert_eq!(result.replicates_ok, 399);
+        assert!(result.difference_at_tau[0] <= 0.0 && result.difference_at_tau[1] >= 0.0);
+    }
+
+    #[test]
+    fn repeated_sampling_pointwise_bootstrap_covers_simple_survival_truth() {
+        // Two-arm discrete event-time law: P(T=1) is .30 versus .15, otherwise
+        // T>tau=3. The true RMST and S(3) differences are +.30 and +.15.
+        let mut state = 0xBE22_D4E5_95D2_6B63;
+        let mut covered_rmst = 0;
+        let mut covered_tau = 0;
+        for trial in 0..400 {
+            let mut durations = Vec::with_capacity(240);
+            let mut events = Vec::with_capacity(240);
+            let mut treated = Vec::with_capacity(240);
+            for i in 0..240 {
+                let arm = i >= 120;
+                let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let failed = u < if arm { 0.15 } else { 0.30 };
+                durations.push(if failed { 1.0 } else { 3.0 });
+                events.push(i64::from(failed));
+                treated.push(arm);
+            }
+            let intervals = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, None, None, 3.0,
+                SurvivalEndpoint::Survival, 299, trial + 700,
+            ).unwrap();
+            let rmst = intervals.rmst_difference.unwrap();
+            covered_rmst += u32::from(rmst[0] <= 0.30 && 0.30 <= rmst[1]);
+            let tau = intervals.difference_at_tau;
+            covered_tau += u32::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
+        }
+        // At p=.95, 400 trials have a binomial standard error about .011.
+        // The .90 floor allows Monte Carlo fluctuation while rejecting material
+        // undercoverage for this declared data-generating law.
+        assert!(covered_rmst >= 360, "RMST coverage: {covered_rmst}/400");
+        assert!(covered_tau >= 360, "S(tau) coverage: {covered_tau}/400");
+    }
+
+    #[test]
+    fn repeated_sampling_fixed_g_bootstrap_covers_survival_truth() {
+        // Known censoring is deliberately heterogeneous and held with the
+        // resampled subject. Event risk is randomized and independent of G.
+        let mut state = 0xE043_DA75_88C3_9839;
+        let mut covered = 0;
+        for trial in 0..240 {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            let mut g = Vec::with_capacity(320 * 4);
+            for i in 0..320 {
+                let arm = i >= 160;
+                let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
+                let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let censored = censor_u >= keep_probability;
+                let failed = event_u < if arm { 0.15 } else { 0.30 };
+                durations.push(if censored { 0.5 } else if failed { 1.0 } else { 3.0 });
+                events.push(i64::from(!censored && failed));
+                treated.push(arm);
+                g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
+            }
+            let interval = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, None,
+                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)), 3.0,
+                SurvivalEndpoint::Survival, 299, trial + 1700,
+            ).unwrap().rmst_difference.unwrap();
+            covered += u32::from(interval[0] <= 0.30 && 0.30 <= interval[1]);
+        }
+        assert!(covered >= 211, "fixed-G IPCW RMST coverage: {covered}/240");
+    }
+
+    #[test]
+    fn repeated_sampling_competing_risk_bootstrap_covers_cif_truth() {
+        let mut state = 0x8120_D48E_70BA_19D3;
+        let mut covered = 0;
+        for trial in 0..240 {
+            let mut durations = Vec::with_capacity(320);
+            let mut events = Vec::with_capacity(320);
+            let mut treated = Vec::with_capacity(320);
+            let mut g = Vec::with_capacity(320 * 4);
+            for i in 0..320 {
+                let arm = i >= 160;
+                let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
+                let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let cause_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let censored = censor_u >= keep_probability;
+                let cause_one = cause_u < if arm { 0.15 } else { 0.30 };
+                let cause_two = !cause_one && cause_u < if arm { 0.25 } else { 0.40 };
+                durations.push(if censored { 0.5 } else if cause_one || cause_two { 1.0 } else { 3.0 });
+                events.push(if censored { 0 } else if cause_one { 1 } else if cause_two { 2 } else { 0 });
+                treated.push(arm);
+                g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
+            }
+            let interval = randomized_survival_bootstrap_intervals(
+                &durations, &events, &treated, None,
+                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)), 3.0,
+                SurvivalEndpoint::CumulativeIncidence { target_cause: 1 }, 299, trial + 2700,
+            ).unwrap().difference_at_tau;
+            covered += u32::from(interval[0] <= -0.15 && -0.15 <= interval[1]);
+        }
+        assert!(covered >= 211, "fixed-G competing-risk CIF coverage: {covered}/240");
+    }
 
     #[test]
     fn known_censoring_ipcw_survival_matches_unweighted_truth_when_g_is_one() {

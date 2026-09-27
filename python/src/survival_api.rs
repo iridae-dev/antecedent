@@ -18,6 +18,10 @@ pub struct SurvivalSection {
     pub tau: f64,
     pub minimum_event_risk_set: Option<usize>,
     pub uncertainty: String,
+    pub rmst_difference_interval: Option<Vec<f64>>,
+    pub difference_at_tau_interval: Option<Vec<f64>>,
+    pub bootstrap_replicates_requested: Option<u32>,
+    pub bootstrap_replicates_ok: Option<u32>,
 }
 
 impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
@@ -32,6 +36,10 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             tau: value.tau,
             minimum_event_risk_set: value.minimum_event_risk_set,
             uncertainty: value.uncertainty.to_string(),
+            rmst_difference_interval: value.rmst_difference_interval.map(|interval| interval.to_vec()),
+            difference_at_tau_interval: value.difference_at_tau_interval.map(|interval| interval.to_vec()),
+            bootstrap_replicates_requested: value.bootstrap_replicates_requested,
+            bootstrap_replicates_ok: value.bootstrap_replicates_ok,
         }
     }
 }
