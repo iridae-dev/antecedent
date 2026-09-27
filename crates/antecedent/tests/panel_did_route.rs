@@ -334,6 +334,9 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "cohort_specific_parallel_untreated_trends"
     )));
+    assert!(result.diagnostics.iter().any(|diagnostic|
+        diagnostic.code.as_ref() == "diagnostic.quasi.event_study.pretrend_joint_unavailable"
+        && diagnostic.message.contains("at least two non-reference")));
     let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&context).unwrap();
     let retained = prepared.estimate(&data, &context).unwrap();
     assert_eq!(retained.panel_did, result.panel_did);
@@ -349,6 +352,47 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
         query.periods.to_vec(), vec![3; query.cohorts.len()],
     );
     assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
+}
+
+#[test]
+fn staggered_event_joint_pretrend_statistic_is_descriptive_and_artifact_retained() {
+    let mut outcome = Vec::new();
+    let mut subjects = Vec::new();
+    let mut clusters = Vec::new();
+    let mut periods = Vec::new();
+    let mut cohorts = Vec::new();
+    for (group, cohort) in [("control", 0), ("treated", 4)] {
+        for cluster in 0..8 {
+            let id = Arc::<str>::from(format!("{group}-{cluster}"));
+            for period in 1..=5 {
+                subjects.push(id.clone());
+                clusters.push(id.clone());
+                periods.push(period);
+                cohorts.push(cohort);
+                let noise = (cluster as f64 - 3.5) * ((period % 3) as f64 - 1.0) / 10.0;
+                outcome.push(2.0 * period as f64 + noise
+                    + if cohort == 4 && period == 1 { 2.0 } else { 0.0 }
+                    + if cohort == 4 && period >= 4 { 3.0 } else { 0.0 });
+            }
+        }
+    }
+    let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
+    let query = PanelDidQuery::staggered_event_study(
+        VariableId::from_raw(0), subjects, clusters, periods, cohorts,
+    );
+    let context = ExecutionContext::for_tests(47);
+    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let result = prepared.estimate(&data, &context).unwrap();
+    let diagnostic = result.diagnostics.iter().find(|diagnostic|
+        diagnostic.code.as_ref() == "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z"
+    ).expect("supported joint pretrend diagnostic");
+    assert!(diagnostic.message.contains("across 2 non-reference"));
+    assert!(diagnostic.message.contains("no calibrated p-value or cutoff"));
+    assert!(diagnostic.message.contains("cannot establish parallel untreated trends"));
+    let bytes = prepared.encode_contracted_result(&result, "joint-pretrend", &context).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert!(body.diagnostics.iter().any(|wire| wire.code == diagnostic.code.as_ref()
+        && wire.message == diagnostic.message.as_ref()));
 }
 
 fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelDidQuery) {

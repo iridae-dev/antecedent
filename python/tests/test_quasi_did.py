@@ -436,6 +436,8 @@ def test_staggered_event_study_runs_through_retained_analyze_with_direct_parity(
     assert np.isnan(result.estimate.se_analytic)
     assert result.panel_did.support_status == "unlicensed_point_utility"
     assert "pre_adoption_estimates_are_descriptive_diagnostics_not_a_test" in result.panel_did.diagnostics
+    assert any(d.startswith("diagnostic.quasi.event_study.pretrend_joint_unavailable")
+               for d in result.diagnostics)
     assert antecedent.analyze(data, query=query).panel_did == direct
     assert estimate_staggered_event_study(data, query) == direct
     assert prepared.estimate({**data, "y": [value + 1 for value in outcomes]}).panel_did == direct
@@ -459,6 +461,33 @@ def _staggered_event_interval_fixture(clusters_per_group: int):
     query = StaggeredAdoption("y", "id", "period", "cohort",
                              cluster="cluster", event_study=True)
     return data, query
+
+
+def test_staggered_event_joint_pretrend_statistic_is_labeled_and_artifact_retained():
+    import antecedent
+
+    data = {"y": [], "id": [], "period": [], "cohort": []}
+    for group, cohort in (("control", 0), ("treated", 4)):
+        for cluster in range(8):
+            identifier = f"{group}-{cluster}"
+            for period in range(1, 6):
+                noise = (cluster - 3.5) * ((period % 3) - 1) / 10.0
+                data["y"].append(2.0 * period + noise
+                                 + (2.0 if cohort == 4 and period == 1 else 0.0)
+                                 + (3.0 if cohort == 4 and period >= 4 else 0.0))
+                data["id"].append(identifier)
+                data["period"].append(period)
+                data["cohort"].append(cohort)
+    query = StaggeredAdoption("y", "id", "period", "cohort", event_study=True)
+    result = antecedent.analyze(data, query=query)
+    diagnostic = next(d for d in result.diagnostics
+                      if d.startswith("diagnostic.quasi.event_study.pretrend_joint_max_cluster_z"))
+    assert "across 2 non-reference" in diagnostic
+    assert "no calibrated p-value or cutoff" in diagnostic
+    assert "cannot establish parallel untreated trends" in diagnostic
+    artifact = antecedent.load(result.export(artifact_id="joint-pretrend"))
+    assert any(item["code"] == "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z"
+               for item in artifact.artifact.payload["diagnostics"])
 
 
 def test_staggered_event_known_truth_fixture_spans_thin_and_supported_clusters():

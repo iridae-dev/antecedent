@@ -331,6 +331,25 @@ impl CheckedPanelDidOperation {
         let representative = &effects[representative_index];
         let representative_interval = event_time_intervals_95[representative_index];
         let any_interval = event_time_intervals_95.iter().any(Option::is_some);
+        let pretrend_diagnostic = match antecedent_estimate::staggered_event_study::pretrend_falsification_statistic(&effects) {
+            Ok(statistic) => Diagnostic::new(
+                "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "descriptive joint pre-period maximum |effect/cluster SE|={:.8} across {} non-reference cohort-specific leads (minimum {} clusters); no calibrated p-value or cutoff; a small value cannot establish parallel untreated trends",
+                    statistic.max_absolute_cluster_studentized_lead,
+                    statistic.leads,
+                    statistic.min_clusters,
+                ),
+            ),
+            Err(reason) => Diagnostic::new(
+                "diagnostic.quasi.event_study.pretrend_joint_unavailable",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!("joint pre-period cluster statistic unavailable: {reason}; parallel untreated trends remains a declared assumption"),
+            ),
+        };
         let estimate = EffectEstimate::new(
             representative.effect,
             if representative_interval.is_some() { representative.standard_error } else { f64::NAN },
@@ -356,7 +375,7 @@ impl CheckedPanelDidOperation {
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     "cohort-specific event times include descriptive preperiod contrasts without intervals; -1 is omitted; supported post-adoption contrasts have separate pointwise 95% cluster intervals, never simultaneous bands; parallel trends are assumed rather than tested",
-                )],
+                ), pretrend_diagnostic],
                 refutations: Vec::new(), distribution: None, mediation: None,
                 wall_time_ns: 0, bootstrap_replicates_ok: None,
                 cancelled: false, early_stopped: false,

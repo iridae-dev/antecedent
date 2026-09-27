@@ -24,6 +24,46 @@ pub struct EventTimeEffect {
     pub clusters: usize,
 }
 
+/// Descriptive maximum across cluster-studentized, cohort-specific pre-period
+/// contrasts. This is not a calibrated joint hypothesis test or evidence that
+/// parallel trends holds when the value is small.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PretrendFalsificationStatistic {
+    /// Maximum absolute effect divided by its cluster sandwich standard error.
+    pub max_absolute_cluster_studentized_lead: f64,
+    /// Number of non-reference pre-period contrasts jointly summarized.
+    pub leads: usize,
+    /// Smallest number of independent clusters among the summarized contrasts.
+    pub min_clusters: usize,
+}
+
+/// Summarize at least two pre-adoption leads; refuse a statistic when any
+/// constituent cluster SE is degenerate. No p-value or calibrated cutoff is
+/// attached to this descriptive statistic.
+pub fn pretrend_falsification_statistic(
+    effects: &[EventTimeEffect],
+) -> Result<PretrendFalsificationStatistic, &'static str> {
+    let leads = effects.iter().filter(|effect| effect.event_time < -1).collect::<Vec<_>>();
+    if leads.len() < 2 {
+        return Err("at least two non-reference pre-period contrasts are required");
+    }
+    if leads.iter().any(|effect| !effect.effect.is_finite()
+        || !effect.standard_error.is_finite() || effect.standard_error <= 0.0
+        || effect.clusters < 4) {
+        return Err("every pre-period contrast needs finite effect, positive cluster SE, and at least four clusters");
+    }
+    let maximum = leads.iter().map(|effect| (effect.effect / effect.standard_error).abs())
+        .fold(0.0_f64, f64::max);
+    if !maximum.is_finite() {
+        return Err("pre-period cluster-studentized statistic overflowed finite precision");
+    }
+    Ok(PretrendFalsificationStatistic {
+        max_absolute_cluster_studentized_lead: maximum,
+        leads: leads.len(),
+        min_clusters: leads.iter().map(|effect| effect.clusters).min().unwrap_or(0),
+    })
+}
+
 /// Pointwise 95% interval for an event-time contrast only when each side has
 /// enough independent clusters for the calibrated normal approximation.
 /// This does not establish simultaneous coverage of the event-study curve.
@@ -121,6 +161,22 @@ pub fn estimate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn joint_preperiod_cluster_statistic_has_no_inferential_cutoff() {
+        let lead = |event_time, effect, standard_error| EventTimeEffect {
+            cohort: 4, period: 4 + event_time, event_time, effect,
+            treated_subjects: 8, comparison_subjects: 8,
+            standard_error, clusters: 16,
+        };
+        let effects = [lead(-3, 1.0, 0.5), lead(-2, -3.0, 1.0), lead(0, 4.0, 0.1)];
+        let summary = pretrend_falsification_statistic(&effects).unwrap();
+        assert_eq!(summary.leads, 2);
+        assert_eq!(summary.min_clusters, 16);
+        assert_eq!(summary.max_absolute_cluster_studentized_lead, 3.0);
+        assert!(pretrend_falsification_statistic(&effects[..1]).is_err());
+        assert!(pretrend_falsification_statistic(&[lead(-3, 1.0, 0.0), effects[1].clone()]).is_err());
+    }
 
     #[test]
     fn calibrated_event_time_cluster_coverage_and_thin_cluster_boundary() {
