@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth() {
-        let n = 300;
+        let n = 500;
         let simulations = 2_000;
         let mut state = 0x149C_6F82_D30A_5BE7_u64;
         let mut uniform = || {
@@ -367,8 +367,8 @@ mod tests {
             ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
         };
         let actions = vec![true; n * 2];
-        let p = vec![0.5; n * 2];
-        let c = vec![0.9; n * 2];
+        let p = vec![0.4; n * 2];
+        let c = vec![0.85; n * 2];
         let mut covered_90 = 0;
         let mut covered_95 = 0;
         for _ in 0..simulations {
@@ -377,10 +377,10 @@ mod tests {
             let mut observed = Vec::with_capacity(n);
             let mut outcomes = Vec::with_capacity(n);
             for _ in 0..n {
-                let a0 = uniform() < 0.5;
-                let a1 = uniform() < 0.5;
-                let o0 = uniform() < 0.9;
-                let o1 = o0 && uniform() < 0.9;
+                let a0 = uniform() < 0.4;
+                let a1 = uniform() < 0.4;
+                let o0 = uniform() < 0.85;
+                let o1 = o0 && uniform() < 0.85;
                 treatment.extend([a0, a1]);
                 history.extend([o0, o1]);
                 observed.push(o1);
