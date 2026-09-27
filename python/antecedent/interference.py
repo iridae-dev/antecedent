@@ -252,11 +252,23 @@ class InterferenceQuery:
     probability_draws: int = 10_000
     _: KW_ONLY
     network: Sequence[NetworkEdge | tuple[int, int] | tuple[int, int, float]] | None = None
-    realized_assignment: Sequence[bool] | None = None
+    realized_assignment: Sequence[bool] | str | None = None
     partial_interference: PartialInterference | None = None
     kind: Literal["interference"] = field(default="interference", init=False, repr=False)
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: The row-aligned realized assignment may instead name a data column; ``network``
+    #: is an edge list, not a per-row column, so it stays inline.
+    _COLUMN_FIELDS = {"realized_assignment": "bool"}
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
+            # query against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         if self.probability_draws <= 0:
             raise CausalValueError("probability_draws must be positive")
         if (self.network is None) != (self.realized_assignment is None):

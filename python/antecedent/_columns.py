@@ -35,16 +35,22 @@ _KIND_CAST = {
 
 
 def defer_columns(obj: Any) -> bool:
-    """True when any ``_COLUMN_FIELDS`` value on ``obj`` is a column name (``str``).
+    """True when ``obj`` holds an unresolved column name, directly or in a nested design.
 
     Called at the top of an opting-in ``__post_init__``: a ``True`` return means the
-    object holds unresolved column names and must skip array validation until
-    :func:`resolve_columns` rebuilds it.
+    object (or one of its ``_COLUMN_NESTED`` designs) holds unresolved column names and
+    must skip array validation until :func:`resolve_columns` rebuilds it. This lets a
+    wrapper defer whenever a design it carries deferred, so its row-length checks do
+    not run against a still-unresolved child.
     """
-    spec = getattr(type(obj), "_COLUMN_FIELDS", None)
-    if not spec:
-        return False
-    return any(isinstance(getattr(obj, name), str) for name in spec)
+    cls = type(obj)
+    spec = getattr(cls, "_COLUMN_FIELDS", None)
+    if spec and any(isinstance(getattr(obj, name), str) for name in spec):
+        return True
+    for nested in getattr(cls, "_COLUMN_NESTED", ()):
+        if getattr(getattr(obj, nested, None), "_deferred_columns", False):
+            return True
+    return False
 
 
 def collect_column_names(obj: Any) -> set[str]:

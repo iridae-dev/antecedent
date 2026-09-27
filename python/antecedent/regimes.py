@@ -37,17 +37,17 @@ class LongitudinalRegime:
     treatment_history: Sequence[Sequence[bool]]
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
-    subject_ids: Sequence[str]
+    subject_ids: Sequence[str] | str
     method: Literal["ipw", "g_formula", "sequential_dr", "marginal_structural_model"] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
     known_fixed_outcome_predictions: bool = False
     stabilizing_numerator_probabilities: Sequence[float] | None = None
     q_predictions: Sequence[Sequence[float]] | None = None
     observation_history: Sequence[Sequence[bool]] | None = None
-    prediction_fold_ids: Sequence[int] | None = None
+    prediction_fold_ids: Sequence[int] | str | None = None
     censoring_probabilities: Sequence[Sequence[float]] | None = None
-    outcome_observed: Sequence[bool] | None = None
-    fold_ids: Sequence[int] | None = None
+    outcome_observed: Sequence[bool] | str | None = None
+    fold_ids: Sequence[int] | str | None = None
     excluded_fold_predictions: bool = False
     probabilities_known_by_design: bool = True
     minimum_probability: float = 0.01
@@ -55,8 +55,26 @@ class LongitudinalRegime:
     rule_version: str | None = None
     rule_provenance: str | None = None
     kind: Literal["longitudinal_regime"] = field(default="longitudinal_regime", init=False, repr=False)
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned (per-subject) inputs that may instead name a data column. The
+    #: subject-by-period matrices (treatment history/probabilities, predictions,
+    #: Q values) are not single columns and stay inline.
+    _COLUMN_FIELDS = {
+        "subject_ids": "str",
+        "fold_ids": "int",
+        "outcome_observed": "bool",
+        "prediction_fold_ids": "int",
+    }
 
     def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names unvalidated; resolve_columns rebuilds this
+            # query against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must name a non-empty column")
         history = np.asarray(self.treatment_history)
