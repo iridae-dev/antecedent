@@ -76,7 +76,9 @@ The randomized survival and competing-risk curves run through retained
 `prepare` / `analyze` as well as the direct utilities. The unweighted route
 requires marginal `IndependentGiven(())`; the retained IPCW route accepts
 caller-supplied censoring survival columns and an explicit conditional
-`IndependentGiven` claim. An explicit bootstrap count adds arm-stratified
+`IndependentGiven` claim. It also combines those fixed probabilities with
+delayed entry under the narrower marginal `IndependentGiven(())` claim. An
+explicit bootstrap count adds arm-stratified
 subject-resampling pointwise intervals for RMST and fixed-horizon survival or
 cause-specific incidence contrasts. For unweighted studies with at least 80
 subjects per arm and 399 bootstrap draws, the retained result also reports a
@@ -84,9 +86,10 @@ simultaneous 95% band for the full survival or cause-specific incidence
 difference curve. This band is distinct from the scalar pointwise intervals.
 Known censoring probabilities stay fixed with their subjects and are not fit
 or independently verified; simultaneous bands for this weighted path are
-refused. Marginal delayed-entry studies can report the scalar pointwise
-intervals after their separate repeated-sampling gate, but no simultaneous
-band. The queries remain outside the licensed support-matrix axes. See
+refused. Marginal delayed-entry studies, with or without fixed known censoring
+probabilities, can report scalar pointwise intervals after their separate
+repeated-sampling gates, but no simultaneous band. The queries remain outside
+the licensed support-matrix axes. See
 [Survival outcomes](survival-outcomes.md).
 
 ## Graph primitives
