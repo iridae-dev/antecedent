@@ -617,6 +617,7 @@ impl super::Study {
                             },
                             antecedent_core::RandomizationDesign::Complete { .. }
                             | antecedent_core::RandomizationDesign::Stratified { .. }
+                            | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
                             | antecedent_core::RandomizationDesign::Cluster { .. } => {
                                 "randomized.neyman_itt"
                             }

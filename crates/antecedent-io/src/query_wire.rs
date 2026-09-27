@@ -1072,6 +1072,15 @@ pub struct RandomizedEffectQueryWire {
     /// Exhaustive two-sided Fisher sharp-null test for complete randomization.
     #[serde(default)]
     pub exact_randomization_test: bool,
+    /// Row-aligned assignment to the second factor in a 2×2 design.
+    #[serde(default)]
+    pub second_factor_assignment: Vec<bool>,
+    /// Fixed cell counts in 00, 10, 01, 11 order.
+    #[serde(default)]
+    pub factorial_cell_counts: Option<[usize; 4]>,
+    /// Labels for the second factor's two levels.
+    #[serde(default)]
+    pub second_factor_arms: Option<(String, String)>,
 }
 
 /// Target estimand serialized with a randomized query.
@@ -1107,6 +1116,8 @@ pub enum RandomizationDesignWire {
     },
     /// Independent complete randomization within blocks.
     Stratified,
+    /// Joint complete randomization to four fixed 2×2 cells.
+    Factorial2x2,
 }
 
 impl CausalQueryWire {
@@ -1628,8 +1639,12 @@ pub fn causal_query_to_wire_with_registry(
         CausalQuery::RandomizedEffect(q) => {
             CausalQueryWire::RandomizedEffect(RandomizedEffectQueryWire {
                 estimand: match q.estimand {
-                    antecedent_core::RandomizedEstimand::IntentionToTreat => RandomizedEstimandWire::Itt,
-                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => RandomizedEstimandWire::CaceLate,
+                    antecedent_core::RandomizedEstimand::IntentionToTreat => {
+                        RandomizedEstimandWire::Itt
+                    }
+                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => {
+                        RandomizedEstimandWire::CaceLate
+                    }
                 },
                 design: match &q.design {
                     RandomizationDesign::Bernoulli => RandomizationDesignWire::Bernoulli,
@@ -1640,6 +1655,7 @@ pub fn causal_query_to_wire_with_registry(
                         RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
                     }
                     RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
+                    RandomizationDesign::Factorial2x2 { .. } => RandomizationDesignWire::Factorial2x2,
                     RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
                 },
                 outcome: q.outcome.raw(),
@@ -1663,8 +1679,22 @@ pub fn causal_query_to_wire_with_registry(
                 fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
                 received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
                 exact_randomization_test: q.exact_randomization_test,
+                second_factor_assignment: match &q.design {
+                    RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => second_factor_assignment.to_vec(),
+                    _ => Vec::new(),
+                },
+                factorial_cell_counts: match &q.design {
+                    RandomizationDesign::Factorial2x2 { cell_counts, .. } => Some(*cell_counts),
+                    _ => None,
+                },
+                second_factor_arms: match &q.design {
+                    RandomizationDesign::Factorial2x2 { second_factor_arms, .. } => Some((second_factor_arms.0.to_string(), second_factor_arms.1.to_string())),
+                    _ => None,
+                },
                 periods: match &q.design {
-                    RandomizationDesign::Switchback { periods } => periods.iter().map(ToString::to_string).collect(),
+                    RandomizationDesign::Switchback { periods } => {
+                        periods.iter().map(ToString::to_string).collect()
+                    }
                     _ => Vec::new(),
                 },
             })
@@ -1971,6 +2001,11 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::Interference(interference_query_from_wire(w)?)
         }
         CausalQueryWire::RandomizedEffect(w) => {
+            if !matches!(w.design, RandomizationDesignWire::Factorial2x2)
+                && (!w.second_factor_assignment.is_empty() || w.factorial_cell_counts.is_some() || w.second_factor_arms.is_some())
+            {
+                return Err(IoError::Convert("factorial metadata requires a factorial design".into()));
+            }
             let design = match &w.design {
                 RandomizationDesignWire::Bernoulli => RandomizationDesign::Bernoulli,
                 RandomizationDesignWire::Complete { treated_units } => {
@@ -1987,6 +2022,14 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                         .collect::<Vec<_>>()
                         .into(),
                     treated_per_row: w.treated_per_row.clone().into(),
+                },
+                RandomizationDesignWire::Factorial2x2 => RandomizationDesign::Factorial2x2 {
+                    second_factor_assignment: w.second_factor_assignment.clone().into(),
+                    cell_counts: w.factorial_cell_counts.ok_or_else(|| IoError::Convert("factorial cell counts are missing".into()))?,
+                    second_factor_arms: {
+                        let arms = w.second_factor_arms.as_ref().ok_or_else(|| IoError::Convert("second-factor labels are missing".into()))?;
+                        (Arc::<str>::from(arms.0.as_str()), Arc::<str>::from(arms.1.as_str()))
+                    },
                 },
                 RandomizationDesignWire::Switchback => RandomizationDesign::Switchback {
                     periods: w.periods.iter().map(|period| Arc::<str>::from(period.as_str())).collect::<Vec<_>>().into(),
@@ -2014,7 +2057,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 query = query.with_exact_randomization_test();
             }
             if (w.estimand == RandomizedEstimandWire::CaceLate) != w.received_treatment.is_some() {
-                return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
+                return Err(IoError::Convert(
+                    "CACE/LATE estimand and treatment receipt must agree".into(),
+                ));
             }
             query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::RandomizedEffect(query)
@@ -2455,14 +2500,40 @@ mod tests {
 
         let cace = CausalQuery::RandomizedEffect(
             RandomizedEffectQuery::bernoulli_itt(
-                VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+                VariableId::from_raw(0),
+                [true, false, true, false],
+                [0.5; 4],
                 ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
                 ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
                 ("control", "encouraged"),
-            ).with_received_treatment([true, false, false, false]),
+            )
+            .with_received_treatment([true, false, false, false]),
         );
         let cace_wire = causal_query_to_wire(&cace).unwrap();
         assert_eq!(causal_query_from_wire(&cace_wire).unwrap(), cace);
+
+        let fisher = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Complete { treated_units: 2 },
+            VariableId::from_raw(0), [true, true, false, false], [0.5; 4],
+            ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+            ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+            ("control", "treated"),
+        ).with_exact_randomization_test());
+        let fisher_wire = causal_query_to_wire(&fisher).unwrap();
+        assert_eq!(causal_query_from_wire(&fisher_wire).unwrap(), fisher);
+        let factorial = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Factorial2x2 {
+                second_factor_assignment: [false, false, false, false, true, true, true, true].into(),
+                cell_counts: [2; 4],
+                second_factor_arms: (Arc::from("off"), Arc::from("on")),
+            },
+            VariableId::from_raw(0), [false, false, true, true, false, false, true, true], [0.5; 8],
+            (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+            ("control", "treated"),
+        ));
+        let factorial_wire = causal_query_to_wire(&factorial).unwrap();
+        assert_eq!(causal_query_from_wire(&factorial_wire).unwrap(), factorial);
 
         let stratified = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
             RandomizationDesign::Stratified {
@@ -2522,16 +2593,6 @@ mod tests {
     #[test]
     fn repeated_cross_section_design_round_trips_and_differs_from_panel() {
         let subjects = ["a", "b", "c", "d", "e", "f", "g", "h"].map(Arc::<str>::from);
-        let fisher = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
-            RandomizationDesign::Complete { treated_units: 2 },
-            VariableId::from_raw(0), [true, true, false, false], [0.5; 4],
-            ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
-            ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
-            ("control", "treated"),
-        ).with_exact_randomization_test());
-        let fisher_wire = causal_query_to_wire(&fisher).unwrap();
-        assert_eq!(causal_query_from_wire(&fisher_wire).unwrap(), fisher);
-
         let clusters = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"].map(Arc::<str>::from);
         let panel = PanelDidQuery::new(
             VariableId::from_raw(0),

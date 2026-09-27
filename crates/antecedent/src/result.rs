@@ -85,6 +85,14 @@ pub struct RandomizedEffectEstimate {
     pub randomization_p_value: Option<f64>,
     /// Number of fixed-count assignments exhaustively enumerated.
     pub randomization_allocations: Option<u64>,
+    /// Second-factor marginal assignment effect in a fixed 2×2 factorial design.
+    pub second_factor_effect: Option<f64>,
+    /// Difference of primary-factor effects between second-factor levels.
+    pub factorial_interaction: Option<f64>,
+    /// Conservative variance for the second-factor marginal effect.
+    pub second_factor_variance: Option<f64>,
+    /// Conservative variance for the interaction contrast.
+    pub factorial_interaction_variance: Option<f64>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
     /// switchback uses an independent-sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,

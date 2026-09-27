@@ -27,6 +27,15 @@ pub enum RandomizationDesign {
         /// Declared treated count for each row's block.
         treated_per_row: Arc<[usize]>,
     },
+    /// Jointly complete randomization to four fixed 2×2 factorial cells.
+    Factorial2x2 {
+        /// Assignment to the second factor in outcome-row order.
+        second_factor_assignment: Arc<[bool]>,
+        /// Declared counts for cells (A=0,B=0), (A=1,B=0), (A=0,B=1), (A=1,B=1).
+        cell_counts: [usize; 4],
+        /// Labels for the second factor's control and active levels.
+        second_factor_arms: (Arc<str>, Arc<str>),
+    },
     /// Unit-period assignment within independent switching sequences.
     Switchback {
         /// Period labels aligned with outcome rows; unique within each sequence.
@@ -180,6 +189,13 @@ impl RandomizedEffectQuery {
                 ));
             }
         }
+        if matches!(self.design, RandomizationDesign::Factorial2x2 { .. })
+            && (self.received_treatment.is_some() || self.fixed_cuped.is_some())
+        {
+            return Err(QueryError::InvalidRandomizedEffect(
+                "factorial contrasts do not combine with receipt adjustment or CUPED on this route".into(),
+            ));
+        }
         let n = self.realized_assignment.len();
         if n < 2
             || self.assignment_probabilities.len() != n
@@ -332,6 +348,27 @@ impl RandomizedEffectQuery {
                     }
                 }
             }
+            RandomizationDesign::Factorial2x2 { second_factor_assignment, cell_counts, second_factor_arms } => {
+                if second_factor_assignment.len() != n || cell_counts.iter().any(|count| *count < 2)
+                    || cell_counts.iter().sum::<usize>() != n
+                    || second_factor_arms.0.trim().is_empty() || second_factor_arms.1.trim().is_empty()
+                    || second_factor_arms.0 == second_factor_arms.1
+                {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "factorial design requires four cells with at least two units each, aligned second-factor assignment, and distinct labels".into(),
+                    ));
+                }
+                let mut observed = [0_usize; 4];
+                for (&a, &b) in self.realized_assignment.iter().zip(second_factor_assignment.iter()) {
+                    observed[usize::from(a) + 2 * usize::from(b)] += 1;
+                }
+                let expected_primary = (cell_counts[1] + cell_counts[3]) as f64 / n as f64;
+                if observed != *cell_counts || self.assignment_probabilities.iter().any(|p| (*p - expected_primary).abs() > 1e-12) {
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation".into(),
+                    ));
+                }
+            }
             RandomizationDesign::Switchback { periods } => {
                 if periods.len() != n || periods.iter().any(|period| period.trim().is_empty()) {
                     return Err(QueryError::InvalidRandomizedEffect(
@@ -418,6 +455,32 @@ mod tests {
         let mut complete = base.with_received_treatment([true, false, true, false]);
         complete.design = RandomizationDesign::Complete { treated_units: 2 };
         assert!(complete.validate().is_err());
+    }
+
+    #[test]
+    fn factorial_requires_four_supported_fixed_cells() {
+        let base = RandomizedEffectQuery::with_design(
+            RandomizationDesign::Factorial2x2 {
+                second_factor_assignment: [false, false, false, false, true, true, true, true].into(),
+                cell_counts: [2; 4],
+                second_factor_arms: (Arc::from("off"), Arc::from("on")),
+            },
+            VariableId::from_raw(0),
+            [false, false, true, true, false, false, true, true],
+            [0.5; 8],
+            (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+            ("control", "treated"),
+        );
+        assert!(base.validate().is_ok());
+        let mut missing_cell = base.clone();
+        missing_cell.design = RandomizationDesign::Factorial2x2 {
+            second_factor_assignment: [false, false, false, false, true, true, true, true].into(),
+            cell_counts: [3, 1, 2, 2],
+            second_factor_arms: (Arc::from("off"), Arc::from("on")),
+        };
+        assert!(missing_cell.validate().is_err());
+        assert!(base.with_exact_randomization_test().validate().is_err());
     }
 
     #[test]

@@ -135,6 +135,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "DirectionalDerivative",
         "Elasticity",
         "ExperimentDesign",
+        "FactorialRandomization",
         "FixedCUPED",
         "ANCOVAEstimate",
         "estimate_ancova_effect",

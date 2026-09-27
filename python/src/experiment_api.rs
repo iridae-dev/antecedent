@@ -24,6 +24,14 @@ pub struct RandomizedEffectSection {
     pub randomization_p_value: Option<f64>,
     /// Number of complete-design assignments enumerated.
     pub randomization_allocations: Option<u64>,
+    /// Second-factor marginal effect in a fixed four-cell design.
+    pub second_factor_effect: Option<f64>,
+    /// Difference of primary-factor effects between second-factor levels.
+    pub factorial_interaction: Option<f64>,
+    /// Conservative variance of the second-factor main effect.
+    pub second_factor_variance: Option<f64>,
+    /// Conservative variance of the factorial interaction.
+    pub factorial_interaction_variance: Option<f64>,
     /// Design variance or conservative bound as labeled by uncertainty;
     /// switchback uses a sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
@@ -61,6 +69,10 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             received_treatment: value.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
             randomization_p_value: value.randomization_p_value,
             randomization_allocations: value.randomization_allocations,
+            second_factor_effect: value.second_factor_effect,
+            factorial_interaction: value.factorial_interaction,
+            second_factor_variance: value.second_factor_variance,
+            factorial_interaction_variance: value.factorial_interaction_variance,
             variance_upper_bound: value.variance_upper_bound,
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),

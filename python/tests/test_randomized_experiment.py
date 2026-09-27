@@ -110,6 +110,33 @@ def test_complete_randomization_runs_through_retained_analyze_with_neyman_varian
     assert result.evidence_status == "off_axis"
 
 
+def test_factorial_randomization_retains_main_effects_interaction_and_no_interval():
+    primary = [False, False, True, True, False, False, True, True]
+    second = [False] * 4 + [True] * 4
+    factorial = ant.FactorialRandomization(second, (2, 2, 2, 2), ("no_message", "message"))
+    design = _design(primary, randomization=factorial)
+    query = ant.RandomizedEffect("outcome", design)
+    data = {"outcome": np.asarray([0., 2., 2., 4., 1., 3., 5., 7.])}
+
+    result = ant.analyze(data, query=query, refute="none")
+
+    assert result.answer.value == pytest.approx(3.0)
+    assert result.randomized_effect.assignment_design == "factorial_2x2"
+    assert result.randomized_effect.estimand == "factorial_primary_main_effect"
+    assert result.randomized_effect.second_factor_effect == pytest.approx(2.0)
+    assert result.randomized_effect.factorial_interaction == pytest.approx(2.0)
+    assert result.randomized_effect.variance_upper_bound == pytest.approx(1.0)
+    assert result.randomized_effect.second_factor_variance == pytest.approx(1.0)
+    assert result.randomized_effect.factorial_interaction_variance == pytest.approx(4.0)
+    assert result.randomized_effect.uncertainty == "factorial_cell_neyman_variance_upper_bound_no_interval"
+    assert result.evidence_status == "off_axis"
+    assert any("known_random_assignment" in assumption for assumption in result.assumptions or ())
+    with pytest.raises(CausalUnsupportedError, match="through analyze or prepare"):
+        query.estimate(data)
+    with pytest.raises(CausalValueError, match="at least two"):
+        ant.FactorialRandomization(second, (2, 3, 1, 2))
+
+
 def test_stratified_randomization_runs_through_retained_analyze_with_blocked_variance():
     assignment = [True, False, True, False, True, False, True, False]
     blocks = ["north"] * 4 + ["south"] * 4

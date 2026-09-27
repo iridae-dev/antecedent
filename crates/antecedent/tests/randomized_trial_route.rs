@@ -153,6 +153,51 @@ fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
 }
 
 #[test]
+fn fixed_cell_factorial_reports_both_main_effects_and_interaction_without_interval() {
+    let outcomes = [0.0, 2.0, 2.0, 4.0, 1.0, 3.0, 5.0, 7.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let second = [false, false, false, false, true, true, true, true];
+    let primary = [false, false, true, true, false, false, true, true];
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Factorial2x2 {
+            second_factor_assignment: second.into(),
+            cell_counts: [2; 4],
+            second_factor_arms: (Arc::from("off"), Arc::from("on")),
+        },
+        VariableId::from_raw(0), primary, [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    );
+    let ctx = ExecutionContext::for_tests(67);
+    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let factorial = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(factorial.effect, 3.0);
+    assert_eq!(factorial.second_factor_effect, Some(2.0));
+    assert_eq!(factorial.factorial_interaction, Some(2.0));
+    assert_eq!(factorial.variance_upper_bound, 1.0);
+    assert_eq!(factorial.second_factor_variance, Some(1.0));
+    assert_eq!(factorial.factorial_interaction_variance, Some(4.0));
+    assert_eq!(factorial.estimand.as_ref(), "factorial_primary_main_effect");
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert_eq!(result.support_status, None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "known_random_assignment"
+    )));
+    let bytes = prepared.encode_contracted_result(&result, "factorial", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().factorial_interaction, Some(2.0));
+    let mut fabricated = artifact;
+    fabricated.randomized_effect.as_mut().unwrap().factorial_interaction_variance = Some(0.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated-factorial").is_err());
+    let mut unsupported = query;
+    unsupported.assignment_probabilities = [0.25; 8].into();
+    assert!(unsupported.validate().is_err());
+}
+
+#[test]
 fn switchback_itt_retains_periods_and_sequence_variance() {
     let assignment = [true, false, false, true].repeat(4);
     let outcomes = (0..4).flat_map(|sequence| {

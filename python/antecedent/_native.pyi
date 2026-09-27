@@ -356,6 +356,10 @@ class RandomizedEffectSection:
     received_treatment: list[bool] | None
     randomization_p_value: float | None
     randomization_allocations: int | None
+    second_factor_effect: float | None
+    factorial_interaction: float | None
+    second_factor_variance: float | None
+    factorial_interaction_variance: float | None
     variance_upper_bound: float
     minimum_assignment_probability: float
     assignment_design: str
@@ -1237,6 +1241,9 @@ class PreparedAnalysis:
         periods: list[str] | None = None,
         received_treatment: list[bool] | None = None,
         exact_randomization_test: bool = False,
+        second_factor_assignment: list[bool] | None = None,
+        factorial_cell_counts: tuple[int, int, int, int] | None = None,
+        second_factor_arms: tuple[str, str] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
