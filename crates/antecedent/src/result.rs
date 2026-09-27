@@ -15,7 +15,7 @@ use antecedent_estimate::{
     TemporalMediationEstimate, TemporalMediationGrid, TransportEffectEstimate,
 };
 use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
-use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
+use antecedent_io::{assumptions_to_wire, AnalysisTraceWire, DerivationStepWire};
 use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 use std::sync::Arc;
 
@@ -168,6 +168,25 @@ pub struct SyntheticDidEstimate {
     /// Number of post-intervention periods.
     pub n_post_periods: usize,
     /// Explicit point-only uncertainty statement.
+    pub uncertainty: Arc<str>,
+}
+
+/// Local fuzzy-discontinuity or regression-kink ratio with point-only inference.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LocalPolynomialRatioEstimate {
+    /// Ratio of the outcome contrast to the treatment contrast.
+    pub effect: f64,
+    /// Local outcome jump or slope change.
+    pub reduced_form: f64,
+    /// Local treatment jump or slope change.
+    pub first_stage: f64,
+    /// Observations inside the window strictly below the cutoff.
+    pub n_left: usize,
+    /// Observations inside the window on or above the cutoff.
+    pub n_right: usize,
+    /// Descriptive HC0 standard error without a licensed interval.
+    pub standard_error: f64,
+    /// Explicit point-only uncertainty semantics.
     pub uncertainty: Arc<str>,
 }
 
@@ -485,6 +504,8 @@ pub struct StudyResult {
     pub synthetic_control: Option<SyntheticControlEstimate>,
     /// Synthetic DiD point result and both fitted weight vectors.
     pub synthetic_did: Option<SyntheticDidEstimate>,
+    /// Fixed-bandwidth fuzzy RD or regression-kink point result.
+    pub local_polynomial_ratio: Option<LocalPolynomialRatioEstimate>,
     /// Held-out doubly robust policy evaluation; never an ATE.
     pub policy_value: Option<PolicyValueEstimate>,
     /// Randomized right-censored survival or competing-risk curve.

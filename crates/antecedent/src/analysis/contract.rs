@@ -975,6 +975,7 @@ impl StudyResult {
         let calibration = if self.randomized_effect.is_some()
             || self.synthetic_control.is_some()
             || self.synthetic_did.is_some()
+            || self.local_polynomial_ratio.is_some()
             || self.policy_value.is_some()
             || self.survival.is_some()
             || self.longitudinal_regime.is_some()
@@ -3260,46 +3261,77 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             clusters: did.clusters,
             uncertainty: did.uncertainty.to_string(),
         }),
-        synthetic_control: result.synthetic_control.as_ref().map(|fit| antecedent_io::SyntheticControlWire {
-            effect: fit.effect,
-            pre_treatment_rmse: fit.pre_treatment_rmse,
-            donor_weights: fit.donor_weights.iter().map(|(unit, weight)| (unit.to_string(), *weight)).collect(),
-            placebo_effects: fit.placebo_effects.to_vec(),
-            placebo_rank: fit.placebo_rank,
-            effective_donors: fit.effective_donors,
-            n_pre_periods: fit.n_pre_periods,
-            n_post_periods: fit.n_post_periods,
-            uncertainty: fit.uncertainty.to_string(),
+        synthetic_control: result.synthetic_control.as_ref().map(|fit| {
+            antecedent_io::SyntheticControlWire {
+                effect: fit.effect,
+                pre_treatment_rmse: fit.pre_treatment_rmse,
+                donor_weights: fit
+                    .donor_weights
+                    .iter()
+                    .map(|(unit, weight)| (unit.to_string(), *weight))
+                    .collect(),
+                placebo_effects: fit.placebo_effects.to_vec(),
+                placebo_rank: fit.placebo_rank,
+                effective_donors: fit.effective_donors,
+                n_pre_periods: fit.n_pre_periods,
+                n_post_periods: fit.n_post_periods,
+                uncertainty: fit.uncertainty.to_string(),
+            }
         }),
         synthetic_did: result.synthetic_did.as_ref().map(|fit| antecedent_io::SyntheticDidWire {
             effect: fit.effect,
             pre_treatment_rmse: fit.pre_treatment_rmse,
-            donor_weights: fit.donor_weights.iter().map(|(unit, weight)| (unit.to_string(), *weight)).collect(),
+            donor_weights: fit
+                .donor_weights
+                .iter()
+                .map(|(unit, weight)| (unit.to_string(), *weight))
+                .collect(),
             time_weights: fit.time_weights.to_vec(),
             n_donors: fit.n_donors,
             n_pre_periods: fit.n_pre_periods,
             n_post_periods: fit.n_post_periods,
             uncertainty: fit.uncertainty.to_string(),
         }),
-        randomized_effect: result.randomized_effect.as_ref().map(|randomized| antecedent_io::RandomizedEffectWire {
-            effect: randomized.effect,
-            estimand: randomized.estimand.to_string(),
-            intention_to_treat_effect: randomized.intention_to_treat_effect,
-            first_stage_effect: randomized.first_stage_effect,
-            received_treatment: randomized.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
-            randomization_p_value: randomized.randomization_p_value,
-            randomization_allocations: randomized.randomization_allocations,
-            variance: randomized.variance_upper_bound,
-            assignment_design: randomized.assignment_design.to_string(),
-            assignment_units: randomized.assignment_units.iter().map(ToString::to_string).collect(),
-            outcome_units: randomized.outcome_units.iter().map(ToString::to_string).collect(),
-            blocks: randomized.blocks.iter().map(ToString::to_string).collect(),
-            periods: randomized.periods.iter().map(ToString::to_string).collect(),
-            treatment_arms: (randomized.treatment_arms.0.to_string(), randomized.treatment_arms.1.to_string()),
-            control_units: randomized.control_units,
-            treatment_units: randomized.treatment_units,
-            minimum_assignment_probability: randomized.minimum_assignment_probability,
-            uncertainty: randomized.uncertainty.to_string(),
+        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|fit| antecedent_io::LocalPolynomialRatioWire {
+            effect: fit.effect,
+            reduced_form: fit.reduced_form,
+            first_stage: fit.first_stage,
+            n_left: fit.n_left,
+            n_right: fit.n_right,
+            standard_error: fit.standard_error,
+            uncertainty: fit.uncertainty.to_string(),
+        }),
+        randomized_effect: result.randomized_effect.as_ref().map(|randomized| {
+            antecedent_io::RandomizedEffectWire {
+                effect: randomized.effect,
+                estimand: randomized.estimand.to_string(),
+                intention_to_treat_effect: randomized.intention_to_treat_effect,
+                first_stage_effect: randomized.first_stage_effect,
+                received_treatment: randomized
+                    .received_treatment
+                    .as_ref()
+                    .map(|receipt| receipt.to_vec()),
+                randomization_p_value: randomized.randomization_p_value,
+                randomization_allocations: randomized.randomization_allocations,
+                variance: randomized.variance_upper_bound,
+                assignment_design: randomized.assignment_design.to_string(),
+                assignment_units: randomized
+                    .assignment_units
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                outcome_units: randomized.outcome_units.iter().map(ToString::to_string).collect(),
+                blocks: randomized.blocks.iter().map(ToString::to_string).collect(),
+                periods: randomized.periods.iter().map(ToString::to_string).collect(),
+                treatment_arms: (
+                    randomized.treatment_arms.0.to_string(),
+                    randomized.treatment_arms.1.to_string(),
+                ),
+                control_units: randomized.control_units,
+                treatment_units: randomized.treatment_units,
+                minimum_assignment_probability: randomized.minimum_assignment_probability,
+                uncertainty: randomized.uncertainty.to_string(),
+            }
         }),
         survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {
             times: survival.times.to_vec(),

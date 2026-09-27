@@ -3584,6 +3584,36 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze a fixed-window fuzzy RD or regression-kink analysis.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, treatment, running, cutoff, bandwidth,
+        *, kink=false, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_local_polynomial_ratio(
+        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
+        outcome: String, treatment: String, running: String, cutoff: f64, bandwidth: f64,
+        kink: bool, accepted: bool, seed: u64, threads: Option<u32>, options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("local polynomial ratio")?;
+        opts.refuse_population("local polynomial ratio")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let query = antecedent_core::LocalPolynomialRatioQuery {
+                outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
+                treatment: crate::graph_build::schema_var_id(data.schema(), &treatment)?,
+                running: crate::graph_build::schema_var_id(data.schema(), &running)?,
+                cutoff, bandwidth, kink,
+            };
+            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::LocalPolynomialRatio(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Freeze a known-randomization longitudinal regime value over whole subjects.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,

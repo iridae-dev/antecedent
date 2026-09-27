@@ -694,6 +694,7 @@ class AnalysisResult(ResultModel, ResultAPI):
     panel_did: Any | None = None
     synthetic_control: Any | None = None
     synthetic_did: Any | None = None
+    local_polynomial_ratio: Any | None = None
     policy_value: DoublyRobustPolicyEvaluation | None = None
     survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
     longitudinal_regime: Any | None = None

@@ -93,6 +93,9 @@ from .quasi import (
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferences,
     SyntheticDifferenceInDifferencesEstimate,
+    FuzzyRegressionDiscontinuity,
+    RegressionKink,
+    LocalPolynomialRatioEstimate,
 )
 from .query import (
     AnomalyAttribution,
@@ -388,6 +391,36 @@ def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimat
         n_donors=section.n_donors,
         n_pre_periods=section.n_pre_periods,
         n_post_periods=section.n_post_periods,
+    )
+
+
+def _local_polynomial_ratio_from_raw(raw: Any, query: Any) -> LocalPolynomialRatioEstimate | None:
+    section = getattr(raw, "local_polynomial_ratio", None)
+    if section is None:
+        return None
+    return LocalPolynomialRatioEstimate(
+        estimate=section.effect,
+        reduced_form_discontinuity=section.reduced_form,
+        first_stage_discontinuity=section.first_stage,
+        observations_left=section.n_left,
+        observations_right=section.n_right,
+        standard_error=section.standard_error,
+        ci_lower=None,
+        ci_upper=None,
+        reduced_form_standard_error=None,
+        first_stage_standard_error=None,
+        uncertainty=section.uncertainty,
+        design="regression_kink_local_polynomial" if isinstance(query, RegressionKink) else "fuzzy_regression_discontinuity_local_polynomial",
+        assumptions=(
+            "continuous_untreated_potential_outcome_and_treatment_derivatives_at_cutoff" if isinstance(query, RegressionKink)
+            else "continuous_untreated_potential_outcomes_at_cutoff",
+            "no_precise_running_variable_manipulation",
+            "exclusion_restriction",
+            "local_monotonicity",
+            "independent_local_observations",
+        ),
+        support_status="unlicensed_point_utility",
+        diagnostics=("fixed_bandwidth_local_support_reported", "descriptive_hc0_standard_error", "no_calibrated_interval"),
     )
 
 
@@ -825,6 +858,7 @@ def _wrap_ate(
         panel_did=_panel_did_from_raw(raw, query),
         synthetic_control=_synthetic_control_from_raw(raw),
         synthetic_did=_synthetic_did_from_raw(raw),
+        local_polynomial_ratio=_local_polynomial_ratio_from_raw(raw, query),
         policy_value=_policy_value_from_raw(raw),
         survival=_survival_from_raw(raw, query),
         longitudinal_regime=_longitudinal_regime_from_raw(raw),
@@ -1660,6 +1694,8 @@ _PreparedQuery = (
     | StaggeredAdoption
     | SyntheticControl
     | SyntheticDifferenceInDifferences
+    | FuzzyRegressionDiscontinuity
+    | RegressionKink
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegimeQuery
@@ -2026,6 +2062,8 @@ class _PrepareRoute:
             return self._panel_did()
         if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
             return self._synthetic_control()
+        if isinstance(query, (FuzzyRegressionDiscontinuity, RegressionKink)):
+            return self._local_polynomial_ratio()
         if isinstance(query, LongitudinalRegimeQuery):
             return self._longitudinal_regime()
         if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
@@ -2754,6 +2792,23 @@ class _PrepareRoute:
             query.treated_unit, query.intervention_period,
             difference_in_differences=isinstance(query, SyntheticDifferenceInDifferences),
             accepted=False, **self._common()
+        )
+        return native, "average"
+
+    def _local_polynomial_ratio(self) -> tuple[Any, Literal["average"]]:
+        query = cast(FuzzyRegressionDiscontinuity | RegressionKink, self.query)
+        if self.graph is not None or self.discovery is not None:
+            raise _not_applicable("graph/discovery", "local polynomial ratio")
+        self._refuse_ids("local polynomial ratio")
+        self._refuse_estimator_config("local polynomial ratio")
+        if self._explicit_refute() or self.bootstrap:
+            raise _not_applicable("refute/bootstrap", "local polynomial ratio")
+        if self.inference is not None and not isinstance(self.inference, Frequentist):
+            raise _not_applicable("inference", "local polynomial ratio")
+        native = _NativePreparedAnalysis.prepare_local_polynomial_ratio(
+            self.names, self.columns, query.outcome, query.treatment, query.running,
+            query.cutoff, query.bandwidth,
+            kink=isinstance(query, RegressionKink), accepted=False, **self._common(),
         )
         return native, "average"
 

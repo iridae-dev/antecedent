@@ -33,3 +33,13 @@ requires smooth potential outcome derivatives apart from the threshold
 induced treatment-slope change, with the corresponding exclusion and
 monotonicity assumptions. Neither utility performs density or covariate
 continuity tests.
+
+`analyze(data, query=FuzzyRegressionDiscontinuity(...))` and the matching
+`RegressionKink` query now use this same Rust kernel through retained
+`PreparedAnalysis.prepare` / `estimate`. The prepared query fixes the cutoff,
+bandwidth, variable names, and jump-versus-kink contrast. The result's
+`local_polynomial_ratio` section reports the point estimate, reduced form,
+first stage, local sample counts, and descriptive HC0 standard error. The
+retained route does not publish a confidence interval: `ci_lower` and
+`ci_upper` are `None`, and its artifact rejects fabricated interval fields.
+The result remains `unlicensed_point_utility` and off the support-matrix axis.

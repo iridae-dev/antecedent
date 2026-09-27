@@ -112,7 +112,7 @@ pub use query::{
     EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime,
     ExposureLevel, ExposureMapping, FactorNeed, GridSpec, InterferenceFunctional,
     InterferenceQuery, InterventionAssignment, InterventionalDistributionQuery,
-    KnownCensoringSurvival, LicensedWeights, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
+    KnownCensoringSurvival, LicensedWeights, LongitudinalRegimeMethod, LongitudinalRegimeQuery, LocalPolynomialRatioQuery,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,

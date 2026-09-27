@@ -1369,6 +1369,7 @@ impl StudyBuilder {
                             | CausalQuery::PolicyValue(_)
                             | CausalQuery::PanelDid(_)
                             | CausalQuery::SyntheticControl(_)
+                            | CausalQuery::LocalPolynomialRatio(_)
                             | CausalQuery::Survival(_)
                             | CausalQuery::LongitudinalRegime(_)
                     )
@@ -1441,6 +1442,7 @@ impl StudyBuilder {
                 | CausalQuery::PolicyValue(_)
                 | CausalQuery::PanelDid(_)
                 | CausalQuery::SyntheticControl(_)
+                | CausalQuery::LocalPolynomialRatio(_)
                 | CausalQuery::Survival(_)
                 | CausalQuery::LongitudinalRegime(_)
         ) {

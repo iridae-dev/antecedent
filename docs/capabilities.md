@@ -697,8 +697,11 @@ optional higher-level cluster column. Neither retained design reports a
 p-value or interval. Both are marked `unlicensed_point_utility` and add no
 support-matrix license.
 Staggered adoption and synthetic-panel designs also run through the retained
-`prepare` / `analyze` flow. Event studies and regression-discontinuity
-extensions have separate utility entry points.
+`prepare` / `analyze` flow. Fuzzy regression discontinuity and regression kink
+now use that flow as fixed-bandwidth, graphless local ratio queries, alongside
+their existing direct utilities. Their retained result reports local counts,
+first-stage strength, and a descriptive HC0 standard error, but no interval.
+Event studies retain separate utility entry points.
 
 `antecedent.quasi.StaggeredAdoption` adds a balanced-panel group-time ATT
 utility. Cohort 0 is explicitly never treated; for each adoption cohort and

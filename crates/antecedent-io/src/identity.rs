@@ -310,24 +310,52 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("temporal_coordinates".into(), "pre_post".into()),
         ],
         CausalQueryWire::SyntheticControl(query) => vec![
-            ("query_kind".into(), if query.difference_in_differences { "synthetic_did" } else { "synthetic_control" }.into()),
+            (
+                "query_kind".into(),
+                if query.difference_in_differences { "synthetic_did" } else { "synthetic_control" }
+                    .into(),
+            ),
             ("outcome".into(), query.outcome.to_string()),
             ("treated_unit".into(), query.treated_unit.clone()),
             ("intervention_period".into(), query.intervention_period.to_string()),
-            ("donor_pool_size".into(), query.units.iter().collect::<std::collections::BTreeSet<_>>().len().saturating_sub(1).to_string()),
+            (
+                "donor_pool_size".into(),
+                query
+                    .units
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
+                    .saturating_sub(1)
+                    .to_string(),
+            ),
+        ],
+        CausalQueryWire::LocalPolynomialRatio(query) => vec![
+            ("query_kind".into(), if query.kink { "regression_kink" } else { "fuzzy_rd" }.into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("treatment".into(), query.treatment.to_string()),
+            ("running".into(), query.running.to_string()),
+            ("cutoff".into(), query.cutoff.to_string()),
+            ("bandwidth".into(), query.bandwidth.to_string()),
         ],
         CausalQueryWire::PolicyValue(query) => {
             let mut dimensions = vec![
                 ("query_kind".into(), "policy_value".into()),
                 ("outcome".into(), query.outcome.to_string()),
-                ("policy_actions".into(), query.multi_action.as_ref().map_or(query.actions.len(), |multi| multi.actions.len()).to_string()),
+                (
+                    "policy_actions".into(),
+                    query
+                        .multi_action
+                        .as_ref()
+                        .map_or(query.actions.len(), |multi| multi.actions.len())
+                        .to_string(),
+                ),
                 ("temporal_coordinates".into(), "none".into()),
             ];
             if let Some(multi) = &query.multi_action {
                 dimensions.push(("action_count".into(), multi.action_labels.len().to_string()));
             }
             dimensions
-        },
+        }
         CausalQueryWire::Survival(query) => vec![
             ("query_kind".into(), "survival".into()),
             ("duration".into(), query.duration.to_string()),

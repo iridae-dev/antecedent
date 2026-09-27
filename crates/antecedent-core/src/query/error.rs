@@ -29,6 +29,9 @@ pub enum QueryError {
     /// Invalid longitudinal regime value or subject-level fold contract.
     #[error("invalid longitudinal-regime query: {0}")]
     InvalidLongitudinalRegime(String),
+    /// Invalid fixed-cutoff local-polynomial ratio design.
+    #[error("invalid local-polynomial ratio query: {0}")]
+    InvalidLocalPolynomialRatio(String),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {

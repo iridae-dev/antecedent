@@ -213,6 +213,7 @@ class AteAnalysisResult:
     panel_did: PanelDidSection | None
     synthetic_control: SyntheticControlSection | None
     synthetic_did: SyntheticDidSection | None
+    local_polynomial_ratio: LocalPolynomialRatioSection | None
     survival: SurvivalSection | None
     longitudinal_regime: LongitudinalRegimeSection | None
     policy_value: PolicyValueSection | None
@@ -395,6 +396,15 @@ class SyntheticDidSection:
     n_donors: int
     n_pre_periods: int
     n_post_periods: int
+    uncertainty: str
+
+class LocalPolynomialRatioSection:
+    effect: float
+    reduced_form: float
+    first_stage: float
+    n_left: int
+    n_right: int
+    standard_error: float
     uncertainty: str
 
 class SurvivalSection:
@@ -1251,6 +1261,13 @@ class PreparedAnalysis:
         intervention_period: int, *, difference_in_differences: bool = False,
         accepted: bool = False,
         seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_local_polynomial_ratio(
+        names: list[str], columns: Sequence[Any], outcome: str, treatment: str,
+        running: str, cutoff: float, bandwidth: float, *, kink: bool = False,
+        accepted: bool = False, seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod

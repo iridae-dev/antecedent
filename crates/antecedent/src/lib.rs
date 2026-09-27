@@ -106,7 +106,7 @@ pub use options::FdrControl;
 pub use query::*;
 pub use result::{
     AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES, PanelDidEstimate,
-    SyntheticControlEstimate, SyntheticDidEstimate,
+    SyntheticControlEstimate, SyntheticDidEstimate, LocalPolynomialRatioEstimate,
     LongitudinalRegimeEstimate, PolicyValueEstimate, PrimaryEstimate,
     PublishedScalarUncertainty, RandomizedEffectEstimate,
     SurvivalEstimate,

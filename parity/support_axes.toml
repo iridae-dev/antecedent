@@ -45,6 +45,8 @@ off_axis_public_queries = [
   "SurvivalOutcome",
   "SyntheticControl",
   "SyntheticDifferenceInDifferences",
+  "FuzzyRegressionDiscontinuity",
+  "RegressionKink",
   "SwitchbackEffect",
 ]
 

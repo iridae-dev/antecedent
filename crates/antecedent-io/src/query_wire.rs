@@ -8,23 +8,21 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents,
-    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
-    CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId, ExposureLevel,
-    ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
-    InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
-    MediationQuery, OrderedFloatBits, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery,
-    SyntheticControlQuery,
-    PolicyValueQuery, PopulationRegistry, PopulationSelector, PredicateExpr, RandomizationDesign,
-    RandomizedEffectQuery, SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy,
-    TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery, UnitChangeQuery, Value,
-    VariableId,
+    AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
+    ConditionalEffectQuery, CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId,
+    ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention,
+    InterventionSequence, InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride,
+    MediationContrast, MediationQuery, OrderedFloatBits, OutcomeFunctional, PanelDidQuery, LocalPolynomialRatioQuery,
+    PathSpecificEffectQuery, PolicyValueQuery, PopulationRegistry, PopulationSelector,
+    PredicateExpr, RandomizationDesign, RandomizedEffectQuery, SequencedIntervention,
+    ShapleyConfig, ShapleyMode, StochasticPolicy, SyntheticControlQuery, TargetPopulation,
+    TemporalEffectQuery, TemporalPolicy, TransportQuery, UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
-use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
+use crate::response_wire::{response_query_from_wire, response_query_to_wire, ResponseQueryWire};
 
 /// Wire scalar value.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -777,6 +775,8 @@ pub enum CausalQueryWire {
     PanelDid(PanelDidQueryWire),
     /// Balanced-panel synthetic-control design.
     SyntheticControl(SyntheticControlQueryWire),
+    /// Fixed-window local fuzzy discontinuity or regression kink.
+    LocalPolynomialRatio(LocalPolynomialRatioQueryWire),
     /// Randomized survival or competing-risk query.
     Survival(SurvivalQueryWire),
     /// Prespecified longitudinal treatment regime value.
@@ -900,6 +900,24 @@ pub struct SyntheticControlQueryWire {
     /// Whether the panel contrast uses convex unit and pre-period weights.
     #[serde(default)]
     pub difference_in_differences: bool,
+}
+
+/// Fixed-cutoff local ratio design, including whether the contrast is a kink.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LocalPolynomialRatioQueryWire {
+    /// Continuous outcome variable.
+    pub outcome: u32,
+    /// Observed treatment receipt or dose.
+    pub treatment: u32,
+    /// Running variable.
+    pub running: u32,
+    /// Prespecified cutoff.
+    pub cutoff: f64,
+    /// Prespecified fitting bandwidth.
+    pub bandwidth: f64,
+    /// Whether to use the slope-kink contrast.
+    pub kink: bool,
 }
 
 /// Frozen policy value inputs retained as part of query identity.
@@ -1124,6 +1142,7 @@ impl CausalQueryWire {
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_) => None,
         }
@@ -1157,6 +1176,7 @@ impl CausalQueryWire {
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
             | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
             | Self::Survival(_)
             | Self::LongitudinalRegime(_) => None,
         }
@@ -1670,14 +1690,27 @@ pub fn causal_query_to_wire_with_registry(
             subjects: q.subjects.iter().map(ToString::to_string).collect(),
             clusters: q.clusters.iter().map(ToString::to_string).collect(),
         }),
-        CausalQuery::SyntheticControl(q) => CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
-            outcome: q.outcome.raw(),
-            units: q.units.iter().map(ToString::to_string).collect(),
-            periods: q.periods.to_vec(),
-            treated_unit: q.treated_unit.to_string(),
-            intervention_period: q.intervention_period,
-            difference_in_differences: q.method == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
-        }),
+        CausalQuery::SyntheticControl(q) => {
+            CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
+                outcome: q.outcome.raw(),
+                units: q.units.iter().map(ToString::to_string).collect(),
+                periods: q.periods.to_vec(),
+                treated_unit: q.treated_unit.to_string(),
+                intervention_period: q.intervention_period,
+                difference_in_differences: q.method
+                    == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
+            })
+        }
+        CausalQuery::LocalPolynomialRatio(q) => {
+            CausalQueryWire::LocalPolynomialRatio(LocalPolynomialRatioQueryWire {
+                outcome: q.outcome.raw(),
+                treatment: q.treatment.raw(),
+                running: q.running.raw(),
+                cutoff: q.cutoff,
+                bandwidth: q.bandwidth,
+                kink: q.kink,
+            })
+        }
         CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
             duration: q.duration.raw(),
             event: q.event.raw(),
@@ -2051,11 +2084,25 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::SyntheticControl(q)
         }
+        CausalQueryWire::LocalPolynomialRatio(w) => {
+            let q = LocalPolynomialRatioQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                treatment: VariableId::from_raw(w.treatment),
+                running: VariableId::from_raw(w.running),
+                cutoff: w.cutoff,
+                bandwidth: w.bandwidth,
+                kink: w.kink,
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::LocalPolynomialRatio(q)
+        }
         CausalQueryWire::Survival(w) => {
             if w.censoring_probability_floor.is_none()
                 && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
             {
-                return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
+                return Err(IoError::Convert(
+                    "censoring grid requires its positivity floor".into(),
+                ));
             }
             let q = antecedent_core::SurvivalQuery {
                 duration: VariableId::from_raw(w.duration),
