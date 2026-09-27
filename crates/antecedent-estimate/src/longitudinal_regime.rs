@@ -140,14 +140,14 @@ pub fn sequential_dr_pointwise_interval_95(
 ) -> Option<(f64, [f64; 2])> {
     let n = scores.len();
     let supported = match periods {
-        2 => n >= 300 && observed_subjects >= 200
+        2 => n >= 500 && observed_subjects >= 200
             && observed_matching_subjects >= 50
             && summary.minimum_action_probability >= 0.4
             && summary.minimum_censoring_probability >= 0.85,
         3 => n >= 800 && observed_subjects >= 600
             && observed_matching_subjects >= 60
             && summary.minimum_action_probability >= 0.5
-            && summary.minimum_censoring_probability >= 0.9,
+            && summary.minimum_censoring_probability >= 0.95,
         _ => false,
     };
     if !supported
@@ -423,6 +423,7 @@ mod tests {
     fn three_period_excluded_fold_q_interval_covers_randomized_truth() {
         let n = 800;
         let simulations = 2_000;
+        let truth = 5.0;
         let mut state = 0xA83D_91E4_57C0_2FB6_u64;
         let mut uniform = || {
             state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -472,7 +473,7 @@ mod tests {
                 &summary, &scores, 3, observed.iter().filter(|&&x| x).count(), matched,
             ) {
                 accepted += 1;
-                covered += usize::from(bounds[0] <= 5.0 && 5.0 <= bounds[1]);
+                covered += usize::from(bounds[0] <= truth && truth <= bounds[1]);
             }
         }
         assert!(accepted >= 1_800, "three-period excluded-fold support: {accepted}/{simulations}");
@@ -544,16 +545,15 @@ mod tests {
             assert!((coverage - nominal).abs() <= 3.0 * mcse,
                 "fixed-Q sequential DR coverage {coverage} at {nominal}");
         }
-        assert!(gated_total >= 1_600);
-        let coverage = gated_covered as f64 / gated_total as f64;
-        println!("fixed Q supported DR interval: accepted={gated_total}, coverage={coverage}");
-        assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / gated_total as f64).sqrt());
+        assert_eq!(gated_total, 0, "300-subject fixed Q has no retained DR interval without a distinct fixed-Q contract");
+        assert_eq!(gated_covered, 0);
     }
 
     #[test]
     fn subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth() {
         let n = 500;
         let simulations = 2_000;
+        let truth = 4.0;
         let mut state = 0x149C_6F82_D30A_5BE7_u64;
         let mut uniform = || {
             state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -607,7 +607,7 @@ mod tests {
                 &summary, &scores, 2, observed.iter().filter(|&&x| x).count(), matched,
             ) {
                 gated_total += 1;
-                gated_covered += usize::from(bounds[0] <= 4.0 && 4.0 <= bounds[1]);
+                gated_covered += usize::from(bounds[0] <= truth && truth <= bounds[1]);
             }
             let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
                 / (n * (n - 1)) as f64).sqrt();
