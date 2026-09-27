@@ -139,11 +139,6 @@ impl CheckedRandomizedOperation {
         } else {
             outcomes
         };
-        let sample_variance = |values: &[f64]| -> f64 {
-            let mean = values.iter().sum::<f64>() / values.len() as f64;
-            values.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
-                / (values.len() - 1) as f64
-        };
         let mut complier_components = None;
         let mut factorial_contrasts = None;
         #[allow(clippy::type_complexity, reason = "labeled multi-arm value tuple mirrors the public result field type")]
@@ -183,41 +178,25 @@ impl CheckedRandomizedOperation {
                 Arc::<str>::from("bernoulli_ancova_hc0_variance_no_interval"),
                 "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no calibrated confidence interval")
         } else if let Some(received) = &self.query.received_treatment {
-            let mut outcome_scores = Vec::with_capacity(n);
-            let mut receipt_scores = Vec::with_capacity(n);
-            let mut controls = 0;
-            let mut treated = 0;
-            for i in 0..n {
-                let probability = self.query.assignment_probabilities[i];
-                let sign = if self.query.realized_assignment[i] {
-                    treated += 1;
-                    1.0 / probability
-                } else {
-                    controls += 1;
-                    -1.0 / (1.0 - probability)
-                };
-                outcome_scores.push(sign * outcomes[i]);
-                receipt_scores.push(sign * f64::from(received[i]));
+            let fit = antecedent_estimate::randomized_scores::complier_wald_effect(
+                outcomes, &self.query.realized_assignment, received, &self.query.assignment_probabilities,
+            ).ok_or(CausalError::Unsupported {
+                message: "receipt-adjusted randomized effects require a finite positive receipt first stage",
+            })?;
+            let controls = self.query.realized_assignment.iter().filter(|assigned| !**assigned).count();
+            let treated = n - controls;
+            complier_components = Some((fit.intention_to_treat_effect, fit.first_stage));
+            interval_95 = fit.interval_95;
+            if interval_95.is_some() {
+                interval_standard_error = Some(fit.variance.sqrt());
             }
-            let outcome_itt = outcome_scores.iter().sum::<f64>() / n as f64;
-            let first_stage = receipt_scores.iter().sum::<f64>() / n as f64;
-            if !first_stage.is_finite() || first_stage <= f64::EPSILON {
-                return Err(CausalError::Unsupported {
-                    message: "receipt-adjusted randomized effects require a finite positive receipt first stage",
-                });
-            }
-            let cace = outcome_itt / first_stage;
-            let influence = outcome_scores.iter().zip(&receipt_scores)
-                .map(|(outcome, receipt)| (outcome - cace * receipt) / first_stage)
-                .collect::<Vec<_>>();
-            let variance = sample_variance(&influence) / n as f64;
-            complier_components = Some((outcome_itt, first_stage));
-            (cace, variance, controls, treated, Arc::from([]), Arc::from([]),
+            let one_sided = self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated;
+            (fit.effect, fit.variance, controls, treated, Arc::from([]), Arc::from([]),
                 Arc::<str>::from("bernoulli"),
-                Arc::<str>::from(if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
+                Arc::<str>::from(if one_sided {
                     "bernoulli_one_sided_tot_influence_variance_no_interval"
                 } else { "bernoulli_wald_cace_influence_variance_no_interval" }),
-                if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated {
+                if one_sided {
                     "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
                 } else { "Wald CACE/LATE from randomized encouragement and observed receipt; independent-unit influence variance, no interval" })
         } else { match &self.query.design {
@@ -481,6 +460,11 @@ impl CheckedRandomizedOperation {
                     "bernoulli_fixed_cuped_ht_score_normal_interval",
                 antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
                     "bernoulli_ancova_hc0_normal_interval",
+                antecedent_core::RandomizationDesign::Bernoulli
+                    if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated =>
+                    "bernoulli_one_sided_tot_influence_normal_interval",
+                antecedent_core::RandomizationDesign::Bernoulli if self.query.received_treatment.is_some() =>
+                    "bernoulli_wald_cace_influence_normal_interval",
                 antecedent_core::RandomizationDesign::Bernoulli => "bernoulli_ht_score_normal_interval",
                 antecedent_core::RandomizationDesign::Complete { .. } => "complete_neyman_normal_interval",
                 antecedent_core::RandomizationDesign::Cluster { .. } => "cluster_neyman_normal_interval",
@@ -496,6 +480,11 @@ impl CheckedRandomizedOperation {
                     "Bernoulli ITT with an externally fixed pre-assignment CUPED coefficient and independent-unit score-sandwich pointwise 95% interval",
                 antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
                     "Bernoulli ANCOVA with pre-assignment covariates and independent-unit HC0 pointwise 95% interval",
+                antecedent_core::RandomizationDesign::Bernoulli
+                    if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated =>
+                    "Treatment-on-treated among recipients under one-sided noncompliance and exclusion; Wald ratio with an independent-unit influence-function pointwise 95% interval",
+                antecedent_core::RandomizationDesign::Bernoulli if self.query.received_treatment.is_some() =>
+                    "Wald CACE/LATE from randomized encouragement and observed receipt under exclusion and monotonicity, with an independent-unit influence-function pointwise 95% interval",
                 antecedent_core::RandomizationDesign::Bernoulli =>
                     "Bernoulli Horvitz-Thompson ITT with known probabilities and an independent-unit score-sandwich pointwise 95% interval",
                 antecedent_core::RandomizationDesign::Complete { .. } =>
@@ -621,25 +610,30 @@ impl CheckedRandomizedOperation {
         // Graphless licenses are exact design/method/inference claims. A
         // published interval alone is insufficient: sparse or other designs
         // must not inherit a geometric matrix coordinate by analogy.
-        let (design, method, assignment_unit, claim) = match self.query.design {
+        let (family, design, method, assignment_unit, claim) = match self.query.design {
+            antecedent_core::RandomizationDesign::Bernoulli
+                if self.query.estimand == antecedent_core::RandomizedEstimand::TreatmentOnTreated =>
+                ("complier_effect", "bernoulli_one_sided", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
+            antecedent_core::RandomizationDesign::Bernoulli if self.query.received_treatment.is_some() =>
+                ("complier_effect", "bernoulli", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Bernoulli if self.query.fixed_cuped.is_some() =>
-                ("bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval"),
+                ("randomized_effect", "bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Bernoulli if !self.query.ancova_covariates.is_empty() =>
-                ("bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval"),
+                ("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Bernoulli =>
-                ("bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
+                ("randomized_effect", "bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Complete { .. } =>
-                ("complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
+                ("randomized_effect", "complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Cluster { .. } =>
-                ("cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval"),
+                ("randomized_effect", "cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Stratified { .. } =>
-                ("stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
+                ("randomized_effect", "stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
             antecedent_core::RandomizationDesign::Factorial2x2 { .. } =>
-                ("factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals"),
+                ("randomized_effect", "factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals"),
             antecedent_core::RandomizationDesign::MultiArm { .. } =>
-                ("multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
+                ("randomized_effect", "multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
             antecedent_core::RandomizationDesign::Switchback { .. } =>
-                ("switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval"),
+                ("randomized_effect", "switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval"),
         };
         let fit = result.randomized_effect.as_ref().expect("randomized result was just set");
         let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
@@ -684,7 +678,7 @@ impl CheckedRandomizedOperation {
         };
         if let crate::support::GraphlessSupportStatus::Licensed { .. } = crate::support::classify_graphless(
             crate::support::GraphlessSupportKey {
-                family: "randomized_effect", design, method, inference_claim: claim,
+                family, design, method, inference_claim: claim,
             },
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit, treated: treatment_units, control: control_units,

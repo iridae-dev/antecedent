@@ -3400,7 +3400,7 @@ def estimate_complier_effect(
     assignment: list[bool],
     received: list[bool],
     propensity: NDArray[np.float64],
-) -> tuple[float, float, float, float]: ...
+) -> tuple[float, float, float, float, tuple[float, float] | None]: ...
 def estimate_cuped_effect(
     outcome: NDArray[np.float64],
     covariate: NDArray[np.float64],

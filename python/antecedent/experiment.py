@@ -630,6 +630,7 @@ class ComplierEffectEstimate:
     first_stage_effect: float
     complier_average_causal_effect: float
     standard_error: float
+    interval_95: tuple[float, float] | None = None
     estimand: str = "cace_late"
     uncertainty: str = "asymptotic_influence_function_standard_error"
     support_status: str = "unlicensed_direct_estimator_utility"
@@ -651,9 +652,10 @@ def estimate_complier_effect(
     """Estimate ITT and Wald CACE/LATE under randomized noncompliance.
 
     This utility accepts unit-level known assignment probabilities and returns
-    a point estimate plus an asymptotic influence-function standard error. It
-    assumes exclusion and monotonicity; it does not report a confidence interval
-    or add a licensed support cell.
+    a point estimate, an asymptotic influence-function standard error, and, when
+    the calibrated support thresholds hold, the same pointwise 95% interval the
+    retained analyze route publishes. It assumes exclusion and monotonicity; the
+    utility itself never adds a licensed support cell.
     """
     y = np.asarray(outcomes, dtype=np.float64)
     if y.ndim != 1 or y.size < 2 or not np.isfinite(y).all():
@@ -671,7 +673,18 @@ def estimate_complier_effect(
         raw = _estimate_complier_effect(y, z, d, p)
     except ValueError as error:
         raise CausalValueError(str(error)) from error
-    return ComplierEffectEstimate(*map(float, raw))
+    outcome_itt, first_stage, effect, standard_error, interval = raw
+    interval_95 = (float(interval[0]), float(interval[1])) if interval is not None else None
+    return ComplierEffectEstimate(
+        intention_to_treat_effect=float(outcome_itt),
+        first_stage_effect=float(first_stage),
+        complier_average_causal_effect=float(effect),
+        standard_error=float(standard_error),
+        interval_95=interval_95,
+        uncertainty=("asymptotic_influence_function_pointwise_95_normal_interval"
+                     if interval_95 is not None
+                     else "asymptotic_influence_function_standard_error"),
+    )
 
 
 @dataclass(frozen=True, slots=True)

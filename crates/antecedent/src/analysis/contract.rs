@@ -580,6 +580,14 @@ impl PreparedStudy {
                     .map_or("off_axis", CellStatus::as_str));
                 support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
                     .then(|| {
+                        // The Wald complier effect is its own graphless family; a
+                        // Bernoulli assignment design does not fold it into ITT.
+                        if randomized.estimand.as_ref() == "treatment_on_treated" {
+                            return Arc::from("graphless:complier_effect/bernoulli_one_sided/wald_ratio_influence/pointwise_95_normal_interval");
+                        }
+                        if randomized.estimand.as_ref() == "cace_late" {
+                            return Arc::from("graphless:complier_effect/bernoulli/wald_ratio_influence/pointwise_95_normal_interval");
+                        }
                         let (method, claim) = match randomized.assignment_design.as_ref() {
                             "bernoulli" if randomized.uncertainty.as_ref() == "bernoulli_fixed_cuped_ht_score_normal_interval" =>
                                 ("fixed_cuped_ht_score", "pointwise_95_normal_interval"),

@@ -403,3 +403,31 @@ requires_disjoint_nuisance_training = true
 known_truth_test = "crates/antecedent-estimate/src/longitudinal_regime.rs::three_period_excluded_fold_q_interval_covers_randomized_truth"
 retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_horizon"
 limitations = "Known sequential randomization over three periods with independent subjects and caller-declared subject-excluded fold Q predictions on disjoint folds. Requires at least 800 subjects, at least 600 observed outcomes, at least 60 subjects whose realized treatment matches the evaluated regime across all three periods, per-period action probability at least 0.5, conditional censoring survival at least 0.95, and an actually published pointwise 95% interval. The single normal interval is conditional on the declared Q law; Q training is not verified. Four or more periods, fitted-Q uncertainty, g-formula, and MSM intervals are not licensed by this row."
+
+[[license]]
+family = "complier_effect"
+design = "bernoulli"
+method = "wald_ratio_influence"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "unit"
+min_rows = 400
+min_assignment_units_per_arm = 30
+min_probability = 0.2
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent-estimate/src/randomized_scores.rs::complier_wald_influence_interval_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/complier_effect_route.rs::licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery"
+limitations = "Wald CACE/LATE from independent Bernoulli encouragement and observed treatment receipt, with known assignment probabilities at least 0.2 in both arms on every row, 400 rows, 30 realized assignments per arm, a finite positive receipt first stage, positive independent-unit influence-function variance, and a published pointwise 95% normal interval. Exclusion and monotonicity are declared, untestable identifying assumptions. A 2,000-replication known-truth fixture at 1,200 rows and a 0.5 complier share confirms coverage. Weak first stages, sparse or low-probability arms, and adjusted or ITT contrasts do not inherit this row."
+
+[[license]]
+family = "complier_effect"
+design = "bernoulli_one_sided"
+method = "wald_ratio_influence"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "unit"
+min_rows = 400
+min_assignment_units_per_arm = 30
+min_probability = 0.2
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent-estimate/src/randomized_scores.rs::one_sided_treatment_on_treated_influence_interval_covers_known_truth"
+retained_route_test = "crates/antecedent/tests/complier_effect_route.rs::licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery"
+limitations = "Treatment-on-treated among recipients under declared one-sided noncompliance: independent Bernoulli encouragement with no control-arm receipt, so every recipient is a complier and the Wald ratio identifies their mean effect. Requires known assignment probabilities at least 0.2 in both arms on every row, 400 rows, 30 realized assignments per arm, a finite positive receipt first stage, positive independent-unit influence-function variance, and a published pointwise 95% normal interval. Observed control-arm receipt is refused at query validation. Exclusion is a declared, untestable assumption. A 2,000-replication known-truth fixture at 1,200 rows confirms coverage. Two-sided noncompliance, weak first stages, and sparse arms do not inherit this row."
