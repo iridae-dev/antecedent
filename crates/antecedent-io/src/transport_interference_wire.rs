@@ -110,6 +110,10 @@ pub enum ExposureProbabilityMethodWire {
         /// RNG seed.
         seed: u64,
     },
+    /// Caller supplied known exposure probabilities.
+    SuppliedKnown,
+    /// Caller supplied externally estimated probabilities.
+    SuppliedExternallyEstimated,
 }
 
 /// Randomization contrast wire form.
@@ -391,6 +395,8 @@ const fn probability_method_to_wire(
         ExposureProbabilityMethod::MonteCarlo { draws, seed } => {
             ExposureProbabilityMethodWire::MonteCarlo { draws, seed }
         }
+        ExposureProbabilityMethod::SuppliedKnown => ExposureProbabilityMethodWire::SuppliedKnown,
+        ExposureProbabilityMethod::SuppliedExternallyEstimated => ExposureProbabilityMethodWire::SuppliedExternallyEstimated,
     }
 }
 
@@ -402,6 +408,8 @@ const fn probability_method_from_wire(
         ExposureProbabilityMethodWire::MonteCarlo { draws, seed } => {
             ExposureProbabilityMethod::MonteCarlo { draws, seed }
         }
+        ExposureProbabilityMethodWire::SuppliedKnown => ExposureProbabilityMethod::SuppliedKnown,
+        ExposureProbabilityMethodWire::SuppliedExternallyEstimated => ExposureProbabilityMethod::SuppliedExternallyEstimated,
     }
 }
 

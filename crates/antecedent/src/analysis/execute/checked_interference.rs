@@ -7,6 +7,7 @@ use super::*;
 enum InterferenceProcedure {
     DesignBasedYoung,
     SaturationExact,
+    ObservationalIpw,
     ConjugateGaussian { draws: usize, prior_sd: f64 },
 }
 
@@ -86,9 +87,11 @@ impl CheckedInterferenceOperation {
                     == antecedent_core::ExposureMapping::NeighborFraction;
                 let saturation = matches!(query.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. })
                     && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure);
-                if !bernoulli && !cluster && !saturation {
+                let observed = matches!(query.assignment, antecedent_core::AssignmentDesign::ObservedExposure { .. })
+                    && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure);
+                if !bernoulli && !cluster && !saturation && !observed {
                     return Err(CausalError::Unsupported {
-                        message: "design based interference requires Bernoulli/NeighborCount, cluster total, or exact two-stage saturation with built-in neighbor exposure",
+                        message: "interference requires Bernoulli/NeighborCount, cluster total, exact two-stage saturation, or supplied-propensity observational exposure",
                     });
                 }
                 if cluster {
@@ -105,9 +108,14 @@ impl CheckedInterferenceOperation {
                     antecedent_estimate::estimate_saturation_interference(query, &design.network, &design.assignment)
                         .map_err(CausalError::from)?;
                 }
+                if observed {
+                    estimate_observed_exposure(query, &design.network, &design.assignment)?;
+                }
                 (
-                    if saturation { InterferenceProcedure::SaturationExact } else { InterferenceProcedure::DesignBasedYoung },
-                    if saturation {
+                    if observed { InterferenceProcedure::ObservationalIpw } else if saturation { InterferenceProcedure::SaturationExact } else { InterferenceProcedure::DesignBasedYoung },
+                    if observed {
+                        EstimatorId::InterferenceObservationalIpw
+                    } else if saturation {
                         EstimatorId::InterferenceSaturationExact
                     } else if cluster {
                         EstimatorId::InterferenceClusterNeyman
@@ -174,6 +182,7 @@ impl CheckedInterferenceOperation {
                 query.assignment,
                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                     | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                    | antecedent_core::AssignmentDesign::ObservedExposure { .. }
             ),
         );
         Ok(Self {
@@ -297,6 +306,48 @@ impl CheckedInterferenceOperation {
                     ),
                 )
             }
+            InterferenceProcedure::ObservationalIpw => {
+                let summary = estimate_observed_exposure(&self.query, &network, &self.assignment)?;
+                let method = match summary.propensity_provenance {
+                    antecedent_core::ExposurePropensityProvenance::Known => antecedent_stats::ExposureProbabilityMethod::SuppliedKnown,
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated,
+                };
+                let estimated = antecedent_estimate::InterferenceEstimate {
+                    contrast: antecedent_stats::RandomizationContrast {
+                        horvitz_thompson: summary.horvitz_thompson,
+                        hajek: summary.hajek,
+                        conservative_variance: summary.cluster_robust_variance,
+                    },
+                    from_probability_method: method,
+                    to_probability_method: method,
+                    minimum_exposure_probability: summary.minimum_exposure_probability,
+                };
+                let diagnostic = Diagnostic::new(
+                    "estimate.interference.observational_ipw",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "Observational network exposure contrast with supplied probabilities; cluster CR1 variance treats probabilities as fixed and is descriptive; no interval calibration is claimed",
+                ).with_fields([
+                    ("from_exposed_units", summary.from_exposed_units.to_string()),
+                    ("to_exposed_units", summary.to_exposed_units.to_string()),
+                    ("from_exposed_clusters", summary.from_exposed_clusters.to_string()),
+                    ("to_exposed_clusters", summary.to_exposed_clusters.to_string()),
+                    ("clusters", summary.clusters.to_string()),
+                    ("minimum_exposure_probability", summary.minimum_exposure_probability.to_string()),
+                    ("maximum_exposure_probability", summary.maximum_exposure_probability.to_string()),
+                ]);
+                (
+                    Some(estimated),
+                    None,
+                    EffectEstimate::new(
+                        summary.horvitz_thompson,
+                        f64::NAN,
+                        self.identification.required_assumptions.clone(),
+                        OverlapPolicy::ExplicitOverride,
+                    ),
+                    diagnostic,
+                )
+            }
             InterferenceProcedure::ConjugateGaussian { draws, prior_sd } => {
                 let seed =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Bayesian, 0x1F7E).next_u64();
@@ -400,6 +451,11 @@ fn interference_identification(
             "Identification is the declared complete allocation of clusters to low/high saturation followed by within-cluster Bernoulli treatment and the fixed partial-interference exposure mapping.",
             saturation_identification_assumptions(),
         ),
+        InterferenceProcedure::ObservationalIpw => (
+            "interference.observational_exchangeability",
+            "Identification assumes no unmeasured confounding of network exposure and potential outcomes conditional on the variables used to supply exposure probabilities, plus partial interference, consistency, and positivity.",
+            observational_identification_assumptions(),
+        ),
         InterferenceProcedure::ConjugateGaussian { prior_sd, .. } => (
             "interference.bayesian_gaussian",
             "Finite-network contrast under the declared additive Gaussian potential-outcome model and shared unit disturbance.",
@@ -490,6 +546,53 @@ fn saturation_identification_assumptions() -> antecedent_core::AssumptionSet {
         status: AssumptionStatus::Declared,
     });
     assumptions
+}
+
+fn observational_identification_assumptions() -> antecedent_core::AssumptionSet {
+    use antecedent_core::{Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource, AssumptionStatus};
+    let mut assumptions = AssumptionSet::default();
+    for (id, description) in [
+        ("interference.network_exchangeability", "No unmeasured network-exposure confounding conditional on the covariates used to supply exposure probabilities; this is declared by the caller, not checked from the network."),
+        ("interference.partial_interference", "Potential outcomes may depend on assignments within the unit's cluster, but not on assignments in other clusters."),
+        ("interference.consistency", "The fixed network exposure mapping agrees with the potential-outcome exposure definition and observed outcomes."),
+        ("interference.exposure_positivity", "Every requested exposure has positive supplied probability for every unit."),
+        ("interference.supplied_propensity", "Exposure probabilities are known or externally estimated and supplied in unit-row order; their fitting uncertainty is not included in the cluster variance."),
+    ] {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
+            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("interference.observational_ipw") },
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
+    assumptions
+}
+
+fn estimate_observed_exposure(
+    query: &antecedent_core::InterferenceQuery,
+    network: &antecedent_data::NetworkData,
+    assignment: &[bool],
+) -> Result<antecedent_estimate::ObservationalExposureEstimate, CausalError> {
+    let antecedent_core::AssignmentDesign::ObservedExposure {
+        clusters, propensity_from, propensity_to, provenance, ..
+    } = &query.assignment else {
+        return Err(CausalError::Compile { message: "observational interference requires supplied exposure probabilities".into() });
+    };
+    let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
+    antecedent_estimate::estimate_observational_exposure(
+        network,
+        outcome,
+        &antecedent_estimate::ObservationalExposureSpec {
+            assignment,
+            clusters,
+            exposure: &query.exposure,
+            from,
+            to,
+            propensity_from,
+            propensity_to,
+            propensity_provenance: *provenance,
+        },
+    ).map_err(CausalError::from)
 }
 
 fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {

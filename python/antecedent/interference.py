@@ -98,6 +98,35 @@ class SaturationDesign:
 
 
 @dataclass(frozen=True, slots=True)
+class ObservedExposureDesign:
+    """Observed network assignment with supplied exposure probabilities.
+
+    ``assume_network_exchangeability`` declares no unmeasured network-exposure
+    confounding given the variables used to supply the probability vectors.
+    Antecedent checks positivity and network partition but cannot verify this
+    assumption or external propensity fitting.
+    """
+
+    clusters: Sequence[int]
+    propensity_from: Sequence[float]
+    propensity_to: Sequence[float]
+    propensity_provenance: Literal["known", "externally_estimated"]
+    assume_network_exchangeability: bool
+
+    def __post_init__(self) -> None:
+        n = len(self.clusters)
+        if n == 0 or len(self.propensity_from) != n or len(self.propensity_to) != n:
+            raise CausalValueError("observational exposure probabilities and clusters must align by row")
+        if self.propensity_provenance not in {"known", "externally_estimated"}:
+            raise CausalValueError("propensity_provenance must be known or externally_estimated")
+        if self.assume_network_exchangeability is not True:
+            raise CausalValueError("observational exposure requires assume_network_exchangeability=True")
+        for values in (self.propensity_from, self.propensity_to):
+            if any(not np.isfinite(p) or p <= 0.0 or p > 1.0 for p in values):
+                raise CausalValueError("exposure probabilities must lie in (0, 1]")
+
+
+@dataclass(frozen=True, slots=True)
 class SaturationEffectEstimate:
     horvitz_thompson: float
     hajek: float
@@ -197,9 +226,9 @@ class ExposureContrast:
 
 @dataclass(frozen=True, slots=True)
 class InterferenceQuery:
-    """A randomized exposure contrast on a fixed unit network.
+    """An exposure contrast on a fixed unit network.
 
-    ``assignment`` is the known randomization design, ``exposure`` the exposure
+    ``assignment`` is the declared assignment or observation design, ``exposure`` the exposure
     mapping and ``functional`` the contrast between two exposure levels.
 
     :func:`antecedent.analyze` estimates the licensed cell (explicit ``Dag``,
@@ -210,9 +239,11 @@ class InterferenceQuery:
     total contrast from ``(0, 0)`` to ``(1, 1)``; its cluster-level variance
     has no interval claim. ``SaturationDesign`` also supports exact two-stage
     direct, spillover, and total exposure contrasts as separate point queries;
-    its covariance-free variance proxy is not a confidence interval. These
-    paths need the keyword-only design facts:
-    ``network``, the fixed
+    its covariance-free variance proxy is not a confidence interval.
+    ``ObservedExposureDesign`` uses supplied exposure probabilities and an
+    explicit network-exchangeability declaration. It reports a point contrast
+    and descriptive cluster variance without an interval.
+    These paths need the keyword-only design facts: ``network``, the fixed
     directed exposure edges between unit rows (``NetworkEdge`` or
     ``(from, to[, weight])``; an empty sequence is a network without edges),
     and ``realized_assignment``, the binary assignment in unit-row order. Both
@@ -289,9 +320,23 @@ class InterferenceSupport:
     to_observed_clusters: int | None
     minimum_exposure_probability: float
     partial_interference_checked: bool
+    maximum_exposure_probability: float | None = None
+    clusters: int | None = None
 
 
 def _assignment_args(design: object) -> dict[str, Any]:
+    if isinstance(design, ObservedExposureDesign):
+        return {
+            "assignment_kind": "observed_exposure",
+            "assignment_probabilities": [],
+            "treated": 0,
+            "clusters": list(design.clusters),
+            "treated_clusters": 0,
+            "propensity_from": list(design.propensity_from),
+            "propensity_to": list(design.propensity_to),
+            "propensity_provenance": design.propensity_provenance,
+            "assume_network_exchangeability": design.assume_network_exchangeability,
+        }
     if isinstance(design, SaturationDesign):
         return {
             "assignment_kind": "saturation",
@@ -382,6 +427,16 @@ def estimate(
 
     if not isinstance(query, InterferenceQuery):
         raise CausalTypeError("query must be an InterferenceQuery")
+    if isinstance(query.assignment, ObservedExposureDesign):
+        raise CausalValueError(
+            "ObservedExposureDesign runs through analyze/prepare; use "
+            "estimate_observational_network_exposure for the direct utility"
+        )
+    if isinstance(query.assignment, SaturationDesign):
+        raise CausalValueError(
+            "SaturationDesign runs through analyze/prepare; use estimate_saturation_effects "
+            "for the direct utility"
+        )
     names, columns = as_columns(data)
     try:
         outcome_index = names.index(query.functional.outcome)
@@ -705,6 +760,7 @@ __all__ = [
     "RandomizationContrast",
     "PartialInterference",
     "SaturationDesign",
+    "ObservedExposureDesign",
     "SaturationEffectEstimate",
     "SaturationEffects",
     "ObservationalNetworkExposureEstimate",

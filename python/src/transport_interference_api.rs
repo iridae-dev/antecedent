@@ -445,10 +445,30 @@ pub(crate) struct InterferenceSection {
     to_probability_method: String,
     #[pyo3(get)]
     minimum_exposure_probability: f64,
+    #[pyo3(get)]
+    from_exposed_units: Option<usize>,
+    #[pyo3(get)]
+    to_exposed_units: Option<usize>,
+    #[pyo3(get)]
+    from_exposed_clusters: Option<usize>,
+    #[pyo3(get)]
+    to_exposed_clusters: Option<usize>,
+    #[pyo3(get)]
+    clusters: Option<usize>,
+    #[pyo3(get)]
+    maximum_exposure_probability: Option<f64>,
 }
 
 impl InterferenceSection {
-    pub(crate) fn from_estimate(estimate: &antecedent::estimate::InterferenceEstimate) -> Self {
+    pub(crate) fn from_estimate(
+        estimate: &antecedent::estimate::InterferenceEstimate,
+        diagnostics: &[antecedent_core::Diagnostic],
+    ) -> Self {
+        let fields = diagnostics.iter()
+            .find(|diagnostic| diagnostic.code.as_ref() == "estimate.interference.observational_ipw")
+            .map(|diagnostic| diagnostic.fields.as_ref());
+        let field = |key: &str| fields.and_then(|values| values.iter()
+            .find(|(name, _)| name.as_ref() == key).map(|(_, value)| value.as_ref()));
         Self {
             horvitz_thompson: estimate.contrast.horvitz_thompson,
             hajek: estimate.contrast.hajek,
@@ -456,6 +476,12 @@ impl InterferenceSection {
             from_probability_method: probability_method(estimate.from_probability_method),
             to_probability_method: probability_method(estimate.to_probability_method),
             minimum_exposure_probability: estimate.minimum_exposure_probability,
+            from_exposed_units: field("from_exposed_units").and_then(|v| v.parse().ok()),
+            to_exposed_units: field("to_exposed_units").and_then(|v| v.parse().ok()),
+            from_exposed_clusters: field("from_exposed_clusters").and_then(|v| v.parse().ok()),
+            to_exposed_clusters: field("to_exposed_clusters").and_then(|v| v.parse().ok()),
+            clusters: field("clusters").and_then(|v| v.parse().ok()),
+            maximum_exposure_probability: field("maximum_exposure_probability").and_then(|v| v.parse().ok()),
         }
     }
 }
@@ -521,6 +547,10 @@ pub(crate) struct InterferenceArgs {
     pub(crate) low_probability: f64,
     pub(crate) high_probability: f64,
     pub(crate) realized_saturation: Vec<f64>,
+    pub(crate) propensity_from: Vec<f64>,
+    pub(crate) propensity_to: Vec<f64>,
+    pub(crate) propensity_provenance: String,
+    pub(crate) assume_network_exchangeability: bool,
     pub(crate) exposure: String,
     pub(crate) from_level: (f64, f64),
     pub(crate) to_level: (f64, f64),
@@ -547,6 +577,17 @@ pub(crate) fn interference_query(
             high_probability: args.high_probability,
             high_clusters: args.treated_clusters,
             realized_saturation: args.realized_saturation.into(),
+        },
+        "observed_exposure" => AssignmentDesign::ObservedExposure {
+            clusters: args.clusters.into(),
+            propensity_from: args.propensity_from.into(),
+            propensity_to: args.propensity_to.into(),
+            provenance: match args.propensity_provenance.as_str() {
+                "known" => antecedent_core::ExposurePropensityProvenance::Known,
+                "externally_estimated" => antecedent_core::ExposurePropensityProvenance::ExternallyEstimated,
+                _ => return Err(PyValueError::new_err("propensity_provenance must be known or externally_estimated")),
+            },
+            assume_network_exchangeability: args.assume_network_exchangeability,
         },
         _ => return Err(PyValueError::new_err("unknown assignment design")),
     };
@@ -1062,6 +1103,10 @@ fn estimate_network_interference(
             low_probability: 0.0,
             high_probability: 0.0,
             realized_saturation: Vec::new(),
+            propensity_from: Vec::new(),
+            propensity_to: Vec::new(),
+            propensity_provenance: "known".into(),
+            assume_network_exchangeability: false,
             exposure,
             from_level,
             to_level,
@@ -1095,6 +1140,8 @@ fn probability_method(method: antecedent_stats::ExposureProbabilityMethod) -> St
         antecedent_stats::ExposureProbabilityMethod::MonteCarlo { draws, seed } => {
             format!("monte_carlo(draws={draws},seed={seed})")
         }
+        antecedent_stats::ExposureProbabilityMethod::SuppliedKnown => "supplied_known".into(),
+        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated => "supplied_externally_estimated".into(),
     }
 }
 

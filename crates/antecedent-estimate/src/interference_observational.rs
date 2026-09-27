@@ -1,0 +1,268 @@
+//! Supplied-propensity observational exposure contrasts on a fixed network.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use antecedent_core::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance};
+use antecedent_data::{NetworkData, TableView};
+use antecedent_stats::exposures;
+
+use crate::EstimationError;
+
+/// Row-aligned observation design and requested contrast.
+#[derive(Clone, Debug)]
+pub struct ObservationalExposureSpec<'a> {
+    /// Observed own-treatment assignment in unit-row order.
+    pub assignment: &'a [bool],
+    /// Partial-interference cluster id in unit-row order.
+    pub clusters: &'a [u32],
+    /// Built-in neighbor exposure mapping.
+    pub exposure: &'a ExposureMapping,
+    /// Baseline exposure level.
+    pub from: ExposureLevel,
+    /// Active exposure level.
+    pub to: ExposureLevel,
+    /// Marginal probability of the baseline exposure, one per row.
+    pub propensity_from: &'a [f64],
+    /// Marginal probability of the active exposure, one per row.
+    pub propensity_to: &'a [f64],
+    /// Provenance of both supplied probability vectors.
+    pub propensity_provenance: ExposurePropensityProvenance,
+}
+
+/// Point result, descriptive cluster variance, and observed support.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObservationalExposureEstimate {
+    /// Horvitz–Thompson contrast.
+    pub horvitz_thompson: f64,
+    /// Hájek contrast.
+    pub hajek: f64,
+    /// CR1 sandwich variance of the Horvitz–Thompson contrast, treating propensities as fixed.
+    pub cluster_robust_variance: f64,
+    /// Baseline-exposed units in the realized assignment.
+    pub from_exposed_units: usize,
+    /// Active-exposed units in the realized assignment.
+    pub to_exposed_units: usize,
+    /// Clusters containing a baseline-exposed unit.
+    pub from_exposed_clusters: usize,
+    /// Clusters containing an active-exposed unit.
+    pub to_exposed_clusters: usize,
+    /// Minimum supplied probability over both levels and all rows.
+    pub minimum_exposure_probability: f64,
+    /// Maximum supplied probability over both levels and all rows.
+    pub maximum_exposure_probability: f64,
+    /// Number of clusters in the partial-interference partition.
+    pub clusters: usize,
+    /// Source of supplied exposure probabilities.
+    pub propensity_provenance: ExposurePropensityProvenance,
+}
+
+/// Estimate an observational exposure contrast with supplied marginal probabilities.
+/// Identification requires a caller-declared network exchangeability assumption;
+/// this kernel checks topology and positivity but cannot verify exchangeability.
+/// The CR1 variance treats probabilities as fixed and has no interval claim.
+///
+/// # Errors
+///
+/// Refuses invalid dimensions, exposure levels, propensities, topology, empirical
+/// support, or fewer than two partial-interference clusters.
+#[allow(clippy::too_many_lines)]
+pub fn estimate_observational_exposure(
+    data: &NetworkData,
+    outcome: antecedent_core::VariableId,
+    spec: &ObservationalExposureSpec<'_>,
+) -> Result<ObservationalExposureEstimate, EstimationError> {
+    let n = data.units().row_count();
+    if n == 0
+        || spec.assignment.len() != n
+        || spec.clusters.len() != n
+        || spec.propensity_from.len() != n
+        || spec.propensity_to.len() != n
+    {
+        return Err(EstimationError::data_msg(
+            "outcome, assignment, clusters, and propensity vectors must have equal non-zero length",
+        ));
+    }
+    if !matches!(
+        spec.exposure,
+        ExposureMapping::NeighborCount
+            | ExposureMapping::NeighborFraction
+            | ExposureMapping::WeightedNeighborExposure
+    ) {
+        return Err(EstimationError::unsupported(
+            "observational network exposure requires a built-in neighbor exposure mapping",
+        ));
+    }
+    if [spec.from.own, spec.from.neighbors, spec.to.own, spec.to.neighbors]
+        .iter()
+        .any(|value| !value.is_finite())
+        || ((spec.from.own - spec.to.own).abs() <= 1e-12
+            && (spec.from.neighbors - spec.to.neighbors).abs() <= 1e-12)
+    {
+        return Err(EstimationError::data_msg(
+            "exposure contrast levels must be finite and distinct",
+        ));
+    }
+    if spec
+        .propensity_from
+        .iter()
+        .chain(spec.propensity_to)
+        .any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
+    {
+        return Err(EstimationError::data_msg(
+            "observational exposure positivity failure: probabilities must lie in (0, 1]",
+        ));
+    }
+    let cluster_ids = spec.clusters.iter().copied().collect::<BTreeSet<_>>();
+    if cluster_ids.len() < 2 {
+        return Err(EstimationError::unsupported(
+            "cluster variance requires at least two partial-interference clusters",
+        ));
+    }
+    let outcomes = data.units().float64_values(outcome)?;
+    if outcomes.iter().any(|value| !value.is_finite()) {
+        return Err(EstimationError::data_msg("observational network outcomes must be finite"));
+    }
+    let mut incoming = Vec::with_capacity(n);
+    for unit in 0..n {
+        let neighbors = data
+            .incoming(unit)?
+            .iter()
+            .map(|edge| (edge.from as usize, edge.weight))
+            .collect::<Vec<_>>();
+        if neighbors.iter().any(|&(source, weight)| {
+            spec.clusters[source] != spec.clusters[unit] || !weight.is_finite() || weight < 0.0
+        }) {
+            return Err(EstimationError::unsupported(
+                "partial-interference assumption violated: network edge crosses cluster boundary",
+            ));
+        }
+        incoming.push(neighbors);
+    }
+    let observed = exposures(spec.assignment, &incoming, spec.exposure)?;
+    let mut from_sum = 0.0;
+    let mut to_sum = 0.0;
+    let mut from_weight = 0.0;
+    let mut to_weight = 0.0;
+    let mut from_count = 0;
+    let mut to_count = 0;
+    let mut from_clusters = BTreeSet::new();
+    let mut to_clusters = BTreeSet::new();
+    let mut influence_by_cluster = BTreeMap::<u32, f64>::new();
+    let mut minimum_probability = f64::INFINITY;
+    let mut maximum_probability: f64 = 0.0;
+    for i in 0..n {
+        let observed_level = observed[i];
+        let is_from = (observed_level.own - spec.from.own).abs() <= 1e-12
+            && (observed_level.neighbors - spec.from.neighbors).abs() <= 1e-12;
+        let is_to = (observed_level.own - spec.to.own).abs() <= 1e-12
+            && (observed_level.neighbors - spec.to.neighbors).abs() <= 1e-12;
+        let from_score = if is_from { outcomes[i] / spec.propensity_from[i] } else { 0.0 };
+        let to_score = if is_to { outcomes[i] / spec.propensity_to[i] } else { 0.0 };
+        from_sum += from_score;
+        to_sum += to_score;
+        if is_from {
+            from_weight += 1.0 / spec.propensity_from[i];
+            from_count += 1;
+            from_clusters.insert(spec.clusters[i]);
+        }
+        if is_to {
+            to_weight += 1.0 / spec.propensity_to[i];
+            to_count += 1;
+            to_clusters.insert(spec.clusters[i]);
+        }
+        *influence_by_cluster.entry(spec.clusters[i]).or_default() +=
+            (to_score - from_score) / n as f64;
+        minimum_probability =
+            minimum_probability.min(spec.propensity_from[i]).min(spec.propensity_to[i]);
+        maximum_probability =
+            maximum_probability.max(spec.propensity_from[i]).max(spec.propensity_to[i]);
+    }
+    if from_count == 0 || to_count == 0 || from_weight == 0.0 || to_weight == 0.0 {
+        return Err(EstimationError::unsupported(
+            "observational network contrast requires observed support at both requested exposure levels",
+        ));
+    }
+    let horvitz_thompson = (to_sum - from_sum) / n as f64;
+    let hajek = to_sum / to_weight - from_sum / from_weight;
+    let cluster_count = influence_by_cluster.len();
+    let mean_influence = influence_by_cluster.values().sum::<f64>() / cluster_count as f64;
+    let cluster_robust_variance = cluster_count as f64 / (cluster_count - 1) as f64
+        * influence_by_cluster.values().map(|value| (value - mean_influence).powi(2)).sum::<f64>();
+    if !horvitz_thompson.is_finite() || !hajek.is_finite() || !cluster_robust_variance.is_finite() {
+        return Err(EstimationError::data_msg(
+            "observational network estimate overflowed finite precision",
+        ));
+    }
+    Ok(ObservationalExposureEstimate {
+        horvitz_thompson,
+        hajek,
+        cluster_robust_variance,
+        from_exposed_units: from_count,
+        to_exposed_units: to_count,
+        from_exposed_clusters: from_clusters.len(),
+        to_exposed_clusters: to_clusters.len(),
+        minimum_exposure_probability: minimum_probability,
+        maximum_exposure_probability: maximum_probability,
+        clusters: cluster_count,
+        propensity_provenance: spec.propensity_provenance,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance, VariableId};
+    use antecedent_data::{NetworkData, NetworkEdge, TabularData};
+
+    use super::{ObservationalExposureSpec, estimate_observational_exposure};
+
+    #[test]
+    fn supplied_propensities_recover_known_network_contrast_and_cluster_variance() {
+        let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
+        let edges = vec![
+            NetworkEdge { from: 0, to: 1, weight: 1.0 },
+            NetworkEdge { from: 1, to: 0, weight: 1.0 },
+            NetworkEdge { from: 2, to: 3, weight: 1.0 },
+            NetworkEdge { from: 3, to: 2, weight: 1.0 },
+        ];
+        let network = NetworkData::try_new(data, edges).unwrap();
+        let spec = ObservationalExposureSpec {
+            assignment: &[false, false, true, true],
+            clusters: &[0, 0, 1, 1],
+            exposure: &ExposureMapping::NeighborCount,
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            propensity_from: &[0.5; 4],
+            propensity_to: &[0.5; 4],
+            propensity_provenance: ExposurePropensityProvenance::ExternallyEstimated,
+        };
+        let result =
+            estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
+        assert!((result.horvitz_thompson - 6.0).abs() < 1e-12);
+        assert!((result.hajek - 6.0).abs() < 1e-12);
+        assert!((result.cluster_robust_variance - 36.0).abs() < 1e-12);
+        assert_eq!((result.from_exposed_units, result.to_exposed_units), (2, 2));
+        assert_eq!((result.from_exposed_clusters, result.to_exposed_clusters), (1, 1));
+        assert_eq!(result.clusters, 2);
+        assert_eq!(result.propensity_provenance, ExposurePropensityProvenance::ExternallyEstimated);
+    }
+
+    #[test]
+    fn observed_exposure_refuses_cross_cluster_network() {
+        let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
+        let network =
+            NetworkData::try_new(data, vec![NetworkEdge { from: 0, to: 2, weight: 1.0 }]).unwrap();
+        let spec = ObservationalExposureSpec {
+            assignment: &[false, false, true, true],
+            clusters: &[0, 0, 1, 1],
+            exposure: &ExposureMapping::NeighborCount,
+            from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            propensity_from: &[0.5; 4],
+            propensity_to: &[0.5; 4],
+            propensity_provenance: ExposurePropensityProvenance::Known,
+        };
+        assert!(estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).is_err());
+    }
+}

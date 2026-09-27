@@ -54,8 +54,8 @@ from .errors import (
 from .experiment import (
     BernoulliAssignment,
     ComplierEffect,
-    RandomizedEffect,
     FactorialRandomization,
+    RandomizedEffect,
     RandomizedExperimentEstimate,
     StratifiedRandomization,
     SwitchbackEffect,
@@ -74,6 +74,7 @@ from .interference import (
     CompleteRandomization,
     InterferenceEstimate,
     InterferenceQuery,
+    InterferenceSupport,
     RandomizationContrast,
 )
 from .policy import (
@@ -87,16 +88,16 @@ from .policy import (
 )
 from .population import coerce_target_population
 from .quasi import (
+    FuzzyRegressionDiscontinuity,
+    LocalPolynomialRatioEstimate,
     PanelDifferenceInDifferences,
     PanelDifferenceInDifferencesEstimate,
+    RegressionKink,
     StaggeredAdoption,
     SyntheticControl,
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferences,
     SyntheticDifferenceInDifferencesEstimate,
-    FuzzyRegressionDiscontinuity,
-    RegressionKink,
-    LocalPolynomialRatioEstimate,
 )
 from .query import (
     AnomalyAttribution,
@@ -285,6 +286,22 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
     section = getattr(raw, "interference", None)
     if section is None:
         return None
+    estimator_id = getattr(raw, "estimator_id", "")
+    observational = section.from_probability_method.startswith("supplied_")
+    if observational:
+        uncertainty = (
+            "Descriptive cluster CR1 variance for the HT contrast, treating supplied exposure "
+            "probabilities as fixed; no interval or calibration claim is made."
+        )
+    elif estimator_id == "interference.saturation_exact":
+        uncertainty = "Descriptive covariance-free saturation variance proxy; no interval or calibration claim is made."
+    elif estimator_id == "interference.cluster_neyman":
+        uncertainty = "Conservative cluster-level Neyman variance for the total effect; no interval claim is made."
+    else:
+        uncertainty = (
+            "Conservative Young variance bound under the declared randomization; "
+            "see the support matrix for interval licensing."
+        )
     return InterferenceEstimate(
         RandomizationContrast(
             section.horvitz_thompson, section.hajek, section.conservative_variance
@@ -292,6 +309,24 @@ def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
         section.from_probability_method,
         section.to_probability_method,
         section.minimum_exposure_probability,
+        support=(
+            InterferenceSupport(
+                section.from_exposed_units,
+                section.to_exposed_units,
+                section.from_exposed_clusters,
+                section.to_exposed_clusters,
+                section.minimum_exposure_probability,
+                True,
+                section.maximum_exposure_probability,
+                section.clusters,
+            ) if observational and section.from_exposed_units is not None else None
+        ),
+        uncertainty_semantics=uncertainty,
+        provenance={"operation_ids": [
+            "estimate.interference.observational_ipw" if observational else
+            "estimate.interference.saturation_exact" if estimator_id == "interference.saturation_exact" else
+            "stats.randomized_interference"
+        ]},
     )
 
 
@@ -3085,6 +3120,7 @@ class _PrepareRoute:
     def _interference(self) -> tuple[Any, Any]:
         from .interference import (
             ClusterRandomization,
+            ObservedExposureDesign,
             SaturationDesign,
             _assignment_args,
             _edge_values,
@@ -3095,7 +3131,8 @@ class _PrepareRoute:
         query = cast(InterferenceQuery, self.query)
         self._refuse_design_options(
             "InterferenceQuery", "interference.design",
-            "interference.saturation_exact" if isinstance(query.assignment, SaturationDesign)
+            "interference.observational_ipw" if isinstance(query.assignment, ObservedExposureDesign)
+            else "interference.saturation_exact" if isinstance(query.assignment, SaturationDesign)
             else "interference.cluster_neyman" if isinstance(query.assignment, ClusterRandomization)
             else "interference.ht_hajek",
         )
@@ -3105,7 +3142,7 @@ class _PrepareRoute:
                 "exposure edges) and realized_assignment="
             )
         if query.partial_interference is not None:
-            if not isinstance(query.assignment, (ClusterRandomization, SaturationDesign)):
+            if not isinstance(query.assignment, (ClusterRandomization, SaturationDesign, ObservedExposureDesign)):
                 raise CausalValueError(
                     "partial_interference requires cluster or saturation randomization so cluster assignment is explicit"
                 )
@@ -3138,7 +3175,7 @@ class _PrepareRoute:
                 raise CausalValueError(
                     "partial-interference assumption violated: network edge crosses cluster boundary"
                 )
-        elif isinstance(query.assignment, (ClusterRandomization, SaturationDesign)):
+        elif isinstance(query.assignment, (ClusterRandomization, SaturationDesign, ObservedExposureDesign)):
             raise CausalValueError(
                 "cluster interference requires partial_interference=PartialInterference(clusters)"
             )
@@ -3163,6 +3200,10 @@ class _PrepareRoute:
             low_probability=design.get("low_probability", 0.0),
             high_probability=design.get("high_probability", 0.0),
             realized_saturation=design.get("realized_saturation", []),
+            propensity_from=design.get("propensity_from", []),
+            propensity_to=design.get("propensity_to", []),
+            propensity_provenance=design.get("propensity_provenance", "known"),
+            assume_network_exchangeability=design.get("assume_network_exchangeability", False),
             accepted=self.accepted,
             **self._common(),
         )

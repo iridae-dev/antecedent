@@ -110,7 +110,7 @@ pub use query::{
     ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery, DependenceGroup,
     DerivativeScale, DerivativeWeighting, DidSamplingDesign, DistributionAvailability, Environment,
     EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime,
-    ExposureLevel, ExposureMapping, FactorNeed, GridSpec, InterferenceFunctional,
+    ExposureLevel, ExposureMapping, ExposurePropensityProvenance, FactorNeed, GridSpec, InterferenceFunctional,
     InterferenceQuery, InterventionAssignment, InterventionalDistributionQuery,
     KnownCensoringSurvival, LicensedWeights, LongitudinalRegimeMethod, LongitudinalRegimeQuery, LocalPolynomialRatioQuery,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,

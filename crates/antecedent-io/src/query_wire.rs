@@ -1251,6 +1251,19 @@ pub enum AssignmentDesignWire {
         /// Realized cluster probability repeated per unit.
         realized_saturation: Vec<f64>,
     },
+    /// Observed network exposure with supplied probabilities and declared exchangeability.
+    ObservedExposure {
+        /// Cluster id per unit.
+        clusters: Vec<u32>,
+        /// Baseline exposure probability per unit.
+        propensity_from: Vec<f64>,
+        /// Active exposure probability per unit.
+        propensity_to: Vec<f64>,
+        /// `known` or `externally_estimated`.
+        provenance: String,
+        /// Caller declaration of network exposure exchangeability.
+        assume_network_exchangeability: bool,
+    },
 }
 
 /// Built-in exposure mapping wire form.
@@ -2303,6 +2316,18 @@ pub fn interference_query_to_wire(q: &InterferenceQuery) -> Result<InterferenceQ
                 realized_saturation: realized_saturation.to_vec(),
             }
         }
+        AssignmentDesign::ObservedExposure { clusters, propensity_from, propensity_to, provenance, assume_network_exchangeability } => {
+            AssignmentDesignWire::ObservedExposure {
+                clusters: clusters.to_vec(),
+                propensity_from: propensity_from.to_vec(),
+                propensity_to: propensity_to.to_vec(),
+                provenance: match provenance {
+                    antecedent_core::ExposurePropensityProvenance::Known => "known",
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => "externally_estimated",
+                }.into(),
+                assume_network_exchangeability: *assume_network_exchangeability,
+            }
+        }
     };
     let exposure = match &q.exposure {
         ExposureMapping::OwnTreatment => ExposureMappingWire::OwnTreatment,
@@ -2354,6 +2379,19 @@ pub fn interference_query_from_wire(
                 high_probability: *high_probability,
                 high_clusters: usize::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
                 realized_saturation: realized_saturation.clone().into(),
+            }
+        }
+        AssignmentDesignWire::ObservedExposure { clusters, propensity_from, propensity_to, provenance, assume_network_exchangeability } => {
+            AssignmentDesign::ObservedExposure {
+                clusters: clusters.clone().into(),
+                propensity_from: propensity_from.clone().into(),
+                propensity_to: propensity_to.clone().into(),
+                provenance: match provenance.as_str() {
+                    "known" => antecedent_core::ExposurePropensityProvenance::Known,
+                    "externally_estimated" => antecedent_core::ExposurePropensityProvenance::ExternallyEstimated,
+                    _ => return Err(IoError::Convert("unknown observational propensity provenance".into())),
+                },
+                assume_network_exchangeability: *assume_network_exchangeability,
             }
         }
     };

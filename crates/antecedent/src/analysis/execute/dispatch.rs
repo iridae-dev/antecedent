@@ -948,6 +948,7 @@ impl super::Study {
                     q.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                         | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                        | antecedent_core::AssignmentDesign::ObservedExposure { .. }
                 ) {
                     CheckedInterferenceOperation::checked(self, data, physical)?.execute(data, ctx)
                 } else {
