@@ -1250,6 +1250,30 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_multi_action_policy_value(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        action_labels: list[str],
+        assignment: list[int],
+        propensities: list[float],
+        actions: list[int],
+        reference: list[int],
+        costs: list[float],
+        reference_costs: list[float],
+        available: list[bool],
+        capacities: list[int],
+        reference_capacities: list[int],
+        budget: float | None,
+        reference_budget: float | None,
+        evaluation_subject_ids: list[str],
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_anomaly_attribution(
         names: list[str],
         columns: Sequence[Any],

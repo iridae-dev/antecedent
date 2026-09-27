@@ -3705,10 +3705,85 @@ impl PyPreparedAnalysis {
                     .into(),
                 disjoint_training_subjects,
                 crossfit_fold_ownership_valid,
+                multi_action: None,
             };
             query
                 .validate()
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a fixed multi-action policy under known randomized probabilities.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, action_labels, assignment, propensities,
+        actions, reference, costs, reference_costs, available, capacities,
+        reference_capacities, budget, reference_budget, evaluation_subject_ids, *,
+        accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_multi_action_policy_value(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        action_labels: Vec<String>,
+        assignment: Vec<usize>,
+        propensities: Vec<f64>,
+        actions: Vec<usize>,
+        reference: Vec<usize>,
+        costs: Vec<f64>,
+        reference_costs: Vec<f64>,
+        available: Vec<bool>,
+        capacities: Vec<usize>,
+        reference_capacities: Vec<usize>,
+        budget: Option<f64>,
+        reference_budget: Option<f64>,
+        evaluation_subject_ids: Vec<String>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("multi-action policy value")?;
+        opts.refuse_population("multi-action policy value")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let multi_action = antecedent_core::MultiActionPolicyInputs {
+                action_labels: action_labels.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                assignment: assignment.into(),
+                actions: actions.into(),
+                reference: reference.into(),
+                propensities: propensities.into(),
+                available: available.into(),
+                costs: costs.into(),
+                reference_costs: reference_costs.into(),
+                capacities: capacities.into(),
+                reference_capacities: reference_capacities.into(),
+                budget,
+                reference_budget,
+            };
+            let query = antecedent_core::PolicyValueQuery {
+                outcome: outcome_id,
+                assignment: Vec::new().into(),
+                propensity: Vec::new().into(),
+                actions: Vec::new().into(),
+                reference: Vec::new().into(),
+                mu0: Vec::new().into(),
+                mu1: Vec::new().into(),
+                costs: Vec::new().into(),
+                reference_costs: Vec::new().into(),
+                evaluation_subject_ids: evaluation_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                disjoint_training_subjects: false,
+                crossfit_fold_ownership_valid: false,
+                multi_action: Some(multi_action),
+            };
+            query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;

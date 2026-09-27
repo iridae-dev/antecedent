@@ -1,4 +1,4 @@
-//! Query contract for held-out doubly robust policy value.
+//! Query contract for randomized binary and multi-action policy value.
 //!
 //! The nuisance predictions and policy actions are frozen on the evaluation
 //! rows; prediction ownership is retained as caller-declared metadata.
@@ -8,7 +8,83 @@ use super::QueryError;
 use crate::ids::VariableId;
 use std::sync::Arc;
 
-/// Binary policy value query evaluated on held-out or declared cross-fitted rows.
+/// Frozen randomized multi-action policy inputs in row-major action order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MultiActionPolicyInputs {
+    /// Ordered action labels; the first is control.
+    pub action_labels: Arc<[Arc<str>]>,
+    /// Realized action index for each evaluation row.
+    pub assignment: Arc<[usize]>,
+    /// Fixed policy action index for each row.
+    pub actions: Arc<[usize]>,
+    /// Fixed reference action index for each row.
+    pub reference: Arc<[usize]>,
+    /// Positive row-major randomized action probabilities.
+    pub propensities: Arc<[f64]>,
+    /// Row-major action availability mask.
+    pub available: Arc<[bool]>,
+    /// Per-action policy cost.
+    pub costs: Arc<[f64]>,
+    /// Per-action reference cost.
+    pub reference_costs: Arc<[f64]>,
+    /// Per-action policy capacity.
+    pub capacities: Arc<[usize]>,
+    /// Per-action reference capacity.
+    pub reference_capacities: Arc<[usize]>,
+    /// Maximum total policy spend.
+    pub budget: Option<f64>,
+    /// Maximum total reference spend.
+    pub reference_budget: Option<f64>,
+}
+
+impl MultiActionPolicyInputs {
+    /// Validate action support, probability rows, availability, and constraints.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        let n = self.assignment.len();
+        let k = self.action_labels.len();
+        if n < 2 || k < 2 || self.actions.len() != n || self.reference.len() != n
+            || self.propensities.len() != n * k || self.available.len() != n * k
+            || self.costs.len() != k || self.reference_costs.len() != k
+            || self.capacities.len() != k || self.reference_capacities.len() != k
+            || self.action_labels.iter().any(|x| x.trim().is_empty())
+            || self.action_labels.iter().collect::<std::collections::HashSet<_>>().len() != k
+            || self.assignment.iter().chain(self.actions.iter()).chain(self.reference.iter()).any(|&a| a >= k)
+        {
+            return Err(QueryError::InvalidPolicyValue("multi-action policy rows, labels, probabilities, and constraints must align".into()));
+        }
+        if self.costs.iter().chain(self.reference_costs.iter()).any(|x| !x.is_finite() || *x < 0.0)
+            || [self.budget, self.reference_budget].into_iter().flatten().any(|x| !x.is_finite() || x < 0.0)
+            || self.propensities.chunks_exact(k).any(|row| {
+                row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
+                    || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
+            })
+        {
+            return Err(QueryError::InvalidPolicyValue("multi-action probabilities must be positive and sum to one; costs and budgets must be finite and non-negative".into()));
+        }
+        for (recommendations, costs, capacities, budget) in [
+            (&self.actions, &self.costs, &self.capacities, self.budget),
+            (&self.reference, &self.reference_costs, &self.reference_capacities, self.reference_budget),
+        ] {
+            let mut counts = vec![0usize; k];
+            let mut total_cost = 0.0;
+            for (i, &action) in recommendations.iter().enumerate() {
+                if !self.available[i * k + action] {
+                    return Err(QueryError::InvalidPolicyValue("policy selects an unavailable action".into()));
+                }
+                counts[action] += 1;
+                total_cost += costs[action];
+            }
+            if counts.iter().zip(capacities.iter()).any(|(count, limit)| count > limit)
+                || budget.is_some_and(|limit| total_cost > limit + 1e-12)
+            {
+                return Err(QueryError::InvalidPolicyValue("policy exceeds its action capacity or budget".into()));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Fixed randomized policy value query evaluated on independent subjects.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PolicyValueQuery {
     /// Observed outcome column.
@@ -35,11 +111,26 @@ pub struct PolicyValueQuery {
     pub disjoint_training_subjects: bool,
     /// Whether fold IDs match the prediction-excluded fold IDs.
     pub crossfit_fold_ownership_valid: bool,
+    /// Multi-action randomized IPW inputs; binary fields are empty when present.
+    pub multi_action: Option<MultiActionPolicyInputs>,
 }
 
 impl PolicyValueQuery {
     /// Validate frozen row-aligned policy value inputs and positivity.
     pub fn validate(&self) -> Result<(), QueryError> {
+        if let Some(multi) = &self.multi_action {
+            if !self.assignment.is_empty() || !self.propensity.is_empty() || !self.actions.is_empty()
+                || !self.reference.is_empty() || !self.mu0.is_empty() || !self.mu1.is_empty()
+                || !self.costs.is_empty() || !self.reference_costs.is_empty()
+                || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid
+                || self.evaluation_subject_ids.len() != multi.assignment.len()
+                || self.evaluation_subject_ids.iter().any(|id| id.trim().is_empty())
+                || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != multi.assignment.len()
+            {
+                return Err(QueryError::InvalidPolicyValue("multi-action policy must carry only multi-action inputs and unique evaluation subject IDs".into()));
+            }
+            return multi.validate();
+        }
         let n = self.assignment.len();
         let ipw = self.mu0.is_empty() && self.mu1.is_empty();
         if n < 2
@@ -107,6 +198,7 @@ mod tests {
             evaluation_subject_ids: Arc::from([Arc::<str>::from("a"), Arc::<str>::from("b")]),
             disjoint_training_subjects: true,
             crossfit_fold_ownership_valid: false,
+            multi_action: None,
         }
     }
 

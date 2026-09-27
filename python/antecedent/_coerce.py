@@ -158,7 +158,7 @@ def coerce_query(value: Any) -> Any:
     """
     from .experiment import RandomizedEffect
     from .interference import InterferenceQuery
-    from .policy import PolicyValue
+    from .policy import MultiActionPolicyValue, PolicyValue
     from .quasi import PanelDifferenceInDifferences, StaggeredAdoption
     from .query import (
         AnomalyAttribution,
@@ -212,6 +212,7 @@ def coerce_query(value: Any) -> Any:
         Transport,
         InterferenceQuery,
         PolicyValue,
+        MultiActionPolicyValue,
         RandomizedEffect,
         PanelDifferenceInDifferences,
         StaggeredAdoption,

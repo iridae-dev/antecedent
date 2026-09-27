@@ -176,3 +176,50 @@ def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
             policy=policy.BinaryPolicy([False, True]),
             evaluation_subject_ids=["a", "b"], training_subject_ids=["train"],
         )
+
+
+def test_retained_multi_action_policy_matches_direct_native_value_and_artifact():
+    labels = ("control", "A", "B")
+    assigned = ["control", "A", "B"] * 3
+    outcomes = [1.0, 2.0, 4.0] * 3
+    recommendations = ["control"] * 3 + ["A"] * 3 + ["B"] * 3
+    fixed = policy.MultiActionPolicy(labels, recommendations, capacities=[9, 3, 3])
+    query = policy.MultiActionPolicyValue(
+        outcome="y", assignment=assigned,
+        propensities=[[1.0 / 3.0] * 3 for _ in assigned],
+        policy=fixed, evaluation_subject_ids=[f"s{i}" for i in range(9)],
+    )
+    result = ant.analyze({"y": outcomes}, query=query, refute="none")
+    direct = policy.evaluate_multi_action_policy(
+        {"y": outcomes}, outcome="y", assignment=assigned,
+        propensities=query.propensities, policy=fixed,
+    )
+    assert result.policy_value.policy_value == pytest.approx(7.0 / 3.0)
+    assert result.policy_value.policy_value == pytest.approx(direct.policy_value)
+    assert result.policy_value.incremental_value == pytest.approx(4.0 / 3.0)
+    assert result.policy_value.treatment_rate == pytest.approx(2.0 / 3.0)
+    assert result.policy_value.uncertainty == "multi_action_ipw_row_score_standard_error_independent_subjects"
+    assert result.policy_value.support_status == "unlicensed_point_utility"
+    assert any("action probabilities" in assumption for assumption in result.policy_value.assumptions)
+    loaded = ant.load(result.export(artifact_id="retained-multi-policy"))
+    assert loaded.answer.structured["policy_value"] == pytest.approx(7.0 / 3.0)
+    assert loaded.answer.structured["uncertainty"] == result.policy_value.uncertainty
+    with pytest.raises(CausalUnsupportedError, match="bound to the prepared evaluation rows"):
+        result.refresh({"y": outcomes})
+
+    with pytest.raises(CausalValueError, match="probability"):
+        policy.MultiActionPolicyValue(
+            outcome="y", assignment=assigned,
+            propensities=[[0.0, 0.5, 0.5]] * 9, policy=fixed,
+            evaluation_subject_ids=[f"s{i}" for i in range(9)],
+        )
+    over_capacity = policy.MultiActionPolicy(labels, recommendations, capacities=[9, 2, 3])
+    with pytest.raises(ValueError, match="capacity"):
+        ant.analyze(
+            {"y": outcomes},
+            query=policy.MultiActionPolicyValue(
+                outcome="y", assignment=assigned, propensities=query.propensities,
+                policy=over_capacity, evaluation_subject_ids=[f"s{i}" for i in range(9)],
+            ),
+            refute="none",
+        )

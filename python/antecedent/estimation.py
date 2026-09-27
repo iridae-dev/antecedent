@@ -71,7 +71,10 @@ from .interference import (
     InterferenceQuery,
     RandomizationContrast,
 )
-from .policy import BinaryPolicy, DoublyRobustPolicyEvaluation, PolicyValue, evaluate_policy
+from .policy import (
+    BinaryPolicy, DoublyRobustPolicyEvaluation, MultiActionPolicy, MultiActionPolicyValue,
+    PolicyValue, evaluate_multi_action_policy, evaluate_policy,
+)
 from .population import coerce_target_population
 from .quasi import PanelDifferenceInDifferences, PanelDifferenceInDifferencesEstimate, StaggeredAdoption
 from .query import (
@@ -384,6 +387,7 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
     if section is None:
         return None
     ipw = section.prediction_ownership == "no_outcome_nuisance_predictions"
+    multi_action = section.uncertainty.startswith("multi_action_")
     return DoublyRobustPolicyEvaluation(
         policy_value=section.policy_value,
         reference_value=section.reference_value,
@@ -399,11 +403,17 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         propensity_max=section.propensity_max,
         uncertainty=section.uncertainty,
         evaluation_method=(
+            "randomized_multi_action_ipw_fixed_policy" if multi_action else
             "randomized_ipw_fixed_policy" if ipw
             else "doubly_robust_randomized_heldout_or_cross_fitted"
         ),
         assumptions=(
             (
+                "Known randomized action probabilities with positive support for each declared action.",
+                "Consistency and no interference between evaluation subjects.",
+                "The multi-action policy and reference were fixed without using evaluation outcomes.",
+                "The first action label is the control action for treatment-rate reporting.",
+            ) if multi_action else (
                 "Known randomized treatment propensities with strict treatment overlap.",
                 "Consistency and no interference between evaluation subjects.",
                 "The policy and reference were fixed without using evaluation outcomes.",
@@ -412,6 +422,17 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
                 "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
                 "Consistency and no interference between evaluation subjects.",
                 "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
+            )
+        ),
+        diagnostics=(
+            (
+                "row-level standard errors assume independent evaluation subjects",
+                "randomization and policy selection claims are caller-declared",
+                "action availability, capacities, budgets, and positive probability rows were checked",
+            ) if ipw else (
+                "row-level standard errors assume independent evaluation subjects",
+                "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
+                "nuisance predictions and randomization claims are not independently authenticated",
             )
         ),
     )
@@ -1561,6 +1582,7 @@ _PreparedQuery = (
     | InterferenceQuery
     | RandomizedEffect
     | PolicyValue
+    | MultiActionPolicyValue
     | AnomalyAttribution
     | ChangeAttribution
     | PanelDifferenceInDifferences
@@ -1900,7 +1922,7 @@ class _PrepareRoute:
 
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
-        if isinstance(query, PolicyValue):
+        if isinstance(query, (PolicyValue, MultiActionPolicyValue)):
             return self._policy_value()
         if isinstance(query, RandomizedEffect):
             return self._randomized_effect()
@@ -2382,7 +2404,7 @@ class _PrepareRoute:
         return native, "average"
 
     def _policy_value(self) -> tuple[Any, Literal["average"]]:
-        query = cast(PolicyValue, self.query)
+        query = cast(PolicyValue | MultiActionPolicyValue, self.query)
         if self.graph is not None or self.discovery is not None:
             raise CausalUnsupportedError(
                 "PolicyValue carries its randomized design and does not accept graph= or discovery=",
@@ -2401,6 +2423,33 @@ class _PrepareRoute:
                 "PolicyValue supports row-score frequentist uncertainty only",
                 reason_code="option_not_applicable",
             )
+        if isinstance(query, MultiActionPolicyValue):
+            labels = tuple(query.policy.action_labels)
+            n = len(query.assignment)
+            evaluate_multi_action_policy(
+                dict(zip(self.names, self.columns, strict=True)), outcome=query.outcome,
+                assignment=query.assignment, propensities=query.propensities,
+                policy=query.policy, reference=query.reference, available=query.available,
+            )
+            reference = query.reference or MultiActionPolicy(
+                labels, [labels[0]] * n, costs=query.policy.costs,
+            )
+            available = query.available or [[True] * len(labels) for _ in range(n)]
+            native = _NativePreparedAnalysis.prepare_multi_action_policy_value(
+                self.names, self.columns, query.outcome, list(labels),
+                [labels.index(action) for action in query.assignment],
+                [float(p) for row in query.propensities for p in row],
+                [labels.index(action) for action in query.policy.recommendations],
+                [labels.index(action) for action in reference.recommendations],
+                list(query.policy.costs or [0.0] * len(labels)),
+                list(reference.costs or [0.0] * len(labels)),
+                [bool(value) for row in available for value in row],
+                list(query.policy.capacities or [n] * len(labels)),
+                list(reference.capacities or [n] * len(labels)),
+                query.policy.budget, reference.budget, list(query.evaluation_subject_ids),
+                accepted=self.accepted, **self._common(),
+            )
+            return native, "average"
         # The direct randomized evaluator owns the constraint checks. Apply
         # that same contract before freezing the retained doubly robust study.
         evaluate_policy(
@@ -4182,7 +4231,7 @@ class PreparedAnalysis(Generic[ResultT]):
             return self._with_deferred_suite(
                 self._wrap(raw), self._snapshot_data, seed=seed, threads=threads
             )
-        if isinstance(self._query, PolicyValue):
+        if isinstance(self._query, (PolicyValue, MultiActionPolicyValue)):
             raise CausalUnsupportedError(
                 "PolicyValue recommendations, nuisance predictions, and subject ownership are bound to the prepared evaluation rows; prepare a new study for new data",
                 reason_code="option_not_applicable",

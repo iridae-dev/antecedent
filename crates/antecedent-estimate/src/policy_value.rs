@@ -48,6 +48,57 @@ pub fn evaluate_policy_value_ipw_scores(
     evaluate_scores(outcome, assignment, actions, propensity, None, reference, costs, reference_costs)
 }
 
+/// Evaluate frozen multi-action recommendations with randomized HT row scores.
+pub fn evaluate_multi_action_policy_value_scores(
+    outcome: &[f64], policy: &antecedent_core::MultiActionPolicyInputs,
+) -> Result<PolicyValueScores, &'static str> {
+    let n = outcome.len();
+    let k = policy.action_labels.len();
+    if n != policy.assignment.len() || outcome.iter().any(|y| !y.is_finite()) {
+        return Err("multi-action outcomes must be finite and align with evaluation rows");
+    }
+    policy.validate().map_err(|_| "invalid multi-action policy design or constraints")?;
+    let mut ps = Vec::with_capacity(n);
+    let mut rs = Vec::with_capacity(n);
+    let mut ds = Vec::with_capacity(n);
+    let mut total_cost = 0.0;
+    let mut non_control = 0usize;
+    let mut pmin = f64::INFINITY;
+    let mut pmax: f64 = 0.0;
+    for i in 0..n {
+        let assigned = policy.assignment[i];
+        let action = policy.actions[i];
+        let reference = policy.reference[i];
+        let probability = policy.propensities[i * k + assigned];
+        for &p in &policy.propensities[i * k..(i + 1) * k] {
+            pmin = pmin.min(p);
+            pmax = pmax.max(p);
+        }
+        let cost = policy.costs[action];
+        let pv = if assigned == action { outcome[i] / probability } else { 0.0 } - cost;
+        let rv = if assigned == reference { outcome[i] / probability } else { 0.0 }
+            - policy.reference_costs[reference];
+        total_cost += cost;
+        non_control += usize::from(action != 0);
+        ps.push(pv);
+        rs.push(rv);
+        ds.push(pv - rv);
+    }
+    let mean = |scores: &[f64]| scores.iter().sum::<f64>() / n as f64;
+    let se = |scores: &[f64], average: f64| {
+        (scores.iter().map(|x| (x - average).powi(2)).sum::<f64>() / (n * (n - 1)) as f64).sqrt()
+    };
+    let pv = mean(&ps);
+    let rv = mean(&rs);
+    let dv = mean(&ds);
+    Ok(PolicyValueScores {
+        policy_value: pv, reference_value: rv, incremental_value: dv,
+        relative_value_gap: rv - pv, treatment_rate: non_control as f64 / n as f64,
+        total_cost, policy_standard_error: se(&ps, pv), reference_standard_error: se(&rs, rv),
+        incremental_standard_error: se(&ds, dv), propensity_min: pmin, propensity_max: pmax,
+    })
+}
+
 fn evaluate_scores(
     outcome: &[f64], assignment: &[bool], actions: &[bool], propensity: &[f64],
     nuisance: Option<(&[f64], &[f64])>, reference: &[bool], costs: &[f64], reference_costs: &[f64],

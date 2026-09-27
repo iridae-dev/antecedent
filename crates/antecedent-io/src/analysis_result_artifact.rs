@@ -786,6 +786,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     }
     if let Some(policy) = &result.policy_value {
         let expected_uncertainty = match &result.query {
+            crate::CausalQueryWire::PolicyValue(query) if query.multi_action.is_some() => {
+                "multi_action_ipw_row_score_standard_error_independent_subjects"
+            }
             crate::CausalQueryWire::PolicyValue(query) if query.mu0.is_empty() && query.mu1.is_empty() => {
                 "ipw_row_score_standard_error_independent_subjects"
             }

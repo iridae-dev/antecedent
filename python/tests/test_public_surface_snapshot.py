@@ -107,6 +107,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "AnalysisResult",
         "BinaryPolicy",
         "PolicyValue",
+        "MultiActionPolicyValue",
         "LongitudinalRegimeQuery",
         "LongitudinalRegimeEstimate",
         "Bayesian",
