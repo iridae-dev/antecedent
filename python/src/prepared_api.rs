@@ -3590,6 +3590,37 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze all cohort-specific event-time comparisons in one retained Study.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, subjects, clusters, periods, cohorts,
+        *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_staggered_event_study(
+        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
+        outcome: String, subjects: Vec<String>, clusters: Vec<String>,
+        periods: Vec<i64>, cohorts: Vec<i64>, accepted: bool, seed: u64,
+        threads: Option<u32>, options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("staggered event study")?;
+        opts.refuse_population("staggered event study")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let subject_arc: Vec<Arc<str>> = subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> = clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let query = antecedent_core::PanelDidQuery::staggered_event_study(
+                outcome_id, subject_arc, cluster_arc, periods, cohorts,
+            );
+            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Freeze one treated unit and its balanced donor pool for native synthetic control.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, units, periods, treated_unit,

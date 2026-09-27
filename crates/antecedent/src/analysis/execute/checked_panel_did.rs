@@ -85,6 +85,9 @@ impl CheckedPanelDidOperation {
                 });
             }
         };
+        if self.query.design == antecedent_core::DidSamplingDesign::StaggeredEventStudy {
+            return self.execute_staggered_event_study(data, y);
+        }
         if self.query.design == antecedent_core::DidSamplingDesign::StaggeredGroupTime {
             return self.execute_staggered_group_time(data, y);
         }
@@ -207,6 +210,62 @@ impl CheckedPanelDidOperation {
             comparison_subjects: counts[0],
             clusters: g,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            event_time_effects: Arc::from([]),
+        });
+        result.treatment = None;
+        Ok(result)
+    }
+
+    fn execute_staggered_event_study(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let effects = antecedent_estimate::staggered_event_study::estimate(
+            y, &self.query.subjects, &self.query.periods, &self.query.cohorts,
+            &self.query.clusters,
+        ).map_err(|message| CausalError::Compile { message })?;
+        let representative = effects.iter().find(|effect| effect.event_time >= 0)
+            .ok_or_else(|| CausalError::Compile { message: "event study has no post-adoption contrast".into() })?;
+        let estimate = EffectEstimate::new(
+            representative.effect,
+            f64::NAN,
+            self.identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish {
+                physical: &self.physical,
+                identification: self.identification.clone(),
+                estimand: self.estimand.clone(),
+                estimate,
+                identifier_id: IdentifierId::RandomizedDesign,
+                estimator_id: EstimatorId::RandomizedHt,
+                treatment: self.query.outcome,
+                outcome: self.query.outcome,
+                identify_cached: false,
+                extra_diagnostics: vec![Diagnostic::new(
+                    "estimate.quasi.staggered_event_study.pointwise_cluster_se",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "cohort-specific event times include descriptive preperiod contrasts; -1 is omitted; the scalar is the first post-adoption contrast; no interval or parallel-trends test",
+                )],
+                refutations: Vec::new(), distribution: None, mediation: None,
+                wall_time_ns: 0, bootstrap_replicates_ok: None,
+                cancelled: false, early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            },
+        );
+        result.panel_did = Some(crate::PanelDidEstimate {
+            effect: representative.effect,
+            standard_error: representative.standard_error,
+            treated_subjects: representative.treated_subjects,
+            comparison_subjects: representative.comparison_subjects,
+            clusters: representative.clusters,
+            uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            event_time_effects: effects.into(),
         });
         result.treatment = None;
         Ok(result)
@@ -331,6 +390,7 @@ impl CheckedPanelDidOperation {
             comparison_subjects: selected[0].len(),
             clusters: cluster_count,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            event_time_effects: Arc::from([]),
         });
         result.treatment = None;
         Ok(result)
@@ -431,6 +491,7 @@ impl CheckedPanelDidOperation {
             comparison_subjects: counts[0].iter().sum(),
             clusters: g,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+            event_time_effects: Arc::from([]),
         });
         result.treatment = None;
         Ok(result)
@@ -462,7 +523,7 @@ pub(crate) fn panel_did_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
-    let staggered = query.design == antecedent_core::DidSamplingDesign::StaggeredGroupTime;
+    let staggered = matches!(query.design, antecedent_core::DidSamplingDesign::StaggeredGroupTime | antecedent_core::DidSamplingDesign::StaggeredEventStudy);
     for (id, description) in [
         (
             if staggered { "cohort_specific_parallel_untreated_trends" } else { "parallel_trends" },
@@ -510,6 +571,10 @@ pub(crate) fn panel_did_identification(
             "balanced_staggered_adoption_group_time",
             "each subject has every observed period; cohort zero supplies never-treated controls for the selected adoption cohort and post-adoption period",
         ),
+        antecedent_core::DidSamplingDesign::StaggeredEventStudy => (
+            "balanced_staggered_adoption_event_study",
+            "each subject has every observed period; cohort zero supplies never-treated controls for cohort-specific event-time contrasts",
+        ),
     };
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::Custom {
@@ -541,6 +606,9 @@ pub(crate) fn panel_did_identification(
         }
         antecedent_core::DidSamplingDesign::StaggeredGroupTime => {
             "did.staggered_group_time_never_treated"
+        }
+        antecedent_core::DidSamplingDesign::StaggeredEventStudy => {
+            "did.staggered_event_study_never_treated"
         }
     };
     arena.set_derivation(

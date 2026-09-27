@@ -94,6 +94,8 @@ from .quasi import (
     PanelDifferenceInDifferencesEstimate,
     RegressionKink,
     StaggeredAdoption,
+    StaggeredEventStudyEstimate,
+    StaggeredEventTimeEffect,
     SyntheticControl,
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferences,
@@ -363,10 +365,19 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
 
 def _panel_did_from_raw(
     raw: Any, query: Any = None
-) -> PanelDifferenceInDifferencesEstimate | None:
+) -> PanelDifferenceInDifferencesEstimate | StaggeredEventStudyEstimate | None:
     section = getattr(raw, "panel_did", None)
     if section is None:
         return None
+    if isinstance(query, StaggeredAdoption) and query.event_study:
+        return StaggeredEventStudyEstimate(tuple(
+            StaggeredEventTimeEffect(
+                int(cohort), int(period), int(event_time), float(effect), float(se),
+                int(treated), int(controls), int(clusters),
+            )
+            for cohort, period, event_time, effect, treated, controls, se, clusters
+            in section.event_time_effects
+        ))
     repeated = isinstance(query, PanelDifferenceInDifferences) and query.sampling == "repeated_cross_section"
     staggered = isinstance(query, StaggeredAdoption)
     return PanelDifferenceInDifferencesEstimate(
@@ -1891,7 +1902,7 @@ def _staggered_payload(
 ) -> tuple[list[str], list[Any], dict[str, Any]]:
     from .quasi import _integer_column, _raw_columns
 
-    if query.target_cohort is None or query.target_period is None:
+    if not query.event_study and (query.target_cohort is None or query.target_period is None):
         raise CausalValueError("analyze with StaggeredAdoption requires target_cohort and target_period")
     raw_names, raw_columns = _raw_columns(data)
     raw = dict(zip(raw_names, raw_columns, strict=True))
@@ -2838,12 +2849,15 @@ class _PrepareRoute:
         if design is None:
             raise CausalValueError("panel DiD design columns were not bound at prepare")
         if isinstance(query, StaggeredAdoption):
-            native = _NativePreparedAnalysis.prepare_staggered_group_time(
+            prepare = (_NativePreparedAnalysis.prepare_staggered_event_study
+                       if query.event_study else _NativePreparedAnalysis.prepare_staggered_group_time)
+            arguments = [
                 names, columns, query.outcome, list(design["subjects"]),
                 list(design["clusters"]), list(design["periods"]), list(design["cohorts"]),
-                design["target_cohort"], design["target_period"],
-                accepted=False, **self._common()
-            )
+            ]
+            if not query.event_study:
+                arguments.extend((design["target_cohort"], design["target_period"]))
+            native = prepare(*arguments, accepted=False, **self._common())
         else:
             native = _NativePreparedAnalysis.prepare_panel_did(
                 names, columns, query.outcome, list(design["treated"]), list(design["post"]),

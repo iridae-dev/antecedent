@@ -386,6 +386,7 @@ class PanelDidSection:
     comparison_subjects: int
     clusters: int
     uncertainty: str
+    event_time_effects: list[tuple[int, int, int, float, int, int, float, int]]
 
 class SyntheticControlSection:
     effect: float
@@ -1279,6 +1280,13 @@ class PreparedAnalysis:
         subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
         target_cohort: int, target_period: int, *, accepted: bool = False,
         seed: int = 1, threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_staggered_event_study(
+        names: list[str], columns: Sequence[Any], outcome: str,
+        subjects: list[str], clusters: list[str], periods: list[int], cohorts: list[int],
+        *, accepted: bool = False, seed: int = 1, threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod

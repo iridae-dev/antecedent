@@ -1531,6 +1531,16 @@ fn calibration_basis_matches_contract(
                 && graph == key.graph_class
                 && structure == key.structure
                 && inference == key.inference
+        }) || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
+            // Off-axis point utilities have no matrix coordinate to compare.
+            // Their `none` calibration key is still bound to the sealed graph
+            // and program below, and cannot license an interval.
+            slot.matrix_status == "off_axis"
+                && slot.matrix_coordinate.is_none()
+                && key.query == "Unknown"
+                && key.interval_method == "none"
+                && key.graph_class == contract.graph_class
+                && key.structure == "fixed"
         });
     let program_ok = contract.program.as_ref().is_some_and(|program| {
         let commitments = &program.commitments;

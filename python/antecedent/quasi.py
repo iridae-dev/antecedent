@@ -170,6 +170,7 @@ class StaggeredAdoption:
     target_cohort: int | None = None
     target_period: int | None = None
     cluster: str | None = None
+    event_study: bool = False
 
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.period, self.cohort)
@@ -177,6 +178,8 @@ class StaggeredAdoption:
             raise CausalValueError("outcome, subject, period, and cohort must be non-empty column names")
         if len(set(fields)) != len(fields):
             raise CausalValueError("outcome, subject, period, and cohort must name distinct columns")
+        if self.event_study and (self.target_cohort is not None or self.target_period is not None):
+            raise CausalValueError("event study compares all cohorts and cannot select a single cohort-period target")
         if (self.target_cohort is None) != (self.target_period is None):
             raise CausalValueError("target_cohort and target_period must be supplied together")
         if self.target_cohort is not None and (
@@ -663,6 +666,12 @@ def estimate_staggered_event_study(
     """
     if not isinstance(query, StaggeredAdoption):
         raise CausalValueError("query must be a StaggeredAdoption")
+    if query.event_study:
+        from .estimation import analyze
+        result = analyze(data, query)
+        if result.panel_did is None or not isinstance(result.panel_did, StaggeredEventStudyEstimate):
+            raise CausalValueError("retained event study did not return cohort-specific effects")
+        return result.panel_did
     if cluster is None:
         cluster = query.cluster
     names, columns = _raw_columns(data)

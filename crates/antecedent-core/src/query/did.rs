@@ -15,6 +15,8 @@ pub enum DidSamplingDesign {
     RepeatedCrossSection,
     /// A balanced staggered panel, compared with never-treated subjects at a selected time.
     StaggeredGroupTime,
+    /// All cohort-specific event-time contrasts relative to adoption period minus one.
+    StaggeredEventStudy,
 }
 
 /// Difference in outcome changes for a two-period or selected group-time design.
@@ -96,6 +98,29 @@ impl PanelDidQuery {
         }
     }
 
+    /// Compare every adoption cohort with never-treated controls over the panel.
+    #[must_use]
+    pub fn staggered_event_study(
+        outcome: VariableId,
+        subjects: impl Into<Arc<[Arc<str>]>>,
+        clusters: impl Into<Arc<[Arc<str>]>>,
+        periods: impl Into<Arc<[i64]>>,
+        cohorts: impl Into<Arc<[i64]>>,
+    ) -> Self {
+        let subjects = subjects.into();
+        let cohorts = cohorts.into();
+        let periods = periods.into();
+        let treated = cohorts.iter().map(|value| *value > 0).collect::<Vec<_>>();
+        let post = periods.iter().zip(cohorts.iter())
+            .map(|(period, cohort)| *cohort > 0 && *period >= *cohort)
+            .collect::<Vec<_>>();
+        Self {
+            design: DidSamplingDesign::StaggeredEventStudy,
+            outcome, treated: treated.into(), post: post.into(), subjects,
+            clusters: clusters.into(), periods, cohorts, target: None,
+        }
+    }
+
     /// Construct a repeated-cross-section design with one row per subject.
     #[must_use]
     pub fn repeated_cross_section(
@@ -125,14 +150,18 @@ impl PanelDidQuery {
                 "subject and cluster labels must be non-empty".into(),
             ));
         }
-        if self.design == DidSamplingDesign::StaggeredGroupTime {
-            let Some((cohort, period)) = self.target else {
+        if matches!(self.design, DidSamplingDesign::StaggeredGroupTime | DidSamplingDesign::StaggeredEventStudy) {
+            let (cohort, period) = if self.design == DidSamplingDesign::StaggeredGroupTime {
+                let Some((cohort, period)) = self.target else {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "staggered DiD requires a selected cohort and period".into(),
                 ));
+                };
+                (cohort, period)
+            } else {
+                (2, 2)
             };
-            if cohort <= 1
-                || period < cohort
+            if (self.design == DidSamplingDesign::StaggeredGroupTime && (cohort <= 1 || period < cohort))
                 || self.periods.len() != n
                 || self.cohorts.len() != n
                 || self.periods.iter().any(|p| *p <= 0)

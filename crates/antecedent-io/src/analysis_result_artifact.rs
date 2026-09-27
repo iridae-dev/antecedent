@@ -445,6 +445,9 @@ pub struct PanelDidWire {
     pub clusters: usize,
     /// Explicit uncertainty semantics tag.
     pub uncertainty: String,
+    /// Cohort, period, event time, effect, treated count, control count, SE, cluster count.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub event_time_effects: Vec<(i64, i64, i64, f64, usize, usize, f64, usize)>,
 }
 
 /// Synthetic-control point result and donor-support diagnostics.
@@ -1240,7 +1243,48 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             cell_clusters[usize::from(query.treated[i])][usize::from(query.post[i])]
                 .insert(cluster);
         }
-        let (treated_subjects, comparison_subjects) = if let Some((target, _)) = query.staggered_target {
+        let representative = did.event_time_effects.iter().find(|effect| effect.2 >= 0);
+        let event_study_valid = if query.staggered_event_study {
+            let mut unit_metadata = std::collections::BTreeMap::<&str, (i64, &str)>::new();
+            let mut observed_periods = std::collections::BTreeSet::new();
+            for i in 0..query.subjects.len() {
+                let subject = query.subjects[i].as_str();
+                let metadata = (query.cohorts[i], query.clusters[i].as_str());
+                if unit_metadata.insert(subject, metadata).is_some_and(|old| old != metadata) {
+                    return Err(IoError::Convert("event study changes cohort or cluster within subject".into()));
+                }
+                observed_periods.insert(query.periods[i]);
+            }
+            let adoption_cohorts: std::collections::BTreeSet<_> = unit_metadata.values()
+                .map(|(cohort, _)| *cohort).filter(|cohort| *cohort > 0).collect();
+            let expected_keys: std::collections::BTreeSet<_> = adoption_cohorts.iter()
+                .flat_map(|cohort| observed_periods.iter().filter(move |period| **period != *cohort - 1)
+                    .map(move |period| (*cohort, *period))).collect();
+            let actual_keys: std::collections::BTreeSet<_> = did.event_time_effects.iter()
+                .map(|effect| (effect.0, effect.1)).collect();
+            let control_count = unit_metadata.values().filter(|(cohort, _)| *cohort == 0).count();
+            !did.event_time_effects.is_empty()
+                && actual_keys == expected_keys
+                && actual_keys.len() == did.event_time_effects.len()
+                && representative.is_some()
+                && did.event_time_effects.iter().all(|effect| {
+                    let (cohort, period, event_time, point, treated, controls, se, clusters) = *effect;
+                    let expected_treated = unit_metadata.values().filter(|(g, _)| *g == cohort).count();
+                    let expected_clusters = unit_metadata.values()
+                        .filter(|(g, _)| *g == cohort || *g == 0)
+                        .map(|(_, cluster)| *cluster)
+                        .collect::<std::collections::BTreeSet<_>>().len();
+                    cohort > 0 && period > 0 && event_time == period - cohort
+                        && event_time != -1 && point.is_finite() && se.is_finite() && se >= 0.0
+                        && treated == expected_treated && controls == control_count
+                        && clusters == expected_clusters && treated >= 2 && controls >= 2 && clusters >= 4
+                })
+                && representative.is_some_and(|effect| did.effect == effect.3
+                    && did.standard_error == effect.6)
+        } else { did.event_time_effects.is_empty() };
+        let (treated_subjects, comparison_subjects) = if query.staggered_event_study {
+            representative.map(|effect| (effect.4, effect.5)).unwrap_or((0, 0))
+        } else if let Some((target, _)) = query.staggered_target {
             let mut cohort_by_subject = std::collections::BTreeMap::new();
             for (subject, cohort) in query.subjects.iter().zip(&query.cohorts) {
                 if cohort_by_subject.insert(subject.as_str(), *cohort).is_some_and(|old| old != *cohort) {
@@ -1255,7 +1299,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             let treated_subjects = subjects.values().filter(|(treated, _)| *treated).count();
             (treated_subjects, subjects.len() - treated_subjects)
         };
-        let clusters = if let Some((target, _)) = query.staggered_target {
+        let clusters = if query.staggered_event_study {
+            representative.map(|effect| effect.7).unwrap_or(0)
+        } else if let Some((target, _)) = query.staggered_target {
             query.clusters.iter().zip(&query.cohorts)
                 .filter(|(_, cohort)| **cohort == 0 || **cohort == target)
                 .map(|(cluster, _)| cluster)
@@ -1271,10 +1317,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || did.treated_subjects != treated_subjects
             || did.comparison_subjects != comparison_subjects
             || did.clusters != clusters
+            || !event_study_valid
             || (query.repeated_cross_section
                 && (duplicate_subject
                     || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
-            || (!query.repeated_cross_section && query.staggered_target.is_none()
+            || (!query.repeated_cross_section && query.staggered_target.is_none() && !query.staggered_event_study
                 && group_clusters.iter().any(|members| members.len() < 2))
             || did.uncertainty != "cluster_robust_standard_error_no_interval"
             || result.interval_lower.is_some()
@@ -1895,6 +1942,7 @@ mod tests {
             comparison_subjects: 2,
             clusters: 4,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
+            event_time_effects: vec![],
         });
         let encoded = encode_analysis_result_artifact(
             &result,
@@ -1931,6 +1979,7 @@ mod tests {
             comparison_subjects: 4,
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
+            event_time_effects: vec![],
         });
         let encoded = encode_analysis_result_artifact(
             &result,
@@ -1984,6 +2033,7 @@ mod tests {
             comparison_subjects: 4,
             clusters: 8,
             uncertainty: "cluster_robust_standard_error_no_interval".into(),
+            event_time_effects: vec![],
         });
         let encoded = encode_analysis_result_artifact(
             &result, vec!["treatment".into(), "outcome".into()], "staggered-did-result",
