@@ -3620,6 +3620,7 @@ impl PyPreparedAnalysis {
             let query =
                 if difference_in_differences { query.difference_in_differences() } else { query };
             let query = if uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
+            let query = if let Some(ridge) = augmentation_ridge { query.with_augmentation(ridge) } else { query };
             query.validate().map_err(|error| {
                 py_err(antecedent::CausalError::Compile { message: error.to_string() })
             })?;
@@ -3627,7 +3628,6 @@ impl PyPreparedAnalysis {
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
-            let query = if let Some(ridge) = augmentation_ridge { query.with_augmentation(ridge) } else { query };
             Ok(finished_prepared(prepared, names, false))
         })
     }
