@@ -1520,6 +1520,9 @@ impl StudyBuilder {
                     antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
                         EstimatorId::LongitudinalSequentialDrRegime
                     }
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                        EstimatorId::LongitudinalMarginalStructuralModel
+                    }
                 };
                 if self.estimator.is_some_and(|id| id != expected) {
                     return Err(CausalError::Unsupported {

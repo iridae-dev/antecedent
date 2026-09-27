@@ -747,6 +747,7 @@ pub(crate) fn validate_query_ids(
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
                 "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
+                "marginal_structural_model" => antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel,
                 _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
             };
             antecedent_core::LongitudinalRegimeQuery {
@@ -757,6 +758,7 @@ pub(crate) fn validate_query_ids(
                 } else {
                     Some(wire.period_outcome_predictions.clone().into())
                 },
+                stabilizing_numerator_probabilities: if wire.stabilizing_numerator_probabilities.is_empty() { None } else { Some(wire.stabilizing_numerator_probabilities.clone().into()) },
                 q_predictions: if wire.q_predictions.is_empty() { None } else { Some(wire.q_predictions.clone().into()) },
                 observation_history: if wire.observation_history.is_empty() { None } else { Some(wire.observation_history.clone().into()) },
                 prediction_fold_ids: if wire.prediction_fold_ids.is_empty() { None } else { Some(wire.prediction_fold_ids.clone().into()) },

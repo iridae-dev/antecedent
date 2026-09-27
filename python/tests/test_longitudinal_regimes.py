@@ -115,6 +115,21 @@ def test_stabilized_msm_recovers_known_additive_period_effects_and_clustered_se(
     assert result.support_status == "unlicensed_point_utility"
 
 
+def test_msm_direct_accepts_strided_numpy_inputs():
+    histories = np.repeat(np.array([[0, 0], [0, 1], [1, 0], [1, 1]]), 4, axis=0)
+    y = 10.0 + 2.0 * histories[:, 0] + 3.0 * histories[:, 1]
+    padded_y = np.column_stack((y, y))
+    padded_p = np.stack((np.full_like(histories, 0.5, dtype=float), np.full_like(histories, 0.5, dtype=float)), axis=2)
+    result = fit_marginal_structural_model(
+        padded_y[:, 0], histories, padded_p[:, :, 0],
+        stabilizing_numerator_probabilities=np.array([0.5, 9.0, 0.5])[::2],
+        outcome_observed=np.ones(32, dtype=bool)[::2],
+        censoring_survival=padded_p[:, :, 0] * 0.0 + 1.0,
+        subject_ids=[f"s{i}" for i in range(16)],
+    )
+    assert result.period_effects == pytest.approx((2.0, 3.0))
+
+
 def test_msm_refuses_bad_weights_rank_deficiency_and_duplicate_subjects():
     y = np.arange(8.0)
     histories = np.column_stack((np.arange(8) % 2, np.arange(8) % 2))

@@ -643,7 +643,21 @@ pub struct LongitudinalRegimeWire {
     pub uncertainty: String,
     /// Known randomized probabilities or caller-declared excluded-fold predictions.
     pub probability_ownership: String,
+    /// Additive MSM period coefficients; absent for regime-value methods.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub period_effects: Vec<f64>,
+    /// Pointwise CR1 subject-clustered standard errors for period coefficients.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub standard_errors: Vec<f64>,
+    /// Stabilizing treatment-one numerator probabilities for MSM.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stabilizing_numerator_probabilities: Vec<f64>,
+    /// Observed subjects used by MSM; zero for regime-value methods.
+    #[serde(default, skip_serializing_if = "is_zero_usize")]
+    pub observed_subjects: usize,
 }
+
+fn is_zero_usize(value: &usize) -> bool { *value == 0 }
 
 fn default_longitudinal_result_method() -> String {
     "ipw".into()
@@ -1137,12 +1151,12 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || !regime.matched_observed_fraction.is_finite()
             || !(0.0 < regime.matched_observed_fraction && regime.matched_observed_fraction <= 1.0)
             || !regime.maximum_weight.is_finite()
-            || regime.maximum_weight < 1.0
+            || regime.maximum_weight <= 0.0
             || !regime.minimum_action_probability.is_finite()
             || regime.minimum_action_probability < query.minimum_probability
             || !regime.minimum_censoring_probability.is_finite()
             || regime.minimum_censoring_probability < query.minimum_probability
-            || regime.uncertainty != "point_only_no_interval"
+            || regime.uncertainty != (if query.method == "marginal_structural_model" { "pointwise_subject_clustered_cr1_no_interval" } else { "point_only_no_interval" })
             || regime.probability_ownership
                 != if query.probabilities_known_by_design {
                     "known_sequential_randomization"
@@ -1153,6 +1167,20 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             return Err(IoError::Convert(
                 "invalid longitudinal regime payload or fabricated interval".into(),
             ));
+        }
+        if query.method == "marginal_structural_model" {
+            if regime.period_effects.len() != query.periods
+                || regime.standard_errors.len() != query.periods
+                || regime.stabilizing_numerator_probabilities != query.stabilizing_numerator_probabilities
+                || regime.observed_subjects <= query.periods + 1
+                || regime.observed_subjects > query.subject_ids.len()
+                || regime.period_effects.iter().any(|v| !v.is_finite())
+                || regime.standard_errors.iter().any(|v| !v.is_finite() || *v < 0.0) {
+                return Err(IoError::Convert("invalid longitudinal MSM coefficients or uncertainty".into()));
+            }
+        } else if !regime.period_effects.is_empty() || !regime.standard_errors.is_empty()
+            || !regime.stabilizing_numerator_probabilities.is_empty() || regime.observed_subjects != 0 {
+            return Err(IoError::Convert("MSM-only result fields attached to a regime value".into()));
         }
     }
     crate::causal_query_from_wire(&result.query)?;

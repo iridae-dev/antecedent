@@ -350,6 +350,8 @@ pub enum EstimatorId {
     LongitudinalGFormulaRegime,
     /// Sequentially augmented regime value from supplied Q scores.
     LongitudinalSequentialDrRegime,
+    /// Additive binary marginal structural model with stabilized IPTW.
+    LongitudinalMarginalStructuralModel,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
     /// Doubly robust CATE learner (DRLearner).
@@ -837,6 +839,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "longitudinal.sequential_dr_regime",
             provenance: ("estimate.longitudinal.sequential_dr_regime", "estimate.longitudinal.sequential_dr_regime"),
         },
+        EstimatorId::LongitudinalMarginalStructuralModel => EstimatorData {
+            name: "longitudinal.marginal_structural_model",
+            parallel_task_dimension: "subject",
+            kernel_label: "longitudinal.marginal_structural_model",
+            provenance: ("estimate.longitudinal.marginal_structural_model", "estimate.longitudinal.marginal_structural_model"),
+        },
         EstimatorId::Dml => EstimatorData {
             name: "dml",
             parallel_task_dimension: "crossfit.fold",
@@ -1088,7 +1096,8 @@ pub fn validate_static_pair(
             | EstimatorId::RandomizedSurvivalProductLimit
             | EstimatorId::LongitudinalIpwRegime
             | EstimatorId::LongitudinalGFormulaRegime
-            | EstimatorId::LongitudinalSequentialDrRegime,
+            | EstimatorId::LongitudinalSequentialDrRegime
+            | EstimatorId::LongitudinalMarginalStructuralModel,
         )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
@@ -1271,7 +1280,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
             matches!(method, EstimandMethod::RandomizedPolicyValue)
         }
         EstimatorId::RandomizedSurvivalProductLimit => false,
-        EstimatorId::LongitudinalIpwRegime | EstimatorId::LongitudinalGFormulaRegime | EstimatorId::LongitudinalSequentialDrRegime => false,
+        EstimatorId::LongitudinalIpwRegime | EstimatorId::LongitudinalGFormulaRegime | EstimatorId::LongitudinalSequentialDrRegime | EstimatorId::LongitudinalMarginalStructuralModel => false,
     }
 }
 

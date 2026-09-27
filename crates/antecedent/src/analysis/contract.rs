@@ -3378,6 +3378,10 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 minimum_censoring_probability: regime.minimum_censoring_probability,
                 uncertainty: regime.uncertainty.to_string(),
                 probability_ownership: regime.probability_ownership.to_string(),
+                period_effects: regime.period_effects.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
+                standard_errors: regime.standard_errors.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
+                stabilizing_numerator_probabilities: regime.stabilizing_numerator_probabilities.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
+                observed_subjects: regime.observed_subjects.unwrap_or(0),
             }
         }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {

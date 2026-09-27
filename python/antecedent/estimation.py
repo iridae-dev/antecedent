@@ -540,6 +540,10 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         method=section.method,
         uncertainty=section.uncertainty,
         probability_ownership=section.probability_ownership,
+        period_effects=tuple(section.period_effects) if section.period_effects is not None else None,
+        standard_errors=tuple(section.standard_errors) if section.standard_errors is not None else None,
+        stabilizing_numerator_probabilities=tuple(section.stabilizing_numerator_probabilities) if section.stabilizing_numerator_probabilities is not None else None,
+        observed_subjects=section.observed_subjects,
     )
 
 
@@ -1963,7 +1967,7 @@ def _longitudinal_regime_payload(
     outcome = raw_columns[raw_names.index(query.outcome)]
     if len(outcome) != len(query.subject_ids):
         raise CausalValueError("longitudinal outcome rows must align with subject histories")
-    if query.method == "sequential_dr":
+    if query.method in ("sequential_dr", "marginal_structural_model"):
         values = np.asarray(outcome, dtype=np.float64)
         observed = np.asarray(query.outcome_observed, dtype=bool)
         if not np.isfinite(values[observed]).all():
@@ -3023,6 +3027,7 @@ class _PrepareRoute:
             query.excluded_fold_predictions, query.probabilities_known_by_design,
             query.minimum_probability, method=query.method,
             period_outcome_predictions=flatten(query.period_outcome_predictions) if query.period_outcome_predictions is not None else [],
+            stabilizing_numerator_probabilities=list(query.stabilizing_numerator_probabilities) if query.stabilizing_numerator_probabilities is not None else [],
             q_predictions=flatten(query.q_predictions) if query.q_predictions is not None else [],
             observation_history=flatten(query.observation_history) if query.observation_history is not None else [],
             prediction_fold_ids=list(query.prediction_fold_ids) if query.prediction_fold_ids is not None else [],

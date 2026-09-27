@@ -87,6 +87,7 @@ pub use adjustment::{
 };
 pub mod learned_trial;
 pub mod longitudinal_regime;
+pub mod marginal_structural_model;
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
     learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,

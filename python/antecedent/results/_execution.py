@@ -215,7 +215,8 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer("structured", detail="randomized_survival_point_only", structured=dict(survival))
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
-        return Answer("structured", detail="longitudinal_regime_point_only", structured=dict(regime))
+        detail = "longitudinal_msm_pointwise_cr1" if regime.get("method") == "marginal_structural_model" else "longitudinal_regime_point_only"
+        return Answer("structured", detail=detail, structured=dict(regime))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
     bounds = None
@@ -366,7 +367,8 @@ class ResultAPI:
         if regime is not None:
             from dataclasses import asdict
 
-            return Answer("structured", detail="longitudinal_regime_point_only", structured=asdict(regime))
+            detail = "longitudinal_msm_pointwise_cr1" if regime.method == "marginal_structural_model" else "longitudinal_regime_point_only"
+            return Answer("structured", detail=detail, structured=asdict(regime))
         policy = getattr(self, "policy_value", None)
         if policy is not None:
             from dataclasses import asdict
@@ -409,6 +411,9 @@ class ResultAPI:
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
+            if regime.method == "marginal_structural_model":
+                effects = ", ".join(f"{effect:g}" for effect in (regime.period_effects or ()))
+                return f"Additive marginal structural model period effects: {effects}. Pointwise subject-clustered CR1 standard errors; no calibrated interval."
             return (
                 f"Sequential randomized regime value {regime.value:g}. "
                 "Point-only; no calibrated interval."
