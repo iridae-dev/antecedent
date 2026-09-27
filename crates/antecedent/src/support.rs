@@ -75,6 +75,24 @@ pub struct GraphlessAssignmentSupport {
     pub reported_intervals: usize,
     /// Whether every contrast named by the query has an interval.
     pub all_reported_intervals: bool,
+    /// Realized matches for the evaluated policy and reference.
+    pub policy_matches: usize,
+    /// Realized reference matches.
+    pub reference_matches: usize,
+    /// Smallest held-out rank bin and observed arm count within a bin.
+    pub min_bin_rows: usize,
+    /// Smallest observed arm count within a held-out rank bin.
+    pub min_bin_arm_rows: usize,
+    /// Smallest fixed baseline group and observed compared-arm count.
+    pub min_group_rows: usize,
+    /// Smallest compared-arm count within a fixed baseline group.
+    pub min_group_arm_rows: usize,
+    /// Global action constraints do not couple subject recommendations.
+    pub uncoupled_constraints: bool,
+    /// Outcome nuisance predictions use declared disjoint training subjects.
+    pub disjoint_nuisance_training: bool,
+    /// Ranking training IDs are declared and disjoint from evaluation IDs.
+    pub rank_ownership: bool,
 }
 
 /// Runtime status for one exact graphless support key.
@@ -119,6 +137,15 @@ pub fn classify_graphless(
                 && observed.min_probability + 1e-12 >= row.min_probability
                 && observed.reported_intervals >= row.min_reported_intervals
                 && (!row.all_reported_intervals || observed.all_reported_intervals)
+                && observed.policy_matches >= row.min_policy_matches
+                && observed.reference_matches >= row.min_reference_matches
+                && observed.min_bin_rows >= row.min_bin_rows
+                && observed.min_bin_arm_rows >= row.min_bin_arm_rows
+                && observed.min_group_rows >= row.min_group_rows
+                && observed.min_group_arm_rows >= row.min_group_arm_rows
+                && (!row.requires_uncoupled_constraints || observed.uncoupled_constraints)
+                && (!row.requires_disjoint_nuisance_training || observed.disjoint_nuisance_training)
+                && (!row.requires_rank_ownership || observed.rank_ownership)
         })
         .map_or(GraphlessSupportStatus::Refused, |row| GraphlessSupportStatus::Licensed {
             limitations: row.limitations,
@@ -187,6 +214,44 @@ mod graphless_support_tests {
         assert!(matches!(classify_graphless(multi, actions), GraphlessSupportStatus::Licensed { .. }));
         assert_eq!(classify_graphless(multi, GraphlessAssignmentSupport { all_reported_intervals: false, ..actions }), GraphlessSupportStatus::Refused);
         assert_eq!(classify_graphless(multi, GraphlessAssignmentSupport { min_action_rows: 29, ..actions }), GraphlessSupportStatus::Refused);
+    }
+
+    #[test]
+    fn exact_policy_rows_require_ownership_support_and_every_interval() {
+        let binary = GraphlessSupportKey { family: "policy_value", design: "binary_ipw",
+            method: "fixed_randomized_ipw_scores",
+            inference_claim: "paired_policy_incremental_pointwise_95_normal_intervals" };
+        let observed = GraphlessAssignmentSupport {
+            assignment_unit: "unit", treated: 60, control: 60, rows: 120,
+            min_probability: 0.5, interval_95_published: true,
+            policy_matches: 60, reference_matches: 60, reported_intervals: 2,
+            all_reported_intervals: true, uncoupled_constraints: true,
+            ..Default::default()
+        };
+        assert!(matches!(classify_graphless(binary, observed), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(binary, GraphlessAssignmentSupport { policy_matches: 9, ..observed }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(binary, GraphlessAssignmentSupport { uncoupled_constraints: false, ..observed }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(binary, GraphlessAssignmentSupport { min_probability: 0.49, ..observed }), GraphlessSupportStatus::Refused);
+
+        let uplift = GraphlessSupportKey { design: "binary_ipw_uplift",
+            method: "fixed_randomized_ipw_frozen_rank_scores",
+            inference_claim: "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals", ..binary };
+        let bins = GraphlessAssignmentSupport { rows: 600, min_bin_rows: 300,
+            min_bin_arm_rows: 50, rank_ownership: true, reported_intervals: 4, ..observed };
+        assert!(matches!(classify_graphless(uplift, bins), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(uplift, GraphlessAssignmentSupport { min_bin_rows: 299, ..bins }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(uplift, GraphlessAssignmentSupport { rank_ownership: false, ..bins }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(uplift, GraphlessAssignmentSupport { all_reported_intervals: false, ..bins }), GraphlessSupportStatus::Refused);
+
+        let cate = GraphlessSupportKey { design: "multi_action_ipw_cate",
+            method: "fixed_randomized_multi_action_ipw_fixed_group_scores",
+            inference_claim: "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals", ..binary };
+        let groups = GraphlessAssignmentSupport { rows: 600, min_probability: 0.2,
+            min_action_rows: 200, min_group_rows: 300, min_group_arm_rows: 50,
+            reported_intervals: 6, ..observed };
+        assert!(matches!(classify_graphless(cate, groups), GraphlessSupportStatus::Licensed { .. }));
+        assert_eq!(classify_graphless(cate, GraphlessAssignmentSupport { min_group_arm_rows: 49, ..groups }), GraphlessSupportStatus::Refused);
+        assert_eq!(classify_graphless(cate, GraphlessAssignmentSupport { reported_intervals: 2, ..groups }), GraphlessSupportStatus::Refused);
     }
 }
 
