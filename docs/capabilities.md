@@ -648,8 +648,16 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   noncompliance ITT and Wald CACE/LATE point estimate with an
   influence-function standard error;
   `experiment.estimate_cuped_effect` provides one-covariate CUPED precision
-  adjustment with a standard error. These are direct utilities without new
-  support-matrix licenses or calibrated interval claims. The native
+  adjustment with a standard error. `RandomizedEffect(...,
+  ancova_covariates=("baseline_a", "baseline_b"))` now carries multi-covariate
+  ANCOVA through the retained Rust Study and Python `prepare` / `analyze`
+  path for independent Bernoulli assignment with a common probability. It
+  fits the treatment and pre-assignment covariate coefficients jointly and
+  labels its independent-row HC0 variance; the result has no calibrated
+  interval and is off the support-matrix axis. ANCOVA refuses non-Bernoulli
+  designs, fixed CUPED or receipt adjustment on the same query, duplicate or
+  collinear covariates, and non-finite values. The direct utilities likewise
+  have no new support-matrix licenses or calibrated interval claims. The native
   `factorial.estimate` utility handles independent-Bernoulli 2×2 factors and
   returns cell means, main effects, interaction, and variance upper bounds;
   block and multi-arm factorial designs remain gaps. The direct
@@ -757,6 +765,11 @@ For synthetic control only, a declared uniform one-treated-unit assignment
 enables an exact Fisher sharp-null test that refits each possible treated unit.
 It reports the full assignment distribution and a p-value, without converting
 the effect's point estimate into an interval or a licensed matrix cell.
+An optional positive `augmentation_ridge` on `SyntheticControl` fits a
+donor-trained pre-to-post outcome model and corrects the simplex gap. The
+retained result and artifact preserve the original gap, correction, and adjusted
+point estimate. This declares outcome-model transport to the treated unit;
+the adjusted effect remains point-only and off the support-matrix axis.
 
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no
