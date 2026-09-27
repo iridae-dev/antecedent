@@ -3358,11 +3358,11 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Freeze a graphless Bernoulli, complete, or stratified randomized ITT study.
+    /// Freeze a graphless Bernoulli, complete, stratified, or cluster randomized ITT study.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, accepted=false, seed=1, threads=None,
+        treated_per_row=None, *, treated_clusters=None, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3379,6 +3379,7 @@ impl PyPreparedAnalysis {
         treated_units: Option<usize>,
         blocks: Option<Vec<String>>,
         treated_per_row: Option<Vec<usize>>,
+        treated_clusters: Option<usize>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3407,7 +3408,15 @@ impl PyPreparedAnalysis {
                         .ok_or_else(|| py_msg("stratified randomization requires treated_per_row"))?
                         .into(),
                 },
-                _ => return Err(py_msg("design_kind must be bernoulli, complete, or stratified")),
+                "cluster" => antecedent_core::RandomizationDesign::Cluster {
+                    treated_clusters: treated_clusters
+                        .ok_or_else(|| py_msg("cluster randomization requires treated_clusters"))?,
+                },
+                _ => {
+                    return Err(py_msg(
+                        "design_kind must be bernoulli, complete, stratified, or cluster",
+                    ));
+                }
             };
             let query = antecedent_core::RandomizedEffectQuery::with_design(
                 design,
@@ -3479,6 +3488,69 @@ impl PyPreparedAnalysis {
                 .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a known-randomization longitudinal regime value over whole subjects.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
+        treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
+        excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
+        *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_longitudinal_regime(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        periods: usize,
+        treatment_history: Vec<bool>,
+        regime_actions: Vec<bool>,
+        treatment_probabilities: Vec<f64>,
+        censoring_probabilities: Vec<f64>,
+        outcome_observed: Vec<bool>,
+        subject_ids: Vec<String>,
+        fold_ids: Vec<u32>,
+        excluded_fold_predictions: bool,
+        probabilities_known_by_design: bool,
+        minimum_probability: f64,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("longitudinal regime")?;
+        opts.refuse_population("longitudinal regime")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let query = antecedent_core::LongitudinalRegimeQuery {
+                outcome: outcome_id,
+                periods,
+                treatment_history: treatment_history.into(),
+                regime_actions: regime_actions.into(),
+                treatment_probabilities: treatment_probabilities.into(),
+                censoring_probabilities: censoring_probabilities.into(),
+                outcome_observed: outcome_observed.into(),
+                subject_ids: subject_ids
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
+                fold_ids: fold_ids.into(),
+                excluded_fold_predictions,
+                probabilities_known_by_design,
+                minimum_probability,
+            };
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::LongitudinalRegime(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
             Ok(finished_prepared(prepared, names, false))

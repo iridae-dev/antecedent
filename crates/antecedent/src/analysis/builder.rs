@@ -142,19 +142,23 @@ fn refuse_unlicensed_transport(query: &antecedent_core::TransportQuery) -> Resul
     }
 }
 
-/// Refuse an interference design outside the licensed cell (NeighborCount
-/// exposure under Bernoulli assignment).
+/// Refuse interference designs without a checked execution path.
 fn refuse_unlicensed_interference(
     query: &antecedent_core::InterferenceQuery,
 ) -> Result<(), CausalError> {
-    let licensed = matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-        && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount);
+    let licensed =
+        (matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+            && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount))
+            || (matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction));
     if licensed {
         Ok(())
     } else {
         Err(crate::support_reason!(
             "construction_not_licensed",
-            "InterferenceQuery is licensed for NeighborCount exposure under Bernoulli assignment"
+            "InterferenceQuery supports NeighborCount under Bernoulli assignment or NeighborFraction total effects under cluster randomization"
         ))
     }
 }
@@ -683,6 +687,9 @@ fn refuse_estimator_inference_mismatch(
                 EstimatorId::CellAipw => frequentist!("cell.aipw"),
                 EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
                 EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
+                EstimatorId::InterferenceClusterNeyman => {
+                    frequentist!("interference.cluster_neyman")
+                }
                 _ => Ok(()),
             }
         }
@@ -1362,6 +1369,7 @@ impl StudyBuilder {
                             | CausalQuery::PolicyValue(_)
                             | CausalQuery::PanelDid(_)
                             | CausalQuery::Survival(_)
+                            | CausalQuery::LongitudinalRegime(_)
                     )
                 ) =>
             {
@@ -1432,12 +1440,14 @@ impl StudyBuilder {
                 | CausalQuery::PolicyValue(_)
                 | CausalQuery::PanelDid(_)
                 | CausalQuery::Survival(_)
+                | CausalQuery::LongitudinalRegime(_)
         ) {
             if let CausalQuery::RandomizedEffect(randomized) = &query {
                 let expected = match &randomized.design {
                     antecedent_core::RandomizationDesign::Bernoulli => EstimatorId::RandomizedHt,
                     antecedent_core::RandomizationDesign::Complete { .. }
-                    | antecedent_core::RandomizationDesign::Stratified { .. } => {
+                    | antecedent_core::RandomizationDesign::Stratified { .. }
+                    | antecedent_core::RandomizationDesign::Cluster { .. } => {
                         EstimatorId::RandomizedNeyman
                     }
                 };
@@ -1454,6 +1464,13 @@ impl StudyBuilder {
             {
                 return Err(CausalError::Unsupported {
                     message: "randomized survival requires the product-limit estimator",
+                });
+            }
+            if matches!(query, CausalQuery::LongitudinalRegime(_))
+                && self.estimator.is_some_and(|id| id != EstimatorId::LongitudinalIpwRegime)
+            {
+                return Err(CausalError::Unsupported {
+                    message: "longitudinal regime value requires the sequential IPW estimator",
                 });
             }
             if graph.class() != GraphClass::RandomizedTrial {
@@ -1473,6 +1490,7 @@ impl StudyBuilder {
                         EstimatorId::RandomizedHt
                             | EstimatorId::RandomizedNeyman
                             | EstimatorId::RandomizedSurvivalProductLimit
+                            | EstimatorId::LongitudinalIpwRegime
                     )
                 })
                 || self.estimator_spec.is_some()
@@ -1933,7 +1951,7 @@ impl StudyBuilder {
         if !inspect_only {
             crate::support::refuse_undeclared_off_axis(&query)?;
         }
-        let support_status = if let Some(cell) =
+        let mut support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
             // Geometric n/a / refused still refuse the build (except inspect).
@@ -1973,6 +1991,14 @@ impl StudyBuilder {
         } else {
             None
         };
+        // The matrix's InterferenceQuery/Frequentist cell licenses only Bernoulli +
+        // NeighborCount and its Young-bound calibration. A cluster total effect has
+        // separate execution evidence but no matrix cell or interval calibration yet.
+        if matches!(&query, CausalQuery::Interference(q)
+            if matches!(q.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. }))
+        {
+            support_status = None;
+        }
 
         if !inspect_only
             && matches!(

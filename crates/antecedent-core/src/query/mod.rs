@@ -12,6 +12,7 @@ mod distribution;
 mod error;
 mod functional;
 mod interference;
+mod longitudinal_regime;
 mod mediation;
 mod nested_counterfactual;
 mod policy_value;
@@ -43,6 +44,7 @@ pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
     InterferenceFunctional, InterferenceQuery,
 };
+pub use longitudinal_regime::LongitudinalRegimeQuery;
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use policy_value::PolicyValueQuery;
@@ -114,6 +116,8 @@ pub enum CausalQuery {
     PanelDid(PanelDidQuery),
     /// Randomized right-censored survival or competing-risk functional.
     Survival(SurvivalQuery),
+    /// Prespecified longitudinal regime value over subject histories.
+    LongitudinalRegime(LongitudinalRegimeQuery),
 }
 
 impl CausalQuery {
@@ -230,6 +234,12 @@ impl CausalQuery {
     pub fn survival(query: SurvivalQuery) -> Self {
         Self::Survival(query)
     }
+
+    /// Construct a prespecified longitudinal regime value query.
+    #[must_use]
+    pub fn longitudinal_regime(query: LongitudinalRegimeQuery) -> Self {
+        Self::LongitudinalRegime(query)
+    }
 }
 
 impl From<AverageEffectQuery> for CausalQuery {
@@ -340,6 +350,10 @@ impl From<SurvivalQuery> for CausalQuery {
     }
 }
 
+impl From<LongitudinalRegimeQuery> for CausalQuery {
+    fn from(query: LongitudinalRegimeQuery) -> Self { Self::LongitudinalRegime(query) }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -368,6 +382,7 @@ impl CausalQuery {
             Self::PolicyValue(_) => None,
             Self::PanelDid(_) => None,
             Self::Survival(_) => None,
+            Self::LongitudinalRegime(_) => None,
         }
     }
 
@@ -392,7 +407,8 @@ impl CausalQuery {
             Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
-            | Self::Survival(_) => None,
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 
@@ -464,6 +480,7 @@ impl CausalQuery {
             Self::PolicyValue(q) => q.validate(),
             Self::PanelDid(q) => q.validate(),
             Self::Survival(q) => q.validate(),
+            Self::LongitudinalRegime(q) => q.validate(),
         }
     }
 }

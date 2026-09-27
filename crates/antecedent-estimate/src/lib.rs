@@ -45,8 +45,8 @@ pub mod iv;
 pub mod joint_if;
 mod learn_nuisance;
 pub mod observation;
-pub mod policy_value;
 pub mod overlap;
+pub mod policy_value;
 pub mod prediction;
 pub mod prepare;
 pub mod propensity;
@@ -79,6 +79,7 @@ pub use adjustment::{
     EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
 pub mod learned_trial;
+pub mod longitudinal_regime;
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
     learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,
@@ -150,8 +151,8 @@ pub use identified_set::{
     imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
-    BayesianInterferenceEstimate, InterferenceEstimate, estimate_interference,
-    estimate_interference_bayesian, own_treatment_level,
+    BayesianInterferenceEstimate, InterferenceEstimate, estimate_cluster_interference_total,
+    estimate_interference, estimate_interference_bayesian, own_treatment_level,
 };
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,

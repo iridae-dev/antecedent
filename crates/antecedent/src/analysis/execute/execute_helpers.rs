@@ -53,6 +53,7 @@ pub(super) enum AnalysisRoute {
     PolicyValue,
     PanelDid,
     Survival,
+    LongitudinalRegime,
 }
 
 #[derive(Clone, Copy)]
@@ -122,6 +123,7 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::Tabular, CausalQuery::PolicyValue(_)) => AnalysisRoute::PolicyValue,
         (DataModality::Tabular, CausalQuery::PanelDid(_)) => AnalysisRoute::PanelDid,
         (DataModality::Tabular, CausalQuery::Survival(_)) => AnalysisRoute::Survival,
+        (DataModality::Tabular, CausalQuery::LongitudinalRegime(_)) => AnalysisRoute::LongitudinalRegime,
         _ => return None,
     })
 }

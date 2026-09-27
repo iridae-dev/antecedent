@@ -303,6 +303,7 @@ mod checked_panel_did;
 mod checked_randomized;
 mod checked_static_mediation;
 mod checked_survival;
+mod checked_longitudinal_regime;
 mod checked_temporal_class_effect;
 mod checked_temporal_effect;
 mod checked_temporal_mediation;
@@ -317,6 +318,7 @@ pub(crate) use checked_randomized::{
 };
 pub(crate) use checked_static_mediation::CheckedStaticMediationOperation;
 pub(crate) use checked_survival::{CheckedSurvivalOperation, survival_identification};
+pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod class_envelope_se;
 mod class_posterior;

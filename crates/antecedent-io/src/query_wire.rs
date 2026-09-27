@@ -771,6 +771,38 @@ pub enum CausalQueryWire {
     PanelDid(PanelDidQueryWire),
     /// Randomized survival or competing-risk query.
     Survival(SurvivalQueryWire),
+    /// Prespecified longitudinal treatment regime value.
+    LongitudinalRegime(LongitudinalRegimeQueryWire),
+}
+
+/// Subject-owned longitudinal histories and supplied sequential probabilities.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LongitudinalRegimeQueryWire {
+    /// Endpoint outcome variable.
+    pub outcome: u32,
+    /// Decisions per subject.
+    pub periods: usize,
+    /// Observed treatment history, subject-major.
+    pub treatment_history: Vec<bool>,
+    /// Prescribed regime actions, subject-major.
+    pub regime_actions: Vec<bool>,
+    /// Conditional treatment-one probabilities, subject-major.
+    pub treatment_probabilities: Vec<f64>,
+    /// Conditional uncensored probabilities, subject-major.
+    pub censoring_probabilities: Vec<f64>,
+    /// Whether endpoint was observed, one per subject.
+    pub outcome_observed: Vec<bool>,
+    /// Unique subject identifiers.
+    pub subject_ids: Vec<String>,
+    /// Subject-level excluded fold identifiers.
+    pub fold_ids: Vec<u32>,
+    /// Caller-declared excluded-fold prediction ownership.
+    pub excluded_fold_predictions: bool,
+    /// Probabilities fixed by a known sequential randomization mechanism.
+    pub probabilities_known_by_design: bool,
+    /// Sequential positivity floor.
+    pub minimum_probability: f64,
 }
 
 /// Right-censored randomized survival query with explicit marginal observation assumption.
@@ -882,6 +914,11 @@ pub enum RandomizationDesignWire {
         /// Declared number assigned to treatment.
         treated_units: usize,
     },
+    /// Complete randomization of assignment clusters.
+    Cluster {
+        /// Declared number of treated clusters.
+        treated_clusters: usize,
+    },
     /// Independent complete randomization within blocks.
     Stratified,
 }
@@ -918,7 +955,8 @@ impl CausalQueryWire {
             | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
-            | Self::Survival(_) => None,
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 
@@ -949,7 +987,8 @@ impl CausalQueryWire {
             | Self::RandomizedEffect(_)
             | Self::PolicyValue(_)
             | Self::PanelDid(_)
-            | Self::Survival(_) => None,
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 }
@@ -1384,6 +1423,9 @@ pub fn causal_query_to_wire_with_registry(
                     RandomizationDesign::Complete { treated_units } => {
                         RandomizationDesignWire::Complete { treated_units: *treated_units }
                     }
+                    RandomizationDesign::Cluster { treated_clusters } => {
+                        RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
+                    }
                     RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
                 },
                 outcome: q.outcome.raw(),
@@ -1448,6 +1490,22 @@ pub fn causal_query_to_wire_with_registry(
             independent_observation: matches!(&q.observation_assumption,
                 antecedent_core::ObservationAssumption::IndependentGiven(vars) if vars.is_empty()),
         }),
+        CausalQuery::LongitudinalRegime(q) => CausalQueryWire::LongitudinalRegime(
+            LongitudinalRegimeQueryWire {
+                outcome: q.outcome.raw(),
+                periods: q.periods,
+                treatment_history: q.treatment_history.to_vec(),
+                regime_actions: q.regime_actions.to_vec(),
+                treatment_probabilities: q.treatment_probabilities.to_vec(),
+                censoring_probabilities: q.censoring_probabilities.to_vec(),
+                outcome_observed: q.outcome_observed.to_vec(),
+                subject_ids: q.subject_ids.iter().map(ToString::to_string).collect(),
+                fold_ids: q.fold_ids.to_vec(),
+                excluded_fold_predictions: q.excluded_fold_predictions,
+                probabilities_known_by_design: q.probabilities_known_by_design,
+                minimum_probability: q.minimum_probability,
+            },
+        ),
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -1636,6 +1694,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 RandomizationDesignWire::Complete { treated_units } => {
                     RandomizationDesign::Complete { treated_units: *treated_units }
                 }
+                RandomizationDesignWire::Cluster { treated_clusters } => {
+                    RandomizationDesign::Cluster { treated_clusters: *treated_clusters }
+                }
                 RandomizationDesignWire::Stratified => RandomizationDesign::Stratified {
                     blocks: w
                         .blocks
@@ -1723,6 +1784,23 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::Survival(q)
+        }
+        CausalQueryWire::LongitudinalRegime(w) => {
+            let q = antecedent_core::LongitudinalRegimeQuery {
+                outcome: VariableId::from_raw(w.outcome), periods: w.periods,
+                treatment_history: w.treatment_history.clone().into(),
+                regime_actions: w.regime_actions.clone().into(),
+                treatment_probabilities: w.treatment_probabilities.clone().into(),
+                censoring_probabilities: w.censoring_probabilities.clone().into(),
+                outcome_observed: w.outcome_observed.clone().into(),
+                subject_ids: w.subject_ids.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>().into(),
+                fold_ids: w.fold_ids.clone().into(),
+                excluded_fold_predictions: w.excluded_fold_predictions,
+                probabilities_known_by_design: w.probabilities_known_by_design,
+                minimum_probability: w.minimum_probability,
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::LongitudinalRegime(q)
         }
     })
 }
@@ -1977,6 +2055,23 @@ mod tests {
             causal_query_from_wire(&causal_query_to_wire(&stratified).unwrap()).unwrap(),
             stratified
         );
+    }
+
+    #[test]
+    fn cluster_randomized_itt_round_trips_repeated_assignment_units() {
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Cluster { treated_clusters: 2 },
+            VariableId::from_raw(0),
+            [true, true, true, false, false, false],
+            [0.5; 6],
+            ["a", "a", "b", "c", "c", "d"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3", "r4", "r5"].map(Arc::<str>::from),
+            ("control", "treated"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
     }
 
     #[test]

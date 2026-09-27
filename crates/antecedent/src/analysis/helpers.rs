@@ -100,6 +100,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         panel_did: None,
         policy_value: None,
         survival: None,
+        longitudinal_regime: None,
         refutations: args.refutations,
         predictive_checks: Vec::new(),
         diagnostics: args.diagnostics,

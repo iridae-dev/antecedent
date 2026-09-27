@@ -433,6 +433,28 @@ pub struct SurvivalWire {
     pub uncertainty: String,
 }
 
+/// Subject-owned sequential inverse-probability regime value.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LongitudinalRegimeWire {
+    /// Horvitz--Thompson regime value.
+    pub value: f64,
+    /// Effective sample size among matching observed histories.
+    pub effective_sample_size: f64,
+    /// Fraction of enrolled subjects with matching observed histories.
+    pub matched_observed_fraction: f64,
+    /// Maximum inverse-probability trajectory weight.
+    pub maximum_weight: f64,
+    /// Minimum prescribed action probability.
+    pub minimum_action_probability: f64,
+    /// Minimum remaining-uncensored probability.
+    pub minimum_censoring_probability: f64,
+    /// Explicitly point only.
+    pub uncertainty: String,
+    /// Known randomized probabilities or caller-declared excluded-fold predictions.
+    pub probability_ownership: String,
+}
+
 /// Composite result body. Every scientific axis is independently optional.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AnalysisResultWire {
@@ -457,6 +479,9 @@ pub struct AnalysisResultWire {
     /// Randomized survival or competing-risk curve.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub survival: Option<SurvivalWire>,
+    /// Subject-owned prespecified longitudinal regime point value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub longitudinal_regime: Option<LongitudinalRegimeWire>,
     /// Full atom result for an interventional-distribution query. Absent on older
     /// artifacts; such artifacts remain readable but cannot verify as a checked
     /// distribution execution.
@@ -689,6 +714,34 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         return Err(IoError::Convert(
             "survival artifact is missing its curve result section".into(),
         ));
+    }
+    if matches!(result.query, crate::CausalQueryWire::LongitudinalRegime(_))
+        && result.longitudinal_regime.is_none()
+    {
+        return Err(IoError::Convert("longitudinal regime artifact is missing its value section".into()));
+    }
+    if let Some(regime) = &result.longitudinal_regime {
+        let crate::CausalQueryWire::LongitudinalRegime(query) = &result.query else {
+            return Err(IoError::Convert("longitudinal regime result is attached to a different query".into()));
+        };
+        if result.estimate.is_some() || result.standard_error.is_some()
+            || result.interval_lower.is_some() || result.interval_upper.is_some()
+            || !regime.value.is_finite() || !regime.effective_sample_size.is_finite()
+            || regime.effective_sample_size <= 0.0 || regime.effective_sample_size > query.subject_ids.len() as f64
+            || !regime.matched_observed_fraction.is_finite()
+            || !(0.0 < regime.matched_observed_fraction && regime.matched_observed_fraction <= 1.0)
+            || !regime.maximum_weight.is_finite() || regime.maximum_weight < 1.0
+            || !regime.minimum_action_probability.is_finite()
+            || regime.minimum_action_probability < query.minimum_probability
+            || !regime.minimum_censoring_probability.is_finite()
+            || regime.minimum_censoring_probability < query.minimum_probability
+            || regime.uncertainty != "point_only_no_interval"
+            || regime.probability_ownership != if query.probabilities_known_by_design {
+                "known_sequential_randomization"
+            } else { "caller_declared_subject_excluded_fold_predictions" }
+        {
+            return Err(IoError::Convert("invalid longitudinal regime payload or fabricated interval".into()));
+        }
     }
     crate::causal_query_from_wire(&result.query)?;
     let identification_count = match &result.identification_variables {

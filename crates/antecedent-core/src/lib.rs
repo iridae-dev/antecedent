@@ -112,6 +112,7 @@ pub use query::{
     EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime,
     ExposureLevel, ExposureMapping, FactorNeed, GridSpec, InterferenceFunctional,
     InterferenceQuery, InterventionAssignment, InterventionalDistributionQuery, LicensedWeights,
+    LongitudinalRegimeQuery,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     MechanismChangeQuery, MediationContrast, MediationQuery, NestedCounterfactualQuery,
     ObservationAssumption, ObservationSpec, OrderedFloatBits, OutcomeFunctional, PanelDidQuery,

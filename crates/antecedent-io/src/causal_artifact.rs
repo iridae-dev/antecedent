@@ -531,6 +531,9 @@ pub(crate) fn validate_query_ids(
                 crate::RandomizationDesignWire::Complete { treated_units } => {
                     antecedent_core::RandomizationDesign::Complete { treated_units: *treated_units }
                 }
+                crate::RandomizationDesignWire::Cluster { treated_clusters } => {
+                    antecedent_core::RandomizationDesign::Cluster { treated_clusters: *treated_clusters }
+                }
                 crate::RandomizationDesignWire::Stratified => {
                     antecedent_core::RandomizationDesign::Stratified {
                         blocks: wire
@@ -636,6 +639,24 @@ pub(crate) fn validate_query_ids(
             }
             .validate()
             .map_err(|e| IoError::Convert(e.to_string()))
+        }
+        Q::LongitudinalRegime(wire) => {
+            validate_id(wire.outcome, variable_count)?;
+            antecedent_core::LongitudinalRegimeQuery {
+                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
+                periods: wire.periods,
+                treatment_history: wire.treatment_history.clone().into(),
+                regime_actions: wire.regime_actions.clone().into(),
+                treatment_probabilities: wire.treatment_probabilities.clone().into(),
+                censoring_probabilities: wire.censoring_probabilities.clone().into(),
+                outcome_observed: wire.outcome_observed.clone().into(),
+                subject_ids: wire.subject_ids.iter().map(|s| std::sync::Arc::<str>::from(s.as_str())).collect::<Vec<_>>().into(),
+                fold_ids: wire.fold_ids.clone().into(),
+                excluded_fold_predictions: wire.excluded_fold_predictions,
+                probabilities_known_by_design: wire.probabilities_known_by_design,
+                minimum_probability: wire.minimum_probability,
+            }
+            .validate().map_err(|e| IoError::Convert(e.to_string()))
         }
     }
 }
@@ -1471,6 +1492,23 @@ mod tests {
         let artifact =
             encode_causal_payload_artifact(&payload, vec!["outcome".into()], "panel-did-query")
                 .unwrap();
+        assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
+    }
+
+    #[test]
+    fn cluster_randomized_itt_query_round_trips_in_causal_payload_artifact() {
+        let domain = antecedent_core::RandomizedEffectQuery::with_design(
+            antecedent_core::RandomizationDesign::Cluster { treated_clusters: 2 },
+            antecedent_core::VariableId::from_raw(0),
+            [true, true, true, false, false, false],
+            [0.5; 6],
+            ["a", "a", "b", "c", "c", "d"].map(std::sync::Arc::<str>::from),
+            ["r0", "r1", "r2", "r3", "r4", "r5"].map(std::sync::Arc::<str>::from),
+            ("control", "treated"),
+        );
+        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
+        let payload = CausalPayloadWire::Query(Box::new(query.clone()));
+        let artifact = encode_causal_payload_artifact(&payload, vec!["outcome".into()], "cluster-itt-query").unwrap();
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

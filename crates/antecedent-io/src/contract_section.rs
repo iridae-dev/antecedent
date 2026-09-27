@@ -746,7 +746,7 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
-        Some("interference.ht_hajek" | "interference.bayesian_gaussian")
+        Some("interference.ht_hajek" | "interference.cluster_neyman" | "interference.bayesian_gaussian")
             if matches!(contract.target.query, CausalQueryWire::Interference { .. }) =>
         {
             unresolved.push(Arc::from("dependencies.checked_interference_operation"));
@@ -3727,6 +3727,7 @@ mod tests {
             policy_value: None,
             panel_did: None,
             survival: None,
+            longitudinal_regime: None,
             interventional_distribution: None,
             standard_error: Some(0.1),
             interval_lower: None,

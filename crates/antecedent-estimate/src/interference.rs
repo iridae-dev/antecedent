@@ -9,6 +9,7 @@ use antecedent_stats::{
     ExposureProbabilityMethod, RandomizationContrast, exposure_probabilities, exposures,
     randomization_contrast, randomization_mean,
 };
+use std::collections::BTreeMap;
 
 use crate::EstimationError;
 
@@ -236,6 +237,121 @@ pub fn estimate_interference(
     })
 }
 
+/// Cluster-randomized total effect under partial interference. Every edge must stay within
+/// its cluster and every unit must have a neighbor, so `NeighborFraction` is exactly zero or
+/// one under the cluster assignment. The Neyman variance uses independent randomized clusters
+/// as the units of inference and allows unequal cluster sizes through scaled cluster totals.
+///
+/// This deliberately has a separate entry point from [`estimate_interference`]. The general
+/// direct estimator continues to handle cluster assignments with other exposure mappings.
+pub fn estimate_cluster_interference_total(
+    query: &InterferenceQuery,
+    data: &NetworkData,
+    assignment: &[bool],
+) -> Result<InterferenceEstimate, EstimationError> {
+    use antecedent_core::{ExposureMapping, InterferenceFunctional};
+    query.validate()?;
+    let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } =
+        &query.assignment
+    else {
+        return Err(EstimationError::unsupported(
+            "cluster total-effect estimator requires cluster randomization",
+        ));
+    };
+    let n = assignment.len();
+    if n != data.units().row_count() {
+        return Err(EstimationError::data_msg("assignment/network row count mismatch"));
+    }
+    if clusters.len() != n || query.exposure != ExposureMapping::NeighborFraction {
+        return Err(EstimationError::unsupported(
+            "cluster partial interference requires one cluster per unit and NeighborFraction exposure",
+        ));
+    }
+    let InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
+    let untreated = ExposureLevel { own: 0.0, neighbors: 0.0 };
+    let treated = ExposureLevel { own: 1.0, neighbors: 1.0 };
+    let forward = from == untreated && to == treated;
+    let reverse = from == treated && to == untreated;
+    if !forward && !reverse {
+        return Err(EstimationError::unsupported(
+            "cluster partial interference supports only the total-effect contrast between (0,0) and (1,1)",
+        ));
+    }
+    let mut by_cluster: BTreeMap<u32, (bool, f64, usize)> = BTreeMap::new();
+    let outcomes = data.units().float64_values(outcome)?;
+    for (i, (&cluster, &assigned)) in clusters.iter().zip(assignment).enumerate() {
+        if !outcomes[i].is_finite() {
+            return Err(EstimationError::data_msg("cluster interference outcome must be finite"));
+        }
+        let entry = by_cluster.entry(cluster).or_insert((assigned, 0.0, 0));
+        if entry.0 != assigned {
+            return Err(EstimationError::data_msg(
+                "cluster randomized assignment must be constant within each cluster",
+            ));
+        }
+        entry.1 += outcomes[i];
+        entry.2 += 1;
+        let incoming = data.incoming(i)?;
+        if incoming.is_empty()
+            || incoming.iter().any(|edge| clusters[edge.from as usize] != cluster)
+        {
+            return Err(EstimationError::unsupported(
+                "partial interference requires a nonempty within-cluster neighborhood for every unit and no cross-cluster edges",
+            ));
+        }
+    }
+    let k = by_cluster.len();
+    let observed_treated = by_cluster.values().filter(|entry| entry.0).count();
+    if *treated_clusters < 2
+        || k.saturating_sub(*treated_clusters) < 2
+        || observed_treated != *treated_clusters
+    {
+        return Err(EstimationError::unsupported(
+            "cluster randomization requires at least two observed clusters in each arm and the declared treated-cluster count",
+        ));
+    }
+    let scale = k as f64 / n as f64;
+    let treated_totals = by_cluster
+        .values()
+        .filter(|entry| entry.0)
+        .map(|entry| entry.1 * scale)
+        .collect::<Vec<_>>();
+    let control_totals = by_cluster
+        .values()
+        .filter(|entry| !entry.0)
+        .map(|entry| entry.1 * scale)
+        .collect::<Vec<_>>();
+    let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len() as f64;
+    let sample_variance = |values: &[f64]| {
+        let center = mean(values);
+        values.iter().map(|value| (value - center).powi(2)).sum::<f64>() / (values.len() - 1) as f64
+    };
+    let effect = mean(&treated_totals) - mean(&control_totals);
+    let variance = sample_variance(&treated_totals) / treated_totals.len() as f64
+        + sample_variance(&control_totals) / control_totals.len() as f64;
+    let p = *treated_clusters as f64 / k as f64;
+    let treated_weighted =
+        by_cluster.values().filter(|entry| entry.0).map(|entry| entry.1 / p).sum::<f64>();
+    let control_weighted =
+        by_cluster.values().filter(|entry| !entry.0).map(|entry| entry.1 / (1.0 - p)).sum::<f64>();
+    let treated_units =
+        by_cluster.values().filter(|entry| entry.0).map(|entry| entry.2).sum::<usize>();
+    let control_units = n - treated_units;
+    let hajek = treated_weighted / (treated_units as f64 / p)
+        - control_weighted / (control_units as f64 / (1.0 - p));
+    let direction = if forward { 1.0 } else { -1.0 };
+    Ok(InterferenceEstimate {
+        contrast: RandomizationContrast {
+            horvitz_thompson: direction * effect,
+            hajek: direction * hajek,
+            conservative_variance: variance,
+        },
+        from_probability_method: ExposureProbabilityMethod::Exact,
+        to_probability_method: ExposureProbabilityMethod::Exact,
+        minimum_exposure_probability: p.min(1.0 - p),
+    })
+}
+
 /// Convenience exposure level for an own-treatment contrast on an empty network.
 #[must_use]
 pub const fn own_treatment_level(treated: bool) -> ExposureLevel {
@@ -292,6 +408,59 @@ mod tests {
         );
         let estimate = estimate_interference(&query, &data, &[true, false], 1).unwrap();
         assert!((estimate.contrast.hajek + 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn cluster_total_effect_uses_unit_weighted_target_with_unequal_clusters() {
+        let outcomes = [4.0, 4.0, 6.0, 6.0, 6.0, 1.0, 1.0, 3.0, 3.0, 3.0];
+        let clusters = [0, 0, 1, 1, 1, 2, 2, 3, 3, 3];
+        let assignment = [true, true, true, true, true, false, false, false, false, false];
+        let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
+        let edges =
+            [(0, 1), (1, 0), (2, 3), (3, 4), (4, 2), (5, 6), (6, 5), (7, 8), (8, 9), (9, 7)]
+                .into_iter()
+                .map(|(from, to)| antecedent_data::NetworkEdge { from, to, weight: 1.0 })
+                .collect::<Vec<_>>();
+        let network = NetworkData::try_new(table, edges).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(clusters),
+                treated_clusters: 2,
+            },
+            ExposureMapping::NeighborFraction,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 1.0 },
+            },
+        );
+        let estimate = estimate_cluster_interference_total(&query, &network, &assignment).unwrap();
+        assert!((estimate.contrast.horvitz_thompson - 3.0).abs() < 1e-12);
+        assert!((estimate.contrast.conservative_variance - 5.96).abs() < 1e-12);
+        assert_eq!(estimate.from_probability_method, ExposureProbabilityMethod::Exact);
+    }
+
+    #[test]
+    fn direct_cluster_neighbor_count_without_edges_keeps_general_design_estimator() {
+        let table = TabularData::from_f64_columns([("y", &[4.0, 4.0, 1.0, 1.0][..])]).unwrap();
+        let network =
+            NetworkData::try_new(table, Vec::<antecedent_data::NetworkEdge>::new()).unwrap();
+        let query = InterferenceQuery::new(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from([0, 0, 1, 1]),
+                treated_clusters: 1,
+            },
+            ExposureMapping::NeighborCount,
+            InterferenceFunctional::ExposureContrast {
+                outcome: VariableId::from_raw(0),
+                from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+            },
+        );
+        let estimate = estimate_interference(&query, &network, &[true, true, false, false], 7)
+            .expect("general direct cluster design remains available");
+        assert!((estimate.contrast.horvitz_thompson - 3.0).abs() < 1e-12);
+        assert_eq!(estimate.from_probability_method, ExposureProbabilityMethod::Exact);
     }
 
     #[test]

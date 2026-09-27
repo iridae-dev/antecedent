@@ -316,6 +316,8 @@ pub enum EstimatorId {
     TransportTrialBayesianBootstrap,
     /// Horvitz–Thompson / Hájek exposure contrast under a known assignment design.
     InterferenceHtHajek,
+    /// Cluster-randomized total exposure contrast under partial interference.
+    InterferenceClusterNeyman,
     /// Bayesian finite-network Gaussian potential-outcome exposure contrast.
     InterferenceBayesianGaussian,
     /// Horvitz--Thompson design-based Bernoulli ITT.
@@ -326,6 +328,8 @@ pub enum EstimatorId {
     RandomizedDrPolicy,
     /// Randomized product-limit survival/RMST or competing-risk incidence.
     RandomizedSurvivalProductLimit,
+    /// Prespecified sequential inverse-probability regime value.
+    LongitudinalIpwRegime,
     /// Cross-fitted DML / AIPW average treatment effect.
     Dml,
     /// Doubly robust CATE learner (DRLearner).
@@ -693,6 +697,15 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "interference.ht_hajek",
             provenance: ("estimate.interference.ht_hajek", "estimate.interference.ht_hajek"),
         },
+        EstimatorId::InterferenceClusterNeyman => EstimatorData {
+            name: "interference.cluster_neyman",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.cluster_neyman",
+            provenance: (
+                "estimate.interference.cluster_neyman",
+                "estimate.interference.cluster_neyman",
+            ),
+        },
         EstimatorId::InterferenceBayesianGaussian => EstimatorData {
             name: "interference.bayesian_gaussian",
             parallel_task_dimension: "analysis",
@@ -728,6 +741,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.survival_product_limit",
             provenance: ("estimate.survival.product_limit", "estimate.survival.product_limit"),
+        },
+        EstimatorId::LongitudinalIpwRegime => EstimatorData {
+            name: "longitudinal.ipw_regime",
+            parallel_task_dimension: "subject",
+            kernel_label: "longitudinal.ipw_regime",
+            provenance: ("estimate.longitudinal.ipw_regime", "estimate.longitudinal.ipw_regime"),
         },
         EstimatorId::Dml => EstimatorData {
             name: "dml",
@@ -960,14 +979,17 @@ pub fn validate_static_pair(
         )
         | (
             IdentifierId::InterferenceDesign,
-            EstimatorId::InterferenceHtHajek | EstimatorId::InterferenceBayesianGaussian,
+            EstimatorId::InterferenceHtHajek
+            | EstimatorId::InterferenceClusterNeyman
+            | EstimatorId::InterferenceBayesianGaussian,
         )
         | (
             IdentifierId::RandomizedDesign,
             EstimatorId::RandomizedHt
             | EstimatorId::RandomizedNeyman
             | EstimatorId::RandomizedDrPolicy
-            | EstimatorId::RandomizedSurvivalProductLimit,
+            | EstimatorId::RandomizedSurvivalProductLimit
+            | EstimatorId::LongitudinalIpwRegime,
         )
         | (IdentifierId::GeneralId, EstimatorId::FunctionalEffect) => true,
         (IdentifierId::Auto, _)
@@ -1132,12 +1154,14 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::TransportTrialIpw
         | EstimatorId::TransportTrialBayesianBootstrap
         | EstimatorId::InterferenceHtHajek
+        | EstimatorId::InterferenceClusterNeyman
         | EstimatorId::InterferenceBayesianGaussian => false,
         EstimatorId::RandomizedHt | EstimatorId::RandomizedNeyman => {
             matches!(method, EstimandMethod::RandomizedItt)
         }
         EstimatorId::RandomizedDrPolicy => matches!(method, EstimandMethod::RandomizedItt),
         EstimatorId::RandomizedSurvivalProductLimit => false,
+        EstimatorId::LongitudinalIpwRegime => false,
     }
 }
 

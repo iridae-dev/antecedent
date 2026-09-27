@@ -55,7 +55,8 @@ pub mod z_transport_artifact;
 pub use analysis_result_artifact::{
     AnalysisResultHeader, AnalysisResultWire, DistributionAtomWire,
     IdentifiedSetIntervalMethodWire, IdentifiedSetIntervalWire, InterventionalDistributionWire,
-    MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire, StructuralResponseAtomWire,
+    LongitudinalRegimeWire, MediationPosteriorSummaryWire, PanelDidWire, PolicyValueWire,
+    StructuralResponseAtomWire,
     StructuralResponseMixtureWire, StructuralWeightBasisWire, SurvivalWire,
     TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,
     TemporalMediationUncertaintyWire, UnitEffectIntervalsWire, UnitEffectsWire,

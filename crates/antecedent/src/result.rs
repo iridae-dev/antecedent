@@ -112,6 +112,27 @@ pub struct PanelDidEstimate {
     pub uncertainty: Arc<str>,
 }
 
+/// Point value of a prespecified treatment regime over subject histories.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LongitudinalRegimeEstimate {
+    /// Horvitz--Thompson mean over all enrolled subjects.
+    pub value: f64,
+    /// Effective sample size of observed matching histories.
+    pub effective_sample_size: f64,
+    /// Fraction of enrolled subjects with observed matching histories.
+    pub matched_observed_fraction: f64,
+    /// Largest cumulative inverse-probability weight.
+    pub maximum_weight: f64,
+    /// Minimum prescribed action probability across decisions.
+    pub minimum_action_probability: f64,
+    /// Minimum uncensored probability across decisions.
+    pub minimum_censoring_probability: f64,
+    /// Explicit uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Provenance of supplied sequential probabilities.
+    pub probability_ownership: Arc<str>,
+}
+
 /// Doubly robust held-out policy value and paired row-score uncertainty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PolicyValueEstimate {
@@ -399,6 +420,8 @@ pub struct StudyResult {
     pub policy_value: Option<PolicyValueEstimate>,
     /// Randomized right-censored survival or competing-risk curve.
     pub survival: Option<SurvivalEstimate>,
+    /// Prespecified longitudinal regime value.
+    pub longitudinal_regime: Option<LongitudinalRegimeEstimate>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Prior/posterior predictive check reports (Bayesian path; may be empty).
