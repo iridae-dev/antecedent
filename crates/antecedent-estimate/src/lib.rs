@@ -165,7 +165,7 @@ pub use interference::{
     estimate_cluster_interference_total_pointwise,
     estimate_interference, estimate_interference_bayesian, own_treatment_level,
 };
-pub use interference_saturation::{SaturationInterferenceEstimate, estimate_saturation_interference};
+pub use interference_saturation::{SaturationInterferenceEstimate, estimate_saturation_interference, estimate_saturation_interference_pointwise};
 pub use interference_observational::{ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure};
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
