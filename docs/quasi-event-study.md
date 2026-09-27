@@ -21,13 +21,31 @@ two-period panels. It defaults to subject clusters and accepts an optional
 higher-level cluster column. `estimate_group_time_att` uses the same contract
 for post-adoption cohort-period contrasts.
 
-`antecedent.quasi.estimate_staggered_event_study` returns cohort-specific
-contrasts by event time for a balanced panel. It uses the immediately
+`antecedent.prepare(data, query=StaggeredAdoption(..., event_study=True))` and
+`antecedent.analyze(...)` retain all cohort-specific event-time contrasts in
+one native `Study`. The result's `panel_did.effects` holds the full curve,
+including descriptive pre-adoption contrasts. The direct
+`estimate_staggered_event_study` utility uses the same native estimator.
+Both use the immediately
 pre-adoption period (`g - 1`) as the reference and cohort 0 as the never-treated
 comparison group. The API reports cohort and calendar period, event time,
 effect, and treated/control subject counts for every comparison.
 
-This is an unlicensed utility with `unlicensed_point_utility` support status.
+```python
+import antecedent
+from antecedent.quasi import StaggeredAdoption
+
+query = StaggeredAdoption("outcome", "subject", "period", "cohort", event_study=True)
+result = antecedent.analyze(data, query=query)
+effects = result.panel_did.effects
+```
+
+The retained result and artifact bind the subject, cohort, period, and cluster
+vectors. A prepared analysis requires the same design rows on refresh. The
+top-level scalar is the first post-adoption contrast in cohort/period order;
+the full event study is `result.panel_did.effects`.
+
+This is an unlicensed point workflow with `unlicensed_point_utility` support status.
 It assumes cohort-specific parallel untreated trends, no anticipation,
 absorbing treatment after adoption, valid never-treated controls, no
 interference, a balanced panel, and independent sampling clusters. The API
@@ -37,7 +55,7 @@ finite-cluster multiplier `G/(G - 1)`. Subject IDs are the default clusters;
 an optional higher-level cluster column can be supplied. At least two distinct
 clusters must contribute to each cohort and control group for every row.
 Pre-adoption contrasts are descriptive diagnostics only; they are not a
-parallel-trends test. The function provides no p-values, confidence intervals,
+parallel-trends test. Neither route provides p-values, confidence intervals,
 or calibrated inference. Cluster IDs must be non-empty and constant within
 subject.
 

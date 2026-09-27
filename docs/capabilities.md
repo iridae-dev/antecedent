@@ -643,7 +643,15 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   units per cell and reports both marginal main effects and their interaction
   with cellwise Neyman conservative variance estimates and no interval. The
   query and artifact retain the second-factor assignment, cell counts, and
-  labels. Multi-arm assignment remains a separate utility on this route.
+  labels. `MultiArmExperimentDesign` carries three or more named actions,
+  observed assignments, distinct assignment and outcome units, and each row's
+  known action-probability vector through the same retained
+  `RandomizedEffect` path. It requires observed support for every action and
+  independent unit-level assignment. The result retains Horvitz–Thompson arm
+  means and every contrast to the first action, with covariance-free variance
+  bounds and no calibrated interval. The direct multi-arm utility and retained
+  route share the native estimator; multi-arm combinations with CUPED, ANCOVA,
+  receipt adjustment, or exact Fisher inference refuse.
   `experiment.estimate_complier_effect` also provides a direct randomized
   noncompliance ITT and Wald CACE/LATE point estimate with an
   influence-function standard error;
@@ -679,6 +687,19 @@ result = ant.analyze(
     {"outcome": outcome},
     query=ant.RandomizedEffect("outcome", design),
 )
+
+multi_arm = ant.MultiArmExperimentDesign(
+    realized_assignment=actions,
+    action_labels=("control", "low", "high"),
+    assignment_probabilities=probability_rows,
+    assignment_units=account_ids,
+    outcome_units=account_ids,
+)
+multi_result = ant.analyze(
+    {"outcome": outcome},
+    query=ant.RandomizedEffect("outcome", multi_arm),
+)
+contrasts = multi_result.randomized_effect.multi_arm_contrasts
 ```
 
 Multi-source meta-transport, cyclic/equilibrium models, and observational
@@ -738,7 +759,9 @@ Staggered adoption and synthetic-panel designs also run through the retained
 now use that flow as fixed-bandwidth, graphless local ratio queries, alongside
 their existing direct utilities. Their retained result reports local counts,
 first-stage strength, and a descriptive HC0 standard error, but no interval.
-Event studies retain separate utility entry points.
+Staggered event studies also run through retained `prepare` / `analyze` with
+`StaggeredAdoption(..., event_study=True)`; the direct utility shares its native
+estimator.
 
 `antecedent.quasi.StaggeredAdoption` adds a balanced-panel group-time ATT
 utility. Cohort 0 is explicitly never treated; for each adoption cohort and
@@ -748,12 +771,12 @@ treated/control counts for every comparison. These counts are descriptive
 support diagnostics, not overlap tests. Parallel untreated trends by cohort,
 no anticipation, absorbing treatment, valid never-treated controls, independent
 clusters, and no interference are assumptions; pretrends are not tested. Both
-group-time ATT and the separate event-study utility report pointwise
+group-time ATT and the retained event-study route report pointwise
 cluster-robust standard errors by default, using subjects as clusters or an
 optional higher-level cluster column. The CR1-style multiplier is `G/(G - 1)`;
 at least two distinct clusters must contribute to each cohort/control
 comparison. Event-study pre-adoption contrasts are descriptive only. Neither
-utility reports p-values or intervals, validates assumptions, or adds a
+route reports p-values or intervals, validates assumptions, or adds a
 support-matrix license; both remain `unlicensed_point_utility`.
 
 `antecedent.quasi.SyntheticControl` and
@@ -780,7 +803,8 @@ the adjusted effect remains point-only and off the support-matrix axis.
 `RandomizedEffect.estimate` also exposes native direct utilities for other
 assignment kernels. Those direct results are unlicensed and publish no
 interval. The retained `analyze` route supports Bernoulli, complete,
-stratified, cluster, and fixed-cell 2×2 factorial designs; unsupported
+stratified, cluster, fixed-cell 2×2 factorial, and independent multi-arm
+designs; unsupported
 combinations refuse there.
 
 ## Longitudinal regime value
@@ -841,9 +865,17 @@ violations, overflow, insufficient observed subjects, or a rank-deficient
 weighted design. Its CR1 subject-clustered sandwich standard errors are
 pointwise only; it makes no confidence-interval, simultaneous-coverage, or
 calibration claim. Fold IDs are preserved as subject ownership metadata when
-provided, but propensity fitting and out-of-fold status are not verified. This
-MSM utility also has no support-matrix license. Each row is one subject, so
-repeated periods cannot be split across analysis units.
+provided, but propensity fitting and out-of-fold status are not verified. The
+same native MSM kernel now also runs through the retained Study route:
+`LongitudinalRegimeQuery.marginal_structural_model(...)` can be passed to
+`prepare` or `analyze`, with subject-level fold ownership, probability and
+numerator positivity checks, assumptions, coefficients, pointwise CR1
+standard errors, and query/result artifact identity preserved. Its concise
+factory does not ask for a regime action because the MSM fits period
+coefficients rather than evaluating one policy. The direct and retained paths
+remain off the support-matrix axis, report no interval, and do not verify
+whether caller-supplied probabilities were trained out of fold. Each row is
+one subject, so repeated periods cannot be split across analysis units.
 
 ```python
 summary = ant.regimes.evaluate_regime_value(
@@ -867,6 +899,19 @@ msm = ant.regimes.fit_marginal_structural_model(
     outcome_observed=terminal_outcome_observed,
     censoring_survival=conditional_remaining_observed_probability,
 )
+
+query = ant.regimes.LongitudinalRegimeQuery.marginal_structural_model(
+    outcome="terminal_outcome",
+    treatment_history=treatment_by_subject_and_period,
+    treatment_probabilities=conditional_treatment_probability,
+    stabilizing_numerator_probabilities=[0.4, 0.3, 0.25],
+    subject_ids=subject_ids,
+    fold_ids=subject_fold_ids,
+    outcome_observed=terminal_outcome_observed,
+    censoring_probabilities=conditional_remaining_observed_probability,
+)
+retained = ant.analyze({"terminal_outcome": terminal_outcome}, query=query)
+period_effects = retained.longitudinal_regime.period_effects
 ```
 
 ## External estimator handoff and provider contracts
