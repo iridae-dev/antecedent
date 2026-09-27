@@ -382,6 +382,26 @@ impl CheckedRandomizedOperation {
                 message: "randomized effect or design variance is not finite under the declared probabilities",
             });
         }
+        let exact_test = if self.query.exact_randomization_test {
+            let antecedent_core::RandomizationDesign::Complete { treated_units } = &self.query.design else {
+                unreachable!("validated exact test requires complete randomization")
+            };
+            let observed = effect.abs();
+            let mut extreme = 0_u64;
+            let mut allocations = 0_u64;
+            let total = outcomes.iter().sum::<f64>();
+            for mask in 0..(1_u64 << n) {
+                if mask.count_ones() as usize != *treated_units { continue; }
+                let treated_sum = outcomes.iter().enumerate()
+                    .filter_map(|(i, value)| ((mask >> i) & 1 == 1).then_some(*value))
+                    .sum::<f64>();
+                let contrast = treated_sum / *treated_units as f64
+                    - (total - treated_sum) / (n - *treated_units) as f64;
+                allocations += 1;
+                if contrast.abs() + 1e-12 >= observed { extreme += 1; }
+            }
+            Some((extreme as f64 / allocations as f64, allocations))
+        } else { None };
         let estimate = EffectEstimate::new(
             effect,
             // The retained design variance lives in randomized_effect. Passing
@@ -432,6 +452,8 @@ impl CheckedRandomizedOperation {
             intention_to_treat_effect: complier_components.map(|(itt, _)| itt),
             first_stage_effect: complier_components.map(|(_, stage)| stage),
             received_treatment: self.query.received_treatment.clone(),
+            randomization_p_value: exact_test.map(|(p, _)| p),
+            randomization_allocations: exact_test.map(|(_, count)| count),
             variance_upper_bound: variance,
             minimum_assignment_probability: self
                 .query
@@ -745,6 +767,17 @@ pub(crate) fn randomized_identification(
                 status: AssumptionStatus::Declared,
             });
         }
+    }
+    if query.exact_randomization_test {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("fisher_sharp_null_two_sided"),
+                description: Arc::from("the reported exact p-value tests the sharp null of no unit-level assignment effect using the absolute difference in means over every fixed-count assignment"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Declared,
+        });
     }
     if matches!(query.design, antecedent_core::RandomizationDesign::Cluster { .. }) {
         assumptions.push(AssumptionRecord {

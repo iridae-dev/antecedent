@@ -20,6 +20,10 @@ pub struct RandomizedEffectSection {
     pub first_stage_effect: Option<f64>,
     /// Row-aligned observed receipt for CACE/LATE.
     pub received_treatment: Option<Vec<bool>>,
+    /// Exact two-sided Fisher sharp-null p-value.
+    pub randomization_p_value: Option<f64>,
+    /// Number of complete-design assignments enumerated.
+    pub randomization_allocations: Option<u64>,
     /// Design variance or conservative bound as labeled by uncertainty;
     /// switchback uses a sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,
@@ -55,6 +59,8 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             intention_to_treat_effect: value.intention_to_treat_effect,
             first_stage_effect: value.first_stage_effect,
             received_treatment: value.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
+            randomization_p_value: value.randomization_p_value,
+            randomization_allocations: value.randomization_allocations,
             variance_upper_bound: value.variance_upper_bound,
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),

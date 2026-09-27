@@ -353,6 +353,8 @@ class RandomizedEffectSection:
     intention_to_treat_effect: float | None
     first_stage_effect: float | None
     received_treatment: list[bool] | None
+    randomization_p_value: float | None
+    randomization_allocations: int | None
     variance_upper_bound: float
     minimum_assignment_probability: float
     assignment_design: str
@@ -1221,6 +1223,7 @@ class PreparedAnalysis:
         fixed_cuped: tuple[str, float] | None = None,
         periods: list[str] | None = None,
         received_treatment: list[bool] | None = None,
+        exact_randomization_test: bool = False,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

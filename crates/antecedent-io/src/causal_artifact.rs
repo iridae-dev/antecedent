@@ -578,6 +578,9 @@ pub(crate) fn validate_query_ids(
             if let Some(receipt) = &wire.received_treatment {
                 query = query.with_received_treatment(receipt.clone());
             }
+            if wire.exact_randomization_test {
+                query = query.with_exact_randomization_test();
+            }
             if (wire.estimand == crate::RandomizedEstimandWire::CaceLate)
                 != wire.received_treatment.is_some()
             {

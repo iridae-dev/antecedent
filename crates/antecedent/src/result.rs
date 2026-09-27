@@ -81,6 +81,10 @@ pub struct RandomizedEffectEstimate {
     pub first_stage_effect: Option<f64>,
     /// Row-aligned treatment receipt when estimating CACE/LATE.
     pub received_treatment: Option<Arc<[bool]>>,
+    /// Exact two-sided Fisher sharp-null p-value for a complete design.
+    pub randomization_p_value: Option<f64>,
+    /// Number of fixed-count assignments exhaustively enumerated.
+    pub randomization_allocations: Option<u64>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
     /// switchback uses an independent-sequence sandwich estimate. No interval is implied.
     pub variance_upper_bound: f64,

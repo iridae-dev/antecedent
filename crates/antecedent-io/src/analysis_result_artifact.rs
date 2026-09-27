@@ -510,6 +510,12 @@ pub struct RandomizedEffectWire {
     pub treatment_units: usize,
     /// Smallest declared assignment probability.
     pub minimum_assignment_probability: f64,
+    /// Exact two-sided Fisher sharp-null p-value, when requested.
+    #[serde(default)]
+    pub randomization_p_value: Option<f64>,
+    /// Number of complete-design allocations exhaustively enumerated.
+    #[serde(default)]
+    pub randomization_allocations: Option<u64>,
     /// Explicit no-interval uncertainty contract.
     pub uncertainty: String,
 }
@@ -870,6 +876,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 p.min(1.0 - p)
             } else { p })
             .fold(f64::INFINITY, f64::min);
+        let expected_allocations = if query.exact_randomization_test {
+            let n = query.realized_assignment.len() as u64;
+            let k = treated as u64;
+            Some((0..k).fold(1_u64, |count, i| count * (n - i) / (i + 1)))
+        } else { None };
         if result.estimate != Some(randomized.effect)
             || result.standard_error.is_some()
             || result.interval_lower.is_some()
@@ -881,6 +892,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             || randomized.uncertainty != uncertainty
             || randomized.estimand != if query.estimand == crate::RandomizedEstimandWire::CaceLate { "cace_late" } else { "itt" }
             || randomized.received_treatment != query.received_treatment
+            || randomized.randomization_allocations != expected_allocations
+            || (query.exact_randomization_test
+                && randomized.randomization_p_value.is_none_or(|p| !p.is_finite()
+                    || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0))
+            || (!query.exact_randomization_test && randomized.randomization_p_value.is_some())
             || (query.estimand == crate::RandomizedEstimandWire::CaceLate
                 && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
                     || randomized.first_stage_effect.is_none_or(|value| !value.is_finite() || value <= f64::EPSILON)

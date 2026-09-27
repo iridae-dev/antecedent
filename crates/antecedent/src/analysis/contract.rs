@@ -3287,6 +3287,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             intention_to_treat_effect: randomized.intention_to_treat_effect,
             first_stage_effect: randomized.first_stage_effect,
             received_treatment: randomized.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
+            randomization_p_value: randomized.randomization_p_value,
+            randomization_allocations: randomized.randomization_allocations,
             variance: randomized.variance_upper_bound,
             assignment_design: randomized.assignment_design.to_string(),
             assignment_units: randomized.assignment_units.iter().map(ToString::to_string).collect(),

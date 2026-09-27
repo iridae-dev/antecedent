@@ -368,6 +368,29 @@ def test_complier_effect_runs_in_retained_analyze_with_first_stage():
             [f"u{i}" for i in range(8)], [f"y{i}" for i in range(8)]), receipt)
 
 
+def test_exact_complete_randomization_inference_retains_fisher_p_value():
+    design = ant.ExperimentDesign(
+        ant.interference.CompleteRandomization(2), [True, True, False, False],
+        [f"u{i}" for i in range(4)], [f"y{i}" for i in range(4)],
+    )
+    query = ant.RandomizedEffect("y", design, exact_randomization_test=True)
+    result = ant.analyze({"y": [1.0, 2.0, 3.0, 4.0]}, query=query, refute="none")
+    assert result.answer.value == pytest.approx(-2.0)
+    assert result.randomized_effect.randomization_p_value == pytest.approx(1.0 / 3.0)
+    assert result.randomized_effect.randomization_allocations == 6
+    assert result.randomized_effect.variance == pytest.approx(0.5)
+    assert result.randomized_effect.uncertainty == "complete_neyman_variance_upper_bound_no_interval"
+    assert result.evidence_status == "off_axis"
+    assert any("fisher_sharp_null_two_sided" in item for item in result.assumptions or ())
+    with pytest.raises(CausalUnsupportedError, match="requires analyze or prepare"):
+        query.estimate({"y": [1.0, 2.0, 3.0, 4.0]})
+    with pytest.raises(CausalValueError, match="unadjusted complete"):
+        ant.RandomizedEffect("y", ant.ExperimentDesign(
+            ant.interference.BernoulliAssignment(0.5), [True, False, True, False],
+            [f"u{i}" for i in range(4)], [f"y{i}" for i in range(4)]),
+            exact_randomization_test=True)
+
+
 def test_switchback_refuses_unsupported_probability_and_single_sequence():
     with pytest.raises(CausalValueError, match="at least two independent sequences"):
         ant.SwitchbackDesign(

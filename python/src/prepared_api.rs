@@ -3362,7 +3362,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, received_treatment=None, accepted=false, seed=1, threads=None,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, periods=None, received_treatment=None, exact_randomization_test=false, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_randomized_effect(
@@ -3383,6 +3383,7 @@ impl PyPreparedAnalysis {
         fixed_cuped: Option<(String, f64)>,
         periods: Option<Vec<String>>,
         received_treatment: Option<Vec<bool>>,
+        exact_randomization_test: bool,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -3440,6 +3441,9 @@ impl PyPreparedAnalysis {
             }
             if let Some(received) = received_treatment {
                 query = query.with_received_treatment(received);
+            }
+            if exact_randomization_test {
+                query = query.with_exact_randomization_test();
             }
             query
                 .validate()
