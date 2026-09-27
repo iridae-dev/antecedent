@@ -316,16 +316,14 @@ impl CheckedRandomizedOperation {
                     .filter_map(|(assigned, total)| (!assigned).then_some(*total))
                     .collect();
                 let clusters = cluster_totals.len();
-                let scale = clusters as f64 / n as f64;
-                let effect = scale
-                    * (treated.iter().sum::<f64>() / treated.len() as f64
-                        - control.iter().sum::<f64>() / control.len() as f64);
-                let variance = scale.powi(2)
-                    * (sample_variance(&treated) / treated.len() as f64
-                        + sample_variance(&control) / control.len() as f64);
+                let fit = antecedent_estimate::randomized_neyman::complete_cluster_itt(
+                    &treated, &control, n,
+                ).ok_or(CausalError::Unsupported {
+                    message: "cluster-randomized ITT requires finite cluster totals and estimable variance",
+                })?;
                 (
-                    effect,
-                    variance,
+                    fit.effect,
+                    fit.variance_upper_bound,
                     clusters - treated_clusters,
                     *treated_clusters,
                     Arc::from([]),
