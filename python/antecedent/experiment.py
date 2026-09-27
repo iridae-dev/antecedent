@@ -321,6 +321,7 @@ class RandomizedEffect:
     design: ExperimentDesign
     _: KW_ONLY
     cuped: FixedCUPED | None = None
+    exact_randomization_test: bool = False
     kind: Literal["randomized_effect"] = field(default="randomized_effect", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -331,6 +332,9 @@ class RandomizedEffect:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
             if not isinstance(self.design.assignment, BernoulliAssignment):
                 raise CausalValueError("retained fixed CUPED currently requires Bernoulli assignment")
+        if self.exact_randomization_test:
+            if type(self.exact_randomization_test) is not bool or self.cuped is not None or not isinstance(self.design.assignment, CompleteRandomization) or len(self.design.realized_assignment) > 20:
+                raise CausalValueError("exact randomization inference requires an unadjusted complete two-arm design with at most 20 units")
 
     def to_interference_query(self) -> InterferenceQuery:
         """Lower ITT to the shared native randomization estimator contract."""
@@ -356,9 +360,14 @@ class RandomizedEffect:
         This direct estimator utility supports the underlying Bernoulli,
         complete, and cluster assignment kernels. Its variance is a
         conservative design-based variance bound, not a calibrated interval
-        or a support-matrix license. The ordinary ``analyze`` lifecycle still
-        requires a licensed support cell.
+        or a support-matrix license. Exact randomization inference is available
+        through the retained ``analyze`` or ``prepare`` route.
         """
+        if self.exact_randomization_test:
+            raise CausalUnsupportedError(
+                "exact randomization inference requires analyze or prepare to retain its null distribution contract",
+                reason_code="route_not_supported",
+            )
         if self.cuped is not None:
             raise CausalUnsupportedError(
                 "fixed CUPED is available through analyze or prepare; the direct estimator does not retain its coefficient",
@@ -446,6 +455,8 @@ class RandomizedExperimentEstimate:
     intention_to_treat_effect: float | None = None
     first_stage_effect: float | None = None
     received_treatment: tuple[bool, ...] | None = None
+    randomization_p_value: float | None = None
+    randomization_allocations: int | None = None
 
     @property
     def variance(self) -> float:

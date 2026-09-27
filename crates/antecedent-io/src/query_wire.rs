@@ -1051,6 +1051,9 @@ pub struct RandomizedEffectQueryWire {
     /// Row-aligned observed receipt for CACE/LATE.
     #[serde(default)]
     pub received_treatment: Option<Vec<bool>>,
+    /// Exhaustive two-sided Fisher sharp-null test for complete randomization.
+    #[serde(default)]
+    pub exact_randomization_test: bool,
 }
 
 /// Target estimand serialized with a randomized query.
@@ -1626,6 +1629,7 @@ pub fn causal_query_to_wire_with_registry(
                 },
                 fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
                 received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
+                exact_randomization_test: q.exact_randomization_test,
                 periods: match &q.design {
                     RandomizationDesign::Switchback { periods } => periods.iter().map(ToString::to_string).collect(),
                     _ => Vec::new(),
@@ -1732,8 +1736,8 @@ pub fn causal_query_to_wire_with_registry(
                 excluded_fold_predictions: q.excluded_fold_predictions,
                 probabilities_known_by_design: q.probabilities_known_by_design,
                 minimum_probability: q.minimum_probability,
-            },
-        ),
+            })
+        }
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
 }
@@ -1959,6 +1963,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             }
             if let Some(receipt) = &w.received_treatment {
                 query = query.with_received_treatment(receipt.clone());
+            }
+            if w.exact_randomization_test {
+                query = query.with_exact_randomization_test();
             }
             if (w.estimand == RandomizedEstimandWire::CaceLate) != w.received_treatment.is_some() {
                 return Err(IoError::Convert("CACE/LATE estimand and treatment receipt must agree".into()));
@@ -2439,6 +2446,16 @@ mod tests {
     #[test]
     fn repeated_cross_section_design_round_trips_and_differs_from_panel() {
         let subjects = ["a", "b", "c", "d", "e", "f", "g", "h"].map(Arc::<str>::from);
+        let fisher = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Complete { treated_units: 2 },
+            VariableId::from_raw(0), [true, true, false, false], [0.5; 4],
+            ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+            ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+            ("control", "treated"),
+        ).with_exact_randomization_test());
+        let fisher_wire = causal_query_to_wire(&fisher).unwrap();
+        assert_eq!(causal_query_from_wire(&fisher_wire).unwrap(), fisher);
+
         let clusters = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"].map(Arc::<str>::from);
         let panel = PanelDidQuery::new(
             VariableId::from_raw(0),

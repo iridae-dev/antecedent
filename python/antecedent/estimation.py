@@ -307,6 +307,8 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         intention_to_treat_effect=section.intention_to_treat_effect,
         first_stage_effect=section.first_stage_effect,
         received_treatment=tuple(section.received_treatment) if section.received_treatment is not None else None,
+        randomization_p_value=section.randomization_p_value,
+        randomization_allocations=section.randomization_allocations,
         treatment_arms=(section.control_arm, section.treatment_arm),
         control_units=section.control_units,
         treatment_units=section.treatment_units,
@@ -2697,6 +2699,7 @@ class _PrepareRoute:
             treated_per_row,
             treated_clusters=treated_clusters,
             fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
+            exact_randomization_test=query.exact_randomization_test,
             accepted=False,
             **self._common(),
         )

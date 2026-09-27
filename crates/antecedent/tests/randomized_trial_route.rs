@@ -112,6 +112,47 @@ fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
 }
 
 #[test]
+fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
+    let outcomes = [1.0, 2.0, 3.0, 4.0];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let base = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Complete { treated_units: 2 },
+        VariableId::from_raw(0), [true, true, false, false], [0.5; 4],
+        ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+        ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+        ("control", "treated"),
+    );
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = Study::tabular(data.clone()).query(base.clone().with_exact_randomization_test())
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let effect = result.randomized_effect.as_ref().unwrap();
+    assert_eq!(effect.effect, -2.0);
+    assert_eq!(effect.randomization_allocations, Some(6));
+    assert!((effect.randomization_p_value.unwrap() - 1.0 / 3.0).abs() < 1e-12);
+    assert_eq!(prepared.estimate(&data, &ctx).unwrap().randomized_effect.as_ref().unwrap().randomization_p_value,
+        effect.randomization_p_value);
+    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
+        &record.assumption, antecedent_core::Assumption::Custom { id, .. }
+        if id.as_ref() == "fisher_sharp_null_two_sided"
+    )));
+    let bytes = prepared.encode_contracted_result(&result, "fisher", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(artifact.randomized_effect.as_ref().unwrap().randomization_allocations, Some(6));
+    let mut fabricated = artifact;
+    fabricated.randomized_effect.as_mut().unwrap().randomization_p_value = Some(0.0);
+    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated-fisher").is_err());
+    let bernoulli = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+        ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+        ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+        ("control", "treated"),
+    ).with_exact_randomization_test();
+    assert!(bernoulli.validate().is_err());
+}
+
+#[test]
 fn switchback_itt_retains_periods_and_sequence_variance() {
     let assignment = [true, false, false, true].repeat(4);
     let outcomes = (0..4).flat_map(|sequence| {

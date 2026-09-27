@@ -70,6 +70,8 @@ pub struct RandomizedEffectQuery {
     pub fixed_cuped: Option<(VariableId, f64)>,
     /// Observed treatment receipt in row order for CACE/LATE.
     pub received_treatment: Option<Arc<[bool]>>,
+    /// Request exhaustive two-sided Fisher sharp-null randomization inference.
+    pub exact_randomization_test: bool,
 }
 
 impl RandomizedEffectQuery {
@@ -116,6 +118,7 @@ impl RandomizedEffectQuery {
             treatment_arms: (treatment_arms.0.into(), treatment_arms.1.into()),
             fixed_cuped: None,
             received_treatment: None,
+            exact_randomization_test: false,
         }
     }
 
@@ -134,8 +137,25 @@ impl RandomizedEffectQuery {
         self
     }
 
+    /// Enumerate every fixed-count assignment under the Fisher sharp null.
+    #[must_use]
+    pub fn with_exact_randomization_test(mut self) -> Self {
+        self.exact_randomization_test = true;
+        self
+    }
+
     /// Validate row alignment, allocations, and assignment probabilities.
     pub fn validate(&self) -> Result<(), QueryError> {
+        if self.exact_randomization_test
+            && (!matches!(self.design, RandomizationDesign::Complete { .. })
+                || self.received_treatment.is_some()
+                || self.fixed_cuped.is_some()
+                || self.realized_assignment.len() > 20)
+        {
+            return Err(QueryError::InvalidRandomizedEffect(
+                "exact randomization inference requires an unadjusted complete two-arm design with at most 20 units".into(),
+            ));
+        }
         if self.estimand == RandomizedEstimand::ComplierAverageCausalEffect {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || self.fixed_cuped.is_some()
