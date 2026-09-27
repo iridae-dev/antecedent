@@ -3,12 +3,12 @@
 import antecedent
 import pytest
 from antecedent.errors import CausalUnsupportedError
-from antecedent.regimes import LongitudinalRegimeQuery
+from antecedent.regimes import LongitudinalRegime
 
 
 def fixture():
     data = {"y": [4.0, 0.0, 0.0, 0.0], "id": ["a", "b", "c", "d"]}
-    query = LongitudinalRegimeQuery(
+    query = LongitudinalRegime(
         outcome="y",
         treatment_history=[[True, True], [True, False], [False, True], [False, False]],
         actions=[True, True],
@@ -57,7 +57,7 @@ def test_retained_ipw_interval_on_independent_subject_histories_round_trips():
         for i in range(n)
     ]
     data = {"y": [4.0 if i % 4 == 0 else 0.0 for i in range(n)]}
-    query = LongitudinalRegimeQuery(
+    query = LongitudinalRegime(
         outcome="y", treatment_history=history, actions=[True, True],
         treatment_probabilities=[[0.5, 0.5]] * n,
         subject_ids=[f"subject-{i}" for i in range(n)],
@@ -80,7 +80,7 @@ def test_retained_msm_intercept_and_period_intervals_round_trip():
     treatment = [[bool((i % 4) // 2), bool((i % 4) % 2)] for i in range(n)]
     y = [1.0 + 2.0 * int(a0) + 3.0 * int(a1) + (i % 7) / 10
          for i, (a0, a1) in enumerate(treatment)]
-    query = LongitudinalRegimeQuery.marginal_structural_model(
+    query = LongitudinalRegime.marginal_structural_model(
         outcome="y", treatment_history=treatment,
         treatment_probabilities=[[0.5, 0.5]] * n,
         stabilizing_numerator_probabilities=[0.5, 0.5],
@@ -110,7 +110,7 @@ def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_val
         seen.append((period, past_actions, covariates_through_period))
         return bool(covariates_through_period[0][0] > 0) if period == 0 else past_actions[0]
 
-    query = LongitudinalRegimeQuery.from_dynamic_rule(
+    query = LongitudinalRegime.from_dynamic_rule(
         outcome="y", treatment_history=static.treatment_history,
         predecision_covariates=[[[1.0], [99.0]], [[1.0], [99.0]],
                                 [[-1.0], [99.0]], [[-1.0], [99.0]]],
@@ -146,11 +146,11 @@ def test_dynamic_rule_refuses_invalid_identity_future_covariate_shape_and_nonbin
                 subject_ids=static.subject_ids, rule_id="rule", rule_version="v1",
                 rule_provenance="protocol")
     with pytest.raises(ValueError, match="rule_provenance"):
-        LongitudinalRegimeQuery.from_dynamic_rule(**{**args, "rule_provenance": ""}, rule=lambda *_: True)
+        LongitudinalRegime.from_dynamic_rule(**{**args, "rule_provenance": ""}, rule=lambda *_: True)
     with pytest.raises(ValueError, match="subject-by-period-by-feature"):
-        LongitudinalRegimeQuery.from_dynamic_rule(**{**args, "predecision_covariates": [[1.0, 2.0]] * 4}, rule=lambda *_: True)
+        LongitudinalRegime.from_dynamic_rule(**{**args, "predecision_covariates": [[1.0, 2.0]] * 4}, rule=lambda *_: True)
     with pytest.raises(ValueError, match="binary bool"):
-        LongitudinalRegimeQuery.from_dynamic_rule(**args, rule=lambda *_: 1)
+        LongitudinalRegime.from_dynamic_rule(**args, rule=lambda *_: 1)
 
 
 def test_dynamic_rule_skips_decisions_and_covariates_after_dropout():
@@ -161,7 +161,7 @@ def test_dynamic_rule_skips_decisions_and_covariates_after_dropout():
         calls.append((period, past, covariates))
         return True
 
-    query = LongitudinalRegimeQuery.from_dynamic_rule(
+    query = LongitudinalRegime.from_dynamic_rule(
         outcome="y", treatment_history=static.treatment_history,
         predecision_covariates=[[[1.0], [2.0]], [[1.0], [float("nan")]],
                                 [[1.0], [2.0]], [[1.0], [2.0]]],
@@ -177,7 +177,7 @@ def test_dynamic_rule_skips_decisions_and_covariates_after_dropout():
     assert len(calls) == 7
     assert query.actions[1] == (True, False)
     with pytest.raises(ValueError, match="monotone after dropout"):
-        LongitudinalRegimeQuery.from_dynamic_rule(
+        LongitudinalRegime.from_dynamic_rule(
             outcome="y", treatment_history=static.treatment_history,
             predecision_covariates=[[[1.0], [2.0]]] * 4,
             rule=rule, rule_id="bad-dropout", rule_version="v1", rule_provenance="protocol",
@@ -193,12 +193,12 @@ def test_dynamic_rule_skips_decisions_and_covariates_after_dropout():
 def test_longitudinal_refuses_unsupported_nuisance_ownership_and_bad_subjects():
     data, query = fixture()
     with pytest.raises(ValueError, match="distinct non-empty"):
-        LongitudinalRegimeQuery(
+        LongitudinalRegime(
             outcome="y", treatment_history=query.treatment_history,
             actions=query.actions, treatment_probabilities=query.treatment_probabilities,
             subject_ids=["a", "a", "c", "d"],
         )
-    unsupported = LongitudinalRegimeQuery(
+    unsupported = LongitudinalRegime(
         outcome="y", treatment_history=query.treatment_history,
         actions=query.actions, treatment_probabilities=query.treatment_probabilities,
         subject_ids=query.subject_ids, fold_ids=[0, 1, 0, 1],
@@ -210,7 +210,7 @@ def test_longitudinal_refuses_unsupported_nuisance_ownership_and_bad_subjects():
 
 def test_g_formula_regime_uses_main_analysis_and_round_trips_method():
     data, base = fixture()
-    query = LongitudinalRegimeQuery(
+    query = LongitudinalRegime(
         outcome="y",
         treatment_history=base.treatment_history,
         actions=base.actions,
@@ -243,16 +243,16 @@ def test_g_formula_query_refuses_missing_or_nonfinite_predictions():
         method="g_formula",
     )
     with pytest.raises(ValueError, match="requires finite"):
-        LongitudinalRegimeQuery(**args)
+        LongitudinalRegime(**args)
     with pytest.raises(ValueError, match="requires finite"):
-        LongitudinalRegimeQuery(**args, period_outcome_predictions=[[float("nan"), 1.0]] * 4)
+        LongitudinalRegime(**args, period_outcome_predictions=[[float("nan"), 1.0]] * 4)
 
 
 def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
     from antecedent.regimes import evaluate_sequential_doubly_robust
 
     data = {"y": [7.0, 99.0, float("nan"), 8.0]}
-    query = LongitudinalRegimeQuery(
+    query = LongitudinalRegime(
         outcome="y", method="sequential_dr",
         treatment_history=[[False, False], [False, True], [False, False], [True, True]],
         actions=[False, False],
@@ -294,7 +294,7 @@ def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
     outcomes = [2.0 + int(a0) + int(a1) + ((i % 7) - 3) / 10
                 for i, (a0, a1) in enumerate(treatment)]
     folds = [i % 5 for i in range(n)]
-    query = LongitudinalRegimeQuery(
+    query = LongitudinalRegime(
         outcome="y", method="sequential_dr", treatment_history=treatment,
         actions=[True, True], treatment_probabilities=[[0.5, 0.5]] * n,
         q_predictions=[[4.0, 4.0]] * n, observation_history=[[True, True]] * n,
@@ -330,7 +330,7 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
         subject_ids=[f"three-{i}" for i in range(n)], fold_ids=folds,
         prediction_fold_ids=folds, excluded_fold_predictions=True,
     )
-    result = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**args))
+    result = antecedent.analyze({"y": outcomes}, query=LongitudinalRegime(**args))
     value = result.longitudinal_regime
     assert value.value_interval_95[0] < 5.0 < value.value_interval_95[1]
     assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
@@ -350,7 +350,7 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
         q_predictions=[[6.0] * 4] * n,
         observation_history=[[True] * 4] * n,
     )
-    unsupported = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**four)).longitudinal_regime
+    unsupported = antecedent.analyze({"y": outcomes}, query=LongitudinalRegime(**four)).longitudinal_regime
     assert unsupported.value_interval_95 is None
     assert unsupported.uncertainty == "point_only_no_interval"
     assert unsupported.support_status == "unlicensed_point_utility"
@@ -371,7 +371,7 @@ def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_
         subject_ids=[f"two-{i}" for i in range(n)], fold_ids=folds,
         prediction_fold_ids=folds, excluded_fold_predictions=True,
     )
-    result = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**args))
+    result = antecedent.analyze({"y": outcomes}, query=LongitudinalRegime(**args))
     value = result.longitudinal_regime
     assert value.value_interval_95 is not None
     assert value.support_status == "licensed"
@@ -386,7 +386,7 @@ def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_
     args["observation_history"] = args["observation_history"][:499]
     args["fold_ids"] = args["fold_ids"][:499]
     args["prediction_fold_ids"] = args["prediction_fold_ids"][:499]
-    small = antecedent.analyze({"y": outcomes[:499]}, query=LongitudinalRegimeQuery(**args))
+    small = antecedent.analyze({"y": outcomes[:499]}, query=LongitudinalRegime(**args))
     assert small.longitudinal_regime.value_interval_95 is None
     assert small.longitudinal_regime.support_status == "unlicensed_point_utility"
 
@@ -399,9 +399,9 @@ def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation()
                 excluded_fold_predictions=True, q_predictions=[[1.0, 1.0]] * 4,
                 observation_history=[[True, True]] * 4)
     with pytest.raises(ValueError, match="fold ownership"):
-        LongitudinalRegimeQuery(**args, prediction_fold_ids=[1, 1, 0, 1])
+        LongitudinalRegime(**args, prediction_fold_ids=[1, 1, 0, 1])
     with pytest.raises(ValueError, match="monotone"):
-        LongitudinalRegimeQuery(**{**args, "observation_history": [[False, True]] + [[True, True]] * 3},
+        LongitudinalRegime(**{**args, "observation_history": [[False, True]] + [[True, True]] * 3},
                                 prediction_fold_ids=[0, 1, 0, 1])
 
 
@@ -418,7 +418,7 @@ def test_msm_retained_matches_direct_and_round_trips_pointwise_uncertainty():
         stabilizing_numerator_probabilities=[0.5, 0.5], subject_ids=ids,
         fold_ids=[i % 4 for i in range(16)],
     )
-    query = LongitudinalRegimeQuery.marginal_structural_model(
+    query = LongitudinalRegime.marginal_structural_model(
         outcome="y", treatment_history=histories,
         treatment_probabilities=np.full((16, 2), 0.5),
         stabilizing_numerator_probabilities=[0.5, 0.5],
@@ -448,10 +448,10 @@ def test_msm_retained_refuses_invalid_numerators_and_unowned_probabilities():
                 actions=[False, False], treatment_probabilities=[[0.5, 0.5]] * 8,
                 subject_ids=[f"s{i}" for i in range(8)])
     with pytest.raises(ValueError, match="requires one finite"):
-        LongitudinalRegimeQuery(**args)
+        LongitudinalRegime(**args)
     with pytest.raises(ValueError, match="positivity floor"):
-        LongitudinalRegimeQuery(**args, stabilizing_numerator_probabilities=[0.0, 0.5])
-    query = LongitudinalRegimeQuery(**args, stabilizing_numerator_probabilities=[0.5, 0.5],
+        LongitudinalRegime(**args, stabilizing_numerator_probabilities=[0.0, 0.5])
+    query = LongitudinalRegime(**args, stabilizing_numerator_probabilities=[0.5, 0.5],
                                     probabilities_known_by_design=False,
                                     excluded_fold_predictions=True, fold_ids=[0, 1] * 4)
     with pytest.raises(CausalUnsupportedError, match="known sequential randomization"):

@@ -25,7 +25,7 @@ Regime: TypeAlias = Sequence[bool] | HistoryPolicy
 
 
 @dataclass(frozen=True, slots=True)
-class LongitudinalRegimeQuery:
+class LongitudinalRegime:
     """Prespecified binary regime over complete subject histories.
 
     Each outcome row belongs to one subject. Assignment probabilities are
@@ -185,7 +185,7 @@ class LongitudinalRegimeQuery:
         excluded_fold_predictions: bool = False,
         probabilities_known_by_design: bool = True,
         minimum_probability: float = 0.01,
-    ) -> LongitudinalRegimeQuery:
+    ) -> LongitudinalRegime:
         """Freeze a binary rule against observed pre-decision histories.
 
         At period ``t``, ``rule(t, past_actions, covariates_through_t)`` sees
@@ -255,7 +255,7 @@ class LongitudinalRegimeQuery:
         excluded_fold_predictions: bool = False,
         probabilities_known_by_design: bool = True,
         minimum_probability: float = 0.01,
-    ) -> LongitudinalRegimeQuery:
+    ) -> LongitudinalRegime:
         """Specify an additive MSM without an irrelevant regime-action argument.
 
         The model still uses the ordinary subject-history Study query and the
@@ -844,6 +844,8 @@ def fit_marginal_structural_model(
 
 
 __all__ = [
+    "LongitudinalRegime",
+    "LongitudinalRegimeEstimate",
     "GFormulaValue",
     "DoublyRobustRegimeValue",
     "HistoryPolicy",

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import antecedent as ant
 import pytest
-from antecedent.regimes import LongitudinalRegimeQuery
+from antecedent.regimes import LongitudinalRegime
 
 
-def _query(subjects: int, *, known: bool) -> LongitudinalRegimeQuery:
+def _query(subjects: int, *, known: bool) -> LongitudinalRegime:
     baseline = [(-1.0 if subject % 2 == 0 else 1.0) for subject in range(subjects)]
-    return LongitudinalRegimeQuery(
+    return LongitudinalRegime(
         outcome="y",
         method="g_formula",
         treatment_history=[[False, False]] * subjects,

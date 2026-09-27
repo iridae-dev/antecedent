@@ -347,6 +347,7 @@ _EXPECTED_STAGE_ALL = {
         "estimate_augmented_panel_did",
     },
     "regimes": {
+        "LongitudinalRegime", "LongitudinalRegimeEstimate",
         "DoublyRobustRegimeValue", "GFormulaValue", "HistoryPolicy", "Regime",
         "RegimeValue", "evaluate_regime_value", "evaluate_sequential_doubly_robust",
         "evaluate_sequential_gformula", "MarginalStructuralModelResult",

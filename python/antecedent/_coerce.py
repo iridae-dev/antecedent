@@ -182,7 +182,7 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
-    from .regimes import LongitudinalRegimeQuery
+    from .regimes import LongitudinalRegime
     from .survival import CompetingRisksOutcome, SurvivalOutcome
     from .transport import Transport
     from .transport.advanced import TransportQuery
@@ -226,7 +226,7 @@ def coerce_query(value: Any) -> Any:
         FuzzyRegressionDiscontinuity,
         RegressionKink,
         SharpRegressionDiscontinuity,
-        LongitudinalRegimeQuery,
+        LongitudinalRegime,
         SurvivalOutcome,
         CompetingRisksOutcome,
     )

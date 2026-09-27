@@ -133,7 +133,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .regimes import LongitudinalRegimeEstimate, LongitudinalRegimeQuery
+from .regimes import LongitudinalRegimeEstimate, LongitudinalRegime
 from .results import (
     AnalysisResult,
     CausalResponseView,
@@ -2012,7 +2012,7 @@ _PreparedQuery = (
     | SharpRegressionDiscontinuity
     | SurvivalOutcome
     | CompetingRisksOutcome
-    | LongitudinalRegimeQuery
+    | LongitudinalRegime
 )
 
 
@@ -2235,7 +2235,7 @@ def _continuous_dose_payload(
 
 
 def _longitudinal_regime_payload(
-    data: Any, query: LongitudinalRegimeQuery
+    data: Any, query: LongitudinalRegime
 ) -> tuple[list[str], list[Any]]:
     """Send the numeric endpoint to Rust; histories remain frozen query metadata."""
     from .quasi import _raw_columns
@@ -2429,7 +2429,7 @@ class _PrepareRoute:
             return self._sharp_rd()
         if isinstance(query, (FuzzyRegressionDiscontinuity, RegressionKink)):
             return self._local_polynomial_ratio()
-        if isinstance(query, LongitudinalRegimeQuery):
+        if isinstance(query, LongitudinalRegime):
             return self._longitudinal_regime()
         if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
             return self._survival()
@@ -3345,22 +3345,22 @@ class _PrepareRoute:
         return native, "average"
 
     def _longitudinal_regime(self) -> tuple[Any, Literal["average"]]:
-        query = cast(LongitudinalRegimeQuery, self.query)
+        query = cast(LongitudinalRegime, self.query)
         if self.graph is not None or self.discovery is not None:
             raise CausalUnsupportedError(
-                "LongitudinalRegimeQuery carries its own sequential design and does not accept graph= or discovery=",
+                "LongitudinalRegime carries its own sequential design and does not accept graph= or discovery=",
                 reason_code="option_not_applicable",
             )
-        self._refuse_ids("LongitudinalRegimeQuery")
-        self._refuse_estimator_config("LongitudinalRegimeQuery")
+        self._refuse_ids("LongitudinalRegime")
+        self._refuse_estimator_config("LongitudinalRegime")
         if self._explicit_refute() or self.bootstrap:
             raise CausalUnsupportedError(
-                "LongitudinalRegimeQuery has no refutation or bootstrap route",
+                "LongitudinalRegime has no refutation or bootstrap route",
                 reason_code="option_not_applicable",
             )
         if self.inference is not None and not isinstance(self.inference, Frequentist):
             raise CausalUnsupportedError(
-                "LongitudinalRegimeQuery supports frequentist inference only",
+                "LongitudinalRegime supports frequentist inference only",
                 reason_code="option_not_applicable",
             )
         if not query.probabilities_known_by_design:
@@ -4588,7 +4588,7 @@ class PreparedAnalysis(Generic[ResultT]):
         elif isinstance(query, ConditionalDoseResponse):
             names, columns, design_columns = _continuous_dose_payload(data, query)
             frame = None
-        elif isinstance(query, LongitudinalRegimeQuery):
+        elif isinstance(query, LongitudinalRegime):
             names, columns = _longitudinal_regime_payload(data, query)
             frame = None
         else:
@@ -4899,7 +4899,7 @@ class PreparedAnalysis(Generic[ResultT]):
                     reason_code="invalid_argument",
                 )
             return names, columns, None
-        if isinstance(query, LongitudinalRegimeQuery):
+        if isinstance(query, LongitudinalRegime):
             names, columns = _longitudinal_regime_payload(data, query)
             return names, columns, None
         if isinstance(query, ResponseCurve) and query.observation is not None:

@@ -1028,7 +1028,7 @@ combinations refuse there.
 
 ## Longitudinal regime value
 
-`antecedent.regimes.LongitudinalRegimeQuery` retains one outcome row per
+`antecedent.regimes.LongitudinalRegime` retains one outcome row per
 subject and the subject's complete binary treatment history in graphless
 `prepare` / `analyze`. It accepts a static action sequence or a prespecified
 action matrix, known sequential randomization probabilities, optional
@@ -1039,7 +1039,7 @@ rows. The answer is point-only with no effect or interval placeholder.
 Caller-estimated probabilities are refused on this retained path, and no
 support-matrix license or cross-fitting claim is made.
 
-`LongitudinalRegimeQuery.from_dynamic_rule(...)` resolves a binary callback
+`LongitudinalRegime.from_dynamic_rule(...)` resolves a binary callback
 against each subject's observed history before `prepare` or `analyze`. At
 decision `t`, the callback receives only actions before `t` and covariates
 available through `t`; it must return a boolean. The caller must supply a
@@ -1144,7 +1144,7 @@ weighted design. Its CR1 subject-clustered sandwich standard errors are
 pointwise. Fold IDs are preserved as subject ownership metadata when
 provided, but propensity fitting and out-of-fold status are not verified. The
 same native MSM kernel now also runs through the retained Study route:
-`LongitudinalRegimeQuery.marginal_structural_model(...)` can be passed to
+`LongitudinalRegime.marginal_structural_model(...)` can be passed to
 `prepare` or `analyze`, with subject-level fold ownership, probability and
 numerator positivity checks, assumptions, coefficients, pointwise CR1
 standard errors, and query/result artifact identity preserved. Its concise
@@ -1188,7 +1188,7 @@ msm = ant.regimes.fit_marginal_structural_model(
     censoring_survival=conditional_remaining_observed_probability,
 )
 
-query = ant.regimes.LongitudinalRegimeQuery.marginal_structural_model(
+query = ant.regimes.LongitudinalRegime.marginal_structural_model(
     outcome="terminal_outcome",
     treatment_history=treatment_by_subject_and_period,
     treatment_probabilities=conditional_treatment_probability,
