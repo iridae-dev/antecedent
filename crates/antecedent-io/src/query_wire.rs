@@ -839,6 +839,15 @@ pub struct PanelDidQueryWire {
     /// True for repeated cross sections; absent in older balanced-panel artifacts.
     #[serde(default)]
     pub repeated_cross_section: bool,
+    /// Selected staggered cohort-period comparison, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staggered_target: Option<(i64, i64)>,
+    /// Calendar periods for a staggered panel.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub periods: Vec<i64>,
+    /// Adoption cohorts; zero denotes never treated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cohorts: Vec<i64>,
     /// Row-aligned treatment and period indicators.
     pub treated: Vec<bool>,
     /// Row-aligned pre/post indicator.
@@ -1485,6 +1494,9 @@ pub fn causal_query_to_wire_with_registry(
             outcome: q.outcome.raw(),
             repeated_cross_section: q.design
                 == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
+            staggered_target: q.target,
+            periods: q.periods.to_vec(),
+            cohorts: q.cohorts.to_vec(),
             treated: q.treated.to_vec(),
             post: q.post.to_vec(),
             subjects: q.subjects.iter().map(ToString::to_string).collect(),
@@ -1768,18 +1780,41 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             CausalQuery::PolicyValue(q)
         }
         CausalQueryWire::PanelDid(w) => {
-            let constructor = if w.repeated_cross_section {
-                PanelDidQuery::repeated_cross_section
+            let q = if let Some((cohort, period)) = w.staggered_target {
+                if w.repeated_cross_section {
+                    return Err(IoError::Convert("staggered DiD cannot also be a repeated cross section".into()));
+                }
+                PanelDidQuery::staggered_group_time(
+                    VariableId::from_raw(w.outcome),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.periods.clone(),
+                    w.cohorts.clone(),
+                    cohort,
+                    period,
+                )
             } else {
-                PanelDidQuery::new
+                let constructor = if w.repeated_cross_section {
+                    PanelDidQuery::repeated_cross_section
+                } else {
+                    PanelDidQuery::new
+                };
+                constructor(
+                    VariableId::from_raw(w.outcome),
+                    w.treated.clone(),
+                    w.post.clone(),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                )
             };
-            let q = constructor(
-                VariableId::from_raw(w.outcome),
-                w.treated.clone(),
-                w.post.clone(),
-                w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-            );
+            if w.staggered_target.is_some()
+                && (q.treated.as_ref() != w.treated.as_slice()
+                    || q.post.as_ref() != w.post.as_slice())
+            {
+                return Err(IoError::Convert(
+                    "staggered DiD treatment and post indicators disagree with cohort and period metadata".into(),
+                ));
+            }
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::PanelDid(q)
         }
@@ -2148,6 +2183,23 @@ mod tests {
         let bytes = to_cbor(&wire).unwrap();
         let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
         assert_eq!(causal_query_from_wire(&decoded).unwrap(), CausalQuery::PanelDid(rcs));
+    }
+
+    #[test]
+    fn staggered_group_time_design_round_trips_with_target_and_histories() {
+        let query = CausalQuery::PanelDid(PanelDidQuery::staggered_group_time(
+            VariableId::from_raw(0),
+            ["a", "a", "b", "b", "c", "c", "d", "d"].map(Arc::<str>::from),
+            ["ca", "ca", "cb", "cb", "cc", "cc", "cd", "cd"].map(Arc::<str>::from),
+            [2, 3, 2, 3, 2, 3, 2, 3],
+            [0, 0, 0, 0, 3, 3, 3, 3],
+            3,
+            3,
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
     }
 
     #[test]

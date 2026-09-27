@@ -660,7 +660,17 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("quasi.parallel_trends")),
-                        estimator: Some(Arc::from("quasi.panel_change_score")),
+                        estimator: Some(Arc::from(match q.design {
+                            antecedent_core::DidSamplingDesign::BalancedPanel => {
+                                "quasi.panel_change_score"
+                            }
+                            antecedent_core::DidSamplingDesign::RepeatedCrossSection => {
+                                "quasi.repeated_cross_section_four_cell"
+                            }
+                            antecedent_core::DidSamplingDesign::StaggeredGroupTime => {
+                                "quasi.staggered_group_time_never_treated"
+                            }
+                        })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },

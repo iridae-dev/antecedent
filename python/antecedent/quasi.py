@@ -155,6 +155,8 @@ class PanelDifferenceInDifferencesEstimate:
         "independent_sampling_clusters",
     )
     support_status: str = "unlicensed_point_utility"
+    cohort: int | None = None
+    period: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +167,9 @@ class StaggeredAdoption:
     subject: str
     period: str
     cohort: str
+    target_cohort: int | None = None
+    target_period: int | None = None
+    cluster: str | None = None
 
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.period, self.cohort)
@@ -172,6 +177,16 @@ class StaggeredAdoption:
             raise CausalValueError("outcome, subject, period, and cohort must be non-empty column names")
         if len(set(fields)) != len(fields):
             raise CausalValueError("outcome, subject, period, and cohort must name distinct columns")
+        if (self.target_cohort is None) != (self.target_period is None):
+            raise CausalValueError("target_cohort and target_period must be supplied together")
+        if self.target_cohort is not None and (
+            isinstance(self.target_cohort, bool) or not isinstance(self.target_cohort, int)
+            or isinstance(self.target_period, bool) or not isinstance(self.target_period, int)
+            or self.target_cohort <= 1 or self.target_period < self.target_cohort
+        ):
+            raise CausalValueError("selected staggered comparison needs cohort > 1 and period >= cohort")
+        if self.cluster is not None and (not isinstance(self.cluster, str) or not self.cluster.strip() or self.cluster in fields):
+            raise CausalValueError("cluster must be a distinct non-empty column name")
 
 
 @dataclass(frozen=True, slots=True)
@@ -582,6 +597,8 @@ def estimate_group_time_att(
 
     if not isinstance(query, StaggeredAdoption):
         raise CausalValueError("query must be a StaggeredAdoption")
+    if cluster is None:
+        cluster = query.cluster
     names, columns = _raw_columns(data)
     for name in (query.outcome, query.subject, query.period, query.cohort):
         if name not in names:
@@ -630,6 +647,8 @@ def estimate_staggered_event_study(
     """
     if not isinstance(query, StaggeredAdoption):
         raise CausalValueError("query must be a StaggeredAdoption")
+    if cluster is None:
+        cluster = query.cluster
     names, columns = _raw_columns(data)
     for name in (query.outcome, query.subject, query.period, query.cohort):
         if name not in names:

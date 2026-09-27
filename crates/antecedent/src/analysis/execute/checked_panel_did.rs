@@ -85,6 +85,9 @@ impl CheckedPanelDidOperation {
                 });
             }
         };
+        if self.query.design == antecedent_core::DidSamplingDesign::StaggeredGroupTime {
+            return self.execute_staggered_group_time(data, y);
+        }
         if self.query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
             return self.execute_repeated_cross_section(data, y);
         }
@@ -201,6 +204,129 @@ impl CheckedPanelDidOperation {
             treated_subjects: counts[1],
             comparison_subjects: counts[0],
             clusters: g,
+            uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
+        });
+        result.treatment = None;
+        Ok(result)
+    }
+
+    fn execute_staggered_group_time(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let (cohort, period) = self.query.target.expect("checked staggered target");
+        let baseline = cohort - 1;
+        let mut all_periods = BTreeSet::new();
+        let mut subjects: BTreeMap<&str, (i64, &str, BTreeMap<i64, f64>)> = BTreeMap::new();
+        for (i, value) in y.iter().enumerate() {
+            if !value.is_finite() {
+                return Err(CausalError::Unsupported {
+                    message: "staggered DiD requires complete finite outcomes",
+                });
+            }
+            let id = self.query.subjects[i].as_ref();
+            let cluster = self.query.clusters[i].as_ref();
+            let g = self.query.cohorts[i];
+            let t = self.query.periods[i];
+            all_periods.insert(t);
+            let entry = subjects.entry(id).or_insert_with(|| (g, cluster, BTreeMap::new()));
+            if entry.0 != g || entry.1 != cluster {
+                return Err(CausalError::Compile {
+                    message: "cohort and cluster must be stable within subject".into(),
+                });
+            }
+            if entry.2.insert(t, *value).is_some() {
+                return Err(CausalError::Compile {
+                    message: "each subject must have one outcome per period".into(),
+                });
+            }
+        }
+        if !all_periods.contains(&baseline)
+            || !all_periods.contains(&period)
+            || subjects.values().any(|unit| {
+                unit.2.len() != all_periods.len()
+                    || all_periods.iter().any(|t| !unit.2.contains_key(t))
+            })
+        {
+            return Err(CausalError::Compile { message: "staggered DiD requires a balanced panel with the target and immediately preceding adoption period".into() });
+        }
+        let selected: [Vec<_>; 2] = [
+            subjects.values().filter(|unit| unit.0 == 0).collect(),
+            subjects.values().filter(|unit| unit.0 == cohort).collect(),
+        ];
+        if selected.iter().any(Vec::is_empty) {
+            return Err(CausalError::Compile { message: "staggered DiD requires never-treated controls and subjects in the selected adoption cohort".into() });
+        }
+        let means: [f64; 2] = std::array::from_fn(|group| {
+            let units = &selected[group];
+            units.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>()
+                / units.len() as f64
+        });
+        let effect = means[1] - means[0];
+        let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
+        let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
+        for group in 0..2 {
+            for unit in &selected[group] {
+                group_clusters[group].insert(unit.1);
+                let change = unit.2[&period] - unit.2[&baseline];
+                *scores.entry(unit.1).or_default() += (if group == 1 { 1.0 } else { -1.0 })
+                    * (change - means[group])
+                    / selected[group].len() as f64;
+            }
+        }
+        if group_clusters.iter().any(|set| set.len() < 2) {
+            return Err(CausalError::Unsupported {
+                message: "staggered DiD cluster SE requires at least two clusters in the selected cohort and never-treated controls",
+            });
+        }
+        let cluster_count = scores.len();
+        let variance = cluster_count as f64 / (cluster_count - 1) as f64
+            * scores.values().map(|score| score * score).sum::<f64>();
+        let se = variance.sqrt();
+        let estimate = EffectEstimate::new(
+            effect,
+            se,
+            self.identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish {
+                physical: &self.physical,
+                identification: self.identification.clone(),
+                estimand: self.estimand.clone(),
+                estimate,
+                identifier_id: IdentifierId::RandomizedDesign,
+                estimator_id: EstimatorId::RandomizedHt,
+                treatment: self.query.outcome,
+                outcome: self.query.outcome,
+                identify_cached: false,
+                extra_diagnostics: vec![Diagnostic::new(
+                    "estimate.quasi.staggered_group_time.cluster_se",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!(
+                        "cohort {cohort}, period {period}, baseline {baseline}; never-treated controls; cluster score sandwich SE; no interval or parallel-trends test"
+                    ),
+                )],
+                refutations: Vec::new(),
+                distribution: None,
+                mediation: None,
+                wall_time_ns: 0,
+                bootstrap_replicates_ok: None,
+                cancelled: false,
+                early_stopped: false,
+                extras: IdentifiedExecuteExtras::default(),
+            },
+        );
+        result.panel_did = Some(crate::PanelDidEstimate {
+            effect,
+            standard_error: se,
+            treated_subjects: selected[1].len(),
+            comparison_subjects: selected[0].len(),
+            clusters: cluster_count,
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
         });
         result.treatment = None;
@@ -332,18 +458,35 @@ pub(crate) fn panel_did_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    let staggered = query.design == antecedent_core::DidSamplingDesign::StaggeredGroupTime;
     for (id, description) in [
         (
-            "parallel_trends",
-            "in the absence of treatment, treated and comparison groups would have had equal mean outcome changes",
+            if staggered { "cohort_specific_parallel_untreated_trends" } else { "parallel_trends" },
+            "in the absence of treatment, the selected cohort and never-treated comparison would have had equal mean outcome changes",
         ),
         ("no_anticipation", "treatment does not affect pre-period outcomes"),
-        ("stable_group", "the treatment-group definition is stable across periods"),
+        (
+            if staggered { "absorbing_treatment_after_adoption" } else { "stable_group" },
+            "the treatment group and adoption history are stable across periods",
+        ),
     ] {
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
                 id: Arc::from(id),
                 description: Arc::from(description),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+    if staggered {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from("never_treated_controls_are_valid"),
+                description: Arc::from(
+                    "cohort zero is a valid untreated comparison group in the target period",
+                ),
             },
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Identification,
@@ -358,6 +501,10 @@ pub(crate) fn panel_did_identification(
         antecedent_core::DidSamplingDesign::RepeatedCrossSection => (
             "repeated_cross_section",
             "each subject is sampled once and the sampled group composition is comparable across periods",
+        ),
+        antecedent_core::DidSamplingDesign::StaggeredGroupTime => (
+            "balanced_staggered_adoption_group_time",
+            "each subject has every observed period; cohort zero supplies never-treated controls for the selected adoption cohort and post-adoption period",
         ),
     };
     assumptions.push(antecedent_core::AssumptionRecord {
@@ -388,6 +535,9 @@ pub(crate) fn panel_did_identification(
         antecedent_core::DidSamplingDesign::RepeatedCrossSection => {
             "did.repeated_cross_section_four_cell"
         }
+        antecedent_core::DidSamplingDesign::StaggeredGroupTime => {
+            "did.staggered_group_time_never_treated"
+        }
     };
     arena.set_derivation(
         functional,
@@ -407,7 +557,7 @@ pub(crate) fn panel_did_identification(
         None,
     );
     let mut derivation = DerivationTrace::default();
-    derivation.push(rule, "the two-period group difference in outcome changes is identified under parallel trends and no anticipation");
+    derivation.push(rule, "the selected group-time difference in outcome changes is identified under cohort-specific parallel trends, no anticipation, and valid never-treated controls");
     let identification = IdentificationResult::identified(
         CausalQuery::PanelDid(query.clone()),
         vec![estimand.clone()],

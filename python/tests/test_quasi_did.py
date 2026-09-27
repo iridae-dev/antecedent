@@ -193,6 +193,43 @@ def test_panel_did_refuses_unbalanced_or_changing_assignment(subjects, treated, 
             {"y": list(range(len(subjects))), "id": subjects, "group": treated, "after": post},
             query,
         )
+def test_selected_staggered_group_time_runs_through_retained_analyze():
+    import antecedent
+
+    ids = [f"s{i}" for i in range(10) for _ in range(4)]
+    periods = [period for _ in range(10) for period in range(1, 5)]
+    cohorts = [0 if i < 4 else 3 if i < 8 else 4 for i in range(10) for _ in range(4)]
+    outcomes = [
+        float(10 + int(subject[1:]) + 2 * period
+              + (4 if cohort == 3 and period >= 3 else 0)
+              + (7 if cohort == 4 and period >= 4 else 0))
+        for subject, period, cohort in zip(ids, periods, cohorts, strict=True)
+    ]
+    data = {"y": outcomes, "id": ids, "period": periods, "cohort": cohorts}
+    query = StaggeredAdoption("y", "id", "period", "cohort", target_cohort=3, target_period=4)
+    prepared = antecedent.prepare(data, query=query)
+    result = prepared.estimate()
+    assert result.panel_did is not None
+    assert result.panel_did.estimate == pytest.approx(4.0)
+    assert result.panel_did.standard_error == pytest.approx(0.0)
+    assert result.panel_did.design == "balanced_staggered_adoption_group_time_att"
+    assert (result.panel_did.cohort, result.panel_did.period) == (3, 4)
+    assert result.panel_did.uncertainty == "cluster_robust_standard_error_no_interval"
+    assert result.panel_did.support_status == "unlicensed_point_utility"
+    assert "cohort_specific_parallel_untreated_trends" in result.panel_did.assumptions
+    assert result.plan.estimator == "quasi.staggered_group_time_never_treated"
+    assert antecedent.analyze(data, query=query).panel_did == result.panel_did
+    direct = estimate_group_time_att(data, query)
+    assert next(effect.estimate for effect in direct.effects if (effect.cohort, effect.period) == (3, 4)) == pytest.approx(4.0)
+
+    changed = dict(data, y=[value + 1.0 for value in outcomes])
+    assert prepared.estimate(changed).panel_did == result.panel_did
+    with pytest.raises(CausalValueError, match="target_cohort and target_period"):
+        StaggeredAdoption("y", "id", "period", "cohort", target_cohort=3)
+    with pytest.raises(Exception, match="never-treated"):
+        antecedent.analyze({**data, "cohort": [3] * len(cohorts)}, query=query)
+
+
 def test_native_group_time_att_recovers_staggered_known_effects_and_reports_support():
     subjects: list[str] = []
     periods: list[int] = []

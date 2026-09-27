@@ -3499,6 +3499,47 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze one cohort-period comparison in a balanced staggered adoption panel.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, outcome, subjects, clusters, periods, cohorts,
+        target_cohort, target_period, *, accepted=false, seed=1, threads=None, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_staggered_group_time(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        subjects: Vec<String>,
+        clusters: Vec<String>,
+        periods: Vec<i64>,
+        cohorts: Vec<i64>,
+        target_cohort: i64,
+        target_period: i64,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("staggered difference-in-differences")?;
+        opts.refuse_population("staggered difference-in-differences")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let subject_arc: Vec<Arc<str>> = subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> = clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let query = antecedent_core::PanelDidQuery::staggered_group_time(
+                outcome_id, subject_arc, cluster_arc, periods, cohorts, target_cohort, target_period,
+            );
+            query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            let _ = accepted;
+            let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Freeze a known-randomization longitudinal regime value over whole subjects.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
