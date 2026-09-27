@@ -232,6 +232,43 @@ def test_top_k_policy_uses_retained_native_value_and_frozen_ranking():
         )
 
 
+def test_retained_top_k_uplift_intervals_require_held_out_bin_support():
+    rows = 600
+    assignment = [i % 2 == 0 for i in range(rows)]
+    effects = [2.0] * 300 + [0.5] * 300
+    outcome = [1.0 + effects[i] * assignment[i] for i in range(rows)]
+    query = policy.PolicyValue.top_k(
+        list(range(rows, 0, -1)), 300,
+        outcome="y", assignment=assignment, propensity=0.5,
+        evaluation_subject_ids=[f"eval-{i}" for i in range(rows)],
+        ranking_training_subject_ids=["rank-train"], uplift_bins=2,
+    )
+    result = ant.analyze({"y": outcome}, query=query, refute="none")
+    assert result.policy_value.support_status == "off_axis_pointwise_95"
+    bins = result.policy_value.uplift_bins
+    assert [bin.evaluation_rows for bin in bins] == [300, 300]
+    for point, truth in zip(bins, (2.0, 0.5), strict=True):
+        assert point.interval_95 is not None
+        assert point.interval_95[0] < truth < point.interval_95[1]
+    loaded = ant.load(result.export(artifact_id="top-k-uplift-interval"))
+    assert loaded.answer.structured["uplift_bins"][0]["interval_95"] == pytest.approx(bins[0].interval_95)
+
+    thin_rows = 598
+    thin_query = policy.PolicyValue.top_k(
+        list(range(thin_rows, 0, -1)), 299,
+        outcome="y", assignment=assignment[:thin_rows], propensity=0.5,
+        evaluation_subject_ids=[f"eval-{i}" for i in range(thin_rows)],
+        ranking_training_subject_ids=["rank-train"], uplift_bins=2,
+    )
+    thin = ant.analyze({"y": outcome[:thin_rows]}, query=thin_query, refute="none")
+    assert all(point.interval_95 is None for point in thin.policy_value.uplift_bins)
+    direct = policy.uplift_by_score(
+        {"y": outcome}, outcome="y", assignment=assignment, propensity=0.5,
+        scores=list(range(rows, 0, -1)), bins=2,
+    )
+    assert all(point.interval_95 is None for point in direct)
+
+
 def test_retained_multi_action_policy_matches_direct_native_value_and_artifact():
     labels = ("control", "A", "B")
     assigned = ["control", "A", "B"] * 3

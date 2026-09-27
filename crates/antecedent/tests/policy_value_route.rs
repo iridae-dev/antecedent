@@ -78,11 +78,49 @@ fn retained_uplift_bins_recover_ranked_randomized_contrasts_and_round_trip() {
     assert!((bins[1].effect - 0.0).abs() < 1e-12);
     assert_eq!(bins[0].evaluation_rows, 2);
     assert!(bins.iter().all(|bin| bin.standard_error.is_finite()));
+    assert!(bins.iter().all(|bin| bin.interval_95.is_none()));
     let bytes = prepared.encode_contracted_result(&result, "ranked-policy", &ctx).unwrap();
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.policy_value.unwrap().uplift_bins[0].effect, 2.0);
     ranked.uplift_training_subject_ids = Arc::from([Arc::<str>::from("a")]);
     assert!(ranked.validate().is_err());
+}
+
+#[test]
+fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
+    let n = 600;
+    let assignment = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
+    let bin_ids = (0..n).map(|i| usize::from(i >= 300)).collect::<Vec<_>>();
+    let outcomes = (0..n).map(|i| 1.0 + if assignment[i] { if bin_ids[i] == 0 { 2.0 } else { 0.5 } } else { 0.0 })
+        .collect::<Vec<_>>();
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let mut ranked = query();
+    ranked.assignment = assignment.into();
+    ranked.actions = vec![false; n].into();
+    ranked.reference = vec![false; n].into();
+    ranked.mu0 = Arc::from([]);
+    ranked.mu1 = Arc::from([]);
+    ranked.disjoint_training_subjects = false;
+    ranked.evaluation_subject_ids = (0..n).map(|i| Arc::<str>::from(format!("eval-{i}"))).collect::<Vec<_>>().into();
+    ranked.uplift_bins = bin_ids.into();
+    ranked.uplift_bin_count = 2;
+    ranked.uplift_training_subject_ids = Arc::from([Arc::<str>::from("rank-train")]);
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(ranked))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bins = &result.policy_value.as_ref().unwrap().uplift_bins;
+    assert_eq!(bins.len(), 2);
+    for (index, &truth) in [2.0, 0.5].iter().enumerate() {
+        let bounds = bins[index].interval_95.unwrap();
+        assert!(bounds[0] < truth && truth < bounds[1]);
+        assert_eq!(bins[index].evaluation_rows, 300);
+    }
+    let artifact = prepared.encode_contracted_result(&result, "ranked-interval", &ctx).unwrap();
+    let (_, _, mut body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
+    assert_eq!(body.policy_value.as_ref().unwrap().uplift_bins[0].interval_95, bins[0].interval_95);
+    body.policy_value.as_mut().unwrap().uplift_bins[0].interval_95 = Some([0.0, 0.0]);
+    assert!(antecedent_io::encode_analysis_result_artifact(&body, vec!["outcome".into()], "forged-uplift").is_err());
 }
 
 #[test]
