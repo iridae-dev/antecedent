@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
+from ._families import canonical_from_live, canonical_from_wire
 from ._report import InspectionReport, as_inspection
 from ._slots import ReasoningSlots, SlotView
 
@@ -209,18 +210,21 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         policy = payload.get("policy_value")
         if not isinstance(policy, Mapping):
             return Answer("unavailable", detail="policy_value_payload_missing")
-        return Answer("policy_value", detail="held_out_randomized_dr", structured=dict(policy))
+        return Answer("policy_value", detail="held_out_randomized_dr",
+                      structured=canonical_from_wire("policy_value", policy))
     dose = payload.get("continuous_dose_response")
     if kind == "point" and isinstance(dose, Mapping):
         detail = ("fixed_group_kernel_smoothed_dose_policy_value" if dose.get("fixed_policy") is not None
                   else "continuous_dose_response_point_only")
-        return Answer("structured", detail=detail, structured=dict(dose))
+        return Answer("structured", detail=detail,
+                      structured=canonical_from_wire("continuous_dose_response", dose))
     survival = payload.get("survival")
     if kind == "point" and isinstance(survival, Mapping):
         detail = ("randomized_survival_pointwise_bootstrap"
                   if survival.get("difference_at_tau_interval") is not None
                   else "randomized_survival_point_only")
-        return Answer("structured", detail=detail, structured=dict(survival))
+        return Answer("structured", detail=detail,
+                      structured=canonical_from_wire("survival", survival))
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
         if regime.get("method") == "marginal_structural_model":
@@ -231,7 +235,8 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         else:
             detail = ("longitudinal_regime_pointwise_interval" if regime.get("value_interval_95") is not None
                       else "longitudinal_regime_point_only")
-        return Answer("structured", detail=detail, structured=dict(regime))
+        return Answer("structured", detail=detail,
+                      structured=canonical_from_wire("longitudinal_regime", regime))
     panel = payload.get("panel_did")
     if kind == "point" and isinstance(panel, Mapping):
         if panel.get("event_time_effects"):
@@ -241,7 +246,8 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         else:
             detail = ("panel_did_independent_cluster_interval" if panel.get("interval_95") is not None
                       else "panel_did_point_only")
-        return Answer("structured", detail=detail, structured=dict(panel))
+        return Answer("structured", detail=detail,
+                      structured=canonical_from_wire("panel_did", panel))
     structural = payload.get("structural_response")
     envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
     bounds = None
@@ -385,23 +391,19 @@ class ResultAPI:
         """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
         dose = getattr(self, "continuous_dose_response", None)
         if dose is not None:
-            from dataclasses import asdict
-
             detail = ("fixed_group_kernel_smoothed_dose_policy_value" if dose.policy_value_estimated
                       else "continuous_dose_response_point_only")
-            return Answer("structured", detail=detail, structured=asdict(dose))
+            return Answer("structured", detail=detail,
+                          structured=canonical_from_live("continuous_dose_response", dose))
         survival = getattr(self, "survival", None)
         if survival is not None:
-            from dataclasses import asdict
-
             detail = ("randomized_survival_pointwise_bootstrap"
                       if getattr(survival, "bootstrap_replicates_ok", None) is not None
                       else "randomized_survival_point_only")
-            return Answer("structured", detail=detail, structured=asdict(survival))
+            return Answer("structured", detail=detail,
+                          structured=canonical_from_live("survival", survival))
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
-            from dataclasses import asdict
-
             if regime.method == "marginal_structural_model":
                 detail = ("longitudinal_msm_pointwise_cr1_interval" if regime.value_interval_95 is not None
                           else "longitudinal_msm_pointwise_cr1")
@@ -410,11 +412,10 @@ class ResultAPI:
             else:
                 detail = ("longitudinal_regime_pointwise_interval" if regime.value_interval_95 is not None
                           else "longitudinal_regime_point_only")
-            return Answer("structured", detail=detail, structured=asdict(regime))
+            return Answer("structured", detail=detail,
+                          structured=canonical_from_live("longitudinal_regime", regime))
         panel = getattr(self, "panel_did", None)
         if panel is not None:
-            from dataclasses import asdict
-
             if getattr(panel, "effects", None):
                 detail = ("staggered_event_post_pointwise_intervals" if any(
                     effect.interval_95 is not None for effect in panel.effects)
@@ -422,11 +423,12 @@ class ResultAPI:
             else:
                 detail = ("panel_did_independent_cluster_interval" if getattr(panel, "interval_95", None) is not None
                           else "panel_did_point_only")
-            return Answer("structured", detail=detail, structured=asdict(panel))
+            return Answer("structured", detail=detail,
+                          structured=canonical_from_live("panel_did", panel))
         policy = getattr(self, "policy_value", None)
         if policy is not None:
-            from dataclasses import asdict
-            return Answer("policy_value", detail="held_out_randomized_dr", structured=asdict(policy))
+            return Answer("policy_value", detail="held_out_randomized_dr",
+                          structured=canonical_from_live("policy_value", policy))
         section = getattr(self, "transport", None)
         detail = getattr(section, "unavailable", None) if section is not None else None
         if detail:
