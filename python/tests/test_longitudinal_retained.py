@@ -303,14 +303,13 @@ def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
     )
     result = antecedent.analyze({"y": outcomes}, query=query)
     value = result.longitudinal_regime
-    assert value.value_standard_error > 0.0
-    assert value.value_interval_95[0] < 4.0 < value.value_interval_95[1]
-    assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
-    assert value.support_status == "off_axis_pointwise_95"
-    assert result.answer.detail == "longitudinal_sequential_dr_pointwise_interval_conditional_q"
-    assert "Pointwise 95% independent-subject interval" in result.claim()
+    assert value.value_standard_error is None
+    assert value.value_interval_95 is None
+    assert value.uncertainty == "point_only_no_interval"
+    assert value.support_status == "unlicensed_point_utility"
+    assert result.answer.detail == "longitudinal_regime_point_only"
     artifact = antecedent.load(result.export(artifact_id="sequential-dr-interval"))
-    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
+    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] is None
     query_wire = artifact.artifact.payload["query"]["longitudinal_regime"]
     assert query_wire["prediction_fold_ids"] == query_wire["fold_ids"] == folds
     assert query_wire["excluded_fold_predictions"] is True
@@ -335,7 +334,9 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     value = result.longitudinal_regime
     assert value.value_interval_95[0] < 5.0 < value.value_interval_95[1]
     assert value.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
-    assert value.support_status == "off_axis_pointwise_95"
+    assert value.support_status == "licensed"
+    assert result.support_status == "licensed"
+    assert result.reasoning.support.payload["matrix_coordinate"].startswith("graphless:longitudinal_regime/")
     assert "sequential_q_validity" in " ".join(result.assumptions or [])
     artifact = antecedent.load(result.export(artifact_id="three-period-dr"))
     assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(value.value_interval_95)
@@ -352,6 +353,42 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     unsupported = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**four)).longitudinal_regime
     assert unsupported.value_interval_95 is None
     assert unsupported.uncertainty == "point_only_no_interval"
+    assert unsupported.support_status == "unlicensed_point_utility"
+
+
+def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_support():
+    n = 500
+    treatment = [[i % 5 < 2, (i // 5) % 5 < 2] for i in range(n)]
+    outcomes = [2.0 + sum(actions) + ((i % 7) - 3) / 10
+                for i, actions in enumerate(treatment)]
+    folds = [i % 5 for i in range(n)]
+    args = dict(
+        outcome="y", method="sequential_dr", treatment_history=treatment,
+        actions=[True, True], treatment_probabilities=[[0.4, 0.4]] * n,
+        censoring_probabilities=[[0.85, 0.85]] * n,
+        q_predictions=[[4.0, 4.0]] * n,
+        observation_history=[[True, True]] * n,
+        subject_ids=[f"two-{i}" for i in range(n)], fold_ids=folds,
+        prediction_fold_ids=folds, excluded_fold_predictions=True,
+    )
+    result = antecedent.analyze({"y": outcomes}, query=LongitudinalRegimeQuery(**args))
+    value = result.longitudinal_regime
+    assert value.value_interval_95 is not None
+    assert value.support_status == "licensed"
+    assert result.support_status == "licensed"
+    artifact = antecedent.load(result.export(artifact_id="two-period-dr-license"))
+    assert artifact.artifact.payload["longitudinal_regime"]["graphless_support_status"] == "licensed"
+    args["subject_ids"] = args["subject_ids"][:499]
+    args["treatment_history"] = args["treatment_history"][:499]
+    args["treatment_probabilities"] = args["treatment_probabilities"][:499]
+    args["censoring_probabilities"] = args["censoring_probabilities"][:499]
+    args["q_predictions"] = args["q_predictions"][:499]
+    args["observation_history"] = args["observation_history"][:499]
+    args["fold_ids"] = args["fold_ids"][:499]
+    args["prediction_fold_ids"] = args["prediction_fold_ids"][:499]
+    small = antecedent.analyze({"y": outcomes[:499]}, query=LongitudinalRegimeQuery(**args))
+    assert small.longitudinal_regime.value_interval_95 is None
+    assert small.longitudinal_regime.support_status == "unlicensed_point_utility"
 
 
 def test_sequential_dr_retained_refuses_split_fold_and_reappearing_observation():

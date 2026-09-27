@@ -671,7 +671,8 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         period_intervals_95=(tuple(tuple(bounds) for bounds in section.period_intervals_95)
                              if section.period_intervals_95 is not None else None),
         interval_reason=section.interval_reason,
-        support_status=("off_axis_pointwise_95" if section.value_interval_95 is not None
+        support_status=("licensed" if section.graphless_support_status == "licensed" else
+                        "off_axis_pointwise_95" if section.value_interval_95 is not None
                         else "unlicensed_point_utility"),
         effective_sample_size=section.effective_sample_size,
         matched_observed_fraction=section.matched_observed_fraction,

@@ -22,6 +22,7 @@ use std::sync::Arc;
 use crate::gcm::IteResult;
 
 /// Typed primary result of a study.
+#[allow(clippy::large_enum_variant, reason = "variants are constructed rarely and held singly; boxing would change the public result API")]
 #[derive(Clone, Debug)]
 pub enum PrimaryEstimate {
     /// Conventional scalar effect estimate.
@@ -94,6 +95,7 @@ pub struct RandomizedEffectEstimate {
     /// Conservative variance for the interaction contrast.
     pub factorial_interaction_variance: Option<f64>,
     /// Ordered arm means, variance contributions, and observed counts for multi-arm trials.
+    #[allow(clippy::type_complexity, reason = "labeled arm tuple is part of this public result field's type")]
     pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
     /// switchback uses an independent-sequence sandwich estimate.
@@ -131,14 +133,14 @@ pub struct RandomizedEffectEstimate {
     pub treatment_arms: (Arc<str>, Arc<str>),
 }
 
-/// Two-period panel DiD point estimate with cluster-aware uncertainty.
+/// Two-period panel `DiD` point estimate with cluster-aware uncertainty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PanelDidEstimate {
     /// Difference in average subject-level outcome changes.
     pub effect: f64,
     /// Cluster score-sandwich standard error.
     pub standard_error: f64,
-    /// Pointwise 95% interval for sufficiently supported scalar panel or repeated-cross-section DiD.
+    /// Pointwise 95% interval for sufficiently supported scalar panel or repeated-cross-section `DiD`.
     pub interval_95: Option<[f64; 2]>,
     /// Number of treated subjects.
     pub treated_subjects: usize,
@@ -148,7 +150,7 @@ pub struct PanelDidEstimate {
     pub clusters: usize,
     /// Explicit uncertainty semantics.
     pub uncertainty: Arc<str>,
-    /// Cohort-specific contrasts for a retained event study; empty for scalar DiD.
+    /// Cohort-specific contrasts for a retained event study; empty for scalar `DiD`.
     pub event_time_effects: Arc<[antecedent_estimate::staggered_event_study::EventTimeEffect]>,
     /// Pointwise post-adoption intervals aligned with event-time effects;
     /// pre-adoption descriptive contrasts always have no interval.
@@ -272,6 +274,8 @@ pub struct LocalPolynomialRatioEstimate {
 pub struct LongitudinalRegimeEstimate {
     /// Named method: IPW, g-formula, sequential DR, or additive MSM.
     pub method: Arc<str>,
+    /// Exact graphless longitudinal license after observed support and interval checks.
+    pub graphless_support_status: Option<crate::support::CellStatus>,
     /// Identity of the caller rule whose actions were frozen in the query.
     pub rule_id: Option<Arc<str>>,
     /// Stable caller-declared rule version.
@@ -399,10 +403,10 @@ pub struct SurvivalEstimate {
     pub bootstrap_replicates_requested: Option<u32>,
     /// Draws satisfying the estimator's original support contract.
     pub bootstrap_replicates_ok: Option<u32>,
-    /// Caller-supplied fixed censoring function, when the IPCW route was used.
-    pub censoring_survival_provenance: Option<Arc<str>>,
     /// Realized control and treated subject counts for an exact graphless license.
     pub assignment_counts: [usize; 2],
+    /// Caller-supplied fixed censoring function, when the IPCW route was used.
+    pub censoring_survival_provenance: Option<Arc<str>>,
     /// Simultaneous full-grid difference band; separate from scalar intervals.
     pub difference_band: Option<SurvivalDifferenceBand>,
     /// Why an explicit bootstrap request did not produce a full-grid band.
@@ -678,7 +682,7 @@ pub struct StudyResult {
     pub panel_did: Option<PanelDidEstimate>,
     /// Synthetic-control point result with donor and placebo diagnostics.
     pub synthetic_control: Option<SyntheticControlEstimate>,
-    /// Synthetic DiD point result and both fitted weight vectors.
+    /// Synthetic `DiD` point result and both fitted weight vectors.
     pub synthetic_did: Option<SyntheticDidEstimate>,
     /// Fixed-bandwidth fuzzy RD or regression-kink point result.
     pub local_polynomial_ratio: Option<LocalPolynomialRatioEstimate>,
@@ -1101,6 +1105,8 @@ impl StudyResult {
     ///    effect reports its scenario max-t band as a simultaneous interval.
     /// 6. Otherwise a reported identified-set interval is the primary interval,
     ///    or nothing was reported.
+    // interval-selection precedence is a single ordered decision; splitting it would obscure the ranking
+    #[allow(clippy::too_many_lines)]
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};

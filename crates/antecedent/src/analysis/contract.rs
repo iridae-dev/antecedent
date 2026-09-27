@@ -603,6 +603,24 @@ impl PreparedStudy {
                     });
             }
         }
+        if result.longitudinal_regime.is_some() {
+            contract.support_status = result.support_status;
+            if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
+                support.matrix_status = Arc::from(result.support_status.map_or("off_axis", CellStatus::as_str));
+                support.matrix_coordinate = (result.support_status == Some(CellStatus::Licensed))
+                    .then(|| {
+                        let CausalQuery::LongitudinalRegime(query) = self.query() else {
+                            unreachable!("licensed longitudinal result must retain its regime query")
+                        };
+                        let design = if query.periods == 2 {
+                            "known_sequential_randomized_two_period"
+                        } else {
+                            "known_sequential_randomized_three_period"
+                        };
+                        Arc::from(format!("graphless:longitudinal_regime/{design}/subject_excluded_q_sequential_dr_scores/conditional_q_pointwise_95_normal_interval"))
+                    });
+            }
+        }
         Ok((contract, payloads))
     }
 
@@ -3541,6 +3559,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
             antecedent_io::LongitudinalRegimeWire {
                 method: regime.method.to_string(),
+                graphless_support_status: regime.graphless_support_status
+                    .map(CellStatus::as_str).map(str::to_string),
                 rule_id: regime.rule_id.as_ref().map(ToString::to_string),
                 rule_version: regime.rule_version.as_ref().map(ToString::to_string),
                 rule_provenance: regime.rule_provenance.as_ref().map(ToString::to_string),
