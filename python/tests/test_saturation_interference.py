@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import antecedent as ant
 import numpy as np
 import pytest
-import antecedent as ant
 from antecedent import interference
 
 
