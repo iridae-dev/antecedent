@@ -1427,9 +1427,8 @@ impl ContinuousResponseEstimator {
             // coordinates θ = (m, m', m''); its interval is the full delta method
             // on the joint coordinate covariance Σ_θ, not a partial one. The
             // gradient is evaluated at the bias-corrected coordinates the interval
-            // is centred on; Σ_θ is the local-quadratic joint influence
-            // covariance (its diagonal is the robust per-coordinate SEs already
-            // published for the Identity/LogTreatment cases above).
+            // is centred on; Σ_θ uses the same bias-corrected local-cubic
+            // slope and local-quartic level/curvature as that center.
             _ => {
                 let gradient = transform_point_derivative_gradient(
                     corrected.value,
@@ -1439,7 +1438,7 @@ impl ContinuousResponseEstimator {
                     order,
                     scale,
                 );
-                delta_method_standard_error(&local.coefficient_covariance, &gradient)
+                delta_method_standard_error(&corrected.coefficient_covariance, &gradient)
             }
         };
         let mut support = support_report(
@@ -3087,7 +3086,7 @@ fn delta_method_interval_note(conventional: f64, interval_center: f64) -> Diagno
         "response.derivative_interval_delta_method",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
-        "the transformed-derivative interval is a delta-method interval: it is centred at the bias-corrected transform (a nonlinear function of the local level m and derivatives m', m'') and its standard_error is sqrt(∇τᵀ Σ_θ ∇τ), where Σ_θ is the heteroskedasticity-robust joint influence covariance of the local-quadratic coordinates and ∇τ the transform gradient at the bias-corrected coordinate. [lower, upper] is not a CI for the printed conventional point; it targets the true transformed derivative, conditions on the caller-fixed bandwidth, treats the cross-fitted pseudo-outcome as data, and its coverage carries the transform's linearization error in addition to the coordinate-covariance error",
+        "the transformed-derivative interval is a delta-method interval: it is centred at the bias-corrected transform (a nonlinear function of the local level m and derivatives m', m'') and its standard_error is sqrt(∇τᵀ Σ_θ ∇τ), where Σ_θ is the heteroskedasticity-robust joint influence covariance of the bias-corrected local-cubic slope and local-quartic level and curvature and ∇τ the transform gradient at the bias-corrected coordinate. [lower, upper] is not a CI for the printed conventional point; it targets the true transformed derivative, conditions on the caller-fixed bandwidth, treats the cross-fitted pseudo-outcome as data, and its coverage carries the transform's linearization error in addition to the coordinate-covariance error",
     );
     note.fields = Arc::from(vec![
         (Arc::from("conventional_point"), Arc::from(conventional.to_string())),
