@@ -289,9 +289,13 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ),
             (
                 "precision_adjustment".into(),
-                query.fixed_cuped.map_or_else(|| "none".into(), |(id, coefficient)| {
-                    format!("fixed_cuped:{id}:{coefficient}")
-                }),
+                if !query.ancova_covariates.is_empty() {
+                    format!("ancova:{:?}", query.ancova_covariates)
+                } else {
+                    query.fixed_cuped.map_or_else(|| "none".into(), |(id, coefficient)| {
+                        format!("fixed_cuped:{id}:{coefficient}")
+                    })
+                },
             ),
             ("switchback_periods".into(), query.periods.join(",")),
             ("factorial_second_assignment".into(), query.second_factor_assignment.iter().map(|value| if *value { '1' } else { '0' }).collect()),

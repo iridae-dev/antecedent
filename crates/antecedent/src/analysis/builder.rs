@@ -1463,6 +1463,8 @@ impl StudyBuilder {
                             EstimatorId::RandomizedWaldCace
                         } else if randomized.fixed_cuped.is_some() {
                             EstimatorId::RandomizedFixedCupedHt
+                        } else if !randomized.ancova_covariates.is_empty() {
+                            EstimatorId::RandomizedAncova
                         } else {
                             EstimatorId::RandomizedHt
                         }
@@ -1540,6 +1542,7 @@ impl StudyBuilder {
                         id,
                         EstimatorId::RandomizedHt
                             | EstimatorId::RandomizedFixedCupedHt
+                            | EstimatorId::RandomizedAncova
                             | EstimatorId::RandomizedWaldCace
                             | EstimatorId::RandomizedSwitchbackHt
                             | EstimatorId::RandomizedNeyman

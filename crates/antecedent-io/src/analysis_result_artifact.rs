@@ -928,6 +928,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
                 ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval")
             }
+            crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => {
+                ("bernoulli", "bernoulli_ancova_hc0_variance_no_interval")
+            }
             crate::RandomizationDesignWire::Bernoulli => {
                 ("bernoulli", "bernoulli_ht_design_variance_no_interval")
             }

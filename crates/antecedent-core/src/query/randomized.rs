@@ -77,6 +77,8 @@ pub struct RandomizedEffectQuery {
     pub treatment_arms: (Arc<str>, Arc<str>),
     /// Pre-assignment covariate and coefficient fixed before outcomes were observed.
     pub fixed_cuped: Option<(VariableId, f64)>,
+    /// Pre-assignment covariates fitted jointly with assignment by ANCOVA.
+    pub ancova_covariates: Arc<[VariableId]>,
     /// Observed treatment receipt in row order for CACE/LATE.
     pub received_treatment: Option<Arc<[bool]>>,
     /// Request exhaustive two-sided Fisher sharp-null randomization inference.
@@ -126,6 +128,7 @@ impl RandomizedEffectQuery {
             outcome_units: outcome_units.into(),
             treatment_arms: (treatment_arms.0.into(), treatment_arms.1.into()),
             fixed_cuped: None,
+            ancova_covariates: Arc::from([]),
             received_treatment: None,
             exact_randomization_test: false,
         }
@@ -135,6 +138,13 @@ impl RandomizedEffectQuery {
     #[must_use]
     pub fn with_fixed_cuped(mut self, covariate: VariableId, coefficient: f64) -> Self {
         self.fixed_cuped = Some((covariate, coefficient));
+        self
+    }
+
+    /// Fit a multi-covariate ANCOVA on independent Bernoulli trial rows.
+    #[must_use]
+    pub fn with_ancova(mut self, covariates: impl Into<Arc<[VariableId]>>) -> Self {
+        self.ancova_covariates = covariates.into();
         self
     }
 
@@ -159,6 +169,7 @@ impl RandomizedEffectQuery {
             && (!matches!(self.design, RandomizationDesign::Complete { .. })
                 || self.received_treatment.is_some()
                 || self.fixed_cuped.is_some()
+                || !self.ancova_covariates.is_empty()
                 || self.realized_assignment.len() > 20)
         {
             return Err(QueryError::InvalidRandomizedEffect(
@@ -168,6 +179,7 @@ impl RandomizedEffectQuery {
         if self.estimand == RandomizedEstimand::ComplierAverageCausalEffect {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || self.fixed_cuped.is_some()
+                || !self.ancova_covariates.is_empty()
                 || self.received_treatment.as_ref().is_none_or(|receipt| receipt.len() != self.realized_assignment.len())
             {
                 return Err(QueryError::InvalidRandomizedEffect(
@@ -186,6 +198,20 @@ impl RandomizedEffectQuery {
             {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient".into(),
+                ));
+            }
+        }
+        if !self.ancova_covariates.is_empty() {
+            let unique = self.ancova_covariates.iter().copied().collect::<std::collections::HashSet<_>>();
+            if !matches!(self.design, RandomizationDesign::Bernoulli)
+                || self.fixed_cuped.is_some() || self.received_treatment.is_some()
+                || self.ancova_covariates.iter().any(|id| *id == self.outcome)
+                || unique.len() != self.ancova_covariates.len()
+                || self.realized_assignment.len() <= self.ancova_covariates.len() + 2
+                || self.assignment_probabilities.first().is_none_or(|first| self.assignment_probabilities.iter().any(|p| (*p - *first).abs() > 1e-12))
+            {
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom".into(),
                 ));
             }
         }

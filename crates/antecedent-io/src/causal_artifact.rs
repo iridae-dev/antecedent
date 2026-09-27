@@ -532,6 +532,9 @@ pub(crate) fn validate_query_ids(
             if let Some((covariate, _)) = wire.fixed_cuped {
                 validate_id(covariate, variable_count)?;
             }
+            for &covariate in &wire.ancova_covariates {
+                validate_id(covariate, variable_count)?;
+            }
             let design = match &wire.design {
                 crate::RandomizationDesignWire::Bernoulli => {
                     antecedent_core::RandomizationDesign::Bernoulli
@@ -590,6 +593,9 @@ pub(crate) fn validate_query_ids(
                     antecedent_core::VariableId::from_raw(covariate),
                     coefficient,
                 );
+            }
+            if !wire.ancova_covariates.is_empty() {
+                query = query.with_ancova(wire.ancova_covariates.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>());
             }
             if let Some(receipt) = &wire.received_treatment {
                 query = query.with_received_treatment(receipt.clone());

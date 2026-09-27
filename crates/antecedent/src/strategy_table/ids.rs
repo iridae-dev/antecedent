@@ -328,6 +328,8 @@ pub enum EstimatorId {
     RandomizedHt,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,
+    /// Fitted multi-covariate ANCOVA under independent Bernoulli assignment.
+    RandomizedAncova,
     /// Wald CACE/LATE under independent Bernoulli encouragement.
     RandomizedWaldCace,
     /// Switchback unit-period HT with independent-sequence variance.
@@ -763,6 +765,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "randomized.fixed_cuped_ht_itt",
             provenance: ("estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.fixed_cuped_ht_itt"),
         },
+        EstimatorId::RandomizedAncova => EstimatorData {
+            name: "randomized.ancova_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.ancova_itt",
+            provenance: ("estimate.randomized.ancova_itt", "estimate.randomized.ancova_itt"),
+        },
         EstimatorId::RandomizedWaldCace => EstimatorData {
             name: "randomized.wald_cace_late",
             parallel_task_dimension: "analysis",
@@ -1070,6 +1078,7 @@ pub fn validate_static_pair(
             IdentifierId::RandomizedDesign,
             EstimatorId::RandomizedHt
             | EstimatorId::RandomizedFixedCupedHt
+            | EstimatorId::RandomizedAncova
             | EstimatorId::RandomizedWaldCace
             | EstimatorId::RandomizedSwitchbackHt
             | EstimatorId::RandomizedNeyman
@@ -1250,6 +1259,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::InterferenceBayesianGaussian => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
+        | EstimatorId::RandomizedAncova
         | EstimatorId::RandomizedWaldCace
         | EstimatorId::RandomizedSwitchbackHt
         | EstimatorId::RandomizedNeyman => {
