@@ -1,5 +1,6 @@
-//! Repeated-sampling evidence for retained two-period DiD cluster scores.
+//! Repeated-sampling evidence for retained two-period `DiD` cluster scores.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(clippy::cast_lossless, clippy::cast_sign_loss, reason = "fixture derives f64 baselines and a u64 seed offset from small nonnegative integer cluster, subject, and row counters")]
 
 use std::sync::Arc;
 
@@ -40,7 +41,7 @@ fn retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth() {
     for clusters_per_arm in [30, 80] {
         let (query, baseline, treated) = panel_fixture(clusters_per_arm);
         let data = TabularData::from_f64_columns([("outcome", baseline.as_slice())]).unwrap();
-        let ctx = ExecutionContext::for_tests(20260927);
+        let ctx = ExecutionContext::for_tests(20_260_927);
         let prepared = Study::tabular(data).query(query).build().unwrap().prepare(&ctx).unwrap();
         let mut rng = CausalRng::from_seed(0x21_09_27_03 + clusters_per_arm as u64);
         let mut covered = 0;
@@ -88,7 +89,7 @@ fn retained_repeated_cross_section_did_interval_covers_parallel_trends_truth() {
         VariableId::from_raw(0), treated.clone(), post.clone(), subjects, clusters,
     );
     let zeros = vec![0.0; treated.len()];
-    let ctx = ExecutionContext::for_tests(20260928);
+    let ctx = ExecutionContext::for_tests(20_260_928);
     let prepared = Study::tabular(TabularData::from_f64_columns([("outcome", zeros.as_slice())]).unwrap())
         .query(query).build().unwrap().prepare(&ctx).unwrap();
     let mut rng = CausalRng::from_seed(0x21_09_27_04 + rows_per_cell as u64);
