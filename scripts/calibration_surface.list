@@ -203,7 +203,7 @@ key mechanism estimator gcm.*
 allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution NestedCounterfactualOperation compile gcm nested_counterfactual
 # Sibling re-exports of the gcm entry points and the checked counterfactual /
 # attribution operation types; every caller is checked by name.
-allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure anomaly_attribution_with attribute_distribution_change attribute_unit_change attribution_path checked_attribution counterfactual_ite fit_gcm gcm map_mechanism_fit mechanism_change_detection
+allow mechanism crates/antecedent/src/analysis/execute/mod.rs CheckedAttributionOperation CheckedCounterfactualPlan CounterfactualProcedure anomaly_attribution_query_with attribute_distribution_change attribute_unit_change attribution_path checked_attribution counterfactual_ite fit_gcm gcm map_mechanism_fit mechanism_change_detection
 # CausalQuery::ChangeAttribution: the query enum variant named when a compiled
 # plan is labelled with its gcm identifier.
 allow mechanism crates/antecedent/src/analysis/execute/compile.rs ChangeAttribution
@@ -277,6 +277,10 @@ suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_tempora
 suite.v110_calibration_backlog crates/antecedent/tests/v110_calibration_backlog.rs
 suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
 suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
+suite.v110_calibration_anomaly_bayesian crates/antecedent/tests/v110_calibration_anomaly_bayesian.rs
+suite.v110_calibration_attribution_bayesian crates/antecedent/tests/v110_calibration_attribution_bayesian.rs
+suite.v110_calibration_design_bayesian crates/antecedent/tests/v110_calibration_design_bayesian.rs
+suite.v110_calibration_temporal_class crates/antecedent/tests/v110_calibration_temporal_class.rs
 suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
 suite.v20_transport_statistical_calibration crates/antecedent/tests/v20_transport_statistical_calibration.rs
 suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
