@@ -265,17 +265,7 @@ impl Admg {
         label
     }
 
-    /// Districts of the subgraph induced on `within`: bidirected-connected components using
-    /// only nodes of `within`. Returns a district id per dense node; nodes outside `within`
-    /// carry `u32::MAX`.
-    #[must_use]
-    pub fn districts_within(&self, within: &BitSet) -> Vec<u32> {
-        let mut label = Vec::new();
-        self.districts_into(Some(within), &mut label, &mut Vec::new());
-        label
-    }
-
-    /// Allocation-reusing core of [`Self::districts`] / [`Self::districts_within`]; returns
+    /// Allocation-reusing core of [`Self::districts`]; returns
     /// the number of districts.
     pub(crate) fn districts_into(
         &self,

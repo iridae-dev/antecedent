@@ -135,7 +135,7 @@ pub struct Rpcmci {
     /// Alternating assignment iterations (`0` = fixed labels only).
     pub alternating_iters: usize,
     /// Cost of one regime switch in the alternating refinement, in units of a variable's
-    /// variance (see [`Self::with_switch_penalty`]).
+    /// variance.
     pub switch_penalty: f64,
     /// Optional regime assignment for [`crate::algorithm::DiscoveryAlgorithm`] dispatch.
     pub(crate) assignment: Option<RegimeAssignment>,
@@ -178,18 +178,6 @@ impl Rpcmci {
     #[must_use]
     pub fn with_alternating_iters(mut self, alternating_iters: usize) -> Self {
         self.alternating_iters = alternating_iters;
-        self
-    }
-
-    /// Per-switch penalty of the alternating refinement.
-    ///
-    /// Refined labels minimise the summed variance-standardised one-step squared error over
-    /// all variables plus this penalty per regime change, so one unit is the cost of leaving a
-    /// single variable's variance unexplained for one step. `0` allows a switch at every time
-    /// point (which shatters the lag windows regime discovery needs).
-    #[must_use]
-    pub fn with_switch_penalty(mut self, switch_penalty: f64) -> Self {
-        self.switch_penalty = switch_penalty;
         self
     }
 
@@ -404,23 +392,6 @@ impl Rpcmci {
         })
     }
 
-    /// Infer a two-regime assignment by median split on `indicator`, then discover
-    /// (with alternating refinement when configured).
-    ///
-    /// # Errors
-    ///
-    /// Missing / non-float indicator, or nested failures.
-    pub fn run_median_split(
-        &self,
-        data: &TimeSeriesData,
-        variables: &[VariableId],
-        indicator: VariableId,
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<RpcmciDiscoveryResult, DiscoveryError> {
-        let assignments = median_split_assignment(data, indicator)?;
-        self.run(data, variables, &assignments, workspace, ctx)
-    }
 }
 
 /// Effective-row mask: keep sample `i` (raw time `i + max_lag`) only when the full
@@ -439,37 +410,6 @@ fn regime_window_mask(
         keep[i] = (0..=ml).all(|l| assignments.at(t - l) == Some(regime));
     }
     keep
-}
-
-fn median_split_assignment(
-    data: &TimeSeriesData,
-    indicator: VariableId,
-) -> Result<RegimeAssignment, DiscoveryError> {
-    let ColumnView::Float64(col) = data
-        .column(indicator)
-        .map_err(|e| DiscoveryError::data_msg(format!("regime indicator: {e}")))?
-    else {
-        return Err(DiscoveryError::Unsupported { message: "regime indicator must be float64" });
-    };
-    // A missing indicator has no regime: refuse rather than let NaN fall on one side of the
-    // split (`NaN <= median` is false, which would silently label it regime 1).
-    if let Some(row) =
-        (0..col.values.len()).find(|&i| !col.validity.is_valid(i) || !col.values[i].is_finite())
-    {
-        return Err(DiscoveryError::data_msg(format!(
-            "regime indicator has a missing or non-finite value at row {row}; \
-             a regime cannot be assigned"
-        )));
-    }
-    let mut sorted: Vec<f64> = col.values.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let mid = sorted[sorted.len() / 2];
-    let regimes: Vec<RegimeId> = col
-        .values
-        .iter()
-        .map(|&v| if v <= mid { RegimeId::from_raw(0) } else { RegimeId::from_raw(1) })
-        .collect();
-    RegimeAssignment::try_new(Arc::from(regimes))
 }
 
 /// One regime's fitted one-step equations, one per variable.
@@ -897,15 +837,6 @@ mod tests {
             })
             .count();
         assert!(agree * 10 >= (n - 1) * 7, "only {agree}/{} rows kept their true regime", n - 1);
-    }
-
-    #[test]
-    fn median_split_refuses_missing_indicator() {
-        let mut x = vec![1.0; 20];
-        x[7] = f64::NAN;
-        let data = series_from(x, vec![0.0; 20]);
-        let err = median_split_assignment(&data, VariableId::from_raw(0)).unwrap_err();
-        assert!(err.to_string().contains("row 7"), "{err}");
     }
 
     #[test]

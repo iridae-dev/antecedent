@@ -138,26 +138,6 @@ impl Dag {
         Ok(!self.d_sep_connected(x, y, z, ws, overlay, false))
     }
 
-    /// Batch boolean d-separation. `out[i]` corresponds to `queries[i] = (x,y,z)`.
-    ///
-    /// # Errors
-    ///
-    /// Unknown nodes; or `out.len() != queries.len()`.
-    pub fn is_d_separated_batch(
-        &self,
-        queries: &[(DenseNodeId, DenseNodeId, &[DenseNodeId])],
-        out: &mut [bool],
-        ws: &mut DSeparationWorkspace,
-    ) -> Result<(), GraphError> {
-        if out.len() != queries.len() {
-            return Err(GraphError::InvalidEndpoints { message: "batch output length mismatch" });
-        }
-        for (i, &(x, y, z)) in queries.iter().enumerate() {
-            out[i] = self.is_d_separated(x, y, z, ws)?;
-        }
-        Ok(())
-    }
-
     /// d-separation with witness (active path or separation certificate).
     ///
     /// # Errors

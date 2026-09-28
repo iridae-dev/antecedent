@@ -34,11 +34,6 @@ impl EndpointPattern {
         Self { at_from: Some(Endpoint::Circle), at_to: Some(Endpoint::Circle) }
     }
 
-    /// `*→` (any at from, arrow at to).
-    #[must_use]
-    pub const fn into_arrow() -> Self {
-        Self { at_from: None, at_to: Some(Endpoint::Arrow) }
-    }
 }
 
 fn marks_from_to<G: PagOps>(
@@ -77,18 +72,6 @@ fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> 
         }
     }
     true
-}
-
-/// Whether the edge from `from` toward `to` is potentially directed (`o→`, `→`, or `o–o`).
-#[must_use]
-pub fn is_potentially_directed<G: PagOps>(graph: &G, from: DenseNodeId, to: DenseNodeId) -> bool {
-    let Some((at_from, at_to)) = marks_from_to(graph, from, to) else {
-        return false;
-    };
-    matches!(
-        (at_from, at_to),
-        (Endpoint::Tail, Endpoint::Arrow) | (Endpoint::Circle, Endpoint::Arrow | Endpoint::Circle)
-    )
 }
 
 /// Find uncovered potentially directed paths from `start` to `end` (length ≥ 3 nodes).
@@ -209,19 +192,6 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
         path.pop();
     }
     (out, truncated)
-}
-
-/// Find uncovered potentially directed paths (paths only; ignores truncation).
-#[must_use]
-pub fn uncovered_pd_paths<G: PagOps>(
-    graph: &G,
-    start: DenseNodeId,
-    end: DenseNodeId,
-    initial: &[EndpointPattern],
-    max_paths: usize,
-    max_len: usize,
-) -> Vec<Vec<DenseNodeId>> {
-    uncovered_pd_paths_with_budget(graph, start, end, initial, max_paths, max_len).0
 }
 
 #[cfg(test)]

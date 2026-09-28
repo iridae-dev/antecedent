@@ -34,16 +34,6 @@ fn rejects_treatment_equals_outcome() {
 }
 
 #[test]
-fn causal_query_static_ate_flag() {
-    let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
-        VariableId::from_raw(0),
-        VariableId::from_raw(1),
-    ));
-    assert!(q.is_static_ate());
-    assert!(!q.is_temporal_effect());
-}
-
-#[test]
 fn temporal_pulse_query() {
     let t = VariableId::from_raw(0);
     let y = VariableId::from_raw(1);
@@ -52,7 +42,6 @@ fn temporal_pulse_query() {
     assert_eq!(q.policy, TemporalPolicy::Pulse { at: 0 });
     assert_eq!(q.horizon_steps, 2);
     let cq = CausalQuery::temporal_effect(q);
-    assert!(cq.is_temporal_effect());
     cq.validate().unwrap();
 }
 
@@ -81,7 +70,6 @@ fn counterfactual_and_anomaly_queries() {
     let cf = cf.with_control_level(0.25);
     assert_eq!(cf.control, Intervention::set(t, Value::f64(0.25)));
     cf.validate().unwrap();
-    assert!(CausalQuery::counterfactual(cf.clone()).is_counterfactual());
     let mismatched = cf.with_control(Intervention::set(VariableId::from_raw(2), Value::f64(0.0)));
     assert!(matches!(
         mismatched.validate(),
@@ -161,7 +149,6 @@ fn interventional_distribution_query_validates() {
     let q = InterventionalDistributionQuery::new(y, [Intervention::set(t, Value::f64(1.0))]);
     q.validate().unwrap();
     let cq = CausalQuery::distribution(q);
-    assert!(cq.is_distribution());
     cq.validate().unwrap();
 
     let empty = InterventionalDistributionQuery {
@@ -196,7 +183,6 @@ fn path_specific_query_validates() {
     let q = PathSpecificEffectQuery::binary(t, y).with_path_nodes([m]);
     q.validate().unwrap();
     let cq = CausalQuery::path_specific(q);
-    assert!(cq.is_path_specific());
     cq.validate().unwrap();
 
     let bad = PathSpecificEffectQuery::binary(t, y).with_max_paths(0);

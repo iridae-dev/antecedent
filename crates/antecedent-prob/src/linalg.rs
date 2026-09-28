@@ -114,21 +114,6 @@ pub fn solve_spd_into(
     Ok(())
 }
 
-/// Solve `A x = b` for SPD `A` via Cholesky; writes into `x`.
-///
-/// Allocating wrapper around [`solve_spd_into`]. Prefer the into-variant on
-/// hot paths that already own factor / `y` buffers.
-///
-/// # Errors
-///
-/// Cholesky failure.
-#[allow(dead_code)] // allocating wrapper; tests and one-shot callers
-pub fn solve_spd(a: &[f64], n: usize, b: &[f64], x: &mut [f64]) -> Result<(), ProbError> {
-    let mut factor = vec![0.0; n.saturating_mul(n)];
-    let mut y = vec![0.0; n];
-    solve_spd_into(a, n, b, x, &mut factor, &mut y)
-}
-
 /// Lower bound on the Hessian condition number from its Cholesky diagonal;
 /// `+∞` for a NaN or non-positive diagonal. See
 /// [`antecedent_kernels::cholesky_condition_lower_bound`].
@@ -142,19 +127,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn solve_spd_into_matches_allocating_solve() {
-        // SPD: A = [[4, 1], [1, 3]]
+    fn solve_spd_into_solves_a_known_system() {
+        // SPD: A = [[4, 1], [1, 3]], b = [1, 2]; A^-1 b = [1/11, 7/11].
         let a = [4.0, 1.0, 1.0, 3.0];
         let b = [1.0, 2.0];
-        let mut x_alloc = [0.0; 2];
-        solve_spd(&a, 2, &b, &mut x_alloc).unwrap();
         let mut x_into = [0.0; 2];
         let mut factor = [0.0; 4];
         let mut y = [0.0; 2];
         solve_spd_into(&a, 2, &b, &mut x_into, &mut factor, &mut y).unwrap();
-        for i in 0..2 {
-            assert!((x_alloc[i] - x_into[i]).abs() < 1e-12);
-        }
+        assert!((x_into[0] - 1.0 / 11.0).abs() < 1e-12);
+        assert!((x_into[1] - 7.0 / 11.0).abs() < 1e-12);
     }
 
     #[test]

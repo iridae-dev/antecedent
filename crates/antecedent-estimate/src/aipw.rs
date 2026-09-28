@@ -278,14 +278,6 @@ impl AipwAte {
         }
     }
 
-    /// Set the dense linear-algebra backend used for the propensity IRLS fit and outcome
-    /// OLS fits.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
@@ -323,14 +315,6 @@ impl AipwAte {
     #[must_use]
     pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.cluster_ids = Some(cluster_ids);
-        self
-    }
-
-    /// Set bindings for named predicates / custom target distributions used when the query
-    /// targets [`TargetPopulation::Predicate`] or a custom distribution.
-    #[must_use]
-    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
-        self.population_registry = Some(registry);
         self
     }
 

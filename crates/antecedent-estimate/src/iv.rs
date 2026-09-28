@@ -943,13 +943,6 @@ impl TwoStageLeastSquares {
         }
     }
 
-    /// Set the dense linear-algebra backend used by both least-squares stages.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.

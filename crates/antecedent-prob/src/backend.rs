@@ -202,25 +202,6 @@ impl LaplaceWorkspace {
         }
     }
 
-    /// Clear numeric contents without freeing capacity (for tests / reuse checks).
-    pub fn zero_numeric(&mut self) {
-        for v in [
-            &mut self.grad,
-            &mut self.neg_hessian,
-            &mut self.factor,
-            &mut self.step,
-            &mut self.beta,
-            &mut self.q,
-            &mut self.p,
-            &mut self.eta,
-            &mut self.work_w,
-            &mut self.draw_scratch,
-        ] {
-            for x in v.iter_mut() {
-                *x = 0.0;
-            }
-        }
-    }
 }
 
 fn resize_min(buf: &mut Vec<f64>, need: usize) -> bool {

@@ -233,12 +233,6 @@ impl TransportProposal {
         &self.candidate
     }
 
-    /// Checked theorem and provider-binding witness.
-    #[must_use]
-    pub const fn checked_functional(&self) -> &BoundTransportFunctional {
-        &self.checked
-    }
-
     /// Serialize the proposed addition and checked derivation for later replay.
     ///
     /// # Errors

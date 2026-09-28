@@ -496,21 +496,6 @@ impl EffectEstimate {
         self
     }
 
-    /// Mark that a joint interaction contrast is structurally zero on this path.
-    #[must_use]
-    pub fn with_interaction_structurally_zero(mut self, zero: bool) -> Self {
-        self.interaction_structurally_zero = zero;
-        self
-    }
-
-    /// Mark that the reported per-unit effects are homogeneous by construction of
-    /// the selected mechanism families (no effect modification is representable).
-    #[must_use]
-    pub fn with_unit_effects_homogeneous(mut self, homogeneous: bool) -> Self {
-        self.unit_effects_homogeneous = homogeneous;
-        self
-    }
-
     /// Attach a per-row influence sequence for the reported scalar.
     #[must_use]
     pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
@@ -550,37 +535,6 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_block_family(mut self, family: crate::temporal_block::CircularBlockFamily) -> Self {
         self.block_family = Some(family);
-        self
-    }
-
-    /// Attach a point E-value for a named no-latent / unmeasured-confounding premise.
-    #[must_use]
-    pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
-        self.evalue = evalue;
-        self
-    }
-
-    /// Attach the pass threshold the E-value refuter judged [`Self::evalue`] against.
-    #[must_use]
-    pub fn with_evalue_threshold(mut self, threshold: Option<f64>) -> Self {
-        self.evalue_threshold = threshold;
-        self
-    }
-
-    /// Attach the declared family contrast `(value, se)` used for batch FDR.
-    #[must_use]
-    pub fn with_family_contrast(mut self, contrast: Option<(f64, f64)>) -> Self {
-        self.family_contrast = contrast;
-        if contrast.is_none() {
-            self.family_contrast_interval = None;
-        }
-        self
-    }
-
-    /// Attach the contrast-family simultaneous interval `(lower, upper, level)`.
-    #[must_use]
-    pub fn with_family_contrast_interval(mut self, interval: Option<(f64, f64, f64)>) -> Self {
-        self.family_contrast_interval = interval;
         self
     }
 
@@ -703,13 +657,6 @@ impl LinearAdjustmentAte {
         }
     }
 
-    /// Set the dense linear-algebra backend used for the OLS / ridge / Huber fits.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
@@ -770,16 +717,6 @@ impl LinearAdjustmentAte {
     #[must_use]
     pub const fn with_fit_kind(mut self, fit_kind: LinearFitKind) -> Self {
         self.fit_kind = fit_kind;
-        self
-    }
-
-    /// Registry used to resolve named [`TargetPopulation::Predicate`] selections.
-    #[must_use]
-    pub fn with_population_registry(
-        mut self,
-        registry: antecedent_core::PopulationRegistry,
-    ) -> Self {
-        self.population_registry = Some(registry);
         self
     }
 

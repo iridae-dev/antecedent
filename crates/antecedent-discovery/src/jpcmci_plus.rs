@@ -29,7 +29,7 @@ use antecedent_stats::{
 };
 
 use crate::constraints::{
-    ContextKind, DiscoveryConstraints, JpcmciNodeRole, MultiDatasetConstraints, SpaceDummyCiMode,
+    ContextKind, DiscoveryConstraints, JpcmciNodeRole, SpaceDummyCiMode,
     TimeDummyCiMode,
 };
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
@@ -86,13 +86,6 @@ impl JpcmciPlus {
     }
 
     pcmci_family_builders!();
-
-    /// Replace multi-dataset / context settings.
-    #[must_use]
-    pub fn with_multi_dataset(mut self, multi: MultiDatasetConstraints) -> Self {
-        self.engine.constraints.multi_dataset = multi;
-        self
-    }
 
     /// Run J-PCMCI+ on multi-environment data.
     ///

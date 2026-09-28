@@ -91,12 +91,6 @@ impl Dag {
         }
     }
 
-    /// Whether `anc` is an ancestor of `desc` (or equal).
-    #[must_use]
-    pub fn is_ancestor(&self, anc: DenseNodeId, desc: DenseNodeId) -> bool {
-        self.reaches(anc, desc)
-    }
-
     /// Markov blanket of `node`: parents ∪ children ∪ spouses (co-parents of
     /// children). Does not include `node` itself.
     ///

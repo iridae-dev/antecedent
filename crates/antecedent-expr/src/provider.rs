@@ -71,13 +71,6 @@ impl Assignment {
         &self.entries
     }
 
-    /// Extend with another assignment (other wins on conflict).
-    pub fn extend_from(&mut self, other: &Assignment) {
-        for (v, val) in &other.entries {
-            self.set(*v, val.clone());
-        }
-    }
-
     /// Remove the binding for `var`, returning the previous value (if any).
     ///
     /// Lets evaluators treat one shared assignment as a binding stack: scoped
@@ -90,17 +83,6 @@ impl Assignment {
         }
     }
 
-    /// Restrict to the given variables (order of `vars` preserved in returned values).
-    pub fn values_for(&self, vars: &[VariableId]) -> Result<Vec<Value>, EvalError> {
-        let mut out = Vec::with_capacity(vars.len());
-        for &v in vars {
-            let Some(val) = self.get(v) else {
-                return Err(EvalError::MissingBinding(v));
-            };
-            out.push(val.clone());
-        }
-        Ok(out)
-    }
 }
 
 /// Resolved distribution factor identity (no string keys).

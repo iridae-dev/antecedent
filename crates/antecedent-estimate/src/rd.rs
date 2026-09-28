@@ -232,13 +232,6 @@ impl SharpRegressionDiscontinuity {
         self
     }
 
-    /// Set the dense linear-algebra backend.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
@@ -253,34 +246,6 @@ impl SharpRegressionDiscontinuity {
     #[must_use]
     pub const fn with_overlap(mut self, overlap: OverlapPolicy) -> Self {
         self.overlap = overlap;
-        self
-    }
-
-    /// Set the running (assignment) variable.
-    ///
-    /// Overridden by the estimand's own `rd_design` when present.
-    #[must_use]
-    pub const fn with_running_variable(mut self, running_variable: VariableId) -> Self {
-        self.running_variable = running_variable;
-        self
-    }
-
-    /// Set the discontinuity cutoff.
-    ///
-    /// Overridden by the estimand's own `rd_design` when present.
-    #[must_use]
-    pub const fn with_cutoff(mut self, cutoff: f64) -> Self {
-        self.cutoff = cutoff;
-        self
-    }
-
-    /// Set the symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is
-    /// retained). Must be positive.
-    ///
-    /// Overridden by the estimand's own `rd_design` when present.
-    #[must_use]
-    pub const fn with_bandwidth(mut self, bandwidth: f64) -> Self {
-        self.bandwidth = bandwidth;
         self
     }
 

@@ -149,15 +149,6 @@ impl Dag {
         self.parents[to.as_usize()].push(from);
     }
 
-    /// Remove a directed edge if present.
-    pub fn remove_directed(&mut self, from: DenseNodeId, to: DenseNodeId) {
-        if from.as_usize() >= self.node_count() || to.as_usize() >= self.node_count() {
-            return;
-        }
-        self.children[from.as_usize()].retain(|c| *c != to);
-        self.parents[to.as_usize()].retain(|p| *p != from);
-    }
-
     /// Children of `id` (empty for an id outside the graph).
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {

@@ -38,26 +38,6 @@ impl Admg {
         Ok(self.m_sep_bool(x, y, z, ws))
     }
 
-    /// Batch boolean m-separation.
-    ///
-    /// # Errors
-    ///
-    /// Unknown nodes or length mismatch.
-    pub fn is_m_separated_batch(
-        &self,
-        queries: &[(DenseNodeId, DenseNodeId, &[DenseNodeId])],
-        out: &mut [bool],
-        ws: &mut DSeparationWorkspace,
-    ) -> Result<(), GraphError> {
-        if out.len() != queries.len() {
-            return Err(GraphError::InvalidEndpoints { message: "batch output length mismatch" });
-        }
-        for (i, &(x, y, z)) in queries.iter().enumerate() {
-            out[i] = self.is_m_separated(x, y, z, ws)?;
-        }
-        Ok(())
-    }
-
     /// m-separation with witness.
     ///
     /// # Errors
@@ -689,26 +669,6 @@ impl Pag {
         }
     }
 
-    /// Batch boolean PAG m-separation.
-    ///
-    /// # Errors
-    ///
-    /// Length mismatch or unknown nodes.
-    pub fn is_m_separated_batch(
-        &self,
-        queries: &[(DenseNodeId, DenseNodeId, &[DenseNodeId])],
-        out: &mut [bool],
-        max_paths: usize,
-        max_len: usize,
-    ) -> Result<(), GraphError> {
-        if out.len() != queries.len() {
-            return Err(GraphError::InvalidEndpoints { message: "batch output length mismatch" });
-        }
-        for (i, &(x, y, z)) in queries.iter().enumerate() {
-            out[i] = self.is_m_separated(x, y, z, max_paths, max_len)?;
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]

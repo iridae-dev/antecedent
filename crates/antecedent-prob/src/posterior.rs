@@ -46,39 +46,11 @@ impl PosteriorSchema {
         self.quantities.len()
     }
 
-    /// Schema for `p` coefficients + optional residual variance + one effect.
-    #[must_use]
-    pub fn coefficients_and_effect(n_coef: usize, include_sigma2: bool, effect: &str) -> Self {
-        let mut q = Vec::with_capacity(n_coef + 2);
-        for i in 0..n_coef {
-            q.push(PosteriorQuantityKind::Coefficient { index: i, name: None });
-        }
-        if include_sigma2 {
-            q.push(PosteriorQuantityKind::ResidualVariance);
-        }
-        q.push(PosteriorQuantityKind::Effect { name: Arc::from(effect) });
-        Self { quantities: Arc::from(q) }
-    }
-
     /// Coefficient-only schema.
     #[must_use]
     pub fn coefficients(n_coef: usize) -> Self {
         let q: Vec<_> = (0..n_coef)
             .map(|i| PosteriorQuantityKind::Coefficient { index: i, name: None })
-            .collect();
-        Self { quantities: Arc::from(q) }
-    }
-
-    /// Coefficient schema with durable semantic names (e.g. `intercept`, `coef_t`).
-    #[must_use]
-    pub fn coefficients_named(names: impl IntoIterator<Item = impl Into<Arc<str>>>) -> Self {
-        let q: Vec<_> = names
-            .into_iter()
-            .enumerate()
-            .map(|(i, name)| PosteriorQuantityKind::Coefficient {
-                index: i,
-                name: Some(name.into()),
-            })
             .collect();
         Self { quantities: Arc::from(q) }
     }

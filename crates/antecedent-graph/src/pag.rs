@@ -273,14 +273,6 @@ impl Pag {
         marked_storage::directed_children(&self.adj, id).collect()
     }
 
-    /// Borrowed directed-child iterator (reachability hot path).
-    pub fn directed_children_iter(
-        &self,
-        id: DenseNodeId,
-    ) -> impl Iterator<Item = DenseNodeId> + '_ {
-        marked_storage::directed_children(&self.adj, id)
-    }
-
     /// Whether `from` reaches `to` via definite directed edges only.
     #[must_use]
     pub fn reaches_directed(&self, from: DenseNodeId, to: DenseNodeId) -> bool {

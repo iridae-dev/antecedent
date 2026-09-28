@@ -91,13 +91,6 @@ impl ConditionalLinearAdjustment {
         self
     }
 
-    /// Set the dense linear-algebra backend used for the interaction-model OLS fit.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Estimate conditional ATE from a [`ConditionalEffectQuery`].
     ///
     /// # Errors

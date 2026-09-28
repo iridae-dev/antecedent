@@ -63,36 +63,3 @@ pub fn gcomp_row_contrast(
     }
     family.mean_from_eta(eta_active) - family.mean_from_eta(eta_control)
 }
-
-/// Mean ATE across rows for one coefficient vector.
-#[must_use]
-pub fn gcomp_mean_ate(
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    coefficients: &[f64],
-    active: f64,
-    control: f64,
-) -> f64 {
-    if nrows == 0 {
-        return f64::NAN;
-    }
-    let sum: f64 = (0..nrows)
-        .map(|r| {
-            gcomp_row_contrast(
-                family,
-                x_colmajor,
-                nrows,
-                ncols,
-                t_col,
-                coefficients,
-                active,
-                control,
-                r,
-            )
-        })
-        .sum();
-    sum / nrows as f64
-}
