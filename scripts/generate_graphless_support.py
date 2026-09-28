@@ -150,7 +150,7 @@ def docs(rows: list[dict]) -> str:
     ]
     for row in rows:
         evidence = ", ".join(
-            f"[`{row[field].split('::')[-1]}`](../{row[field].split('::')[0]})"
+            f"[`{row[field].split('::')[-1]}`](https://github.com/iridae-dev/antecedent/blob/main/{row[field].split('::')[0]})"
             for field in ("known_truth_test", "retained_route_test")
         )
         lines.append(
