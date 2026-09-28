@@ -17,7 +17,7 @@ use crate::error::ValidationError;
 pub const DEFAULT_EVALUE_THRESHOLD: f64 = 2.0;
 
 /// Two-sided normal quantile of the 95% confidence interval the CI-limit E-value uses.
-const CI_Z: f64 = 1.959_963_984_540_054;
+use antecedent_stats::NORMAL_Q975 as CI_Z;
 
 /// E-value: the minimum strength of association, on the risk-ratio scale, that an
 /// unmeasured confounder would need with both treatment and outcome to fully explain away

@@ -504,7 +504,7 @@ pub fn fit_local_polynomial_ratio(
         return Err(String::from("robust ratio variance is not finite and non-negative"));
     }
     let standard_error = variance_estimate.max(0.0).sqrt();
-    let critical = 1.959_963_984_540_054;
+    let critical = antecedent_stats::NORMAL_Q975;
     Ok(LocalPolynomialRatioFit {
         estimate,
         reduced_form,

@@ -22,7 +22,7 @@ pub struct AncovaFit {
 /// support boundary; an interval does not.
 #[must_use]
 pub fn calibrated_bernoulli_interval_95(fit: &AncovaFit, probability: f64) -> Option<[f64; 2]> {
-    const NORMAL_95: f64 = 1.959_963_984_540_054;
+    use antecedent_stats::NORMAL_Q975 as NORMAL_95;
     if fit.covariate_coefficients.is_empty()
         || fit.covariate_coefficients.len() > 2
         || fit.treated + fit.control < 400

@@ -7,7 +7,7 @@ pub const MIN_ROWS_FOR_INTERVAL: usize = 400;
 pub const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
 /// Minimum declared probability for either contrasted action at every row.
 pub const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
-const NORMAL_95: f64 = 1.959_963_984_540_054;
+use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Horvitz–Thompson effect and its conservative independent-row score variance.
 #[derive(Clone, Copy, Debug, PartialEq)]

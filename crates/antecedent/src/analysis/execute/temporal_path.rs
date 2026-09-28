@@ -1859,7 +1859,7 @@ impl super::Study {
         let attach_scalar_posterior = temporal.horizons.len() == 1;
         let mut uncertainty_complete = true;
         let mut bootstrap_cancelled = false;
-        let z = 1.959_963_984_540_054;
+        let z = antecedent_stats::NORMAL_Q975;
         for (horizon_steps, entry) in temporal.horizons.iter().copied().zip(aligned.iter()) {
             require_identified(&entry.identification)?;
             let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);

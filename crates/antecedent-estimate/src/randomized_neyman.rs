@@ -3,7 +3,7 @@
 
 /// Minimum independently randomized clusters in each arm for a normal interval.
 pub const MIN_CLUSTERS_PER_ARM_FOR_INTERVAL: usize = 30;
-const NORMAL_95: f64 = 1.959_963_984_540_054;
+use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Minimum independently assigned units in each arm for a complete-design interval.
 pub const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;

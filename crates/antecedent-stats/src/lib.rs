@@ -116,7 +116,7 @@ pub use response::{
     gaussian_local_quadratic_weighted, silverman_bandwidth,
 };
 pub use special::{
-    digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
+    NORMAL_Q975, digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
     regularized_incomplete_beta, student_t_ppf, student_t_sf, trigamma,
 };
 pub use twosls::{

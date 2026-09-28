@@ -60,6 +60,13 @@ pub fn gauss_hermite_standard_normal(n: usize) -> (Vec<f64>, Vec<f64>) {
     (nodes, weights)
 }
 
+/// The 97.5% standard-normal quantile — the two-sided 95% critical value `z_{0.975}`.
+///
+/// A single owner for the constant that a Wald 95% interval multiplies its standard error
+/// by. Equal to `normal_ppf(0.975)` to full `f64` precision, but a `const` so it carries no
+/// evaluation cost and reads identically at every interval site.
+pub const NORMAL_Q975: f64 = 1.959_963_984_540_054;
+
 /// Standard-normal PPF: Acklam's rational approximation refined by one Halley step.
 ///
 /// Acklam's approximation alone has relative error ~1.6e-9 at p=0.975, rising to ~7.6e-9
