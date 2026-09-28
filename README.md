@@ -1,4 +1,4 @@
-# Antecedent 2.0
+# Antecedent 2.1
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
@@ -73,6 +73,24 @@ identification = ant.identify(graph=graph, query=query)
 result = identification.estimate(ant.transport.StatisticalTransportData(...))
 # missing regime samples leave the functional unavailable
 ```
+
+## New in Antecedent 2.1
+
+2.1 keeps the same lifecycle and widens the questions it can carry. Design-family studies — randomized and factorial experiments, held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.factorial`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root.
+
+```python
+design = ant.experiment.ExperimentDesign(
+    assignment=ant.interference.BernoulliAssignment(0.5),
+    realized_assignment="assigned",   # row-aligned inputs may name a data column
+    assignment_units="account_id",
+    outcome_units="account_id",
+)
+result = ant.analyze(data, query=ant.experiment.RandomizedEffect("revenue", design))
+```
+
+On the experiment, policy, regime, and interference queries, row-aligned inputs may be named by a data column; `prepare` resolves those names and freezes the design, and `refresh` reuses that design with outcome-only data. Interval claims for these families are rows of the [graphless support matrix](docs/graphless-support-matrix.md), separate from the geometric matrix; a support license is not a coverage record.
+
+2.1 also adds restricted-experiment (z-transport) identification, a fixed-DAG nested-counterfactual natural direct effect, wider model-scoped Bayesian routes, and an external-provider contract (`antecedent.extensibility.CausalProviderSpec` with a `ProviderRegistry`).
 
 Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
 
