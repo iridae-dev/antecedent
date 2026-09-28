@@ -1075,8 +1075,12 @@ fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage(
         dgp: "noisy_xy_single_atom_graph_posterior",
         interval: "posterior_quantile",
     };
-    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL);
-    let mut gate_level = CoverageTally::for_record(key, LEVEL).unasserted();
+    // The runtime reports the scalar interval at REPORTED_LEVEL (0.95); the gate
+    // asserts the GATE_LEVEL (0.9) interval recomputed from the retained draws and
+    // the 0.95 interval is recorded (emitted) at the runtime's reported level, the
+    // same split the sibling single-atom mediation graph-posterior test uses.
+    let mut gated = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
@@ -1109,12 +1113,12 @@ fn bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage(
             .into_iter()
             .next()
             .expect("one intervention coordinate");
-        bind_all(&mut [&mut reported, &mut gate_level], study, result);
+        bind_all(&mut [&mut gated, &mut reported], study, result);
+        gated.record(pair[1], XY_TRUTH);
         reported.record(pair[0], XY_TRUTH);
-        gate_level.record(pair[1], XY_TRUTH);
     }
-    reported.assert();
-    gate_level.emit();
+    gated.assert();
+    reported.emit();
 }
 
 // ---------------------------------------------------------------------------

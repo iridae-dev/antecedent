@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, ContinuousDomain, Diagnostic, DiagnosticKind,
+    AssumptionStatus, CausalResponse, ContinuousDomain, CredibleDraws, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification, IdentificationStatus,
     Intervention, InterventionSequence, MAX_TEMPORAL_RESPONSE_CELLS, MechanismOverride,
     ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
@@ -1218,6 +1218,11 @@ impl TemporalResponseEstimator {
         let mut lower = Vec::new();
         let mut upper = Vec::new();
         let mut cell_draws: Vec<&[f64]> = Vec::new();
+        // Full-length per-cell draw columns in the published order, retained for a
+        // single-coordinate `InterventionResponse` so the facade can surface its
+        // scalar credible interval as a `Scalar` uncertainty whose draws
+        // reconstruct the published `[lower, upper]`. Curves keep `draws: None`.
+        let mut band_columns: Vec<Vec<f64>> = Vec::new();
         for d in 0..if intervention.is_some() { 1 } else { doses.len() } {
             for row in &rows {
                 let ((m, lo, hi, _), values) = &row[d];
@@ -1225,6 +1230,7 @@ impl TemporalResponseEstimator {
                 lower.push(*lo);
                 upper.push(*hi);
                 cell_draws.push(values);
+                band_columns.push(values.clone());
             }
         }
         // Horizons are separate conjugate fits with independent draws; pairing draw r
@@ -1314,6 +1320,16 @@ impl TemporalResponseEstimator {
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.temporal.bayesian") }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
         });
         assumptions.push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
+        // Only a single-coordinate `InterventionResponse` retains its draws (see
+        // `band_columns`); every horizon shares the conjugate draw count, so the
+        // columns are equal-length and reconstruct the published pointwise interval.
+        let band_draws = if intervention.is_some() {
+            let n_draws = band_columns.first().map_or(0, Vec::len);
+            (n_draws >= 2 && band_columns.iter().all(|column| column.len() == n_draws))
+                .then(|| CredibleDraws::columns(n_draws, &band_columns))
+        } else {
+            None
+        };
         Ok(CausalResponse {
             estimand: query.functional.clone(),
             identification_status,
@@ -1327,7 +1343,7 @@ impl TemporalResponseEstimator {
                 lower: Arc::from(lower),
                 upper: Arc::from(upper),
                 interpretation: antecedent_core::IntervalInterpretation::Credible,
-                draws: None,
+                draws: band_draws,
             },
             support,
             assumptions,
