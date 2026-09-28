@@ -1,6 +1,7 @@
 //! Per-horizon DBN mediation eligibility and prepared numerical reuse.
 
 use super::*;
+use antecedent_discovery::GraphPosterior;
 use crate::analysis::execute::CheckedTemporalClassMediationOperation;
 use crate::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{

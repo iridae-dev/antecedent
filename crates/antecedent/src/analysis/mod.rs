@@ -65,6 +65,7 @@ pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_
 pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod graph_posterior_target;
 mod helpers;
+mod identification_cache;
 mod latency;
 mod prepared;
 mod route_guards;
