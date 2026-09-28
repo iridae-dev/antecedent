@@ -659,14 +659,7 @@ impl OwnedColumn {
     /// Variable id.
     #[must_use]
     pub fn id(&self) -> VariableId {
-        match self {
-            Self::Float64(c) => c.id,
-            Self::Int64(c) => c.id,
-            Self::Boolean(c) => c.id,
-            Self::Categorical(c) => c.id,
-            Self::Timestamp(c) => c.id,
-            Self::FixedVector(c) => c.id,
-        }
+        self.as_view().id()
     }
 
     /// Clone the column with a remapped dense id (value buffers stay shared).
@@ -712,14 +705,7 @@ impl OwnedColumn {
     /// Row count.
     #[must_use]
     pub fn len(&self) -> usize {
-        match self {
-            Self::Float64(c) => c.len(),
-            Self::Int64(c) => c.len(),
-            Self::Boolean(c) => c.len(),
-            Self::Categorical(c) => c.len(),
-            Self::Timestamp(c) => c.len(),
-            Self::FixedVector(c) => c.len(),
-        }
+        self.as_view().len()
     }
 
     /// Whether empty.
