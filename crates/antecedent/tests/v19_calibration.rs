@@ -1584,21 +1584,18 @@ fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
 fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
     const VARIABLES: usize = 5;
     let contemporaneous = set_edge(set_edge(0, VARIABLES, 1, 2, true), VARIABLES, 3, 4, true);
-    let lagged = set_edge(
-        set_edge(
-            set_edge(set_edge(0, VARIABLES, 0, 1, true), VARIABLES, 0, 2, true),
-            VARIABLES,
-            3,
-            1,
-            true,
-        ),
-        VARIABLES,
-        4,
-        2,
-        true,
-    );
+    // Lag-1 edges `t@-1 -> m` (0->1), `t@-1 -> y` (0->2), `z@-1 -> m` (3->1) and
+    // `w@-1 -> y` (4->2). The DBN lag mask is decoded with the raw
+    // `from * VARIABLES + to` bit index (`has_lag_edge` / the lag-1 block), not
+    // the compact `set_edge` contemporaneous edge index, so the bits are exactly
+    // the `lagged_marginals` indices `[1, 2, 16, 22]`.
+    let lagged_edges = [1usize, 2, 16, 22];
+    let mut lagged = 0u64;
+    for edge in lagged_edges {
+        lagged |= 1u64 << edge;
+    }
     let mut lagged_marginals = vec![0.0; VARIABLES * VARIABLES];
-    for edge in [1, 2, 16, 22] {
+    for edge in lagged_edges {
         lagged_marginals[edge] = 1.0;
     }
     GraphPosterior::new(
@@ -1661,7 +1658,11 @@ fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_n
     });
     for (study, result) in &runs {
         let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
-        let mediated_draws = post.draws.column(3).expect("mediated effect draws");
+        // The single-atom graph-posterior mediation posterior is envelope-aggregated
+        // over the effect (the query's Mediated contrast), so the mediated draws are
+        // the effect column, not a Total/Direct/Mediated decomposition column.
+        let col = post.effect_column().expect("mediation effect column");
+        let mediated_draws = post.draws.column(col).expect("mediated effect draws");
         bind_all(&mut [&mut mediated, &mut reported], study, result);
         mediated.record(quantile_interval(mediated_draws, LEVEL), fixtures::mediation_truth());
         reported
