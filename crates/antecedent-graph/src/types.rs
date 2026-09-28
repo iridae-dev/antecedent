@@ -204,13 +204,6 @@ impl MarkedEdge {
         }
     }
 
-    /// Same endpoints with a different middle mark.
-    #[must_use]
-    pub const fn with_middle(mut self, middle: MiddleMark) -> Self {
-        self.middle = middle;
-        self
-    }
-
     /// Whether marks are legal for a CPDAG (directed, undirected, or `x-x`; no Circle).
     #[must_use]
     pub const fn is_cpdag_legal(self) -> bool {

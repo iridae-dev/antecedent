@@ -461,48 +461,6 @@ impl CausalQuery {
         }
     }
 
-    /// Whether this query is the static ATE path.
-    #[must_use]
-    pub const fn is_static_ate(&self) -> bool {
-        matches!(self, Self::AverageEffect(_))
-    }
-
-    /// Whether this query is a temporal effect.
-    #[must_use]
-    pub const fn is_temporal_effect(&self) -> bool {
-        matches!(self, Self::TemporalEffect(_))
-    }
-
-    /// Whether this query is counterfactual.
-    #[must_use]
-    pub const fn is_counterfactual(&self) -> bool {
-        matches!(self, Self::Counterfactual(_))
-    }
-
-    /// Whether this query is mediation.
-    #[must_use]
-    pub const fn is_mediation(&self) -> bool {
-        matches!(self, Self::Mediation(_))
-    }
-
-    /// Whether this query is a conditional effect.
-    #[must_use]
-    pub const fn is_conditional_effect(&self) -> bool {
-        matches!(self, Self::ConditionalEffect(_))
-    }
-
-    /// Whether this query is an interventional distribution.
-    #[must_use]
-    pub const fn is_distribution(&self) -> bool {
-        matches!(self, Self::Distribution(_))
-    }
-
-    /// Whether this query is path-specific.
-    #[must_use]
-    pub const fn is_path_specific(&self) -> bool {
-        matches!(self, Self::PathSpecific(_))
-    }
-
     /// Validate the inner query.
     ///
     /// # Errors

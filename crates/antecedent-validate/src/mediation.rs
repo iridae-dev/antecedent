@@ -94,22 +94,6 @@ impl QueryRefutationPlan {
     }
 }
 
-/// Run placebo-mediator and random-common-cause checks on the mediation model.
-/// Full adds a contiguous-window contrast stability check, preserving lag adjacency.
-/// Placebo always tests the indirect contrast against zero, including for a
-/// direct/total query; RCC and window checks test the requested contrast.
-#[allow(clippy::float_cmp)] // Exact equality distinguishes observed binary levels.
-pub fn refute_temporal_mediation(
-    data: &TimeSeriesData,
-    estimand: &IdentifiedEstimand,
-    query: &MediationQuery,
-    original: &TemporalMediationEstimate,
-    full: bool,
-    ctx: &ExecutionContext,
-) -> Result<Vec<RefutationReport>, ValidationError> {
-    refute_temporal_mediation_adjusted(data, estimand, query, original, full, &[], ctx)
-}
-
 /// Run the native suite with the same graph-derived adjustment as the estimate.
 #[allow(
     clippy::float_cmp,

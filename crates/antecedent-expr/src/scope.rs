@@ -78,24 +78,6 @@ impl CausalExprArena {
         substitute_rec(self, id, &map, &BTreeSet::new())
     }
 
-    /// Refuse when free variables disagree with the certified target.
-    ///
-    /// # Errors
-    ///
-    /// [`ExprError::FreeVariableMismatch`].
-    pub fn require_free_variables(
-        &self,
-        id: ExprId,
-        expected: &[VariableId],
-    ) -> Result<(), ExprError> {
-        let mut got = self.free_variables(id);
-        got.sort_by_key(|v| v.raw());
-        let mut exp = expected.to_vec();
-        exp.sort_by_key(|v| v.raw());
-        exp.dedup();
-        if got == exp { Ok(()) } else { Err(ExprError::FreeVariableMismatch) }
-    }
-
     /// Reachable distribution leaves, visiting shared subexpressions only once.
     #[must_use]
     pub fn distribution_leaves(&self, id: ExprId) -> Vec<ExprId> {

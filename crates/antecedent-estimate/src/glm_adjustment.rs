@@ -123,13 +123,6 @@ impl GlmAdjustmentAte {
         }
     }
 
-    /// Set the dense linear-algebra backend used by the IRLS inner loop.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
@@ -187,16 +180,6 @@ impl GlmAdjustmentAte {
     #[must_use]
     pub fn with_panel_times(mut self, panel_times: Vec<i64>) -> Self {
         self.panel_times = Some(panel_times);
-        self
-    }
-
-    /// Registry used to resolve named [`TargetPopulation::Predicate`] selections.
-    #[must_use]
-    pub fn with_population_registry(
-        mut self,
-        registry: antecedent_core::PopulationRegistry,
-    ) -> Self {
-        self.population_registry = Some(registry);
         self
     }
 

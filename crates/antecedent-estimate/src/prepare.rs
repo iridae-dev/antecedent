@@ -83,21 +83,6 @@ pub(crate) fn intersect_predicate_mask(
     }
     Ok(())
 }
-///
-/// # Errors
-///
-/// Unsupported query options.
-pub fn validate_simple_ate_query(query: &AverageEffectQuery) -> Result<(), EstimationError> {
-    query.validate()?;
-    if !query.effect_modifiers.is_empty() {
-        return Err(EstimationError::EffectModifiers);
-    }
-    if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::TargetPopulation);
-    }
-    Ok(())
-}
-
 /// Extract numeric active/control levels and nonzero treatment delta.
 ///
 /// # Errors

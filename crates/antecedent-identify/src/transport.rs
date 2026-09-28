@@ -129,11 +129,6 @@ impl TransportIdentification {
         }
     }
 
-    /// Whether a sound formula was certified.
-    #[must_use]
-    pub const fn is_transportable(&self) -> bool {
-        matches!(self, Self::Transportable { .. })
-    }
 }
 
 /// Conservative sID-style identifier covering direct transport, general pre-treatment

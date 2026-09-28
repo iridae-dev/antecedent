@@ -158,12 +158,6 @@ impl LocalScoreCache {
         self.bytes = 0;
     }
 
-    /// Invalidate cached scores for one node.
-    pub fn invalidate_node(&mut self, node: u32) {
-        self.entries.remove(&node);
-        self.running_total = None;
-    }
-
     /// Bind to `data` on first use; refuse different data afterwards.
     fn bind(&mut self, data: &GraphScoreData) -> Result<(), StateError> {
         match self.bound_data {

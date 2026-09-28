@@ -101,14 +101,6 @@ impl Rfci {
         }
     }
 
-    /// Per-edge bounds of the discriminating-path search. An edge that exhausts its budget
-    /// keeps its circle mark and is reported in a diagnostic; the run does not fail.
-    #[must_use]
-    pub fn with_discriminating_path_budget(mut self, budget: DiscriminatingPathBudget) -> Self {
-        self.discriminating_path_budget = budget;
-        self
-    }
-
     /// Configure constraints.
     #[must_use]
     pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {

@@ -121,13 +121,6 @@ impl PropensityMatching {
         }
     }
 
-    /// Set the dense linear-algebra backend used for the logistic IRLS fit.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Record a bootstrap-replicate count without licensing a bootstrap SE.
     ///
     /// The nonparametric bootstrap is invalid for nearest-neighbor matching CIs
@@ -185,13 +178,6 @@ impl PropensityMatching {
     #[must_use]
     pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.cluster_ids = Some(cluster_ids);
-        self
-    }
-
-    /// Set bindings for named predicates / custom target distributions.
-    #[must_use]
-    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
-        self.population_registry = Some(registry);
         self
     }
 
@@ -741,41 +727,6 @@ fn matching_influence(
         }
     }
     psi
-}
-
-/// Heteroskedastic Abadie–Imbens SE using demeaned pair-level variance proxies.
-/// Not exposed as `Hc0`–`Hc3` (those names are sandwich estimators matching does not implement).
-#[allow(dead_code)]
-fn abadie_imbens_se_hetero(
-    effects: &[f64],
-    donor_local: &[usize],
-    n_donors: usize,
-    ate_form: bool,
-) -> f64 {
-    let n = effects.len();
-    if n < 2 || donor_local.len() != n {
-        return sample_std(effects) / (n as f64).sqrt();
-    }
-    let k = donor_counts(donor_local, n_donors);
-    let mean = effects.iter().sum::<f64>() / n as f64;
-    let mut var = 0.0;
-    if ate_form {
-        // Query-level proxy using the matched donor's K (homo ATE uses unit-level K_M).
-        for (i, &d) in donor_local.iter().enumerate() {
-            let centered = effects[i] - mean;
-            let sigma2_i = 0.5 * centered * centered;
-            let kd = k.get(d).copied().unwrap_or(0) as f64;
-            var += sigma2_i * (1.0 + kd).powi(2);
-        }
-    } else {
-        for (i, &d) in donor_local.iter().enumerate() {
-            let centered = effects[i] - mean;
-            let sigma2_i = 0.5 * centered * centered;
-            let kd = k.get(d).copied().unwrap_or(0) as f64;
-            var += sigma2_i * (1.0 + kd);
-        }
-    }
-    (var / (n as f64).powi(2)).max(0.0).sqrt()
 }
 
 /// OLS of `y` on `[1, x]` (row-major `x` with `dim` columns). Returns `[intercept, β…]`.

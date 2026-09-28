@@ -330,39 +330,6 @@ fn fit_bayesian_iv_inner(
     })
 }
 
-/// Evaluate structural-prior sensitivity on caller-declared scales.
-pub fn bayesian_iv_prior_sensitivity(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
-    prior_sds: &[f64],
-    draws: usize,
-    seed: u64,
-    weak_f_threshold: f64,
-) -> Result<Vec<(f64, f64, f64)>, EstimationError> {
-    if prior_sds.is_empty() {
-        return Err(EstimationError::stats_msg(
-            "prior sensitivity requires at least one prior scale",
-        ));
-    }
-    prior_sds
-        .iter()
-        .enumerate()
-        .map(|(i, sd)| {
-            let fit = fit_bayesian_iv(
-                instrument,
-                treatment,
-                outcome,
-                *sd,
-                draws,
-                seed.wrapping_add(i as u64),
-                weak_f_threshold,
-            )?;
-            Ok((*sd, fit.lower, fit.upper))
-        })
-        .collect()
-}
-
 fn mean(x: &[f64]) -> f64 {
     x.iter().sum::<f64>() / x.len() as f64
 }

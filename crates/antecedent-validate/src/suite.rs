@@ -723,16 +723,6 @@ impl ValidationSuite {
         }
     }
 
-    /// Bayesian diagnostics suite identifiers.
-    #[must_use]
-    pub fn bayesian_diagnostics() -> Self {
-        Self::new()
-            .with(ValidatorId::PriorPredictive)
-            .with(ValidatorId::PosteriorPredictive)
-            .with(ValidatorId::PriorSensitivity)
-            .with(ValidatorId::McmcDiagnostics)
-    }
-
     /// Prior predictive check only (cheap; no fitted posterior required beyond prepare).
     #[must_use]
     pub fn prior_predictive() -> Self {

@@ -657,13 +657,6 @@ impl BayesianGComputationAte {
         }
     }
 
-    /// Set the inference backend kind (conjugate Gaussian, Laplace, or HMC).
-    #[must_use]
-    pub const fn with_backend(mut self, backend: BayesianBackendKind) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the likelihood used for the Laplace / HMC backends.
     ///
     /// Ignored by [`BayesianBackendKind::ConjugateGaussian`], which always forces

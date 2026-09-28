@@ -185,17 +185,6 @@ pub struct ComposedPrior {
 }
 
 impl ComposedPrior {
-    /// Borrow the composed [`PriorSet`].
-    #[must_use]
-    pub fn as_prior_set(&self) -> &PriorSet {
-        &self.prior
-    }
-
-    /// Consume into the composed [`PriorSet`].
-    #[must_use]
-    pub fn into_prior_set(self) -> PriorSet {
-        self.prior
-    }
 }
 
 /// Compose external Gaussian coefficient priors with a baseline.
