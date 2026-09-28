@@ -20,6 +20,10 @@
     )
 )]
 
+// The extension module does not link libpython. The test harness does.
+#[cfg(test)]
+include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
+
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
