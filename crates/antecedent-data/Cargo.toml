@@ -34,7 +34,6 @@ arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
 arrow-data = { workspace = true, optional = true }
-thiserror = { workspace = true }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 
