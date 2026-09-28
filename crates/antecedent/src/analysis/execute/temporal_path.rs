@@ -2224,7 +2224,7 @@ impl super::Study {
                     Some(series)
                 };
                 let series = series_owned.as_ref().unwrap_or(data);
-                let response = match &self.inference {
+                let mut response = match &self.inference {
                     InferenceMode::Bayesian(cfg)
                         if query.observation != ObservationSpec::Complete =>
                     {
@@ -2310,6 +2310,15 @@ impl super::Study {
                             .map_err(CausalError::from)?
                     }
                 };
+                // The class response pools each completion's per-cell band into one
+                // shared draws-agnostic band (published with `draws: None`) and rejects
+                // a band that carries retained draws. A single-coordinate
+                // `InterventionResponse` band now retains its posterior draws (only the
+                // single-atom graph-posterior scalar path consumes them), so drop them
+                // here to keep the completions poolable and the class band unchanged.
+                if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty {
+                    *draws = None;
+                }
                 let atom_assumptions = response.assumptions.clone();
                 let atom_index = assembly.push_atom(
                     horizon_index,
