@@ -18,7 +18,6 @@ workspace = true
 
 [dependencies]
 antecedent-core = { version = "2.1.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.1.0", path = "../antecedent-data" }
 antecedent-discovery = { version = "2.1.0", path = "../antecedent-discovery" }
 antecedent-estimate = { version = "2.1.0", path = "../antecedent-estimate" }
 antecedent-expr = { version = "2.1.0", path = "../antecedent-expr" }

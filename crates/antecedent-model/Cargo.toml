@@ -21,7 +21,6 @@ antecedent-core = { version = "2.1.0", path = "../antecedent-core" }
 antecedent-data = { version = "2.1.0", path = "../antecedent-data" }
 antecedent-graph = { version = "2.1.0", path = "../antecedent-graph" }
 antecedent-kernels = { version = "2.1.0", path = "../antecedent-kernels" }
-antecedent-prob = { version = "2.1.0", path = "../antecedent-prob" }
 antecedent-stats = { version = "2.1.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
