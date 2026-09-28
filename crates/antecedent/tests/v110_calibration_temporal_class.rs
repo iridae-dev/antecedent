@@ -65,11 +65,8 @@ fn pulse_series(n: usize, seed: u64) -> TimeSeriesData {
         let (t1, z1) = if s == 0 { (0.0, 0.0) } else { (t[s - 1], z[s - 1]) };
         y[s] = 1.0 + 2.0 * t1 + 0.8 * z1 + noise();
     }
-    TimeSeriesData::from_f64_columns(
-        [("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])],
-        1,
-    )
-    .unwrap()
+    TimeSeriesData::from_f64_columns([("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])], 1)
+        .unwrap()
 }
 
 /// Sustained law on `[t (0), y (1), z (2)]`, the pulse law plus a lag-2 `t -> y`
@@ -93,11 +90,8 @@ fn sustained_series(n: usize, seed: u64) -> TimeSeriesData {
         let z1 = if s >= 1 { z[s - 1] } else { 0.0 };
         y[s] = 1.0 + 2.0 * t1 + 1.0 * t2 + 0.8 * z1 + noise();
     }
-    TimeSeriesData::from_f64_columns(
-        [("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])],
-        1,
-    )
-    .unwrap()
+    TimeSeriesData::from_f64_columns([("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])], 1)
+        .unwrap()
 }
 
 /// Mediation law on `[t (0), m (1), y (2)]`:
@@ -118,11 +112,8 @@ fn mediation_series(n: usize, seed: u64) -> TimeSeriesData {
         m[s] = 0.8 * t1 + 0.4 * noise();
         y[s] = 0.25 * t1 + 0.55 * m[s] + 0.4 * noise();
     }
-    TimeSeriesData::from_f64_columns(
-        [("t", &t[BURN..]), ("m", &m[BURN..]), ("y", &y[BURN..])],
-        1,
-    )
-    .unwrap()
+    TimeSeriesData::from_f64_columns([("t", &t[BURN..]), ("m", &m[BURN..]), ("y", &y[BURN..])], 1)
+        .unwrap()
 }
 
 /// Truth of the pulse contrast: the lag-1 `t -> y` coefficient (see `pulse_series`).
@@ -562,13 +553,7 @@ fn temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_cov
         MEDIATION_TRUTH,
         |rep| {
             let seed = stream_seed(0x11C_000A, rep);
-            run_mediation(
-                mediation_series(grid_n(N), seed),
-                mediation_atom(),
-                bayes(),
-                0,
-                seed,
-            )
+            run_mediation(mediation_series(grid_n(N), seed), mediation_atom(), bayes(), 0, seed)
         },
         |result| posterior_pair(result, effect_col(result)),
     );

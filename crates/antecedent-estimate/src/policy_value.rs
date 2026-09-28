@@ -49,20 +49,32 @@ pub fn pointwise_intervals_95(
     policy_matches: usize,
     reference_matches: usize,
 ) -> Option<PolicyValueIntervals95> {
-    if evaluation_rows < 120 || policy_matches < 10 || reference_matches < 10
+    if evaluation_rows < 120
+        || policy_matches < 10
+        || reference_matches < 10
         || !scores.policy_standard_error.is_finite()
         || !scores.incremental_standard_error.is_finite()
         || scores.policy_standard_error <= 0.0
         || scores.incremental_standard_error <= 0.0
-    { return None; }
+    {
+        return None;
+    }
     let z = antecedent_stats::normal_ppf(0.975);
     let span = z * scores.policy_standard_error;
     let difference_span = z * scores.incremental_standard_error;
     let intervals = PolicyValueIntervals95 {
         policy: [scores.policy_value - span, scores.policy_value + span],
-        incremental: [scores.incremental_value - difference_span, scores.incremental_value + difference_span],
+        incremental: [
+            scores.incremental_value - difference_span,
+            scores.incremental_value + difference_span,
+        ],
     };
-    intervals.policy.iter().chain(intervals.incremental.iter()).all(|v| v.is_finite()).then_some(intervals)
+    intervals
+        .policy
+        .iter()
+        .chain(intervals.incremental.iter())
+        .all(|v| v.is_finite())
+        .then_some(intervals)
 }
 
 /// Regret against a prespecified finite class of binary policies, evaluated on
@@ -91,8 +103,12 @@ pub struct FixedCandidateRegret {
 /// publishing this interval. Candidate actions may depend on baseline features
 /// but cannot depend on these evaluation outcomes or assignments.
 pub fn evaluate_fixed_candidate_regret(
-    outcome: &[f64], assignment: &[bool], propensity: &[f64],
-    candidates: &[Vec<bool>], selected_index: usize, treatment_cost: &[f64],
+    outcome: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+    candidates: &[Vec<bool>],
+    selected_index: usize,
+    treatment_cost: &[f64],
     held_out_from_selection: bool,
 ) -> Result<FixedCandidateRegret, &'static str> {
     let n = outcome.len();
@@ -100,8 +116,11 @@ pub fn evaluate_fixed_candidate_regret(
     if !held_out_from_selection {
         return Err("finite-class regret requires held-out candidate selection and construction");
     }
-    if n < 400 || !(2..=16).contains(&k) || selected_index >= k
-        || assignment.len() != n || candidates.iter().any(|actions| actions.len() != n)
+    if n < 400
+        || !(2..=16).contains(&k)
+        || selected_index >= k
+        || assignment.len() != n
+        || candidates.iter().any(|actions| actions.len() != n)
         || !(propensity.len() == 1 || propensity.len() == n)
         || !(treatment_cost.len() == 1 || treatment_cost.len() == n)
     {
@@ -109,11 +128,16 @@ pub fn evaluate_fixed_candidate_regret(
     }
     let at = |values: &[f64], i: usize| values[if values.len() == 1 { 0 } else { i }];
     if outcome.iter().any(|value| !value.is_finite())
-        || (0..n).any(|i| !at(propensity, i).is_finite()
-            || !(0.2..=0.8).contains(&at(propensity, i))
-            || !at(treatment_cost, i).is_finite() || at(treatment_cost, i) < 0.0)
+        || (0..n).any(|i| {
+            !at(propensity, i).is_finite()
+                || !(0.2..=0.8).contains(&at(propensity, i))
+                || !at(treatment_cost, i).is_finite()
+                || at(treatment_cost, i) < 0.0
+        })
     {
-        return Err("finite-class regret requires finite outcomes, costs, and randomized overlap at least 0.2");
+        return Err(
+            "finite-class regret requires finite outcomes, costs, and randomized overlap at least 0.2",
+        );
     }
     let mut scores = Vec::with_capacity(k);
     for actions in candidates {
@@ -121,16 +145,21 @@ pub fn evaluate_fixed_candidate_regret(
         if matches < 50 {
             return Err("each candidate requires at least 50 observed matching assignments");
         }
-        scores.push((0..n).map(|i| {
-            let p = at(propensity, i);
-            let response = if assignment[i] == actions[i] {
-                outcome[i] / if actions[i] { p } else { 1.0 - p }
-            } else { 0.0 };
-            response - f64::from(actions[i]) * at(treatment_cost, i)
-        }).collect::<Vec<_>>());
+        scores.push(
+            (0..n)
+                .map(|i| {
+                    let p = at(propensity, i);
+                    let response = if assignment[i] == actions[i] {
+                        outcome[i] / if actions[i] { p } else { 1.0 - p }
+                    } else {
+                        0.0
+                    };
+                    response - f64::from(actions[i]) * at(treatment_cost, i)
+                })
+                .collect::<Vec<_>>(),
+        );
     }
-    let means = scores.iter().map(|row| row.iter().sum::<f64>() / n as f64)
-        .collect::<Vec<_>>();
+    let means = scores.iter().map(|row| row.iter().sum::<f64>() / n as f64).collect::<Vec<_>>();
     let selected = &scores[selected_index];
     let critical = antecedent_stats::normal_ppf(1.0 - 0.05 / (2.0 * (k - 1) as f64));
     let mut lower: f64 = 0.0;
@@ -138,12 +167,19 @@ pub fn evaluate_fixed_candidate_regret(
     let mut regret: f64 = 0.0;
     let mut contrast_standard_errors = vec![0.0; k];
     for (j, candidate) in scores.iter().enumerate() {
-        if j == selected_index { continue; }
+        if j == selected_index {
+            continue;
+        }
         let difference = means[j] - means[selected_index];
-        let variance = candidate.iter().zip(selected).map(|(a, b)| {
-            let centered = (a - b) - difference;
-            centered * centered
-        }).sum::<f64>() / (n * (n - 1)) as f64;
+        let variance = candidate
+            .iter()
+            .zip(selected)
+            .map(|(a, b)| {
+                let centered = (a - b) - difference;
+                centered * centered
+            })
+            .sum::<f64>()
+            / (n * (n - 1)) as f64;
         let span = critical * variance.sqrt();
         if !span.is_finite() {
             return Err("finite-class regret paired scores must have finite variance");
@@ -154,8 +190,11 @@ pub fn evaluate_fixed_candidate_regret(
         upper = upper.max(difference + span);
     }
     Ok(FixedCandidateRegret {
-        candidate_values: means, regret, contrast_standard_errors,
-        interval_95: [lower, upper], selected_index,
+        candidate_values: means,
+        regret,
+        contrast_standard_errors,
+        interval_95: [lower, upper],
+        selected_index,
     })
 }
 
@@ -200,9 +239,12 @@ pub struct MultiActionCatePoint {
 /// additionally require independent held-out subjects, known assignment
 /// probabilities, and enough observed rows in both compared arms.
 pub fn evaluate_multi_action_cate(
-    outcome: &[f64], policy: &antecedent_core::MultiActionPolicyInputs,
+    outcome: &[f64],
+    policy: &antecedent_core::MultiActionPolicyInputs,
 ) -> Result<Vec<MultiActionCatePoint>, &'static str> {
-    if policy.cate_groups.is_empty() { return Ok(Vec::new()); }
+    if policy.cate_groups.is_empty() {
+        return Ok(Vec::new());
+    }
     policy.validate().map_err(|_| "invalid multi-action CATE design")?;
     if outcome.len() != policy.assignment.len() || outcome.iter().any(|y| !y.is_finite()) {
         return Err("multi-action CATE outcomes must be finite and row-aligned");
@@ -221,29 +263,48 @@ pub fn evaluate_multi_action_cate(
         }
         for action in 1..k {
             let action_rows = rows.iter().filter(|&&i| policy.assignment[i] == action).count();
-            if action_rows == 0 { return Err("each CATE stratum requires an observed row for every action"); }
-            let scores = rows.iter().map(|&i| match policy.assignment[i] {
-                assigned if assigned == action => outcome[i] / policy.propensities[i * k + action],
-                0 => -outcome[i] / policy.propensities[i * k],
-                _ => 0.0,
-            }).collect::<Vec<_>>();
+            if action_rows == 0 {
+                return Err("each CATE stratum requires an observed row for every action");
+            }
+            let scores = rows
+                .iter()
+                .map(|&i| match policy.assignment[i] {
+                    assigned if assigned == action => {
+                        outcome[i] / policy.propensities[i * k + action]
+                    }
+                    0 => -outcome[i] / policy.propensities[i * k],
+                    _ => 0.0,
+                })
+                .collect::<Vec<_>>();
             let effect = scores.iter().sum::<f64>() / rows.len() as f64;
             let standard_error = (scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>()
-                / (rows.len() * (rows.len() - 1)) as f64).sqrt();
+                / (rows.len() * (rows.len() - 1)) as f64)
+                .sqrt();
             let strong_overlap = rows.iter().all(|&i| {
-                policy.propensities[i * k] >= 0.2
-                    && policy.propensities[i * k + action] >= 0.2
+                policy.propensities[i * k] >= 0.2 && policy.propensities[i * k + action] >= 0.2
             });
-            let interval_95 = if rows.len() >= 300 && action_rows >= 50 && control_rows >= 50
-                && strong_overlap && standard_error.is_finite() && standard_error > 0.0 {
+            let interval_95 = if rows.len() >= 300
+                && action_rows >= 50
+                && control_rows >= 50
+                && strong_overlap
+                && standard_error.is_finite()
+                && standard_error > 0.0
+            {
                 let span = antecedent_stats::normal_ppf(0.975) * standard_error;
                 let bounds = [effect - span, effect + span];
                 bounds.iter().all(|value| value.is_finite()).then_some(bounds)
-            } else { None };
+            } else {
+                None
+            };
             points.push(MultiActionCatePoint {
-                group: group.to_owned(), action: policy.action_labels[action].to_string(),
-                effect, standard_error, interval_95, evaluation_rows: rows.len(),
-                observed_action_rows: action_rows, observed_control_rows: control_rows,
+                group: group.to_owned(),
+                action: policy.action_labels[action].to_string(),
+                effect,
+                standard_error,
+                interval_95,
+                evaluation_rows: rows.len(),
+                observed_action_rows: action_rows,
+                observed_control_rows: control_rows,
             });
         }
     }
@@ -252,24 +313,45 @@ pub fn evaluate_multi_action_cate(
 
 /// Evaluate frozen held-out score bins using known binary randomization probabilities.
 pub fn evaluate_uplift_bins(
-    outcome: &[f64], assignment: &[bool], propensity: &[f64],
-    score_bins: &[usize], bin_count: usize,
+    outcome: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+    score_bins: &[usize],
+    bin_count: usize,
 ) -> Result<Vec<UpliftBinScore>, &'static str> {
     let n = outcome.len();
-    if n < 2 || assignment.len() != n || score_bins.len() != n || bin_count == 0
-        || bin_count > n || !(propensity.len() == 1 || propensity.len() == n)
-    { return Err("uplift rows, probabilities, and bin count must align"); }
+    if n < 2
+        || assignment.len() != n
+        || score_bins.len() != n
+        || bin_count == 0
+        || bin_count > n
+        || !(propensity.len() == 1 || propensity.len() == n)
+    {
+        return Err("uplift rows, probabilities, and bin count must align");
+    }
     let mut groups = vec![Vec::<f64>::new(); bin_count];
     let mut treated_rows = vec![0_usize; bin_count];
     let mut control_rows = vec![0_usize; bin_count];
     for i in 0..n {
         let p = propensity[if propensity.len() == 1 { 0 } else { i }];
-        if !outcome[i].is_finite() || !p.is_finite() || p <= 0.0 || p >= 1.0
+        if !outcome[i].is_finite()
+            || !p.is_finite()
+            || p <= 0.0
+            || p >= 1.0
             || score_bins[i] >= bin_count
-        { return Err("uplift requires finite outcomes, strict overlap, and valid score bins"); }
-        groups[score_bins[i]].push(if assignment[i] { outcome[i] / p } else { -outcome[i] / (1.0 - p) });
-        if assignment[i] { treated_rows[score_bins[i]] += 1; }
-        else { control_rows[score_bins[i]] += 1; }
+        {
+            return Err("uplift requires finite outcomes, strict overlap, and valid score bins");
+        }
+        groups[score_bins[i]].push(if assignment[i] {
+            outcome[i] / p
+        } else {
+            -outcome[i] / (1.0 - p)
+        });
+        if assignment[i] {
+            treated_rows[score_bins[i]] += 1;
+        } else {
+            control_rows[score_bins[i]] += 1;
+        }
     }
     groups.into_iter().enumerate().map(|(rank, scores)| {
         let count = scores.len();
@@ -294,24 +376,55 @@ pub fn evaluate_uplift_bins(
 // arity mirrors the estimator's fixed statistical contract; refactor would change behavior
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate_policy_value_scores(
-    outcome: &[f64], assignment: &[bool], actions: &[bool], propensity: &[f64],
-    mu0: &[f64], mu1: &[f64], reference: &[bool], costs: &[f64], reference_costs: &[f64],
+    outcome: &[f64],
+    assignment: &[bool],
+    actions: &[bool],
+    propensity: &[f64],
+    mu0: &[f64],
+    mu1: &[f64],
+    reference: &[bool],
+    costs: &[f64],
+    reference_costs: &[f64],
 ) -> Result<PolicyValueScores, &'static str> {
-    evaluate_scores(outcome, assignment, actions, propensity, Some((mu0, mu1)), reference, costs, reference_costs)
+    evaluate_scores(
+        outcome,
+        assignment,
+        actions,
+        propensity,
+        Some((mu0, mu1)),
+        reference,
+        costs,
+        reference_costs,
+    )
 }
 
 /// Evaluate a fixed binary policy using known randomized probabilities only.
 /// The paired row-score standard error assumes independent evaluation subjects.
 pub fn evaluate_policy_value_ipw_scores(
-    outcome: &[f64], assignment: &[bool], actions: &[bool], propensity: &[f64],
-    reference: &[bool], costs: &[f64], reference_costs: &[f64],
+    outcome: &[f64],
+    assignment: &[bool],
+    actions: &[bool],
+    propensity: &[f64],
+    reference: &[bool],
+    costs: &[f64],
+    reference_costs: &[f64],
 ) -> Result<PolicyValueScores, &'static str> {
-    evaluate_scores(outcome, assignment, actions, propensity, None, reference, costs, reference_costs)
+    evaluate_scores(
+        outcome,
+        assignment,
+        actions,
+        propensity,
+        None,
+        reference,
+        costs,
+        reference_costs,
+    )
 }
 
 /// Evaluate frozen multi-action recommendations with randomized HT row scores.
 pub fn evaluate_multi_action_policy_value_scores(
-    outcome: &[f64], policy: &antecedent_core::MultiActionPolicyInputs,
+    outcome: &[f64],
+    policy: &antecedent_core::MultiActionPolicyInputs,
 ) -> Result<PolicyValueScores, &'static str> {
     let n = outcome.len();
     let k = policy.action_labels.len();
@@ -354,33 +467,59 @@ pub fn evaluate_multi_action_policy_value_scores(
     let rv = mean(&rs);
     let dv = mean(&ds);
     Ok(PolicyValueScores {
-        policy_value: pv, reference_value: rv, incremental_value: dv,
-        relative_value_gap: rv - pv, treatment_rate: non_control as f64 / n as f64,
-        total_cost, policy_standard_error: se(&ps, pv), reference_standard_error: se(&rs, rv),
-        incremental_standard_error: se(&ds, dv), propensity_min: pmin, propensity_max: pmax,
+        policy_value: pv,
+        reference_value: rv,
+        incremental_value: dv,
+        relative_value_gap: rv - pv,
+        treatment_rate: non_control as f64 / n as f64,
+        total_cost,
+        policy_standard_error: se(&ps, pv),
+        reference_standard_error: se(&rs, rv),
+        incremental_standard_error: se(&ds, dv),
+        propensity_min: pmin,
+        propensity_max: pmax,
     })
 }
 
 // arity mirrors the estimator's fixed statistical contract; refactor would change behavior
 #[allow(clippy::too_many_arguments)]
 fn evaluate_scores(
-    outcome: &[f64], assignment: &[bool], actions: &[bool], propensity: &[f64],
-    nuisance: Option<(&[f64], &[f64])>, reference: &[bool], costs: &[f64], reference_costs: &[f64],
+    outcome: &[f64],
+    assignment: &[bool],
+    actions: &[bool],
+    propensity: &[f64],
+    nuisance: Option<(&[f64], &[f64])>,
+    reference: &[bool],
+    costs: &[f64],
+    reference_costs: &[f64],
 ) -> Result<PolicyValueScores, &'static str> {
     let n = outcome.len();
-    if n < 2 || assignment.len() != n || actions.len() != n || reference.len() != n
-        || nuisance.is_some_and(|(mu0, mu1)| mu0.len() != n || mu1.len() != n) {
-        return Err("outcome, assignment, policies, and predictions must align on at least two rows");
+    if n < 2
+        || assignment.len() != n
+        || actions.len() != n
+        || reference.len() != n
+        || nuisance.is_some_and(|(mu0, mu1)| mu0.len() != n || mu1.len() != n)
+    {
+        return Err(
+            "outcome, assignment, policies, and predictions must align on at least two rows",
+        );
     }
-    if ![propensity.len(), costs.len(), reference_costs.len()].iter().all(|length| *length == 1 || *length == n) {
+    if ![propensity.len(), costs.len(), reference_costs.len()]
+        .iter()
+        .all(|length| *length == 1 || *length == n)
+    {
         return Err("propensity and costs must be scalar or row-aligned");
     }
     let at = |values: &[f64], i: usize| values[if values.len() == 1 { 0 } else { i }];
     if outcome.iter().any(|v| !v.is_finite())
         || nuisance.is_some_and(|(mu0, mu1)| mu0.iter().chain(mu1).any(|v| !v.is_finite()))
-        || (0..n).any(|i| !at(propensity, i).is_finite() || at(propensity, i) <= 0.0 || at(propensity, i) >= 1.0)
+        || (0..n).any(|i| {
+            !at(propensity, i).is_finite() || at(propensity, i) <= 0.0 || at(propensity, i) >= 1.0
+        })
         || costs.iter().chain(reference_costs).any(|c| !c.is_finite() || *c < 0.0)
-    { return Err("outcomes, predictions, propensities, or costs are invalid"); }
+    {
+        return Err("outcomes, predictions, propensities, or costs are invalid");
+    }
     let mut ps = Vec::with_capacity(n);
     let mut rs = Vec::with_capacity(n);
     let mut ds = Vec::with_capacity(n);
@@ -394,9 +533,12 @@ fn evaluate_scores(
         pmax = pmax.max(p);
         let score = |a: bool| {
             let expected = nuisance.map_or(0.0, |(mu0, mu1)| if a { mu1[i] } else { mu0[i] });
-            expected + if assignment[i] == a {
-                (outcome[i] - expected) / if a { p } else { 1.0 - p }
-            } else { 0.0 }
+            expected
+                + if assignment[i] == a {
+                    (outcome[i] - expected) / if a { p } else { 1.0 - p }
+                } else {
+                    0.0
+                }
         };
         let pc = at(costs, i) * f64::from(actions[i]);
         let rc = at(reference_costs, i) * f64::from(reference[i]);
@@ -404,29 +546,53 @@ fn evaluate_scores(
         let rv = score(reference[i]) - rc;
         treated += usize::from(actions[i]);
         total_cost += pc;
-        ps.push(pv); rs.push(rv); ds.push(pv - rv);
+        ps.push(pv);
+        rs.push(rv);
+        ds.push(pv - rv);
     }
     let mean = |v: &[f64]| v.iter().sum::<f64>() / n as f64;
-    let se = |v: &[f64], m: f64| (v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / ((n - 1) as f64 * n as f64)).sqrt();
-    let pv = mean(&ps); let rv = mean(&rs); let dv = mean(&ds);
-    Ok(PolicyValueScores { policy_value: pv, reference_value: rv, incremental_value: dv,
-        relative_value_gap: rv-pv, treatment_rate: treated as f64/n as f64, total_cost,
-        policy_standard_error: se(&ps,pv), reference_standard_error: se(&rs,rv),
-        incremental_standard_error: se(&ds,dv), propensity_min: pmin, propensity_max: pmax })
+    let se = |v: &[f64], m: f64| {
+        (v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / ((n - 1) as f64 * n as f64)).sqrt()
+    };
+    let pv = mean(&ps);
+    let rv = mean(&rs);
+    let dv = mean(&ds);
+    Ok(PolicyValueScores {
+        policy_value: pv,
+        reference_value: rv,
+        incremental_value: dv,
+        relative_value_gap: rv - pv,
+        treatment_rate: treated as f64 / n as f64,
+        total_cost,
+        policy_standard_error: se(&ps, pv),
+        reference_standard_error: se(&rs, rv),
+        incremental_standard_error: se(&ds, dv),
+        propensity_min: pmin,
+        propensity_max: pmax,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "fixtures derive small nonnegative counts/indices from deterministic values"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "fixtures derive small nonnegative counts/indices from deterministic values"
+        )
+    )]
     use super::*;
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end estimator fixture; splitting would fragment the flow
     fn fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support() {
         use std::sync::Arc;
         const PER_GROUP: usize = 300;
         const DRAWS: usize = 2_000;
         let n = 2 * PER_GROUP;
-        let groups = (0..n).map(|i| Arc::<str>::from(if i < PER_GROUP { "g0" } else { "g1" }))
+        let groups = (0..n)
+            .map(|i| Arc::<str>::from(if i < PER_GROUP { "g0" } else { "g1" }))
             .collect::<Vec<_>>();
         let truths = [2.0, 3.0, 1.0, 4.0];
         let mut covered = [0_usize; 4];
@@ -441,19 +607,28 @@ mod tests {
         };
         for _ in 0..DRAWS {
             let assignment = (0..n).map(|_| (3.0 * uniform()).floor() as usize).collect::<Vec<_>>();
-            let outcome = assignment.iter().enumerate().map(|(i, &action)| {
-                let group = usize::from(i >= PER_GROUP);
-                let action_effects = if group == 0 { [0.0, 2.0, 3.0] } else { [0.0, 1.0, 4.0] };
-                1.0 + action_effects[action] + 2.0 * (uniform() - 0.5)
-            }).collect::<Vec<_>>();
+            let outcome = assignment
+                .iter()
+                .enumerate()
+                .map(|(i, &action)| {
+                    let group = usize::from(i >= PER_GROUP);
+                    let action_effects = if group == 0 { [0.0, 2.0, 3.0] } else { [0.0, 1.0, 4.0] };
+                    1.0 + action_effects[action] + 2.0 * (uniform() - 0.5)
+                })
+                .collect::<Vec<_>>();
             let policy = antecedent_core::MultiActionPolicyInputs {
                 action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
-                assignment: Arc::from(assignment), actions: Arc::from(vec![0; n]),
+                assignment: Arc::from(assignment),
+                actions: Arc::from(vec![0; n]),
                 reference: Arc::from(vec![0; n]),
                 propensities: Arc::from((0..n).flat_map(|_| [1.0 / 3.0; 3]).collect::<Vec<_>>()),
-                available: Arc::from(vec![true; n * 3]), costs: Arc::from([0.0; 3]),
-                reference_costs: Arc::from([0.0; 3]), capacities: Arc::from([n; 3]),
-                reference_capacities: Arc::from([n; 3]), budget: None, reference_budget: None,
+                available: Arc::from(vec![true; n * 3]),
+                costs: Arc::from([0.0; 3]),
+                reference_costs: Arc::from([0.0; 3]),
+                capacities: Arc::from([n; 3]),
+                reference_capacities: Arc::from([n; 3]),
+                budget: None,
+                reference_budget: None,
                 cate_groups: Arc::from(groups.clone()),
             };
             let points = evaluate_multi_action_cate(&outcome, &policy).unwrap();
@@ -461,7 +636,8 @@ mod tests {
             for (index, point) in points.iter().enumerate() {
                 if let Some(bounds) = point.interval_95 {
                     supported[index] += 1;
-                    covered[index] += usize::from(bounds[0] <= truths[index] && truths[index] <= bounds[1]);
+                    covered[index] +=
+                        usize::from(bounds[0] <= truths[index] && truths[index] <= bounds[1]);
                 }
             }
         }
@@ -477,17 +653,39 @@ mod tests {
         let outcome = assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
         let policy = antecedent_core::MultiActionPolicyInputs {
             action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
-            assignment: Arc::from(std::mem::take(&mut assignment)), actions: Arc::from(vec![0; 299]),
+            assignment: Arc::from(std::mem::take(&mut assignment)),
+            actions: Arc::from(vec![0; 299]),
             reference: Arc::from(vec![0; 299]),
             propensities: Arc::from((0..299).flat_map(|_| [1.0 / 3.0; 3]).collect::<Vec<_>>()),
-            available: Arc::from(vec![true; 299 * 3]), costs: Arc::from([0.0; 3]),
-            reference_costs: Arc::from([0.0; 3]), capacities: Arc::from([299; 3]),
-            reference_capacities: Arc::from([299; 3]), budget: None, reference_budget: None,
+            available: Arc::from(vec![true; 299 * 3]),
+            costs: Arc::from([0.0; 3]),
+            reference_costs: Arc::from([0.0; 3]),
+            capacities: Arc::from([299; 3]),
+            reference_capacities: Arc::from([299; 3]),
+            budget: None,
+            reference_budget: None,
             cate_groups: Arc::from(vec![Arc::<str>::from("g0"); 299]),
         };
-        assert!(evaluate_multi_action_cate(&outcome, &policy).unwrap().iter().all(|p| p.interval_95.is_none()));
+        assert!(
+            evaluate_multi_action_cate(&outcome, &policy)
+                .unwrap()
+                .iter()
+                .all(|p| p.interval_95.is_none())
+        );
         let mut sparse = policy.clone();
-        sparse.assignment = Arc::from((0..300).map(|i| if i < 49 { 1 } else if i < 149 { 0 } else { 2 }).collect::<Vec<_>>());
+        sparse.assignment = Arc::from(
+            (0..300)
+                .map(|i| {
+                    if i < 49 {
+                        1
+                    } else if i < 149 {
+                        0
+                    } else {
+                        2
+                    }
+                })
+                .collect::<Vec<_>>(),
+        );
         sparse.actions = Arc::from(vec![0; 300]);
         sparse.reference = Arc::from(vec![0; 300]);
         sparse.propensities = Arc::from((0..300).flat_map(|_| [1.0 / 3.0; 3]).collect::<Vec<_>>());
@@ -495,14 +693,17 @@ mod tests {
         sparse.capacities = Arc::from([300; 3]);
         sparse.reference_capacities = Arc::from([300; 3]);
         sparse.cate_groups = Arc::from(vec![Arc::<str>::from("g0"); 300]);
-        let outcome = sparse.assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
+        let outcome =
+            sparse.assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
         let points = evaluate_multi_action_cate(&outcome, &sparse).unwrap();
         assert_eq!(points[0].observed_action_rows, 49);
         assert!(points[0].interval_95.is_none());
         let mut weak_overlap = sparse.clone();
         weak_overlap.assignment = Arc::from((0..300).map(|i| i % 3).collect::<Vec<_>>());
-        weak_overlap.propensities = Arc::from((0..300).flat_map(|_| [0.45, 0.45, 0.10]).collect::<Vec<_>>());
-        let outcome = weak_overlap.assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
+        weak_overlap.propensities =
+            Arc::from((0..300).flat_map(|_| [0.45, 0.45, 0.10]).collect::<Vec<_>>());
+        let outcome =
+            weak_overlap.assignment.iter().map(|&action| 1.0 + action as f64).collect::<Vec<_>>();
         let points = evaluate_multi_action_cate(&outcome, &weak_overlap).unwrap();
         assert!(points[1].interval_95.is_none());
     }
@@ -523,21 +724,35 @@ mod tests {
         let mut covered = [0_usize; 2];
         let mut supported = [0_usize; 2];
         for _ in 0..DRAWS {
-            let assignment = (0..N).map(|_| {
-                let u = uniform();
-                if u < 0.5 { 0 } else if u < 0.8 { 1 } else { 2 }
-            }).collect::<Vec<_>>();
-            let outcome = assignment.iter().map(|&action| {
-                [1.0, 3.0, 4.0][action] + 2.0 * (uniform() - 0.5)
-            }).collect::<Vec<_>>();
+            let assignment = (0..N)
+                .map(|_| {
+                    let u = uniform();
+                    if u < 0.5 {
+                        0
+                    } else if u < 0.8 {
+                        1
+                    } else {
+                        2
+                    }
+                })
+                .collect::<Vec<_>>();
+            let outcome = assignment
+                .iter()
+                .map(|&action| [1.0, 3.0, 4.0][action] + 2.0 * (uniform() - 0.5))
+                .collect::<Vec<_>>();
             let policy = antecedent_core::MultiActionPolicyInputs {
                 action_labels: Arc::from([Arc::from("control"), Arc::from("A"), Arc::from("B")]),
-                assignment: Arc::from(assignment), actions: Arc::from(vec![0; N]),
+                assignment: Arc::from(assignment),
+                actions: Arc::from(vec![0; N]),
                 reference: Arc::from(vec![0; N]),
                 propensities: Arc::from((0..N).flat_map(|_| [0.5, 0.3, 0.2]).collect::<Vec<_>>()),
-                available: Arc::from(vec![true; N * 3]), costs: Arc::from([0.0; 3]),
-                reference_costs: Arc::from([0.0; 3]), capacities: Arc::from([N; 3]),
-                reference_capacities: Arc::from([N; 3]), budget: None, reference_budget: None,
+                available: Arc::from(vec![true; N * 3]),
+                costs: Arc::from([0.0; 3]),
+                reference_costs: Arc::from([0.0; 3]),
+                capacities: Arc::from([N; 3]),
+                reference_capacities: Arc::from([N; 3]),
+                budget: None,
+                reference_budget: None,
                 cate_groups: Arc::from(vec![Arc::<str>::from("g0"); N]),
             };
             let points = evaluate_multi_action_cate(&outcome, &policy).unwrap();
@@ -574,13 +789,16 @@ mod tests {
         let mut covered = [0_usize; 2];
         for _ in 0..DRAWS {
             let assignment = (0..BIN_ROWS * 2).map(|_| uniform() < 0.5).collect::<Vec<_>>();
-            let outcome = (0..BIN_ROWS * 2).map(|i| {
-                1.0 + truths[bins[i]] * f64::from(assignment[i]) + 2.0 * (uniform() - 0.5)
-            }).collect::<Vec<_>>();
+            let outcome = (0..BIN_ROWS * 2)
+                .map(|i| 1.0 + truths[bins[i]] * f64::from(assignment[i]) + 2.0 * (uniform() - 0.5))
+                .collect::<Vec<_>>();
             let points = evaluate_uplift_bins(&outcome, &assignment, &[0.5], &bins, 2).unwrap();
             for (index, point) in points.iter().enumerate() {
-                let interval = point.interval_95.expect("300 independently randomized subjects per fixed rank bin");
-                covered[index] += usize::from(interval[0] <= truths[index] && truths[index] <= interval[1]);
+                let interval = point
+                    .interval_95
+                    .expect("300 independently randomized subjects per fixed rank bin");
+                covered[index] +=
+                    usize::from(interval[0] <= truths[index] && truths[index] <= interval[1]);
             }
         }
         for (index, hits) in covered.into_iter().enumerate() {
@@ -589,10 +807,12 @@ mod tests {
             assert!((0.93..=0.97).contains(&rate), "pointwise 95% uplift-bin coverage {rate}");
         }
         let assignment = (0..299).map(|i| i % 2 == 0).collect::<Vec<_>>();
-        let point = evaluate_uplift_bins(&vec![1.0; 299], &assignment, &[0.5], &vec![0; 299], 1).unwrap();
+        let point =
+            evaluate_uplift_bins(&vec![1.0; 299], &assignment, &[0.5], &vec![0; 299], 1).unwrap();
         assert!(point[0].interval_95.is_none());
         let assignment = (0..300).map(|i| i < 49).collect::<Vec<_>>();
-        let point = evaluate_uplift_bins(&vec![1.0; 300], &assignment, &[0.5], &vec![0; 300], 1).unwrap();
+        let point =
+            evaluate_uplift_bins(&vec![1.0; 300], &assignment, &[0.5], &vec![0; 300], 1).unwrap();
         assert!(point[0].interval_95.is_none());
     }
 
@@ -608,7 +828,8 @@ mod tests {
             &[false; 4],
             &[0.0],
             &[0.0],
-        ).unwrap();
+        )
+        .unwrap();
         assert!((result.policy_value - 2.0).abs() < 1e-12);
         assert!((result.reference_value - 1.0).abs() < 1e-12);
         assert!((result.incremental_value - 1.0).abs() < 1e-12);
@@ -617,10 +838,20 @@ mod tests {
 
     #[test]
     fn refuses_missing_overlap() {
-        assert!(evaluate_policy_value_scores(
-            &[1.0, 2.0], &[false, true], &[false, true], &[0.0], &[1.0; 2],
-            &[2.0; 2], &[false; 2], &[0.0], &[0.0],
-        ).is_err());
+        assert!(
+            evaluate_policy_value_scores(
+                &[1.0, 2.0],
+                &[false, true],
+                &[false, true],
+                &[0.0],
+                &[1.0; 2],
+                &[2.0; 2],
+                &[false; 2],
+                &[0.0],
+                &[0.0],
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -633,7 +864,8 @@ mod tests {
             &[false; 4],
             &[0.0],
             &[0.0],
-        ).unwrap();
+        )
+        .unwrap();
         assert!((result.policy_value - 4.0).abs() < 1e-12);
         assert!((result.reference_value - 1.0).abs() < 1e-12);
         assert!((result.incremental_value - 3.0).abs() < 1e-12);
@@ -648,14 +880,30 @@ mod tests {
         let actions = (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>();
         let reference = vec![false; n];
         let score = evaluate_policy_value_ipw_scores(
-            &outcomes, &assignment, &actions, &[0.5], &reference, &[0.25], &[0.0],
-        ).unwrap();
+            &outcomes,
+            &assignment,
+            &actions,
+            &[0.5],
+            &reference,
+            &[0.25],
+            &[0.0],
+        )
+        .unwrap();
         let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();
         let reference_matches = assignment.iter().filter(|&&a| !a).count();
-        let intervals = pointwise_intervals_95(&score, n, policy_matches, reference_matches).unwrap();
+        let intervals =
+            pointwise_intervals_95(&score, n, policy_matches, reference_matches).unwrap();
         let z = antecedent_stats::normal_ppf(0.975);
-        assert!((intervals.policy[0] - (score.policy_value - z * score.policy_standard_error)).abs() < 1e-12);
-        assert!((intervals.incremental[0] - (score.incremental_value - z * score.incremental_standard_error)).abs() < 1e-12);
+        assert!(
+            (intervals.policy[0] - (score.policy_value - z * score.policy_standard_error)).abs()
+                < 1e-12
+        );
+        assert!(
+            (intervals.incremental[0]
+                - (score.incremental_value - z * score.incremental_standard_error))
+                .abs()
+                < 1e-12
+        );
         assert!(pointwise_intervals_95(&score, n, 9, reference_matches).is_none());
         assert!(pointwise_intervals_95(&score, 119, policy_matches, reference_matches).is_none());
     }
@@ -685,21 +933,55 @@ mod tests {
         for _ in 0..simulations {
             let actions = (0..n).map(|_| uniform() < 1.0 / 3.0).collect::<Vec<_>>();
             let assignment = (0..n).map(|_| uniform() < 0.5).collect::<Vec<_>>();
-            let outcomes = assignment.iter().map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0).collect::<Vec<_>>();
-            let score = evaluate_policy_value_ipw_scores(&outcomes, &assignment, &actions, &[0.5], &reference, &[0.15], &[0.0]).unwrap();
+            let outcomes = assignment
+                .iter()
+                .map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0)
+                .collect::<Vec<_>>();
+            let score = evaluate_policy_value_ipw_scores(
+                &outcomes,
+                &assignment,
+                &actions,
+                &[0.5],
+                &reference,
+                &[0.15],
+                &[0.0],
+            )
+            .unwrap();
             let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();
             let reference_matches = assignment.iter().filter(|&&a| !a).count();
-            let interval = pointwise_intervals_95(&score, n, policy_matches, reference_matches).unwrap();
-            policy_hits_95 += usize::from(interval.policy[0] <= truth_policy && truth_policy <= interval.policy[1]);
-            incremental_hits_95 += usize::from(interval.incremental[0] <= truth_incremental && truth_incremental <= interval.incremental[1]);
+            let interval =
+                pointwise_intervals_95(&score, n, policy_matches, reference_matches).unwrap();
+            policy_hits_95 += usize::from(
+                interval.policy[0] <= truth_policy && truth_policy <= interval.policy[1],
+            );
+            incremental_hits_95 += usize::from(
+                interval.incremental[0] <= truth_incremental
+                    && truth_incremental <= interval.incremental[1],
+            );
             let z90 = antecedent_stats::normal_ppf(0.95);
-            policy_hits_90 += usize::from((score.policy_value - truth_policy).abs() <= z90 * score.policy_standard_error);
-            incremental_hits_90 += usize::from((score.incremental_value - truth_incremental).abs() <= z90 * score.incremental_standard_error);
+            policy_hits_90 += usize::from(
+                (score.policy_value - truth_policy).abs() <= z90 * score.policy_standard_error,
+            );
+            incremental_hits_90 += usize::from(
+                (score.incremental_value - truth_incremental).abs()
+                    <= z90 * score.incremental_standard_error,
+            );
         }
-        for (index, (hits, target)) in [(policy_hits_95, 0.95), (incremental_hits_95, 0.95), (policy_hits_90, 0.90), (incremental_hits_90, 0.90)].into_iter().enumerate() {
+        for (index, (hits, target)) in [
+            (policy_hits_95, 0.95),
+            (incremental_hits_95, 0.95),
+            (policy_hits_90, 0.90),
+            (incremental_hits_90, 0.90),
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let rate = hits as f64 / f64::from(simulations);
             let mcse = (target * (1.0 - target) / f64::from(simulations)).sqrt();
-            assert!((rate - target).abs() <= 3.0 * mcse, "cell {index} coverage {rate} missed target {target}");
+            assert!(
+                (rate - target).abs() <= 3.0 * mcse,
+                "cell {index} coverage {rate} missed target {target}"
+            );
         }
     }
 
@@ -727,39 +1009,81 @@ mod tests {
             // sampled independently for each evaluation subject.
             let binary_actions = (0..n).map(|_| uniform() < 1.0 / 3.0).collect::<Vec<_>>();
             let assignment = (0..n).map(|_| uniform() < 0.5).collect::<Vec<_>>();
-            let outcomes = assignment.iter().map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0).collect::<Vec<_>>();
+            let outcomes = assignment
+                .iter()
+                .map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0)
+                .collect::<Vec<_>>();
             let score = evaluate_policy_value_scores(
-                &outcomes, &assignment, &binary_actions, &[0.5], &vec![1.0; n], &vec![3.0; n],
-                &binary_reference, &[0.15], &[0.0],
-            ).unwrap();
+                &outcomes,
+                &assignment,
+                &binary_actions,
+                &[0.5],
+                &vec![1.0; n],
+                &vec![3.0; n],
+                &binary_reference,
+                &[0.15],
+                &[0.0],
+            )
+            .unwrap();
             let pm = assignment.iter().zip(&binary_actions).filter(|(a, b)| a == b).count();
             let rm = assignment.iter().filter(|&&a| !a).count();
             let ci = pointwise_intervals_95(&score, n, pm, rm).unwrap();
             counts[0] += usize::from(ci.policy[0] <= binary_truth && binary_truth <= ci.policy[1]);
-            counts[1] += usize::from(ci.incremental[0] <= binary_truth - 1.0 && binary_truth - 1.0 <= ci.incremental[1]);
-            let uplift = evaluate_uplift_bins(&outcomes, &assignment, &[0.5], &vec![0; n], 1).unwrap();
-            let uplift_ci = uplift[0].interval_95.expect("one held-out randomized bin of 300 subjects");
+            counts[1] += usize::from(
+                ci.incremental[0] <= binary_truth - 1.0 && binary_truth - 1.0 <= ci.incremental[1],
+            );
+            let uplift =
+                evaluate_uplift_bins(&outcomes, &assignment, &[0.5], &vec![0; n], 1).unwrap();
+            let uplift_ci =
+                uplift[0].interval_95.expect("one held-out randomized bin of 300 subjects");
             counts[4] += usize::from(uplift_ci[0] <= 2.0 && 2.0 <= uplift_ci[1]);
 
-            let multi_actions = (0..n).map(|_| (uniform() * 3.0).floor() as usize).collect::<Vec<_>>();
-            let multi_assignment = (0..n).map(|_| { let u = uniform(); if u < 0.5 { 0 } else if u < 0.8 { 1 } else { 2 } }).collect::<Vec<_>>();
-            let multi_outcomes = multi_assignment.iter().map(|&a| [1.0, 2.0, 4.0][a] + (uniform() - 0.5) * 2.0).collect::<Vec<_>>();
+            let multi_actions =
+                (0..n).map(|_| (uniform() * 3.0).floor() as usize).collect::<Vec<_>>();
+            let multi_assignment = (0..n)
+                .map(|_| {
+                    let u = uniform();
+                    if u < 0.5 {
+                        0
+                    } else if u < 0.8 {
+                        1
+                    } else {
+                        2
+                    }
+                })
+                .collect::<Vec<_>>();
+            let multi_outcomes = multi_assignment
+                .iter()
+                .map(|&a| [1.0, 2.0, 4.0][a] + (uniform() - 0.5) * 2.0)
+                .collect::<Vec<_>>();
             let multi = antecedent_core::MultiActionPolicyInputs {
-                action_labels: Arc::from([Arc::from("control"), Arc::from("small"), Arc::from("large")]),
-                assignment: Arc::from(multi_assignment), actions: Arc::from(multi_actions.clone()),
+                action_labels: Arc::from([
+                    Arc::from("control"),
+                    Arc::from("small"),
+                    Arc::from("large"),
+                ]),
+                assignment: Arc::from(multi_assignment),
+                actions: Arc::from(multi_actions.clone()),
                 reference: Arc::from(multi_reference.clone()),
                 propensities: Arc::from((0..n).flat_map(|_| [0.5, 0.3, 0.2]).collect::<Vec<_>>()),
-                available: Arc::from(vec![true; n * 3]), costs: Arc::from(multi_costs),
+                available: Arc::from(vec![true; n * 3]),
+                costs: Arc::from(multi_costs),
                 reference_costs: Arc::from([0.0, 0.0, 0.0]),
-                capacities: Arc::from([n, n, n]), reference_capacities: Arc::from([n, n, n]),
-                budget: Some(n as f64 * 0.2), reference_budget: Some(0.0), cate_groups: Arc::from([]),
+                capacities: Arc::from([n, n, n]),
+                reference_capacities: Arc::from([n, n, n]),
+                budget: Some(n as f64 * 0.2),
+                reference_budget: Some(0.0),
+                cate_groups: Arc::from([]),
             };
             let score = evaluate_multi_action_policy_value_scores(&multi_outcomes, &multi).unwrap();
-            let pm = multi.assignment.iter().zip(multi.actions.iter()).filter(|(a, b)| a == b).count();
+            let pm =
+                multi.assignment.iter().zip(multi.actions.iter()).filter(|(a, b)| a == b).count();
             let rm = multi.assignment.iter().filter(|&&a| a == 0).count();
             let ci = pointwise_intervals_95(&score, n, pm, rm).unwrap();
             counts[2] += usize::from(ci.policy[0] <= multi_truth && multi_truth <= ci.policy[1]);
-            counts[3] += usize::from(ci.incremental[0] <= multi_truth - 1.0 && multi_truth - 1.0 <= ci.incremental[1]);
+            counts[3] += usize::from(
+                ci.incremental[0] <= multi_truth - 1.0 && multi_truth - 1.0 <= ci.incremental[1],
+            );
         }
         let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         for (index, hits) in counts.into_iter().enumerate() {
@@ -796,37 +1120,66 @@ mod tests {
         for _ in 0..simulations {
             let actions = (0..N).map(|_| uniform() < 1.0 / 3.0).collect::<Vec<_>>();
             let assignment = (0..N).map(|_| uniform() < 0.5).collect::<Vec<_>>();
-            let outcomes = assignment.iter()
+            let outcomes = assignment
+                .iter()
                 .map(|&a| 1.0 + 2.0 * f64::from(a) + (uniform() - 0.5) * 2.0)
                 .collect::<Vec<_>>();
             let fold = (0..N).map(|i| i % FOLDS).collect::<Vec<_>>();
             let mut mu0 = vec![0.0; N];
             let mut mu1 = vec![0.0; N];
             for held in 0..FOLDS {
-                let (mut treated_sum, mut treated_n, mut control_sum, mut control_n) = (0.0, 0usize, 0.0, 0usize);
+                let (mut treated_sum, mut treated_n, mut control_sum, mut control_n) =
+                    (0.0, 0usize, 0.0, 0usize);
                 for i in 0..N {
-                    if fold[i] == held { continue; }
-                    if assignment[i] { treated_sum += outcomes[i]; treated_n += 1; }
-                    else { control_sum += outcomes[i]; control_n += 1; }
+                    if fold[i] == held {
+                        continue;
+                    }
+                    if assignment[i] {
+                        treated_sum += outcomes[i];
+                        treated_n += 1;
+                    } else {
+                        control_sum += outcomes[i];
+                        control_n += 1;
+                    }
                 }
                 let treated_mean = treated_sum / treated_n as f64;
                 let control_mean = control_sum / control_n as f64;
                 for i in 0..N {
-                    if fold[i] == held { mu1[i] = treated_mean; mu0[i] = control_mean; }
+                    if fold[i] == held {
+                        mu1[i] = treated_mean;
+                        mu0[i] = control_mean;
+                    }
                 }
             }
             let score = evaluate_policy_value_scores(
-                &outcomes, &assignment, &actions, &[0.5], &mu0, &mu1, &reference, &[cost], &[0.0],
-            ).unwrap();
+                &outcomes,
+                &assignment,
+                &actions,
+                &[0.5],
+                &mu0,
+                &mu1,
+                &reference,
+                &[cost],
+                &[0.0],
+            )
+            .unwrap();
             let policy_matches = assignment.iter().zip(&actions).filter(|(a, b)| a == b).count();
             let reference_matches = assignment.iter().filter(|&&a| !a).count();
-            let interval = pointwise_intervals_95(&score, N, policy_matches, reference_matches).unwrap();
-            policy_covered += usize::from(interval.policy[0] <= truth_policy && truth_policy <= interval.policy[1]);
-            incremental_covered += usize::from(interval.incremental[0] <= truth_incremental && truth_incremental <= interval.incremental[1]);
+            let interval =
+                pointwise_intervals_95(&score, N, policy_matches, reference_matches).unwrap();
+            policy_covered += usize::from(
+                interval.policy[0] <= truth_policy && truth_policy <= interval.policy[1],
+            );
+            incremental_covered += usize::from(
+                interval.incremental[0] <= truth_incremental
+                    && truth_incremental <= interval.incremental[1],
+            );
         }
         for (label, hits) in [("policy", policy_covered), ("incremental", incremental_covered)] {
             let coverage = hits as f64 / f64::from(simulations);
-            eprintln!("crossfit AIPW {label} known-truth coverage: {hits}/{simulations} = {coverage:.4}");
+            eprintln!(
+                "crossfit AIPW {label} known-truth coverage: {hits}/{simulations} = {coverage:.4}"
+            );
             assert!((0.93..=0.985).contains(&coverage), "crossfit {label} coverage {coverage}");
         }
     }
@@ -836,8 +1189,11 @@ mod tests {
         let bins = evaluate_uplift_bins(
             &[9.0, 5.0, 9.0, 5.0, 5.0, 5.0, 5.0, 5.0],
             &[true, false, true, false, true, false, true, false],
-            &[0.5], &[0, 0, 0, 0, 1, 1, 1, 1], 2,
-        ).unwrap();
+            &[0.5],
+            &[0, 0, 0, 0, 1, 1, 1, 1],
+            2,
+        )
+        .unwrap();
         assert!((bins[0].effect - 4.0).abs() < 1e-12);
         assert!(bins[1].effect.abs() < 1e-12);
         assert!(bins.iter().all(|bin| bin.standard_error.is_finite()));
@@ -853,7 +1209,8 @@ mod tests {
         // is 0.6. This is the target the simultaneous interval must cover.
         const ORACLE_REGRET_TRUTH: f64 = 0.6;
         let candidates = vec![
-            vec![false; N], vec![true; N],
+            vec![false; N],
+            vec![true; N],
             (0..N).map(|i| i % 2 == 0).collect(),
             (0..N).map(|i| i % 2 == 1).collect(),
         ];
@@ -869,23 +1226,40 @@ mod tests {
             let mut covered = 0;
             for _ in 0..DRAWS {
                 let assignment = (0..N).map(|_| uniform() < p).collect::<Vec<_>>();
-                let outcome = assignment.iter().enumerate().map(|(i, &treated)| {
-                    1.0 + f64::from(i % 2 == 1) * 0.5
-                        + if treated { if i % 2 == 0 { 2.0 } else { -1.0 } } else { 0.0 }
-                        + 2.0 * (uniform() - 0.5)
-                }).collect::<Vec<_>>();
+                let outcome = assignment
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &treated)| {
+                        1.0 + f64::from(i % 2 == 1) * 0.5
+                            + if treated { if i % 2 == 0 { 2.0 } else { -1.0 } } else { 0.0 }
+                            + 2.0 * (uniform() - 0.5)
+                    })
+                    .collect::<Vec<_>>();
                 let estimate = evaluate_fixed_candidate_regret(
-                    &outcome, &assignment, &[p], &candidates, 1, &[0.2], true,
-                ).unwrap();
-                covered += usize::from(estimate.interval_95[0] <= ORACLE_REGRET_TRUTH
-                    && ORACLE_REGRET_TRUTH <= estimate.interval_95[1]);
+                    &outcome,
+                    &assignment,
+                    &[p],
+                    &candidates,
+                    1,
+                    &[0.2],
+                    true,
+                )
+                .unwrap();
+                covered += usize::from(
+                    estimate.interval_95[0] <= ORACLE_REGRET_TRUTH
+                        && ORACLE_REGRET_TRUTH <= estimate.interval_95[1],
+                );
                 assert!(estimate.interval_95[0] >= 0.0);
                 assert!(estimate.interval_95[0] <= estimate.interval_95[1]);
             }
             let coverage = covered as f64 / DRAWS as f64;
-            println!("finite-class regret p={p}: {covered}/{DRAWS} simultaneous intervals cover {ORACLE_REGRET_TRUTH}");
-            assert!((0.94..=1.0).contains(&coverage),
-                "p={p} simultaneous regret coverage {covered}/{DRAWS}");
+            println!(
+                "finite-class regret p={p}: {covered}/{DRAWS} simultaneous intervals cover {ORACLE_REGRET_TRUTH}"
+            );
+            assert!(
+                (0.94..=1.0).contains(&coverage),
+                "p={p} simultaneous regret coverage {covered}/{DRAWS}"
+            );
         }
     }
 
@@ -897,14 +1271,29 @@ mod tests {
         let candidates = vec![vec![false; n], vec![true; n]];
         let evaluate = |assignment: &[bool], p: f64, held_out| {
             evaluate_fixed_candidate_regret(
-                &outcome, assignment, &[p], &candidates, 0, &[0.0], held_out,
+                &outcome,
+                assignment,
+                &[p],
+                &candidates,
+                0,
+                &[0.0],
+                held_out,
             )
         };
         assert!(evaluate(&assignments, 0.5, false).is_err());
         assert!(evaluate(&assignments, 0.1, true).is_err());
         assert!(evaluate(&vec![true; n], 0.5, true).is_err());
-        assert!(evaluate_fixed_candidate_regret(
-            &outcome, &assignments, &[0.5], &candidates, 2, &[0.0], true,
-        ).is_err());
+        assert!(
+            evaluate_fixed_candidate_regret(
+                &outcome,
+                &assignments,
+                &[0.5],
+                &candidates,
+                2,
+                &[0.0],
+                true,
+            )
+            .is_err()
+        );
     }
 }

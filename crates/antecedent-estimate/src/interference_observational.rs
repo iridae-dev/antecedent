@@ -131,7 +131,8 @@ pub fn estimate_observational_exposure(
             "observational exposure positivity failure: probabilities must lie in (0, 1]",
         ));
     }
-    if spec.propensity_from.iter().zip(spec.propensity_to).any(|(from, to)| from + to > 1.0 + 1e-12) {
+    if spec.propensity_from.iter().zip(spec.propensity_to).any(|(from, to)| from + to > 1.0 + 1e-12)
+    {
         return Err(EstimationError::data_msg(
             "distinct exposure levels cannot have marginal probabilities summing above one",
         ));
@@ -222,7 +223,9 @@ pub fn estimate_observational_exposure(
     {
         Some("pointwise observational inference requires known, fixed exposure probabilities")
     } else if cluster_count < 30 || from_clusters.len() < 8 || to_clusters.len() < 8 {
-        Some("pointwise observational inference requires 30 independent clusters and eight exposed clusters at each level")
+        Some(
+            "pointwise observational inference requires 30 independent clusters and eight exposed clusters at each level",
+        )
     } else if cluster_robust_variance <= 0.0 {
         Some("pointwise observational inference requires positive between-cluster score variation")
     } else {
@@ -233,10 +236,15 @@ pub fn estimate_observational_exposure(
         let standard_error = cluster_robust_variance.sqrt();
         let critical = antecedent_stats::student_t_ppf(0.975, degrees_of_freedom);
         if !critical.is_finite() {
-            return Err(EstimationError::data_msg("pointwise observational critical value is unavailable"));
+            return Err(EstimationError::data_msg(
+                "pointwise observational critical value is unavailable",
+            ));
         }
         Some(ObservationalExposureInterval {
-            bounds: [horvitz_thompson - critical * standard_error, horvitz_thompson + critical * standard_error],
+            bounds: [
+                horvitz_thompson - critical * standard_error,
+                horvitz_thompson + critical * standard_error,
+            ],
             standard_error,
             degrees_of_freedom,
         })
@@ -262,8 +270,17 @@ pub fn estimate_observational_exposure(
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::float_cmp, clippy::cast_possible_truncation, reason = "fixtures build small integer labels; tests assert exact deterministic values"))]
-    use antecedent_core::{ExposureLevel, ExposureMapping, ExposurePropensityProvenance, VariableId};
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            clippy::cast_possible_truncation,
+            reason = "fixtures build small integer labels; tests assert exact deterministic values"
+        )
+    )]
+    use antecedent_core::{
+        ExposureLevel, ExposureMapping, ExposurePropensityProvenance, VariableId,
+    };
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
     use super::{ObservationalExposureSpec, estimate_observational_exposure};
@@ -314,8 +331,7 @@ mod tests {
         let mut covered = 0_usize;
         let mut supported = 0_usize;
         for _ in 0..REPLICATES {
-            let assignment =
-                (0..CLUSTERS * 2).map(|_| rng.uniform() < 0.5).collect::<Vec<_>>();
+            let assignment = (0..CLUSTERS * 2).map(|_| rng.uniform() < 0.5).collect::<Vec<_>>();
             let outcomes = (0..CLUSTERS * 2)
                 .map(|unit| {
                     let own = f64::from(assignment[unit]);
@@ -339,9 +355,8 @@ mod tests {
                 estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
             if let Some(interval_95) = result.pointwise_interval {
                 supported += 1;
-                covered += usize::from(
-                    interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1],
-                );
+                covered +=
+                    usize::from(interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1]);
             }
         }
         let rate = covered as f64 / supported as f64;
@@ -397,7 +412,11 @@ mod tests {
                 outcomes.push(1.0 + 2.0 * f64::from(treated) + residual);
                 assignment.push(treated);
                 labels.push(cluster as u32);
-                edges.push(NetworkEdge { from: (2 * cluster + 1 - unit) as u32, to: (2 * cluster + unit) as u32, weight: 1.0 });
+                edges.push(NetworkEdge {
+                    from: (2 * cluster + 1 - unit) as u32,
+                    to: (2 * cluster + unit) as u32,
+                    weight: 1.0,
+                });
             }
         }
         let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -413,7 +432,8 @@ mod tests {
             propensity_to: &probabilities,
             propensity_provenance: ExposurePropensityProvenance::Known,
         };
-        let result = estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
+        let result =
+            estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
         let interval = result.pointwise_interval.unwrap();
         assert!(interval.bounds[0] < 2.0 && 2.0 < interval.bounds[1]);
         assert_eq!(interval.degrees_of_freedom, 59.0);
@@ -435,7 +455,8 @@ mod tests {
             propensity_to: &[0.7; 4],
             propensity_provenance: ExposurePropensityProvenance::Known,
         };
-        let error = estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap_err();
+        let error =
+            estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap_err();
         assert!(error.to_string().contains("summing above one"));
     }
 

@@ -106,11 +106,22 @@ pub struct ContinuousDoseResponseSection {
 impl From<&antecedent::ContinuousDoseResponseEstimate> for ContinuousDoseResponseSection {
     fn from(value: &antecedent::ContinuousDoseResponseEstimate) -> Self {
         Self {
-            points: value.points.iter().map(|point| (
-                point.baseline_group.clone(), point.target_dose, point.response,
-                point.local_rows, point.effective_sample_size, point.minimum_dose_density,
-                point.maximum_normalized_weight, point.local_outcome_sd,
-            )).collect(),
+            points: value
+                .points
+                .iter()
+                .map(|point| {
+                    (
+                        point.baseline_group.clone(),
+                        point.target_dose,
+                        point.response,
+                        point.local_rows,
+                        point.effective_sample_size,
+                        point.minimum_dose_density,
+                        point.maximum_normalized_weight,
+                        point.local_outcome_sd,
+                    )
+                })
+                .collect(),
             bandwidth: value.bandwidth,
             density_provenance: value.density_provenance.to_string(),
             uncertainty: value.uncertainty.to_string(),
@@ -149,26 +160,52 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
             reference_standard_error: value.reference_standard_error,
             incremental_standard_error: value.incremental_standard_error,
             policy_interval_95: value.policy_interval_95.map(|bounds| (bounds[0], bounds[1])),
-            incremental_interval_95: value.incremental_interval_95.map(|bounds| (bounds[0], bounds[1])),
+            incremental_interval_95: value
+                .incremental_interval_95
+                .map(|bounds| (bounds[0], bounds[1])),
             prediction_ownership: value.prediction_ownership.to_string(),
             propensity_min: value.propensity_min,
             propensity_max: value.propensity_max,
             uncertainty: value.uncertainty.to_string(),
             graphless_support_status: None,
-            uplift_bins: value.uplift_bins.iter().map(|bin| (
-                bin.rank, bin.effect, bin.standard_error, bin.evaluation_rows,
-                bin.interval_95.map(|bounds| (bounds[0], bounds[1])),
-            )).collect(),
-            multi_action_cate: value.multi_action_cate.iter().map(|point| (
-                point.group.clone(), point.action.clone(), point.effect,
-                point.evaluation_rows, point.observed_action_rows, point.observed_control_rows,
-                point.standard_error, point.interval_95.map(|bounds| (bounds[0], bounds[1])),
-            )).collect(),
-            regret: value.regret.as_ref().map(|regret| (
-                regret.regret, (regret.interval_95[0], regret.interval_95[1]),
-                regret.candidate_values.clone(), regret.contrast_standard_errors.clone(),
-                regret.selected_index,
-            )),
+            uplift_bins: value
+                .uplift_bins
+                .iter()
+                .map(|bin| {
+                    (
+                        bin.rank,
+                        bin.effect,
+                        bin.standard_error,
+                        bin.evaluation_rows,
+                        bin.interval_95.map(|bounds| (bounds[0], bounds[1])),
+                    )
+                })
+                .collect(),
+            multi_action_cate: value
+                .multi_action_cate
+                .iter()
+                .map(|point| {
+                    (
+                        point.group.clone(),
+                        point.action.clone(),
+                        point.effect,
+                        point.evaluation_rows,
+                        point.observed_action_rows,
+                        point.observed_control_rows,
+                        point.standard_error,
+                        point.interval_95.map(|bounds| (bounds[0], bounds[1])),
+                    )
+                })
+                .collect(),
+            regret: value.regret.as_ref().map(|regret| {
+                (
+                    regret.regret,
+                    (regret.interval_95[0], regret.interval_95[1]),
+                    regret.candidate_values.clone(),
+                    regret.contrast_standard_errors.clone(),
+                    regret.selected_index,
+                )
+            }),
         }
     }
 }

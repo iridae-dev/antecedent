@@ -105,30 +105,59 @@ impl CheckedContinuousDoseOperation {
         let density = numeric(self.query.dose_density)?;
         let groups: Vec<String> =
             self.query.baseline_groups.iter().map(ToString::to_string).collect();
-        let points = if self.query.target_doses.is_empty() { Vec::new() } else {
+        let points = if self.query.target_doses.is_empty() {
+            Vec::new()
+        } else {
             antecedent_estimate::continuous_dose::conditional_dose_response(
-                &outcome, &dose, &groups, &density, &self.query.target_doses,
-                self.query.bandwidth, self.query.min_local_support,
-            ).map_err(|message| CausalError::Compile { message })?
+                &outcome,
+                &dose,
+                &groups,
+                &density,
+                &self.query.target_doses,
+                self.query.bandwidth,
+                self.query.min_local_support,
+            )
+            .map_err(|message| CausalError::Compile { message })?
         };
-        let fixed_policy = self.query.fixed_policy.as_ref().map(|rule| {
-            let policy = rule.policy_doses.iter().map(|(group, dose)| (group.to_string(), *dose))
-                .collect::<Vec<_>>();
-            let reference = rule.reference_doses.iter().map(|(group, dose)| (group.to_string(), *dose))
-                .collect::<Vec<_>>();
-            antecedent_estimate::continuous_dose::fixed_dose_policy_value(
-                &outcome, &dose, &groups, &density, &policy, &reference,
-                self.query.bandwidth, self.query.min_local_support,
-                self.query.density_provenance.as_ref() == "known",
-            ).map_err(|message| CausalError::Compile { message })
-        }).transpose()?;
+        let fixed_policy = self
+            .query
+            .fixed_policy
+            .as_ref()
+            .map(|rule| {
+                let policy = rule
+                    .policy_doses
+                    .iter()
+                    .map(|(group, dose)| (group.to_string(), *dose))
+                    .collect::<Vec<_>>();
+                let reference = rule
+                    .reference_doses
+                    .iter()
+                    .map(|(group, dose)| (group.to_string(), *dose))
+                    .collect::<Vec<_>>();
+                antecedent_estimate::continuous_dose::fixed_dose_policy_value(
+                    &outcome,
+                    &dose,
+                    &groups,
+                    &density,
+                    &policy,
+                    &reference,
+                    self.query.bandwidth,
+                    self.query.min_local_support,
+                    self.query.density_provenance.as_ref() == "known",
+                )
+                .map_err(|message| CausalError::Compile { message })
+            })
+            .transpose()?;
         let licensed_fixed_policy = fixed_policy.as_ref().is_some_and(|value| {
             let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
             for group in &groups {
                 *group_rows.entry(group.as_str()).or_default() += 1;
             }
-            let intervals = [value.policy_interval_95, value.reference_interval_95,
-                value.incremental_interval_95];
+            let intervals = [
+                value.policy_interval_95,
+                value.reference_interval_95,
+                value.incremental_interval_95,
+            ];
             crate::support::license_if_graphless(
                 crate::support::GraphlessSupportKey {
                     family: "continuous_dose_policy",
@@ -137,19 +166,24 @@ impl CheckedContinuousDoseOperation {
                     inference_claim: "policy_reference_incremental_pointwise_95_normal_intervals",
                 },
                 crate::support::GraphlessAssignmentSupport {
-                    assignment_unit: "unit", rows: self.rows,
+                    assignment_unit: "unit",
+                    rows: self.rows,
                     min_group_rows: group_rows.values().copied().min().unwrap_or(0),
                     min_local_rows: value.minimum_local_rows,
                     min_effective_sample_size: value.minimum_effective_sample_size,
                     max_normalized_weight: value.maximum_normalized_weight,
                     min_dose_density: value.minimum_dose_density,
                     interval_95_published: intervals.iter().all(Option::is_some),
-                    reported_intervals: intervals.iter().filter(|interval| interval.is_some()).count(),
+                    reported_intervals: intervals
+                        .iter()
+                        .filter(|interval| interval.is_some())
+                        .count(),
                     all_reported_intervals: intervals.iter().all(Option::is_some),
                     known_density: self.query.density_provenance.as_ref() == "known",
                     ..Default::default()
                 },
-            ).is_some()
+            )
+            .is_some()
         });
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -195,8 +229,9 @@ impl CheckedContinuousDoseOperation {
             bandwidth: self.query.bandwidth,
             density_provenance: self.query.density_provenance.clone(),
             uncertainty: Arc::from(match &fixed_policy {
-                Some(value) if value.incremental_interval_95.is_some() =>
-                    "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals",
+                Some(value) if value.incremental_interval_95.is_some() => {
+                    "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
+                }
                 Some(_) => "fixed_group_kernel_smoothed_paired_variance_no_interval",
                 None => "point_only_no_interval",
             }),

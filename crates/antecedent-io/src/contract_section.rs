@@ -746,9 +746,11 @@ pub fn verify_contract_against_body(
         {
             unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
         }
-        Some("interference.ht_hajek" | "interference.cluster_neyman" | "interference.bayesian_gaussian")
-            if matches!(contract.target.query, CausalQueryWire::Interference { .. }) =>
-        {
+        Some(
+            "interference.ht_hajek"
+            | "interference.cluster_neyman"
+            | "interference.bayesian_gaussian",
+        ) if matches!(contract.target.query, CausalQueryWire::Interference { .. }) => {
             unresolved.push(Arc::from("dependencies.checked_interference_operation"));
         }
         Some("iv.bayesian_joint_linear")
@@ -1494,8 +1496,15 @@ fn verify_claim_calibration(
     if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
         unresolved.push(Arc::from("claim.calibration"));
     }
-    if contract.reasoning.support.value.as_ref().is_some_and(|support| support.matrix_status == "off_axis")
-        && std::iter::once(slot).chain(slot.secondary.iter()).any(|entry| entry.status == "calibrated")
+    if contract
+        .reasoning
+        .support
+        .value
+        .as_ref()
+        .is_some_and(|support| support.matrix_status == "off_axis")
+        && std::iter::once(slot)
+            .chain(slot.secondary.iter())
+            .any(|entry| entry.status == "calibrated")
     {
         unresolved.push(Arc::from("claim.calibration.off_axis"));
     }
@@ -1536,7 +1545,8 @@ fn calibration_basis_matches_contract(
                 && graph == key.graph_class
                 && structure == key.structure
                 && inference == key.inference
-        }) || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Exact graphless DiD licenses are bound to the executed result.
             // The calibration key still names the compiled query because the
             // geometric support registry does not contain graphless rows.
@@ -1548,7 +1558,8 @@ fn calibration_basis_matches_contract(
                 && key.query == "Unknown"
                 && key.graph_class == contract.graph_class
                 && key.structure == "fixed"
-        }) || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Off-axis design results retain their interval construction in
             // the claim even though the support matrix has no licensed cell.
             // The query-specific payload validator verifies its support and
@@ -1576,9 +1587,11 @@ fn calibration_basis_matches_contract(
             && snapshot.modality == key.modality
             && match snapshot.modality.as_str() {
                 "panel" => key.dependence == "panel_cluster",
-                "tabular" => key.dependence == "iid"
-                    || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
-                        && key.dependence == "cluster"),
+                "tabular" => {
+                    key.dependence == "iid"
+                        || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
+                            && key.dependence == "cluster")
+                }
                 _ => key.dependence != "panel_cluster",
             }
     });

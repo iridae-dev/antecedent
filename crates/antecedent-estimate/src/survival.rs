@@ -84,8 +84,13 @@ pub struct SurvivalDifferenceBand {
 /// support and calibration. No full-curve claim follows for delayed entry,
 /// conditional censoring, or observational treatment assignment.
 pub fn randomized_survival_bootstrap_difference_band(
-    duration: &[f64], event_code: &[i64], treated: &[bool], tau: f64,
-    endpoint: SurvivalEndpoint, replicates: u32, seed: u64,
+    duration: &[f64],
+    event_code: &[i64],
+    treated: &[bool],
+    tau: f64,
+    endpoint: SurvivalEndpoint,
+    replicates: u32,
+    seed: u64,
 ) -> Result<SurvivalDifferenceBand, &'static str> {
     if !(399..=100_000).contains(&replicates) {
         return Err("survival simultaneous band requires 399 to 100000 replicates");
@@ -97,11 +102,17 @@ pub fn randomized_survival_bootstrap_difference_band(
         treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
     });
     if arms.iter().any(|arm| arm.len() < 80) {
-        return Err("survival simultaneous band requires at least 80 subjects in each randomized arm");
+        return Err(
+            "survival simultaneous band requires at least 80 subjects in each randomized arm",
+        );
     }
     let original = randomized_survival_summary(duration, event_code, treated, None, tau, endpoint)?;
-    let difference = original.treated.iter().zip(&original.control)
-        .map(|(active, control)| active - control).collect::<Vec<_>>();
+    let difference = original
+        .treated
+        .iter()
+        .zip(&original.control)
+        .map(|(active, control)| active - control)
+        .collect::<Vec<_>>();
     let mut rng = seed ^ 0x7D0C_0B41_5752_5A3D;
     let mut suprema = Vec::with_capacity(replicates as usize);
     for _ in 0..replicates {
@@ -110,27 +121,43 @@ pub fn randomized_survival_bootstrap_difference_band(
         let mut a = Vec::with_capacity(duration.len());
         for (arm_index, arm) in arms.iter().enumerate() {
             for _ in 0..arm.len() {
-                #[allow(clippy::cast_possible_truncation, reason = "u64 PRNG output is reduced modulo arm length to a valid index")]
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "u64 PRNG output is reduced modulo arm length to a valid index"
+                )]
                 let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
                 d.push(duration[i]);
                 e.push(event_code[i]);
                 a.push(arm_index == 1);
             }
         }
-        let Ok(sample) = randomized_survival_summary(&d, &e, &a, None, tau, endpoint) else { continue };
-        let sup = original.times.iter().zip(&difference).map(|(&time, &point)| {
-            let position = sample.times.partition_point(|event_time| *event_time <= time);
-            let j = position.saturating_sub(1);
-            (sample.treated[j] - sample.control[j] - point).abs()
-        }).fold(0.0_f64, f64::max);
+        let Ok(sample) = randomized_survival_summary(&d, &e, &a, None, tau, endpoint) else {
+            continue;
+        };
+        let sup = original
+            .times
+            .iter()
+            .zip(&difference)
+            .map(|(&time, &point)| {
+                let position = sample.times.partition_point(|event_time| *event_time <= time);
+                let j = position.saturating_sub(1);
+                (sample.treated[j] - sample.control[j] - point).abs()
+            })
+            .fold(0.0_f64, f64::max);
         suprema.push(sup);
     }
     let ok = u32::try_from(suprema.len()).map_err(|_| "too many survival band draws")?;
     if ok < 399 || ok < replicates.saturating_sub(replicates / 10) {
-        return Err("survival simultaneous band lost more than 10% of subject draws to support failures");
+        return Err(
+            "survival simultaneous band lost more than 10% of subject draws to support failures",
+        );
     }
     suprema.sort_by(f64::total_cmp);
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ceil of a positive quantile position yields a small nonnegative rank index")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "ceil of a positive quantile position yields a small nonnegative rank index"
+    )]
     let index = ((suprema.len() as f64 + 1.0) * 0.95).ceil() as usize;
     let radius = suprema[index.saturating_sub(1).min(suprema.len() - 1)];
     let lower = difference.iter().map(|point| (point - radius).max(-1.0)).collect();
@@ -166,7 +193,8 @@ pub fn randomized_survival_bootstrap_intervals(
     if !(199..=100_000).contains(&replicates) {
         return Err("survival pointwise bootstrap requires 199 to 100000 replicates");
     }
-    if duration.len() != event_code.len() || duration.len() != treated.len()
+    if duration.len() != event_code.len()
+        || duration.len() != treated.len()
         || delayed_entry.is_some_and(|entry| entry.len() != duration.len())
     {
         return Err("survival bootstrap subject arrays must be row-aligned");
@@ -189,7 +217,10 @@ pub fn randomized_survival_bootstrap_intervals(
         let mut g = known_censoring.map(|_| Vec::with_capacity(duration.len() * grid_width));
         for (arm_index, arm) in arms.iter().enumerate() {
             for _ in 0..arm.len() {
-                #[allow(clippy::cast_possible_truncation, reason = "u64 PRNG output is reduced modulo arm length to a valid index")]
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "u64 PRNG output is reduced modulo arm length to a valid index"
+                )]
                 let i = arm[(splitmix64(&mut rng) as usize) % arm.len()];
                 d.push(duration[i]);
                 e.push(event_code[i]);
@@ -204,8 +235,17 @@ pub fn randomized_survival_bootstrap_intervals(
         }
         let estimate = match known_censoring {
             Some((grid, _, floor)) => randomized_survival_ipcw_summary_with_entry(
-                &d, &e, &a, left.as_deref(), grid, g.as_deref().unwrap_or(&[]), tau, floor, endpoint,
-            ).map(|(summary, _)| summary),
+                &d,
+                &e,
+                &a,
+                left.as_deref(),
+                grid,
+                g.as_deref().unwrap_or(&[]),
+                tau,
+                floor,
+                endpoint,
+            )
+            .map(|(summary, _)| summary),
             None => randomized_survival_summary(&d, &e, &a, left.as_deref(), tau, endpoint),
         };
         let Ok(estimate) = estimate else { continue };
@@ -225,7 +265,8 @@ pub fn randomized_survival_bootstrap_intervals(
         return Err("survival bootstrap lost RMST estimates");
     }
     Ok(SurvivalBootstrapIntervals {
-        rmst_difference: (endpoint == SurvivalEndpoint::Survival).then(|| percentile_95(&mut draws_rmst)),
+        rmst_difference: (endpoint == SurvivalEndpoint::Survival)
+            .then(|| percentile_95(&mut draws_rmst)),
         difference_at_tau: percentile_95(&mut draws_tau),
         replicates_requested: replicates,
         replicates_ok: ok,
@@ -243,9 +284,17 @@ fn splitmix64(state: &mut u64) -> u64 {
 fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
     draws.sort_by(f64::total_cmp);
     let n = draws.len();
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ceil of a positive quantile position yields a small nonnegative rank index")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "ceil of a positive quantile position yields a small nonnegative rank index"
+    )]
     let lower = ((n as f64 + 1.0) * 0.025).ceil() as usize;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ceil of a positive quantile position yields a small nonnegative rank index")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "ceil of a positive quantile position yields a small nonnegative rank index"
+    )]
     let upper = ((n as f64 + 1.0) * 0.975).ceil() as usize;
     [draws[lower.saturating_sub(1).min(n - 1)], draws[upper.saturating_sub(1).min(n - 1)]]
 }
@@ -377,8 +426,15 @@ pub fn randomized_survival_ipcw_summary(
     endpoint: SurvivalEndpoint,
 ) -> Result<(RandomizedSurvivalSummary, f64), &'static str> {
     randomized_survival_ipcw_summary_with_entry(
-        duration, event_code, treated, None, times, censoring_survival, tau,
-        minimum_probability, endpoint,
+        duration,
+        event_code,
+        treated,
+        None,
+        times,
+        censoring_survival,
+        tau,
+        minimum_probability,
+        endpoint,
     )
 }
 
@@ -435,9 +491,12 @@ pub fn randomized_survival_ipcw_summary_with_entry(
     {
         return Err("durations must be finite and represented on the censoring grid through tau");
     }
-    if delayed_entry.is_some_and(|entry| entry.iter().zip(duration).any(|(&left, &right)| {
-        !left.is_finite() || left < 0.0 || left >= right
-    })) {
+    if delayed_entry.is_some_and(|entry| {
+        entry
+            .iter()
+            .zip(duration)
+            .any(|(&left, &right)| !left.is_finite() || left < 0.0 || left >= right)
+    }) {
         return Err("entry times must be finite, nonnegative, and earlier than exit");
     }
     match endpoint {
@@ -477,7 +536,8 @@ pub fn randomized_survival_ipcw_summary_with_entry(
         if !(0..n).any(|i| treated[i] == arm && duration[i] >= tau) {
             return Err("both randomized arms require observed follow-up through tau");
         }
-        if delayed_entry.is_some_and(|entry| !(0..n).any(|i| treated[i] == arm && entry[i] == 0.0)) {
+        if delayed_entry.is_some_and(|entry| !(0..n).any(|i| treated[i] == arm && entry[i] == 0.0))
+        {
             return Err("RMST or incidence from zero requires a time-zero entrant in each arm");
         }
     }
@@ -491,11 +551,17 @@ pub fn randomized_survival_ipcw_summary_with_entry(
         let mut previous_time = 0.0;
         for (j, &time) in times.iter().enumerate() {
             restricted_means[arm_index] += (time - previous_time) * survival;
-            let at_risk = (0..n).filter(|&i| {
-                treated[i] == arm && duration[i] >= time
-                    && delayed_entry.is_none_or(|entry| entry[i] < time)
-            }).collect::<Vec<_>>();
-            #[allow(clippy::float_cmp, reason = "matches rows whose recorded event time equals this exact grid time")]
+            let at_risk = (0..n)
+                .filter(|&i| {
+                    treated[i] == arm
+                        && duration[i] >= time
+                        && delayed_entry.is_none_or(|entry| entry[i] < time)
+                })
+                .collect::<Vec<_>>();
+            #[allow(
+                clippy::float_cmp,
+                reason = "matches rows whose recorded event time equals this exact grid time"
+            )]
             let event_rows = at_risk
                 .iter()
                 .copied()
@@ -597,7 +663,10 @@ fn arm_curve(
         }
         let mut all_events = 0;
         let mut target_events = 0;
-        #[allow(clippy::float_cmp, reason = "counts rows whose recorded exit time equals this exact event time")]
+        #[allow(
+            clippy::float_cmp,
+            reason = "counts rows whose recorded exit time equals this exact event time"
+        )]
         for ((&exit, &cause), &assignment) in duration.iter().zip(event_code).zip(treated) {
             if assignment == arm && exit == time && cause > 0 {
                 all_events += 1;
@@ -634,7 +703,13 @@ fn arm_curve(
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates and match exact event times"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            reason = "tests assert exact deterministic estimates and match exact event times"
+        )
+    )]
     use super::*;
 
     #[test]
@@ -643,38 +718,90 @@ mod tests {
         let mut events = vec![0; 80];
         let treated = (0..80).map(|i| i >= 40).collect::<Vec<_>>();
         for i in 0..40 {
-            if i % 5 == 0 { durations[i] = 1.0; events[i] = 1; }
+            if i % 5 == 0 {
+                durations[i] = 1.0;
+                events[i] = 1;
+            }
         }
         for i in 40..80 {
-            if i % 10 == 0 { durations[i] = 1.0; events[i] = 1; }
+            if i % 10 == 0 {
+                durations[i] = 1.0;
+                events[i] = 1;
+            }
         }
         let first = randomized_survival_bootstrap_intervals(
-            &durations, &events, &treated, None, None, 3.0,
-            SurvivalEndpoint::Survival, 399, 17,
-        ).unwrap();
+            &durations,
+            &events,
+            &treated,
+            None,
+            None,
+            3.0,
+            SurvivalEndpoint::Survival,
+            399,
+            17,
+        )
+        .unwrap();
         let repeated = randomized_survival_bootstrap_intervals(
-            &durations, &events, &treated, None, None, 3.0,
-            SurvivalEndpoint::Survival, 399, 17,
-        ).unwrap();
+            &durations,
+            &events,
+            &treated,
+            None,
+            None,
+            3.0,
+            SurvivalEndpoint::Survival,
+            399,
+            17,
+        )
+        .unwrap();
         assert_eq!(first, repeated);
         assert_eq!(first.replicates_ok, 399);
         assert!(first.rmst_difference.unwrap()[0] <= 0.2);
         assert!(first.rmst_difference.unwrap()[1] >= 0.2);
-        assert!(randomized_survival_bootstrap_intervals(
-            &durations[..8], &events[..8], &treated[..8], None, None, 3.0,
-            SurvivalEndpoint::Survival, 399, 17,
-        ).is_err());
-        assert!(randomized_survival_bootstrap_intervals(
-            &durations, &events, &treated, None, None, 3.0,
-            SurvivalEndpoint::Survival, 198, 17,
-        ).is_err());
+        assert!(
+            randomized_survival_bootstrap_intervals(
+                &durations[..8],
+                &events[..8],
+                &treated[..8],
+                None,
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                399,
+                17,
+            )
+            .is_err()
+        );
+        assert!(
+            randomized_survival_bootstrap_intervals(
+                &durations,
+                &events,
+                &treated,
+                None,
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                198,
+                17,
+            )
+            .is_err()
+        );
         // Delayed entry is now a supported, separately calibrated bootstrap route
         // (see delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth),
         // so supplying entry times is accepted rather than refused.
-        assert!(randomized_survival_bootstrap_intervals(
-            &durations, &events, &treated, Some(&vec![0.0; 80]), None, 3.0,
-            SurvivalEndpoint::Survival, 399, 17,
-        ).is_ok());
+        assert!(
+            randomized_survival_bootstrap_intervals(
+                &durations,
+                &events,
+                &treated,
+                Some(&vec![0.0; 80]),
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                399,
+                17,
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -684,15 +811,27 @@ mod tests {
         let treated = (0..80).map(|i| i >= 40).collect::<Vec<_>>();
         let mut g = Vec::with_capacity(80 * 3);
         for i in 0..80 {
-            if i % 5 == 0 { durations[i] = 1.0; events[i] = 1; }
-            else if i % 7 == 0 { durations[i] = 1.0; events[i] = 2; }
+            if i % 5 == 0 {
+                durations[i] = 1.0;
+                events[i] = 1;
+            } else if i % 7 == 0 {
+                durations[i] = 1.0;
+                events[i] = 2;
+            }
             g.extend_from_slice(&[1.0, if i % 2 == 0 { 0.8 } else { 0.9 }, 0.7]);
         }
         let result = randomized_survival_bootstrap_intervals(
-            &durations, &events, &treated, None,
-            Some((&[0.0, 1.0, 3.0], &g, 0.01)), 3.0,
-            SurvivalEndpoint::CumulativeIncidence { target_cause: 1 }, 399, 19,
-        ).unwrap();
+            &durations,
+            &events,
+            &treated,
+            None,
+            Some((&[0.0, 1.0, 3.0], &g, 0.01)),
+            3.0,
+            SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
+            399,
+            19,
+        )
+        .unwrap();
         assert!(result.rmst_difference.is_none());
         assert_eq!(result.replicates_ok, 399);
         assert!(result.difference_at_tau[0] <= 0.0 && result.difference_at_tau[1] >= 0.0);
@@ -718,9 +857,17 @@ mod tests {
                 treated.push(arm);
             }
             let intervals = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, None, None, 3.0,
-                SurvivalEndpoint::Survival, 299, trial + 700,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                None,
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial + 700,
+            )
+            .unwrap();
             let rmst = intervals.rmst_difference.unwrap();
             covered_rmst += u32::from(rmst[0] <= 0.30 && 0.30 <= rmst[1]);
             let tau = intervals.difference_at_tau;
@@ -758,16 +905,26 @@ mod tests {
                 }
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &duration, &event, &treated, None, None, 3.0,
-                SurvivalEndpoint::Survival, 299, trial as u64 + 37_000,
-            ).unwrap();
+                &duration,
+                &event,
+                &treated,
+                None,
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial as u64 + 37_000,
+            )
+            .unwrap();
             assert_eq!(fit.replicates_ok, 299);
             let rmst = fit.rmst_difference.unwrap();
             let tau = fit.difference_at_tau;
             covered_rmst += usize::from(rmst[0] <= 0.30 && 0.30 <= rmst[1]);
             covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
         }
-        eprintln!("graphless survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
+        eprintln!(
+            "graphless survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000"
+        );
         assert!((1_860..=1_970).contains(&covered_rmst), "RMST coverage {covered_rmst}/2000");
         assert!((1_860..=1_970).contains(&covered_tau), "S(3) coverage {covered_tau}/2000");
     }
@@ -802,7 +959,9 @@ mod tests {
                     } else {
                         (3.0, 0)
                     };
-                    if entry >= exit { continue; }
+                    if entry >= exit {
+                        continue;
+                    }
                     durations.push(exit);
                     events.push(event);
                     treated.push(arm);
@@ -811,18 +970,34 @@ mod tests {
                 }
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, Some(&entries), None, 3.0,
-                SurvivalEndpoint::Survival, 299, trial as u64 + 41_000,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial as u64 + 41_000,
+            )
+            .unwrap();
             assert_eq!(fit.replicates_ok, 299);
             let rmst = fit.rmst_difference.unwrap();
             let tau = fit.difference_at_tau;
             covered_rmst += usize::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
             covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
         }
-        eprintln!("delayed-entry survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
-        assert!((1_860..=1_970).contains(&covered_rmst), "delayed-entry RMST coverage {covered_rmst}/2000");
-        assert!((1_860..=1_970).contains(&covered_tau), "delayed-entry S(3) coverage {covered_tau}/2000");
+        eprintln!(
+            "delayed-entry survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000"
+        );
+        assert!(
+            (1_860..=1_970).contains(&covered_rmst),
+            "delayed-entry RMST coverage {covered_rmst}/2000"
+        );
+        assert!(
+            (1_860..=1_970).contains(&covered_tau),
+            "delayed-entry S(3) coverage {covered_tau}/2000"
+        );
     }
 
     #[test]
@@ -849,24 +1024,42 @@ mod tests {
                 let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                 let censored = censor_u >= keep_probability;
                 let failed = event_u < if arm { 0.15 } else { 0.30 };
-                durations.push(if censored { 0.5 } else if failed { 1.0 } else { 3.0 });
+                durations.push(if censored {
+                    0.5
+                } else if failed {
+                    1.0
+                } else {
+                    3.0
+                });
                 events.push(i64::from(!censored && failed));
                 treated.push(arm);
                 g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, None,
-                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)), 3.0,
-                SurvivalEndpoint::Survival, 299, trial as u64 + 43_000,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                None,
+                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)),
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial as u64 + 43_000,
+            )
+            .unwrap();
             assert_eq!(fit.replicates_ok, 299);
             let rmst = fit.rmst_difference.unwrap();
             let tau = fit.difference_at_tau;
             covered_rmst += usize::from(rmst[0] <= 0.30 && 0.30 <= rmst[1]);
             covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
         }
-        eprintln!("fixed-G IPCW survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
-        assert!((1_860..=1_970).contains(&covered_rmst), "fixed-G RMST coverage {covered_rmst}/2000");
+        eprintln!(
+            "fixed-G IPCW survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000"
+        );
+        assert!(
+            (1_860..=1_970).contains(&covered_rmst),
+            "fixed-G RMST coverage {covered_rmst}/2000"
+        );
         assert!((1_860..=1_970).contains(&covered_tau), "fixed-G S(3) coverage {covered_tau}/2000");
     }
 
@@ -905,35 +1098,61 @@ mod tests {
                     let censor_hazard = if high_censoring { 0.20 } else { 0.10 };
                     let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                     let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let censor_time = if c1 < censor_hazard { 1.5 }
-                        else if c2 < censor_hazard { 2.5 } else { 3.0 };
+                    let censor_time = if c1 < censor_hazard {
+                        1.5
+                    } else if c2 < censor_hazard {
+                        2.5
+                    } else {
+                        3.0
+                    };
                     let exit = event_time.min(censor_time);
-                    if entry >= exit { continue; }
+                    if entry >= exit {
+                        continue;
+                    }
                     durations.push(exit);
                     events.push(if event_time <= censor_time { event } else { 0 });
                     treated.push(arm);
                     entries.push(entry);
                     g.extend_from_slice(&[
-                        1.0, 1.0, 1.0, 1.0 - censor_hazard,
-                        1.0 - censor_hazard, (1.0 - censor_hazard).powi(2),
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0 - censor_hazard,
+                        1.0 - censor_hazard,
+                        (1.0 - censor_hazard).powi(2),
                     ]);
                     observed += 1;
                 }
             }
             let fit = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, Some(&entries),
-                Some((&times, &g, 0.01)), 3.0, SurvivalEndpoint::Survival,
-                299, trial as u64 + 45_000,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                Some((&times, &g, 0.01)),
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial as u64 + 45_000,
+            )
+            .unwrap();
             assert_eq!(fit.replicates_ok, 299);
             let rmst = fit.rmst_difference.unwrap();
             let tau = fit.difference_at_tau;
             covered_rmst += usize::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
             covered_tau += usize::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
         }
-        eprintln!("delayed-entry fixed-G survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000");
-        assert!((1_860..=1_970).contains(&covered_rmst), "delayed-entry fixed-G RMST coverage {covered_rmst}/2000");
-        assert!((1_860..=1_970).contains(&covered_tau), "delayed-entry fixed-G S(3) coverage {covered_tau}/2000");
+        eprintln!(
+            "delayed-entry fixed-G survival scalar coverage: RMST {covered_rmst}/2000, S(tau) {covered_tau}/2000"
+        );
+        assert!(
+            (1_860..=1_970).contains(&covered_rmst),
+            "delayed-entry fixed-G RMST coverage {covered_rmst}/2000"
+        );
+        assert!(
+            (1_860..=1_970).contains(&covered_tau),
+            "delayed-entry fixed-G S(3) coverage {covered_tau}/2000"
+        );
     }
 
     #[test]
@@ -964,7 +1183,9 @@ mod tests {
                     } else {
                         (3.0, 0)
                     };
-                    if entry >= exit { continue; }
+                    if entry >= exit {
+                        continue;
+                    }
                     durations.push(exit);
                     events.push(event);
                     treated.push(arm);
@@ -973,15 +1194,25 @@ mod tests {
                 }
             }
             let intervals = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, Some(&entries), None, 3.0,
-                SurvivalEndpoint::Survival, 299, trial + 2_100,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                None,
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial + 2_100,
+            )
+            .unwrap();
             let rmst = intervals.rmst_difference.unwrap();
             covered_rmst += u32::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
             let tau = intervals.difference_at_tau;
             covered_tau += u32::from(tau[0] <= 0.15 && 0.15 <= tau[1]);
         }
-        eprintln!("left-truncated survival coverage: RMST {covered_rmst}/400, S(tau) {covered_tau}/400");
+        eprintln!(
+            "left-truncated survival coverage: RMST {covered_rmst}/400, S(tau) {covered_tau}/400"
+        );
         assert!(covered_rmst >= 360, "left-truncated RMST coverage: {covered_rmst}/400");
         assert!(covered_tau >= 360, "left-truncated S(tau) coverage: {covered_tau}/400");
     }
@@ -1018,7 +1249,9 @@ mod tests {
                     } else {
                         (3.0, 0)
                     };
-                    if entry >= exit { continue; }
+                    if entry >= exit {
+                        continue;
+                    }
                     durations.push(exit);
                     events.push(event);
                     treated.push(arm);
@@ -1027,10 +1260,18 @@ mod tests {
                 }
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, Some(&entries), None, 3.0,
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                None,
+                3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
-                299, trial + 8_100,
-            ).unwrap().difference_at_tau;
+                299,
+                trial + 8_100,
+            )
+            .unwrap()
+            .difference_at_tau;
             covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
         }
         eprintln!("left-truncated competing-risk CIF coverage: {covered}/400");
@@ -1069,37 +1310,67 @@ mod tests {
                     let censor_hazard = if high_censoring { 0.20 } else { 0.10 };
                     let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                     let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let censor_time = if c1 < censor_hazard { 1.5 }
-                        else if c2 < censor_hazard { 2.5 } else { 3.0 };
+                    let censor_time = if c1 < censor_hazard {
+                        1.5
+                    } else if c2 < censor_hazard {
+                        2.5
+                    } else {
+                        3.0
+                    };
                     let exit = event_time.min(censor_time);
-                    if entry >= exit { continue; }
+                    if entry >= exit {
+                        continue;
+                    }
                     durations.push(exit);
                     events.push(if event_time <= censor_time { event } else { 0 });
                     treated.push(arm);
                     entries.push(entry);
                     g.extend_from_slice(&[
-                        1.0, 1.0, 1.0, 1.0 - censor_hazard,
-                        1.0 - censor_hazard, (1.0 - censor_hazard).powi(2),
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0 - censor_hazard,
+                        1.0 - censor_hazard,
+                        (1.0 - censor_hazard).powi(2),
                     ]);
                     observed += 1;
                 }
             }
             let estimate = randomized_survival_ipcw_summary_with_entry(
-                &durations, &events, &treated, Some(&entries), &times, &g, 3.0,
-                0.01, SurvivalEndpoint::Survival,
-            ).unwrap().0;
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                &times,
+                &g,
+                3.0,
+                0.01,
+                SurvivalEndpoint::Survival,
+            )
+            .unwrap()
+            .0;
             assert!(estimate.rmst_control.is_some());
             let interval = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, Some(&entries),
-                Some((&times, &g, 0.01)), 3.0, SurvivalEndpoint::Survival,
-                299, trial + 9_100,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                Some((&times, &g, 0.01)),
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial + 9_100,
+            )
+            .unwrap();
             let rmst = interval.rmst_difference.unwrap();
             covered_rmst += u32::from(rmst[0] <= 0.25 && 0.25 <= rmst[1]);
-            covered_tau += u32::from(interval.difference_at_tau[0] <= 0.15
-                && 0.15 <= interval.difference_at_tau[1]);
+            covered_tau += u32::from(
+                interval.difference_at_tau[0] <= 0.15 && 0.15 <= interval.difference_at_tau[1],
+            );
         }
-        eprintln!("left-entry fixed-G survival coverage: RMST {covered_rmst}/400, S(tau) {covered_tau}/400");
+        eprintln!(
+            "left-entry fixed-G survival coverage: RMST {covered_rmst}/400, S(tau) {covered_tau}/400"
+        );
         assert!(covered_rmst >= 360, "left-entry fixed-G RMST coverage: {covered_rmst}/400");
         assert!(covered_tau >= 360, "left-entry fixed-G S(tau) coverage: {covered_tau}/400");
     }
@@ -1135,27 +1406,45 @@ mod tests {
                     let censor_hazard = if splitmix64(&mut state) & 1 == 1 { 0.20 } else { 0.10 };
                     let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                     let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let censor_time = if c1 < censor_hazard { 1.5 }
-                        else if c2 < censor_hazard { 2.5 } else { 3.0 };
+                    let censor_time = if c1 < censor_hazard {
+                        1.5
+                    } else if c2 < censor_hazard {
+                        2.5
+                    } else {
+                        3.0
+                    };
                     let exit = event_time.min(censor_time);
-                    if entry >= exit { continue; }
+                    if entry >= exit {
+                        continue;
+                    }
                     durations.push(exit);
                     events.push(if event_time <= censor_time { event } else { 0 });
                     treated.push(arm);
                     entries.push(entry);
                     g.extend_from_slice(&[
-                        1.0, 1.0, 1.0, 1.0 - censor_hazard,
-                        1.0 - censor_hazard, (1.0 - censor_hazard).powi(2),
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0 - censor_hazard,
+                        1.0 - censor_hazard,
+                        (1.0 - censor_hazard).powi(2),
                     ]);
                     observed += 1;
                 }
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, Some(&entries),
-                Some((&times, &g, 0.01)), 3.0,
+                &durations,
+                &events,
+                &treated,
+                Some(&entries),
+                Some((&times, &g, 0.01)),
+                3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
-                299, trial + 10_100,
-            ).unwrap().difference_at_tau;
+                299,
+                trial + 10_100,
+            )
+            .unwrap()
+            .difference_at_tau;
             covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
         }
         eprintln!("left-entry fixed-G competing-risk CIF coverage: {covered}/400");
@@ -1174,39 +1463,81 @@ mod tests {
                 for _ in 0..160 {
                     let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                     let (first, second) = if arm { (0.15, 0.10) } else { (0.30, 0.20) };
-                    let (exit, event) = if u < first { (1.0, 1) }
-                        else if u < first + second { (2.0, 1) }
-                        else { (3.0, 0) };
+                    let (exit, event) = if u < first {
+                        (1.0, 1)
+                    } else if u < first + second {
+                        (2.0, 1)
+                    } else {
+                        (3.0, 0)
+                    };
                     durations.push(exit);
                     events.push(event);
                     treated.push(arm);
                 }
             }
             let band = randomized_survival_bootstrap_difference_band(
-                &durations, &events, &treated, 3.0,
-                SurvivalEndpoint::Survival, 399, trial + 4_400,
-            ).unwrap();
+                &durations,
+                &events,
+                &treated,
+                3.0,
+                SurvivalEndpoint::Survival,
+                399,
+                trial + 4_400,
+            )
+            .unwrap();
             let covers = band.times.iter().enumerate().all(|(i, &time)| {
-                let truth = if time < 1.0 { 0.0 } else if time < 2.0 { 0.15 } else { 0.25 };
+                let truth = if time < 1.0 {
+                    0.0
+                } else if time < 2.0 {
+                    0.15
+                } else {
+                    0.25
+                };
                 band.lower[i] <= truth && truth <= band.upper[i]
             });
             covered += u32::from(covers);
         }
         eprintln!("simultaneous survival-grid band coverage: {covered}/400");
         assert!(covered >= 360, "simultaneous survival-grid coverage: {covered}/400");
-        assert!(randomized_survival_bootstrap_difference_band(
-            &[1.0, 3.0, 1.0, 3.0], &[1, 0, 1, 0], &[false, false, true, true],
-            3.0, SurvivalEndpoint::Survival, 399, 7,
-        ).unwrap_err().contains("80 subjects"));
+        assert!(
+            randomized_survival_bootstrap_difference_band(
+                &[1.0, 3.0, 1.0, 3.0],
+                &[1, 0, 1, 0],
+                &[false, false, true, true],
+                3.0,
+                SurvivalEndpoint::Survival,
+                399,
+                7,
+            )
+            .unwrap_err()
+            .contains("80 subjects")
+        );
         let duration = (0..160).map(|i| if i % 5 == 0 { 1.0 } else { 3.0 }).collect::<Vec<_>>();
         let event = duration.iter().map(|time| i64::from(*time == 1.0)).collect::<Vec<_>>();
         let treated = (0..160).map(|i| i >= 80).collect::<Vec<_>>();
         let first = randomized_survival_bootstrap_difference_band(
-            &duration, &event, &treated, 3.0, SurvivalEndpoint::Survival, 399, 42,
-        ).unwrap();
-        assert_eq!(first, randomized_survival_bootstrap_difference_band(
-            &duration, &event, &treated, 3.0, SurvivalEndpoint::Survival, 399, 42,
-        ).unwrap());
+            &duration,
+            &event,
+            &treated,
+            3.0,
+            SurvivalEndpoint::Survival,
+            399,
+            42,
+        )
+        .unwrap();
+        assert_eq!(
+            first,
+            randomized_survival_bootstrap_difference_band(
+                &duration,
+                &event,
+                &treated,
+                3.0,
+                SurvivalEndpoint::Survival,
+                399,
+                42,
+            )
+            .unwrap()
+        );
     }
 
     #[test]
@@ -1220,24 +1551,42 @@ mod tests {
             for arm in [false, true] {
                 for _ in 0..160 {
                     let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let (first_target, second_target) = if arm { (0.30, 0.15) } else { (0.20, 0.10) };
-                    let (exit, cause) = if u < first_target { (1.0, 1) }
-                        else if u < first_target + 0.10 { (1.0, 2) }
-                        else if u < first_target + 0.10 + second_target { (2.0, 1) }
-                        else if u < first_target + 0.20 + second_target { (2.0, 2) }
-                        else { (3.0, 0) };
+                    let (first_target, second_target) =
+                        if arm { (0.30, 0.15) } else { (0.20, 0.10) };
+                    let (exit, cause) = if u < first_target {
+                        (1.0, 1)
+                    } else if u < first_target + 0.10 {
+                        (1.0, 2)
+                    } else if u < first_target + 0.10 + second_target {
+                        (2.0, 1)
+                    } else if u < first_target + 0.20 + second_target {
+                        (2.0, 2)
+                    } else {
+                        (3.0, 0)
+                    };
                     durations.push(exit);
                     causes.push(cause);
                     treated.push(arm);
                 }
             }
             let band = randomized_survival_bootstrap_difference_band(
-                &durations, &causes, &treated, 3.0,
+                &durations,
+                &causes,
+                &treated,
+                3.0,
                 SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
-                399, trial + 6_400,
-            ).unwrap();
+                399,
+                trial + 6_400,
+            )
+            .unwrap();
             let covers = band.times.iter().enumerate().all(|(i, &time)| {
-                let truth = if time < 1.0 { 0.0 } else if time < 2.0 { 0.10 } else { 0.15 };
+                let truth = if time < 1.0 {
+                    0.0
+                } else if time < 2.0 {
+                    0.10
+                } else {
+                    0.15
+                };
                 band.lower[i] <= truth && truth <= band.upper[i]
             });
             covered += u32::from(covers);
@@ -1264,16 +1613,31 @@ mod tests {
                 let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
                 let censored = censor_u >= keep_probability;
                 let failed = event_u < if arm { 0.15 } else { 0.30 };
-                durations.push(if censored { 0.5 } else if failed { 1.0 } else { 3.0 });
+                durations.push(if censored {
+                    0.5
+                } else if failed {
+                    1.0
+                } else {
+                    3.0
+                });
                 events.push(i64::from(!censored && failed));
                 treated.push(arm);
                 g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability]);
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, None,
-                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)), 3.0,
-                SurvivalEndpoint::Survival, 299, trial + 1700,
-            ).unwrap().rmst_difference.unwrap();
+                &durations,
+                &events,
+                &treated,
+                None,
+                Some((&[0.0, 0.5, 1.0, 3.0], &g, 0.01)),
+                3.0,
+                SurvivalEndpoint::Survival,
+                299,
+                trial + 1700,
+            )
+            .unwrap()
+            .rmst_difference
+            .unwrap();
             covered += u32::from(interval[0] <= 0.30 && 0.30 <= interval[1]);
         }
         assert!(covered >= 216, "fixed-G IPCW RMST coverage: {covered}/240");
@@ -1312,13 +1676,27 @@ mod tests {
                 durations.push(if censored { 0.5 } else { event_time });
                 events.push(if censored { 0 } else { cause });
                 treated.push(arm);
-                g.extend_from_slice(&[1.0, keep_probability, keep_probability, keep_probability, keep_probability]);
+                g.extend_from_slice(&[
+                    1.0,
+                    keep_probability,
+                    keep_probability,
+                    keep_probability,
+                    keep_probability,
+                ]);
             }
             let interval = randomized_survival_bootstrap_intervals(
-                &durations, &events, &treated, None,
-                Some((&[0.0, 0.5, 1.0, 2.0, 3.0], &g, 0.01)), 3.0,
-                SurvivalEndpoint::CumulativeIncidence { target_cause: 1 }, 299, trial + 2700,
-            ).unwrap().difference_at_tau;
+                &durations,
+                &events,
+                &treated,
+                None,
+                Some((&[0.0, 0.5, 1.0, 2.0, 3.0], &g, 0.01)),
+                3.0,
+                SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
+                299,
+                trial + 2700,
+            )
+            .unwrap()
+            .difference_at_tau;
             covered += u32::from(interval[0] <= -0.10 && -0.10 <= interval[1]);
         }
         assert!(covered >= 216, "fixed-G competing-risk CIF coverage: {covered}/240");

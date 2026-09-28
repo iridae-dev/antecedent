@@ -24,15 +24,21 @@ impl FixedGroupDosePolicy {
     /// observed, or a rule fails to name every observed group exactly once with
     /// finite targets.
     pub fn validate(&self, baseline_groups: &[Arc<str>]) -> Result<(), QueryError> {
-        let observed = baseline_groups.iter().map(|group| &**group)
-            .collect::<std::collections::BTreeSet<_>>();
-        if observed.is_empty() { return Err(QueryError::InvalidPolicyValue(
-            "fixed dose rules require observed baseline groups".into())); }
+        let observed =
+            baseline_groups.iter().map(|group| &**group).collect::<std::collections::BTreeSet<_>>();
+        if observed.is_empty() {
+            return Err(QueryError::InvalidPolicyValue(
+                "fixed dose rules require observed baseline groups".into(),
+            ));
+        }
         for rule in [&self.policy_doses, &self.reference_doses] {
             let mut seen = std::collections::BTreeSet::new();
-            if rule.len() != observed.len() || rule.iter().any(|(group, target)|
-                !target.is_finite() || !observed.contains(group.as_ref())
-                    || !seen.insert(group.as_ref()))
+            if rule.len() != observed.len()
+                || rule.iter().any(|(group, target)| {
+                    !target.is_finite()
+                        || !observed.contains(group.as_ref())
+                        || !seen.insert(group.as_ref())
+                })
             {
                 return Err(QueryError::InvalidPolicyValue(
                     "fixed dose rules must name every observed baseline group exactly once with finite targets".into()));
@@ -112,13 +118,21 @@ mod policy_tests {
             reference_doses: Arc::from([(Arc::from("a"), 0.2), (Arc::from("b"), 0.4)]),
         };
         assert!(policy.validate(&groups).is_ok());
-        assert!(FixedGroupDosePolicy {
-            reference_doses: Arc::from([(Arc::from("a"), 0.2), (Arc::from("a"), 0.4)]),
-            ..policy.clone()
-        }.validate(&groups).is_err());
-        assert!(FixedGroupDosePolicy {
-            policy_doses: Arc::from([(Arc::from("a"), f64::NAN), (Arc::from("b"), 0.7)]),
-            ..policy
-        }.validate(&groups).is_err());
+        assert!(
+            FixedGroupDosePolicy {
+                reference_doses: Arc::from([(Arc::from("a"), 0.2), (Arc::from("a"), 0.4)]),
+                ..policy.clone()
+            }
+            .validate(&groups)
+            .is_err()
+        );
+        assert!(
+            FixedGroupDosePolicy {
+                policy_doses: Arc::from([(Arc::from("a"), f64::NAN), (Arc::from("b"), 0.7)]),
+                ..policy
+            }
+            .validate(&groups)
+            .is_err()
+        );
     }
 }

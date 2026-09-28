@@ -47,12 +47,19 @@ pub fn pretrend_falsification_statistic(
     if leads.len() < 2 {
         return Err("at least two non-reference pre-period contrasts are required");
     }
-    if leads.iter().any(|effect| !effect.effect.is_finite()
-        || !effect.standard_error.is_finite() || effect.standard_error <= 0.0
-        || effect.clusters < 4) {
-        return Err("every pre-period contrast needs finite effect, positive cluster SE, and at least four clusters");
+    if leads.iter().any(|effect| {
+        !effect.effect.is_finite()
+            || !effect.standard_error.is_finite()
+            || effect.standard_error <= 0.0
+            || effect.clusters < 4
+    }) {
+        return Err(
+            "every pre-period contrast needs finite effect, positive cluster SE, and at least four clusters",
+        );
     }
-    let maximum = leads.iter().map(|effect| (effect.effect / effect.standard_error).abs())
+    let maximum = leads
+        .iter()
+        .map(|effect| (effect.effect / effect.standard_error).abs())
         .fold(0.0_f64, f64::max);
     if !maximum.is_finite() {
         return Err("pre-period cluster-studentized statistic overflowed finite precision");
@@ -69,12 +76,19 @@ pub fn pretrend_falsification_statistic(
 /// This does not establish simultaneous coverage of the event-study curve.
 #[must_use]
 pub fn pointwise_interval_95(
-    effect: &EventTimeEffect, treated_clusters: usize, control_clusters: usize,
+    effect: &EventTimeEffect,
+    treated_clusters: usize,
+    control_clusters: usize,
 ) -> Option<[f64; 2]> {
-    if treated_clusters < 24 || control_clusters < 24
-        || effect.clusters < 48 || !effect.effect.is_finite()
-        || !effect.standard_error.is_finite() || effect.standard_error <= 0.0
-    { return None; }
+    if treated_clusters < 24
+        || control_clusters < 24
+        || effect.clusters < 48
+        || !effect.effect.is_finite()
+        || !effect.standard_error.is_finite()
+        || effect.standard_error <= 0.0
+    {
+        return None;
+    }
     let span = antecedent_stats::normal_ppf(0.975) * effect.standard_error;
     let bounds = [effect.effect - span, effect.effect + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some(bounds)
@@ -90,15 +104,28 @@ pub fn estimate(
     clusters: &[impl AsRef<str>],
 ) -> Result<Vec<EventTimeEffect>, String> {
     let n = outcomes.len();
-    if n == 0 || subjects.len() != n || periods.len() != n || cohorts.len() != n || clusters.len() != n {
-        return Err("outcome, subject, period, cohort, and cluster vectors must have equal non-zero length".into());
+    if n == 0
+        || subjects.len() != n
+        || periods.len() != n
+        || cohorts.len() != n
+        || clusters.len() != n
+    {
+        return Err(
+            "outcome, subject, period, cohort, and cluster vectors must have equal non-zero length"
+                .into(),
+        );
     }
     let mut units: BTreeMap<&str, (i64, &str, BTreeMap<i64, f64>)> = BTreeMap::new();
     let mut all_periods = BTreeSet::new();
     for i in 0..n {
         let subject = subjects[i].as_ref();
         let cluster = clusters[i].as_ref();
-        if subject.trim().is_empty() || cluster.trim().is_empty() || !outcomes[i].is_finite() || periods[i] <= 0 || cohorts[i] < 0 {
+        if subject.trim().is_empty()
+            || cluster.trim().is_empty()
+            || !outcomes[i].is_finite()
+            || periods[i] <= 0
+            || cohorts[i] < 0
+        {
             return Err("event study requires finite outcomes, non-empty IDs, positive periods, and nonnegative cohorts".into());
         }
         all_periods.insert(periods[i]);
@@ -110,7 +137,12 @@ pub fn estimate(
             return Err("each subject must have exactly one observation per period".into());
         }
     }
-    if all_periods.len() < 2 || units.values().any(|unit| unit.2.len() != all_periods.len() || all_periods.iter().any(|period| !unit.2.contains_key(period))) {
+    if all_periods.len() < 2
+        || units.values().any(|unit| {
+            unit.2.len() != all_periods.len()
+                || all_periods.iter().any(|period| !unit.2.contains_key(period))
+        })
+    {
         return Err("event study requires a balanced panel with at least two common periods".into());
     }
     let cohorts_present: BTreeSet<i64> = units.values().map(|unit| unit.0).collect();
@@ -143,19 +175,25 @@ pub fn estimate(
                 for (unit, &delta) in selected.iter().zip(deltas[group].iter()) {
                     group_clusters[group].insert(unit.1);
                     *scores.entry(unit.1).or_default() += (if group == 1 { 1.0 } else { -1.0 })
-                        * (delta - means[group]) / selected.len() as f64;
+                        * (delta - means[group])
+                        / selected.len() as f64;
                 }
             }
             if group_clusters.iter().any(|set| set.len() < 2) {
                 return Err("cluster-robust standard error requires at least two clusters in each cohort/control group".into());
             }
             let g = scores.len();
-            let variance = g as f64 / (g - 1) as f64 * scores.values().map(|score| score * score).sum::<f64>();
+            let variance =
+                g as f64 / (g - 1) as f64 * scores.values().map(|score| score * score).sum::<f64>();
             effects.push(EventTimeEffect {
-                cohort, period, event_time: period - cohort,
+                cohort,
+                period,
+                event_time: period - cohort,
                 effect: means[1] - means[0],
-                treated_subjects: treated.len(), comparison_subjects: controls.len(),
-                standard_error: variance.max(0.0).sqrt(), clusters: g,
+                treated_subjects: treated.len(),
+                comparison_subjects: controls.len(),
+                standard_error: variance.max(0.0).sqrt(),
+                clusters: g,
             });
         }
     }
@@ -167,15 +205,23 @@ pub fn estimate(
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates"))]
+    #![cfg_attr(
+        test,
+        allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates")
+    )]
     use super::*;
 
     #[test]
     fn joint_preperiod_cluster_statistic_has_no_inferential_cutoff() {
         let lead = |event_time, effect, standard_error| EventTimeEffect {
-            cohort: 4, period: 4 + event_time, event_time, effect,
-            treated_subjects: 8, comparison_subjects: 8,
-            standard_error, clusters: 16,
+            cohort: 4,
+            period: 4 + event_time,
+            event_time,
+            effect,
+            treated_subjects: 8,
+            comparison_subjects: 8,
+            standard_error,
+            clusters: 16,
         };
         let effects = [lead(-3, 1.0, 0.5), lead(-2, -3.0, 1.0), lead(0, 4.0, 0.1)];
         let summary = pretrend_falsification_statistic(&effects).unwrap();
@@ -183,7 +229,9 @@ mod tests {
         assert_eq!(summary.min_clusters, 16);
         assert_eq!(summary.max_absolute_cluster_studentized_lead, 3.0);
         assert!(pretrend_falsification_statistic(&effects[..1]).is_err());
-        assert!(pretrend_falsification_statistic(&[lead(-3, 1.0, 0.0), effects[1].clone()]).is_err());
+        assert!(
+            pretrend_falsification_statistic(&[lead(-3, 1.0, 0.0), effects[1].clone()]).is_err()
+        );
     }
 
     #[test]
@@ -216,29 +264,46 @@ mod tests {
             let mut covered_90 = [0_usize; 2];
             let mut covered_95 = [0_usize; 2];
             for _ in 0..simulations {
-                let outcomes = cohorts.iter().zip(&periods).map(|(&cohort, &period)| {
-                    0.5 * period as f64 + if cohort == 3 && period >= 3 { 2.0 } else { 0.0 }
-                        + (uniform() - 0.5) * 12.0_f64.sqrt()
-                }).collect::<Vec<_>>();
-                let effects = estimate(&outcomes, &subjects, &periods, &cohorts, &clusters).unwrap();
+                let outcomes = cohorts
+                    .iter()
+                    .zip(&periods)
+                    .map(|(&cohort, &period)| {
+                        0.5 * period as f64
+                            + if cohort == 3 && period >= 3 { 2.0 } else { 0.0 }
+                            + (uniform() - 0.5) * 12.0_f64.sqrt()
+                    })
+                    .collect::<Vec<_>>();
+                let effects =
+                    estimate(&outcomes, &subjects, &periods, &cohorts, &clusters).unwrap();
                 for (target, event_time) in [0_i64, 1].into_iter().enumerate() {
-                    let fit = effects.iter().find(|effect| effect.event_time == event_time).unwrap();
+                    let fit =
+                        effects.iter().find(|effect| effect.event_time == event_time).unwrap();
                     assert!(fit.standard_error > 0.0);
-                    let supported = pointwise_interval_95(fit, clusters_per_group, clusters_per_group);
+                    let supported =
+                        pointwise_interval_95(fit, clusters_per_group, clusters_per_group);
                     assert_eq!(supported.is_some(), clusters_per_group >= 24);
-                    covered_95[target] += usize::from((fit.effect - 2.0).abs()
-                        <= antecedent_stats::normal_ppf(0.975) * fit.standard_error);
+                    covered_95[target] += usize::from(
+                        (fit.effect - 2.0).abs()
+                            <= antecedent_stats::normal_ppf(0.975) * fit.standard_error,
+                    );
                     if let Some(bounds) = supported {
-                        assert_eq!(bounds[0] <= 2.0 && 2.0 <= bounds[1],
-                            (fit.effect - 2.0).abs() <= antecedent_stats::normal_ppf(0.975) * fit.standard_error);
+                        assert_eq!(
+                            bounds[0] <= 2.0 && 2.0 <= bounds[1],
+                            (fit.effect - 2.0).abs()
+                                <= antecedent_stats::normal_ppf(0.975) * fit.standard_error
+                        );
                     }
-                    covered_90[target] += usize::from((fit.effect - 2.0).abs()
-                        <= antecedent_stats::normal_ppf(0.95) * fit.standard_error);
+                    covered_90[target] += usize::from(
+                        (fit.effect - 2.0).abs()
+                            <= antecedent_stats::normal_ppf(0.95) * fit.standard_error,
+                    );
                 }
             }
             let coverage_90 = covered_90.map(|hits| hits as f64 / f64::from(simulations));
             let coverage_95 = covered_95.map(|hits| hits as f64 / f64::from(simulations));
-            println!("staggered event coverage, clusters/group={clusters_per_group}: 90%={coverage_90:?}, 95%={coverage_95:?}");
+            println!(
+                "staggered event coverage, clusters/group={clusters_per_group}: 90%={coverage_90:?}, 95%={coverage_95:?}"
+            );
             if clusters_per_group >= 24 {
                 for (nominal, coverage) in [(0.90_f64, coverage_90), (0.95, coverage_95)] {
                     let mcse = (nominal * (1.0 - nominal) / f64::from(simulations)).sqrt();
@@ -284,13 +349,17 @@ mod tests {
             let mut outcomes = Vec::with_capacity(subjects.len());
             for cohort in [0, 3] {
                 for _ in 0..clusters_per_group {
-                    let cluster_shock = (0..4).map(|_| (uniform() - 0.5) * 12.0_f64.sqrt())
-                        .collect::<Vec<_>>();
+                    let cluster_shock =
+                        (0..4).map(|_| (uniform() - 0.5) * 12.0_f64.sqrt()).collect::<Vec<_>>();
                     for _ in 0..subjects_per_cluster {
                         for period in 1..=4 {
                             let noise = 0.5 * (uniform() - 0.5) * 12.0_f64.sqrt();
-                            outcomes.push(0.5 * period as f64 + cluster_shock[period - 1] + noise
-                                + if cohort == 3 && period >= 3 { 2.0 } else { 0.0 });
+                            outcomes.push(
+                                0.5 * period as f64
+                                    + cluster_shock[period - 1]
+                                    + noise
+                                    + if cohort == 3 && period >= 3 { 2.0 } else { 0.0 },
+                            );
                         }
                     }
                 }
@@ -298,7 +367,8 @@ mod tests {
             let effects = estimate(&outcomes, &subjects, &periods, &cohorts, &clusters).unwrap();
             for (target, event_time) in [0_i64, 1].into_iter().enumerate() {
                 let fit = effects.iter().find(|effect| effect.event_time == event_time).unwrap();
-                let bounds = pointwise_interval_95(fit, clusters_per_group, clusters_per_group).unwrap();
+                let bounds =
+                    pointwise_interval_95(fit, clusters_per_group, clusters_per_group).unwrap();
                 covered[target] += usize::from(bounds[0] <= 2.0 && 2.0 <= bounds[1]);
             }
         }

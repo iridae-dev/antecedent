@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, VariableId};
+use antecedent_core::{
+    AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
+    VariableId,
+};
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_estimate::estimate_saturation_interference as estimate_native;
 use numpy::PyReadonlyArray1;
@@ -33,20 +36,38 @@ fn estimate_saturation_interference(
 ) -> PyResult<(ExposureEstimate, ExposureEstimate, ExposureEstimate)> {
     let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("y", y.as_slice())]).map_err(crate::py_err)?;
-    let network = NetworkData::try_new(data, edges.into_iter().map(|(from,to,weight)| NetworkEdge { from, to, weight }).collect::<Vec<_>>()).map_err(crate::py_err)?;
+    let network = NetworkData::try_new(
+        data,
+        edges
+            .into_iter()
+            .map(|(from, to, weight)| NetworkEdge { from, to, weight })
+            .collect::<Vec<_>>(),
+    )
+    .map_err(crate::py_err)?;
     let mapping = match exposure.as_str() {
         "neighbor_count" => ExposureMapping::NeighborCount,
         "neighbor_fraction" => ExposureMapping::NeighborFraction,
         "weighted_neighbor_exposure" => ExposureMapping::WeightedNeighborExposure,
-        _ => return Err(PyValueError::new_err("saturation effects support NeighborCount, NeighborFraction, or WeightedNeighborExposure")),
+        _ => {
+            return Err(PyValueError::new_err(
+                "saturation effects support NeighborCount, NeighborFraction, or WeightedNeighborExposure",
+            ));
+        }
     };
-    if [reference_neighbors, low_neighbors, high_neighbors].iter().any(|v| !v.is_finite() || *v < 0.0)
-        || (low_neighbors - high_neighbors).abs() <= 1e-12 {
-        return Err(PyValueError::new_err("neighbor exposure levels must be finite, non-negative, and low/high must differ"));
+    if [reference_neighbors, low_neighbors, high_neighbors]
+        .iter()
+        .any(|v| !v.is_finite() || *v < 0.0)
+        || (low_neighbors - high_neighbors).abs() <= 1e-12
+    {
+        return Err(PyValueError::new_err(
+            "neighbor exposure levels must be finite, non-negative, and low/high must differ",
+        ));
     }
     let design = AssignmentDesign::TwoStageSaturation {
-        clusters: Arc::from(clusters), low_probability: low_saturation,
-        high_probability: high_saturation, high_clusters,
+        clusters: Arc::from(clusters),
+        low_probability: low_saturation,
+        high_probability: high_saturation,
+        high_clusters,
         realized_saturation: Arc::from(realized_saturation),
     };
     let mut estimates = Vec::with_capacity(3);
@@ -56,7 +77,8 @@ fn estimate_saturation_interference(
         ((0.0, low_neighbors), (1.0, high_neighbors)),
     ] {
         let query = InterferenceQuery::new(
-            design.clone(), mapping.clone(),
+            design.clone(),
+            mapping.clone(),
             InterferenceFunctional::ExposureContrast {
                 outcome: VariableId::from_raw(0),
                 from: ExposureLevel { own: from.0, neighbors: from.1 },
@@ -68,8 +90,10 @@ fn estimate_saturation_interference(
             result.estimate.contrast.horvitz_thompson,
             result.estimate.contrast.hajek,
             result.estimate.contrast.conservative_variance,
-            result.from_exposed_units, result.to_exposed_units,
-            result.from_exposed_clusters, result.to_exposed_clusters,
+            result.from_exposed_units,
+            result.to_exposed_units,
+            result.from_exposed_clusters,
+            result.to_exposed_clusters,
             result.estimate.minimum_exposure_probability,
         ));
     }

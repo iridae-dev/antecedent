@@ -11,21 +11,27 @@ use antecedent_core::{
     AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
     ConditionalEffectQuery, CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId,
     ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention,
-    InterventionSequence, InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride,
-    MediationContrast, MediationQuery, OrderedFloatBits, OutcomeFunctional, PanelDidQuery, LocalPolynomialRatioQuery,
-    PathSpecificEffectQuery, PolicyValueQuery, PopulationRegistry, PopulationSelector,
-    PredicateExpr, RandomizationDesign, RandomizedEffectQuery, SequencedIntervention,
-    ShapleyConfig, ShapleyMode, StochasticPolicy, SyntheticControlQuery, TargetPopulation,
-    TemporalEffectQuery, TemporalPolicy, TransportQuery, UnitChangeQuery, Value, VariableId,
+    InterventionSequence, InterventionalDistributionQuery, LocalPolynomialRatioQuery,
+    MechanismChangeQuery, MechanismOverride, MediationContrast, MediationQuery, OrderedFloatBits,
+    OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
+    PopulationRegistry, PopulationSelector, PredicateExpr, RandomizationDesign,
+    RandomizedEffectQuery, SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy,
+    SyntheticControlQuery, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery,
+    UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 
-#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip_serializing_if requires an fn(&T) -> bool signature")]
-fn is_false(value: &bool) -> bool { !*value }
-use crate::response_wire::{response_query_from_wire, response_query_to_wire, ResponseQueryWire};
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires an fn(&T) -> bool signature"
+)]
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1052,8 +1058,13 @@ pub struct ContinuousDoseResponseQueryWire {
     pub fixed_policy: Option<FixedPolicyMaps>,
 }
 
-#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip_serializing_if requires an fn(&T) -> bool signature")]
-fn is_zero(value: &usize) -> bool { *value == 0 }
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires an fn(&T) -> bool signature"
+)]
+fn is_zero(value: &usize) -> bool {
+    *value == 0
+}
 
 /// Portable row-major multi-action policy inputs.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1111,7 +1122,12 @@ impl From<&antecedent_core::MultiActionPolicyInputs> for MultiActionPolicyInputs
 impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyInputs {
     fn from(value: &MultiActionPolicyInputsWire) -> Self {
         Self {
-            action_labels: value.action_labels.iter().map(|v| Arc::<str>::from(v.as_str())).collect::<Vec<_>>().into(),
+            action_labels: value
+                .action_labels
+                .iter()
+                .map(|v| Arc::<str>::from(v.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
             assignment: value.assignment.clone().into(),
             actions: value.actions.clone().into(),
             reference: value.reference.clone().into(),
@@ -1123,7 +1139,12 @@ impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyIn
             reference_capacities: value.reference_capacities.clone().into(),
             budget: value.budget,
             reference_budget: value.reference_budget,
-            cate_groups: value.cate_groups.iter().map(|group| Arc::<str>::from(group.as_str())).collect::<Vec<_>>().into(),
+            cate_groups: value
+                .cate_groups
+                .iter()
+                .map(|group| Arc::<str>::from(group.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
         }
     }
 }
@@ -1785,7 +1806,9 @@ pub fn causal_query_to_wire_with_registry(
                         RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
                     }
                     RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
-                    RandomizationDesign::Factorial2x2 { .. } => RandomizationDesignWire::Factorial2x2,
+                    RandomizationDesign::Factorial2x2 { .. } => {
+                        RandomizationDesignWire::Factorial2x2
+                    }
                     RandomizationDesign::MultiArm { .. } => RandomizationDesignWire::MultiArm,
                     RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
                 },
@@ -1812,7 +1835,9 @@ pub fn causal_query_to_wire_with_registry(
                 received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
                 exact_randomization_test: q.exact_randomization_test,
                 second_factor_assignment: match &q.design {
-                    RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => second_factor_assignment.to_vec(),
+                    RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => {
+                        second_factor_assignment.to_vec()
+                    }
                     _ => Vec::new(),
                 },
                 factorial_cell_counts: match &q.design {
@@ -1820,11 +1845,15 @@ pub fn causal_query_to_wire_with_registry(
                     _ => None,
                 },
                 second_factor_arms: match &q.design {
-                    RandomizationDesign::Factorial2x2 { second_factor_arms, .. } => Some((second_factor_arms.0.to_string(), second_factor_arms.1.to_string())),
+                    RandomizationDesign::Factorial2x2 { second_factor_arms, .. } => {
+                        Some((second_factor_arms.0.to_string(), second_factor_arms.1.to_string()))
+                    }
                     _ => None,
                 },
                 multi_arm_labels: match &q.design {
-                    RandomizationDesign::MultiArm { arms, .. } => arms.iter().map(ToString::to_string).collect(),
+                    RandomizationDesign::MultiArm { arms, .. } => {
+                        arms.iter().map(ToString::to_string).collect()
+                    }
                     _ => Vec::new(),
                 },
                 multi_arm_assignment: match &q.design {
@@ -1864,32 +1893,60 @@ pub fn causal_query_to_wire_with_registry(
             multi_action: q.multi_action.as_ref().map(Into::into),
             uplift_bins: q.uplift_bins.to_vec(),
             uplift_bin_count: q.uplift_bin_count,
-            uplift_training_subject_ids: q.uplift_training_subject_ids.iter().map(ToString::to_string).collect(),
+            uplift_training_subject_ids: q
+                .uplift_training_subject_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
             regret: q.regret.as_ref().map(|regret| FixedCandidateRegretWire {
                 candidates: regret.candidates.iter().map(|candidate| candidate.to_vec()).collect(),
                 selected_index: regret.selected_index,
-                training_subject_ids: regret.training_subject_ids.iter().map(ToString::to_string).collect(),
+                training_subject_ids: regret
+                    .training_subject_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
             }),
         }),
-        CausalQuery::ContinuousDoseResponse(q) => CausalQueryWire::ContinuousDoseResponse(ContinuousDoseResponseQueryWire {
-            outcome: q.outcome.raw(), dose: q.dose.raw(), dose_density: q.dose_density.raw(),
-            baseline_groups: q.baseline_groups.iter().map(ToString::to_string).collect(),
-            target_doses: q.target_doses.to_vec(), bandwidth: q.bandwidth,
-            min_local_support: q.min_local_support,
-            density_provenance: q.density_provenance.to_string(),
-            fixed_policy: q.fixed_policy.as_ref().map(|rule| (
-                rule.policy_doses.iter().map(|(group, dose)| (group.to_string(), *dose)).collect(),
-                rule.reference_doses.iter().map(|(group, dose)| (group.to_string(), *dose)).collect(),
-            )),
-        }),
+        CausalQuery::ContinuousDoseResponse(q) => {
+            CausalQueryWire::ContinuousDoseResponse(ContinuousDoseResponseQueryWire {
+                outcome: q.outcome.raw(),
+                dose: q.dose.raw(),
+                dose_density: q.dose_density.raw(),
+                baseline_groups: q.baseline_groups.iter().map(ToString::to_string).collect(),
+                target_doses: q.target_doses.to_vec(),
+                bandwidth: q.bandwidth,
+                min_local_support: q.min_local_support,
+                density_provenance: q.density_provenance.to_string(),
+                fixed_policy: q.fixed_policy.as_ref().map(|rule| {
+                    (
+                        rule.policy_doses
+                            .iter()
+                            .map(|(group, dose)| (group.to_string(), *dose))
+                            .collect(),
+                        rule.reference_doses
+                            .iter()
+                            .map(|(group, dose)| (group.to_string(), *dose))
+                            .collect(),
+                    )
+                }),
+            })
+        }
         CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
             outcome: q.outcome.raw(),
-            augmented: q.augmented.as_ref().map(|n| (n.outcome_pre.raw(), n.propensity.raw(),
-                n.untreated_change_prediction.raw(), n.predictions_cross_fitted)),
+            augmented: q.augmented.as_ref().map(|n| {
+                (
+                    n.outcome_pre.raw(),
+                    n.propensity.raw(),
+                    n.untreated_change_prediction.raw(),
+                    n.predictions_cross_fitted,
+                )
+            }),
             repeated_cross_section: q.design
                 == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
             staggered_target: q.target,
-            staggered_event_study: q.design == antecedent_core::DidSamplingDesign::StaggeredEventStudy,
+            staggered_event_study: q.design
+                == antecedent_core::DidSamplingDesign::StaggeredEventStudy,
             periods: q.periods.to_vec(),
             cohorts: q.cohorts.to_vec(),
             treated: q.treated.to_vec(),
@@ -1962,8 +2019,12 @@ pub fn causal_query_to_wire_with_registry(
                 method: match q.method {
                     antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
                     antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
-                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
-                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => "marginal_structural_model",
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                        "sequential_dr"
+                    }
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                        "marginal_structural_model"
+                    }
                 }
                 .into(),
                 period_outcome_predictions: q
@@ -1971,10 +2032,19 @@ pub fn causal_query_to_wire_with_registry(
                     .as_ref()
                     .map_or_else(Vec::new, |q| q.to_vec()),
                 known_fixed_outcome_predictions: q.known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: q.stabilizing_numerator_probabilities.as_ref().map_or_else(Vec::new, |p| p.to_vec()),
+                stabilizing_numerator_probabilities: q
+                    .stabilizing_numerator_probabilities
+                    .as_ref()
+                    .map_or_else(Vec::new, |p| p.to_vec()),
                 q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
-                observation_history: q.observation_history.as_ref().map_or_else(Vec::new, |o| o.to_vec()),
-                prediction_fold_ids: q.prediction_fold_ids.as_ref().map_or_else(Vec::new, |f| f.to_vec()),
+                observation_history: q
+                    .observation_history
+                    .as_ref()
+                    .map_or_else(Vec::new, |o| o.to_vec()),
+                prediction_fold_ids: q
+                    .prediction_fold_ids
+                    .as_ref()
+                    .map_or_else(Vec::new, |f| f.to_vec()),
                 periods: q.periods,
                 treatment_history: q.treatment_history.to_vec(),
                 regime_actions: q.regime_actions.to_vec(),
@@ -2179,14 +2249,22 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
         }
         CausalQueryWire::RandomizedEffect(w) => {
             if !matches!(w.design, RandomizationDesignWire::MultiArm)
-                && (!w.multi_arm_labels.is_empty() || !w.multi_arm_assignment.is_empty() || !w.multi_arm_probabilities.is_empty())
+                && (!w.multi_arm_labels.is_empty()
+                    || !w.multi_arm_assignment.is_empty()
+                    || !w.multi_arm_probabilities.is_empty())
             {
-                return Err(IoError::Convert("multi-arm metadata requires a multi-arm design".into()));
+                return Err(IoError::Convert(
+                    "multi-arm metadata requires a multi-arm design".into(),
+                ));
             }
             if !matches!(w.design, RandomizationDesignWire::Factorial2x2)
-                && (!w.second_factor_assignment.is_empty() || w.factorial_cell_counts.is_some() || w.second_factor_arms.is_some())
+                && (!w.second_factor_assignment.is_empty()
+                    || w.factorial_cell_counts.is_some()
+                    || w.second_factor_arms.is_some())
             {
-                return Err(IoError::Convert("factorial metadata requires a factorial design".into()));
+                return Err(IoError::Convert(
+                    "factorial metadata requires a factorial design".into(),
+                ));
             }
             let design = match &w.design {
                 RandomizationDesignWire::Bernoulli => RandomizationDesign::Bernoulli,
@@ -2207,19 +2285,33 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 },
                 RandomizationDesignWire::Factorial2x2 => RandomizationDesign::Factorial2x2 {
                     second_factor_assignment: w.second_factor_assignment.clone().into(),
-                    cell_counts: w.factorial_cell_counts.ok_or_else(|| IoError::Convert("factorial cell counts are missing".into()))?,
+                    cell_counts: w.factorial_cell_counts.ok_or_else(|| {
+                        IoError::Convert("factorial cell counts are missing".into())
+                    })?,
                     second_factor_arms: {
-                        let arms = w.second_factor_arms.as_ref().ok_or_else(|| IoError::Convert("second-factor labels are missing".into()))?;
+                        let arms = w.second_factor_arms.as_ref().ok_or_else(|| {
+                            IoError::Convert("second-factor labels are missing".into())
+                        })?;
                         (Arc::<str>::from(arms.0.as_str()), Arc::<str>::from(arms.1.as_str()))
                     },
                 },
                 RandomizationDesignWire::MultiArm => RandomizationDesign::MultiArm {
                     assignment: w.multi_arm_assignment.clone().into(),
                     probabilities: w.multi_arm_probabilities.clone().into(),
-                    arms: w.multi_arm_labels.iter().map(|arm| Arc::<str>::from(arm.as_str())).collect::<Vec<_>>().into(),
+                    arms: w
+                        .multi_arm_labels
+                        .iter()
+                        .map(|arm| Arc::<str>::from(arm.as_str()))
+                        .collect::<Vec<_>>()
+                        .into(),
                 },
                 RandomizationDesignWire::Switchback => RandomizationDesign::Switchback {
-                    periods: w.periods.iter().map(|period| Arc::<str>::from(period.as_str())).collect::<Vec<_>>().into(),
+                    periods: w
+                        .periods
+                        .iter()
+                        .map(|period| Arc::<str>::from(period.as_str()))
+                        .collect::<Vec<_>>()
+                        .into(),
                 },
             };
             let mut query = RandomizedEffectQuery::with_design(
@@ -2238,7 +2330,13 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
             }
             if !w.ancova_covariates.is_empty() {
-                query = query.with_ancova(w.ancova_covariates.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>());
+                query = query.with_ancova(
+                    w.ancova_covariates
+                        .iter()
+                        .copied()
+                        .map(VariableId::from_raw)
+                        .collect::<Vec<_>>(),
+                );
             }
             if let Some(receipt) = &w.received_treatment {
                 query = if w.estimand == RandomizedEstimandWire::TreatmentOnTreated {
@@ -2281,11 +2379,28 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 multi_action: w.multi_action.as_ref().map(Into::into),
                 uplift_bins: w.uplift_bins.clone().into(),
                 uplift_bin_count: w.uplift_bin_count,
-                uplift_training_subject_ids: w.uplift_training_subject_ids.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
-                regret: w.regret.as_ref().map(|regret| antecedent_core::FixedCandidateRegretInputs {
-                    candidates: regret.candidates.iter().map(|actions| Arc::<[bool]>::from(actions.clone())).collect::<Vec<_>>().into(),
-                    selected_index: regret.selected_index,
-                    training_subject_ids: regret.training_subject_ids.iter().map(|id| Arc::<str>::from(id.as_str())).collect::<Vec<_>>().into(),
+                uplift_training_subject_ids: w
+                    .uplift_training_subject_ids
+                    .iter()
+                    .map(|x| Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                regret: w.regret.as_ref().map(|regret| {
+                    antecedent_core::FixedCandidateRegretInputs {
+                        candidates: regret
+                            .candidates
+                            .iter()
+                            .map(|actions| Arc::<[bool]>::from(actions.clone()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        selected_index: regret.selected_index,
+                        training_subject_ids: regret
+                            .training_subject_ids
+                            .iter()
+                            .map(|id| Arc::<str>::from(id.as_str()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
                 }),
             };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
@@ -2296,28 +2411,51 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 outcome: VariableId::from_raw(w.outcome),
                 dose: VariableId::from_raw(w.dose),
                 dose_density: VariableId::from_raw(w.dose_density),
-                baseline_groups: w.baseline_groups.iter().map(|value| Arc::<str>::from(value.as_str())).collect::<Vec<_>>().into(),
-                target_doses: w.target_doses.clone().into(), bandwidth: w.bandwidth,
+                baseline_groups: w
+                    .baseline_groups
+                    .iter()
+                    .map(|value| Arc::<str>::from(value.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                target_doses: w.target_doses.clone().into(),
+                bandwidth: w.bandwidth,
                 min_local_support: w.min_local_support,
                 density_provenance: Arc::from(w.density_provenance.as_str()),
-                fixed_policy: w.fixed_policy.as_ref().map(|(policy, reference)|
+                fixed_policy: w.fixed_policy.as_ref().map(|(policy, reference)| {
                     antecedent_core::FixedGroupDosePolicy {
-                        policy_doses: policy.iter().map(|(group, dose)| (Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
-                        reference_doses: reference.iter().map(|(group, dose)| (Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
-                    }),
+                        policy_doses: policy
+                            .iter()
+                            .map(|(group, dose)| (Arc::from(group.as_str()), *dose))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        reference_doses: reference
+                            .iter()
+                            .map(|(group, dose)| (Arc::from(group.as_str()), *dose))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
+                }),
             };
             q.validate().map_err(|error| IoError::Convert(error.to_string()))?;
             CausalQuery::ContinuousDoseResponse(q)
         }
         CausalQueryWire::PanelDid(w) => {
             let q = if let Some((pre, propensity, prediction, cross_fitted)) = w.augmented {
-                if w.staggered_event_study || w.staggered_target.is_some() || w.repeated_cross_section
-                    || !w.periods.is_empty() || !w.cohorts.is_empty() {
-                    return Err(IoError::Convert("augmented panel DiD cannot also select another sampling design".into()));
+                if w.staggered_event_study
+                    || w.staggered_target.is_some()
+                    || w.repeated_cross_section
+                    || !w.periods.is_empty()
+                    || !w.cohorts.is_empty()
+                {
+                    return Err(IoError::Convert(
+                        "augmented panel DiD cannot also select another sampling design".into(),
+                    ));
                 }
                 PanelDidQuery::augmented_panel(
-                    VariableId::from_raw(w.outcome), VariableId::from_raw(pre),
-                    VariableId::from_raw(propensity), VariableId::from_raw(prediction),
+                    VariableId::from_raw(w.outcome),
+                    VariableId::from_raw(pre),
+                    VariableId::from_raw(propensity),
+                    VariableId::from_raw(prediction),
                     w.treated.clone(),
                     w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
                     w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
@@ -2331,11 +2469,14 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     VariableId::from_raw(w.outcome),
                     w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
                     w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
-                    w.periods.clone(), w.cohorts.clone(),
+                    w.periods.clone(),
+                    w.cohorts.clone(),
                 )
             } else if let Some((cohort, period)) = w.staggered_target {
                 if w.repeated_cross_section {
-                    return Err(IoError::Convert("staggered DiD cannot also be a repeated cross section".into()));
+                    return Err(IoError::Convert(
+                        "staggered DiD cannot also be a repeated cross section".into(),
+                    ));
                 }
                 PanelDidQuery::staggered_group_time(
                     VariableId::from_raw(w.outcome),
@@ -2380,9 +2521,15 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 w.intervention_period,
             );
             let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
-            let q = if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
-            let q = if let Some(effect) = w.sharp_null_effect { q.with_sharp_null_effect(effect) } else { q };
-            let q = if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
+            let q =
+                if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
+            let q = if let Some(effect) = w.sharp_null_effect {
+                q.with_sharp_null_effect(effect)
+            } else {
+                q
+            };
+            let q =
+                if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
             q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
             CausalQuery::SyntheticControl(q)
         }
@@ -2412,13 +2559,27 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 treatment: VariableId::from_raw(w.treatment),
                 tau: w.tau,
                 delayed_entry: w.delayed_entry.map(VariableId::from_raw),
-                known_censoring: w.censoring_probability_floor.map(|minimum_probability| antecedent_core::KnownCensoringSurvival {
-                    times: Arc::from(w.censoring_times.clone()),
-                    columns: Arc::from(w.censoring_columns.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()),
-                    minimum_probability,
+                known_censoring: w.censoring_probability_floor.map(|minimum_probability| {
+                    antecedent_core::KnownCensoringSurvival {
+                        times: Arc::from(w.censoring_times.clone()),
+                        columns: Arc::from(
+                            w.censoring_columns
+                                .iter()
+                                .copied()
+                                .map(VariableId::from_raw)
+                                .collect::<Vec<_>>(),
+                        ),
+                        minimum_probability,
+                    }
                 }),
                 observation_assumption: if w.independent_observation {
-                    antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(w.independent_given.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()))
+                    antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(
+                        w.independent_given
+                            .iter()
+                            .copied()
+                            .map(VariableId::from_raw)
+                            .collect::<Vec<_>>(),
+                    ))
                 } else {
                     return Err(IoError::Convert(
                         "survival requires marginal independent observation declaration".into(),
@@ -2438,8 +2599,12 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
             let method = match w.method.as_str() {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-                "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
-                "marginal_structural_model" => antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel,
+                "sequential_dr" => {
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+                }
+                "marginal_structural_model" => {
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+                }
                 _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
             };
             let q = antecedent_core::LongitudinalRegimeQuery {
@@ -2452,10 +2617,29 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     Some(w.period_outcome_predictions.clone().into())
                 },
                 known_fixed_outcome_predictions: w.known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: if w.stabilizing_numerator_probabilities.is_empty() { None } else { Some(w.stabilizing_numerator_probabilities.clone().into()) },
-                q_predictions: if w.q_predictions.is_empty() { None } else { Some(w.q_predictions.clone().into()) },
-                observation_history: if w.observation_history.is_empty() { None } else { Some(w.observation_history.clone().into()) },
-                prediction_fold_ids: if w.prediction_fold_ids.is_empty() { None } else { Some(w.prediction_fold_ids.clone().into()) },
+                stabilizing_numerator_probabilities: if w
+                    .stabilizing_numerator_probabilities
+                    .is_empty()
+                {
+                    None
+                } else {
+                    Some(w.stabilizing_numerator_probabilities.clone().into())
+                },
+                q_predictions: if w.q_predictions.is_empty() {
+                    None
+                } else {
+                    Some(w.q_predictions.clone().into())
+                },
+                observation_history: if w.observation_history.is_empty() {
+                    None
+                } else {
+                    Some(w.observation_history.clone().into())
+                },
+                prediction_fold_ids: if w.prediction_fold_ids.is_empty() {
+                    None
+                } else {
+                    Some(w.prediction_fold_ids.clone().into())
+                },
                 treatment_history: w.treatment_history.clone().into(),
                 regime_actions: w.regime_actions.clone().into(),
                 treatment_probabilities: w.treatment_probabilities.clone().into(),
@@ -2542,26 +2726,38 @@ pub fn interference_query_to_wire(q: &InterferenceQuery) -> Result<InterferenceQ
                     .map_err(|_| IoError::TooLarge)?,
             }
         }
-        AssignmentDesign::TwoStageSaturation { clusters, low_probability, high_probability, high_clusters, realized_saturation } => {
-            AssignmentDesignWire::TwoStageSaturation {
-                clusters: clusters.to_vec(), low_probability: *low_probability,
-                high_probability: *high_probability,
-                high_clusters: u64::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
-                realized_saturation: realized_saturation.to_vec(),
+        AssignmentDesign::TwoStageSaturation {
+            clusters,
+            low_probability,
+            high_probability,
+            high_clusters,
+            realized_saturation,
+        } => AssignmentDesignWire::TwoStageSaturation {
+            clusters: clusters.to_vec(),
+            low_probability: *low_probability,
+            high_probability: *high_probability,
+            high_clusters: u64::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
+            realized_saturation: realized_saturation.to_vec(),
+        },
+        AssignmentDesign::ObservedExposure {
+            clusters,
+            propensity_from,
+            propensity_to,
+            provenance,
+            assume_network_exchangeability,
+        } => AssignmentDesignWire::ObservedExposure {
+            clusters: clusters.to_vec(),
+            propensity_from: propensity_from.to_vec(),
+            propensity_to: propensity_to.to_vec(),
+            provenance: match provenance {
+                antecedent_core::ExposurePropensityProvenance::Known => "known",
+                antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => {
+                    "externally_estimated"
+                }
             }
-        }
-        AssignmentDesign::ObservedExposure { clusters, propensity_from, propensity_to, provenance, assume_network_exchangeability } => {
-            AssignmentDesignWire::ObservedExposure {
-                clusters: clusters.to_vec(),
-                propensity_from: propensity_from.to_vec(),
-                propensity_to: propensity_to.to_vec(),
-                provenance: match provenance {
-                    antecedent_core::ExposurePropensityProvenance::Known => "known",
-                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => "externally_estimated",
-                }.into(),
-                assume_network_exchangeability: *assume_network_exchangeability,
-            }
-        }
+            .into(),
+            assume_network_exchangeability: *assume_network_exchangeability,
+        },
     };
     let exposure = match &q.exposure {
         ExposureMapping::OwnTreatment => ExposureMappingWire::OwnTreatment,
@@ -2607,27 +2803,42 @@ pub fn interference_query_from_wire(
                     .map_err(|_| IoError::TooLarge)?,
             }
         }
-        AssignmentDesignWire::TwoStageSaturation { clusters, low_probability, high_probability, high_clusters, realized_saturation } => {
-            AssignmentDesign::TwoStageSaturation {
-                clusters: clusters.clone().into(), low_probability: *low_probability,
-                high_probability: *high_probability,
-                high_clusters: usize::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
-                realized_saturation: realized_saturation.clone().into(),
-            }
-        }
-        AssignmentDesignWire::ObservedExposure { clusters, propensity_from, propensity_to, provenance, assume_network_exchangeability } => {
-            AssignmentDesign::ObservedExposure {
-                clusters: clusters.clone().into(),
-                propensity_from: propensity_from.clone().into(),
-                propensity_to: propensity_to.clone().into(),
-                provenance: match provenance.as_str() {
-                    "known" => antecedent_core::ExposurePropensityProvenance::Known,
-                    "externally_estimated" => antecedent_core::ExposurePropensityProvenance::ExternallyEstimated,
-                    _ => return Err(IoError::Convert("unknown observational propensity provenance".into())),
-                },
-                assume_network_exchangeability: *assume_network_exchangeability,
-            }
-        }
+        AssignmentDesignWire::TwoStageSaturation {
+            clusters,
+            low_probability,
+            high_probability,
+            high_clusters,
+            realized_saturation,
+        } => AssignmentDesign::TwoStageSaturation {
+            clusters: clusters.clone().into(),
+            low_probability: *low_probability,
+            high_probability: *high_probability,
+            high_clusters: usize::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
+            realized_saturation: realized_saturation.clone().into(),
+        },
+        AssignmentDesignWire::ObservedExposure {
+            clusters,
+            propensity_from,
+            propensity_to,
+            provenance,
+            assume_network_exchangeability,
+        } => AssignmentDesign::ObservedExposure {
+            clusters: clusters.clone().into(),
+            propensity_from: propensity_from.clone().into(),
+            propensity_to: propensity_to.clone().into(),
+            provenance: match provenance.as_str() {
+                "known" => antecedent_core::ExposurePropensityProvenance::Known,
+                "externally_estimated" => {
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
+                }
+                _ => {
+                    return Err(IoError::Convert(
+                        "unknown observational propensity provenance".into(),
+                    ));
+                }
+            },
+            assume_network_exchangeability: *assume_network_exchangeability,
+        },
     };
     let exposure = match &w.exposure {
         ExposureMappingWire::OwnTreatment => ExposureMapping::OwnTreatment,
@@ -2756,11 +2967,14 @@ mod tests {
 
         let cuped = CausalQuery::RandomizedEffect(
             RandomizedEffectQuery::bernoulli_itt(
-                VariableId::from_raw(0), [true, false], [0.5, 0.5],
+                VariableId::from_raw(0),
+                [true, false],
+                [0.5, 0.5],
                 [Arc::<str>::from("a"), Arc::<str>::from("b")],
                 [Arc::<str>::from("r0"), Arc::<str>::from("r1")],
                 ("control", "treated"),
-            ).with_fixed_cuped(VariableId::from_raw(1), 4.0),
+            )
+            .with_fixed_cuped(VariableId::from_raw(1), 4.0),
         );
         let cuped_wire = causal_query_to_wire(&cuped).unwrap();
         assert_eq!(causal_query_from_wire(&cuped_wire).unwrap(), cuped);
@@ -2769,7 +2983,9 @@ mod tests {
             RandomizationDesign::Switchback {
                 periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
             },
-            VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+            VariableId::from_raw(0),
+            [true, false, true, false],
+            [0.5; 4],
             ["s0", "s0", "s1", "s1"].map(Arc::<str>::from),
             ["r0", "r1", "r2", "r3"].map(Arc::<str>::from),
             ("off", "on"),
@@ -2791,22 +3007,30 @@ mod tests {
         let cace_wire = causal_query_to_wire(&cace).unwrap();
         assert_eq!(causal_query_from_wire(&cace_wire).unwrap(), cace);
 
-        let fisher = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
-            RandomizationDesign::Complete { treated_units: 2 },
-            VariableId::from_raw(0), [true, true, false, false], [0.5; 4],
-            ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
-            ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
-            ("control", "treated"),
-        ).with_exact_randomization_test());
+        let fisher = CausalQuery::RandomizedEffect(
+            RandomizedEffectQuery::with_design(
+                RandomizationDesign::Complete { treated_units: 2 },
+                VariableId::from_raw(0),
+                [true, true, false, false],
+                [0.5; 4],
+                ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+                ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+                ("control", "treated"),
+            )
+            .with_exact_randomization_test(),
+        );
         let fisher_wire = causal_query_to_wire(&fisher).unwrap();
         assert_eq!(causal_query_from_wire(&fisher_wire).unwrap(), fisher);
         let factorial = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
             RandomizationDesign::Factorial2x2 {
-                second_factor_assignment: [false, false, false, false, true, true, true, true].into(),
+                second_factor_assignment: [false, false, false, false, true, true, true, true]
+                    .into(),
                 cell_counts: [2; 4],
                 second_factor_arms: (Arc::from("off"), Arc::from("on")),
             },
-            VariableId::from_raw(0), [false, false, true, true, false, false, true, true], [0.5; 8],
+            VariableId::from_raw(0),
+            [false, false, true, true, false, false, true, true],
+            [0.5; 8],
             (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
             (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
             ("control", "treated"),
@@ -2861,7 +3085,8 @@ mod tests {
                 arms: ["control", "low", "high"].map(Arc::<str>::from).into(),
             },
             VariableId::from_raw(0),
-            assignment.map(|arm| arm != 0), [1.0 / 3.0; 6],
+            assignment.map(|arm| arm != 0),
+            [1.0 / 3.0; 6],
             (0..6).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
             (0..6).map(|i| Arc::<str>::from(format!("r{i}"))).collect::<Vec<_>>(),
             ("control", "low"),

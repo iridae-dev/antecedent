@@ -56,7 +56,8 @@ fn known_exposure_probabilities_have_pointwise_cluster_coverage() {
             propensity_to: &propensities,
             propensity_provenance: ExposurePropensityProvenance::Known,
         };
-        let result = estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
+        let result =
+            estimate_observational_exposure(&network, VariableId::from_raw(0), &spec).unwrap();
         if let Some(interval) = result.pointwise_interval {
             published += 1;
             covered += usize::from(interval.bounds[0] <= 2.0 && 2.0 <= interval.bounds[1]);

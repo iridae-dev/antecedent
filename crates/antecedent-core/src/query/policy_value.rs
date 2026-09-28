@@ -45,15 +45,18 @@ impl MultiActionPolicyInputs {
     #[must_use]
     pub fn global_constraints_couple_rows(&self) -> bool {
         let n = self.assignment.len();
-        [(&self.capacities, &self.costs, self.budget),
-         (&self.reference_capacities, &self.reference_costs, self.reference_budget)]
-            .into_iter().any(|(capacities, costs, budget)| {
-                capacities.iter().any(|&limit| limit < n)
-                    || budget.is_some_and(|limit| {
-                        let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
-                        limit + 1e-12 < n as f64 * maximum_cost
-                    })
-            })
+        [
+            (&self.capacities, &self.costs, self.budget),
+            (&self.reference_capacities, &self.reference_costs, self.reference_budget),
+        ]
+        .into_iter()
+        .any(|(capacities, costs, budget)| {
+            capacities.iter().any(|&limit| limit < n)
+                || budget.is_some_and(|limit| {
+                    let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
+                    limit + 1e-12 < n as f64 * maximum_cost
+                })
+        })
     }
 
     /// Validate action support, probability rows, availability, and constraints.
@@ -66,20 +69,38 @@ impl MultiActionPolicyInputs {
     pub fn validate(&self) -> Result<(), QueryError> {
         let n = self.assignment.len();
         let k = self.action_labels.len();
-        if n < 2 || k < 2 || self.actions.len() != n || self.reference.len() != n
-            || self.propensities.len() != n * k || self.available.len() != n * k
-            || self.costs.len() != k || self.reference_costs.len() != k
-            || self.capacities.len() != k || self.reference_capacities.len() != k
+        if n < 2
+            || k < 2
+            || self.actions.len() != n
+            || self.reference.len() != n
+            || self.propensities.len() != n * k
+            || self.available.len() != n * k
+            || self.costs.len() != k
+            || self.reference_costs.len() != k
+            || self.capacities.len() != k
+            || self.reference_capacities.len() != k
             || self.action_labels.iter().any(|x| x.trim().is_empty())
             || self.action_labels.iter().collect::<std::collections::HashSet<_>>().len() != k
-            || self.assignment.iter().chain(self.actions.iter()).chain(self.reference.iter()).any(|&a| a >= k)
-            || (!self.cate_groups.is_empty() && (self.cate_groups.len() != n
-                || self.cate_groups.iter().any(|group| group.trim().is_empty())))
+            || self
+                .assignment
+                .iter()
+                .chain(self.actions.iter())
+                .chain(self.reference.iter())
+                .any(|&a| a >= k)
+            || (!self.cate_groups.is_empty()
+                && (self.cate_groups.len() != n
+                    || self.cate_groups.iter().any(|group| group.trim().is_empty())))
         {
-            return Err(QueryError::InvalidPolicyValue("multi-action policy rows, labels, probabilities, and constraints must align".into()));
+            return Err(QueryError::InvalidPolicyValue(
+                "multi-action policy rows, labels, probabilities, and constraints must align"
+                    .into(),
+            ));
         }
         if self.costs.iter().chain(self.reference_costs.iter()).any(|x| !x.is_finite() || *x < 0.0)
-            || [self.budget, self.reference_budget].into_iter().flatten().any(|x| !x.is_finite() || x < 0.0)
+            || [self.budget, self.reference_budget]
+                .into_iter()
+                .flatten()
+                .any(|x| !x.is_finite() || x < 0.0)
             || self.propensities.chunks_exact(k).any(|row| {
                 row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
                     || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
@@ -89,13 +110,20 @@ impl MultiActionPolicyInputs {
         }
         for (recommendations, costs, capacities, budget) in [
             (&self.actions, &self.costs, &self.capacities, self.budget),
-            (&self.reference, &self.reference_costs, &self.reference_capacities, self.reference_budget),
+            (
+                &self.reference,
+                &self.reference_costs,
+                &self.reference_capacities,
+                self.reference_budget,
+            ),
         ] {
             let mut counts = vec![0usize; k];
             let mut total_cost = 0.0;
             for (i, &action) in recommendations.iter().enumerate() {
                 if !self.available[i * k + action] {
-                    return Err(QueryError::InvalidPolicyValue("policy selects an unavailable action".into()));
+                    return Err(QueryError::InvalidPolicyValue(
+                        "policy selects an unavailable action".into(),
+                    ));
                 }
                 counts[action] += 1;
                 total_cost += costs[action];
@@ -103,7 +131,9 @@ impl MultiActionPolicyInputs {
             if counts.iter().zip(capacities.iter()).any(|(count, limit)| count > limit)
                 || budget.is_some_and(|limit| total_cost > limit + 1e-12)
             {
-                return Err(QueryError::InvalidPolicyValue("policy exceeds its action capacity or budget".into()));
+                return Err(QueryError::InvalidPolicyValue(
+                    "policy exceeds its action capacity or budget".into(),
+                ));
             }
         }
         Ok(())
@@ -242,19 +272,34 @@ impl PolicyValueQuery {
     /// strictly inside the unit interval, predictions or costs are non-finite,
     /// nuisance ownership metadata is missing or inconsistent with the
     /// estimator, or the uplift binning is malformed.
+    // A flat sequence of independent guard checks; splitting it would only scatter
+    // the query's validity contract across helpers with no shared logic.
+    #[allow(clippy::too_many_lines)]
     pub fn validate(&self) -> Result<(), QueryError> {
         if let Some(multi) = &self.multi_action {
-            if !self.assignment.is_empty() || !self.propensity.is_empty() || !self.actions.is_empty()
-                || !self.reference.is_empty() || !self.mu0.is_empty() || !self.mu1.is_empty()
-                || !self.costs.is_empty() || !self.reference_costs.is_empty()
-            || self.disjoint_training_subjects || self.crossfit_fold_ownership_valid
+            if !self.assignment.is_empty()
+                || !self.propensity.is_empty()
+                || !self.actions.is_empty()
+                || !self.reference.is_empty()
+                || !self.mu0.is_empty()
+                || !self.mu1.is_empty()
+                || !self.costs.is_empty()
+                || !self.reference_costs.is_empty()
+                || self.disjoint_training_subjects
+                || self.crossfit_fold_ownership_valid
                 || self.global_constraints_present
-                || !self.uplift_bins.is_empty() || self.uplift_bin_count != 0
+                || !self.uplift_bins.is_empty()
+                || self.uplift_bin_count != 0
                 || !self.uplift_training_subject_ids.is_empty()
                 || self.regret.is_some()
                 || self.evaluation_subject_ids.len() != multi.assignment.len()
                 || self.evaluation_subject_ids.iter().any(|id| id.trim().is_empty())
-                || self.evaluation_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != multi.assignment.len()
+                || self
+                    .evaluation_subject_ids
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len()
+                    != multi.assignment.len()
             {
                 return Err(QueryError::InvalidPolicyValue("multi-action policy must carry only multi-action inputs and unique evaluation subject IDs".into()));
             }
@@ -302,14 +347,26 @@ impl PolicyValueQuery {
         }
         if self.uplift_bin_count == 0 {
             if !self.uplift_bins.is_empty() || !self.uplift_training_subject_ids.is_empty() {
-                return Err(QueryError::InvalidPolicyValue("uplift bins and training subjects require a positive bin count".into()));
+                return Err(QueryError::InvalidPolicyValue(
+                    "uplift bins and training subjects require a positive bin count".into(),
+                ));
             }
-        } else if self.uplift_bins.len() != n || self.uplift_bin_count > n
+        } else if self.uplift_bins.len() != n
+            || self.uplift_bin_count > n
             || self.uplift_training_subject_ids.is_empty()
-            || self.uplift_training_subject_ids.iter().any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
-            || self.uplift_training_subject_ids.iter().collect::<std::collections::HashSet<_>>().len() != self.uplift_training_subject_ids.len()
+            || self
+                .uplift_training_subject_ids
+                .iter()
+                .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
+            || self
+                .uplift_training_subject_ids
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != self.uplift_training_subject_ids.len()
             || self.uplift_bins.iter().any(|&bin| bin >= self.uplift_bin_count)
-            || (0..self.uplift_bin_count).any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
+            || (0..self.uplift_bin_count)
+                .any(|bin| self.uplift_bins.iter().filter(|&&x| x == bin).count() < 2)
         {
             return Err(QueryError::InvalidPolicyValue("uplift bins must cover evaluation rows and each bin; declared training subjects must be unique and disjoint".into()));
         }
@@ -320,13 +377,17 @@ impl PolicyValueQuery {
         }
         if let Some(regret) = &self.regret {
             let training = &regret.training_subject_ids;
-            if !ipw || self.global_constraints_present || self.uplift_bin_count != 0
+            if !ipw
+                || self.global_constraints_present
+                || self.uplift_bin_count != 0
                 || !(2..=16).contains(&regret.candidates.len())
                 || regret.selected_index >= regret.candidates.len()
                 || regret.candidates.iter().any(|actions| actions.len() != n)
                 || regret.candidates[regret.selected_index].as_ref() != self.actions.as_ref()
-                || training.is_empty() || training.iter().any(|id| id.trim().is_empty()
-                    || self.evaluation_subject_ids.contains(id))
+                || training.is_empty()
+                || training
+                    .iter()
+                    .any(|id| id.trim().is_empty() || self.evaluation_subject_ids.contains(id))
                 || training.iter().collect::<std::collections::HashSet<_>>().len() != training.len()
             {
                 return Err(QueryError::InvalidPolicyValue(

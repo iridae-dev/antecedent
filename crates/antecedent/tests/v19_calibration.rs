@@ -1688,8 +1688,7 @@ fn bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_n
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage()
 {
-    const TEST: &str =
-        "frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage";
+    const TEST: &str = "frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage";
     // Bootstrap replicates for the shared circular block. The manufacturing
     // envelope for this construction records replicates_ok in 20..=40 at 40.
     const BOOT_MED: u32 = 40;

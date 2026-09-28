@@ -82,10 +82,15 @@ impl LongitudinalRegimeQuery {
     /// subject ownership are misaligned, excluded-fold prediction ownership
     /// lacks at least two subject folds, or the positivity floor and declared
     /// treatment or censoring probabilities are non-finite or out of range.
+    // A flat sequence of independent guard checks; splitting it would only scatter
+    // the query's validity contract across helpers with no shared logic.
+    #[allow(clippy::too_many_lines)]
     pub fn validate(&self) -> Result<(), QueryError> {
         let identity = [&self.rule_id, &self.rule_version, &self.rule_provenance];
         if identity.iter().any(|value| value.is_some())
-            && (identity.iter().any(|value| value.as_ref().is_none_or(|text| text.trim().is_empty()))
+            && (identity
+                .iter()
+                .any(|value| value.as_ref().is_none_or(|text| text.trim().is_empty()))
                 || self.method == LongitudinalRegimeMethod::MarginalStructuralModel)
         {
             return Err(QueryError::InvalidLongitudinalRegime(
@@ -129,22 +134,40 @@ impl LongitudinalRegimeQuery {
                     .into(),
             )),
         }
-        if self.known_fixed_outcome_predictions && self.method != LongitudinalRegimeMethod::GFormula {
-            return Err(QueryError::InvalidLongitudinalRegime("known fixed outcome predictions require g_formula".into()));
+        if self.known_fixed_outcome_predictions && self.method != LongitudinalRegimeMethod::GFormula
+        {
+            return Err(QueryError::InvalidLongitudinalRegime(
+                "known fixed outcome predictions require g_formula".into(),
+            ));
         }
         if self.method != LongitudinalRegimeMethod::SequentialDoublyRobust
-            && (self.q_predictions.is_some() || self.observation_history.is_some() || self.prediction_fold_ids.is_some()) {
-            return Err(QueryError::InvalidLongitudinalRegime("sequential DR fields require the sequential doubly robust method".into()));
+            && (self.q_predictions.is_some()
+                || self.observation_history.is_some()
+                || self.prediction_fold_ids.is_some())
+        {
+            return Err(QueryError::InvalidLongitudinalRegime(
+                "sequential DR fields require the sequential doubly robust method".into(),
+            ));
         }
         if self.method != LongitudinalRegimeMethod::MarginalStructuralModel
-            && self.stabilizing_numerator_probabilities.is_some() {
-            return Err(QueryError::InvalidLongitudinalRegime("stabilizing numerator probabilities require the marginal structural model method".into()));
+            && self.stabilizing_numerator_probabilities.is_some()
+        {
+            return Err(QueryError::InvalidLongitudinalRegime(
+                "stabilizing numerator probabilities require the marginal structural model method"
+                    .into(),
+            ));
         }
         if let Some(observed) = &self.observation_history {
             for i in 0..n {
                 if observed[i * self.periods + self.periods - 1] != self.outcome_observed[i]
-                    || (1..self.periods).any(|t| !observed[i * self.periods + t - 1] && observed[i * self.periods + t]) {
-                    return Err(QueryError::InvalidLongitudinalRegime("observation history must be monotone and agree with endpoint observation".into()));
+                    || (1..self.periods).any(|t| {
+                        !observed[i * self.periods + t - 1] && observed[i * self.periods + t]
+                    })
+                {
+                    return Err(QueryError::InvalidLongitudinalRegime(
+                        "observation history must be monotone and agree with endpoint observation"
+                            .into(),
+                    ));
                 }
             }
         }

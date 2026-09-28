@@ -381,22 +381,31 @@ pub fn estimate_cluster_interference_total_with_inference(
         to_probability_method: ExposureProbabilityMethod::Exact,
         minimum_exposure_probability: p.min(1.0 - p),
     };
-    let interval = if treated_totals.len() >= 8 && control_totals.len() >= 8 && variance > 0.0 && variance.is_finite() {
-        let df = variance.powi(2) / (treated_component.powi(2) / (treated_totals.len() - 1) as f64
-            + control_component.powi(2) / (control_totals.len() - 1) as f64);
+    let interval = if treated_totals.len() >= 8
+        && control_totals.len() >= 8
+        && variance > 0.0
+        && variance.is_finite()
+    {
+        let df = variance.powi(2)
+            / (treated_component.powi(2) / (treated_totals.len() - 1) as f64
+                + control_component.powi(2) / (control_totals.len() - 1) as f64);
         let critical = antecedent_stats::student_t_ppf(0.975, df);
         (critical.is_finite() && critical > 0.0).then(|| {
             let se = variance.sqrt();
             ClusterTotalInterval {
-                bounds: [estimate.contrast.horvitz_thompson - critical * se,
-                    estimate.contrast.horvitz_thompson + critical * se],
+                bounds: [
+                    estimate.contrast.horvitz_thompson - critical * se,
+                    estimate.contrast.horvitz_thompson + critical * se,
+                ],
                 standard_error: se,
                 degrees_of_freedom: df,
                 control_clusters: control_totals.len(),
                 treated_clusters: treated_totals.len(),
             }
         })
-    } else { None };
+    } else {
+        None
+    };
     Ok((estimate, interval))
 }
 
@@ -408,7 +417,8 @@ pub fn estimate_cluster_interference_total_pointwise(
     data: &NetworkData,
     assignment: &[bool],
 ) -> Result<(InterferenceEstimate, ClusterTotalInterval), EstimationError> {
-    let (estimate, interval) = estimate_cluster_interference_total_with_inference(query, data, assignment)?;
+    let (estimate, interval) =
+        estimate_cluster_interference_total_with_inference(query, data, assignment)?;
     let interval = interval.ok_or_else(|| EstimationError::unsupported(
         "cluster total-effect interval requires eight independent clusters in each arm and positive cluster variation",
     ))?;
@@ -423,7 +433,14 @@ pub const fn own_treatment_level(treated: bool) -> ExposureLevel {
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "coverage fixtures build small cluster sizes and node ids from usize/u64 loop counters"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "coverage fixtures build small cluster sizes and node ids from usize/u64 loop counters"
+        )
+    )]
     use std::sync::Arc;
 
     use antecedent_core::{AssignmentDesign, ExposureMapping, InterferenceFunctional, VariableId};
@@ -508,9 +525,8 @@ mod tests {
                     .unwrap();
             if let Some(interval_95) = interval {
                 supported += 1;
-                covered += usize::from(
-                    interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1],
-                );
+                covered +=
+                    usize::from(interval_95.bounds[0] <= truth && truth <= interval_95.bounds[1]);
             }
         }
         let rate = covered as f64 / supported as f64;
@@ -523,13 +539,15 @@ mod tests {
     fn cluster_total_pointwise_refuses_thin_assignment_arms() {
         let outcomes = [1.0, 2.0, 2.0, 3.0, 8.0, 9.0, 9.0, 10.0];
         let table = TabularData::from_f64_columns([("y", &outcomes[..])]).unwrap();
-        let edges = (0..4).flat_map(|cluster| {
-            let first = cluster * 2;
-            [
-                antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
-                antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
-            ]
-        }).collect::<Vec<_>>();
+        let edges = (0..4)
+            .flat_map(|cluster| {
+                let first = cluster * 2;
+                [
+                    antecedent_data::NetworkEdge { from: first, to: first + 1, weight: 1.0 },
+                    antecedent_data::NetworkEdge { from: first + 1, to: first, weight: 1.0 },
+                ]
+            })
+            .collect::<Vec<_>>();
         let network = NetworkData::try_new(table, edges).unwrap();
         let query = InterferenceQuery::new(
             AssignmentDesign::ClusterRandomization {
@@ -545,7 +563,9 @@ mod tests {
         );
         let assignment = [false, false, false, false, true, true, true, true];
         assert!(estimate_cluster_interference_total(&query, &network, &assignment).is_ok());
-        assert!(estimate_cluster_interference_total_pointwise(&query, &network, &assignment).is_err());
+        assert!(
+            estimate_cluster_interference_total_pointwise(&query, &network, &assignment).is_err()
+        );
     }
 
     #[test]

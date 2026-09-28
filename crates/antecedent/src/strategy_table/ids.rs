@@ -780,7 +780,10 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             name: "randomized.fixed_cuped_ht_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.fixed_cuped_ht_itt",
-            provenance: ("estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.fixed_cuped_ht_itt"),
+            provenance: (
+                "estimate.randomized.fixed_cuped_ht_itt",
+                "estimate.randomized.fixed_cuped_ht_itt",
+            ),
         },
         EstimatorId::RandomizedAncova => EstimatorData {
             name: "randomized.ancova_itt",
@@ -792,13 +795,19 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             name: "randomized.wald_cace_late",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.wald_cace_late",
-            provenance: ("estimate.randomized.wald_cace_late", "estimate.randomized.wald_cace_late"),
+            provenance: (
+                "estimate.randomized.wald_cace_late",
+                "estimate.randomized.wald_cace_late",
+            ),
         },
         EstimatorId::RandomizedSwitchbackHt => EstimatorData {
             name: "randomized.switchback_ht_itt",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.switchback_ht_itt",
-            provenance: ("estimate.randomized.switchback_ht_itt", "estimate.randomized.switchback_ht_itt"),
+            provenance: (
+                "estimate.randomized.switchback_ht_itt",
+                "estimate.randomized.switchback_ht_itt",
+            ),
         },
         EstimatorId::RandomizedNeyman => EstimatorData {
             name: "randomized.neyman_itt",
@@ -825,7 +834,10 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             name: "randomized.multi_action_ipw_policy",
             parallel_task_dimension: "analysis",
             kernel_label: "randomized.multi_action_ipw_policy",
-            provenance: ("estimate.policy_value.multi_action_ipw", "estimate.policy_value.multi_action_ipw"),
+            provenance: (
+                "estimate.policy_value.multi_action_ipw",
+                "estimate.policy_value.multi_action_ipw",
+            ),
         },
         EstimatorId::RandomizedSurvivalProductLimit => EstimatorData {
             name: "randomized.survival_product_limit",
@@ -852,13 +864,19 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             name: "longitudinal.sequential_dr_regime",
             parallel_task_dimension: "subject",
             kernel_label: "longitudinal.sequential_dr_regime",
-            provenance: ("estimate.longitudinal.sequential_dr_regime", "estimate.longitudinal.sequential_dr_regime"),
+            provenance: (
+                "estimate.longitudinal.sequential_dr_regime",
+                "estimate.longitudinal.sequential_dr_regime",
+            ),
         },
         EstimatorId::LongitudinalMarginalStructuralModel => EstimatorData {
             name: "longitudinal.marginal_structural_model",
             parallel_task_dimension: "subject",
             kernel_label: "longitudinal.marginal_structural_model",
-            provenance: ("estimate.longitudinal.marginal_structural_model", "estimate.longitudinal.marginal_structural_model"),
+            provenance: (
+                "estimate.longitudinal.marginal_structural_model",
+                "estimate.longitudinal.marginal_structural_model",
+            ),
         },
         EstimatorId::Dml => EstimatorData {
             name: "dml",

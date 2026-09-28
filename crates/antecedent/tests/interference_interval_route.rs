@@ -2,7 +2,13 @@
 //! total effect, the exact two-stage saturation contrast, and the known-exposure
 //! observational contrast each carry an exact graphless license that survives the
 //! artifact round trip and cannot be forged onto a withheld interval.
-#![allow(clippy::float_cmp, clippy::cast_sign_loss, clippy::cast_lossless, clippy::cast_possible_truncation, reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts")]
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts"
+)]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -97,7 +103,10 @@ fn licensed_cluster_total_interval_round_trips_and_refuses_forgery() {
         .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
     let query = InterferenceQuery::new(
-        AssignmentDesign::ClusterRandomization { clusters: Arc::from(clusters), treated_clusters: TREATED },
+        AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from(clusters),
+            treated_clusters: TREATED,
+        },
         ExposureMapping::NeighborFraction,
         InterferenceFunctional::ExposureContrast {
             outcome: VariableId::from_raw(0),
@@ -134,7 +143,10 @@ fn thin_cluster_total_cannot_forge_a_license() {
         .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
     let query = InterferenceQuery::new(
-        AssignmentDesign::ClusterRandomization { clusters: Arc::from(clusters), treated_clusters: 2 },
+        AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from(clusters),
+            treated_clusters: 2,
+        },
         ExposureMapping::NeighborFraction,
         InterferenceFunctional::ExposureContrast {
             outcome: VariableId::from_raw(0),
@@ -149,34 +161,48 @@ fn thin_cluster_total_cannot_forge_a_license() {
     assert_eq!(inference.graphless_support_status, None);
     let bytes = prepared.encode_contracted_result(&result, "thin-cluster", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    body.interference_inference.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    body.interference_inference.as_mut().unwrap().graphless_support_status =
+        Some("licensed".into());
     assert!(
-        antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-thin-cluster").is_err()
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-thin-cluster"
+        )
+        .is_err()
     );
 }
 
 #[test]
 fn licensed_saturation_interval_round_trips_and_refuses_forgery() {
     let clusters = (0..48).flat_map(|cluster| [cluster; 3]).collect::<Vec<u32>>();
-    let patterns = [[false, false, false], [true, false, false], [true, true, false], [true, true, true]];
+    let patterns =
+        [[false, false, false], [true, false, false], [true, true, false], [true, true, true]];
     let assignment = (0..48).flat_map(|cluster| patterns[cluster % 4]).collect::<Vec<_>>();
-    let realized = (0..48).flat_map(|cluster| [if cluster < 24 { 0.2 } else { 0.8 }; 3]).collect::<Vec<_>>();
+    let realized =
+        (0..48).flat_map(|cluster| [if cluster < 24 { 0.2 } else { 0.8 }; 3]).collect::<Vec<_>>();
     let edges = (0..48)
         .flat_map(|cluster| {
             let first = cluster * 3;
             (first..first + 3).flat_map(move |from| {
-                (first..first + 3)
-                    .filter(move |&to| to != from)
-                    .map(move |to| NetworkEdge { from: from as u32, to: to as u32, weight: 1.0 })
+                (first..first + 3).filter(move |&to| to != from).map(move |to| NetworkEdge {
+                    from: from as u32,
+                    to: to as u32,
+                    weight: 1.0,
+                })
             })
         })
         .collect::<Vec<_>>();
     let outcomes = (0..assignment.len())
         .map(|unit| {
             let first = unit / 3 * 3;
-            let neighbor_fraction =
-                (first..first + 3).filter(|&other| other != unit && assignment[other]).count() as f64 / 2.0;
-            5.0 + 0.1 * (unit / 3 % 9) as f64 + 2.0 * f64::from(assignment[unit]) + 3.0 * neighbor_fraction
+            let neighbor_fraction = (first..first + 3)
+                .filter(|&other| other != unit && assignment[other])
+                .count() as f64
+                / 2.0;
+            5.0 + 0.1 * (unit / 3 % 9) as f64
+                + 2.0 * f64::from(assignment[unit])
+                + 3.0 * neighbor_fraction
         })
         .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
@@ -293,8 +319,14 @@ fn externally_estimated_observational_stays_point_only() {
     // A forged license on the externally-fitted point result is refused.
     let bytes = prepared.encode_contracted_result(&result, "external-obs", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    body.interference_inference.as_mut().unwrap().graphless_support_status = Some("licensed".into());
+    body.interference_inference.as_mut().unwrap().graphless_support_status =
+        Some("licensed".into());
     assert!(
-        antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-external-obs").is_err()
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-external-obs"
+        )
+        .is_err()
     );
 }

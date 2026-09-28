@@ -29,11 +29,20 @@ pub struct RegimeValueSummary {
 /// matched trajectories. The caller must establish known probabilities and
 /// independent subject histories before publishing this interval.
 #[must_use]
-pub fn ipw_pointwise_interval_95(summary: &RegimeValueSummary, subjects: usize) -> Option<[f64; 2]> {
+pub fn ipw_pointwise_interval_95(
+    summary: &RegimeValueSummary,
+    subjects: usize,
+) -> Option<[f64; 2]> {
     let se = summary.score_standard_error?;
     let matched = summary.matched_observed_fraction * subjects as f64;
-    if subjects < 500 || matched < 50.0 || summary.effective_sample_size < 50.0
-        || !se.is_finite() || se <= 0.0 { return None; }
+    if subjects < 500
+        || matched < 50.0
+        || summary.effective_sample_size < 50.0
+        || !se.is_finite()
+        || se <= 0.0
+    {
+        return None;
+    }
     let span = antecedent_stats::normal_ppf(0.975) * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|value| value.is_finite()).then_some(bounds)
@@ -44,36 +53,69 @@ pub fn ipw_pointwise_interval_95(summary: &RegimeValueSummary, subjects: usize) 
 // arity mirrors the estimator's fixed statistical contract; refactor would change behavior
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate_sequential_dr_value(
-    outcomes: &[f64], outcome_observed: &[bool], observation_history: &[bool],
-    treatment: &[bool], actions: &[bool], q_predictions: &[f64],
-    treatment_probability: &[f64], censoring_probability: &[f64],
-    periods: usize, minimum_probability: f64,
+    outcomes: &[f64],
+    outcome_observed: &[bool],
+    observation_history: &[bool],
+    treatment: &[bool],
+    actions: &[bool],
+    q_predictions: &[f64],
+    treatment_probability: &[f64],
+    censoring_probability: &[f64],
+    periods: usize,
+    minimum_probability: f64,
 ) -> Result<RegimeValueSummary, &'static str> {
     evaluate_sequential_dr_value_with_subject_scores(
-        outcomes, outcome_observed, observation_history, treatment, actions,
-        q_predictions, treatment_probability, censoring_probability,
-        periods, minimum_probability,
-    ).map(|(summary, _)| summary)
+        outcomes,
+        outcome_observed,
+        observation_history,
+        treatment,
+        actions,
+        q_predictions,
+        treatment_probability,
+        censoring_probability,
+        periods,
+        minimum_probability,
+    )
+    .map(|(summary, _)| summary)
 }
 
 /// Return one full-history augmentation score per subject for calibration.
 /// Scores alone do not establish independent nuisance fitting or an interval
 /// claim; callers must keep the Q ownership contract separate.
 // arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn evaluate_sequential_dr_value_with_subject_scores(
-    outcomes: &[f64], outcome_observed: &[bool], observation_history: &[bool],
-    treatment: &[bool], actions: &[bool], q_predictions: &[f64],
-    treatment_probability: &[f64], censoring_probability: &[f64],
-    periods: usize, minimum_probability: f64,
+    outcomes: &[f64],
+    outcome_observed: &[bool],
+    observation_history: &[bool],
+    treatment: &[bool],
+    actions: &[bool],
+    q_predictions: &[f64],
+    treatment_probability: &[f64],
+    censoring_probability: &[f64],
+    periods: usize,
+    minimum_probability: f64,
 ) -> Result<(RegimeValueSummary, Vec<f64>), &'static str> {
     let n = outcomes.len();
     let cells = n.checked_mul(periods).ok_or("longitudinal dimensions overflow")?;
-    if n == 0 || periods == 0 || outcome_observed.len() != n
-        || [observation_history.len(), treatment.len(), actions.len(), q_predictions.len(),
-            treatment_probability.len(), censoring_probability.len()].iter().any(|&len| len != cells)
-    { return Err("sequential DR arrays must align by subject and period"); }
-    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5) {
+    if n == 0
+        || periods == 0
+        || outcome_observed.len() != n
+        || [
+            observation_history.len(),
+            treatment.len(),
+            actions.len(),
+            q_predictions.len(),
+            treatment_probability.len(),
+            censoring_probability.len(),
+        ]
+        .iter()
+        .any(|&len| len != cells)
+    {
+        return Err("sequential DR arrays must align by subject and period");
+    }
+    if !(minimum_probability.is_finite() && 0.0 < minimum_probability && minimum_probability <= 0.5)
+    {
         return Err("minimum probability must be finite and in (0, 0.5]");
     }
     if !outcome_observed.iter().any(|&observed| observed) {
@@ -89,7 +131,9 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
             return Err("observed terminal outcomes must be finite");
         }
         if observation_history[i * periods + periods - 1] != outcome_observed[i] {
-            return Err("terminal outcome observation must agree with the final observation-history period");
+            return Err(
+                "terminal outcome observation must agree with the final observation-history period",
+            );
         }
         let mut next = if outcome_observed[i] { outcomes[i] } else { 0.0 };
         for t in (0..periods).rev() {
@@ -100,38 +144,66 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
             let q = q_predictions[j];
             let p = treatment_probability[j];
             let c = censoring_probability[j];
-            if !q.is_finite() { return Err("q_prediction values must be finite"); }
+            if !q.is_finite() {
+                return Err("q_prediction values must be finite");
+            }
             if !p.is_finite() || p < minimum_probability || p > 1.0 - minimum_probability {
-                return Err("sequential treatment positivity is violated at the declared probability floor");
+                return Err(
+                    "sequential treatment positivity is violated at the declared probability floor",
+                );
             }
             if !c.is_finite() || c < minimum_probability || c > 1.0 {
-                return Err("sequential censoring positivity is violated at the declared probability floor");
+                return Err(
+                    "sequential censoring positivity is violated at the declared probability floor",
+                );
             }
             let action_p = if actions[j] { p } else { 1.0 - p };
             min_action = min_action.min(action_p);
             min_censor = min_censor.min(c);
             next = if observation_history[j] && treatment[j] == actions[j] {
                 q + (next - q) / (action_p * c)
-            } else { q };
-            if !next.is_finite() { return Err("sequential augmentation overflowed; raise the positivity floor or shorten the horizon"); }
+            } else {
+                q
+            };
+            if !next.is_finite() {
+                return Err(
+                    "sequential augmentation overflowed; raise the positivity floor or shorten the horizon",
+                );
+            }
         }
         let mut weight = 1.0;
         for t in 0..periods {
             let j = i * periods + t;
-            if !observation_history[j] || treatment[j] != actions[j] { break; }
-            let ap = if actions[j] { treatment_probability[j] } else { 1.0 - treatment_probability[j] };
+            if !observation_history[j] || treatment[j] != actions[j] {
+                break;
+            }
+            let ap =
+                if actions[j] { treatment_probability[j] } else { 1.0 - treatment_probability[j] };
             weight /= ap * censoring_probability[j];
-            if !weight.is_finite() { return Err("sequential weight overflowed"); }
+            if !weight.is_finite() {
+                return Err("sequential weight overflowed");
+            }
             maximum_weight = maximum_weight.max(weight);
         }
         total += next;
         scores.push(next);
-        if !total.is_finite() { return Err("sequential augmented values overflowed across subjects"); }
+        if !total.is_finite() {
+            return Err("sequential augmented values overflowed across subjects");
+        }
     }
-    Ok((RegimeValueSummary { value: total / n as f64,
-        effective_sample_size: n as f64, matched_observed_fraction: outcome_observed.iter().filter(|&&x| x).count() as f64 / n as f64,
-        maximum_weight, minimum_action_probability: min_action, minimum_censoring_probability: min_censor,
-        score_standard_error: None }, scores))
+    Ok((
+        RegimeValueSummary {
+            value: total / n as f64,
+            effective_sample_size: n as f64,
+            matched_observed_fraction: outcome_observed.iter().filter(|&&x| x).count() as f64
+                / n as f64,
+            maximum_weight,
+            minimum_action_probability: min_action,
+            minimum_censoring_probability: min_censor,
+            score_standard_error: None,
+        },
+        scores,
+    ))
 }
 
 /// Calibrated two- or three-period pointwise interval for a prespecified regime under
@@ -141,27 +213,39 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
 /// limited to the randomized designs tested in repeated samples.
 #[must_use]
 pub fn sequential_dr_pointwise_interval_95(
-    summary: &RegimeValueSummary, scores: &[f64], periods: usize,
-    observed_subjects: usize, observed_matching_subjects: usize,
+    summary: &RegimeValueSummary,
+    scores: &[f64],
+    periods: usize,
+    observed_subjects: usize,
+    observed_matching_subjects: usize,
 ) -> Option<(f64, [f64; 2])> {
     let n = scores.len();
     let supported = match periods {
-        2 => n >= 500 && observed_subjects >= 200
-            && observed_matching_subjects >= 50
-            && summary.minimum_action_probability >= 0.4
-            && summary.minimum_censoring_probability >= 0.85,
-        3 => n >= 800 && observed_subjects >= 600
-            && observed_matching_subjects >= 60
-            && summary.minimum_action_probability >= 0.5
-            && summary.minimum_censoring_probability >= 0.95,
+        2 => {
+            n >= 500
+                && observed_subjects >= 200
+                && observed_matching_subjects >= 50
+                && summary.minimum_action_probability >= 0.4
+                && summary.minimum_censoring_probability >= 0.85
+        }
+        3 => {
+            n >= 800
+                && observed_subjects >= 600
+                && observed_matching_subjects >= 60
+                && summary.minimum_action_probability >= 0.5
+                && summary.minimum_censoring_probability >= 0.95
+        }
         _ => false,
     };
-    if !supported
-        || scores.iter().any(|score| !score.is_finite())
-    { return None; }
+    if !supported || scores.iter().any(|score| !score.is_finite()) {
+        return None;
+    }
     let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
-        / (n * (n - 1)) as f64).sqrt();
-    if !se.is_finite() || se <= 0.0 { return None; }
+        / (n * (n - 1)) as f64)
+        .sqrt();
+    if !se.is_finite() || se <= 0.0 {
+        return None;
+    }
     let span = antecedent_stats::normal_ppf(0.975) * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
@@ -240,24 +324,34 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
     subjects: usize,
     periods: usize,
 ) -> Option<(f64, [f64; 2])> {
-    if periods != 2 || subjects < 300 || predictions.len() != subjects.checked_mul(periods)?
+    if periods != 2
+        || subjects < 300
+        || predictions.len() != subjects.checked_mul(periods)?
         || summary.minimum_action_probability < 0.2
         || summary.minimum_censoring_probability < 0.8
         || !summary.value.is_finite()
-    { return None; }
+    {
+        return None;
+    }
     let mut centered_sum = 0.0;
     let mut total = 0.0;
     for subject in 0..subjects {
         let score = predictions[subject * periods] + predictions[subject * periods + 1];
-        if !score.is_finite() { return None; }
+        if !score.is_finite() {
+            return None;
+        }
         total += score;
         centered_sum += (score - summary.value).powi(2);
     }
     if !total.is_finite()
         || (total / subjects as f64 - summary.value).abs() > 1e-10 * (1.0 + summary.value.abs())
-    { return None; }
+    {
+        return None;
+    }
     let se = (centered_sum / (subjects * (subjects - 1)) as f64).sqrt();
-    if !se.is_finite() || se <= 0.0 { return None; }
+    if !se.is_finite() || se <= 0.0 {
+        return None;
+    }
     let span = antecedent_stats::normal_ppf(0.975) * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
@@ -353,10 +447,15 @@ pub fn evaluate_regime_value(
     let value = total / n as f64;
     let score_standard_error = if n > 1 {
         let se = (scores.iter().map(|score| (score - value).powi(2)).sum::<f64>()
-            / (n * (n - 1)) as f64).sqrt();
-        if !se.is_finite() { return Err("longitudinal subject-score variance overflowed"); }
+            / (n * (n - 1)) as f64)
+            .sqrt();
+        if !se.is_finite() {
+            return Err("longitudinal subject-score variance overflowed");
+        }
         Some(se)
-    } else { None };
+    } else {
+        None
+    };
     Ok(RegimeValueSummary {
         value,
         effective_sample_size: weight_sum * weight_sum / weight_squares,
@@ -370,7 +469,13 @@ pub fn evaluate_regime_value(
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates and coverage arithmetic"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            reason = "tests assert exact deterministic estimates and coverage arithmetic"
+        )
+    )]
     use super::*;
 
     #[test]
@@ -408,15 +513,18 @@ mod tests {
                 observed.push(o2);
                 observed_count += usize::from(o2);
                 matched += usize::from(o2 && a.iter().all(|&action| action));
-                outcomes.push(2.0 + a.iter().map(|&action| f64::from(action)).sum::<f64>()
-                    + 2.0 * (uniform() - 0.5));
+                outcomes.push(
+                    2.0 + a.iter().map(|&action| f64::from(action)).sum::<f64>()
+                        + 2.0 * (uniform() - 0.5),
+                );
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
                 &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 3, 0.01,
-            ).unwrap();
-            if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
-                &summary, &scores, 3, observed_count, matched,
-            ) {
+            )
+            .unwrap();
+            if let Some((_, bounds)) =
+                sequential_dr_pointwise_interval_95(&summary, &scores, 3, observed_count, matched)
+            {
                 accepted += 1;
                 covered += usize::from(bounds[0] <= 5.0 && 5.0 <= bounds[1]);
             }
@@ -458,13 +566,19 @@ mod tests {
                 treatment.extend(a);
                 history.extend([o0, o1, o2]);
                 observed.push(o2);
-                outcomes.push(2.0 + a.iter().map(|&action| f64::from(action)).sum::<f64>()
-                    + 2.0 * (uniform() - 0.5));
+                outcomes.push(
+                    2.0 + a.iter().map(|&action| f64::from(action)).sum::<f64>()
+                        + 2.0 * (uniform() - 0.5),
+                );
             }
             let mut q = vec![0.0; n * 3];
             for fold in 0..5 {
-                let (sum, count) = (0..n).filter(|&i| i % 5 != fold && observed[i]
-                    && treatment[3 * i..3 * i + 3].iter().all(|&a| a))
+                let (sum, count) = (0..n)
+                    .filter(|&i| {
+                        i % 5 != fold
+                            && observed[i]
+                            && treatment[3 * i..3 * i + 3].iter().all(|&a| a)
+                    })
                     .fold((0.0, 0_usize), |(sum, count), i| (sum + outcomes[i], count + 1));
                 assert!(count >= 40, "excluded-fold training support");
                 let prediction = sum / count as f64;
@@ -474,11 +588,17 @@ mod tests {
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
                 &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 3, 0.01,
-            ).unwrap();
-            let matched = (0..n).filter(|&i| observed[i]
-                && treatment[3 * i..3 * i + 3].iter().all(|&a| a)).count();
+            )
+            .unwrap();
+            let matched = (0..n)
+                .filter(|&i| observed[i] && treatment[3 * i..3 * i + 3].iter().all(|&a| a))
+                .count();
             if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
-                &summary, &scores, 3, observed.iter().filter(|&&x| x).count(), matched,
+                &summary,
+                &scores,
+                3,
+                observed.iter().filter(|&&x| x).count(),
+                matched,
             ) {
                 accepted += 1;
                 covered += usize::from(bounds[0] <= truth && truth <= bounds[1]);
@@ -486,7 +606,9 @@ mod tests {
         }
         assert!(accepted >= 1_800, "three-period excluded-fold support: {accepted}/{simulations}");
         let coverage = covered as f64 / f64::from(accepted);
-        println!("three-period excluded-fold Q sequential DR: accepted={accepted}, coverage={coverage}");
+        println!(
+            "three-period excluded-fold Q sequential DR: accepted={accepted}, coverage={coverage}"
+        );
         assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / f64::from(accepted)).sqrt());
     }
 
@@ -523,37 +645,48 @@ mod tests {
                 treatment.extend([a0, a1]);
                 history.extend([o0, o1]);
                 observed.push(o1);
-                outcomes.push(2.0 + f64::from(a0) + f64::from(a1)
-                    + 2.0 * (uniform() - 0.5));
+                outcomes.push(2.0 + f64::from(a0) + f64::from(a1) + 2.0 * (uniform() - 0.5));
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
                 &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
-            ).unwrap();
-            let matched = (0..n).filter(|&i| observed[i] && treatment[2 * i]
-                && treatment[2 * i + 1]).count();
+            )
+            .unwrap();
+            let matched =
+                (0..n).filter(|&i| observed[i] && treatment[2 * i] && treatment[2 * i + 1]).count();
             if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
-                &summary, &scores, 2, observed.iter().filter(|&&x| x).count(), matched,
+                &summary,
+                &scores,
+                2,
+                observed.iter().filter(|&&x| x).count(),
+                matched,
             ) {
                 gated_total += 1;
                 gated_covered += usize::from(bounds[0] <= 4.0 && 4.0 <= bounds[1]);
             }
             assert_eq!(scores.len(), n);
             let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
-                / (n * (n - 1)) as f64).sqrt();
+                / (n * (n - 1)) as f64)
+                .sqrt();
             assert!(se.is_finite() && se > 0.0);
-            covered_90 += usize::from((summary.value - 4.0).abs()
-                <= antecedent_stats::normal_ppf(0.95) * se);
-            covered_95 += usize::from((summary.value - 4.0).abs()
-                <= antecedent_stats::normal_ppf(0.975) * se);
+            covered_90 +=
+                usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
+            covered_95 += usize::from(
+                (summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.975) * se,
+            );
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
             let coverage = hits as f64 / f64::from(simulations);
             let mcse = (nominal * (1.0 - nominal) / f64::from(simulations)).sqrt();
             println!("fixed exogenous Q sequential DR: nominal={nominal}, coverage={coverage}");
-            assert!((coverage - nominal).abs() <= 3.0 * mcse,
-                "fixed-Q sequential DR coverage {coverage} at {nominal}");
+            assert!(
+                (coverage - nominal).abs() <= 3.0 * mcse,
+                "fixed-Q sequential DR coverage {coverage} at {nominal}"
+            );
         }
-        assert_eq!(gated_total, 0, "300-subject fixed Q has no retained DR interval without a distinct fixed-Q contract");
+        assert_eq!(
+            gated_total, 0,
+            "300-subject fixed Q has no retained DR interval without a distinct fixed-Q contract"
+        );
         assert_eq!(gated_covered, 0);
     }
 
@@ -590,15 +723,15 @@ mod tests {
                 treatment.extend([a0, a1]);
                 history.extend([o0, o1]);
                 observed.push(o1);
-                outcomes.push(2.0 + f64::from(a0) + f64::from(a1)
-                    + 2.0 * (uniform() - 0.5));
+                outcomes.push(2.0 + f64::from(a0) + f64::from(a1) + 2.0 * (uniform() - 0.5));
             }
             let mut q = vec![0.0; n * 2];
             for fold in 0..5 {
-                let training = (0..n).filter(|&i| i % 5 != fold
-                    && observed[i] && treatment[2 * i] && treatment[2 * i + 1]);
-                let (sum, count) = training.fold((0.0, 0_usize), |(sum, count), i|
-                    (sum + outcomes[i], count + 1));
+                let training = (0..n).filter(|&i| {
+                    i % 5 != fold && observed[i] && treatment[2 * i] && treatment[2 * i + 1]
+                });
+                let (sum, count) =
+                    training.fold((0.0, 0_usize), |(sum, count), i| (sum + outcomes[i], count + 1));
                 assert!(count >= 20, "training support in excluded folds");
                 let prediction = sum / count as f64;
                 for i in (fold..n).step_by(5) {
@@ -608,33 +741,46 @@ mod tests {
             }
             let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
                 &outcomes, &observed, &history, &treatment, &actions, &q, &p, &c, 2, 0.01,
-            ).unwrap();
-            let matched = (0..n).filter(|&i| observed[i] && treatment[2 * i]
-                && treatment[2 * i + 1]).count();
+            )
+            .unwrap();
+            let matched =
+                (0..n).filter(|&i| observed[i] && treatment[2 * i] && treatment[2 * i + 1]).count();
             if let Some((_, bounds)) = sequential_dr_pointwise_interval_95(
-                &summary, &scores, 2, observed.iter().filter(|&&x| x).count(), matched,
+                &summary,
+                &scores,
+                2,
+                observed.iter().filter(|&&x| x).count(),
+                matched,
             ) {
                 gated_total += 1;
                 gated_covered += usize::from(bounds[0] <= truth && truth <= bounds[1]);
             }
             let se = (scores.iter().map(|score| (score - summary.value).powi(2)).sum::<f64>()
-                / (n * (n - 1)) as f64).sqrt();
+                / (n * (n - 1)) as f64)
+                .sqrt();
             assert!(se.is_finite() && se > 0.0);
-            covered_90 += usize::from((summary.value - 4.0).abs()
-                <= antecedent_stats::normal_ppf(0.95) * se);
-            covered_95 += usize::from((summary.value - 4.0).abs()
-                <= antecedent_stats::normal_ppf(0.975) * se);
+            covered_90 +=
+                usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
+            covered_95 += usize::from(
+                (summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.975) * se,
+            );
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
             let coverage = hits as f64 / f64::from(simulations);
             let mcse = (nominal * (1.0 - nominal) / f64::from(simulations)).sqrt();
-            println!("subject-excluded fold Q sequential DR: nominal={nominal}, coverage={coverage}");
-            assert!((coverage - nominal).abs() <= 3.0 * mcse,
-                "subject-excluded Q sequential DR coverage {coverage} at {nominal}");
+            println!(
+                "subject-excluded fold Q sequential DR: nominal={nominal}, coverage={coverage}"
+            );
+            assert!(
+                (coverage - nominal).abs() <= 3.0 * mcse,
+                "subject-excluded Q sequential DR coverage {coverage} at {nominal}"
+            );
         }
         assert!(gated_total >= 1_400);
         let coverage = gated_covered as f64 / f64::from(gated_total);
-        println!("excluded-fold Q supported DR interval: accepted={gated_total}, coverage={coverage}");
+        println!(
+            "excluded-fold Q supported DR interval: accepted={gated_total}, coverage={coverage}"
+        );
         assert!((coverage - 0.95).abs() <= 3.0 * (0.95_f64 * 0.05 / f64::from(gated_total)).sqrt());
     }
 
@@ -667,12 +813,21 @@ mod tests {
                 outcomes.push(2.0 + f64::from(a0) + f64::from(a1) + (uniform() - 0.5) * 2.0);
             }
             let summary = evaluate_regime_value(
-                &outcomes, &treatment, &actions, &treatment_probabilities, &observed,
-                &censoring_probabilities, 2, 0.01,
-            ).unwrap();
+                &outcomes,
+                &treatment,
+                &actions,
+                &treatment_probabilities,
+                &observed,
+                &censoring_probabilities,
+                2,
+                0.01,
+            )
+            .unwrap();
             if let Some(interval) = ipw_pointwise_interval_95(&summary, n) {
                 covered += usize::from(interval[0] <= 4.0 && 4.0 <= interval[1]);
-            } else { skipped += 1; }
+            } else {
+                skipped += 1;
+            }
         }
         let coverage = covered as f64 / f64::from(simulations);
         let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
@@ -712,18 +867,32 @@ mod tests {
                 predictions.push(q0);
                 predictions.push(q1);
             }
-            let summary = evaluate_g_formula_value(&predictions, &actions,
-                &treatment_probabilities, &censoring_probabilities, subjects, 2, 0.01).unwrap();
-            if let Some((_, bounds)) = g_formula_fixed_q_pointwise_interval_95(
-                &summary, &predictions, subjects, 2) {
+            let summary = evaluate_g_formula_value(
+                &predictions,
+                &actions,
+                &treatment_probabilities,
+                &censoring_probabilities,
+                subjects,
+                2,
+                0.01,
+            )
+            .unwrap();
+            if let Some((_, bounds)) =
+                g_formula_fixed_q_pointwise_interval_95(&summary, &predictions, subjects, 2)
+            {
                 covered += usize::from(bounds[0] <= truth && truth <= bounds[1]);
-            } else { skipped += 1; }
+            } else {
+                skipped += 1;
+            }
         }
         assert!(skipped <= simulations / 100, "fixed-known-Q weak-support skips {skipped}");
         let coverage = covered as f64 / f64::from(simulations - skipped);
         let mcse = (0.95_f64 * 0.05 / f64::from(simulations - skipped)).sqrt();
         println!("fixed-known-Q g-formula: covered={covered}, coverage={coverage}");
-        assert!((coverage - 0.95).abs() <= 3.0 * mcse, "fixed-known-Q g-formula coverage {coverage}");
+        assert!(
+            (coverage - 0.95).abs() <= 3.0 * mcse,
+            "fixed-known-Q g-formula coverage {coverage}"
+        );
     }
 
     #[test]
@@ -747,30 +916,34 @@ mod tests {
     #[test]
     fn refuses_missing_support_and_positivity() {
         let mut p = [0.5; 4];
-        assert!(evaluate_regime_value(
-            &[1.0, 2.0],
-            &[false; 4],
-            &[true; 4],
-            &p,
-            &[true; 2],
-            &[1.0; 4],
-            2,
-            0.01
-        )
-        .unwrap_err()
-        .contains("no observed"));
+        assert!(
+            evaluate_regime_value(
+                &[1.0, 2.0],
+                &[false; 4],
+                &[true; 4],
+                &p,
+                &[true; 2],
+                &[1.0; 4],
+                2,
+                0.01
+            )
+            .unwrap_err()
+            .contains("no observed")
+        );
         p[0] = 0.0;
-        assert!(evaluate_regime_value(
-            &[1.0, 2.0],
-            &[false; 4],
-            &[true; 4],
-            &p,
-            &[true; 2],
-            &[1.0; 4],
-            2,
-            0.01
-        )
-        .unwrap_err()
-        .contains("positivity"));
+        assert!(
+            evaluate_regime_value(
+                &[1.0, 2.0],
+                &[false; 4],
+                &[true; 4],
+                &p,
+                &[true; 2],
+                &[1.0; 4],
+                2,
+                0.01
+            )
+            .unwrap_err()
+            .contains("positivity")
+        );
     }
 }

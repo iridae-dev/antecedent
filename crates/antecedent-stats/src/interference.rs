@@ -155,7 +155,10 @@ pub fn exposure_probabilities(
     monte_carlo_draws: u32,
     seed: u64,
 ) -> Result<ExposureProbabilities, StatsError> {
-    if matches!(design, AssignmentDesign::TwoStageSaturation { .. } | AssignmentDesign::ObservedExposure { .. }) {
+    if matches!(
+        design,
+        AssignmentDesign::TwoStageSaturation { .. } | AssignmentDesign::ObservedExposure { .. }
+    ) {
         return Err(StatsError::Backend(
             "two-stage saturation uses the exact saturation estimator, not generic assignment enumeration".into(),
         ));
@@ -402,7 +405,9 @@ fn enumerate_assignments(
             return Err(StatsError::Backend("use the exact two-stage saturation estimator".into()));
         }
         AssignmentDesign::ObservedExposure { .. } => {
-            return Err(StatsError::Backend("use the supplied-propensity observational estimator".into()));
+            return Err(StatsError::Backend(
+                "use the supplied-propensity observational estimator".into(),
+            ));
         }
     }
     Ok(())

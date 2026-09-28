@@ -42,15 +42,19 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
     fn from(value: &antecedent::LongitudinalRegimeEstimate) -> Self {
         Self {
             method: value.method.to_string(),
-            graphless_support_status: value.graphless_support_status.map(|status| status.as_str().to_string()),
+            graphless_support_status: value
+                .graphless_support_status
+                .map(|status| status.as_str().to_string()),
             rule_id: value.rule_id.as_ref().map(ToString::to_string),
             rule_version: value.rule_version.as_ref().map(ToString::to_string),
             rule_provenance: value.rule_provenance.as_ref().map(ToString::to_string),
             value: value.value,
             value_standard_error: value.value_standard_error,
             value_interval_95: value.value_interval_95.map(|bounds| (bounds[0], bounds[1])),
-            period_intervals_95: value.period_intervals_95.as_ref().map(|intervals|
-                intervals.iter().map(|bounds| (bounds[0], bounds[1])).collect()),
+            period_intervals_95: value
+                .period_intervals_95
+                .as_ref()
+                .map(|intervals| intervals.iter().map(|bounds| (bounds[0], bounds[1])).collect()),
             interval_reason: value.interval_reason.as_ref().map(ToString::to_string),
             effective_sample_size: value.effective_sample_size,
             matched_observed_fraction: value.matched_observed_fraction,
@@ -61,7 +65,10 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
             probability_ownership: value.probability_ownership.to_string(),
             period_effects: value.period_effects.as_ref().map(|v| v.to_vec()),
             standard_errors: value.standard_errors.as_ref().map(|v| v.to_vec()),
-            stabilizing_numerator_probabilities: value.stabilizing_numerator_probabilities.as_ref().map(|v| v.to_vec()),
+            stabilizing_numerator_probabilities: value
+                .stabilizing_numerator_probabilities
+                .as_ref()
+                .map(|v| v.to_vec()),
             observed_subjects: value.observed_subjects,
         }
     }
@@ -139,7 +146,9 @@ fn fit_binary_msm(
     let p = treatment_probability.as_array();
     let censor = censoring_survival.as_array();
     if p.dim() != (n, periods) || censor.dim() != (n, periods) {
-        return Err(PyValueError::new_err("MSM arrays must have matching subject and period dimensions"));
+        return Err(PyValueError::new_err(
+            "MSM arrays must have matching subject and period dimensions",
+        ));
     }
     let a = a.iter().copied().collect::<Vec<_>>();
     let p = p.iter().copied().collect::<Vec<_>>();
@@ -147,11 +156,24 @@ fn fit_binary_msm(
     let numerator = numerator_probability.as_array().iter().copied().collect::<Vec<_>>();
     let observed = outcome_observed.as_array().iter().copied().collect::<Vec<_>>();
     let summary = antecedent_estimate::marginal_structural_model::fit_binary_msm(
-        &y, &a, &p, &numerator, &observed,
-        &censor, periods, minimum_probability,
-    ).map_err(PyValueError::new_err)?;
-    Ok((summary.intercept, summary.period_effects, summary.standard_errors,
-        summary.effective_sample_size, summary.maximum_weight, summary.observed_subjects))
+        &y,
+        &a,
+        &p,
+        &numerator,
+        &observed,
+        &censor,
+        periods,
+        minimum_probability,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        summary.intercept,
+        summary.period_effects,
+        summary.standard_errors,
+        summary.effective_sample_size,
+        summary.maximum_weight,
+        summary.observed_subjects,
+    ))
 }
 
 /// Plug-in sequential g-formula value for caller-supplied conditional rewards.
@@ -294,9 +316,16 @@ fn evaluate_sequential_doubly_robust(
         &q.iter().copied().collect::<Vec<_>>(),
         &p.iter().copied().collect::<Vec<_>>(),
         &g.iter().copied().collect::<Vec<_>>(),
-        periods, minimum_probability,
-    ).map_err(PyValueError::new_err)?;
-    Ok((summary.value, n, summary.minimum_action_probability, summary.minimum_censoring_probability))
+        periods,
+        minimum_probability,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        summary.value,
+        n,
+        summary.minimum_action_probability,
+        summary.minimum_censoring_probability,
+    ))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

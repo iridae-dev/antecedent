@@ -85,58 +85,89 @@ fn solve_positive_ridge(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<
 /// prediction difference is subtracted from the original synthetic-control gap.
 /// No sampling interval or placebo calibration is implied by this point fit.
 pub fn fit_augmented_synthetic_control(
-    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
-    intervention_period: i64, ridge_penalty: f64,
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
+    intervention_period: i64,
+    ridge_penalty: f64,
 ) -> Result<AugmentedSyntheticControlFit, String> {
     if !ridge_penalty.is_finite() || ridge_penalty <= 0.0 {
         return Err("augmented synthetic control requires a finite positive ridge penalty".into());
     }
-    let control = fit_synthetic_control(outcome, units, periods, treated_unit, intervention_period)?;
+    let control =
+        fit_synthetic_control(outcome, units, periods, treated_unit, intervention_period)?;
     let mut panel: BTreeMap<&str, BTreeMap<i64, f64>> = BTreeMap::new();
     let mut period_set = BTreeSet::new();
     for ((unit, period), value) in units.iter().zip(periods).zip(outcome) {
         panel.entry(unit).or_default().insert(*period, *value);
         period_set.insert(*period);
     }
-    let pre: Vec<i64> = period_set.iter().copied().filter(|period| *period < intervention_period).collect();
-    let post: Vec<i64> = period_set.iter().copied().filter(|period| *period >= intervention_period).collect();
+    let pre: Vec<i64> =
+        period_set.iter().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> =
+        period_set.iter().copied().filter(|period| *period >= intervention_period).collect();
     let donors: Vec<&str> = control.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
-    let donor_pre: Vec<Vec<f64>> = donors.iter().map(|unit|
-        pre.iter().map(|period| panel[unit][period]).collect()).collect();
-    let donor_post: Vec<f64> = donors.iter().map(|unit|
-        post.iter().map(|period| panel[unit][period]).sum::<f64>() / post.len() as f64).collect();
+    let donor_pre: Vec<Vec<f64>> =
+        donors.iter().map(|unit| pre.iter().map(|period| panel[unit][period]).collect()).collect();
+    let donor_post: Vec<f64> = donors
+        .iter()
+        .map(|unit| post.iter().map(|period| panel[unit][period]).sum::<f64>() / post.len() as f64)
+        .collect();
     let treated_pre: Vec<f64> = pre.iter().map(|period| panel[treated_unit][period]).collect();
     let n = donors.len();
     let p = pre.len();
-    let pre_mean: Vec<f64> = (0..p).map(|period|
-        donor_pre.iter().map(|values| values[period]).sum::<f64>() / n as f64).collect();
+    let pre_mean: Vec<f64> = (0..p)
+        .map(|period| donor_pre.iter().map(|values| values[period]).sum::<f64>() / n as f64)
+        .collect();
     let post_mean = donor_post.iter().sum::<f64>() / n as f64;
-    let centered: Vec<Vec<f64>> = donor_pre.iter().map(|values|
-        values.iter().zip(&pre_mean).map(|(value, mean)| value - mean).collect()).collect();
+    let centered: Vec<Vec<f64>> = donor_pre
+        .iter()
+        .map(|values| values.iter().zip(&pre_mean).map(|(value, mean)| value - mean).collect())
+        .collect();
     let mut gram = vec![vec![0.0; n]; n];
     for i in 0..n {
         for j in 0..n {
-            gram[i][j] = centered[i].iter().zip(&centered[j])
-                .map(|(left, right)| left * right).sum::<f64>() / p as f64;
+            gram[i][j] =
+                centered[i].iter().zip(&centered[j]).map(|(left, right)| left * right).sum::<f64>()
+                    / p as f64;
         }
         gram[i][i] += ridge_penalty;
     }
-    let coefficients = solve_positive_ridge(gram, donor_post.iter().map(|value| value - post_mean).collect())?;
+    let coefficients =
+        solve_positive_ridge(gram, donor_post.iter().map(|value| value - post_mean).collect())?;
     let prediction = |features: &[f64]| -> f64 {
-        post_mean + coefficients.iter().zip(&centered).map(|(coefficient, donor)| {
-            coefficient * donor.iter().zip(features.iter().zip(&pre_mean))
-                .map(|(donor_value, (value, mean))| donor_value * (value - mean))
-                .sum::<f64>() / p as f64
-        }).sum::<f64>()
+        post_mean
+            + coefficients
+                .iter()
+                .zip(&centered)
+                .map(|(coefficient, donor)| {
+                    coefficient
+                        * donor
+                            .iter()
+                            .zip(features.iter().zip(&pre_mean))
+                            .map(|(donor_value, (value, mean))| donor_value * (value - mean))
+                            .sum::<f64>()
+                        / p as f64
+                })
+                .sum::<f64>()
     };
-    let donor_prediction: f64 = donor_pre.iter().zip(&control.donor_weights)
-        .map(|(features, (_, weight))| weight * prediction(features)).sum();
+    let donor_prediction: f64 = donor_pre
+        .iter()
+        .zip(&control.donor_weights)
+        .map(|(features, (_, weight))| weight * prediction(features))
+        .sum();
     let correction = prediction(&treated_pre) - donor_prediction;
     let effect = control.effect - correction;
     if !effect.is_finite() || !correction.is_finite() {
         return Err("augmented synthetic-control correction overflowed finite precision".into());
     }
-    Ok(AugmentedSyntheticControlFit { control, effect, outcome_model_correction: correction, ridge_penalty })
+    Ok(AugmentedSyntheticControlFit {
+        control,
+        effect,
+        outcome_model_correction: correction,
+        ridge_penalty,
+    })
 }
 
 fn project_simplex(values: &[f64]) -> Vec<f64> {
@@ -353,7 +384,10 @@ pub fn fit_synthetic_control(
 /// The test statistic is the absolute post-treatment synthetic gap. No
 /// confidence interval or observational placebo interpretation follows.
 pub fn exact_synthetic_unit_randomization_test(
-    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
     intervention_period: i64,
 ) -> Result<SyntheticUnitRandomizationTest, String> {
     fit_synthetic_control(outcome, units, periods, treated_unit, intervention_period)?;
@@ -364,24 +398,40 @@ pub fn exact_synthetic_unit_randomization_test(
         period_set.insert(*period);
     }
     if panel.len() > 32 {
-        return Err("exact synthetic unit randomization currently supports at most 32 candidate units".into());
+        return Err(
+            "exact synthetic unit randomization currently supports at most 32 candidate units"
+                .into(),
+        );
     }
-    let pre: Vec<i64> = period_set.iter().copied().filter(|period| *period < intervention_period).collect();
-    let post: Vec<i64> = period_set.iter().copied().filter(|period| *period >= intervention_period).collect();
+    let pre: Vec<i64> =
+        period_set.iter().copied().filter(|period| *period < intervention_period).collect();
+    let post: Vec<i64> =
+        period_set.iter().copied().filter(|period| *period >= intervention_period).collect();
     let mut statistics = Vec::with_capacity(panel.len());
     for (candidate, values) in &panel {
         let donors: Vec<_> = panel.iter().filter(|(unit, _)| *unit != candidate).collect();
         let target_pre: Vec<f64> = pre.iter().map(|period| values[period]).collect();
-        let donor_pre: Vec<Vec<f64>> = donors.iter().map(|(_, values)| pre.iter().map(|period| values[period]).collect()).collect();
+        let donor_pre: Vec<Vec<f64>> = donors
+            .iter()
+            .map(|(_, values)| pre.iter().map(|period| values[period]).collect())
+            .collect();
         let (weights, _) = fit_weights(&target_pre, &donor_pre);
-        let treated_post = post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64;
-        let donor_post: f64 = donors.iter().zip(&weights).map(|((_, values), weight)| {
-            *weight * post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64
-        }).sum();
+        let treated_post =
+            post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64;
+        let donor_post: f64 = donors
+            .iter()
+            .zip(&weights)
+            .map(|((_, values), weight)| {
+                *weight * post.iter().map(|period| values[period]).sum::<f64>() / post.len() as f64
+            })
+            .sum();
         statistics.push(((*candidate).to_string(), (treated_post - donor_post).abs()));
     }
-    let observed = statistics.iter().find(|(unit, _)| unit == treated_unit)
-        .ok_or_else(|| "treated unit is absent from exact randomization distribution".to_string())?.1;
+    let observed = statistics
+        .iter()
+        .find(|(unit, _)| unit == treated_unit)
+        .ok_or_else(|| "treated unit is absent from exact randomization distribution".to_string())?
+        .1;
     let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
@@ -395,8 +445,12 @@ pub fn exact_synthetic_unit_randomization_test(
 /// candidate treated unit. Reusing the unaugmented randomization distribution
 /// would test a different statistic from the reported augmented effect.
 pub fn exact_augmented_synthetic_unit_randomization_test(
-    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
-    intervention_period: i64, ridge_penalty: f64,
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
+    intervention_period: i64,
+    ridge_penalty: f64,
 ) -> Result<SyntheticUnitRandomizationTest, String> {
     let mut candidates: Vec<&str> = units.iter().map(String::as_str).collect();
     candidates.sort_unstable();
@@ -407,12 +461,22 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
     let mut statistics = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         let fit = fit_augmented_synthetic_control(
-            outcome, units, periods, candidate, intervention_period, ridge_penalty,
+            outcome,
+            units,
+            periods,
+            candidate,
+            intervention_period,
+            ridge_penalty,
         )?;
         statistics.push((candidate.to_string(), fit.effect.abs()));
     }
-    let observed = statistics.iter().find(|(unit, _)| unit == treated_unit)
-        .ok_or_else(|| "treated unit is absent from exact augmented randomization distribution".to_string())?.1;
+    let observed = statistics
+        .iter()
+        .find(|(unit, _)| unit == treated_unit)
+        .ok_or_else(|| {
+            "treated unit is absent from exact augmented randomization distribution".to_string()
+        })?
+        .1;
     let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
@@ -428,8 +492,12 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
 /// assignment. This tests the *sharp* constant-effect null; it does not give
 /// an observational placebo p-value or an effect confidence interval.
 pub fn exact_synthetic_constant_effect_test(
-    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
-    intervention_period: i64, null_effect: f64,
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
+    intervention_period: i64,
+    null_effect: f64,
     method: SyntheticConstantEffectMethod,
 ) -> Result<SyntheticUnitRandomizationTest, String> {
     if !null_effect.is_finite() {
@@ -451,15 +519,31 @@ pub fn exact_synthetic_constant_effect_test(
     }
     match method {
         SyntheticConstantEffectMethod::Control => exact_synthetic_unit_randomization_test(
-            &untreated, units, periods, treated_unit, intervention_period,
+            &untreated,
+            units,
+            periods,
+            treated_unit,
+            intervention_period,
         ),
-        SyntheticConstantEffectMethod::DifferenceInDifferences => exact_synthetic_did_unit_randomization_test(
-            &untreated, units, periods, treated_unit, intervention_period,
-        ),
-        SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty } =>
+        SyntheticConstantEffectMethod::DifferenceInDifferences => {
+            exact_synthetic_did_unit_randomization_test(
+                &untreated,
+                units,
+                periods,
+                treated_unit,
+                intervention_period,
+            )
+        }
+        SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty } => {
             exact_augmented_synthetic_unit_randomization_test(
-                &untreated, units, periods, treated_unit, intervention_period, ridge_penalty,
-            ),
+                &untreated,
+                units,
+                periods,
+                treated_unit,
+                intervention_period,
+                ridge_penalty,
+            )
+        }
     }
 }
 
@@ -479,7 +563,13 @@ pub enum SyntheticConstantEffectMethod {
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::cast_possible_wrap, reason = "fixtures build small nonnegative period labels as i64"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::cast_possible_wrap,
+            reason = "fixtures build small nonnegative period labels as i64"
+        )
+    )]
     use super::*;
 
     #[test]
@@ -491,16 +581,23 @@ mod tests {
             for period in 1..=4 {
                 units.push(unit.to_string());
                 periods.push(period);
-                outcome.push(if period < 4 { position * period as f64 }
-                    else { 4.0 * position + if unit == "treated" { 5.0 } else { 0.0 } });
+                outcome.push(if period < 4 {
+                    position * period as f64
+                } else {
+                    4.0 * position + if unit == "treated" { 5.0 } else { 0.0 }
+                });
             }
         }
-        let fit = fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 1e-8).unwrap();
+        let fit = fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 1e-8)
+            .unwrap();
         assert!((fit.control.effect - 9.0).abs() < 1e-5);
         assert!((fit.outcome_model_correction - 4.0).abs() < 1e-4);
         assert!((fit.effect - 5.0).abs() < 1e-4);
-        assert!(fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 0.0)
-            .unwrap_err().contains("positive ridge penalty"));
+        assert!(
+            fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 0.0)
+                .unwrap_err()
+                .contains("positive ridge penalty")
+        );
     }
 
     #[test]
@@ -542,9 +639,9 @@ mod tests {
         let mut outcome = Vec::new();
         let mut units = Vec::new();
         let mut periods = Vec::new();
-        for (unit, baseline, trend) in [
-            ("a", 0.0, 0.1), ("b", 1.0, -0.2), ("c", 2.0, 0.3), ("d", 3.0, -0.1),
-        ] {
+        for (unit, baseline, trend) in
+            [("a", 0.0, 0.1), ("b", 1.0, -0.2), ("c", 2.0, 0.3), ("d", 3.0, -0.1)]
+        {
             for period in 1..=6 {
                 units.push(unit.to_string());
                 periods.push(period);
@@ -554,9 +651,13 @@ mod tests {
         // Under the sharp null this one observed panel is the outcome table for
         // every possible uniformly selected treated unit.
         let assignments = ["a", "b", "c", "d"];
-        let tests: Vec<_> = assignments.iter().map(|unit|
-            exact_synthetic_unit_randomization_test(&outcome, &units, &periods, unit, 5).unwrap()
-        ).collect();
+        let tests: Vec<_> = assignments
+            .iter()
+            .map(|unit| {
+                exact_synthetic_unit_randomization_test(&outcome, &units, &periods, unit, 5)
+                    .unwrap()
+            })
+            .collect();
         for test in &tests[1..] {
             assert_eq!(test.statistics, tests[0].statistics);
         }
@@ -572,29 +673,35 @@ mod tests {
         let mut outcome = Vec::new();
         let mut units = Vec::new();
         let mut periods = Vec::new();
-        for (unit, level, trend) in [
-            ("a", 0.0, 0.2), ("b", 1.0, -0.1),
-            ("c", 2.0, 0.3), ("d", 3.0, 0.0),
-        ] {
+        for (unit, level, trend) in
+            [("a", 0.0, 0.2), ("b", 1.0, -0.1), ("c", 2.0, 0.3), ("d", 3.0, 0.0)]
+        {
             for period in 1..=6 {
                 units.push(unit.to_string());
                 periods.push(period);
-                outcome.push(level + trend * period as f64 + if period >= 5 && unit == "d" { 2.0 } else { 0.0 });
+                outcome.push(
+                    level
+                        + trend * period as f64
+                        + if period >= 5 && unit == "d" { 2.0 } else { 0.0 },
+                );
             }
         }
         let candidates = ["a", "b", "c", "d"];
-        let tests: Vec<_> = candidates.iter().map(|unit|
-            exact_augmented_synthetic_unit_randomization_test(
-                &outcome, &units, &periods, unit, 5, 0.1,
-            ).unwrap()
-        ).collect();
+        let tests: Vec<_> = candidates
+            .iter()
+            .map(|unit| {
+                exact_augmented_synthetic_unit_randomization_test(
+                    &outcome, &units, &periods, unit, 5, 0.1,
+                )
+                .unwrap()
+            })
+            .collect();
         for test in &tests[1..] {
             assert_eq!(test.statistics, tests[0].statistics);
         }
         for (unit, statistic) in &tests[0].statistics {
-            let fit = fit_augmented_synthetic_control(
-                &outcome, &units, &periods, unit, 5, 0.1,
-            ).unwrap();
+            let fit =
+                fit_augmented_synthetic_control(&outcome, &units, &periods, unit, 5, 0.1).unwrap();
             assert!((statistic - fit.effect.abs()).abs() < 1e-12);
         }
         for numerator in 1..=candidates.len() {
@@ -602,9 +709,12 @@ mod tests {
             let rejections = tests.iter().filter(|test| test.p_value <= alpha).count();
             assert!(rejections <= numerator);
         }
-        assert!(exact_augmented_synthetic_unit_randomization_test(
-            &outcome, &units, &periods, "absent", 5, 0.1,
-        ).is_err());
+        assert!(
+            exact_augmented_synthetic_unit_randomization_test(
+                &outcome, &units, &periods, "absent", 5, 0.1,
+            )
+            .is_err()
+        );
     }
 }
 
@@ -658,9 +768,7 @@ pub fn fit_synthetic_did(
         }
         all_periods.insert(periods[i]);
         if panel.entry(units[i].clone()).or_default().insert(periods[i], values[i]).is_some() {
-            return Err(String::from(
-                "each unit must have exactly one outcome per period",
-            ));
+            return Err(String::from("each unit must have exactly one outcome per period"));
         }
     }
     let period_list: Vec<i64> = all_periods.into_iter().collect();
@@ -743,7 +851,15 @@ pub fn fit_synthetic_did(
         .map(|((unit, _), weight)| ((*unit).clone(), weight))
         .collect();
     let time_weights = pre.into_iter().zip(time_weights).collect();
-    Ok(SyntheticDidFit { effect: estimate, pre_treatment_rmse: pre_rmse, donor_weights: weights, time_weights, n_donors: donors.len(), n_pre_periods: n_pre, n_post_periods: n_post })
+    Ok(SyntheticDidFit {
+        effect: estimate,
+        pre_treatment_rmse: pre_rmse,
+        donor_weights: weights,
+        time_weights,
+        n_donors: donors.len(),
+        n_pre_periods: n_pre,
+        n_post_periods: n_post,
+    })
 }
 
 /// Exact sharp-null assignment test for a uniformly selected synthetic-DiD treated unit.
@@ -753,21 +869,32 @@ pub fn fit_synthetic_did(
 /// randomization under the sharp null; it does not calibrate an interval or
 /// turn observational donor placebos into a randomization test.
 pub fn exact_synthetic_did_unit_randomization_test(
-    outcome: &[f64], units: &[String], periods: &[i64], treated_unit: &str,
+    outcome: &[f64],
+    units: &[String],
+    periods: &[i64],
+    treated_unit: &str,
     intervention_period: i64,
 ) -> Result<SyntheticUnitRandomizationTest, String> {
     fit_synthetic_did(outcome, units, periods, treated_unit, intervention_period)?;
     let candidates: BTreeSet<&str> = units.iter().map(String::as_str).collect();
     if candidates.len() > 32 {
-        return Err("exact synthetic DiD unit randomization currently supports at most 32 candidate units".into());
+        return Err(
+            "exact synthetic DiD unit randomization currently supports at most 32 candidate units"
+                .into(),
+        );
     }
     let mut statistics = Vec::with_capacity(candidates.len());
     for candidate in candidates {
         let fit = fit_synthetic_did(outcome, units, periods, candidate, intervention_period)?;
         statistics.push((candidate.to_string(), fit.effect.abs()));
     }
-    let observed = statistics.iter().find(|(unit, _)| unit == treated_unit)
-        .ok_or_else(|| "treated unit is absent from exact synthetic DiD randomization distribution".to_string())?.1;
+    let observed = statistics
+        .iter()
+        .find(|(unit, _)| unit == treated_unit)
+        .ok_or_else(|| {
+            "treated unit is absent from exact synthetic DiD randomization distribution".to_string()
+        })?
+        .1;
     let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
@@ -777,26 +904,55 @@ pub fn exact_synthetic_did_unit_randomization_test(
 
 #[cfg(test)]
 mod synthetic_did_tests {
-    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "fixtures map small nonnegative i64 period labels to indices"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "fixtures map small nonnegative i64 period labels to indices"
+        )
+    )]
     use super::{exact_synthetic_did_unit_randomization_test, fit_synthetic_did};
 
     #[test]
     fn additive_unit_and_time_effects_recover_known_treatment_and_refuse_sparse_pre_support() {
         let units: Vec<String> = ["treated", "d0", "d1", "d2"]
-            .into_iter().flat_map(|unit| std::iter::repeat_n(unit.to_string(), 4)).collect();
+            .into_iter()
+            .flat_map(|unit| std::iter::repeat_n(unit.to_string(), 4))
+            .collect();
         let periods: Vec<i64> = (0..4).flat_map(|_| 1..=4).collect();
-        let outcome: Vec<f64> = units.iter().zip(&periods).map(|(unit, period)| {
-            let baseline = match unit.as_str() { "treated" | "d1" => 10.0, "d0" => 2.0, _ => 18.0 };
-            let common = match period { 1 => 1.0, 2 => 3.0, 3 => -2.0, _ => 5.0 };
-            baseline + common + if unit == "treated" && *period == 4 { 7.0 } else { 0.0 }
-        }).collect();
+        let outcome: Vec<f64> = units
+            .iter()
+            .zip(&periods)
+            .map(|(unit, period)| {
+                let baseline = match unit.as_str() {
+                    "treated" | "d1" => 10.0,
+                    "d0" => 2.0,
+                    _ => 18.0,
+                };
+                let common = match period {
+                    1 => 1.0,
+                    2 => 3.0,
+                    3 => -2.0,
+                    _ => 5.0,
+                };
+                baseline + common + if unit == "treated" && *period == 4 { 7.0 } else { 0.0 }
+            })
+            .collect();
         let fit = fit_synthetic_did(&outcome, &units, &periods, "treated", 4).unwrap();
         assert!((fit.effect - 7.0).abs() < 1e-8);
         assert_eq!((fit.n_donors, fit.n_pre_periods, fit.n_post_periods), (3, 3, 1));
-        assert!((fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8);
-        assert!((fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8);
-        assert!(fit_synthetic_did(&outcome, &units, &periods, "treated", 2)
-            .unwrap_err().contains("at least two pre-periods"));
+        assert!(
+            (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8
+        );
+        assert!(
+            (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8
+        );
+        assert!(
+            fit_synthetic_did(&outcome, &units, &periods, "treated", 2)
+                .unwrap_err()
+                .contains("at least two pre-periods")
+        );
     }
 
     #[test]
@@ -808,15 +964,25 @@ mod synthetic_did_tests {
             for period in 1..=5 {
                 units.push(format!("unit-{unit}"));
                 periods.push(period);
-                outcome.push(unit as f64 * 0.31 + period as f64 * 0.17
-                    + ((unit * 7 + period as usize * 3) % 11) as f64 * 0.13);
+                outcome.push(
+                    unit as f64 * 0.31
+                        + period as f64 * 0.17
+                        + ((unit * 7 + period as usize * 3) % 11) as f64 * 0.13,
+                );
             }
         }
-        let fits: Vec<_> = (0..8).map(|unit| {
-            exact_synthetic_did_unit_randomization_test(
-                &outcome, &units, &periods, &format!("unit-{unit}"), 5,
-            ).unwrap()
-        }).collect();
+        let fits: Vec<_> = (0..8)
+            .map(|unit| {
+                exact_synthetic_did_unit_randomization_test(
+                    &outcome,
+                    &units,
+                    &periods,
+                    &format!("unit-{unit}"),
+                    5,
+                )
+                .unwrap()
+            })
+            .collect();
         for fit in &fits[1..] {
             assert_eq!(fit.statistics, fits[0].statistics);
         }
@@ -824,17 +990,27 @@ mod synthetic_did_tests {
             let rejects = fits.iter().filter(|fit| fit.p_value <= alpha).count();
             assert!(rejects as f64 / 8.0 <= alpha);
         }
-        assert!(exact_synthetic_did_unit_randomization_test(
-            &outcome, &units, &periods, "missing", 5,
-        ).is_err());
+        assert!(
+            exact_synthetic_did_unit_randomization_test(&outcome, &units, &periods, "missing", 5,)
+                .is_err()
+        );
     }
 }
 
 #[cfg(test)]
 mod constant_effect_null_tests {
-    #![cfg_attr(test, allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "fixtures map small nonnegative i64 period labels to indices"))]
-    use super::{exact_synthetic_constant_effect_test, exact_synthetic_did_unit_randomization_test,
-        exact_augmented_synthetic_unit_randomization_test, SyntheticConstantEffectMethod};
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "fixtures map small nonnegative i64 period labels to indices"
+        )
+    )]
+    use super::{
+        SyntheticConstantEffectMethod, exact_augmented_synthetic_unit_randomization_test,
+        exact_synthetic_constant_effect_test, exact_synthetic_did_unit_randomization_test,
+    };
 
     #[test]
     fn prespecified_nonzero_sharp_null_is_exact_over_2000_assignments() {
@@ -846,35 +1022,56 @@ mod constant_effect_null_tests {
             for period in 1..=5 {
                 units.push((*unit).to_string());
                 periods.push(period);
-                untreated.push(index as f64 * 0.27 + period as f64 * 0.13
-                    + ((index * 11 + period as usize * 7) % 13) as f64 * 0.09);
+                untreated.push(
+                    index as f64 * 0.27
+                        + period as f64 * 0.13
+                        + ((index * 11 + period as usize * 7) % 13) as f64 * 0.09,
+                );
             }
         }
         let null_effect = 2.75;
         let mut p_values = Vec::new();
         for candidate in candidates {
-            let observed: Vec<f64> = untreated.iter().zip(&units).zip(&periods)
-                .map(|((value, unit), period)| value + if unit == candidate && *period >= 5 {
-                    null_effect
-                } else { 0.0 })
+            let observed: Vec<f64> = untreated
+                .iter()
+                .zip(&units)
+                .zip(&periods)
+                .map(|((value, unit), period)| {
+                    value + if unit == candidate && *period >= 5 { null_effect } else { 0.0 }
+                })
                 .collect();
             let test = exact_synthetic_constant_effect_test(
-                &observed, &units, &periods, candidate, 5, null_effect,
+                &observed,
+                &units,
+                &periods,
+                candidate,
+                5,
+                null_effect,
                 SyntheticConstantEffectMethod::Control,
-            ).unwrap();
+            )
+            .unwrap();
             p_values.push(test.p_value);
         }
         // Each candidate is selected exactly 250 times, giving 2,000 draws
         // from the declared uniform assignment mechanism on a fixed Y(0) panel.
         for alpha in [0.05, 0.125, 0.25, 0.5] {
-            let rejections: usize = (0..2_000)
-                .filter(|draw| p_values[draw % candidates.len()] <= alpha).count();
+            let rejections: usize =
+                (0..2_000).filter(|draw| p_values[draw % candidates.len()] <= alpha).count();
             assert!(rejections as f64 / 2_000.0 <= alpha);
         }
-        assert!(exact_synthetic_constant_effect_test(
-            &untreated, &units, &periods, "a", 5, f64::NAN,
-            SyntheticConstantEffectMethod::Control,
-        ).unwrap_err().contains("finite"));
+        assert!(
+            exact_synthetic_constant_effect_test(
+                &untreated,
+                &units,
+                &periods,
+                "a",
+                5,
+                f64::NAN,
+                SyntheticConstantEffectMethod::Control,
+            )
+            .unwrap_err()
+            .contains("finite")
+        );
     }
 
     #[test]
@@ -887,8 +1084,11 @@ mod constant_effect_null_tests {
             for period in 1..=4 {
                 units.push((*unit).to_string());
                 periods.push(period);
-                observed.push(index as f64 * 0.25 + period as f64 * 0.3
-                    + if *unit == "treated" && period == 4 { 3.0 } else { 0.0 });
+                observed.push(
+                    index as f64 * 0.25
+                        + period as f64 * 0.3
+                        + if *unit == "treated" && period == 4 { 3.0 } else { 0.0 },
+                );
             }
         }
         for method in [
@@ -897,15 +1097,34 @@ mod constant_effect_null_tests {
         ] {
             let test = exact_synthetic_constant_effect_test(
                 &observed, &units, &periods, "treated", 4, 3.0, method,
-            ).unwrap();
-            let untreated: Vec<f64> = observed.iter().zip(&units).zip(&periods)
-                .map(|((value, unit), period)| value - if unit == "treated" && *period == 4 { 3.0 } else { 0.0 })
+            )
+            .unwrap();
+            let untreated: Vec<f64> = observed
+                .iter()
+                .zip(&units)
+                .zip(&periods)
+                .map(|((value, unit), period)| {
+                    value - if unit == "treated" && *period == 4 { 3.0 } else { 0.0 }
+                })
                 .collect();
             let expected = match method {
-                SyntheticConstantEffectMethod::DifferenceInDifferences =>
-                    exact_synthetic_did_unit_randomization_test(&untreated, &units, &periods, "treated", 4).unwrap(),
-                SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty } =>
-                    exact_augmented_synthetic_unit_randomization_test(&untreated, &units, &periods, "treated", 4, ridge_penalty).unwrap(),
+                SyntheticConstantEffectMethod::DifferenceInDifferences => {
+                    exact_synthetic_did_unit_randomization_test(
+                        &untreated, &units, &periods, "treated", 4,
+                    )
+                    .unwrap()
+                }
+                SyntheticConstantEffectMethod::AugmentedControl { ridge_penalty } => {
+                    exact_augmented_synthetic_unit_randomization_test(
+                        &untreated,
+                        &units,
+                        &periods,
+                        "treated",
+                        4,
+                        ridge_penalty,
+                    )
+                    .unwrap()
+                }
                 SyntheticConstantEffectMethod::Control => unreachable!(),
             };
             assert_eq!(test.statistics.len(), 4);

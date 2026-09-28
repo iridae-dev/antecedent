@@ -843,7 +843,10 @@ fn admg_ir_freq_coverage(
         if rep == 0 {
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
             assert_interval_method(&study, &result, "bootstrap_se");
-            assert!(interval.is_some(), "the frequentist ADMG scalar must publish a bootstrap interval");
+            assert!(
+                interval.is_some(),
+                "the frequentist ADMG scalar must publish a bootstrap interval"
+            );
         }
         Some((study, result, interval))
     });
@@ -877,7 +880,10 @@ fn admg_rc_freq_coverage(
             let (study, result) = run.as_ref().expect("frequentist ADMG curve runs");
             assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
             assert_interval_method(study, result, "bootstrap_se");
-            assert!(response_band(result).is_some(), "the frequentist ADMG curve must publish the band");
+            assert!(
+                response_band(result).is_some(),
+                "the frequentist ADMG curve must publish the band"
+            );
         }
         run
     });
@@ -888,7 +894,9 @@ fn admg_rc_freq_coverage(
         }
         for (j, tally) in tallies.iter_mut().enumerate() {
             match &bands {
-                Some((lower, upper, _)) => tally.record(Some((lower[j], upper[j])), ADMG_CURVE_TRUTH[j]),
+                Some((lower, upper, _)) => {
+                    tally.record(Some((lower[j], upper[j])), ADMG_CURVE_TRUTH[j])
+                }
                 None => tally.skip(),
             }
         }
@@ -1418,7 +1426,13 @@ fn temporal_cpdag_intervention_response_frequentist_nominal_coverage() {
         "temporal.response.gcomp",
         false,
         |data, replicates, seed| {
-            run_temporal_freq(data, agreeing_temporal_cpdag(), temporal_intervention(), replicates, seed)
+            run_temporal_freq(
+                data,
+                agreeing_temporal_cpdag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         199,
         0x110_0450,
@@ -1434,7 +1448,13 @@ fn temporal_cpdag_intervention_response_bayesian_nominal_coverage() {
         "response.temporal.bayesian",
         true,
         |data, replicates, seed| {
-            run_temporal_bayes(data, agreeing_temporal_cpdag(), temporal_intervention(), replicates, seed)
+            run_temporal_bayes(
+                data,
+                agreeing_temporal_cpdag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         0,
         0x110_0451,
@@ -1493,7 +1513,13 @@ fn temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage() 
         "temporal.response.gcomp",
         false,
         |data, replicates, seed| {
-            run_temporal_freq(data, accepted_temporal_cpdag(), temporal_intervention(), replicates, seed)
+            run_temporal_freq(
+                data,
+                accepted_temporal_cpdag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         199,
         0x110_0460,
@@ -1509,7 +1535,13 @@ fn temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage() {
         "response.temporal.bayesian",
         true,
         |data, replicates, seed| {
-            run_temporal_bayes(data, accepted_temporal_cpdag(), temporal_intervention(), replicates, seed)
+            run_temporal_bayes(
+                data,
+                accepted_temporal_cpdag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         0,
         0x110_0461,
@@ -1566,7 +1598,13 @@ fn temporal_pag_intervention_response_frequentist_nominal_coverage() {
         "temporal.response.gcomp",
         false,
         |data, replicates, seed| {
-            run_temporal_freq(data, agreeing_temporal_pag(), temporal_intervention(), replicates, seed)
+            run_temporal_freq(
+                data,
+                agreeing_temporal_pag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         199,
         0x110_0464,
@@ -1582,7 +1620,13 @@ fn temporal_pag_intervention_response_bayesian_nominal_coverage() {
         "response.temporal.bayesian",
         true,
         |data, replicates, seed| {
-            run_temporal_bayes(data, agreeing_temporal_pag(), temporal_intervention(), replicates, seed)
+            run_temporal_bayes(
+                data,
+                agreeing_temporal_pag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         0,
         0x110_0465,
@@ -1630,7 +1674,13 @@ fn temporal_pag_intervention_response_frequentist_accepted_nominal_coverage() {
         "temporal.response.gcomp",
         false,
         |data, replicates, seed| {
-            run_temporal_freq(data, accepted_temporal_pag(), temporal_intervention(), replicates, seed)
+            run_temporal_freq(
+                data,
+                accepted_temporal_pag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         199,
         0x110_0468,
@@ -1646,7 +1696,13 @@ fn temporal_pag_intervention_response_bayesian_accepted_nominal_coverage() {
         "response.temporal.bayesian",
         true,
         |data, replicates, seed| {
-            run_temporal_bayes(data, accepted_temporal_pag(), temporal_intervention(), replicates, seed)
+            run_temporal_bayes(
+                data,
+                accepted_temporal_pag(),
+                temporal_intervention(),
+                replicates,
+                seed,
+            )
         },
         0,
         0x110_0469,

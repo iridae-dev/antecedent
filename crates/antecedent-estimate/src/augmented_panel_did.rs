@@ -20,17 +20,30 @@ pub struct AugmentedPanelDidFit {
 
 /// Estimate the treated-group ATT from supplied propensity and untreated-change predictions.
 pub fn estimate(
-    pre: &[f64], post: &[f64], treated: &[bool], propensity: &[f64], prediction: &[f64],
+    pre: &[f64],
+    post: &[f64],
+    treated: &[bool],
+    propensity: &[f64],
+    prediction: &[f64],
 ) -> Result<AugmentedPanelDidFit, &'static str> {
     let n = pre.len();
-    if n == 0 || post.len() != n || treated.len() != n || propensity.len() != n || prediction.len() != n {
-        return Err("pre/post outcomes, treatment, propensity, and outcome predictions must have equal non-zero length");
+    if n == 0
+        || post.len() != n
+        || treated.len() != n
+        || propensity.len() != n
+        || prediction.len() != n
+    {
+        return Err(
+            "pre/post outcomes, treatment, propensity, and outcome predictions must have equal non-zero length",
+        );
     }
     if pre.iter().chain(post).chain(prediction).any(|value| !value.is_finite()) {
         return Err("outcomes and nuisance predictions must be finite");
     }
     if propensity.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value >= 1.0) {
-        return Err("augmented DiD overlap failure: propensity scores must be strictly between zero and one");
+        return Err(
+            "augmented DiD overlap failure: propensity scores must be strictly between zero and one",
+        );
     }
     let treated_subjects = treated.iter().filter(|&&value| value).count();
     let control_subjects = n - treated_subjects;
@@ -68,7 +81,11 @@ pub fn estimate(
         return Err("augmented DiD estimate overflowed finite precision");
     }
     Ok(AugmentedPanelDidFit {
-        effect, treated_subjects, control_subjects, propensity_min, propensity_max,
+        effect,
+        treated_subjects,
+        control_subjects,
+        propensity_min,
+        propensity_max,
         effective_control_sample_size,
     })
 }

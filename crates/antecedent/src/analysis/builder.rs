@@ -153,10 +153,24 @@ fn refuse_unlicensed_interference(
                 query.assignment,
                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
             ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction))
-            || (matches!(query.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. })
-                && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure))
-            || (matches!(query.assignment, antecedent_core::AssignmentDesign::ObservedExposure { .. })
-                && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure));
+            || (matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+            ) && matches!(
+                query.exposure,
+                antecedent_core::ExposureMapping::NeighborCount
+                    | antecedent_core::ExposureMapping::NeighborFraction
+                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
+            ))
+            || (matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::ObservedExposure { .. }
+            ) && matches!(
+                query.exposure,
+                antecedent_core::ExposureMapping::NeighborCount
+                    | antecedent_core::ExposureMapping::NeighborFraction
+                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
+            ));
     if licensed {
         Ok(())
     } else {
@@ -1472,14 +1486,16 @@ impl StudyBuilder {
                         } else {
                             EstimatorId::RandomizedHt
                         }
-                    },
+                    }
                     antecedent_core::RandomizationDesign::Complete { .. }
                     | antecedent_core::RandomizationDesign::Stratified { .. }
                     | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
                     | antecedent_core::RandomizationDesign::Cluster { .. } => {
                         EstimatorId::RandomizedNeyman
                     }
-                    antecedent_core::RandomizationDesign::MultiArm { .. } => EstimatorId::RandomizedHt,
+                    antecedent_core::RandomizationDesign::MultiArm { .. } => {
+                        EstimatorId::RandomizedHt
+                    }
                     antecedent_core::RandomizationDesign::Switchback { .. } => {
                         EstimatorId::RandomizedSwitchbackHt
                     }
@@ -1572,8 +1588,10 @@ impl StudyBuilder {
                     message: "design-based queries have no refutation suite or custom validator route",
                 });
             }
-            if self.bootstrap_explicit && bootstrap_replicates != 0
-                && !matches!(query, CausalQuery::Survival(_)) {
+            if self.bootstrap_explicit
+                && bootstrap_replicates != 0
+                && !matches!(query, CausalQuery::Survival(_))
+            {
                 return Err(CausalError::Unsupported {
                     message: "this design-based query does not support bootstrap intervals",
                 });

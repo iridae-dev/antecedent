@@ -464,11 +464,9 @@ impl super::Study {
         // Score all rows (preserving the prior facade behavior of ignoring `unit_rows`
         // for the published mean) while honoring the query's reference. Fixing the
         // reference is what gives the mean anomaly score a sample-independent truth.
-        let scorer_query = antecedent_core::AnomalyAttributionQuery::new(
-            query.targets.clone(),
-            query.max_units,
-        )
-        .with_reference(query.reference);
+        let scorer_query =
+            antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
+                .with_reference(query.reference);
         let scores = anomaly_attribution_query_with(&fitted.model, data, &scorer_query, ctx)?;
         let mut result = self.finish_gcm(
             physical,

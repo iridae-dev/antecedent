@@ -1,5 +1,9 @@
 //! Retained native balanced-panel `DiD` route.
-#![allow(clippy::float_cmp, clippy::cast_lossless, reason = "integration test asserts exact deterministic estimates and widens small integer fixtures to f64")]
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_lossless,
+    reason = "integration test asserts exact deterministic estimates and widens small integer fixtures to f64"
+)]
 
 use std::sync::Arc;
 
@@ -54,9 +58,8 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "parallel_trends"
     )));
     assert!(!result.diagnostics.is_empty());
-    assert!(result.diagnostics.iter().any(|diagnostic|
-        diagnostic.code.as_ref() == "identification.quasi.parallel_trends_untestable_two_periods"
-    ));
+    assert!(result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
+        == "identification.quasi.parallel_trends_untestable_two_periods"));
 
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
@@ -66,7 +69,14 @@ fn panel_did_runs_identically_through_study_and_prepared_routes() {
     let bytes = prepared.encode_contracted_result(&refreshed, "thin-panel-did", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-thin-did-license").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-thin-did-license"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -83,30 +93,49 @@ fn supported_panel_did_interval_round_trips_and_rejects_fabrication() {
                 clusters.push(Arc::<str>::from(format!("cluster-{group}-{cluster}")));
                 treated.push(group);
                 post.push(after);
-                outcome.push(if after { cluster as f64 * 0.1 + if group { 2.0 } else { 0.0 } } else { 0.0 });
+                outcome.push(if after {
+                    cluster as f64 * 0.1 + if group { 2.0 } else { 0.0 }
+                } else {
+                    0.0
+                });
             }
         }
     }
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
     let query = PanelDidQuery::new(VariableId::from_raw(0), treated, post, ids, clusters);
     let context = ExecutionContext::for_tests(91);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
     let did = result.panel_did.as_ref().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     assert_eq!(did.uncertainty.as_ref(), "cluster_robust_normal_interval_independent_clusters");
     let bounds = did.interval_95.unwrap();
     assert!(bounds[0] <= did.effect && did.effect <= bounds[1]);
-    assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::AnalyticSe);
+    assert_eq!(
+        result.interval.as_ref().unwrap().method,
+        antecedent_core::IntervalMethod::AnalyticSe
+    );
     assert_eq!(result.interval.as_ref().unwrap().dependence, "cluster");
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
+    let bytes =
+        prepared.encode_contracted_result(&result, "supported-panel-did", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
-    assert_eq!(body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(
+        body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
+        Some("licensed")
+    );
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().interval_95 = Some([bounds[0] - 1.0, bounds[1]]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -123,25 +152,47 @@ fn supported_repeated_cross_section_interval_round_trips_and_rejects_fabrication
                 clusters.push(Arc::<str>::from(format!("cluster-{group}-{after}-{cell_cluster}")));
                 treated.push(group);
                 post.push(after);
-                outcome.push(f64::from(group) + 0.5 * f64::from(after)
-                    + 2.0 * f64::from(group && after) + cell_cluster as f64 * 0.1);
+                outcome.push(
+                    f64::from(group)
+                        + 0.5 * f64::from(after)
+                        + 2.0 * f64::from(group && after)
+                        + cell_cluster as f64 * 0.1,
+                );
             }
         }
     }
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
-    let query = PanelDidQuery::repeated_cross_section(VariableId::from_raw(0), treated, post, ids, clusters);
+    let query = PanelDidQuery::repeated_cross_section(
+        VariableId::from_raw(0),
+        treated,
+        post,
+        ids,
+        clusters,
+    );
     let context = ExecutionContext::for_tests(93);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let did = result.panel_did.as_ref().unwrap();
     assert!((did.effect - 2.0).abs() < 1e-12);
     let interval = did.interval_95.expect("30 independent clusters in every cell");
-    let bytes = prepared.encode_contracted_result(&result, "repeated-did-license", &context).unwrap();
+    let bytes =
+        prepared.encode_contracted_result(&result, "repeated-did-license", &context).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(
+        body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
+        Some("licensed")
+    );
     body.panel_did.as_mut().unwrap().interval_95 = Some([interval[0] - 1.0, interval[1]]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-repeated-did").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-repeated-did"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -176,8 +227,12 @@ fn panel_did_refuses_cluster_shared_across_treatment_groups() {
     clusters[8] = clusters[0].clone();
     clusters[9] = clusters[0].clone();
     query.clusters = clusters.into();
-    let error = Study::tabular(data).query(query).build().unwrap()
-        .run(&ExecutionContext::for_tests(1)).unwrap_err();
+    let error = Study::tabular(data)
+        .query(query)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap_err();
     assert!(error.to_string().contains("clusters nested within treatment groups"));
 }
 
@@ -209,9 +264,8 @@ fn repeated_cross_section_did_runs_through_study_and_prepared_routes() {
             &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required
         )));
     }
-    assert!(result.diagnostics.iter().any(|diagnostic|
-        diagnostic.code.as_ref() == "identification.quasi.parallel_trends_untestable_two_periods"
-    ));
+    assert!(result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
+        == "identification.quasi.parallel_trends_untestable_two_periods"));
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let refreshed = prepared.estimate(&data, &context).unwrap();
@@ -269,8 +323,12 @@ fn repeated_cross_section_refuses_cluster_shared_across_treatment_groups() {
         (0..8).map(|i| Arc::<str>::from(format!("subject-{i}"))).collect::<Vec<_>>(),
         clusters,
     );
-    let error = Study::tabular(data).query(query).build().unwrap()
-        .run(&ExecutionContext::for_tests(1)).unwrap_err();
+    let error = Study::tabular(data)
+        .query(query)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap_err();
     assert!(error.to_string().contains("clusters nested within treatment groups"));
 }
 
@@ -357,42 +415,72 @@ fn staggered_event_study_retains_full_curve_and_refuses_missing_controls() {
             clusters.push(Arc::<str>::from(format!("c{subject}")));
             periods.push(period);
             cohorts.push(cohort);
-            outcome.push(subject as f64 + 2.0 * period as f64
-                + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 });
+            outcome.push(
+                subject as f64
+                    + 2.0 * period as f64
+                    + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 },
+            );
         }
     }
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
     let query = PanelDidQuery::staggered_event_study(
-        VariableId::from_raw(0), subjects, clusters, periods, cohorts,
+        VariableId::from_raw(0),
+        subjects,
+        clusters,
+        periods,
+        cohorts,
     );
     let context = ExecutionContext::for_tests(7);
-    let result = Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&context).unwrap();
+    let result =
+        Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&context).unwrap();
     let panel = result.panel_did.as_ref().unwrap();
     assert_eq!(panel.event_time_effects.len(), 3);
-    assert_eq!(panel.event_time_effects.iter().map(|effect| effect.event_time).collect::<Vec<_>>(), vec![-2, 0, 1]);
-    assert_eq!(panel.event_time_effects.iter().map(|effect| effect.effect).collect::<Vec<_>>(), vec![0.0, 4.0, 4.0]);
+    assert_eq!(
+        panel.event_time_effects.iter().map(|effect| effect.event_time).collect::<Vec<_>>(),
+        vec![-2, 0, 1]
+    );
+    assert_eq!(
+        panel.event_time_effects.iter().map(|effect| effect.effect).collect::<Vec<_>>(),
+        vec![0.0, 4.0, 4.0]
+    );
     assert_eq!(panel.event_time_effects[1].standard_error, 0.0);
     assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, Assumption::Custom { id, .. } if id.as_ref() == "cohort_specific_parallel_untreated_trends"
     )));
-    assert!(result.diagnostics.iter().any(|diagnostic|
-        diagnostic.code.as_ref() == "diagnostic.quasi.event_study.pretrend_joint_unavailable"
+    assert!(result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref()
+        == "diagnostic.quasi.event_study.pretrend_joint_unavailable"
         && diagnostic.message.contains("at least two non-reference")));
-    let prepared = Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&context).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .query(query.clone())
+        .build()
+        .unwrap()
+        .prepare(&context)
+        .unwrap();
     let retained = prepared.estimate(&data, &context).unwrap();
     assert_eq!(retained.panel_did, result.panel_did);
-    let bytes = prepared.encode_contracted_result(&retained, "staggered-event-study", &context).unwrap();
+    let bytes =
+        prepared.encode_contracted_result(&retained, "staggered-event-study", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().event_time_effects.len(), 3);
     assert!(body.interval_lower.is_none() && body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().event_time_effects[1].6 = f64::INFINITY;
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
     let no_controls = PanelDidQuery::staggered_event_study(
-        query.outcome, query.subjects.to_vec(), query.clusters.to_vec(),
-        query.periods.to_vec(), vec![3; query.cohorts.len()],
+        query.outcome,
+        query.subjects.to_vec(),
+        query.clusters.to_vec(),
+        query.periods.to_vec(),
+        vec![3; query.cohorts.len()],
     );
     assert!(Study::tabular(data).query(no_controls).build().unwrap().run(&context).is_err());
 }
@@ -413,29 +501,43 @@ fn staggered_event_joint_pretrend_statistic_is_descriptive_and_artifact_retained
                 periods.push(period);
                 cohorts.push(cohort);
                 let noise = (cluster as f64 - 3.5) * ((period % 3) as f64 - 1.0) / 10.0;
-                outcome.push(2.0 * period as f64 + noise
-                    + if cohort == 4 && period == 1 { 2.0 } else { 0.0 }
-                    + if cohort == 4 && period >= 4 { 3.0 } else { 0.0 });
+                outcome.push(
+                    2.0 * period as f64
+                        + noise
+                        + if cohort == 4 && period == 1 { 2.0 } else { 0.0 }
+                        + if cohort == 4 && period >= 4 { 3.0 } else { 0.0 },
+                );
             }
         }
     }
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
     let query = PanelDidQuery::staggered_event_study(
-        VariableId::from_raw(0), subjects, clusters, periods, cohorts,
+        VariableId::from_raw(0),
+        subjects,
+        clusters,
+        periods,
+        cohorts,
     );
     let context = ExecutionContext::for_tests(47);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
-    let diagnostic = result.diagnostics.iter().find(|diagnostic|
-        diagnostic.code.as_ref() == "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z"
-    ).expect("supported joint pretrend diagnostic");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.code.as_ref() == "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z"
+        })
+        .expect("supported joint pretrend diagnostic");
     assert!(diagnostic.message.contains("across 2 non-reference"));
     assert!(diagnostic.message.contains("no calibrated p-value or cutoff"));
     assert!(diagnostic.message.contains("cannot establish parallel untreated trends"));
     let bytes = prepared.encode_contracted_result(&result, "joint-pretrend", &context).unwrap();
     let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert!(body.diagnostics.iter().any(|wire| wire.code == diagnostic.code.as_ref()
-        && wire.message == diagnostic.message.as_ref()));
+    assert!(
+        body.diagnostics.iter().any(|wire| wire.code == diagnostic.code.as_ref()
+            && wire.message == diagnostic.message.as_ref())
+    );
 }
 
 fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelDidQuery) {
@@ -453,14 +555,21 @@ fn staggered_interval_fixture(clusters_per_group: usize) -> (TabularData, PanelD
                 periods.push(period);
                 cohorts.push(cohort);
                 let noise = ((cluster % 7) as f64 - 3.0) * ((period % 3) as f64 - 1.0) / 10.0;
-                outcome.push(5.0 + 2.0 * period as f64 + noise
-                    + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 });
+                outcome.push(
+                    5.0 + 2.0 * period as f64
+                        + noise
+                        + if cohort == 3 && period >= 3 { 4.0 } else { 0.0 },
+                );
             }
         }
     }
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
     let query = PanelDidQuery::staggered_event_study(
-        VariableId::from_raw(0), subjects, clusters, periods, cohorts,
+        VariableId::from_raw(0),
+        subjects,
+        clusters,
+        periods,
+        cohorts,
     );
     (data, query)
 }
@@ -471,35 +580,72 @@ fn supported_staggered_event_study_interval_round_trips_and_rejects_forged_licen
     // post-adoption interval and license the row.
     let (data, query) = staggered_interval_fixture(24);
     let context = ExecutionContext::for_tests(112);
-    let prepared = Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
     let did = result.panel_did.as_ref().unwrap();
-    assert_eq!(did.uncertainty.as_ref(), "event_time_pointwise_normal_intervals_independent_clusters");
+    assert_eq!(
+        did.uncertainty.as_ref(),
+        "event_time_pointwise_normal_intervals_independent_clusters"
+    );
     let bounds = did.interval_95.expect("published representative post-adoption interval");
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let bytes = prepared.encode_contracted_result(&result, "supported-staggered-event", &context).unwrap();
+    let bytes =
+        prepared.encode_contracted_result(&result, "supported-staggered-event", &context).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(
+        body.panel_did.as_ref().unwrap().graphless_support_status.as_deref(),
+        Some("licensed")
+    );
     assert_eq!(body.panel_did.as_ref().unwrap().interval_95, Some(bounds));
     // Fabricating the licensed representative interval is rejected.
     let mut fabricated = body.clone();
-    let index = fabricated.panel_did.as_ref().unwrap().event_time_effects.iter()
-        .position(|effect| effect.2 >= 0).unwrap();
-    fabricated.panel_did.as_mut().unwrap().event_time_intervals_95[index] = Some([bounds[0] - 1.0, bounds[1]]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names.clone(), "fabricated-staggered-interval").is_err());
+    let index = fabricated
+        .panel_did
+        .as_ref()
+        .unwrap()
+        .event_time_effects
+        .iter()
+        .position(|effect| effect.2 >= 0)
+        .unwrap();
+    fabricated.panel_did.as_mut().unwrap().event_time_intervals_95[index] =
+        Some([bounds[0] - 1.0, bounds[1]]);
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names.clone(),
+            "fabricated-staggered-interval"
+        )
+        .is_err()
+    );
 
     // Thin cohort: 8 clusters per group withholds the interval and the license;
     // stamping "licensed" onto that unsupported result is refused.
     let (thin_data, thin_query) = staggered_interval_fixture(8);
-    let thin_prepared = Study::tabular(thin_data.clone()).query(thin_query).build().unwrap().prepare(&context).unwrap();
+    let thin_prepared = Study::tabular(thin_data.clone())
+        .query(thin_query)
+        .build()
+        .unwrap()
+        .prepare(&context)
+        .unwrap();
     let thin_result = thin_prepared.estimate(&thin_data, &context).unwrap();
     assert_eq!(thin_result.support_status, None);
     assert_eq!(thin_result.panel_did.as_ref().unwrap().interval_95, None);
-    let thin_bytes = thin_prepared.encode_contracted_result(&thin_result, "thin-staggered-event", &context).unwrap();
-    let (_, thin_header, mut thin_body) = antecedent_io::decode_analysis_result_artifact(&thin_bytes).unwrap();
+    let thin_bytes = thin_prepared
+        .encode_contracted_result(&thin_result, "thin-staggered-event", &context)
+        .unwrap();
+    let (_, thin_header, mut thin_body) =
+        antecedent_io::decode_analysis_result_artifact(&thin_bytes).unwrap();
     assert_eq!(thin_body.panel_did.as_ref().unwrap().graphless_support_status, None);
     thin_body.panel_did.as_mut().unwrap().graphless_support_status = Some("licensed".into());
-    assert!(antecedent_io::encode_analysis_result_artifact(&thin_body, thin_header.variable_names, "forged-thin-staggered-license").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &thin_body,
+            thin_header.variable_names,
+            "forged-thin-staggered-license"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -527,22 +673,36 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
                 assert!(bounds[0] < truth && truth < bounds[1]);
             }
             assert_eq!(panel.interval_95, panel.event_time_intervals_95[1]);
-            assert_eq!(panel.uncertainty.as_ref(), "event_time_pointwise_normal_intervals_independent_clusters");
+            assert_eq!(
+                panel.uncertainty.as_ref(),
+                "event_time_pointwise_normal_intervals_independent_clusters"
+            );
             assert!(result.estimate.as_effect().unwrap().se_analytic > 0.0);
-            assert_ne!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
+            assert_ne!(
+                result.interval.as_ref().unwrap().method,
+                antecedent_core::IntervalMethod::None
+            );
         } else {
             assert!(panel.event_time_intervals_95.iter().all(Option::is_none));
             assert_eq!(panel.interval_95, None);
             assert_eq!(panel.uncertainty.as_ref(), "cluster_robust_standard_error_no_interval");
             assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
         }
-        let bytes = prepared.encode_contracted_result(&result, "staggered-event-interval", &context).unwrap();
+        let bytes = prepared
+            .encode_contracted_result(&result, "staggered-event-interval", &context)
+            .unwrap();
         let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
         assert_eq!(body.panel_did.as_ref().unwrap().event_time_intervals_95.len(), 3);
         if clusters_per_group == 24 {
             body.panel_did.as_mut().unwrap().event_time_intervals_95[1] = Some([0.0, 0.0]);
-            assert!(antecedent_io::encode_analysis_result_artifact(
-                &body, header.variable_names, "forged-staggered-interval").is_err());
+            assert!(
+                antecedent_io::encode_analysis_result_artifact(
+                    &body,
+                    header.variable_names,
+                    "forged-staggered-interval"
+                )
+                .is_err()
+            );
         }
     }
 }

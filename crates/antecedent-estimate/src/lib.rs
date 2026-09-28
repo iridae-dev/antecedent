@@ -16,8 +16,8 @@
 #![deny(missing_docs)]
 
 pub mod adjustment;
-pub mod ancova;
 pub mod aipw;
+pub mod ancova;
 pub mod ar_kernel;
 pub mod bayesian;
 pub mod bayesian_iv;
@@ -47,10 +47,9 @@ pub mod interference_observational;
 pub mod interference_saturation;
 pub mod iv;
 pub mod joint_if;
-pub mod multi_arm;
-pub mod randomized_neyman;
-pub mod randomized_scores;
 mod learn_nuisance;
+pub mod local_polynomial_ratio;
+pub mod multi_arm;
 pub mod observation;
 pub mod overlap;
 pub mod policy_value;
@@ -58,18 +57,19 @@ pub mod prediction;
 pub mod prepare;
 pub mod propensity;
 pub mod quantile;
+pub mod randomized_neyman;
+pub mod randomized_scores;
 pub mod rd;
 pub mod response;
 pub mod retarget;
 pub mod scores;
 pub mod se;
 pub mod serial_dependence;
+pub mod staggered_event_study;
 pub mod statistical_transport;
 pub mod survival;
 pub mod switchback;
 pub mod synthetic_control;
-pub mod staggered_event_study;
-pub mod local_polynomial_ratio;
 pub mod temporal_adjustment;
 pub mod temporal_block;
 pub mod temporal_mediation;
@@ -163,13 +163,18 @@ pub use identified_set::{
     imbens_manski_posterior_draws, imbens_manski_shared_replicates,
 };
 pub use interference::{
-    BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate, estimate_cluster_interference_total,
-    estimate_cluster_interference_total_with_inference,
-    estimate_cluster_interference_total_pointwise,
-    estimate_interference, estimate_interference_bayesian, own_treatment_level,
+    BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
+    estimate_cluster_interference_total, estimate_cluster_interference_total_pointwise,
+    estimate_cluster_interference_total_with_inference, estimate_interference,
+    estimate_interference_bayesian, own_treatment_level,
 };
-pub use interference_saturation::{SaturationInterferenceEstimate, estimate_saturation_interference, estimate_saturation_interference_pointwise};
-pub use interference_observational::{ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure};
+pub use interference_observational::{
+    ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure,
+};
+pub use interference_saturation::{
+    SaturationInterferenceEstimate, estimate_saturation_interference,
+    estimate_saturation_interference_pointwise,
+};
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
     TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
