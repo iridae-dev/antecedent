@@ -158,7 +158,10 @@ fn temporal_atom(
 /// Bits (lag-1, `from*3 + to`): `t(0)->y(1)` = 1, `z(2)->y(1)` = 7; mask `130`.
 fn pulse_atom(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     let lag_mask = (1u64 << 1) | (1u64 << 7);
-    temporal_atom(kind, 3, 0, 1, lag_mask)
+    // Contemporaneous z -> t (the DGP's t = 0.5 z), so z@-1 confounds the lag-1
+    // t -> y effect and identification adjusts for it.
+    let contemporaneous = set_edge(0, 3, 2, 0, true);
+    temporal_atom(kind, 3, contemporaneous, 1, lag_mask)
 }
 
 /// Sustained atom on `[t, y, z]`: the pulse edges plus `t@-2 -> y`.
@@ -166,7 +169,10 @@ fn pulse_atom(kind: GraphPosteriorAtomKind) -> GraphPosterior {
 /// `130 | (1 << 10) = 1154`, `max_lag = 2`.
 fn sustained_atom(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     let lag_mask = (1u64 << 1) | (1u64 << 7) | (1u64 << 10);
-    temporal_atom(kind, 3, 0, 2, lag_mask)
+    // Contemporaneous z -> t (the DGP's t = 0.5 z), so z@-1 confounds the lag-1
+    // t -> y effect and identification adjusts for it.
+    let contemporaneous = set_edge(0, 3, 2, 0, true);
+    temporal_atom(kind, 3, contemporaneous, 2, lag_mask)
 }
 
 /// Mediation atom on `[t, m, y]`: contemporaneous `m -> y` and lag-1 `t@-1 -> m`,
@@ -422,7 +428,7 @@ fn sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage(
         "sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
         "sustained_series",
         "circular_block_se",
-        "temporal.linear.adjustment",
+        "temporal.sequential.gcomp",
         SUSTAINED_TRUTH,
         |rep| {
             let seed = stream_seed(0x11C_0005, rep);
@@ -446,7 +452,7 @@ fn sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage() {
         "sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
         "sustained_series",
         "posterior_quantile",
-        "bayesian.temporal.gcomp",
+        "temporal.sequential.gcomp",
         SUSTAINED_TRUTH,
         |rep| {
             let seed = stream_seed(0x11C_0006, rep);
@@ -474,7 +480,7 @@ fn sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage() 
         "sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
         "sustained_series",
         "circular_block_se",
-        "temporal.linear.adjustment",
+        "temporal.sequential.gcomp",
         SUSTAINED_TRUTH,
         |rep| {
             let seed = stream_seed(0x11C_0007, rep);
@@ -498,7 +504,7 @@ fn sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage() {
         "sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage",
         "sustained_series",
         "posterior_quantile",
-        "bayesian.temporal.gcomp",
+        "temporal.sequential.gcomp",
         SUSTAINED_TRUTH,
         |rep| {
             let seed = stream_seed(0x11C_0008, rep);
