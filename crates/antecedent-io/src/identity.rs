@@ -43,7 +43,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::analysis_wire::{IdentifiedEstimandWire, RdDesignWire};
 use crate::convert::{
-    admg_to_wire, cpdag_to_wire, dag_to_wire, pag_to_wire, schema_to_wire, vars_to_raw,
+    admg_to_wire, cpdag_to_wire, dag_to_wire, endpoint_to_wire, pag_to_wire, schema_to_wire,
+    vars_to_raw,
 };
 use crate::discovery_wire::{TemporalGraphWire, temporal_dag_to_wire};
 use crate::error::IoError;
@@ -772,15 +773,6 @@ pub struct IdentityMarkedEdgeWire {
     pub middle: String,
 }
 
-fn endpoint_wire(mark: antecedent_graph::Endpoint) -> EndpointWire {
-    match mark {
-        antecedent_graph::Endpoint::Tail => EndpointWire::Tail,
-        antecedent_graph::Endpoint::Arrow => EndpointWire::Arrow,
-        antecedent_graph::Endpoint::Circle => EndpointWire::Circle,
-        antecedent_graph::Endpoint::Conflict => EndpointWire::Conflict,
-    }
-}
-
 fn middle_wire(mark: antecedent_graph::MiddleMark) -> &'static str {
     match mark {
         antecedent_graph::MiddleMark::Unknown => "unknown",
@@ -795,8 +787,8 @@ fn marked_identity_edge(edge: MarkedEdge) -> IdentityMarkedEdgeWire {
     IdentityMarkedEdgeWire {
         a: edge.a.raw(),
         b: edge.b.raw(),
-        at_a: endpoint_wire(edge.at_a),
-        at_b: endpoint_wire(edge.at_b),
+        at_a: endpoint_to_wire(edge.at_a),
+        at_b: endpoint_to_wire(edge.at_b),
         middle: middle_wire(edge.middle).into(),
     }
 }

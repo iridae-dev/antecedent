@@ -848,6 +848,25 @@ impl CausalExprArena {
         self.lists.len()
     }
 
+    /// Shared active−control ATE skeleton: build the two potential-outcome arms
+    /// with `po`, difference them, and tag the contrast with `rule`/`detail`.
+    /// Interning order (active arm, control arm, then the contrast) matches the
+    /// hand-written methods this backs.
+    fn contrast_ate(
+        &mut self,
+        mut po: impl FnMut(&mut Self, Value) -> ExprId,
+        active: Value,
+        control: Value,
+        rule: &str,
+        detail: String,
+    ) -> ExprId {
+        let left = po(self, active);
+        let right = po(self, control);
+        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+        self.set_derivation(contrast, DerivationMeta::rule(rule, Some(Arc::from(detail))));
+        contrast
+    }
+
     /// Build the backdoor adjustment functional for ATE:
     /// `E[Y | do(T=active)] − E[Y | do(T=control)]` under adjustment by Z.
     pub fn backdoor_ate(
@@ -858,17 +877,13 @@ impl CausalExprArena {
         active: Value,
         control: Value,
     ) -> ExprId {
-        let left = self.backdoor_potential_outcome(treatment, outcome, adjustment, active);
-        let right = self.backdoor_potential_outcome(treatment, outcome, adjustment, control);
-        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
-        self.set_derivation(
-            contrast,
-            DerivationMeta::rule(
-                "backdoor.adjustment",
-                Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
-            ),
-        );
-        contrast
+        self.contrast_ate(
+            |arena, level| arena.backdoor_potential_outcome(treatment, outcome, adjustment, level),
+            active,
+            control,
+            "backdoor.adjustment",
+            format!("ATE adjustment set size {}", adjustment.len()),
+        )
     }
 
     /// Build the backdoor adjustment functional for a single-arm intervention mean:
@@ -938,17 +953,13 @@ impl CausalExprArena {
         active: Value,
         control: Value,
     ) -> ExprId {
-        let left = self.frontdoor_potential_outcome(treatment, outcome, mediators, active);
-        let right = self.frontdoor_potential_outcome(treatment, outcome, mediators, control);
-        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
-        self.set_derivation(
-            contrast,
-            DerivationMeta::rule(
-                "frontdoor",
-                Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
-            ),
-        );
-        contrast
+        self.contrast_ate(
+            |arena, level| arena.frontdoor_potential_outcome(treatment, outcome, mediators, level),
+            active,
+            control,
+            "frontdoor",
+            format!("front-door mediator set size {}", mediators.len()),
+        )
     }
 
     /// Linear temporal-mediation path-product ATE contrast (same product-of-coefficients
@@ -961,20 +972,16 @@ impl CausalExprArena {
         active: Value,
         control: Value,
     ) -> ExprId {
-        let left = self.frontdoor_potential_outcome(treatment, outcome, mediators, active);
-        let right = self.frontdoor_potential_outcome(treatment, outcome, mediators, control);
-        let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
-        self.set_derivation(
-            contrast,
-            DerivationMeta::rule(
-                "temporal_mediation",
-                Some(Arc::from(format!(
-                    "linear temporal mediation path-product; mediator set size {}",
-                    mediators.len()
-                ))),
+        self.contrast_ate(
+            |arena, level| arena.frontdoor_potential_outcome(treatment, outcome, mediators, level),
+            active,
+            control,
+            "temporal_mediation",
+            format!(
+                "linear temporal mediation path-product; mediator set size {}",
+                mediators.len()
             ),
-        );
-        contrast
+        )
     }
 
     fn frontdoor_potential_outcome(
