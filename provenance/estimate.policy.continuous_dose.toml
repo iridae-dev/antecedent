@@ -1,0 +1,23 @@
+feature_id = "estimate.policy.continuous_dose"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "The Propensity Score with Continuous Treatments", sections = ["weighting by the reciprocal of a known continuous-treatment density under conditional exchangeability"] },
+]
+
+implementation_deviations = [
+ "The target is the average response inside a prespecified kernel window, inverse-weighted by the caller-supplied observed-dose density. It is not the response to do(D=d).",
+ "Policy and reference doses are a frozen group-to-dose map. The estimator does not select the dose.",
+ "Independent-row variances and pointwise normal intervals are reported only when every requested local window has enough rows, effective sample size, and density. The density is not estimated here.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/continuous_dose.rs",
+ "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs",
+]

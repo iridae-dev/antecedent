@@ -1,0 +1,23 @@
+feature_id = "estimate.longitudinal.marginal_structural_model"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Marginal Structural Models and Causal Inference in Epidemiology", doi = "10.1097/00001648-200009000-00011", sections = ["inverse-probability-of-treatment weighted regression for the parameters of a marginal structural model"] },
+]
+
+implementation_deviations = [
+ "The model is an additive mean in an intercept and one coefficient per treatment period. Stabilized sequential weights are supplied, not estimated.",
+ "Standard errors are subject-clustered CR1 sandwiches. Intervals are separate pointwise normal intervals, not a simultaneous band.",
+ "The licensed interval requires the calibrated floors on subjects, observed terminal outcomes, Kish effective sample size, and per-period action probability. Treatment interactions, unstabilized weights, the g-formula, and the sequential doubly robust route are outside this record.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/marginal_structural_model.rs",
+ "crates/antecedent/tests/longitudinal_regime_route.rs",
+]

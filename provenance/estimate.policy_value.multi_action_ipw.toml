@@ -1,0 +1,23 @@
+feature_id = "estimate.policy_value.multi_action_ipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["inverse-probability estimator, applied to a fixed multi-action recommendation under known action probabilities"] },
+]
+
+implementation_deviations = [
+ "Each row score is the Horvitz–Thompson contribution of the recommended action. Recommendations are frozen and may depend on baseline features, not on these evaluation outcomes.",
+ "There is no outcome model. Action probabilities are known inputs.",
+ "The standard error assumes independent evaluation subjects. Coupled capacity or budget constraints are not part of this score.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/policy_value.rs",
+ "crates/antecedent/tests/policy_value_route.rs",
+]

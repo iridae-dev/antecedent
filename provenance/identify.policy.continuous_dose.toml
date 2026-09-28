@@ -1,0 +1,25 @@
+feature_id = "identify.policy.continuous_dose"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table id: identify.policy.continuous_dose
+# (IdentifierId::ContinuousDoseExchangeability).
+papers = [
+ { title = "The Propensity Score with Continuous Treatments", sections = ["conditional exchangeability of potential outcomes given pre-treatment covariates when the treatment density is known"] },
+]
+
+implementation_deviations = [
+ "The recorded functional is a baseline-group average of an inverse-density kernel-smoothed intervention, not the potential outcome at an exact dose and not a generalized-propensity-score regression.",
+ "Exchangeability, a correct supplied dose density, local positivity, and consistency with no interference are caller-declared. None is tested from the table.",
+ "A fixed group-to-dose policy is identified only as that kernel-window contrast against its reference. The policy doses must have been fixed before these outcomes.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/src/analysis/execute/checked_continuous_dose.rs",
+ "crates/antecedent-estimate/src/continuous_dose.rs",
+]

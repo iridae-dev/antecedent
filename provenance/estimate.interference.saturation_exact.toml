@@ -1,0 +1,25 @@
+feature_id = "estimate.interference.saturation_exact"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Optimal Design of Experiments in the Presence of Interference", sections = ["two-stage saturation: clusters allocated to low and high treatment fractions, then units randomized within clusters"] },
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3: exposure mappings whose probabilities are known from the design"] },
+]
+
+implementation_deviations = [
+ "Exposure probabilities are the exact two-stage law: complete randomization of clusters to the declared low and high probabilities, then independent Bernoulli assignment inside the cluster. The design is not optimized.",
+ "One declared direct, spillover, or total contrast is estimated. The interval is pointwise for that contrast from between-cluster variation, not a simultaneous decomposition.",
+ "The network is fixed and partial interference is declared. Cross-cluster edges are outside the estimator.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/interference_saturation.rs",
+ "crates/antecedent/src/analysis/execute/checked_interference.rs",
+ "crates/antecedent/tests/interference_interval_route.rs",
+]

@@ -1,0 +1,23 @@
+feature_id = "estimate.policy_value.ipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["inverse-probability estimator of a mean, applied to a fixed binary policy under known randomization probabilities"] },
+]
+
+implementation_deviations = [
+ "The score uses only the known randomized probabilities and the realized assignment. There is no outcome regression augmentation.",
+ "The policy is fixed and evaluated on held-out subjects. Policy selection is outside this estimator.",
+ "The paired row-score standard error assumes independent evaluation subjects. The interval uses the same support floor as the doubly robust policy-value interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/policy_value.rs",
+ "crates/antecedent/tests/policy_value_route.rs",
+]

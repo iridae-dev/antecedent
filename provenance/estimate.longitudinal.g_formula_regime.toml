@@ -1,0 +1,23 @@
+feature_id = "estimate.longitudinal.g_formula_regime"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A new approach to causal inference in mortality studies with a sustained exposure period — application to control of the healthy worker survivor effect", doi = "10.1016/0270-0255(86)90088-6", sections = ["g-computation of a regime value by iterating conditional outcome means"] },
+]
+
+implementation_deviations = [
+ "Conditional period rewards are caller-supplied. When the query says they are fixed and known, the interval excludes all fitted, selected, or cross-fitted Q uncertainty. The caller attests that claim.",
+ "The licensed pointwise interval is for a short horizon of independent subjects under known sequential randomization. Longer horizons do not inherit it.",
+ "This is not the marginal structural model and not the sequential doubly robust score.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/longitudinal_regime.rs",
+ "crates/antecedent/tests/longitudinal_regime_route.rs",
+]

@@ -1,0 +1,24 @@
+feature_id = "estimate.survival.product_limit"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", sections = ["product-limit estimator of the survival function from a risk set"] },
+]
+
+implementation_deviations = [
+ "Curves are arm-stratified product limits on an already identified randomized contrast, plus restricted mean survival time to a declared horizon. A competing-risk endpoint uses the Aalen–Johansen cumulative incidence for one declared cause instead.",
+ "Independent censoring and delayed entry are query assumptions. The module cannot verify them from the observed follow-up. When an inverse-probability-of-censoring weight is used, the censoring survival is caller-supplied and treated as correct.",
+ "Intervals, where licensed, are arm-stratified subject bootstrap percentile intervals for the restricted mean and horizon survival. They are pointwise. The product-limit point itself carries no analytic variance from the 1958 paper.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/survival.rs",
+ "crates/antecedent/src/analysis/execute/checked_survival.rs",
+ "crates/antecedent/tests/survival_route.rs",
+]

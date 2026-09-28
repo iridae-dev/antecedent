@@ -1,0 +1,25 @@
+feature_id = "estimate.randomized.switchback_ht_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["inverse-probability estimator, applied to unit-period outcomes with known marginal assignment probabilities"] },
+ { title = "Design and Analysis of Switchback Experiments", sections = ["experiments that randomize treatment over time within independent units; carryover and interference across units are identifying restrictions"] },
+]
+
+implementation_deviations = [
+ "The point is a unit-period Horvitz–Thompson intention-to-treat contrast. The variance treats whole assignment sequences as the independent pieces and allows arbitrary dependence inside a sequence.",
+ "No carryover and no between-sequence interference are declared identification assumptions. Neither is testable from the observed schedule.",
+ "The pointwise Student interval requires equal observed period counts, at least 30 sequences, at least 30 realized periods in each arm, and known marginal probabilities of at least 0.2. Unequal schedules stay point-only.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/switchback.rs",
+ "crates/antecedent-estimate/tests/switchback_calibration.rs",
+ "crates/antecedent/tests/switchback_interval_route.rs",
+]

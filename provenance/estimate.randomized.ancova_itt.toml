@@ -1,0 +1,23 @@
+feature_id = "estimate.randomized.ancova_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Agnostic notes on regression adjustments to experimental data: Reexamining Freedman's critique", doi = "10.1214/13-AOAS661", sections = ["ordinary least squares of the outcome on assignment and pre-assignment covariates in a randomized experiment"] },
+]
+
+implementation_deviations = [
+ "The point is the assignment coefficient in a linear regression on assignment plus the caller-supplied pre-assignment covariates. The variance is the independent-row HC0 sandwich for that coefficient.",
+ "The pointwise normal interval is published only for independent Bernoulli assignment, one or two covariates, a declared probability from 0.2 through 0.8, and the calibrated row and arm floors. Three or more covariates stay point-only.",
+ "This is not a saturated regression and not the Neyman variance of the unadjusted difference in means.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/ancova.rs",
+ "crates/antecedent/tests/randomized_precision_intervals.rs",
+]

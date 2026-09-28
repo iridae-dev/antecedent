@@ -1,0 +1,23 @@
+feature_id = "estimate.randomized.wald_cace_late"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Identification and Estimation of Local Average Treatment Effects", doi = "10.2307/2951620", sections = ["Wald ratio of the intention-to-treat outcome contrast to the receipt first stage, which is the complier average effect under monotonicity and exclusion"] },
+]
+
+implementation_deviations = [
+ "Both the outcome contrast and the receipt first stage are Horvitz–Thompson estimates at the known encouragement probabilities. The variance is the independent-unit influence function of the ratio.",
+ "Under a declared one-sided noncompliance assumption the same ratio is reported as treatment on the treated. Exclusion, monotonicity, and one-sidedness are declared, not tested.",
+ "The normal interval is withheld below the same row, arm, and probability floors as the Horvitz–Thompson intention-to-treat interval, and when the first stage is not finite and positive.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_scores.rs",
+ "crates/antecedent/src/analysis/execute/checked_randomized.rs",
+]
