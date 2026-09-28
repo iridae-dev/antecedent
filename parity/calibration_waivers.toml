@@ -436,7 +436,7 @@ differences = [
 [[waiver]]
 id = "temporal-and-suite-facets-e2c7b386"
 from = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
-to = "e2c7b3865983185760ca6deb29dad57e085f133b"
+to = "817ccc858296692ae040fcc663605df4763da015"
 reviewed_by = "Charles Hinshaw"
 justification = """
 Twelve paths drifted the facet hashes of the 703 coverage records measured at
@@ -528,7 +528,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "e2c7b3865983185760ca6deb29dad57e085f133b"
+replayed_at = "817ccc858296692ae040fcc663605df4763da015"
 identical = true
 records = [
   "cov.intervention_response.temporal_cpdag.frequentist.circular_block_se.l95.intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
