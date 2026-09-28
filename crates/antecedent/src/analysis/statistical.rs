@@ -971,48 +971,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         &self,
         intent: antecedent_core::TransformIntent,
     ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
-        let ids = &self.state.identities;
-        let inputs = [
-            (IdentityDomain::Target, &ids.target),
-            (IdentityDomain::Identification, &ids.identification),
-            (IdentityDomain::IdentificationProduct, &ids.identification_product),
-            (IdentityDomain::Observation, &ids.observation),
-            (IdentityDomain::Program, &ids.program),
-            (IdentityDomain::InferenceBinding, &ids.inference_binding),
-            (IdentityDomain::DataSnapshot, &ids.snapshot),
-            (IdentityDomain::Execution, &ids.execution),
-        ]
-        .into_iter()
-        .map(|(domain, value)| {
-            Ok(IdentityRef::new(
-                domain,
-                SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
-                    value,
-                )?),
-            ))
-        })
-        .collect::<Result<Vec<_>, IoError>>()?;
-        let report = TransformationReport::new(
-            intent,
-            inputs,
-            antecedent_core::intent_effects(intent).iter().cloned(),
-            Vec::new(),
-        );
-        Ok(
-            if matches!(
-                intent,
-                TransformIntent::DisplayPrecision
-                    | TransformIntent::FilterDisplay
-                    | TransformIntent::CompatibleDataReplace
-            ) {
-                report
-            } else {
-                report.refused_on_handle(
-                    "transport.reprepare_required: statistical structural or execution contract changed",
-                )
-            },
-        )
+        super::exact::preview_transform_report(&self.state.identities, intent, "statistical")
     }
 
     /// Whether a replacement keeps the observation shape.

@@ -623,48 +623,7 @@ impl PreparedStudy<ExactPreparedState> {
         &self,
         intent: antecedent_core::TransformIntent,
     ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
-        let ids = &self.state.identities;
-        let inputs = [
-            (IdentityDomain::Target, &ids.target),
-            (IdentityDomain::Identification, &ids.identification),
-            (IdentityDomain::IdentificationProduct, &ids.identification_product),
-            (IdentityDomain::Observation, &ids.observation),
-            (IdentityDomain::Program, &ids.program),
-            (IdentityDomain::InferenceBinding, &ids.inference_binding),
-            (IdentityDomain::DataSnapshot, &ids.snapshot),
-            (IdentityDomain::Execution, &ids.execution),
-        ]
-        .into_iter()
-        .map(|(domain, value)| {
-            Ok(IdentityRef::new(
-                domain,
-                SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
-                    value,
-                )?),
-            ))
-        })
-        .collect::<Result<Vec<_>, IoError>>()?;
-        let report = TransformationReport::new(
-            intent,
-            inputs,
-            antecedent_core::intent_effects(intent).iter().cloned(),
-            Vec::new(),
-        );
-        Ok(
-            if matches!(
-                intent,
-                TransformIntent::DisplayPrecision
-                    | TransformIntent::FilterDisplay
-                    | TransformIntent::CompatibleDataReplace
-            ) {
-                report
-            } else {
-                report.refused_on_handle(
-                    "transport.reprepare_required: exact structural or execution contract changed",
-                )
-            },
-        )
+        preview_transform_report(&self.state.identities, intent, "exact")
     }
     /// Metadata-only replacement preview: a different evidence shape requires preparation.
     ///
@@ -728,6 +687,56 @@ impl PreparedStudy<ExactPreparedState> {
         *self = candidate;
         Ok(result)
     }
+}
+
+/// The transform-preview shared by the exact and statistical study handles: the
+/// eight retained identities become a [`TransformationReport`], refused on the
+/// handle for any intent beyond display / compatible-data replacement. `handle`
+/// names the study kind in the refusal message (`"exact"` / `"statistical"`).
+pub(crate) fn preview_transform_report(
+    ids: &ExactStudyIdentities,
+    intent: antecedent_core::TransformIntent,
+    handle: &str,
+) -> Result<antecedent_core::TransformationReport, IoError> {
+    use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
+    let inputs = [
+        (IdentityDomain::Target, &ids.target),
+        (IdentityDomain::Identification, &ids.identification),
+        (IdentityDomain::IdentificationProduct, &ids.identification_product),
+        (IdentityDomain::Observation, &ids.observation),
+        (IdentityDomain::Program, &ids.program),
+        (IdentityDomain::InferenceBinding, &ids.inference_binding),
+        (IdentityDomain::DataSnapshot, &ids.snapshot),
+        (IdentityDomain::Execution, &ids.execution),
+    ]
+    .into_iter()
+    .map(|(domain, value)| {
+        Ok(IdentityRef::new(
+            domain,
+            SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(value)?),
+        ))
+    })
+    .collect::<Result<Vec<_>, IoError>>()?;
+    let report = TransformationReport::new(
+        intent,
+        inputs,
+        antecedent_core::intent_effects(intent).iter().cloned(),
+        Vec::new(),
+    );
+    Ok(
+        if matches!(
+            intent,
+            TransformIntent::DisplayPrecision
+                | TransformIntent::FilterDisplay
+                | TransformIntent::CompatibleDataReplace
+        ) {
+            report
+        } else {
+            report.refused_on_handle(format!(
+                "transport.reprepare_required: {handle} structural or execution contract changed"
+            ))
+        },
+    )
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

@@ -668,26 +668,7 @@ fn validate_query_vars_in_admg(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
-    let mut has_t = false;
-    let mut has_y = false;
-    for node in admg.nodes() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == treatment {
-                has_t = true;
-            }
-            if *v == outcome {
-                has_y = true;
-            }
-        }
-    }
-    if !has_t || !has_y {
-        return Err(CausalError::Compile {
-            message: format!(
-                "query variables not in ADMG (treatment present={has_t}, outcome present={has_y})"
-            ),
-        });
-    }
-    Ok(())
+    validate_query_vars_in_static_nodes(admg.nodes(), "ADMG", treatment, outcome)
 }
 
 fn validate_query_vars_in_dag(
@@ -695,26 +676,7 @@ fn validate_query_vars_in_dag(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
-    let mut has_t = false;
-    let mut has_y = false;
-    for node in dag.nodes() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == treatment {
-                has_t = true;
-            }
-            if *v == outcome {
-                has_y = true;
-            }
-        }
-    }
-    if !has_t || !has_y {
-        return Err(CausalError::Compile {
-            message: format!(
-                "query variables not in DAG (treatment present={has_t}, outcome present={has_y})"
-            ),
-        });
-    }
-    Ok(())
+    validate_query_vars_in_static_nodes(dag.nodes(), "DAG", treatment, outcome)
 }
 
 fn validate_query_vars_in_cpdag(
@@ -722,26 +684,7 @@ fn validate_query_vars_in_cpdag(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
-    let mut has_t = false;
-    let mut has_y = false;
-    for node in cpdag.nodes() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == treatment {
-                has_t = true;
-            }
-            if *v == outcome {
-                has_y = true;
-            }
-        }
-    }
-    if !has_t || !has_y {
-        return Err(CausalError::Compile {
-            message: format!(
-                "query variables not in CPDAG (treatment present={has_t}, outcome present={has_y})"
-            ),
-        });
-    }
-    Ok(())
+    validate_query_vars_in_static_nodes(cpdag.nodes(), "CPDAG", treatment, outcome)
 }
 
 fn validate_query_vars_in_pag(
@@ -749,9 +692,20 @@ fn validate_query_vars_in_pag(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
+    validate_query_vars_in_static_nodes(pag.nodes(), "PAG", treatment, outcome)
+}
+
+/// Membership check shared by the static graph-class validators: the query's
+/// treatment and outcome must each name a static node of the graph.
+fn validate_query_vars_in_static_nodes(
+    nodes: &[antecedent_graph::NodeRef],
+    label: &str,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<(), CausalError> {
     let mut has_t = false;
     let mut has_y = false;
-    for node in pag.nodes() {
+    for node in nodes {
         if let antecedent_graph::NodeRef::Static(v) = node {
             if *v == treatment {
                 has_t = true;
@@ -764,7 +718,7 @@ fn validate_query_vars_in_pag(
     if !has_t || !has_y {
         return Err(CausalError::Compile {
             message: format!(
-                "query variables not in PAG (treatment present={has_t}, outcome present={has_y})"
+                "query variables not in {label} (treatment present={has_t}, outcome present={has_y})"
             ),
         });
     }
