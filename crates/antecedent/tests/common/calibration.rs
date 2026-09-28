@@ -1151,6 +1151,18 @@ impl CoverageTally {
             attempts,
             self.skipped
         );
+        // Below the precision layer (no floor/ceiling yet), a rate that warrants a
+        // recheck defers its pass/fail to the RECHECK_N_SIM re-run rather than
+        // hard-failing the wide first-pass band: the gate re-measures on the
+        // `calibration-recheck` line, and the precision floor/ceiling at that
+        // count is authoritative. Without this, a heavy-tailed design whose
+        // first-pass draw lands just outside the band panics before the recheck
+        // it needs can fire.
+        if floor.is_none() && needs_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+            self.emit_record(false, "gated");
+            return;
+        }
         assert!(
             rate >= lo && rate <= hi,
             "{} {:.0}% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({}/{})",
@@ -1180,9 +1192,6 @@ impl CoverageTally {
                 self.covered,
                 attempts
             );
-        }
-        if floor.is_none() && needs_recheck(attempts, self.level, rate) {
-            self.print_recheck(attempts, rate);
         }
         self.emit_record(false, "gated");
     }
