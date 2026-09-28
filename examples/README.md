@@ -82,6 +82,12 @@ cargo run -p antecedent --example <name>
 | Transport a source table | Single-source empirical transport of a response grid | [python](python/transport_statistical.py) | [rust](rust/transport_statistical.rs) |
 | Transport an exact law | Single-source exact-law transport of a response grid | [python](python/transport_exact.py) | [rust](rust/transport_exact.rs) |
 | Complementary-source grid | Combined sources identify a target curve; one source does not | [python](python/transport_meta_grid.py) | [rust](rust/transport_meta_grid.rs) |
+| Randomized experiment (2.1) | Estimate a randomized ITT effect; design inputs named by data column | [python](python/experiment_randomized_effect.py) | — |
+| Factorial cell means (2.1) | 2x2 Bernoulli factorial main effects and interaction (point utility) | [python](python/factorial_cell_means.py) | — |
+| Policy value (2.1) | Held-out value of a fixed binary policy under known propensities | [python](python/policy_value_evaluation.py) | — |
+| Difference-in-differences (2.1) | 2x2 and balanced-panel DiD point utilities | [python](python/quasi_difference_in_differences.py) | — |
+| Longitudinal regime value (2.1) | Value of a static treatment rule by inverse-probability g-formula | [python](python/regime_value.py) | — |
+| Survival RMST (2.1) | Randomized survival curve and RMST by arm | [python](python/survival_rmst.py) | — |
 | ATE quickstart | Build and run an average-effect analysis | — | [rust](rust/ate_quickstart.rs) |
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |

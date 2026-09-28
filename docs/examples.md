@@ -58,6 +58,12 @@ cargo run -p antecedent --example <name>
 | Transport a source table | Single-source empirical transport of a response grid | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_statistical.py) | [rust](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/transport_statistical.rs) |
 | Transport an exact law | Single-source exact-law transport of a response grid | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_exact.py) | [rust](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/transport_exact.rs) |
 | Complementary-source grid | Combined sources identify a target curve; one source does not | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_meta_grid.py) | [rust](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/transport_meta_grid.rs) |
+| Randomized experiment (2.1) | Estimate a randomized ITT effect; design inputs named by data column | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/experiment_randomized_effect.py) | — |
+| Factorial cell means (2.1) | 2x2 Bernoulli factorial main effects and interaction (point utility) | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/factorial_cell_means.py) | — |
+| Policy value (2.1) | Held-out value of a fixed binary policy under known propensities | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/policy_value_evaluation.py) | — |
+| Difference-in-differences (2.1) | 2x2 and balanced-panel DiD point utilities | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/quasi_difference_in_differences.py) | — |
+| Longitudinal regime value (2.1) | Value of a static treatment rule by inverse-probability g-formula | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/regime_value.py) | — |
+| Survival RMST (2.1) | Randomized survival curve and RMST by arm | [python](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/survival_rmst.py) | — |
 | ATE quickstart | Build and run an average-effect analysis | — | [rust](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/ate_quickstart.rs) |
 | Identify only | Identification without fitting | — | [rust](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/gcm_do.rs) |
