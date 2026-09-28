@@ -523,7 +523,7 @@ fn mix_class_posterior_evals(
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
     let n_contributing = outer_se_items.len();
-    let joint = n_contributing > 1 && outer_atom_ifs.len() == n_contributing;
+    let joint = mixable_scalar && n_contributing > 1 && outer_atom_ifs.len() == n_contributing;
     let se = if mixable_scalar {
         if joint {
             mix_static_envelope_se(&outer_atom_ifs, &outer_atom_weights)
