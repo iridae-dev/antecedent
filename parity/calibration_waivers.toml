@@ -432,3 +432,123 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage" = "2dd984c877734c69493d95b36dc3aa3204ca826cc0fced813e852bb0bc03008b"
+
+[[waiver]]
+id = "temporal-and-suite-facets-e2c7b386"
+from = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+to = "e2c7b3865983185760ca6deb29dad57e085f133b"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Twelve paths drifted the facet hashes of the 703 coverage records measured at
+016781a9 without moving any measured number; they fixed other designs or
+changed control flow. temporal_response.rs additively retains posterior draws
+on the single-coordinate intervention band; temporal_posterior_response.rs
+collapses a single-atom DBN-posterior intervention band to scalar (a distinct
+path); temporal_path.rs drops those draws before the class pooling (restoring
+prior behavior); calibration.rs reorders CoverageTally::assert so a
+sub-precision near-miss emits its recheck before the band assert (a control-flow
+change to WHEN a recheck fires, not to any coverage value); the eight edited
+test suites each changed only specific designs' fixtures or boundary-asserts,
+leaving every other design in the file numerically untouched. None touch a seed,
+a replicate count, or the interval computation for the covered records. Same
+seed, same interval. This cannot move a measured number.\
+"""
+paths = [
+  "crates/antecedent/src/analysis/execute/temporal_path.rs",
+  "crates/antecedent/src/analysis/execute/temporal_posterior_response.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent-estimate/src/temporal_response.rs",
+  "crates/antecedent/tests/v110_calibration_admg.rs",
+  "crates/antecedent/tests/v110_calibration_backlog.rs",
+  "crates/antecedent/tests/v110_calibration_design_bayesian.rs",
+  "crates/antecedent/tests/v110_calibration_distribution_admg.rs",
+  "crates/antecedent/tests/v110_calibration_response.rs",
+  "crates/antecedent/tests/v110_calibration_temporal_class.rs",
+  "crates/antecedent/tests/v19_calibration.rs",
+  "crates/antecedent/tests/v19_static_envelope_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.temporal_cpdag.frequentist.circular_block_se.l95.intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent/src/analysis/execute/temporal_path.rs",
+  "crates/antecedent/src/analysis/execute/temporal_posterior_response.rs",
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent-estimate/src/temporal_response.rs",
+  "crates/antecedent/tests/v110_calibration_backlog.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v110_calibration_admg.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_query_dag_bayesian_neighbor_count_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v110_calibration_design_bayesian.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v110_calibration_distribution_admg.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v110_calibration_response.rs",
+]
+
+[[waiver.replay]]
+record = "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v110_calibration_temporal_class.rs",
+]
+
+[[waiver.replay]]
+record = "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v19_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage"
+exercises = [
+  "crates/antecedent/tests/common/calibration.rs",
+  "crates/antecedent/tests/v19_static_envelope_calibration.rs",
+]
+
+[waiver.outcome]
+replayed_at = "e2c7b3865983185760ca6deb29dad57e085f133b"
+identical = true
+records = [
+  "cov.intervention_response.temporal_cpdag.frequentist.circular_block_se.l95.intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
+  "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage",
+  "cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_query_dag_bayesian_neighbor_count_nominal_coverage",
+  "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage",
+  "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage",
+  "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
+  "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
+  "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage" = "cddd6a4bb593c6bed43eee401f33b866099458215b5e30f8953472b17d170c54"
+"cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage" = "51b02213df386e5def29f36288190f8bd455d3fecc93e17988cf52d26c5bd81b"
+"cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_query_dag_bayesian_neighbor_count_nominal_coverage" = "a66506f2e80d1a5d619620bcc797e2dbc5550a63c69d1d01daa073fb16dfd413"
+"cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage" = "f51cb2181b5f484b47abc149bbf86ebf9f3d71af78bb83aa0f67f812976bfad0"
+"cov.intervention_response.temporal_cpdag.frequentist.circular_block_se.l95.intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage" = "2ffb0e138aad8a3c561b02c4a791b83212e51e969b63c1919534c9790665295f"
+"cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage" = "a8cedd0ed44f5bfc3ecc817e9bde6716364f71b6c2b750601d1766f620c66bfd"
+"cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage" = "eda92c9a219c9de902be1ba5ff693c7ebb2ab00c0c438a3dfd98ed83e30cf79f"
+"cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage" = "279a360a48ea48b6d7e4df8d26246b28b97b708de5c01c6c104a597222bb6c24"
