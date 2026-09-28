@@ -37,6 +37,8 @@ def main() -> None:
     print(f"incremental value={result.incremental_value}")
     print(f"treatment rate={result.treatment_rate} cost={result.total_treatment_cost}")
     print("uncertainty:", result.uncertainty)
+    # The incremental value is the policy value net of the observed-assignment reference.
+    assert abs(result.incremental_value - (result.policy_value - result.reference_value)) < 1e-9
 
 
 if __name__ == "__main__":

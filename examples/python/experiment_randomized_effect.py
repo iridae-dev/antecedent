@@ -41,6 +41,8 @@ def main() -> None:
     print("Calibration:", result.calibration.status)
     print(f"ITT effect={fit.effect:.4f} 95% interval={fit.interval_95}")
     print("uncertainty:", fit.uncertainty, "support:", fit.support_status)
+    # The assignment lifts revenue by 2.0; the ITT estimate recovers it.
+    assert abs(fit.effect - 2.0) < 0.5, fit.effect
 
     # Refresh reuses the frozen design and accepts outcome-only data.
     fresh = 2.0 * assigned.astype(float) + rng.normal(size=n)

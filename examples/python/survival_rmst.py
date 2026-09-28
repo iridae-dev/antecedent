@@ -40,6 +40,10 @@ def main() -> None:
     print("treated survival:", curve.treated_survival)
     print(f"RMST control={curve.rmst_control} treated={curve.rmst_treated}")
     print("uncertainty:", curve.uncertainty)
+    # The treated arm has no events, so its survival is flat at 1 and RMST equals
+    # the horizon; the control arm sees an event and so has strictly smaller RMST.
+    assert abs(curve.rmst_treated - 2.0) < 1e-9, curve.rmst_treated
+    assert curve.rmst_control < curve.rmst_treated
 
     # The frozen study round-trips through the durable artifact.
     loaded = antecedent.load(prepared.export(artifact_id="survival-study"))

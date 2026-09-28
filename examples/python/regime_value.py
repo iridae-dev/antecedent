@@ -30,6 +30,8 @@ def main() -> None:
     print(f"matched observed fraction={result.matched_observed_fraction}")
     print(f"maximum weight={result.maximum_weight}")
     print("uncertainty:", result.uncertainty, "support:", result.support_status)
+    # The never-treat path's sole observed outcome is 2.0, so the value is 2.0.
+    assert abs(result.value - 2.0) < 1e-9, result.value
 
 
 if __name__ == "__main__":
