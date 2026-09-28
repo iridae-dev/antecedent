@@ -96,7 +96,7 @@ def test_stub_only_allowlist_stays_justified():
 # The tests above only ever compared *that* a name exists on both sides. That is exactly
 # the gap that let `_native.pyi` declare `prior_mapping`/`composed_prior` on every temporal
 # entry point (`analyze`, `analyze_temporal_pag`, `analyze_events`, `analyze_panel`,
-# `analyze_panel_discover`, `analyze_temporal_discover`, `analyze_temporal_mediation`) —
+# `analyze_panel_discover`, `analyze_temporal_discover`) —
 # parameters their real Rust `#[pyo3(signature = ...)]` blocks never had — while several of
 # them simultaneously omitted `refute`/`validators`, which those same Rust signatures did
 # have. `test_every_extension_name_is_declared_in_the_stub` passed the whole time: `analyze`
@@ -181,7 +181,6 @@ _MUST_BE_CHECKED = (
     "analyze_panel",
     "analyze_panel_discover",
     "analyze_temporal_discover",
-    "analyze_temporal_mediation",
 )
 
 

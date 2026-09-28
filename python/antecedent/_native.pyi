@@ -2734,40 +2734,6 @@ def analyze_path_specific(
     threads: int | None = None,
     refute: bool | str | None = None,
 ) -> AteAnalysisResult: ...
-def analyze_conditional(
-    names: list[str],
-    columns: Sequence[Any],
-    edges: list[tuple[str, str]],
-    treatment: str,
-    outcome: str,
-    modifier: str,
-    *,
-    control_level: float = 0.0,
-    active_level: float = 1.0,
-    refute: bool | str | None = None,
-    validators: list[Callable[..., Any]] | None = None,
-    seed: int = 1,
-    bootstrap: int | None = 199,
-    threads: int | None = None,
-    accepted: bool = False,
-    outcome_functional: dict[str, Any] | None = None,
-) -> AteAnalysisResult: ...
-def analyze_mediation(
-    names: list[str],
-    columns: Sequence[Any],
-    edges: list[tuple[str, str]],
-    treatment: str,
-    outcome: str,
-    mediators: list[str],
-    *,
-    contrast: str = "mediated",
-    control_level: float = 0.0,
-    active_level: float = 1.0,
-    refute: bool | str | None = None,
-    seed: int = 1,
-    bootstrap: int | None = 0,
-    threads: int | None = None,
-) -> AteAnalysisResult: ...
 def identify_ate(
     names: list[str],
     edges: list[tuple[str, str]],
@@ -2804,22 +2770,6 @@ def identify_ate_admg(
     *,
     identifier: str | None = None,
 ) -> tuple[str, str, list[str]]: ...
-def analyze_temporal_mediation(
-    names: list[str],
-    columns: Sequence[Any],
-    edges: list[tuple[str, int, str, int]],
-    treatment: str,
-    mediator: str,
-    outcome: str,
-    *,
-    contrast: str = "mediated",
-    control_level: float = 0.0,
-    active_level: float = 1.0,
-    horizons: list[int] | None = None,
-    seed: int = 1,
-    bootstrap: int | None = 0,
-    threads: int | None = None,
-) -> AnalysisResult: ...
 def analyze_ate_discover(
     names: list[str],
     columns: Sequence[Any],
@@ -3413,15 +3363,6 @@ def evaluate_longitudinal_regime_value(
     outcome_observed: NDArray[np.bool_],
     censoring_survival: NDArray[np.float64],
 ) -> tuple[float, float, float, float]: ...
-def fit_binary_msm(
-    outcome: NDArray[np.float64],
-    treatment: NDArray[np.bool_],
-    treatment_probability: NDArray[np.float64],
-    numerator_probability: NDArray[np.float64],
-    outcome_observed: NDArray[np.bool_],
-    censoring_survival: NDArray[np.float64],
-    minimum_probability: float,
-) -> tuple[float, list[float], list[float], float, float, int]: ...
 def evaluate_sequential_gformula(
     period_outcome_predictions: NDArray[np.float64],
     regime_actions: NDArray[np.bool_],
@@ -3506,11 +3447,6 @@ def estimate_stratified_effect(
 def exact_randomization_test(
     outcome: NDArray[np.float64], assignment: list[bool], propensity: NDArray[np.float64]
 ) -> tuple[float, float, int]: ...
-def estimate_multi_arm_effects(
-    outcome: NDArray[np.float64],
-    assignment: list[int],
-    probabilities: NDArray[np.float64],
-) -> list[tuple[float, float, int]]: ...
 def estimate_switchback_effect(
     outcome: NDArray[np.float64],
     assignment: list[bool],
@@ -3552,12 +3488,6 @@ def estimate_observational_network_exposure(
     propensity_to: NDArray[np.float64],
     propensity_provenance: str,
 ) -> tuple[float, float, float, int, int, int, int, float, float, int]: ...
-def randomized_survival(
-    duration: NDArray[np.float64],
-    event_observed: list[bool],
-    treated: list[bool],
-    tau: float,
-) -> tuple[list[float], list[float], list[float], float, float]: ...
 def randomized_survival_ipcw(
     duration: NDArray[np.float64],
     event_observed: list[bool],
@@ -3567,20 +3497,6 @@ def randomized_survival_ipcw(
     tau: float,
     minimum_probability: float,
 ) -> tuple[list[float], list[float], list[float], float, float, int | None, int | None, float]: ...
-def randomized_survival_delayed_entry(
-    duration: NDArray[np.float64],
-    delayed_entry: NDArray[np.float64],
-    event_observed: list[bool],
-    treated: list[bool],
-    tau: float,
-) -> tuple[list[float], list[float], list[float], float, float]: ...
-def randomized_cumulative_incidence(
-    duration: NDArray[np.float64],
-    event_cause: list[int],
-    treated: list[bool],
-    tau: float,
-    target_cause: int,
-) -> tuple[list[float], list[float], list[float]]: ...
 def randomized_cumulative_incidence_ipcw(
     duration: NDArray[np.float64],
     event_cause: list[int],
@@ -3591,21 +3507,6 @@ def randomized_cumulative_incidence_ipcw(
     target_cause: int,
     minimum_probability: float,
 ) -> tuple[list[float], list[float], list[float], int | None, int | None, float]: ...
-def randomized_cumulative_incidence_delayed_entry(
-    duration: NDArray[np.float64],
-    delayed_entry: NDArray[np.float64],
-    event_cause: list[int],
-    treated: list[bool],
-    tau: float,
-    target_cause: int,
-) -> tuple[list[float], list[float], list[float]]: ...
-def panel_difference_in_differences(
-    outcome: NDArray[np.float64],
-    subjects: list[str],
-    treated: list[bool],
-    post: list[bool],
-    clusters: list[str],
-) -> tuple[float, float, int, int, int]: ...
 def group_time_att(
     outcome: NDArray[np.float64],
     subjects: list[str],
@@ -3613,50 +3514,6 @@ def group_time_att(
     cohorts: list[int],
     clusters: list[str],
 ) -> list[tuple[int, int, float, int, int, float, int]]: ...
-def staggered_event_study(
-    outcome: NDArray[np.float64],
-    subjects: list[str],
-    periods: list[int],
-    cohorts: list[int],
-    clusters: list[str],
-) -> list[tuple[int, int, int, float, int, int, float, int]]: ...
-def synthetic_control(
-    outcome: NDArray[np.float64],
-    units: list[str],
-    periods: list[int],
-    treated_unit: str,
-    intervention_period: int,
-) -> tuple[
-    float,
-    float,
-    list[tuple[str, float]],
-    list[float],
-    float,
-    int,
-    int,
-]: ...
-def local_polynomial_fuzzy_discontinuity(
-    running: NDArray[np.float64],
-    outcome: NDArray[np.float64],
-    treatment: NDArray[np.float64],
-    cutoff: float,
-    bandwidth: float,
-    kink: bool,
-) -> tuple[float, float, float, int, int, float, float, float, float, float]: ...
-def synthetic_difference_in_differences(
-    outcome: NDArray[np.float64],
-    units: list[str],
-    periods: list[int],
-    treated_unit: str,
-    intervention_period: int,
-) -> tuple[float, float, list[tuple[str, float]], list[tuple[int, float]], int, int, int]: ...
-def augmented_panel_difference_in_differences(
-    outcome_pre: NDArray[np.float64],
-    outcome_post: NDArray[np.float64],
-    treated: list[bool],
-    propensity: NDArray[np.float64],
-    untreated_change_prediction: NDArray[np.float64],
-) -> tuple[float, int, int, float, float, float]: ...
 def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ...
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
 
@@ -4709,16 +4566,6 @@ def prepare_learned_trial(
     cancel: CancellationToken | None = None,
 ) -> PreparedLearnedTrial: ...
 def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...
-def conditional_dose_response(
-    outcome: NDArray[np.float64],
-    dose: NDArray[np.float64],
-    groups: list[str],
-    dose_density: NDArray[np.float64],
-    target_doses: list[float],
-    bandwidth: float,
-    *,
-    min_local_support: int = 3,
-) -> list[tuple[str, float, float, int, float, float, float, float]]: ...
 def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(
     bytes: bytes,

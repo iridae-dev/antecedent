@@ -7,10 +7,6 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
-/// Additive MSM fit: intercept, coefficients, standard errors, weight
-/// diagnostics, and the retained subject count.
-type MsmFit = (f64, Vec<f64>, Vec<f64>, f64, f64, usize);
-
 /// Retained sequential randomized regime value with bounded IPW inference.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -125,54 +121,6 @@ fn evaluate_longitudinal_regime_value(
         summary.effective_sample_size,
         summary.matched_observed_fraction,
         summary.maximum_weight,
-    ))
-}
-
-/// Additive marginal structural mean model with sequential stabilized weights.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-fn fit_binary_msm(
-    outcome: PyReadonlyArray1<'_, f64>,
-    treatment: PyReadonlyArray2<'_, bool>,
-    treatment_probability: PyReadonlyArray2<'_, f64>,
-    numerator_probability: PyReadonlyArray1<'_, f64>,
-    outcome_observed: PyReadonlyArray1<'_, bool>,
-    censoring_survival: PyReadonlyArray2<'_, f64>,
-    minimum_probability: f64,
-) -> PyResult<MsmFit> {
-    let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
-    let a = treatment.as_array();
-    let (n, periods) = a.dim();
-    let p = treatment_probability.as_array();
-    let censor = censoring_survival.as_array();
-    if p.dim() != (n, periods) || censor.dim() != (n, periods) {
-        return Err(PyValueError::new_err(
-            "MSM arrays must have matching subject and period dimensions",
-        ));
-    }
-    let a = a.iter().copied().collect::<Vec<_>>();
-    let p = p.iter().copied().collect::<Vec<_>>();
-    let censor = censor.iter().copied().collect::<Vec<_>>();
-    let numerator = numerator_probability.as_array().iter().copied().collect::<Vec<_>>();
-    let observed = outcome_observed.as_array().iter().copied().collect::<Vec<_>>();
-    let summary = antecedent_estimate::marginal_structural_model::fit_binary_msm(
-        &y,
-        &a,
-        &p,
-        &numerator,
-        &observed,
-        &censor,
-        periods,
-        minimum_probability,
-    )
-    .map_err(PyValueError::new_err)?;
-    Ok((
-        summary.intercept,
-        summary.period_effects,
-        summary.standard_errors,
-        summary.effective_sample_size,
-        summary.maximum_weight,
-        summary.observed_subjects,
     ))
 }
 
@@ -331,7 +279,6 @@ fn evaluate_sequential_doubly_robust(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<LongitudinalRegimeSection>()?;
     module.add_function(wrap_pyfunction!(evaluate_longitudinal_regime_value, module)?)?;
-    module.add_function(wrap_pyfunction!(fit_binary_msm, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_sequential_gformula, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_sequential_doubly_robust, module)?)?;
     Ok(())

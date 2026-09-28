@@ -330,25 +330,6 @@ fn exact_randomization_test(
     Ok((observed, p_value.min(1.0), allocations))
 }
 
-/// Horvitz--Thompson arm means for a known randomized multi-arm design.
-#[pyfunction]
-fn estimate_multi_arm_effects(
-    outcome: PyReadonlyArray1<'_, f64>,
-    assignment: Vec<usize>,
-    probabilities: PyReadonlyArray2<'_, f64>,
-) -> PyResult<Vec<(f64, f64, usize)>> {
-    let y = outcome.as_array();
-    let p = probabilities.as_array();
-    let rows = p.rows().into_iter().map(|row| row.to_vec()).collect::<Vec<_>>();
-    antecedent_estimate::multi_arm::estimate_multi_arm(&y.to_vec(), &assignment, &rows)
-        .map(|arms| {
-            arms.into_iter()
-                .map(|arm| (arm.value, arm.variance_bound, arm.observed_support))
-                .collect()
-        })
-        .map_err(PyValueError::new_err)
-}
-
 /// Horvitz--Thompson switchback ITT with independent-sequence sandwich variance.
 #[pyfunction]
 fn estimate_switchback_effect(
@@ -404,7 +385,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(estimate_cuped_effect, module)?)?;
     module.add_function(wrap_pyfunction!(estimate_stratified_effect, module)?)?;
     module.add_function(wrap_pyfunction!(exact_randomization_test, module)?)?;
-    module.add_function(wrap_pyfunction!(estimate_multi_arm_effects, module)?)?;
     module.add_function(wrap_pyfunction!(estimate_switchback_effect, module)?)?;
     module.add_function(wrap_pyfunction!(estimate_ancova_effect, module)?)?;
     Ok(())
