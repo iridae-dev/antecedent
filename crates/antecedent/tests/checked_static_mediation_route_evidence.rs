@@ -202,6 +202,10 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
 
 #[test]
 fn bayesian_static_mediation_plan_survives_builder_refresh_and_artifact_consume() {
+    run_on_large_stack(bayesian_static_mediation_plan_body);
+}
+
+fn bayesian_static_mediation_plan_body() {
     let base = bayesian_data();
     let context = ExecutionContext::for_tests(205);
     let mut graph = Dag::with_variables(3);

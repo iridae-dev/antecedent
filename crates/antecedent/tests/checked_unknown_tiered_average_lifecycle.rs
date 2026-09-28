@@ -49,6 +49,16 @@ fn query(data: &TabularData) -> AverageEffectQuery {
 #[test]
 fn unknown_tiered_average_executes_from_retained_plan_refreshes_and_refuses_unreplayable_artifact()
 {
+    std::thread::Builder::new()
+        .name("checked-unknown-tiered-average".into())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(unknown_tiered_average_lifecycle_body)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn unknown_tiered_average_lifecycle_body() {
     let data = unknown_data(4_000, 23, 0.0);
     let ctx = ExecutionContext::for_tests(23);
     let builder = Study::tabular(data.clone())
