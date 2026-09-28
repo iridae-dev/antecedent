@@ -19,8 +19,8 @@ execution lies inside that record's measured scope. The committed 2.0
 measurements remain available for audit, but the current 2.1.0 source changes
 owe remeasurement before those records can attest this build.
 
-Licensed does not mean measured. Of the 472 licensed cells, 297 cite coverage
-records, 170 have no coverage measurement for their estimator
-(`estimator_grid_not_measured`), and 5 report no interval; the
+Licensed does not mean measured. Of the 472 licensed cells, 424 cite coverage
+records, 44 have no coverage measurement for their estimator
+(`estimator_grid_not_measured`), and 4 report no interval; the
 [support matrix](support-matrix.md) states these counts and each cell's
 `calibration_reason`.
