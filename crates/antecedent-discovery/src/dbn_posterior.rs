@@ -30,7 +30,9 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
-use antecedent_graph::{DenseNodeId, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag};
+use antecedent_graph::{
+    DenseNodeId, GraphError, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag,
+};
 use antecedent_prob::kish_ess;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
@@ -549,8 +551,49 @@ pub fn temporal_dag_from_dbn_masks(
     Ok(g)
 }
 
-fn ensure_temporal_cpdag_lagged(
-    graph: &mut TemporalCpdag,
+/// Shared surface over the temporal graph types that accept lagged nodes, so
+/// [`ensure_lagged`] / [`insert_lagged_directed`] can be written once.
+trait LaggedGraph {
+    fn nodes(&self) -> &[NodeRef];
+    fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError>;
+    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId)
+    -> Result<(), GraphError>;
+}
+
+impl LaggedGraph for TemporalCpdag {
+    fn nodes(&self) -> &[NodeRef] {
+        TemporalCpdag::nodes(self)
+    }
+    fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
+        TemporalCpdag::add_lagged(self, variable, lag)
+    }
+    fn insert_directed(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        TemporalCpdag::insert_directed(self, from, to)
+    }
+}
+
+impl LaggedGraph for TemporalPag {
+    fn nodes(&self) -> &[NodeRef] {
+        TemporalPag::nodes(self)
+    }
+    fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
+        TemporalPag::add_lagged(self, variable, lag)
+    }
+    fn insert_directed(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+    ) -> Result<(), GraphError> {
+        TemporalPag::insert_directed(self, from, to)
+    }
+}
+
+fn ensure_lagged<G: LaggedGraph>(
+    graph: &mut G,
     variable: VariableId,
     lag: Lag,
 ) -> Result<DenseNodeId, DiscoveryError> {
@@ -564,23 +607,8 @@ fn ensure_temporal_cpdag_lagged(
     Ok(graph.add_lagged(variable, lag)?)
 }
 
-fn ensure_temporal_pag_lagged(
-    graph: &mut TemporalPag,
-    variable: VariableId,
-    lag: Lag,
-) -> Result<DenseNodeId, DiscoveryError> {
-    for (i, node) in graph.nodes().iter().enumerate() {
-        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-            if *existing == variable && *existing_lag == lag {
-                return Ok(DenseNodeId::try_from_usize(i)?);
-            }
-        }
-    }
-    Ok(graph.add_lagged(variable, lag)?)
-}
-
-fn insert_lagged_directed_cpdag(
-    graph: &mut TemporalCpdag,
+fn insert_lagged_directed<G: LaggedGraph>(
+    graph: &mut G,
     lmask: u64,
     n_vars: usize,
     max_lag: u32,
@@ -590,31 +618,8 @@ fn insert_lagged_directed_cpdag(
         for i in 0..n_vars {
             for j in 0..n_vars {
                 if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
-                    let from =
-                        ensure_temporal_cpdag_lagged(graph, variables[i], Lag::from_raw(lag))?;
-                    let to =
-                        ensure_temporal_cpdag_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
-                    graph.insert_directed(from, to)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn insert_lagged_directed_pag(
-    graph: &mut TemporalPag,
-    lmask: u64,
-    n_vars: usize,
-    max_lag: u32,
-    variables: &[VariableId],
-) -> Result<(), DiscoveryError> {
-    for lag in 1..=max_lag {
-        for i in 0..n_vars {
-            for j in 0..n_vars {
-                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
-                    let from = ensure_temporal_pag_lagged(graph, variables[i], Lag::from_raw(lag))?;
-                    let to = ensure_temporal_pag_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    let from = ensure_lagged(graph, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
                     graph.insert_directed(from, to)?;
                 }
             }
@@ -652,8 +657,8 @@ pub fn temporal_cpdag_from_dbn_masks(
             if !ij && !ji {
                 continue;
             }
-            let a = ensure_temporal_cpdag_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
-            let b = ensure_temporal_cpdag_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+            let a = ensure_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
+            let b = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
             if ij && ji {
                 graph.insert_undirected(a, b)?;
             } else if ij {
@@ -663,7 +668,7 @@ pub fn temporal_cpdag_from_dbn_masks(
             }
         }
     }
-    insert_lagged_directed_cpdag(&mut graph, lmask, n_vars, max_lag, variables)?;
+    insert_lagged_directed(&mut graph, lmask, n_vars, max_lag, variables)?;
     Ok(graph)
 }
 
@@ -696,8 +701,8 @@ pub fn temporal_pag_from_dbn_masks(
             if !ij && !ji {
                 continue;
             }
-            let a = ensure_temporal_pag_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
-            let b = ensure_temporal_pag_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+            let a = ensure_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
+            let b = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
             let circle_a = has_edge(mark_mask, n_vars, i, j);
             let circle_b = has_edge(mark_mask, n_vars, j, i);
             if ij && ji {
@@ -723,7 +728,7 @@ pub fn temporal_pag_from_dbn_masks(
             }
         }
     }
-    insert_lagged_directed_pag(&mut graph, lmask, n_vars, max_lag, variables)?;
+    insert_lagged_directed(&mut graph, lmask, n_vars, max_lag, variables)?;
     Ok(graph)
 }
 

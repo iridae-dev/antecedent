@@ -30,7 +30,7 @@ use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, distance_correlation,
 };
 
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, forbidden_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::pc::collect_float_columns;
@@ -382,27 +382,6 @@ impl DirectLingam {
             sepsets: crate::result::PcSepsets::default(),
         })
     }
-}
-
-fn forbidden_edge(
-    constraints: &DiscoveryConstraints,
-    variables: &[VariableId],
-    par: usize,
-    child: usize,
-) -> bool {
-    let Some(&src) = variables.get(par) else {
-        return true;
-    };
-    let Some(&tgt) = variables.get(child) else {
-        return true;
-    };
-    let link = LaggedLink {
-        source: src,
-        source_lag: Lag::CONTEMPORANEOUS,
-        target: tgt,
-        target_lag: Lag::CONTEMPORANEOUS,
-    };
-    constraints.is_forbidden(link) || constraints.tier_forbids(src, tgt)
 }
 
 fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
