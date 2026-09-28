@@ -2618,6 +2618,41 @@ def _accept_live_discovery(
 _GRAPH_POSTERIOR_TYPES = (ExactDagPosterior, DbnPosterior, GraphPosterior)
 
 
+#: Ordered family-dispatch registry consulted by :meth:`_PrepareRoute.compile`.
+#:
+#: Each entry is ``(query_types, handler_name, phase)``. ``compile`` walks this
+#: single list IN ORDER within each phase and routes the first ``isinstance``
+#: match to the named zero-argument ``_PrepareRoute`` handler. The three phases
+#: mark exactly where the compound, non-``isinstance`` arms of the chain must
+#: run in between (see ``compile``): ``"pre"`` fires before the
+#: ``discovery`` / graph-required / temporal / frame arms, ``"post_temporal"``
+#: after the temporal return (Transport / Interference / Attribution), and
+#: ``"post_admg"`` after the response-bootstrap guard and the ADMG-response
+#: refusal. The order and the phase of every row are load-bearing: they
+#: reproduce the precedence of the original chain, so a new straightforward
+#: family is added by appending one row in its phase, never by editing the
+#: compound arms that stay inline.
+_COMPILE_ROUTES: tuple[tuple[tuple[type, ...], str, str], ...] = (
+    ((PolicyValue, MultiActionPolicyValue), "_policy_value", "pre"),
+    ((ConditionalDoseResponse,), "_continuous_dose_response", "pre"),
+    ((RandomizedEffect,), "_randomized_effect", "pre"),
+    ((ComplierEffect, TreatmentOnTreated), "_complier_effect", "pre"),
+    ((SwitchbackEffect,), "_switchback_effect", "pre"),
+    ((PanelDifferenceInDifferences, StaggeredAdoption, AugmentedPanelDiD), "_panel_did", "pre"),
+    ((SyntheticControl, SyntheticDifferenceInDifferences), "_synthetic_control", "pre"),
+    ((SharpRegressionDiscontinuity,), "_sharp_rd", "pre"),
+    ((FuzzyRegressionDiscontinuity, RegressionKink), "_local_polynomial_ratio", "pre"),
+    ((LongitudinalRegime,), "_longitudinal_regime", "pre"),
+    ((SurvivalOutcome, CompetingRisksOutcome), "_survival", "pre"),
+    ((TransportQuery,), "_transport", "post_temporal"),
+    ((InterferenceQuery,), "_interference", "post_temporal"),
+    ((AnomalyAttribution, ChangeAttribution), "_attribution", "post_temporal"),
+    (_RESPONSE_FAMILY, "_response", "post_admg"),
+    ((AverageEffect,), "_average", "post_admg"),
+    ((ConditionalEffect,), "_conditional", "post_admg"),
+)
+
+
 @dataclass
 class _PrepareRoute:
     """One prepare request, routed to the native entry that compiles it."""
@@ -2663,30 +2698,24 @@ class _PrepareRoute:
     def _explicit_refute(self) -> bool:
         return self.refute is not None and self.refute not in (False, "none")
 
+    def _route(self, phase: str) -> str | None:
+        """Return the ``_COMPILE_ROUTES`` handler for ``query`` in ``phase``.
+
+        Walks the single ordered registry and returns the first row whose
+        phase matches and whose query types match ``self.query``; ``None`` when
+        no simple family in that phase applies and the compound arms take over.
+        """
+        query = self.query
+        for query_types, handler_name, entry_phase in _COMPILE_ROUTES:
+            if entry_phase == phase and isinstance(query, query_types):
+                return handler_name
+        return None
+
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
-        if isinstance(query, (PolicyValue, MultiActionPolicyValue)):
-            return self._policy_value()
-        if isinstance(query, ConditionalDoseResponse):
-            return self._continuous_dose_response()
-        if isinstance(query, RandomizedEffect):
-            return self._randomized_effect()
-        if isinstance(query, (ComplierEffect, TreatmentOnTreated)):
-            return self._complier_effect()
-        if isinstance(query, SwitchbackEffect):
-            return self._switchback_effect()
-        if isinstance(query, (PanelDifferenceInDifferences, StaggeredAdoption, AugmentedPanelDiD)):
-            return self._panel_did()
-        if isinstance(query, (SyntheticControl, SyntheticDifferenceInDifferences)):
-            return self._synthetic_control()
-        if isinstance(query, SharpRegressionDiscontinuity):
-            return self._sharp_rd()
-        if isinstance(query, (FuzzyRegressionDiscontinuity, RegressionKink)):
-            return self._local_polynomial_ratio()
-        if isinstance(query, LongitudinalRegime):
-            return self._longitudinal_regime()
-        if isinstance(query, (SurvivalOutcome, CompetingRisksOutcome)):
-            return self._survival()
+        handler = self._route("pre")
+        if handler is not None:
+            return getattr(self, handler)()
         if self.discovery is not None:
             return self._graph_posterior()
         if self.graph is None:
@@ -2704,24 +2733,18 @@ class _PrepareRoute:
             )
         if temporal:
             return self._temporal()
-        if isinstance(query, TransportQuery):
-            return self._transport()
-        if isinstance(query, InterferenceQuery):
-            return self._interference()
-        if isinstance(query, (AnomalyAttribution, ChangeAttribution)):
-            return self._attribution()
+        handler = self._route("post_temporal")
+        if handler is not None:
+            return getattr(self, handler)()
         # (RD kwargs already refused for non-AverageEffect queries at the top.)
         if isinstance(query, _RESPONSE_FAMILY):
             # A requested replicate count is refused before the structural
             # refusals: it is the caller's own request, not the cell's shape.
             self._refuse_response_bootstrap()
         _refuse_admg_response(self.graph, query)
-        if isinstance(query, _RESPONSE_FAMILY):
-            return self._response()
-        if isinstance(query, AverageEffect):
-            return self._average()
-        if isinstance(query, ConditionalEffect):
-            return self._conditional()
+        handler = self._route("post_admg")
+        if handler is not None:
+            return getattr(self, handler)()
         if isinstance(query, InterventionalDistribution):
             self._refuse_estimator_config("InterventionalDistribution")
             self._refuse_ids("InterventionalDistribution (general.id + functional.distribution)")
