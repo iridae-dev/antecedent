@@ -17,9 +17,9 @@ flowchart TD
 
 Antecedent prevents the meaning declared at the start of an analysis from disappearing by the time a result reaches another person or system.
 
-## What’s new in Antecedent 2.0?
+## The Antecedent workflow
 
-Antecedent 2.0 builds on the existing causal workflow—discovery, graph review, identification, frequentist and Bayesian estimation, validation, interventions, temporal analysis, counterfactuals, attribution, design, state, and durable artifacts:
+Antecedent covers the full causal workflow—discovery, graph review, identification, frequentist and Bayesian estimation, validation, interventions, temporal analysis, counterfactuals, attribution, design, state, and durable artifacts:
 
 ```python
 import antecedent as ant
@@ -32,7 +32,7 @@ reused = result.study.refresh(new_data)
 loaded = ant.load(result.export())
 ```
 
-2.0 adds native prediction and transport foundations to that workflow.
+It also provides native prediction and transport foundations for that workflow.
 
 **Learner-backed estimation.** DML, DR-Learner, and honest causal-forest paths use fold-local nuisance fitting, held-out diagnostics, learner provenance, overlap checks, and explicit limits. The standard Python wheel includes the CPU-native `NeuralNet` nuisance learner. CATE predictions are not pointwise confidence intervals.
 
