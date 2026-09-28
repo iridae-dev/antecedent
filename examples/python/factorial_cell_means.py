@@ -36,6 +36,10 @@ def main() -> None:
         f"interaction={result.interaction_effect}"
     )
     print("uncertainty:", result.uncertainty_semantics)
+    # The balanced fixture has exact main effects (4, 5) and interaction (4).
+    assert abs(result.factor_a_effect - 4.0) < 1e-9
+    assert abs(result.factor_b_effect - 5.0) < 1e-9
+    assert abs(result.interaction_effect - 4.0) < 1e-9
 
 
 if __name__ == "__main__":

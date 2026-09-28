@@ -32,6 +32,8 @@ def main() -> None:
     )
     print(f"2x2 DiD estimate={did.estimate} uncertainty={did.uncertainty}")
     print("assumptions:", did.assumptions)
+    # The fixture is built with a treated-post effect of exactly 4.
+    assert abs(did.estimate - 4.0) < 1e-9, did.estimate
 
     # Balanced two-period panel: within-subject changes cancel stable effects.
     subjects = [f"s{i}" for i in range(8) for _ in range(2)]
@@ -49,6 +51,8 @@ def main() -> None:
         f"panel DiD estimate={panel.estimate} se={panel.standard_error} "
         f"clusters={panel.clusters}"
     )
+    # The panel fixture carries the same exact treatment effect of 4.
+    assert abs(panel.estimate - 4.0) < 1e-9, panel.estimate
 
 
 if __name__ == "__main__":
