@@ -53,7 +53,9 @@ pub fn independent_action_contrast(
     let mut probability_supported = true;
     for i in 0..n {
         let row = &probabilities[i];
-        if !outcomes[i].is_finite() || row.len() != arms || assignments[i] >= arms
+        if !outcomes[i].is_finite()
+            || row.len() != arms
+            || assignments[i] >= arms
             || row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
             || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
         {
@@ -72,10 +74,12 @@ pub fn independent_action_contrast(
         };
         scores.push(score);
     }
-    if reference_support == 0 || action_support == 0 { return None; }
+    if reference_support == 0 || action_support == 0 {
+        return None;
+    }
     let effect = scores.iter().sum::<f64>() / n as f64;
-    let variance_upper_bound = scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>()
-        / ((n - 1) * n) as f64;
+    let variance_upper_bound =
+        scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>() / ((n - 1) * n) as f64;
     if !effect.is_finite() || !variance_upper_bound.is_finite() || variance_upper_bound < 0.0 {
         return None;
     }
@@ -89,7 +93,11 @@ pub fn independent_action_contrast(
             [effect - radius, effect + radius]
         });
     Some(IndependentActionContrast {
-        effect, variance_upper_bound, reference_support, action_support, interval_95,
+        effect,
+        variance_upper_bound,
+        reference_support,
+        action_support,
+        interval_95,
     })
 }
 
@@ -162,12 +170,14 @@ pub fn complier_wald_effect(
         return None;
     }
     let effect = intention_to_treat_effect / first_stage;
-    let influence = outcome_scores.iter().zip(&receipt_scores)
+    let influence = outcome_scores
+        .iter()
+        .zip(&receipt_scores)
         .map(|(outcome, receipt)| (outcome - effect * receipt) / first_stage)
         .collect::<Vec<_>>();
     let mean = influence.iter().sum::<f64>() / n as f64;
-    let variance = influence.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
-        / ((n - 1) * n) as f64;
+    let variance =
+        influence.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / ((n - 1) * n) as f64;
     if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
         return None;
     }
@@ -181,7 +191,11 @@ pub fn complier_wald_effect(
             [effect - radius, effect + radius]
         });
     Some(ComplierWaldEffect {
-        effect, intention_to_treat_effect, first_stage, variance, interval_95,
+        effect,
+        intention_to_treat_effect,
+        first_stage,
+        variance,
+        interval_95,
     })
 }
 
@@ -197,7 +211,11 @@ mod tests {
         ((state ^ (state >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
     }
 
-    fn study(arms: usize, replicate: usize, n: usize) -> (Vec<f64>, Vec<usize>, Vec<Vec<f64>>, f64) {
+    fn study(
+        arms: usize,
+        replicate: usize,
+        n: usize,
+    ) -> (Vec<f64>, Vec<usize>, Vec<Vec<f64>>, f64) {
         let mut outcomes = Vec::with_capacity(n);
         let mut assignments = Vec::with_capacity(n);
         let mut probabilities = Vec::with_capacity(n);
@@ -215,14 +233,28 @@ mod tests {
             } else {
                 vec![1.0 / arms as f64; arms]
             };
-            let draw = uniform((replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
+            let draw = uniform(
+                (replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
+            );
             let mut cumulative = 0.0;
-            let action = row.iter().position(|p| { cumulative += *p; draw < cumulative })
+            let action = row
+                .iter()
+                .position(|p| {
+                    cumulative += *p;
+                    draw < cumulative
+                })
                 .unwrap_or(arms - 1);
-            outcomes.push(baseline + if action == 1 { effect }
-                else if action >= 2 { 1.1 + 0.4 * (action - 2) as f64 }
-                else { 0.0 });
+            outcomes.push(
+                baseline
+                    + if action == 1 {
+                        effect
+                    } else if action >= 2 {
+                        1.1 + 0.4 * (action - 2) as f64
+                    } else {
+                        0.0
+                    },
+            );
             assignments.push(action);
             probabilities.push(row);
         }
@@ -237,8 +269,14 @@ mod tests {
             for rep in 0..REPLICATES {
                 let (outcomes, assignments, probabilities, truth) = study(arms, rep, 400);
                 for action in 1..arms {
-                    let fit = independent_action_contrast(&outcomes, &assignments, &probabilities, 0, action)
-                        .unwrap();
+                    let fit = independent_action_contrast(
+                        &outcomes,
+                        &assignments,
+                        &probabilities,
+                        0,
+                        action,
+                    )
+                    .unwrap();
                     let [lower, upper] = fit.interval_95.expect("action is supported");
                     let target = if action == 1 { truth } else { 1.1 + 0.4 * (action - 2) as f64 };
                     covered[action - 1] += usize::from(lower <= target && target <= upper);
@@ -246,7 +284,10 @@ mod tests {
             }
             for (index, count) in covered.into_iter().enumerate() {
                 let rate = count as f64 / REPLICATES as f64;
-                eprintln!("{arms}-arm action {} contrast: {count}/{REPLICATES} = {rate:.4}", index + 1);
+                eprintln!(
+                    "{arms}-arm action {} contrast: {count}/{REPLICATES} = {rate:.4}",
+                    index + 1
+                );
                 assert!((0.93..=0.985).contains(&rate));
             }
         }
@@ -255,13 +296,23 @@ mod tests {
     #[test]
     fn sparse_or_low_probability_action_withholds_interval() {
         let (outcomes, assignments, mut probabilities, _) = study(3, 2, 100);
-        assert!(independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
-            .unwrap().interval_95.is_none());
+        assert!(
+            independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
+                .unwrap()
+                .interval_95
+                .is_none()
+        );
         let (outcomes, assignments, _, _) = study(3, 2, 400);
         probabilities = vec![vec![0.89, 0.01, 0.10]; 400];
-        assert!(independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
-            .unwrap().interval_95.is_none());
-        assert!(independent_action_contrast(&outcomes, &assignments, &probabilities, 1, 1).is_none());
+        assert!(
+            independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
+                .unwrap()
+                .interval_95
+                .is_none()
+        );
+        assert!(
+            independent_action_contrast(&outcomes, &assignments, &probabilities, 1, 1).is_none()
+        );
     }
 
     #[test]
@@ -286,20 +337,27 @@ mod tests {
                         "high_boundary" => 0.8,
                         _ => 0.2 + 0.6 * (i % 7) as f64 / 6.0,
                     };
-                    let treated = uniform((rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                        ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)) < p;
-                    let outcome = 2.0 + coefficient * x + 0.4 * (0.29 * i as f64).sin()
+                    let treated = uniform(
+                        (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
+                    ) < p;
+                    let outcome = 2.0
+                        + coefficient * x
+                        + 0.4 * (0.29 * i as f64).sin()
                         + f64::from(treated) * effect;
                     adjusted.push(outcome - coefficient * x);
                     assignment.push(usize::from(treated));
                     probabilities.push(vec![1.0 - p, p]);
                 }
-                let fit = independent_action_contrast(&adjusted, &assignment, &probabilities, 0, 1).unwrap();
+                let fit = independent_action_contrast(&adjusted, &assignment, &probabilities, 0, 1)
+                    .unwrap();
                 let [lower, upper] = fit.interval_95.expect("calibrated Bernoulli support");
                 covered += usize::from(lower <= truth && truth <= upper);
             }
             let rate = covered as f64 / REPLICATES as f64;
-            eprintln!("fixed CUPED Bernoulli {probability_case} coverage: {covered}/{REPLICATES} = {rate:.4}");
+            eprintln!(
+                "fixed CUPED Bernoulli {probability_case} coverage: {covered}/{REPLICATES} = {rate:.4}"
+            );
             assert!((0.93..=0.985).contains(&rate));
         }
     }
@@ -316,10 +374,21 @@ mod tests {
     /// always-takers under one-sidedness). Outcomes satisfy exclusion — the
     /// encouragement enters only through receipt — so the Wald ratio targets
     /// the constant complier effect `tau_c`.
-    fn complier_study(rep: usize, n: usize, complier_share: f64, always_taker_share: f64,
-        tau_c: f64, one_sided: bool) -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<f64>) {
-        let draw = |i: usize, salt: u64| uniform((rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03) ^ salt.wrapping_mul(0xA076_1D64_78BD_642F));
+    fn complier_study(
+        rep: usize,
+        n: usize,
+        complier_share: f64,
+        always_taker_share: f64,
+        tau_c: f64,
+        one_sided: bool,
+    ) -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<f64>) {
+        let draw = |i: usize, salt: u64| {
+            uniform(
+                (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)
+                    ^ salt.wrapping_mul(0xA076_1D64_78BD_642F),
+            )
+        };
         let mut outcomes = Vec::with_capacity(n);
         let mut assignment = Vec::with_capacity(n);
         let mut received = Vec::with_capacity(n);
@@ -329,13 +398,27 @@ mod tests {
             let assigned = draw(i, 1) < p;
             let type_draw = draw(i, 2);
             let is_complier = type_draw < complier_share;
-            let is_always = !one_sided && type_draw >= complier_share
+            let is_always = !one_sided
+                && type_draw >= complier_share
                 && type_draw < complier_share + always_taker_share;
-            let receipt = if is_always { true } else if is_complier { assigned } else { false };
+            let receipt = if is_always {
+                true
+            } else if is_complier {
+                assigned
+            } else {
+                false
+            };
             let base = 1.0 + 0.5 * (0.3 * i as f64).sin();
             let noise = standard_normal(draw(i, 3), draw(i, 4));
-            let level = if is_always { 0.7 } else if is_complier { 0.0 } else { -0.3 };
-            let outcome = base + level + noise + if is_complier { tau_c * f64::from(receipt) } else { 0.0 };
+            let level = if is_always {
+                0.7
+            } else if is_complier {
+                0.0
+            } else {
+                -0.3
+            };
+            let outcome =
+                base + level + noise + if is_complier { tau_c * f64::from(receipt) } else { 0.0 };
             outcomes.push(outcome);
             assignment.push(assigned);
             received.push(receipt);
@@ -372,15 +455,19 @@ mod tests {
         for rep in 0..REPLICATES {
             let (outcomes, assignment, received, probabilities) =
                 complier_study(rep, N, 0.6, 0.0, truth, true);
-            assert!(received.iter().zip(&assignment).all(|(got, assigned)| !*got || *assigned),
-                "one-sided noncompliance: no control-arm receipt");
+            assert!(
+                received.iter().zip(&assignment).all(|(got, assigned)| !*got || *assigned),
+                "one-sided noncompliance: no control-arm receipt"
+            );
             let fit = complier_wald_effect(&outcomes, &assignment, &received, &probabilities)
                 .expect("finite positive first stage under one-sided encouragement");
             let [lower, upper] = fit.interval_95.expect("calibrated treatment-on-treated support");
             covered += usize::from(lower <= truth && truth <= upper);
         }
         let rate = covered as f64 / REPLICATES as f64;
-        eprintln!("one-sided ToT Wald influence interval coverage: {covered}/{REPLICATES} = {rate:.4}");
+        eprintln!(
+            "one-sided ToT Wald influence interval coverage: {covered}/{REPLICATES} = {rate:.4}"
+        );
         assert!((0.93..=0.985).contains(&rate));
     }
 
@@ -388,7 +475,11 @@ mod tests {
     fn complier_effect_withholds_interval_without_support() {
         let (outcomes, assignment, received, probabilities) =
             complier_study(7, 200, 0.5, 0.25, 1.5, false);
-        assert!(complier_wald_effect(&outcomes, &assignment, &received, &probabilities)
-            .unwrap().interval_95.is_none());
+        assert!(
+            complier_wald_effect(&outcomes, &assignment, &received, &probabilities)
+                .unwrap()
+                .interval_95
+                .is_none()
+        );
     }
 }

@@ -1,5 +1,9 @@
 //! End-to-end subject-owned sequential randomized regime value.
-#![allow(clippy::float_cmp, clippy::cast_possible_truncation, reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts")]
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_possible_truncation,
+    reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts"
+)]
 
 use antecedent::prelude::ExecutionContext;
 use antecedent::{PrimaryEstimate, Study};
@@ -40,8 +44,10 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
     let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
-    q.treatment_history = Arc::from([false, false, false, true, true, false, true, true,
-        false, false, false, true, true, false, true, true]);
+    q.treatment_history = Arc::from([
+        false, false, false, true, true, false, true, true, false, false, false, true, true, false,
+        true, true,
+    ]);
     q.regime_actions = Arc::from([false; 16]);
     q.treatment_probabilities = Arc::from([0.5; 16]);
     q.censoring_probabilities = Arc::from([1.0; 16]);
@@ -49,7 +55,10 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
     q.subject_ids = Arc::from(["a", "b", "c", "d", "e", "f", "g", "h"].map(Arc::<str>::from));
     q.fold_ids = Arc::from([0, 0, 0, 0, 1, 1, 1, 1]);
     q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap();
     let ctx = ExecutionContext::for_tests(91);
     let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
@@ -70,7 +79,14 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
     assert!((recorded[0] - 2.0).abs() < 1e-10 && (recorded[1] - 3.0).abs() < 1e-10);
     let mut fabricated = body.clone();
     fabricated.longitudinal_regime.as_mut().unwrap().standard_errors.clear();
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
     q.stabilizing_numerator_probabilities = Some(Arc::from([0.0; 2]));
     assert!(q.validate().is_err());
 }
@@ -78,13 +94,21 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
 #[test]
 fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
     let n = 300;
-    let treatment = (0..n).flat_map(|i| match i % 4 {
-        0 => [false, false], 1 => [false, true], 2 => [true, false], _ => [true, true],
-    }).collect::<Vec<_>>();
-    let y = (0..n).map(|i| {
-        1.0 + 2.0 * f64::from(treatment[2 * i]) + 3.0 * f64::from(treatment[2 * i + 1])
-            + (i % 7) as f64 / 10.0
-    }).collect::<Vec<_>>();
+    let treatment = (0..n)
+        .flat_map(|i| match i % 4 {
+            0 => [false, false],
+            1 => [false, true],
+            2 => [true, false],
+            _ => [true, true],
+        })
+        .collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * f64::from(treatment[2 * i])
+                + 3.0 * f64::from(treatment[2 * i + 1])
+                + (i % 7) as f64 / 10.0
+        })
+        .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
@@ -97,7 +121,8 @@ fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
     q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
     q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
     let ctx = ExecutionContext::for_tests(106);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let study =
+        Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
@@ -109,11 +134,15 @@ fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
     for (interval, coefficient) in periods.iter().zip(fit.period_effects.as_ref().unwrap().iter()) {
         assert!(interval[0] < *coefficient && *coefficient < interval[1]);
     }
-    let bytes = prepared.encode_contracted_result(&result, "longitudinal-msm-interval", &ctx).unwrap();
+    let bytes =
+        prepared.encode_contracted_result(&result, "longitudinal-msm-interval", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(intercept));
     body.longitudinal_regime.as_mut().unwrap().period_intervals_95[0] = [0.0, 0.0];
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-msm").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-msm")
+            .is_err()
+    );
 }
 
 #[test]
@@ -147,12 +176,14 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
     assert_eq!(body.interval_lower, None);
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(3.0);
-    assert!(antecedent_io::encode_analysis_result_artifact(
-        &fabricated,
-        header.variable_names,
-        "fabricated"
-    )
-    .is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
     let refreshed = prepared.refresh(data, &ctx).unwrap();
     assert_eq!(first.longitudinal_regime, refreshed.longitudinal_regime);
 }
@@ -163,20 +194,30 @@ fn retained_subject_ipw_interval_round_trips_with_dynamic_rule_identity() {
     let y = (0..n).map(|i| if i % 4 == 0 { 4.0 } else { 0.0 }).collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
     let mut q = query();
-    q.treatment_history = (0..n).flat_map(|i| match i % 4 {
-        0 => [true, true], 1 => [true, false], 2 => [false, true], _ => [false, false],
-    }).collect::<Vec<_>>().into();
+    q.treatment_history = (0..n)
+        .flat_map(|i| match i % 4 {
+            0 => [true, true],
+            1 => [true, false],
+            2 => [false, true],
+            _ => [false, false],
+        })
+        .collect::<Vec<_>>()
+        .into();
     q.regime_actions = vec![true; n * 2].into();
     q.treatment_probabilities = vec![0.5; n * 2].into();
     q.censoring_probabilities = vec![1.0; n * 2].into();
     q.outcome_observed = vec![true; n].into();
-    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("subject-{i}"))).collect::<Vec<_>>().into();
+    q.subject_ids =
+        (0..n).map(|i| Arc::<str>::from(format!("subject-{i}"))).collect::<Vec<_>>().into();
     q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
     q.rule_id = Some(Arc::from("static-all-treated-materialized"));
     q.rule_version = Some(Arc::from("v1"));
     q.rule_provenance = Some(Arc::from("known-rule-fixture"));
     let ctx = ExecutionContext::for_tests(104);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let regime = result.longitudinal_regime.as_ref().unwrap();
@@ -191,7 +232,14 @@ fn retained_subject_ipw_interval_round_trips_with_dynamic_rule_identity() {
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(interval));
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([4.0, 4.0]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-regime").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-regime"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -203,7 +251,10 @@ fn materialized_dynamic_rule_identity_survives_native_query_and_result_artifacts
     q.rule_version = Some(Arc::from("v1"));
     q.rule_provenance = Some(Arc::from("study-protocol-7"));
     let ctx = ExecutionContext::for_tests(99);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
@@ -215,12 +266,21 @@ fn materialized_dynamic_rule_identity_survives_native_query_and_result_artifacts
     let wire = body.longitudinal_regime.as_ref().unwrap();
     assert_eq!(wire.rule_version.as_deref(), Some("v1"));
     assert_eq!(wire.rule_provenance.as_deref(), Some("study-protocol-7"));
-    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &body.query else { panic!("wrong query") };
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &body.query else {
+        panic!("wrong query")
+    };
     assert_eq!(query_wire.rule_id.as_deref(), Some("adaptive-threshold"));
     assert_eq!(query_wire.regime_actions, q.regime_actions.as_ref());
     let mut fabricated = body.clone();
     fabricated.longitudinal_regime.as_mut().unwrap().rule_version = Some("v2".into());
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
     q.rule_version = None;
     assert!(q.validate().is_err());
 }
@@ -270,21 +330,25 @@ fn known_truth_g_formula_is_retained_and_artifact_identifies_method() {
     assert_eq!(body.longitudinal_regime.as_ref().unwrap().method, "g_formula");
     let mut fabricated = body.clone();
     fabricated.longitudinal_regime.as_mut().unwrap().method = "ipw".into();
-    assert!(antecedent_io::encode_analysis_result_artifact(
-        &fabricated,
-        header.variable_names,
-        "fabricated"
-    )
-    .is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn fixed_known_q_g_formula_interval_round_trips_and_refuses_forged_provenance() {
     let subjects = 400;
-    let predictions = (0..subjects).flat_map(|subject| {
-        let x = if subject % 2 == 0 { -1.0 } else { 1.0 };
-        [1.0 + 0.2 * x, 2.0 + 0.3 * x]
-    }).collect::<Vec<_>>();
+    let predictions = (0..subjects)
+        .flat_map(|subject| {
+            let x = if subject % 2 == 0 { -1.0 } else { 1.0 };
+            [1.0 + 0.2 * x, 2.0 + 0.3 * x]
+        })
+        .collect::<Vec<_>>();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::GFormula;
     q.period_outcome_predictions = Some(Arc::from(predictions));
@@ -294,15 +358,23 @@ fn fixed_known_q_g_formula_interval_round_trips_and_refuses_forged_provenance() 
     q.treatment_probabilities = Arc::from(vec![0.5; subjects * 2]);
     q.censoring_probabilities = Arc::from(vec![1.0; subjects * 2]);
     q.outcome_observed = Arc::from(vec![true; subjects]);
-    q.subject_ids = Arc::from((0..subjects).map(|subject| Arc::<str>::from(format!("subject-{subject}"))).collect::<Vec<_>>());
+    q.subject_ids = Arc::from(
+        (0..subjects)
+            .map(|subject| Arc::<str>::from(format!("subject-{subject}")))
+            .collect::<Vec<_>>(),
+    );
     q.fold_ids = Arc::from(vec![0; subjects]);
     q.excluded_fold_predictions = false;
     q.probabilities_known_by_design = true;
     let outcome = vec![0.0; subjects];
     let data = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
     let ctx = ExecutionContext::for_tests(314);
-    let prepared = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone()))
-        .build().unwrap().prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let value = result.longitudinal_regime.as_ref().unwrap();
     assert_eq!(value.value, 3.0);
@@ -319,7 +391,14 @@ fn fixed_known_q_g_formula_interval_round_trips_and_refuses_forged_provenance() 
     if let antecedent_io::CausalQueryWire::LongitudinalRegime(query) = &mut forged.query {
         query.known_fixed_outcome_predictions = false;
     }
-    assert!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged-fixed-q").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &forged,
+            header.variable_names,
+            "forged-fixed-q"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -346,7 +425,10 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
     q.excluded_fold_predictions = true;
     let data = TabularData::from_f64_columns([("outcome", &[7.0, 99.0, 0.0, 8.0][..])]).unwrap();
     let ctx = ExecutionContext::for_tests(117);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let value = result.longitudinal_regime.as_ref().unwrap();
@@ -355,8 +437,10 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
     assert_eq!(value.maximum_weight, 6.25);
     assert_eq!(&*value.uncertainty, "point_only_no_interval");
     assert_eq!(value.value_interval_95, None);
-    assert_eq!(value.interval_reason.as_deref(),
-        Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"));
+    assert_eq!(
+        value.interval_reason.as_deref(),
+        Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval")
+    );
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. }
             if id.as_ref() == "subject_excluded_fold_predictions")
@@ -370,11 +454,20 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
 #[test]
 fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject_folds() {
     let n = 300;
-    let treatment = (0..n).flat_map(|i| match i % 4 {
-        0 => [false, false], 1 => [false, true], 2 => [true, false], _ => [true, true],
-    }).collect::<Vec<_>>();
-    let outcomes = (0..n).map(|i| 2.0 + f64::from(treatment[2 * i])
-        + f64::from(treatment[2 * i + 1]) + ((i % 7) as f64 - 3.0) / 10.0)
+    let treatment = (0..n)
+        .flat_map(|i| match i % 4 {
+            0 => [false, false],
+            1 => [false, true],
+            2 => [true, false],
+            _ => [true, true],
+        })
+        .collect::<Vec<_>>();
+    let outcomes = (0..n)
+        .map(|i| {
+            2.0 + f64::from(treatment[2 * i])
+                + f64::from(treatment[2 * i + 1])
+                + ((i % 7) as f64 - 3.0) / 10.0
+        })
         .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
     let mut q = query();
@@ -391,7 +484,8 @@ fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject
     q.prediction_fold_ids = Some(q.fold_ids.clone());
     q.excluded_fold_predictions = true;
     let ctx = ExecutionContext::for_tests(121);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let study =
+        Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
@@ -400,25 +494,44 @@ fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_interval");
     let bytes = prepared.encode_contracted_result(&result, "sequential-dr-interval", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &body.query else { panic!("wrong query") };
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &body.query else {
+        panic!("wrong query")
+    };
     assert_eq!(query_wire.prediction_fold_ids, query_wire.fold_ids);
     assert!(query_wire.excluded_fold_predictions);
     assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, None);
     let mut fabricated_ownership = body.clone();
-    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) = &mut fabricated_ownership.query else { panic!("wrong query") };
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query_wire) =
+        &mut fabricated_ownership.query
+    else {
+        panic!("wrong query")
+    };
     query_wire.prediction_fold_ids[0] = 99;
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated_ownership,
-        header.variable_names.clone(), "forged-dr-ownership").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated_ownership,
+            header.variable_names.clone(),
+            "forged-dr-ownership"
+        )
+        .is_err()
+    );
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-dr").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-dr")
+            .is_err()
+    );
 }
 
 #[test]
 fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() {
     let n = 500;
     let treatment = (0..n).flat_map(|i| [i % 5 < 2, (i / 5) % 5 < 2]).collect::<Vec<_>>();
-    let outcomes = (0..n).map(|i| 2.0 + f64::from(treatment[2 * i])
-        + f64::from(treatment[2 * i + 1]) + ((i % 7) as f64 - 3.0) / 10.0)
+    let outcomes = (0..n)
+        .map(|i| {
+            2.0 + f64::from(treatment[2 * i])
+                + f64::from(treatment[2 * i + 1])
+                + ((i % 7) as f64 - 3.0) / 10.0
+        })
         .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
     let mut q = query();
@@ -435,7 +548,8 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
     q.prediction_fold_ids = Some(q.fold_ids.clone());
     q.excluded_fold_predictions = true;
     let ctx = ExecutionContext::for_tests(221);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let study =
+        Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
@@ -444,19 +558,30 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "two-period-dr-license", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(
+        body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
+        Some("licensed")
+    );
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&body,
-        header.variable_names, "forged-two-period-dr-interval").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-two-period-dr-interval"
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
     let subjects = 400;
-    let predictions = (0..subjects).flat_map(|subject| {
-        let x = if subject % 2 == 0 { -1.0 } else { 1.0 };
-        [2.0 + 0.3 * x, 3.0 + 0.2 * x]
-    }).collect::<Vec<_>>();
+    let predictions = (0..subjects)
+        .flat_map(|subject| {
+            let x = if subject % 2 == 0 { -1.0 } else { 1.0 };
+            [2.0 + 0.3 * x, 3.0 + 0.2 * x]
+        })
+        .collect::<Vec<_>>();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::GFormula;
     q.period_outcome_predictions = Some(Arc::from(predictions));
@@ -466,14 +591,20 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
     q.treatment_probabilities = Arc::from(vec![0.5; subjects * 2]);
     q.censoring_probabilities = Arc::from(vec![1.0; subjects * 2]);
     q.outcome_observed = Arc::from(vec![true; subjects]);
-    q.subject_ids = Arc::from((0..subjects).map(|subject| Arc::<str>::from(format!("gf-{subject}"))).collect::<Vec<_>>());
+    q.subject_ids = Arc::from(
+        (0..subjects).map(|subject| Arc::<str>::from(format!("gf-{subject}"))).collect::<Vec<_>>(),
+    );
     q.fold_ids = Arc::from(vec![0; subjects]);
     q.probabilities_known_by_design = true;
     let outcome = vec![0.0; subjects];
     let data = TabularData::from_f64_columns([("y", outcome.as_slice())]).unwrap();
     let ctx = ExecutionContext::for_tests(271);
-    let prepared = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q))
-        .build().unwrap().prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
     assert_eq!(&*fit.method, "g_formula");
@@ -483,27 +614,50 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "g-formula-license", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(
+        body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
+        Some("licensed")
+    );
     // Stripping the earned license from a still-published interval is rejected.
     let mut cleared = body.clone();
     cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
-    assert!(antecedent_io::encode_analysis_result_artifact(&cleared,
-        header.variable_names.clone(), "g-formula-cleared").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &cleared,
+            header.variable_names.clone(),
+            "g-formula-cleared"
+        )
+        .is_err()
+    );
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&body,
-        header.variable_names, "forged-g-formula-interval").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-g-formula-interval"
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
     let n = 300;
-    let treatment = (0..n).flat_map(|i| match i % 4 {
-        0 => [false, false], 1 => [false, true], 2 => [true, false], _ => [true, true],
-    }).collect::<Vec<_>>();
-    let y = (0..n).map(|i| {
-        1.0 + 2.0 * f64::from(treatment[2 * i]) + 3.0 * f64::from(treatment[2 * i + 1])
-            + (i % 7) as f64 / 10.0
-    }).collect::<Vec<_>>();
+    let treatment = (0..n)
+        .flat_map(|i| match i % 4 {
+            0 => [false, false],
+            1 => [false, true],
+            2 => [true, false],
+            _ => [true, true],
+        })
+        .collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * f64::from(treatment[2 * i])
+                + 3.0 * f64::from(treatment[2 * i + 1])
+                + (i % 7) as f64 / 10.0
+        })
+        .collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel;
@@ -516,8 +670,12 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
     q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
     q.stabilizing_numerator_probabilities = Some(Arc::from([0.5; 2]));
     let ctx = ExecutionContext::for_tests(287);
-    let prepared = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q))
-        .build().unwrap().prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
     assert!(fit.value_interval_95.is_some());
@@ -527,24 +685,42 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
     let bytes = prepared.encode_contracted_result(&result, "msm-license", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(), Some("licensed"));
+    assert_eq!(
+        body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
+        Some("licensed")
+    );
     // The license cannot survive without every published coefficient interval.
     let mut cleared = body.clone();
     cleared.longitudinal_regime.as_mut().unwrap().graphless_support_status = None;
-    assert!(antecedent_io::encode_analysis_result_artifact(&cleared,
-        header.variable_names.clone(), "msm-cleared").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &cleared,
+            header.variable_names.clone(),
+            "msm-cleared"
+        )
+        .is_err()
+    );
     body.longitudinal_regime.as_mut().unwrap().period_intervals_95[0] = [0.0, 0.0];
-    assert!(antecedent_io::encode_analysis_result_artifact(&body,
-        header.variable_names, "forged-msm-license").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-msm-license"
+        )
+        .is_err()
+    );
 }
 
 #[test]
 fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_horizon() {
     let n = 800;
-    let treatment = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0])
+    let treatment = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0]).collect::<Vec<_>>();
+    let outcomes = (0..n)
+        .map(|i| {
+            2.0 + (0..3).map(|t| f64::from(treatment[3 * i + t])).sum::<f64>()
+                + ((i % 11) as f64 - 5.0) / 20.0
+        })
         .collect::<Vec<_>>();
-    let outcomes = (0..n).map(|i| 2.0 + (0..3).map(|t| f64::from(treatment[3 * i + t])).sum::<f64>()
-        + ((i % 11) as f64 - 5.0) / 20.0).collect::<Vec<_>>();
     let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
     let mut q = query();
     q.method = antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust;
@@ -556,12 +732,16 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
     q.outcome_observed = vec![true; n].into();
     q.observation_history = Some(vec![true; n * 3].into());
     q.q_predictions = Some((0..n).flat_map(|_| [4.4, 4.7, 5.1]).collect::<Vec<_>>().into());
-    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("three-{i}"))).collect::<Vec<_>>().into();
+    q.subject_ids =
+        (0..n).map(|i| Arc::<str>::from(format!("three-{i}"))).collect::<Vec<_>>().into();
     q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect::<Vec<_>>().into();
     q.prediction_fold_ids = Some(q.fold_ids.clone());
     q.excluded_fold_predictions = true;
     let ctx = ExecutionContext::for_tests(193);
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q.clone())).build().unwrap();
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let fit = result.longitudinal_regime.as_ref().unwrap();
@@ -576,16 +756,27 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, fit.value_interval_95);
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
-    assert!(antecedent_io::encode_analysis_result_artifact(&body, header.variable_names, "forged-three-period-dr").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-three-period-dr"
+        )
+        .is_err()
+    );
 
     q.periods = 4;
-    q.treatment_history = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0, i & 8 != 0]).collect::<Vec<_>>().into();
+    q.treatment_history = (0..n)
+        .flat_map(|i| [i & 1 != 0, i & 2 != 0, i & 4 != 0, i & 8 != 0])
+        .collect::<Vec<_>>()
+        .into();
     q.regime_actions = vec![true; n * 4].into();
     q.treatment_probabilities = vec![0.5; n * 4].into();
     q.censoring_probabilities = vec![0.95; n * 4].into();
     q.observation_history = Some(vec![true; n * 4].into());
     q.q_predictions = Some(vec![6.0; n * 4].into());
-    let study = Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
+    let study =
+        Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let fit = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     let value = fit.longitudinal_regime.as_ref().unwrap();
     assert!(value.value_interval_95.is_none());

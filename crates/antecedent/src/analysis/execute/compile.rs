@@ -574,9 +574,15 @@ impl super::Study {
                                 antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                             ) {
                                 "interference.cluster_neyman"
-                            } else if matches!(q.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. }) {
+                            } else if matches!(
+                                q.assignment,
+                                antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                            ) {
                                 "interference.saturation_exact"
-                            } else if matches!(q.assignment, antecedent_core::AssignmentDesign::ObservedExposure { .. }) {
+                            } else if matches!(
+                                q.assignment,
+                                antecedent_core::AssignmentDesign::ObservedExposure { .. }
+                            ) {
                                 "interference.observational_ipw"
                             } else {
                                 "interference.ht_hajek"
@@ -618,7 +624,7 @@ impl super::Study {
                                 } else {
                                     "randomized.ht_itt"
                                 }
-                            },
+                            }
                             antecedent_core::RandomizationDesign::Complete { .. }
                             | antecedent_core::RandomizationDesign::Stratified { .. }
                             | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
@@ -628,7 +634,9 @@ impl super::Study {
                             antecedent_core::RandomizationDesign::Switchback { .. } => {
                                 "randomized.switchback_ht_itt"
                             }
-                            antecedent_core::RandomizationDesign::MultiArm { .. } => "randomized.ht_itt",
+                            antecedent_core::RandomizationDesign::MultiArm { .. } => {
+                                "randomized.ht_itt"
+                            }
                         })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
@@ -642,7 +650,11 @@ impl super::Study {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::PolicyValue(q) = &self.query else { unreachable!() };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                if q.multi_action.as_ref().map_or(q.assignment.len(), |multi| multi.assignment.len()) != data.row_count() {
+                if q.multi_action
+                    .as_ref()
+                    .map_or(q.assignment.len(), |multi| multi.assignment.len())
+                    != data.row_count()
+                {
                     return Err(CausalError::Compile {
                         message: "policy inputs must align with the table rows".into(),
                     });
@@ -719,74 +731,106 @@ impl super::Study {
             (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::SyntheticControl(q) = &self.query else { unreachable!() };
-                q.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                q.validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 if q.units.len() != data.row_count() {
-                    return Err(CausalError::Compile { message: "synthetic-control metadata must align with table rows".into() });
+                    return Err(CausalError::Compile {
+                        message: "synthetic-control metadata must align with table rows".into(),
+                    });
                 }
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(match q.method {
-                            antecedent_core::SyntheticPanelMethod::Control => "quasi.synthetic_control",
-                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => "quasi.synthetic_did",
+                            antecedent_core::SyntheticPanelMethod::Control => {
+                                "quasi.synthetic_control"
+                            }
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                                "quasi.synthetic_did"
+                            }
                         }),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from(match q.method {
-                            antecedent_core::SyntheticPanelMethod::Control => "quasi.convex_donor_counterfactual",
-                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => "quasi.convex_unit_time_trends",
+                            antecedent_core::SyntheticPanelMethod::Control => {
+                                "quasi.convex_donor_counterfactual"
+                            }
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                                "quasi.convex_unit_time_trends"
+                            }
                         })),
                         estimator: Some(Arc::from(match q.method {
-                            antecedent_core::SyntheticPanelMethod::Control => "quasi.synthetic_control_simplex",
-                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => "quasi.synthetic_did_simplex",
+                            antecedent_core::SyntheticPanelMethod::Control => {
+                                "quasi.synthetic_control_simplex"
+                            }
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                                "quasi.synthetic_did_simplex"
+                            }
                         })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },
-                    query: self.query.clone(), split: None,
+                    query: self.query.clone(),
+                    split: None,
                     row_count_hint: data.row_count() as u64,
                 })
             }
             (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::ContinuousDoseResponse(q) = &self.query else { unreachable!() };
-                q.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                q.validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 if q.baseline_groups.len() != data.row_count() {
-                    return Err(CausalError::Compile { message: "continuous-dose baseline groups must align with table rows".into() });
+                    return Err(CausalError::Compile {
+                        message: "continuous-dose baseline groups must align with table rows"
+                            .into(),
+                    });
                 }
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from("policy.continuous_dose_response"),
                         data_classification: antecedent_core::DataClassification::Tabular,
-                        discovery_algorithm: None, graph_review_required: false,
-                        identifier: Some(Arc::from(IdentifierId::ContinuousDoseExchangeability.as_str())),
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(
+                            IdentifierId::ContinuousDoseExchangeability.as_str(),
+                        )),
                         estimator: Some(Arc::from(EstimatorId::ContinuousDoseKernel.as_str())),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome, q.dose, q.dose_density]),
                     },
-                    query: self.query.clone(), split: None,
+                    query: self.query.clone(),
+                    split: None,
                     row_count_hint: data.row_count() as u64,
                 })
             }
             (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::LocalPolynomialRatio(q) = &self.query else { unreachable!() };
-                q.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                q.validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 for variable in [q.outcome, q.treatment, q.running] {
-                    data.schema().get(variable).map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    data.schema()
+                        .get(variable)
+                        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 }
                 let label = if q.kink { "regression_kink" } else { "fuzzy_rd" };
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
                         plan_id: Arc::from(format!("quasi.{label}")),
                         data_classification: antecedent_core::DataClassification::Tabular,
-                        discovery_algorithm: None, graph_review_required: false,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
                         identifier: Some(Arc::from(format!("quasi.{label}.local_ratio"))),
-                        estimator: Some(Arc::from(format!("quasi.{label}.bias_corrected_local_polynomial"))),
+                        estimator: Some(Arc::from(format!(
+                            "quasi.{label}.bias_corrected_local_polynomial"
+                        ))),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome, q.treatment, q.running]),
                     },
-                    query: self.query.clone(), split: None, row_count_hint: data.row_count() as u64,
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
                 })
             }
             (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {

@@ -30,11 +30,18 @@ impl LocalPolynomialRatioQuery {
     /// treatment, and running variables are not distinct, or the cutoff is
     /// non-finite or the bandwidth is not positive.
     pub fn validate(&self) -> Result<(), QueryError> {
-        if self.outcome == self.treatment || self.outcome == self.running || self.treatment == self.running {
-            return Err(QueryError::InvalidLocalPolynomialRatio("outcome, treatment, and running variable must be distinct".into()));
+        if self.outcome == self.treatment
+            || self.outcome == self.running
+            || self.treatment == self.running
+        {
+            return Err(QueryError::InvalidLocalPolynomialRatio(
+                "outcome, treatment, and running variable must be distinct".into(),
+            ));
         }
         if !self.cutoff.is_finite() || !self.bandwidth.is_finite() || self.bandwidth <= 0.0 {
-            return Err(QueryError::InvalidLocalPolynomialRatio("cutoff must be finite and bandwidth positive".into()));
+            return Err(QueryError::InvalidLocalPolynomialRatio(
+                "cutoff must be finite and bandwidth positive".into(),
+            ));
         }
         Ok(())
     }

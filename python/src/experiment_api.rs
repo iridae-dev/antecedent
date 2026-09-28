@@ -85,15 +85,27 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             factorial_interaction: value.factorial_interaction,
             second_factor_variance: value.second_factor_variance,
             factorial_interaction_variance: value.factorial_interaction_variance,
-            multi_arm_values: value.multi_arm_values.iter().map(|(label, mean, variance, support)|
-                (label.to_string(), *mean, *variance, *support)).collect(),
+            multi_arm_values: value
+                .multi_arm_values
+                .iter()
+                .map(|(label, mean, variance, support)| {
+                    (label.to_string(), *mean, *variance, *support)
+                })
+                .collect(),
             variance_upper_bound: value.variance_upper_bound,
             standard_error: value.standard_error,
             interval_95: value.interval_95.map(|interval| (interval[0], interval[1])),
-            second_factor_interval_95: value.second_factor_interval_95.map(|interval| (interval[0], interval[1])),
-            factorial_interaction_interval_95: value.factorial_interaction_interval_95.map(|interval| (interval[0], interval[1])),
-            multi_arm_intervals_95: value.multi_arm_intervals_95.iter().map(|interval|
-                interval.map(|value| (value[0], value[1]))).collect(),
+            second_factor_interval_95: value
+                .second_factor_interval_95
+                .map(|interval| (interval[0], interval[1])),
+            factorial_interaction_interval_95: value
+                .factorial_interaction_interval_95
+                .map(|interval| (interval[0], interval[1])),
+            multi_arm_intervals_95: value
+                .multi_arm_intervals_95
+                .iter()
+                .map(|interval| interval.map(|value| (value[0], value[1])))
+                .collect(),
             minimum_assignment_probability: value.minimum_assignment_probability,
             assignment_design: value.assignment_design.to_string(),
             blocks: value.blocks.iter().map(ToString::to_string).collect(),
@@ -117,7 +129,10 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
 /// interval is `None` below the calibrated support thresholds; this direct
 /// utility never grants a support-matrix license.
 #[pyfunction]
-#[allow(clippy::type_complexity, reason = "flat Python return tuple of ITT, first stage, effect, SE, and optional interval bounds")]
+#[allow(
+    clippy::type_complexity,
+    reason = "flat Python return tuple of ITT, first stage, effect, SE, and optional interval bounds"
+)]
 fn estimate_complier_effect(
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
@@ -142,10 +157,16 @@ fn estimate_complier_effect(
         return Err(PyValueError::new_err("outcomes must be finite"));
     }
     let fit = antecedent_estimate::randomized_scores::complier_wald_effect(
-        &y.to_vec(), &assignment, &received, &probabilities,
-    ).ok_or_else(|| PyValueError::new_err(
-        "first stage must be positive under the declared monotonicity assumption",
-    ))?;
+        &y.to_vec(),
+        &assignment,
+        &received,
+        &probabilities,
+    )
+    .ok_or_else(|| {
+        PyValueError::new_err(
+            "first stage must be positive under the declared monotonicity assumption",
+        )
+    })?;
     Ok((
         fit.intention_to_treat_effect,
         fit.first_stage,
@@ -320,7 +341,11 @@ fn estimate_multi_arm_effects(
     let p = probabilities.as_array();
     let rows = p.rows().into_iter().map(|row| row.to_vec()).collect::<Vec<_>>();
     antecedent_estimate::multi_arm::estimate_multi_arm(&y.to_vec(), &assignment, &rows)
-        .map(|arms| arms.into_iter().map(|arm| (arm.value, arm.variance_bound, arm.observed_support)).collect())
+        .map(|arms| {
+            arms.into_iter()
+                .map(|arm| (arm.value, arm.variance_bound, arm.observed_support))
+                .collect()
+        })
         .map_err(PyValueError::new_err)
 }
 
@@ -349,8 +374,8 @@ fn estimate_switchback_effect(
     ).ok_or_else(|| PyValueError::new_err(
         "switchback requires finite outcomes, valid probabilities, at least two independent sequences, and global support for both arms",
     ))?;
-    let minimum_probability = p.iter().copied()
-        .map(|pi| pi.min(1.0 - pi)).fold(f64::INFINITY, f64::min);
+    let minimum_probability =
+        p.iter().copied().map(|pi| pi.min(1.0 - pi)).fold(f64::INFINITY, f64::min);
     Ok((fit.effect, fit.variance.sqrt(), minimum_probability, fit.sequences))
 }
 
@@ -368,11 +393,8 @@ fn estimate_ancova_effect(
         .map(|j| cov.column(j).iter().copied().collect::<Vec<_>>())
         .collect::<Vec<_>>();
     let refs = columns.iter().map(Vec::as_slice).collect::<Vec<_>>();
-    let fit = antecedent_estimate::ancova::fit_ancova(
-        &outcomes,
-        &assignment,
-        &refs,
-    ).map_err(PyValueError::new_err)?;
+    let fit = antecedent_estimate::ancova::fit_ancova(&outcomes, &assignment, &refs)
+        .map_err(PyValueError::new_err)?;
     Ok((fit.effect, fit.hc0_variance.sqrt(), fit.covariate_coefficients, fit.treated, fit.control))
 }
 

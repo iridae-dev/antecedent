@@ -6,15 +6,15 @@
 
 mod attribution;
 mod average;
-mod counterfactual;
 mod continuous_dose;
+mod counterfactual;
 mod did;
 mod distribution;
 mod error;
 mod functional;
 mod interference;
-mod longitudinal_regime;
 mod local_polynomial_ratio;
+mod longitudinal_regime;
 mod mediation;
 mod nested_counterfactual;
 mod policy_value;
@@ -38,34 +38,33 @@ pub use attribution::{
     ShapleyConfig, ShapleyMode, UnitChangeQuery,
 };
 pub use average::AverageEffectQuery;
-pub use counterfactual::CounterfactualQuery;
 pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
+pub use counterfactual::CounterfactualQuery;
 pub use did::{DidSamplingDesign, PanelDidQuery};
-pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
 pub use interference::{
-    AssignmentDesign, ExposureLevel, ExposureMapping, ExposurePropensityProvenance,
-    InterferenceFunctional, InterferenceQuery,
-    EXPOSURE_LEVEL_TOLERANCE,
+    AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
+    ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery,
 };
+pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
 pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use nested_counterfactual::NestedCounterfactualQuery;
 pub use policy_value::{
-    policy_graphless_coordinate, FixedCandidateRegretInputs, MultiActionPolicyInputs,
-    PolicyValueQuery,
+    FixedCandidateRegretInputs, MultiActionPolicyInputs, PolicyValueQuery,
+    policy_graphless_coordinate,
 };
 pub use population::{PopulationRegistry, PopulationSelection};
 pub use randomized::{
-    randomized_graphless_coordinate, RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand,
+    RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
 };
 pub use response::{
-    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec, ObservationAssumption,
-    ObservationSpec, ResponseFunctional, ResponseQuery, TemporalResponseLicense,
-    TemporalResponseSpec, MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
-    MAX_TEMPORAL_RESPONSE_HORIZONS, TEMPORAL_OBSERVATION_UNLICENSED,
+    ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
+    TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
 pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
@@ -393,7 +392,9 @@ impl From<SurvivalQuery> for CausalQuery {
 }
 
 impl From<LongitudinalRegimeQuery> for CausalQuery {
-    fn from(query: LongitudinalRegimeQuery) -> Self { Self::LongitudinalRegime(query) }
+    fn from(query: LongitudinalRegimeQuery) -> Self {
+        Self::LongitudinalRegime(query)
+    }
 }
 
 impl CausalQuery {

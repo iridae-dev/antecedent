@@ -85,10 +85,24 @@ impl CheckedInterferenceOperation {
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                 ) && query.exposure
                     == antecedent_core::ExposureMapping::NeighborFraction;
-                let saturation = matches!(query.assignment, antecedent_core::AssignmentDesign::TwoStageSaturation { .. })
-                    && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure);
-                let observed = matches!(query.assignment, antecedent_core::AssignmentDesign::ObservedExposure { .. })
-                    && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount | antecedent_core::ExposureMapping::NeighborFraction | antecedent_core::ExposureMapping::WeightedNeighborExposure);
+                let saturation = matches!(
+                    query.assignment,
+                    antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                ) && matches!(
+                    query.exposure,
+                    antecedent_core::ExposureMapping::NeighborCount
+                        | antecedent_core::ExposureMapping::NeighborFraction
+                        | antecedent_core::ExposureMapping::WeightedNeighborExposure
+                );
+                let observed = matches!(
+                    query.assignment,
+                    antecedent_core::AssignmentDesign::ObservedExposure { .. }
+                ) && matches!(
+                    query.exposure,
+                    antecedent_core::ExposureMapping::NeighborCount
+                        | antecedent_core::ExposureMapping::NeighborFraction
+                        | antecedent_core::ExposureMapping::WeightedNeighborExposure
+                );
                 if !bernoulli && !cluster && !saturation && !observed {
                     return Err(CausalError::Unsupported {
                         message: "interference requires Bernoulli/NeighborCount, cluster total, exact two-stage saturation, or supplied-propensity observational exposure",
@@ -105,14 +119,24 @@ impl CheckedInterferenceOperation {
                     .map_err(CausalError::from)?;
                 }
                 if saturation {
-                    antecedent_estimate::estimate_saturation_interference(query, &design.network, &design.assignment)
-                        .map_err(CausalError::from)?;
+                    antecedent_estimate::estimate_saturation_interference(
+                        query,
+                        &design.network,
+                        &design.assignment,
+                    )
+                    .map_err(CausalError::from)?;
                 }
                 if observed {
                     estimate_observed_exposure(query, &design.network, &design.assignment)?;
                 }
                 (
-                    if observed { InterferenceProcedure::ObservationalIpw } else if saturation { InterferenceProcedure::SaturationExact } else { InterferenceProcedure::DesignBasedYoung },
+                    if observed {
+                        InterferenceProcedure::ObservationalIpw
+                    } else if saturation {
+                        InterferenceProcedure::SaturationExact
+                    } else {
+                        InterferenceProcedure::DesignBasedYoung
+                    },
                     if observed {
                         EstimatorId::InterferenceObservationalIpw
                     } else if saturation {
@@ -246,19 +270,31 @@ impl CheckedInterferenceOperation {
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             self.query.functional;
         let started = Instant::now();
-        let (estimated, interference_inference, posterior, estimate, diagnostic) = match self.procedure {
+        let (estimated, interference_inference, posterior, estimate, diagnostic) = match self
+            .procedure
+        {
             InterferenceProcedure::DesignBasedYoung | InterferenceProcedure::SaturationExact => {
                 let seed =
                     ctx.rng.stream_for(antecedent_core::StreamDomain::Transport, 0x1F7E).next_u64();
                 let saturation = matches!(self.procedure, InterferenceProcedure::SaturationExact);
                 let (estimated, interference_inference) = if saturation {
-                    let value = antecedent_estimate::estimate_saturation_interference(&self.query, &network, &self.assignment)
-                        .map_err(CausalError::from)?;
-                    let interval = value.pointwise_interval.map(|interval| crate::result::InterferencePointwiseInterval {
-                        lower: interval.bounds[0], upper: interval.bounds[1],
-                        standard_error: interval.standard_error,
-                        degrees_of_freedom: interval.degrees_of_freedom,
-                        first_stage_arm_clusters: [interval.low_clusters, interval.high_clusters],
+                    let value = antecedent_estimate::estimate_saturation_interference(
+                        &self.query,
+                        &network,
+                        &self.assignment,
+                    )
+                    .map_err(CausalError::from)?;
+                    let interval = value.pointwise_interval.map(|interval| {
+                        crate::result::InterferencePointwiseInterval {
+                            lower: interval.bounds[0],
+                            upper: interval.bounds[1],
+                            standard_error: interval.standard_error,
+                            degrees_of_freedom: interval.degrees_of_freedom,
+                            first_stage_arm_clusters: [
+                                interval.low_clusters,
+                                interval.high_clusters,
+                            ],
+                        }
                     });
                     let graphless_support_status = interval.as_ref().and_then(|interval| {
                         interference_graphless_license(
@@ -270,7 +306,9 @@ impl CheckedInterferenceOperation {
                                 control: interval.first_stage_arm_clusters[0],
                                 treated: interval.first_stage_arm_clusters[1],
                                 blocks: 2,
-                                min_block_arm: value.from_exposed_clusters.min(value.to_exposed_clusters),
+                                min_block_arm: value
+                                    .from_exposed_clusters
+                                    .min(value.to_exposed_clusters),
                                 interval_95_published: true,
                                 reported_intervals: 1,
                                 ..Default::default()
@@ -292,20 +330,30 @@ impl CheckedInterferenceOperation {
                     self.query.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
                 ) {
-                    let (value, interval) = antecedent_estimate::estimate_cluster_interference_total_with_inference(
-                        &self.query,
-                        &network,
-                        &self.assignment,
-                    ).map_err(CausalError::from)?;
+                    let (value, interval) =
+                        antecedent_estimate::estimate_cluster_interference_total_with_inference(
+                            &self.query,
+                            &network,
+                            &self.assignment,
+                        )
+                        .map_err(CausalError::from)?;
                     let (control_clusters, treated_clusters) = match &self.query.assignment {
-                        antecedent_core::AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
-                            let independent = clusters.iter().copied().collect::<std::collections::BTreeSet<_>>().len();
+                        antecedent_core::AssignmentDesign::ClusterRandomization {
+                            clusters,
+                            treated_clusters,
+                        } => {
+                            let independent = clusters
+                                .iter()
+                                .copied()
+                                .collect::<std::collections::BTreeSet<_>>()
+                                .len();
                             (independent - *treated_clusters, *treated_clusters)
                         }
                         _ => unreachable!(),
                     };
                     let interval_available = interval.is_some();
-                    let to_exposed_units = self.assignment.iter().filter(|&&assigned| assigned).count();
+                    let to_exposed_units =
+                        self.assignment.iter().filter(|&&assigned| assigned).count();
                     let graphless_support_status = interval.as_ref().and_then(|_| {
                         interference_graphless_license(
                             "cluster_randomization_total",
@@ -323,17 +371,30 @@ impl CheckedInterferenceOperation {
                     let inference = crate::result::InterferenceInference {
                         method: "cluster_total_neyman_welch",
                         graphless_support_status,
-                        interval: interval.map(|interval| crate::result::InterferencePointwiseInterval {
-                            lower: interval.bounds[0], upper: interval.bounds[1],
-                            standard_error: interval.standard_error,
-                            degrees_of_freedom: interval.degrees_of_freedom,
-                            first_stage_arm_clusters: [interval.control_clusters, interval.treated_clusters],
+                        interval: interval.map(|interval| {
+                            crate::result::InterferencePointwiseInterval {
+                                lower: interval.bounds[0],
+                                upper: interval.bounds[1],
+                                standard_error: interval.standard_error,
+                                degrees_of_freedom: interval.degrees_of_freedom,
+                                first_stage_arm_clusters: [
+                                    interval.control_clusters,
+                                    interval.treated_clusters,
+                                ],
+                            }
                         }),
-                        interval_unavailable_reason: if control_clusters < 8 || treated_clusters < 8 {
-                            Some("pointwise cluster-total inference requires eight independent clusters in each assignment arm")
+                        interval_unavailable_reason: if control_clusters < 8 || treated_clusters < 8
+                        {
+                            Some(
+                                "pointwise cluster-total inference requires eight independent clusters in each assignment arm",
+                            )
                         } else if !interval_available {
-                            Some("pointwise cluster-total inference requires positive finite between-cluster variation")
-                        } else { None },
+                            Some(
+                                "pointwise cluster-total inference requires positive finite between-cluster variation",
+                            )
+                        } else {
+                            None
+                        },
                         from_exposed_units: self.assignment.len() - to_exposed_units,
                         to_exposed_units,
                         from_exposed_clusters: control_clusters,
@@ -341,14 +402,22 @@ impl CheckedInterferenceOperation {
                     };
                     (value, Some(inference))
                 } else {
-                    (antecedent_estimate::estimate_interference(
-                        &self.query,
-                        &network,
-                        &self.assignment,
-                        seed,
-                    ).map_err(CausalError::from)?, None)
+                    (
+                        antecedent_estimate::estimate_interference(
+                            &self.query,
+                            &network,
+                            &self.assignment,
+                            seed,
+                        )
+                        .map_err(CausalError::from)?,
+                        None,
+                    )
                 };
-                let se = if saturation { f64::NAN } else { estimated.contrast.conservative_variance.sqrt() };
+                let se = if saturation {
+                    f64::NAN
+                } else {
+                    estimated.contrast.conservative_variance.sqrt()
+                };
                 let cluster = matches!(
                     self.query.assignment,
                     antecedent_core::AssignmentDesign::ClusterRandomization { .. }
@@ -385,12 +454,17 @@ impl CheckedInterferenceOperation {
             }
             InterferenceProcedure::ObservationalIpw => {
                 let summary = estimate_observed_exposure(&self.query, &network, &self.assignment)?;
-                let interval = summary.pointwise_interval.as_ref().map(|interval| crate::result::InterferencePointwiseInterval {
-                    lower: interval.bounds[0],
-                    upper: interval.bounds[1],
-                    standard_error: interval.standard_error,
-                    degrees_of_freedom: interval.degrees_of_freedom,
-                    first_stage_arm_clusters: [summary.from_exposed_clusters, summary.to_exposed_clusters],
+                let interval = summary.pointwise_interval.as_ref().map(|interval| {
+                    crate::result::InterferencePointwiseInterval {
+                        lower: interval.bounds[0],
+                        upper: interval.bounds[1],
+                        standard_error: interval.standard_error,
+                        degrees_of_freedom: interval.degrees_of_freedom,
+                        first_stage_arm_clusters: [
+                            summary.from_exposed_clusters,
+                            summary.to_exposed_clusters,
+                        ],
+                    }
                 });
                 let graphless_support_status = interval.as_ref().and_then(|_| {
                     interference_graphless_license(
@@ -421,8 +495,12 @@ impl CheckedInterferenceOperation {
                     to_exposed_clusters: summary.to_exposed_clusters,
                 };
                 let method = match summary.propensity_provenance {
-                    antecedent_core::ExposurePropensityProvenance::Known => antecedent_stats::ExposureProbabilityMethod::SuppliedKnown,
-                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated,
+                    antecedent_core::ExposurePropensityProvenance::Known => {
+                        antecedent_stats::ExposureProbabilityMethod::SuppliedKnown
+                    }
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => {
+                        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated
+                    }
                 };
                 let estimated = antecedent_estimate::InterferenceEstimate {
                     contrast: antecedent_stats::RandomizationContrast {
@@ -454,7 +532,10 @@ impl CheckedInterferenceOperation {
                     None,
                     EffectEstimate::new(
                         summary.horvitz_thompson,
-                        summary.pointwise_interval.as_ref().map_or(f64::NAN, |interval| interval.standard_error),
+                        summary
+                            .pointwise_interval
+                            .as_ref()
+                            .map_or(f64::NAN, |interval| interval.standard_error),
                         self.identification.required_assumptions.clone(),
                         OverlapPolicy::ExplicitOverride,
                     ),
@@ -649,7 +730,9 @@ fn design_identification_assumptions(cluster: bool) -> antecedent_core::Assumpti
 }
 
 fn saturation_identification_assumptions() -> antecedent_core::AssumptionSet {
-    use antecedent_core::{Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus};
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+    };
     let mut assumptions = design_identification_assumptions(true);
     assumptions.push(AssumptionRecord {
         assumption: Assumption::Custom {
@@ -664,18 +747,41 @@ fn saturation_identification_assumptions() -> antecedent_core::AssumptionSet {
 }
 
 fn observational_identification_assumptions() -> antecedent_core::AssumptionSet {
-    use antecedent_core::{Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource, AssumptionStatus};
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+        AssumptionStatus,
+    };
     let mut assumptions = AssumptionSet::default();
     for (id, description) in [
-        ("interference.network_exchangeability", "No unmeasured network-exposure confounding conditional on the covariates used to supply exposure probabilities; this is declared by the caller, not checked from the network."),
-        ("interference.partial_interference", "Potential outcomes may depend on assignments within the unit's cluster, but not on assignments in other clusters."),
-        ("interference.consistency", "The fixed network exposure mapping agrees with the potential-outcome exposure definition and observed outcomes."),
-        ("interference.exposure_positivity", "Every requested exposure has positive supplied probability for every unit."),
-        ("interference.supplied_propensity", "Exposure probabilities are known or externally estimated and supplied in unit-row order; their fitting uncertainty is not included in the cluster variance."),
+        (
+            "interference.network_exchangeability",
+            "No unmeasured network-exposure confounding conditional on the covariates used to supply exposure probabilities; this is declared by the caller, not checked from the network.",
+        ),
+        (
+            "interference.partial_interference",
+            "Potential outcomes may depend on assignments within the unit's cluster, but not on assignments in other clusters.",
+        ),
+        (
+            "interference.consistency",
+            "The fixed network exposure mapping agrees with the potential-outcome exposure definition and observed outcomes.",
+        ),
+        (
+            "interference.exposure_positivity",
+            "Every requested exposure has positive supplied probability for every unit.",
+        ),
+        (
+            "interference.supplied_propensity",
+            "Exposure probabilities are known or externally estimated and supplied in unit-row order; their fitting uncertainty is not included in the cluster variance.",
+        ),
     ] {
         assumptions.push(AssumptionRecord {
-            assumption: Assumption::Custom { id: Arc::from(id), description: Arc::from(description) },
-            source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("interference.observational_ipw") },
+            assumption: Assumption::Custom {
+                id: Arc::from(id),
+                description: Arc::from(description),
+            },
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("interference.observational_ipw"),
+            },
             scope: AssumptionScope::Identification,
             status: AssumptionStatus::Declared,
         });
@@ -689,11 +795,19 @@ fn estimate_observed_exposure(
     assignment: &[bool],
 ) -> Result<antecedent_estimate::ObservationalExposureEstimate, CausalError> {
     let antecedent_core::AssignmentDesign::ObservedExposure {
-        clusters, propensity_from, propensity_to, provenance, ..
-    } = &query.assignment else {
-        return Err(CausalError::Compile { message: "observational interference requires supplied exposure probabilities".into() });
+        clusters,
+        propensity_from,
+        propensity_to,
+        provenance,
+        ..
+    } = &query.assignment
+    else {
+        return Err(CausalError::Compile {
+            message: "observational interference requires supplied exposure probabilities".into(),
+        });
     };
-    let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, from, to } = query.functional;
+    let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, from, to } =
+        query.functional;
     antecedent_estimate::estimate_observational_exposure(
         network,
         outcome,
@@ -707,7 +821,8 @@ fn estimate_observed_exposure(
             propensity_to,
             propensity_provenance: *provenance,
         },
-    ).map_err(CausalError::from)
+    )
+    .map_err(CausalError::from)
 }
 
 /// License one interference exposure-contrast interval against the exact
@@ -766,7 +881,13 @@ fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::Assumpti
 
 #[cfg(test)]
 mod checked_interference_tests {
-    #![cfg_attr(test, allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates and probabilities"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            reason = "tests assert exact deterministic estimates and probabilities"
+        )
+    )]
     use super::*;
     use antecedent_core::{
         AssignmentDesign, CausalQuery, ExposureLevel, ExposureMapping, InterferenceFunctional,

@@ -34,7 +34,10 @@ pub struct SwitchbackItt {
 /// period-weighted mean and both arm contributions are supported.
 #[must_use]
 pub fn switchback_itt(
-    outcomes: &[f64], assignment: &[bool], probabilities: &[f64], sequence_ids: &[&str],
+    outcomes: &[f64],
+    assignment: &[bool],
+    probabilities: &[f64],
+    sequence_ids: &[&str],
 ) -> Option<SwitchbackItt> {
     let n = outcomes.len();
     if n == 0 || assignment.len() != n || probabilities.len() != n || sequence_ids.len() != n {
@@ -45,8 +48,12 @@ pub fn switchback_itt(
     let mut overlap = true;
     for i in 0..n {
         let (y, p) = (outcomes[i], probabilities[i]);
-        if !y.is_finite() || !p.is_finite() || !(0.0..1.0).contains(&p)
-            || p == 0.0 || sequence_ids[i].is_empty() {
+        if !y.is_finite()
+            || !p.is_finite()
+            || !(0.0..1.0).contains(&p)
+            || p == 0.0
+            || sequence_ids[i].is_empty()
+        {
             return None;
         }
         overlap &= p + 1e-12 >= MIN_ARM_PROBABILITY_FOR_INTERVAL
@@ -65,11 +72,16 @@ pub fn switchback_itt(
     let variance = sequences as f64 / (sequences - 1) as f64
         * grouped.values().map(|(score, _)| (score - mean_total).powi(2)).sum::<f64>()
         / (n * n) as f64;
-    if !effect.is_finite() || !variance.is_finite() || variance < 0.0 { return None; }
+    if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
+        return None;
+    }
     let period_count = grouped.values().next().map_or(0, |(_, count)| *count);
     let balanced = period_count > 0 && grouped.values().all(|(_, count)| *count == period_count);
-    let interval_95 = (sequences >= MIN_SEQUENCES_FOR_INTERVAL && balanced && overlap
-        && arm_counts.iter().all(|count| *count >= 30) && variance > 0.0)
+    let interval_95 = (sequences >= MIN_SEQUENCES_FOR_INTERVAL
+        && balanced
+        && overlap
+        && arm_counts.iter().all(|count| *count >= 30)
+        && variance > 0.0)
         .then(|| {
             let critical = antecedent_stats::student_t_ppf(0.975, (sequences - 1) as f64);
             let radius = critical * variance.sqrt();

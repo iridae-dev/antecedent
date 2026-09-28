@@ -10222,10 +10222,17 @@ impl Study {
             _ => None,
         };
         let checked_continuous_dose = match (&self.data, &self.query, analysis.graph.class()) {
-            (DataInput::Tabular(data), CausalQuery::ContinuousDoseResponse(_), GraphClass::RandomizedTrial)
-                if analysis.graph_posterior.is_none() && analysis.tiered.is_none() && analysis.split.is_none() =>
+            (
+                DataInput::Tabular(data),
+                CausalQuery::ContinuousDoseResponse(_),
+                GraphClass::RandomizedTrial,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
             {
-                Some(super::execute::CheckedContinuousDoseOperation::checked(&analysis, data, &plan)?)
+                Some(super::execute::CheckedContinuousDoseOperation::checked(
+                    &analysis, data, &plan,
+                )?)
             }
             _ => None,
         };
@@ -10240,20 +10247,33 @@ impl Study {
             _ => None,
         };
         let checked_synthetic_control = match (&self.data, &self.query, analysis.graph.class()) {
-            (DataInput::Tabular(data), CausalQuery::SyntheticControl(_), GraphClass::RandomizedTrial)
-                if analysis.graph_posterior.is_none()
-                    && analysis.tiered.is_none()
-                    && analysis.split.is_none() =>
+            (
+                DataInput::Tabular(data),
+                CausalQuery::SyntheticControl(_),
+                GraphClass::RandomizedTrial,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
             {
-                Some(super::execute::CheckedSyntheticControlOperation::checked(&analysis, data, &plan)?)
+                Some(super::execute::CheckedSyntheticControlOperation::checked(
+                    &analysis, data, &plan,
+                )?)
             }
             _ => None,
         };
-        let checked_local_polynomial_ratio = match (&self.data, &self.query, analysis.graph.class()) {
-            (DataInput::Tabular(data), CausalQuery::LocalPolynomialRatio(_), GraphClass::RandomizedTrial)
-                if analysis.graph_posterior.is_none() && analysis.tiered.is_none() && analysis.split.is_none() =>
+        let checked_local_polynomial_ratio = match (&self.data, &self.query, analysis.graph.class())
+        {
+            (
+                DataInput::Tabular(data),
+                CausalQuery::LocalPolynomialRatio(_),
+                GraphClass::RandomizedTrial,
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
             {
-                Some(super::execute::CheckedLocalPolynomialRatioOperation::checked(&analysis, data, &plan)?)
+                Some(super::execute::CheckedLocalPolynomialRatioOperation::checked(
+                    &analysis, data, &plan,
+                )?)
             }
             _ => None,
         };
@@ -10270,13 +10290,18 @@ impl Study {
             _ => None,
         };
         let checked_longitudinal_regime = match (&self.data, &self.query, analysis.graph.class()) {
-            (DataInput::Tabular(data), CausalQuery::LongitudinalRegime(_), GraphClass::RandomizedTrial)
-                if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
-                    && analysis.graph_posterior.is_none()
-                    && analysis.tiered.is_none()
-                    && analysis.split.is_none() =>
+            (
+                DataInput::Tabular(data),
+                CausalQuery::LongitudinalRegime(_),
+                GraphClass::RandomizedTrial,
+            ) if analysis.structure_source == crate::support::StructureSource::RandomizedTrial
+                && analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && analysis.split.is_none() =>
             {
-                Some(super::execute::CheckedLongitudinalRegimeOperation::checked(&analysis, data, &plan)?)
+                Some(super::execute::CheckedLongitudinalRegimeOperation::checked(
+                    &analysis, data, &plan,
+                )?)
             }
             _ => None,
         };
@@ -10955,11 +10980,13 @@ impl Study {
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if let CausalQuery::SyntheticControl(query) = &self.query {
-            let (identification, estimand) = super::execute::synthetic_control_identification(query);
+            let (identification, estimand) =
+                super::execute::synthetic_control_identification(query);
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if let CausalQuery::LocalPolynomialRatio(query) = &self.query {
-            let (identification, estimand) = super::execute::local_polynomial_ratio_identification(query);
+            let (identification, estimand) =
+                super::execute::local_polynomial_ratio_identification(query);
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         if let CausalQuery::Survival(query) = &self.query {
@@ -11995,7 +12022,9 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             if analysis.graph.class() != GraphClass::RandomizedTrial
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
-                return Err(CausalError::Unsupported { message: "continuous-dose response requires a graphless fixed baseline-group design" });
+                return Err(CausalError::Unsupported {
+                    message: "continuous-dose response requires a graphless fixed baseline-group design",
+                });
             }
         }
         (DataInput::Tabular(_), CausalQuery::PanelDid(_)) => {
@@ -12011,14 +12040,18 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             if analysis.graph.class() != GraphClass::RandomizedTrial
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
-                return Err(CausalError::Unsupported { message: "SyntheticControl requires a graphless balanced-panel design" });
+                return Err(CausalError::Unsupported {
+                    message: "SyntheticControl requires a graphless balanced-panel design",
+                });
             }
         }
         (DataInput::Tabular(_), CausalQuery::LocalPolynomialRatio(_)) => {
             if analysis.graph.class() != GraphClass::RandomizedTrial
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
-                return Err(CausalError::Unsupported { message: "LocalPolynomialRatio requires a graphless fixed-cutoff design" });
+                return Err(CausalError::Unsupported {
+                    message: "LocalPolynomialRatio requires a graphless fixed-cutoff design",
+                });
             }
         }
         (DataInput::Tabular(_), CausalQuery::Survival(_)) => {
@@ -12034,7 +12067,9 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             if analysis.graph.class() != GraphClass::RandomizedTrial
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
-                return Err(CausalError::Unsupported { message: "LongitudinalRegime requires a graphless sequential randomized trial" });
+                return Err(CausalError::Unsupported {
+                    message: "LongitudinalRegime requires a graphless sequential randomized trial",
+                });
             }
         }
         (DataInput::Tabular(_), CausalQuery::Mediation(_)) => {

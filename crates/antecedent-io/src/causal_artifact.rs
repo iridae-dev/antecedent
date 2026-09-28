@@ -526,14 +526,22 @@ pub(crate) fn validate_query_ids(
         }
         Q::RandomizedEffect(wire) => {
             if !matches!(wire.design, crate::RandomizationDesignWire::MultiArm)
-                && (!wire.multi_arm_labels.is_empty() || !wire.multi_arm_assignment.is_empty() || !wire.multi_arm_probabilities.is_empty())
+                && (!wire.multi_arm_labels.is_empty()
+                    || !wire.multi_arm_assignment.is_empty()
+                    || !wire.multi_arm_probabilities.is_empty())
             {
-                return Err(IoError::Convert("multi-arm metadata requires a multi-arm design".into()));
+                return Err(IoError::Convert(
+                    "multi-arm metadata requires a multi-arm design".into(),
+                ));
             }
             if !matches!(wire.design, crate::RandomizationDesignWire::Factorial2x2)
-                && (!wire.second_factor_assignment.is_empty() || wire.factorial_cell_counts.is_some() || wire.second_factor_arms.is_some())
+                && (!wire.second_factor_assignment.is_empty()
+                    || wire.factorial_cell_counts.is_some()
+                    || wire.second_factor_arms.is_some())
             {
-                return Err(IoError::Convert("factorial metadata requires a factorial design".into()));
+                return Err(IoError::Convert(
+                    "factorial metadata requires a factorial design".into(),
+                ));
             }
             validate_id(wire.outcome, variable_count)?;
             if let Some((covariate, _)) = wire.fixed_cuped {
@@ -548,14 +556,21 @@ pub(crate) fn validate_query_ids(
                 }
                 crate::RandomizationDesignWire::Switchback => {
                     antecedent_core::RandomizationDesign::Switchback {
-                        periods: wire.periods.iter().map(|period| std::sync::Arc::<str>::from(period.as_str())).collect::<Vec<_>>().into(),
+                        periods: wire
+                            .periods
+                            .iter()
+                            .map(|period| std::sync::Arc::<str>::from(period.as_str()))
+                            .collect::<Vec<_>>()
+                            .into(),
                     }
                 }
                 crate::RandomizationDesignWire::Complete { treated_units } => {
                     antecedent_core::RandomizationDesign::Complete { treated_units: *treated_units }
                 }
                 crate::RandomizationDesignWire::Cluster { treated_clusters } => {
-                    antecedent_core::RandomizationDesign::Cluster { treated_clusters: *treated_clusters }
+                    antecedent_core::RandomizationDesign::Cluster {
+                        treated_clusters: *treated_clusters,
+                    }
                 }
                 crate::RandomizationDesignWire::Stratified => {
                     antecedent_core::RandomizationDesign::Stratified {
@@ -569,18 +584,30 @@ pub(crate) fn validate_query_ids(
                     }
                 }
                 crate::RandomizationDesignWire::Factorial2x2 => {
-                    let arms = wire.second_factor_arms.as_ref().ok_or_else(|| IoError::Convert("second-factor labels are missing".into()))?;
+                    let arms = wire.second_factor_arms.as_ref().ok_or_else(|| {
+                        IoError::Convert("second-factor labels are missing".into())
+                    })?;
                     antecedent_core::RandomizationDesign::Factorial2x2 {
                         second_factor_assignment: wire.second_factor_assignment.clone().into(),
-                        cell_counts: wire.factorial_cell_counts.ok_or_else(|| IoError::Convert("factorial cell counts are missing".into()))?,
-                        second_factor_arms: (std::sync::Arc::<str>::from(arms.0.as_str()), std::sync::Arc::<str>::from(arms.1.as_str())),
+                        cell_counts: wire.factorial_cell_counts.ok_or_else(|| {
+                            IoError::Convert("factorial cell counts are missing".into())
+                        })?,
+                        second_factor_arms: (
+                            std::sync::Arc::<str>::from(arms.0.as_str()),
+                            std::sync::Arc::<str>::from(arms.1.as_str()),
+                        ),
                     }
                 }
                 crate::RandomizationDesignWire::MultiArm => {
                     antecedent_core::RandomizationDesign::MultiArm {
                         assignment: wire.multi_arm_assignment.clone().into(),
                         probabilities: wire.multi_arm_probabilities.clone().into(),
-                        arms: wire.multi_arm_labels.iter().map(|arm| std::sync::Arc::<str>::from(arm.as_str())).collect::<Vec<_>>().into(),
+                        arms: wire
+                            .multi_arm_labels
+                            .iter()
+                            .map(|arm| std::sync::Arc::<str>::from(arm.as_str()))
+                            .collect::<Vec<_>>()
+                            .into(),
                     }
                 }
             };
@@ -609,7 +636,13 @@ pub(crate) fn validate_query_ids(
                 );
             }
             if !wire.ancova_covariates.is_empty() {
-                query = query.with_ancova(wire.ancova_covariates.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>());
+                query = query.with_ancova(
+                    wire.ancova_covariates
+                        .iter()
+                        .copied()
+                        .map(antecedent_core::VariableId::from_raw)
+                        .collect::<Vec<_>>(),
+                );
             }
             if let Some(receipt) = &wire.received_treatment {
                 query = if wire.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated {
@@ -654,11 +687,28 @@ pub(crate) fn validate_query_ids(
                 multi_action: wire.multi_action.as_ref().map(Into::into),
                 uplift_bins: wire.uplift_bins.clone().into(),
                 uplift_bin_count: wire.uplift_bin_count,
-                uplift_training_subject_ids: wire.uplift_training_subject_ids.iter().map(|x| std::sync::Arc::<str>::from(x.as_str())).collect::<Vec<_>>().into(),
-                regret: wire.regret.as_ref().map(|regret| antecedent_core::FixedCandidateRegretInputs {
-                    candidates: regret.candidates.iter().map(|actions| std::sync::Arc::<[bool]>::from(actions.clone())).collect::<Vec<_>>().into(),
-                    selected_index: regret.selected_index,
-                    training_subject_ids: regret.training_subject_ids.iter().map(|id| std::sync::Arc::<str>::from(id.as_str())).collect::<Vec<_>>().into(),
+                uplift_training_subject_ids: wire
+                    .uplift_training_subject_ids
+                    .iter()
+                    .map(|x| std::sync::Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                regret: wire.regret.as_ref().map(|regret| {
+                    antecedent_core::FixedCandidateRegretInputs {
+                        candidates: regret
+                            .candidates
+                            .iter()
+                            .map(|actions| std::sync::Arc::<[bool]>::from(actions.clone()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        selected_index: regret.selected_index,
+                        training_subject_ids: regret
+                            .training_subject_ids
+                            .iter()
+                            .map(|id| std::sync::Arc::<str>::from(id.as_str()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
                 }),
             }
             .validate()
@@ -672,16 +722,33 @@ pub(crate) fn validate_query_ids(
                 outcome: antecedent_core::VariableId::from_raw(wire.outcome),
                 dose: antecedent_core::VariableId::from_raw(wire.dose),
                 dose_density: antecedent_core::VariableId::from_raw(wire.dose_density),
-                baseline_groups: wire.baseline_groups.iter().map(|value| std::sync::Arc::<str>::from(value.as_str())).collect::<Vec<_>>().into(),
+                baseline_groups: wire
+                    .baseline_groups
+                    .iter()
+                    .map(|value| std::sync::Arc::<str>::from(value.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
                 target_doses: wire.target_doses.clone().into(),
-                bandwidth: wire.bandwidth, min_local_support: wire.min_local_support,
+                bandwidth: wire.bandwidth,
+                min_local_support: wire.min_local_support,
                 density_provenance: std::sync::Arc::from(wire.density_provenance.as_str()),
-                fixed_policy: wire.fixed_policy.as_ref().map(|(policy, reference)|
+                fixed_policy: wire.fixed_policy.as_ref().map(|(policy, reference)| {
                     antecedent_core::FixedGroupDosePolicy {
-                        policy_doses: policy.iter().map(|(group, dose)| (std::sync::Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
-                        reference_doses: reference.iter().map(|(group, dose)| (std::sync::Arc::from(group.as_str()), *dose)).collect::<Vec<_>>().into(),
-                    }),
-            }.validate().map_err(|error| IoError::Convert(error.to_string()))
+                        policy_doses: policy
+                            .iter()
+                            .map(|(group, dose)| (std::sync::Arc::from(group.as_str()), *dose))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        reference_doses: reference
+                            .iter()
+                            .map(|(group, dose)| (std::sync::Arc::from(group.as_str()), *dose))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
+                }),
+            }
+            .validate()
+            .map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::PanelDid(wire) => {
             validate_id(wire.outcome, variable_count)?;
@@ -695,15 +762,34 @@ pub(crate) fn validate_query_ids(
             validate_ids([wire.outcome], variable_count)?;
             let query = antecedent_core::SyntheticControlQuery::new(
                 antecedent_core::VariableId::from_raw(wire.outcome),
-                wire.units.iter().map(|unit| std::sync::Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
+                wire.units
+                    .iter()
+                    .map(|unit| std::sync::Arc::<str>::from(unit.as_str()))
+                    .collect::<Vec<_>>(),
                 wire.periods.clone(),
                 std::sync::Arc::<str>::from(wire.treated_unit.as_str()),
                 wire.intervention_period,
             );
-            let query = if wire.difference_in_differences { query.difference_in_differences() } else { query };
-            let query = if wire.uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
-            let query = if let Some(effect) = wire.sharp_null_effect { query.with_sharp_null_effect(effect) } else { query };
-            let query = if let Some(ridge) = wire.augmentation_ridge { query.with_augmentation(ridge) } else { query };
+            let query = if wire.difference_in_differences {
+                query.difference_in_differences()
+            } else {
+                query
+            };
+            let query = if wire.uniform_unit_randomization {
+                query.with_uniform_unit_randomization()
+            } else {
+                query
+            };
+            let query = if let Some(effect) = wire.sharp_null_effect {
+                query.with_sharp_null_effect(effect)
+            } else {
+                query
+            };
+            let query = if let Some(ridge) = wire.augmentation_ridge {
+                query.with_augmentation(ridge)
+            } else {
+                query
+            };
             query.validate().map_err(|error| IoError::Convert(error.to_string()))
         }
         Q::LocalPolynomialRatio(wire) => {
@@ -723,7 +809,9 @@ pub(crate) fn validate_query_ids(
             if wire.censoring_probability_floor.is_none()
                 && (!wire.censoring_times.is_empty() || !wire.censoring_columns.is_empty())
             {
-                return Err(IoError::Convert("censoring grid requires its positivity floor".into()));
+                return Err(IoError::Convert(
+                    "censoring grid requires its positivity floor".into(),
+                ));
             }
             validate_id(wire.duration, variable_count)?;
             validate_id(wire.event, variable_count)?;
@@ -745,13 +833,27 @@ pub(crate) fn validate_query_ids(
                 treatment: antecedent_core::VariableId::from_raw(wire.treatment),
                 tau: wire.tau,
                 delayed_entry: wire.delayed_entry.map(antecedent_core::VariableId::from_raw),
-                known_censoring: wire.censoring_probability_floor.map(|minimum_probability| antecedent_core::KnownCensoringSurvival {
-                    times: std::sync::Arc::from(wire.censoring_times.clone()),
-                    columns: std::sync::Arc::from(wire.censoring_columns.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>()),
-                    minimum_probability,
+                known_censoring: wire.censoring_probability_floor.map(|minimum_probability| {
+                    antecedent_core::KnownCensoringSurvival {
+                        times: std::sync::Arc::from(wire.censoring_times.clone()),
+                        columns: std::sync::Arc::from(
+                            wire.censoring_columns
+                                .iter()
+                                .copied()
+                                .map(antecedent_core::VariableId::from_raw)
+                                .collect::<Vec<_>>(),
+                        ),
+                        minimum_probability,
+                    }
                 }),
                 observation_assumption: antecedent_core::ObservationAssumption::IndependentGiven(
-                    std::sync::Arc::from(wire.independent_given.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>()),
+                    std::sync::Arc::from(
+                        wire.independent_given
+                            .iter()
+                            .copied()
+                            .map(antecedent_core::VariableId::from_raw)
+                            .collect::<Vec<_>>(),
+                    ),
                 ),
                 functional: wire.target_cause.map_or(
                     antecedent_core::SurvivalFunctional::SurvivalAndRmst,
@@ -768,8 +870,12 @@ pub(crate) fn validate_query_ids(
             let method = match wire.method.as_str() {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-                "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
-                "marginal_structural_model" => antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel,
+                "sequential_dr" => {
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+                }
+                "marginal_structural_model" => {
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+                }
                 _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
             };
             antecedent_core::LongitudinalRegimeQuery {
@@ -781,10 +887,29 @@ pub(crate) fn validate_query_ids(
                     Some(wire.period_outcome_predictions.clone().into())
                 },
                 known_fixed_outcome_predictions: wire.known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: if wire.stabilizing_numerator_probabilities.is_empty() { None } else { Some(wire.stabilizing_numerator_probabilities.clone().into()) },
-                q_predictions: if wire.q_predictions.is_empty() { None } else { Some(wire.q_predictions.clone().into()) },
-                observation_history: if wire.observation_history.is_empty() { None } else { Some(wire.observation_history.clone().into()) },
-                prediction_fold_ids: if wire.prediction_fold_ids.is_empty() { None } else { Some(wire.prediction_fold_ids.clone().into()) },
+                stabilizing_numerator_probabilities: if wire
+                    .stabilizing_numerator_probabilities
+                    .is_empty()
+                {
+                    None
+                } else {
+                    Some(wire.stabilizing_numerator_probabilities.clone().into())
+                },
+                q_predictions: if wire.q_predictions.is_empty() {
+                    None
+                } else {
+                    Some(wire.q_predictions.clone().into())
+                },
+                observation_history: if wire.observation_history.is_empty() {
+                    None
+                } else {
+                    Some(wire.observation_history.clone().into())
+                },
+                prediction_fold_ids: if wire.prediction_fold_ids.is_empty() {
+                    None
+                } else {
+                    Some(wire.prediction_fold_ids.clone().into())
+                },
                 periods: wire.periods,
                 treatment_history: wire.treatment_history.clone().into(),
                 regime_actions: wire.regime_actions.clone().into(),
@@ -1661,9 +1786,13 @@ mod tests {
             ["r0", "r1", "r2", "r3", "r4", "r5"].map(std::sync::Arc::<str>::from),
             ("control", "treated"),
         );
-        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
+        let query =
+            crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain))
+                .unwrap();
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
-        let artifact = encode_causal_payload_artifact(&payload, vec!["outcome".into()], "cluster-itt-query").unwrap();
+        let artifact =
+            encode_causal_payload_artifact(&payload, vec!["outcome".into()], "cluster-itt-query")
+                .unwrap();
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 
@@ -1698,14 +1827,19 @@ mod tests {
                 periods: ["p0", "p1", "p0", "p1"].map(std::sync::Arc::<str>::from).into(),
             },
             antecedent_core::VariableId::from_raw(0),
-            [true, false, true, false], [0.5; 4],
+            [true, false, true, false],
+            [0.5; 4],
             ["s0", "s0", "s1", "s1"].map(std::sync::Arc::<str>::from),
             ["r0", "r1", "r2", "r3"].map(std::sync::Arc::<str>::from),
             ("off", "on"),
         );
-        let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain)).unwrap();
+        let query =
+            crate::causal_query_to_wire(&antecedent_core::CausalQuery::RandomizedEffect(domain))
+                .unwrap();
         let payload = CausalPayloadWire::Query(Box::new(query.clone()));
-        let artifact = encode_causal_payload_artifact(&payload, vec!["outcome".into()], "switchback-query").unwrap();
+        let artifact =
+            encode_causal_payload_artifact(&payload, vec!["outcome".into()], "switchback-query")
+                .unwrap();
         assert_eq!(decode(&artifact).unwrap(), CausalPayloadWire::Query(Box::new(query)));
     }
 

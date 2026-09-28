@@ -15,14 +15,17 @@ use antecedent_estimate::{
     TemporalMediationEstimate, TemporalMediationGrid, TransportEffectEstimate,
 };
 use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
-use antecedent_io::{assumptions_to_wire, AnalysisTraceWire, DerivationStepWire};
+use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 use std::sync::Arc;
 
 use crate::gcm::IteResult;
 
 /// Typed primary result of a study.
-#[allow(clippy::large_enum_variant, reason = "variants are constructed rarely and held singly; boxing would change the public result API")]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "variants are constructed rarely and held singly; boxing would change the public result API"
+)]
 #[derive(Clone, Debug)]
 pub enum PrimaryEstimate {
     /// Conventional scalar effect estimate.
@@ -95,7 +98,10 @@ pub struct RandomizedEffectEstimate {
     /// Conservative variance for the interaction contrast.
     pub factorial_interaction_variance: Option<f64>,
     /// Ordered arm means, variance contributions, and observed counts for multi-arm trials.
-    #[allow(clippy::type_complexity, reason = "labeled arm tuple is part of this public result field's type")]
+    #[allow(
+        clippy::type_complexity,
+        reason = "labeled arm tuple is part of this public result field's type"
+    )]
     pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
     /// switchback uses an independent-sequence sandwich estimate.
@@ -1118,9 +1124,16 @@ impl StudyResult {
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
         let panel_interval = self.panel_did.as_ref().is_some_and(|did| did.interval_95.is_some());
-        let randomized_cluster_interval = self.randomized_effect.as_ref().is_some_and(|fit|
-            fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster");
-        let base = if panel_interval || randomized_cluster_interval { "cluster" } else if self.panel_did.is_some() { "iid" } else { self.base_dependence() };
+        let randomized_cluster_interval = self.randomized_effect.as_ref().is_some_and(|fit| {
+            fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster"
+        });
+        let base = if panel_interval || randomized_cluster_interval {
+            "cluster"
+        } else if self.panel_did.is_some() {
+            "iid"
+        } else {
+            self.base_dependence()
+        };
         if let Some(response) = &self.response {
             // A Bayesian response publishes credible bands; the draws behind a
             // band are in the referenced posterior artifact, not on the result.
@@ -1195,7 +1208,11 @@ impl StudyResult {
                     let mut binding = IntervalBinding::new(
                         M::AnalyticSe,
                         published.level,
-                        if panel_interval || randomized_cluster_interval { "cluster" } else { self.se_dependence(estimate.se_kind) },
+                        if panel_interval || randomized_cluster_interval {
+                            "cluster"
+                        } else {
+                            self.se_dependence(estimate.se_kind)
+                        },
                     );
                     binding.se_kind = estimate.se_kind;
                     return binding;

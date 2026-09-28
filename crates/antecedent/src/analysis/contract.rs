@@ -72,8 +72,7 @@ fn set_graphless_reasoning(
     contract.support_status = support_status;
     if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
         support.matrix_status = Arc::from(support_status.map_or("off_axis", CellStatus::as_str));
-        support.matrix_coordinate =
-            (support_status == Some(CellStatus::Licensed)).then(coordinate);
+        support.matrix_coordinate = (support_status == Some(CellStatus::Licensed)).then(coordinate);
     }
 }
 
@@ -539,7 +538,9 @@ impl PreparedStudy {
         let (mut contract, payloads) = compiled;
         if result.continuous_dose_response.is_some() {
             set_graphless_reasoning(&mut contract, result.support_status, || {
-                Arc::from("graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals")
+                Arc::from(
+                    "graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals",
+                )
             });
         }
         if result.policy_value.is_some() {
@@ -549,11 +550,19 @@ impl PreparedStudy {
                 };
                 let multi = query.multi_action.is_some();
                 let uplift = query.uplift_bin_count > 0;
-                let cate = query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty());
+                let cate = query
+                    .multi_action
+                    .as_ref()
+                    .is_some_and(|policy| !policy.cate_groups.is_empty());
                 let ipw = query.mu0.is_empty();
                 let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
-                    multi, ipw, uplift, cate, query.regret.is_some(),
-                    !ipw && query.crossfit_fold_ownership_valid && !query.disjoint_training_subjects,
+                    multi,
+                    ipw,
+                    uplift,
+                    cate,
+                    query.regret.is_some(),
+                    !ipw && query.crossfit_fold_ownership_valid
+                        && !query.disjoint_training_subjects,
                 );
                 Arc::from(format!("graphless:policy_value/{design}/{method}/{claim}"))
             });
@@ -563,10 +572,15 @@ impl PreparedStudy {
                 let CausalQuery::PanelDid(query) = self.query() else {
                     unreachable!("licensed DiD result must retain its DiD query")
                 };
-                let (design, method) = if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
-                    ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
-                } else { ("panel_2x2", "cluster_change_scores_cr1") };
-                Arc::from(format!("graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"))
+                let (design, method) =
+                    if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
+                        ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
+                    } else {
+                        ("panel_2x2", "cluster_change_scores_cr1")
+                    };
+                Arc::from(format!(
+                    "graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"
+                ))
             });
         }
         if result.survival.is_some() {
@@ -591,7 +605,9 @@ impl PreparedStudy {
                 } else {
                     "arm_stratified_subject_bootstrap_product_limit"
                 };
-                Arc::from(format!("graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"))
+                Arc::from(format!(
+                    "graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+                ))
             });
         }
         if result.randomized_effect.is_some() {
@@ -642,8 +658,9 @@ impl PreparedStudy {
                         "stabilized_ipw_cr1_scores",
                         "intercept_and_period_effects_pointwise_95_normal_intervals",
                     ),
-                    antecedent_core::LongitudinalRegimeMethod::Ipw =>
-                        unreachable!("only calibrated graphless longitudinal rows can be licensed"),
+                    antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                        unreachable!("only calibrated graphless longitudinal rows can be licensed")
+                    }
                 };
                 Arc::from(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"))
             });
@@ -3396,26 +3413,39 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         propensity_max: policy.propensity_max,
         uncertainty: policy.uncertainty.to_string(),
         graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
-        uplift_bins: policy.uplift_bins.iter().map(|bin| antecedent_io::UpliftBinWire {
-            rank: bin.rank,
-            effect: bin.effect,
-            standard_error: bin.standard_error,
-            evaluation_rows: bin.evaluation_rows,
-            interval_95: bin.interval_95,
-        }).collect(),
-        multi_action_cate: policy.multi_action_cate.iter().map(|point| antecedent_io::analysis_result_artifact::MultiActionCateWire {
-            group: point.group.clone(), action: point.action.clone(), effect: point.effect,
-            standard_error: point.standard_error, interval_95: point.interval_95,
-            evaluation_rows: point.evaluation_rows,
-            observed_action_rows: point.observed_action_rows,
-            observed_control_rows: point.observed_control_rows,
-        }).collect(),
-        regret: policy.regret.as_ref().map(|regret| antecedent_io::analysis_result_artifact::FixedCandidateRegretWire {
-            candidate_values: regret.candidate_values.clone(),
-            contrast_standard_errors: regret.contrast_standard_errors.clone(),
-            regret: regret.regret,
-            interval_95: regret.interval_95,
-            selected_index: regret.selected_index,
+        uplift_bins: policy
+            .uplift_bins
+            .iter()
+            .map(|bin| antecedent_io::UpliftBinWire {
+                rank: bin.rank,
+                effect: bin.effect,
+                standard_error: bin.standard_error,
+                evaluation_rows: bin.evaluation_rows,
+                interval_95: bin.interval_95,
+            })
+            .collect(),
+        multi_action_cate: policy
+            .multi_action_cate
+            .iter()
+            .map(|point| antecedent_io::analysis_result_artifact::MultiActionCateWire {
+                group: point.group.clone(),
+                action: point.action.clone(),
+                effect: point.effect,
+                standard_error: point.standard_error,
+                interval_95: point.interval_95,
+                evaluation_rows: point.evaluation_rows,
+                observed_action_rows: point.observed_action_rows,
+                observed_control_rows: point.observed_control_rows,
+            })
+            .collect(),
+        regret: policy.regret.as_ref().map(|regret| {
+            antecedent_io::analysis_result_artifact::FixedCandidateRegretWire {
+                candidate_values: regret.candidate_values.clone(),
+                contrast_standard_errors: regret.contrast_standard_errors.clone(),
+                regret: regret.regret,
+                interval_95: regret.interval_95,
+                selected_index: regret.selected_index,
+            }
         }),
     });
     let mut wire = AnalysisResultWire {
@@ -3425,32 +3455,49 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         temporal_identification,
         estimate: effect.and_then(|_| executed_scalar(result)),
         policy_value,
-        continuous_dose_response: result.continuous_dose_response.as_ref().map(|fit| antecedent_io::analysis_result_artifact::ContinuousDoseResponseWire {
-            points: fit.points.iter().map(|point| antecedent_io::analysis_result_artifact::ContinuousDosePointWire {
-                baseline_group: point.baseline_group.clone(), target_dose: point.target_dose,
-                response: point.response, local_rows: point.local_rows,
-                effective_sample_size: point.effective_sample_size,
-                minimum_dose_density: point.minimum_dose_density,
-                maximum_normalized_weight: point.maximum_normalized_weight,
-                local_outcome_sd: point.local_outcome_sd,
-            }).collect(),
-            bandwidth: fit.bandwidth, density_provenance: fit.density_provenance.to_string(),
-            uncertainty: fit.uncertainty.to_string(),
-            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
-            fixed_policy: fit.fixed_policy.as_ref().map(|value| antecedent_io::analysis_result_artifact::DosePolicyValueWire {
-                policy_doses: value.policy_doses.clone(), reference_doses: value.reference_doses.clone(),
-                policy_value: value.policy_value, reference_value: value.reference_value,
-                incremental_value: value.incremental_value,
-                policy_variance: value.policy_variance, reference_variance: value.reference_variance,
-                incremental_variance: value.incremental_variance,
-                policy_interval_95: value.policy_interval_95,
-                reference_interval_95: value.reference_interval_95,
-                incremental_interval_95: value.incremental_interval_95,
-                minimum_local_rows: value.minimum_local_rows,
-                minimum_effective_sample_size: value.minimum_effective_sample_size,
-                maximum_normalized_weight: value.maximum_normalized_weight,
-                minimum_dose_density: value.minimum_dose_density,
-            }),
+        continuous_dose_response: result.continuous_dose_response.as_ref().map(|fit| {
+            antecedent_io::analysis_result_artifact::ContinuousDoseResponseWire {
+                points: fit
+                    .points
+                    .iter()
+                    .map(|point| antecedent_io::analysis_result_artifact::ContinuousDosePointWire {
+                        baseline_group: point.baseline_group.clone(),
+                        target_dose: point.target_dose,
+                        response: point.response,
+                        local_rows: point.local_rows,
+                        effective_sample_size: point.effective_sample_size,
+                        minimum_dose_density: point.minimum_dose_density,
+                        maximum_normalized_weight: point.maximum_normalized_weight,
+                        local_outcome_sd: point.local_outcome_sd,
+                    })
+                    .collect(),
+                bandwidth: fit.bandwidth,
+                density_provenance: fit.density_provenance.to_string(),
+                uncertainty: fit.uncertainty.to_string(),
+                graphless_support_status: result
+                    .support_status
+                    .map(CellStatus::as_str)
+                    .map(str::to_string),
+                fixed_policy: fit.fixed_policy.as_ref().map(|value| {
+                    antecedent_io::analysis_result_artifact::DosePolicyValueWire {
+                        policy_doses: value.policy_doses.clone(),
+                        reference_doses: value.reference_doses.clone(),
+                        policy_value: value.policy_value,
+                        reference_value: value.reference_value,
+                        incremental_value: value.incremental_value,
+                        policy_variance: value.policy_variance,
+                        reference_variance: value.reference_variance,
+                        incremental_variance: value.incremental_variance,
+                        policy_interval_95: value.policy_interval_95,
+                        reference_interval_95: value.reference_interval_95,
+                        incremental_interval_95: value.incremental_interval_95,
+                        minimum_local_rows: value.minimum_local_rows,
+                        minimum_effective_sample_size: value.minimum_effective_sample_size,
+                        maximum_normalized_weight: value.maximum_normalized_weight,
+                        minimum_dose_density: value.minimum_dose_density,
+                    }
+                }),
+            }
         }),
         panel_did: result.panel_did.as_ref().map(|did| antecedent_io::PanelDidWire {
             effect: did.effect,
@@ -3460,12 +3507,26 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             comparison_subjects: did.comparison_subjects,
             clusters: did.clusters,
             uncertainty: did.uncertainty.to_string(),
-            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
-            event_time_effects: did.event_time_effects.iter().map(|effect| (
-                effect.cohort, effect.period, effect.event_time, effect.effect,
-                effect.treated_subjects, effect.comparison_subjects,
-                effect.standard_error, effect.clusters,
-            )).collect(),
+            graphless_support_status: result
+                .support_status
+                .map(CellStatus::as_str)
+                .map(str::to_string),
+            event_time_effects: did
+                .event_time_effects
+                .iter()
+                .map(|effect| {
+                    (
+                        effect.cohort,
+                        effect.period,
+                        effect.event_time,
+                        effect.effect,
+                        effect.treated_subjects,
+                        effect.comparison_subjects,
+                        effect.standard_error,
+                        effect.clusters,
+                    )
+                })
+                .collect(),
             event_time_intervals_95: did.event_time_intervals_95.to_vec(),
             augmented: did.augmented,
         }),
@@ -3486,8 +3547,11 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 uncertainty: fit.uncertainty.to_string(),
                 randomization_p_value: fit.randomization_p_value,
                 randomization_null_effect: fit.randomization_null_effect,
-                randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
-                    (unit.to_string(), *statistic)).collect(),
+                randomization_statistics: fit
+                    .randomization_statistics
+                    .iter()
+                    .map(|(unit, statistic)| (unit.to_string(), *statistic))
+                    .collect(),
                 unadjusted_effect: fit.unadjusted_effect,
                 outcome_model_correction: fit.outcome_model_correction,
                 augmentation_ridge: fit.augmentation_ridge,
@@ -3508,25 +3572,33 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             uncertainty: fit.uncertainty.to_string(),
             randomization_p_value: fit.randomization_p_value,
             randomization_null_effect: fit.randomization_null_effect,
-            randomization_statistics: fit.randomization_statistics.iter().map(|(unit, statistic)|
-                (unit.to_string(), *statistic)).collect(),
+            randomization_statistics: fit
+                .randomization_statistics
+                .iter()
+                .map(|(unit, statistic)| (unit.to_string(), *statistic))
+                .collect(),
         }),
-        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|fit| antecedent_io::LocalPolynomialRatioWire {
-            effect: fit.effect,
-            reduced_form: fit.reduced_form,
-            first_stage: fit.first_stage,
-            cutoff: fit.cutoff,
-            bandwidth: fit.bandwidth,
-            kink: fit.kink,
-            n_left: fit.n_left,
-            n_right: fit.n_right,
-            standard_error: fit.standard_error,
-            ci_lower: fit.ci_lower,
-            ci_upper: fit.ci_upper,
-            reduced_form_standard_error: fit.reduced_form_standard_error,
-            first_stage_standard_error: fit.first_stage_standard_error,
-            uncertainty: fit.uncertainty.to_string(),
-            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
+        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|fit| {
+            antecedent_io::LocalPolynomialRatioWire {
+                effect: fit.effect,
+                reduced_form: fit.reduced_form,
+                first_stage: fit.first_stage,
+                cutoff: fit.cutoff,
+                bandwidth: fit.bandwidth,
+                kink: fit.kink,
+                n_left: fit.n_left,
+                n_right: fit.n_right,
+                standard_error: fit.standard_error,
+                ci_lower: fit.ci_lower,
+                ci_upper: fit.ci_upper,
+                reduced_form_standard_error: fit.reduced_form_standard_error,
+                first_stage_standard_error: fit.first_stage_standard_error,
+                uncertainty: fit.uncertainty.to_string(),
+                graphless_support_status: result
+                    .support_status
+                    .map(CellStatus::as_str)
+                    .map(str::to_string),
+            }
         }),
         randomized_effect: result.randomized_effect.as_ref().map(|randomized| {
             antecedent_io::RandomizedEffectWire {
@@ -3544,8 +3616,13 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 factorial_interaction: randomized.factorial_interaction,
                 second_factor_variance: randomized.second_factor_variance,
                 factorial_interaction_variance: randomized.factorial_interaction_variance,
-                multi_arm_values: randomized.multi_arm_values.iter().map(|(label, value, variance, support)|
-                    (label.to_string(), *value, *variance, *support)).collect(),
+                multi_arm_values: randomized
+                    .multi_arm_values
+                    .iter()
+                    .map(|(label, value, variance, support)| {
+                        (label.to_string(), *value, *variance, *support)
+                    })
+                    .collect(),
                 variance: randomized.variance_upper_bound,
                 standard_error: randomized.standard_error,
                 interval_95: randomized.interval_95,
@@ -3569,7 +3646,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 treatment_units: randomized.treatment_units,
                 minimum_assignment_probability: randomized.minimum_assignment_probability,
                 uncertainty: randomized.uncertainty.to_string(),
-                graphless_support_status: result.support_status
+                graphless_support_status: result
+                    .support_status
                     .map(crate::support::CellStatus::as_str)
                     .map(str::to_string),
             }
@@ -3589,28 +3667,49 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
             bootstrap_replicates_requested: survival.bootstrap_replicates_requested,
             bootstrap_replicates_ok: survival.bootstrap_replicates_ok,
             assignment_counts: Some(survival.assignment_counts),
-            graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
-            censoring_survival_provenance: survival.censoring_survival_provenance.as_ref().map(ToString::to_string),
-            difference_band: survival.difference_band.as_ref().map(|band| antecedent_io::SurvivalDifferenceBandWire {
-                times: band.times.to_vec(), difference: band.difference.to_vec(),
-                lower: band.lower.to_vec(), upper: band.upper.to_vec(),
-                replicates_ok: band.replicates_ok,
-                graphless_support_status: band.support_status.map(CellStatus::as_str).map(str::to_string),
+            graphless_support_status: result
+                .support_status
+                .map(CellStatus::as_str)
+                .map(str::to_string),
+            censoring_survival_provenance: survival
+                .censoring_survival_provenance
+                .as_ref()
+                .map(ToString::to_string),
+            difference_band: survival.difference_band.as_ref().map(|band| {
+                antecedent_io::SurvivalDifferenceBandWire {
+                    times: band.times.to_vec(),
+                    difference: band.difference.to_vec(),
+                    lower: band.lower.to_vec(),
+                    upper: band.upper.to_vec(),
+                    replicates_ok: band.replicates_ok,
+                    graphless_support_status: band
+                        .support_status
+                        .map(CellStatus::as_str)
+                        .map(str::to_string),
+                }
             }),
-            band_unavailable_reason: survival.band_unavailable_reason.as_ref().map(ToString::to_string),
+            band_unavailable_reason: survival
+                .band_unavailable_reason
+                .as_ref()
+                .map(ToString::to_string),
         }),
         longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
             antecedent_io::LongitudinalRegimeWire {
                 method: regime.method.to_string(),
-                graphless_support_status: regime.graphless_support_status
-                    .map(CellStatus::as_str).map(str::to_string),
+                graphless_support_status: regime
+                    .graphless_support_status
+                    .map(CellStatus::as_str)
+                    .map(str::to_string),
                 rule_id: regime.rule_id.as_ref().map(ToString::to_string),
                 rule_version: regime.rule_version.as_ref().map(ToString::to_string),
                 rule_provenance: regime.rule_provenance.as_ref().map(ToString::to_string),
                 value: regime.value,
                 value_standard_error: regime.value_standard_error,
                 value_interval_95: regime.value_interval_95,
-                period_intervals_95: regime.period_intervals_95.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
+                period_intervals_95: regime
+                    .period_intervals_95
+                    .as_ref()
+                    .map_or_else(Vec::new, |v| v.to_vec()),
                 interval_reason: regime.interval_reason.as_ref().map(ToString::to_string),
                 effective_sample_size: regime.effective_sample_size,
                 matched_observed_fraction: regime.matched_observed_fraction,
@@ -3619,27 +3718,45 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                 minimum_censoring_probability: regime.minimum_censoring_probability,
                 uncertainty: regime.uncertainty.to_string(),
                 probability_ownership: regime.probability_ownership.to_string(),
-                period_effects: regime.period_effects.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
-                standard_errors: regime.standard_errors.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
-                stabilizing_numerator_probabilities: regime.stabilizing_numerator_probabilities.as_ref().map_or_else(Vec::new, |v| v.to_vec()),
+                period_effects: regime
+                    .period_effects
+                    .as_ref()
+                    .map_or_else(Vec::new, |v| v.to_vec()),
+                standard_errors: regime
+                    .standard_errors
+                    .as_ref()
+                    .map_or_else(Vec::new, |v| v.to_vec()),
+                stabilizing_numerator_probabilities: regime
+                    .stabilizing_numerator_probabilities
+                    .as_ref()
+                    .map_or_else(Vec::new, |v| v.to_vec()),
                 observed_subjects: regime.observed_subjects.unwrap_or(0),
             }
         }),
-        interference_inference: result.interference_inference.as_ref().map(|inference| antecedent_io::InterferenceInferenceWire {
-            method: inference.method.into(),
-            graphless_support_status: inference.graphless_support_status.map(CellStatus::as_str).map(str::to_string),
-            interval: inference.interval.as_ref().map(|interval| antecedent_io::InterferencePointwiseIntervalWire {
-                lower: interval.lower,
-                upper: interval.upper,
-                standard_error: interval.standard_error,
-                degrees_of_freedom: interval.degrees_of_freedom,
-                first_stage_arm_clusters: interval.first_stage_arm_clusters,
-            }),
-            interval_unavailable_reason: inference.interval_unavailable_reason.map(str::to_string),
-            from_exposed_units: inference.from_exposed_units,
-            to_exposed_units: inference.to_exposed_units,
-            from_exposed_clusters: inference.from_exposed_clusters,
-            to_exposed_clusters: inference.to_exposed_clusters,
+        interference_inference: result.interference_inference.as_ref().map(|inference| {
+            antecedent_io::InterferenceInferenceWire {
+                method: inference.method.into(),
+                graphless_support_status: inference
+                    .graphless_support_status
+                    .map(CellStatus::as_str)
+                    .map(str::to_string),
+                interval: inference.interval.as_ref().map(|interval| {
+                    antecedent_io::InterferencePointwiseIntervalWire {
+                        lower: interval.lower,
+                        upper: interval.upper,
+                        standard_error: interval.standard_error,
+                        degrees_of_freedom: interval.degrees_of_freedom,
+                        first_stage_arm_clusters: interval.first_stage_arm_clusters,
+                    }
+                }),
+                interval_unavailable_reason: inference
+                    .interval_unavailable_reason
+                    .map(str::to_string),
+                from_exposed_units: inference.from_exposed_units,
+                to_exposed_units: inference.to_exposed_units,
+                from_exposed_clusters: inference.from_exposed_clusters,
+                to_exposed_clusters: inference.to_exposed_clusters,
+            }
         }),
         interventional_distribution: result.distribution.as_ref().map(|distribution| {
             antecedent_io::InterventionalDistributionWire {

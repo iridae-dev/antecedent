@@ -714,8 +714,13 @@ fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage()
         let seed = stream_seed(0x110_0F62, rep);
         let data = cpdag_data(grid_n(cell.n as usize), seed);
         let reported = run_freq_class_graph_posterior(&data, &posterior, curve_query(), None, seed);
-        let gate_run =
-            run_freq_class_graph_posterior(&data, &posterior, curve_query(), Some(GATE_LEVEL), seed);
+        let gate_run = run_freq_class_graph_posterior(
+            &data,
+            &posterior,
+            curve_query(),
+            Some(GATE_LEVEL),
+            seed,
+        );
         let (Some((reported_study, reported)), Some((gate_study, gate_run))) = (reported, gate_run)
         else {
             return None;
@@ -730,7 +735,8 @@ fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage()
             let band = bands[0].as_ref().expect("single-atom class GP publishes its analytic band");
             assert_eq!(band.0.len(), GRID.len(), "one band coordinate per grid point");
             assert!(bands[1].is_some(), "the gate-level band is the facade's own construction");
-            let structural = reported.structural_response.as_ref().expect("posterior atom evidence");
+            let structural =
+                reported.structural_response.as_ref().expect("posterior atom evidence");
             assert_eq!(structural.atoms.len(), 1, "the graph posterior is single-atom");
         }
         Some(((reported_study, reported), (gate_study, gate_run), bands))

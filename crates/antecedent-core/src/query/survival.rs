@@ -109,15 +109,23 @@ impl SurvivalQuery {
                 || !known.minimum_probability.is_finite()
                 || !(0.0..=1.0).contains(&known.minimum_probability)
                 || known.minimum_probability == 0.0
-                || known.columns.iter().any(|id| *id == self.duration || *id == self.event || *id == self.treatment)
-                || known.columns.iter().enumerate().any(|(index, id)| known.columns[..index].contains(id))
+                || known
+                    .columns
+                    .iter()
+                    .any(|id| *id == self.duration || *id == self.event || *id == self.treatment)
+                || known
+                    .columns
+                    .iter()
+                    .enumerate()
+                    .any(|(index, id)| known.columns[..index].contains(id))
             {
                 return Err(QueryError::InvalidSurvival(
                     "known censoring requires aligned columns, increasing times from zero through tau, and a positive probability floor".into(),
                 ));
             }
         }
-        if !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if self.known_censoring.is_some() || vars.is_empty()) {
+        if !matches!(&self.observation_assumption, ObservationAssumption::IndependentGiven(vars) if self.known_censoring.is_some() || vars.is_empty())
+        {
             return Err(QueryError::InvalidSurvival(
                 "randomized survival requires IndependentGiven; conditional censoring also requires known censoring survival".into(),
             ));
@@ -165,7 +173,9 @@ mod tests {
         q.known_censoring = Some(KnownCensoringSurvival {
             times: Arc::from([0.0, 1.0, 2.0]),
             columns: Arc::from([
-                VariableId::from_raw(4), VariableId::from_raw(5), VariableId::from_raw(6),
+                VariableId::from_raw(4),
+                VariableId::from_raw(5),
+                VariableId::from_raw(6),
             ]),
             minimum_probability: 0.01,
         });

@@ -161,9 +161,15 @@ pub fn seal_provider_envelope(mut envelope: ProviderEnvelope) -> Result<Vec<u8>,
     let artifact = envelope.external_artifact.as_deref().unwrap_or(&[]);
     let mut bytes = Vec::with_capacity(MAGIC.len() + 8 + header.len() + artifact.len() + 32);
     bytes.extend_from_slice(MAGIC);
-    #[allow(clippy::cast_possible_truncation, reason = "header length is bounded by MAX_HEADER, well within u32")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "header length is bounded by MAX_HEADER, well within u32"
+    )]
     bytes.extend_from_slice(&(header.len() as u32).to_le_bytes());
-    #[allow(clippy::cast_possible_truncation, reason = "artifact length fits u32 for the fixed-width envelope frame")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "artifact length fits u32 for the fixed-width envelope frame"
+    )]
     bytes.extend_from_slice(&(artifact.len() as u32).to_le_bytes());
     bytes.extend_from_slice(&header);
     bytes.extend_from_slice(artifact);

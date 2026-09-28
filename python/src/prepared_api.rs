@@ -3445,23 +3445,39 @@ impl PyPreparedAnalysis {
                         .ok_or_else(|| py_msg("cluster randomization requires treated_clusters"))?,
                 },
                 "switchback" => antecedent_core::RandomizationDesign::Switchback {
-                    periods: periods.ok_or_else(|| py_msg("switchback randomization requires periods"))?
-                        .into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                    periods: periods
+                        .ok_or_else(|| py_msg("switchback randomization requires periods"))?
+                        .into_iter()
+                        .map(Arc::<str>::from)
+                        .collect::<Vec<_>>()
+                        .into(),
                 },
                 "factorial_2x2" => {
-                    let second = second_factor_assignment.ok_or_else(|| py_msg("factorial second-factor assignment is required"))?;
-                    let counts = factorial_cell_counts.ok_or_else(|| py_msg("factorial four-cell counts are required"))?;
-                    let arms = second_factor_arms.ok_or_else(|| py_msg("factorial second-factor labels are required"))?;
+                    let second = second_factor_assignment
+                        .ok_or_else(|| py_msg("factorial second-factor assignment is required"))?;
+                    let counts = factorial_cell_counts
+                        .ok_or_else(|| py_msg("factorial four-cell counts are required"))?;
+                    let arms = second_factor_arms
+                        .ok_or_else(|| py_msg("factorial second-factor labels are required"))?;
                     antecedent_core::RandomizationDesign::Factorial2x2 {
-                        second_factor_assignment: second.into(), cell_counts: counts,
+                        second_factor_assignment: second.into(),
+                        cell_counts: counts,
                         second_factor_arms: (Arc::<str>::from(arms.0), Arc::<str>::from(arms.1)),
                     }
-                },
+                }
                 "multi_arm" => antecedent_core::RandomizationDesign::MultiArm {
-                    arms: multi_arm_labels.ok_or_else(|| py_msg("multi-arm labels are required"))?
-                        .into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
-                    assignment: multi_arm_assignment.ok_or_else(|| py_msg("multi-arm assignment is required"))?.into(),
-                    probabilities: multi_arm_probabilities.ok_or_else(|| py_msg("multi-arm probability rows are required"))?.into(),
+                    arms: multi_arm_labels
+                        .ok_or_else(|| py_msg("multi-arm labels are required"))?
+                        .into_iter()
+                        .map(Arc::<str>::from)
+                        .collect::<Vec<_>>()
+                        .into(),
+                    assignment: multi_arm_assignment
+                        .ok_or_else(|| py_msg("multi-arm assignment is required"))?
+                        .into(),
+                    probabilities: multi_arm_probabilities
+                        .ok_or_else(|| py_msg("multi-arm probability rows are required"))?
+                        .into(),
                 },
                 _ => {
                     return Err(py_msg(
@@ -3484,7 +3500,10 @@ impl PyPreparedAnalysis {
             }
             if let Some(covariates) = ancova_covariates {
                 if !covariates.is_empty() {
-                    let ids = covariates.iter().map(|name| crate::graph_build::schema_var_id(data.schema(), name)).collect::<PyResult<Vec<_>>>()?;
+                    let ids = covariates
+                        .iter()
+                        .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                        .collect::<PyResult<Vec<_>>>()?;
                     query = query.with_ancova(ids);
                 }
             }
@@ -3574,11 +3593,21 @@ impl PyPreparedAnalysis {
         *, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_augmented_panel_did(
-        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
-        outcome_pre: String, outcome_post: String, propensity: String,
-        untreated_change_prediction: String, treated: Vec<bool>, subjects: Vec<String>,
-        clusters: Vec<String>, predictions_cross_fitted: bool, accepted: bool,
-        seed: u64, threads: Option<u32>, options: Option<Bound<'_, PyDict>>,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome_pre: String,
+        outcome_post: String,
+        propensity: String,
+        untreated_change_prediction: String,
+        treated: Vec<bool>,
+        subjects: Vec<String>,
+        clusters: Vec<String>,
+        predictions_cross_fitted: bool,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("augmented panel difference-in-differences")?;
@@ -3587,13 +3616,18 @@ impl PyPreparedAnalysis {
         detach_catch(py, move || {
             let variable = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
             let query = antecedent_core::PanelDidQuery::augmented_panel(
-                variable(&outcome_post)?, variable(&outcome_pre)?, variable(&propensity)?,
-                variable(&untreated_change_prediction)?, treated,
+                variable(&outcome_post)?,
+                variable(&outcome_pre)?,
+                variable(&propensity)?,
+                variable(&untreated_change_prediction)?,
+                treated,
                 subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>(),
                 clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect::<Vec<_>>(),
                 predictions_cross_fitted,
             );
-            query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
@@ -3629,12 +3663,22 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
-            let subject_arc: Vec<Arc<str>> = subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-            let cluster_arc: Vec<Arc<str>> = clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let subject_arc: Vec<Arc<str>> =
+                subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> =
+                clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
             let query = antecedent_core::PanelDidQuery::staggered_group_time(
-                outcome_id, subject_arc, cluster_arc, periods, cohorts, target_cohort, target_period,
+                outcome_id,
+                subject_arc,
+                cluster_arc,
+                periods,
+                cohorts,
+                target_cohort,
+                target_period,
             );
-            query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
@@ -3649,10 +3693,18 @@ impl PyPreparedAnalysis {
         *, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_staggered_event_study(
-        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
-        outcome: String, subjects: Vec<String>, clusters: Vec<String>,
-        periods: Vec<i64>, cohorts: Vec<i64>, accepted: bool, seed: u64,
-        threads: Option<u32>, options: Option<Bound<'_, PyDict>>,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        subjects: Vec<String>,
+        clusters: Vec<String>,
+        periods: Vec<i64>,
+        cohorts: Vec<i64>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("staggered event study")?;
@@ -3660,12 +3712,20 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
-            let subject_arc: Vec<Arc<str>> = subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
-            let cluster_arc: Vec<Arc<str>> = clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let subject_arc: Vec<Arc<str>> =
+                subjects.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
+            let cluster_arc: Vec<Arc<str>> =
+                clusters.iter().map(|s| Arc::<str>::from(s.as_str())).collect();
             let query = antecedent_core::PanelDidQuery::staggered_event_study(
-                outcome_id, subject_arc, cluster_arc, periods, cohorts,
+                outcome_id,
+                subject_arc,
+                cluster_arc,
+                periods,
+                cohorts,
             );
-            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            query.validate().map_err(|error| {
+                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+            })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
@@ -3681,9 +3741,21 @@ impl PyPreparedAnalysis {
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_synthetic_control(
-        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
-        outcome: String, units: Vec<String>, periods: Vec<i64>, treated_unit: String,
-        intervention_period: i64, difference_in_differences: bool, uniform_unit_randomization: bool, sharp_null_effect: Option<f64>, augmentation_ridge: Option<f64>, accepted: bool, seed: u64, threads: Option<u32>,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        units: Vec<String>,
+        periods: Vec<i64>,
+        treated_unit: String,
+        intervention_period: i64,
+        difference_in_differences: bool,
+        uniform_unit_randomization: bool,
+        sharp_null_effect: Option<f64>,
+        augmentation_ridge: Option<f64>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3703,9 +3775,21 @@ impl PyPreparedAnalysis {
             );
             let query =
                 if difference_in_differences { query.difference_in_differences() } else { query };
-            let query = if uniform_unit_randomization { query.with_uniform_unit_randomization() } else { query };
-            let query = if let Some(effect) = sharp_null_effect { query.with_sharp_null_effect(effect) } else { query };
-            let query = if let Some(ridge) = augmentation_ridge { query.with_augmentation(ridge) } else { query };
+            let query = if uniform_unit_randomization {
+                query.with_uniform_unit_randomization()
+            } else {
+                query
+            };
+            let query = if let Some(effect) = sharp_null_effect {
+                query.with_sharp_null_effect(effect)
+            } else {
+                query
+            };
+            let query = if let Some(ridge) = augmentation_ridge {
+                query.with_augmentation(ridge)
+            } else {
+                query
+            };
             query.validate().map_err(|error| {
                 py_err(antecedent::CausalError::Compile { message: error.to_string() })
             })?;
@@ -3725,12 +3809,22 @@ impl PyPreparedAnalysis {
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_continuous_dose_response(
-        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
-        outcome: String, dose: String, dose_density: String, baseline_groups: Vec<String>,
-        target_doses: Vec<f64>, bandwidth: f64, density_provenance: String,
-        min_local_support: usize, policy_doses: Option<Vec<(String, f64)>>,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        dose: String,
+        dose_density: String,
+        baseline_groups: Vec<String>,
+        target_doses: Vec<f64>,
+        bandwidth: f64,
+        density_provenance: String,
+        min_local_support: usize,
+        policy_doses: Option<Vec<(String, f64)>>,
         reference_doses: Option<Vec<(String, f64)>>,
-        accepted: bool, seed: u64, threads: Option<u32>,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3741,23 +3835,42 @@ impl PyPreparedAnalysis {
             let fixed_policy = match (policy_doses, reference_doses) {
                 (None, None) => None,
                 (Some(policy), Some(reference)) => Some(antecedent_core::FixedGroupDosePolicy {
-                    policy_doses: policy.into_iter().map(|(group, dose)| (Arc::from(group), dose)).collect::<Vec<_>>().into(),
-                    reference_doses: reference.into_iter().map(|(group, dose)| (Arc::from(group), dose)).collect::<Vec<_>>().into(),
+                    policy_doses: policy
+                        .into_iter()
+                        .map(|(group, dose)| (Arc::from(group), dose))
+                        .collect::<Vec<_>>()
+                        .into(),
+                    reference_doses: reference
+                        .into_iter()
+                        .map(|(group, dose)| (Arc::from(group), dose))
+                        .collect::<Vec<_>>()
+                        .into(),
                 }),
-                _ => return Err(py_err(antecedent::CausalError::Compile {
-                    message: "fixed dose policy requires both policy_doses and reference_doses".into(),
-                })),
+                _ => {
+                    return Err(py_err(antecedent::CausalError::Compile {
+                        message: "fixed dose policy requires both policy_doses and reference_doses"
+                            .into(),
+                    }));
+                }
             };
             let query = antecedent_core::ContinuousDoseResponseQuery {
                 outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                 dose: crate::graph_build::schema_var_id(data.schema(), &dose)?,
                 dose_density: crate::graph_build::schema_var_id(data.schema(), &dose_density)?,
-                baseline_groups: baseline_groups.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
-                target_doses: target_doses.into(), bandwidth, min_local_support,
+                baseline_groups: baseline_groups
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
+                target_doses: target_doses.into(),
+                bandwidth,
+                min_local_support,
                 density_provenance: Arc::from(density_provenance),
                 fixed_policy,
             };
-            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            query.validate().map_err(|error| {
+                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+            })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
@@ -3772,9 +3885,19 @@ impl PyPreparedAnalysis {
         *, kink=false, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_local_polynomial_ratio(
-        py: Python<'_>, names: Vec<String>, columns: Vec<Bound<'_, PyAny>>,
-        outcome: String, treatment: String, running: String, cutoff: f64, bandwidth: f64,
-        kink: bool, accepted: bool, seed: u64, threads: Option<u32>, options: Option<Bound<'_, PyDict>>,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        treatment: String,
+        running: String,
+        cutoff: f64,
+        bandwidth: f64,
+        kink: bool,
+        accepted: bool,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("local polynomial ratio")?;
@@ -3785,9 +3908,13 @@ impl PyPreparedAnalysis {
                 outcome: crate::graph_build::schema_var_id(data.schema(), &outcome)?,
                 treatment: crate::graph_build::schema_var_id(data.schema(), &treatment)?,
                 running: crate::graph_build::schema_var_id(data.schema(), &running)?,
-                cutoff, bandwidth, kink,
+                cutoff,
+                bandwidth,
+                kink,
             };
-            query.validate().map_err(|error| py_err(antecedent::CausalError::Compile { message: error.to_string() }))?;
+            query.validate().map_err(|error| {
+                py_err(antecedent::CausalError::Compile { message: error.to_string() })
+            })?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::LocalPolynomialRatio(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
@@ -3843,12 +3970,16 @@ impl PyPreparedAnalysis {
             let method = match method {
                 "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
                 "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-                "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
-                "marginal_structural_model" => antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel,
+                "sequential_dr" => {
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+                }
+                "marginal_structural_model" => {
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+                }
                 _ => {
                     return Err(py_err(antecedent::CausalError::Compile {
                         message: "unknown longitudinal regime method".into(),
-                    }))
+                    }));
                 }
             };
             let query = antecedent_core::LongitudinalRegimeQuery {
@@ -3860,10 +3991,28 @@ impl PyPreparedAnalysis {
                     Some(period_outcome_predictions.into())
                 },
                 known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: if stabilizing_numerator_probabilities.is_empty() { None } else { Some(stabilizing_numerator_probabilities.into()) },
-                q_predictions: if q_predictions.is_empty() { None } else { Some(q_predictions.into()) },
-                observation_history: if observation_history.is_empty() { None } else { Some(observation_history.into()) },
-                prediction_fold_ids: if prediction_fold_ids.is_empty() { None } else { Some(prediction_fold_ids.into()) },
+                stabilizing_numerator_probabilities: if stabilizing_numerator_probabilities
+                    .is_empty()
+                {
+                    None
+                } else {
+                    Some(stabilizing_numerator_probabilities.into())
+                },
+                q_predictions: if q_predictions.is_empty() {
+                    None
+                } else {
+                    Some(q_predictions.into())
+                },
+                observation_history: if observation_history.is_empty() {
+                    None
+                } else {
+                    Some(observation_history.into())
+                },
+                prediction_fold_ids: if prediction_fold_ids.is_empty() {
+                    None
+                } else {
+                    Some(prediction_fold_ids.into())
+                },
                 periods,
                 treatment_history: treatment_history.into(),
                 regime_actions: regime_actions.into(),
@@ -3923,18 +4072,22 @@ impl PyPreparedAnalysis {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-            let censoring_ids = censoring_columns.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
-            let conditioning_ids = independent_given.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
+            let censoring_ids =
+                censoring_columns.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
+            let conditioning_ids =
+                independent_given.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?;
             let query = antecedent_core::SurvivalQuery {
                 duration: id(&duration)?,
                 event: id(&event)?,
                 treatment: id(&treatment)?,
                 tau,
                 delayed_entry: delayed_entry.as_deref().map(id).transpose()?,
-                known_censoring: censoring_probability_floor.map(|minimum_probability| antecedent_core::KnownCensoringSurvival {
-                    times: Arc::from(censoring_times),
-                    columns: Arc::from(censoring_ids),
-                    minimum_probability,
+                known_censoring: censoring_probability_floor.map(|minimum_probability| {
+                    antecedent_core::KnownCensoringSurvival {
+                        times: Arc::from(censoring_times),
+                        columns: Arc::from(censoring_ids),
+                        minimum_probability,
+                    }
                 }),
                 observation_assumption: antecedent_core::ObservationAssumption::IndependentGiven(
                     Arc::from(conditioning_ids),
@@ -4001,7 +4154,8 @@ impl PyPreparedAnalysis {
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             if regret_selected_index.is_some() == regret_candidates.is_empty()
-                || (regret_selected_index.is_none() && !regret_training_subject_ids.is_empty()) {
+                || (regret_selected_index.is_none() && !regret_training_subject_ids.is_empty())
+            {
                 return Err(py_err(antecedent::CausalError::Compile {
                     message: "finite-class regret candidates, selected index, and training subjects must be supplied together".into(),
                 }));
@@ -4027,11 +4181,25 @@ impl PyPreparedAnalysis {
                 multi_action: None,
                 uplift_bins: uplift_bins.into(),
                 uplift_bin_count,
-                uplift_training_subject_ids: uplift_training_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
-                regret: regret_selected_index.map(|selected_index| antecedent_core::FixedCandidateRegretInputs {
-                    candidates: regret_candidates.into_iter().map(Arc::<[bool]>::from).collect::<Vec<_>>().into(),
-                    selected_index,
-                    training_subject_ids: regret_training_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                uplift_training_subject_ids: uplift_training_subject_ids
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
+                regret: regret_selected_index.map(|selected_index| {
+                    antecedent_core::FixedCandidateRegretInputs {
+                        candidates: regret_candidates
+                            .into_iter()
+                            .map(Arc::<[bool]>::from)
+                            .collect::<Vec<_>>()
+                            .into(),
+                        selected_index,
+                        training_subject_ids: regret_training_subject_ids
+                            .into_iter()
+                            .map(Arc::<str>::from)
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
                 }),
             };
             query
@@ -4084,7 +4252,11 @@ impl PyPreparedAnalysis {
         detach_catch(py, move || {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
             let multi_action = antecedent_core::MultiActionPolicyInputs {
-                action_labels: action_labels.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                action_labels: action_labels
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
                 assignment: assignment.into(),
                 actions: actions.into(),
                 reference: reference.into(),
@@ -4096,7 +4268,11 @@ impl PyPreparedAnalysis {
                 reference_capacities: reference_capacities.into(),
                 budget,
                 reference_budget,
-                cate_groups: cate_groups.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                cate_groups: cate_groups
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
             };
             let query = antecedent_core::PolicyValueQuery {
                 outcome: outcome_id,
@@ -4108,7 +4284,11 @@ impl PyPreparedAnalysis {
                 mu1: Vec::new().into(),
                 costs: Vec::new().into(),
                 reference_costs: Vec::new().into(),
-                evaluation_subject_ids: evaluation_subject_ids.into_iter().map(Arc::<str>::from).collect::<Vec<_>>().into(),
+                evaluation_subject_ids: evaluation_subject_ids
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>()
+                    .into(),
                 disjoint_training_subjects: false,
                 crossfit_fold_ownership_valid: false,
                 global_constraints_present: false,
@@ -4118,7 +4298,9 @@ impl PyPreparedAnalysis {
                 uplift_training_subject_ids: Arc::from([]),
                 regret: None,
             };
-            query.validate().map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
+            query
+                .validate()
+                .map_err(|e| py_err(antecedent::CausalError::Compile { message: e.to_string() }))?;
             let _ = accepted;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
@@ -4159,8 +4341,8 @@ impl PyPreparedAnalysis {
                 .collect::<PyResult<Vec<_>>>()?;
             let mut query = AnomalyAttributionQuery::new(target_ids, max_units);
             if let Some((center, scale)) = reference {
-                query = query
-                    .with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
+                query =
+                    query.with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
             }
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let builder =

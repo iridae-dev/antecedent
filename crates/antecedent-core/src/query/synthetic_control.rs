@@ -54,7 +54,17 @@ impl SyntheticControlQuery {
         treated_unit: impl Into<Arc<str>>,
         intervention_period: i64,
     ) -> Self {
-        Self { outcome, units: units.into(), periods: periods.into(), treated_unit: treated_unit.into(), intervention_period, method: SyntheticPanelMethod::Control, uniform_unit_randomization: false, sharp_null_effect: None, augmentation_ridge: None }
+        Self {
+            outcome,
+            units: units.into(),
+            periods: periods.into(),
+            treated_unit: treated_unit.into(),
+            intervention_period,
+            method: SyntheticPanelMethod::Control,
+            uniform_unit_randomization: false,
+            sharp_null_effect: None,
+            augmentation_ridge: None,
+        }
     }
 
     /// Use the same frozen panel for a synthetic difference-in-differences contrast.
@@ -96,8 +106,10 @@ impl SyntheticControlQuery {
     /// and positive or is combined with synthetic `DiD`, or a sharp-null effect is
     /// non-finite or declared without uniform single-unit randomization.
     pub fn validate(&self) -> Result<(), QueryError> {
-        if self.units.is_empty() || self.units.len() != self.periods.len()
-            || self.treated_unit.trim().is_empty() || self.intervention_period <= 0
+        if self.units.is_empty()
+            || self.units.len() != self.periods.len()
+            || self.treated_unit.trim().is_empty()
+            || self.intervention_period <= 0
             || self.units.iter().any(|unit| unit.trim().is_empty())
             || self.periods.iter().any(|period| *period <= 0)
         {

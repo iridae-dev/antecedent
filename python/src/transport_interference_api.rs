@@ -471,11 +471,20 @@ impl InterferenceSection {
         diagnostics: &[antecedent_core::Diagnostic],
         inference: Option<&antecedent::result::InterferenceInference>,
     ) -> Self {
-        let fields = diagnostics.iter()
-            .find(|diagnostic| diagnostic.code.as_ref() == "estimate.interference.observational_ipw")
+        let fields = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code.as_ref() == "estimate.interference.observational_ipw"
+            })
             .map(|diagnostic| diagnostic.fields.as_ref());
-        let field = |key: &str| fields.and_then(|values| values.iter()
-            .find(|(name, _)| name.as_ref() == key).map(|(_, value)| value.as_ref()));
+        let field = |key: &str| {
+            fields.and_then(|values| {
+                values
+                    .iter()
+                    .find(|(name, _)| name.as_ref() == key)
+                    .map(|(_, value)| value.as_ref())
+            })
+        };
         Self {
             horvitz_thompson: estimate.contrast.horvitz_thompson,
             hajek: estimate.contrast.hajek,
@@ -483,17 +492,42 @@ impl InterferenceSection {
             from_probability_method: probability_method(estimate.from_probability_method),
             to_probability_method: probability_method(estimate.to_probability_method),
             minimum_exposure_probability: estimate.minimum_exposure_probability,
-            from_exposed_units: inference.map(|v| v.from_exposed_units).or_else(|| field("from_exposed_units").and_then(|v| v.parse().ok())),
-            to_exposed_units: inference.map(|v| v.to_exposed_units).or_else(|| field("to_exposed_units").and_then(|v| v.parse().ok())),
-            from_exposed_clusters: inference.map(|v| v.from_exposed_clusters).or_else(|| field("from_exposed_clusters").and_then(|v| v.parse().ok())),
-            to_exposed_clusters: inference.map(|v| v.to_exposed_clusters).or_else(|| field("to_exposed_clusters").and_then(|v| v.parse().ok())),
-            clusters: inference.and_then(|v| v.interval.as_ref().map(|interval| interval.first_stage_arm_clusters.iter().sum())).or_else(|| field("clusters").and_then(|v| v.parse().ok())),
-            maximum_exposure_probability: field("maximum_exposure_probability").and_then(|v| v.parse().ok()),
-            pointwise_interval: inference.and_then(|v| v.interval.as_ref().map(|interval| (
-                interval.lower, interval.upper, interval.standard_error, interval.degrees_of_freedom,
-                interval.first_stage_arm_clusters[0], interval.first_stage_arm_clusters[1], v.method.to_string(),
-            ))),
-            interval_unavailable_reason: inference.and_then(|v| v.interval_unavailable_reason.map(str::to_string)),
+            from_exposed_units: inference
+                .map(|v| v.from_exposed_units)
+                .or_else(|| field("from_exposed_units").and_then(|v| v.parse().ok())),
+            to_exposed_units: inference
+                .map(|v| v.to_exposed_units)
+                .or_else(|| field("to_exposed_units").and_then(|v| v.parse().ok())),
+            from_exposed_clusters: inference
+                .map(|v| v.from_exposed_clusters)
+                .or_else(|| field("from_exposed_clusters").and_then(|v| v.parse().ok())),
+            to_exposed_clusters: inference
+                .map(|v| v.to_exposed_clusters)
+                .or_else(|| field("to_exposed_clusters").and_then(|v| v.parse().ok())),
+            clusters: inference
+                .and_then(|v| {
+                    v.interval
+                        .as_ref()
+                        .map(|interval| interval.first_stage_arm_clusters.iter().sum())
+                })
+                .or_else(|| field("clusters").and_then(|v| v.parse().ok())),
+            maximum_exposure_probability: field("maximum_exposure_probability")
+                .and_then(|v| v.parse().ok()),
+            pointwise_interval: inference.and_then(|v| {
+                v.interval.as_ref().map(|interval| {
+                    (
+                        interval.lower,
+                        interval.upper,
+                        interval.standard_error,
+                        interval.degrees_of_freedom,
+                        interval.first_stage_arm_clusters[0],
+                        interval.first_stage_arm_clusters[1],
+                        v.method.to_string(),
+                    )
+                })
+            }),
+            interval_unavailable_reason: inference
+                .and_then(|v| v.interval_unavailable_reason.map(str::to_string)),
             graphless_support_status: inference
                 .and_then(|v| v.graphless_support_status.map(|status| status.as_str().to_string())),
         }
@@ -598,8 +632,14 @@ pub(crate) fn interference_query(
             propensity_to: args.propensity_to.into(),
             provenance: match args.propensity_provenance.as_str() {
                 "known" => antecedent_core::ExposurePropensityProvenance::Known,
-                "externally_estimated" => antecedent_core::ExposurePropensityProvenance::ExternallyEstimated,
-                _ => return Err(PyValueError::new_err("propensity_provenance must be known or externally_estimated")),
+                "externally_estimated" => {
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
+                }
+                _ => {
+                    return Err(PyValueError::new_err(
+                        "propensity_provenance must be known or externally_estimated",
+                    ));
+                }
             },
             assume_network_exchangeability: args.assume_network_exchangeability,
         },
@@ -1155,7 +1195,9 @@ fn probability_method(method: antecedent_stats::ExposureProbabilityMethod) -> St
             format!("monte_carlo(draws={draws},seed={seed})")
         }
         antecedent_stats::ExposureProbabilityMethod::SuppliedKnown => "supplied_known".into(),
-        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated => "supplied_externally_estimated".into(),
+        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated => {
+            "supplied_externally_estimated".into()
+        }
     }
 }
 

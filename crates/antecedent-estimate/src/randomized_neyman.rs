@@ -25,7 +25,8 @@ pub struct CompleteItt {
 /// Sparse arms retain their point and variance without an interval.
 #[must_use]
 pub fn complete_unit_itt(treated: &[f64], control: &[f64]) -> Option<CompleteItt> {
-    if treated.len() < 2 || control.len() < 2
+    if treated.len() < 2
+        || control.len() < 2
         || treated.iter().chain(control).any(|value| !value.is_finite())
     {
         return None;
@@ -37,8 +38,8 @@ pub fn complete_unit_itt(treated: &[f64], control: &[f64]) -> Option<CompleteItt
             / (values.len() - 1) as f64
     };
     let effect = mean(treated) - mean(control);
-    let variance_upper_bound = variance(treated) / treated.len() as f64
-        + variance(control) / control.len() as f64;
+    let variance_upper_bound =
+        variance(treated) / treated.len() as f64 + variance(control) / control.len() as f64;
     if !effect.is_finite() || !variance_upper_bound.is_finite() || variance_upper_bound < 0.0 {
         return None;
     }
@@ -73,9 +74,10 @@ pub struct BlockedItt {
 /// 15 units per block arm, and at least 60 units per arm overall.
 #[must_use]
 pub fn blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> Option<BlockedItt> {
-    let rows = blocks.iter().map(|(treated, control)| treated.len() + control.len())
-        .sum::<usize>();
-    if rows == 0 || blocks.is_empty() { return None; }
+    let rows = blocks.iter().map(|(treated, control)| treated.len() + control.len()).sum::<usize>();
+    if rows == 0 || blocks.is_empty() {
+        return None;
+    }
     let mut effect = 0.0;
     let mut variance_upper_bound = 0.0;
     let mut treated_total = 0;
@@ -92,7 +94,9 @@ pub fn blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> Option<BlockedItt> {
             && control.len() >= MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL;
     }
     supported &= treated_total >= 60 && control_total >= 60 && variance_upper_bound > 0.0;
-    if !effect.is_finite() || !variance_upper_bound.is_finite() { return None; }
+    if !effect.is_finite() || !variance_upper_bound.is_finite() {
+        return None;
+    }
     let interval_95 = supported.then(|| {
         let radius = NORMAL_95 * variance_upper_bound.sqrt();
         [effect - radius, effect + radius]
@@ -145,13 +149,16 @@ pub fn factorial_2x2(cells: [&[f64]; 4]) -> Option<Factorial2x2> {
     let interaction = means[3] - means[2] - means[1] + means[0];
     let interaction_variance_upper_bound = components.iter().sum::<f64>();
     let main_effect_variance_upper_bound = interaction_variance_upper_bound / 4.0;
-    if !primary.is_finite() || !secondary.is_finite() || !interaction.is_finite()
+    if !primary.is_finite()
+        || !secondary.is_finite()
+        || !interaction.is_finite()
         || !interaction_variance_upper_bound.is_finite()
     {
         return None;
     }
-    let supported = cells.iter().all(|cell| cell.len() >= MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL)
-        && interaction_variance_upper_bound > 0.0;
+    let supported =
+        cells.iter().all(|cell| cell.len() >= MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL)
+            && interaction_variance_upper_bound > 0.0;
     let main_radius = NORMAL_95 * main_effect_variance_upper_bound.sqrt();
     let interaction_radius = NORMAL_95 * interaction_variance_upper_bound.sqrt();
     Some(Factorial2x2 {
@@ -161,8 +168,10 @@ pub fn factorial_2x2(cells: [&[f64]; 4]) -> Option<Factorial2x2> {
         main_effect_variance_upper_bound,
         interaction_variance_upper_bound,
         primary_interval_95: supported.then_some([primary - main_radius, primary + main_radius]),
-        secondary_interval_95: supported.then_some([secondary - main_radius, secondary + main_radius]),
-        interaction_interval_95: supported.then_some([interaction - interaction_radius, interaction + interaction_radius]),
+        secondary_interval_95: supported
+            .then_some([secondary - main_radius, secondary + main_radius]),
+        interaction_interval_95: supported
+            .then_some([interaction - interaction_radius, interaction + interaction_radius]),
     })
 }
 
@@ -192,7 +201,9 @@ pub fn complete_cluster_itt(
     control_totals: &[f64],
     outcome_rows: usize,
 ) -> Option<ClusterItt> {
-    if treated_totals.len() < 2 || control_totals.len() < 2 || outcome_rows == 0
+    if treated_totals.len() < 2
+        || control_totals.len() < 2
+        || outcome_rows == 0
         || treated_totals.iter().chain(control_totals).any(|value| !value.is_finite())
     {
         return None;
@@ -224,7 +235,14 @@ pub fn complete_cluster_itt(
 
 #[cfg(test)]
 mod tests {
-    #![cfg_attr(test, allow(clippy::float_cmp, clippy::cast_possible_truncation, reason = "PRNG fixtures reduce u64 to small indices; tests assert exact deterministic values"))]
+    #![cfg_attr(
+        test,
+        allow(
+            clippy::float_cmp,
+            clippy::cast_possible_truncation,
+            reason = "PRNG fixtures reduce u64 to small indices; tests assert exact deterministic values"
+        )
+    )]
     use super::*;
 
     fn allocation(size: usize, rep: usize) -> Vec<usize> {
@@ -246,16 +264,19 @@ mod tests {
         const UNITS: usize = 80;
         const REPLICATES: usize = 2_000;
         let control = (0..UNITS).map(|i| 1.0 + 0.7 * (i as f64 * 0.41).sin()).collect::<Vec<_>>();
-        let treated = (0..UNITS).map(|i| control[i] + 2.0 + 0.3 * (i as f64 * 0.29).cos())
+        let treated = (0..UNITS)
+            .map(|i| control[i] + 2.0 + 0.3 * (i as f64 * 0.29).cos())
             .collect::<Vec<_>>();
-        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>()
-            / UNITS as f64;
+        let truth =
+            treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>() / UNITS as f64;
         let mut covered = 0;
         for rep in 0..REPLICATES {
             let order = allocation(UNITS, rep);
             let treatment = order[..UNITS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
             let comparison = order[UNITS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
-            let [lower, upper] = complete_unit_itt(&treatment, &comparison).unwrap().interval_95
+            let [lower, upper] = complete_unit_itt(&treatment, &comparison)
+                .unwrap()
+                .interval_95
                 .expect("40 units per arm are supported");
             covered += usize::from(lower <= truth && truth <= upper);
         }
@@ -270,17 +291,21 @@ mod tests {
         const UNITS: usize = 60;
         const REPLICATES: usize = 2_000;
         let control = (0..UNITS).map(|i| 1.0 + 0.7 * (i as f64 * 0.41).sin()).collect::<Vec<_>>();
-        let treated = (0..UNITS).map(|i| control[i] + 2.0 + 0.3 * (i as f64 * 0.29).cos())
+        let treated = (0..UNITS)
+            .map(|i| control[i] + 2.0 + 0.3 * (i as f64 * 0.29).cos())
             .collect::<Vec<_>>();
-        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>()
-            / UNITS as f64;
-        let covered = (0..REPLICATES).filter(|rep| {
-            let order = allocation(UNITS, *rep);
-            let treatment = order[..UNITS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
-            let comparison = order[UNITS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
-            let [lower, upper] = complete_unit_itt(&treatment, &comparison).unwrap().interval_95.unwrap();
-            lower <= truth && truth <= upper
-        }).count();
+        let truth =
+            treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>() / UNITS as f64;
+        let covered = (0..REPLICATES)
+            .filter(|rep| {
+                let order = allocation(UNITS, *rep);
+                let treatment = order[..UNITS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
+                let comparison = order[UNITS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
+                let [lower, upper] =
+                    complete_unit_itt(&treatment, &comparison).unwrap().interval_95.unwrap();
+                lower <= truth && truth <= upper
+            })
+            .count();
         let rate = covered as f64 / REPLICATES as f64;
         eprintln!("complete Neyman boundary interval: {covered}/{REPLICATES} = {rate:.4}");
         assert!((0.93..=0.985).contains(&rate));
@@ -291,27 +316,41 @@ mod tests {
         const BLOCKS: usize = 4;
         const UNITS_PER_BLOCK: usize = 30;
         const REPLICATES: usize = 2_000;
-        let potential = (0..BLOCKS).map(|block| {
-            (0..UNITS_PER_BLOCK).map(|i| {
-                let baseline = block as f64 * 3.0 + 0.7 * (i as f64 * 0.41).sin();
-                (baseline, baseline + 2.0 + 0.25 * (i as f64 * 0.27).cos())
-            }).collect::<Vec<_>>()
-        }).collect::<Vec<_>>();
+        let potential = (0..BLOCKS)
+            .map(|block| {
+                (0..UNITS_PER_BLOCK)
+                    .map(|i| {
+                        let baseline = block as f64 * 3.0 + 0.7 * (i as f64 * 0.41).sin();
+                        (baseline, baseline + 2.0 + 0.25 * (i as f64 * 0.27).cos())
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
         let truth = potential.iter().flatten().map(|(y0, y1)| y1 - y0).sum::<f64>()
             / (BLOCKS * UNITS_PER_BLOCK) as f64;
         let mut covered = 0;
         for rep in 0..REPLICATES {
-            let observed = (0..BLOCKS).map(|block| {
-                let order = allocation(UNITS_PER_BLOCK, rep * BLOCKS + block);
-                let treated = order[..UNITS_PER_BLOCK / 2].iter()
-                    .map(|&i| potential[block][i].1).collect::<Vec<_>>();
-                let control = order[UNITS_PER_BLOCK / 2..].iter()
-                    .map(|&i| potential[block][i].0).collect::<Vec<_>>();
-                (treated, control)
-            }).collect::<Vec<_>>();
-            let refs = observed.iter().map(|(treated, control)|
-                (treated.as_slice(), control.as_slice())).collect::<Vec<_>>();
-            let [lower, upper] = blocked_unit_itt(&refs).unwrap().interval_95
+            let observed = (0..BLOCKS)
+                .map(|block| {
+                    let order = allocation(UNITS_PER_BLOCK, rep * BLOCKS + block);
+                    let treated = order[..UNITS_PER_BLOCK / 2]
+                        .iter()
+                        .map(|&i| potential[block][i].1)
+                        .collect::<Vec<_>>();
+                    let control = order[UNITS_PER_BLOCK / 2..]
+                        .iter()
+                        .map(|&i| potential[block][i].0)
+                        .collect::<Vec<_>>();
+                    (treated, control)
+                })
+                .collect::<Vec<_>>();
+            let refs = observed
+                .iter()
+                .map(|(treated, control)| (treated.as_slice(), control.as_slice()))
+                .collect::<Vec<_>>();
+            let [lower, upper] = blocked_unit_itt(&refs)
+                .unwrap()
+                .interval_95
                 .expect("four blocks with 15 units per arm are supported");
             covered += usize::from(lower <= truth && truth <= upper);
         }
@@ -327,17 +366,23 @@ mod tests {
         const UNITS: usize = 120;
         const CELL_SIZE: usize = 30;
         const REPLICATES: usize = 2_000;
-        let potential = (0..UNITS).map(|i| {
-            let x = i as f64;
-            let baseline = 1.0 + 0.65 * (0.41 * x).sin();
-            let primary = 2.0 + 0.2 * (0.23 * x).cos();
-            let secondary = 1.0 + 0.15 * (0.19 * x).sin();
-            let interaction = 0.5 + 0.1 * (0.31 * x).cos();
-            [baseline, baseline + primary, baseline + secondary,
-                baseline + primary + secondary + interaction]
-        }).collect::<Vec<_>>();
-        let average = |f: &dyn Fn(&[f64; 4]) -> f64| potential.iter().map(f).sum::<f64>()
-            / UNITS as f64;
+        let potential = (0..UNITS)
+            .map(|i| {
+                let x = i as f64;
+                let baseline = 1.0 + 0.65 * (0.41 * x).sin();
+                let primary = 2.0 + 0.2 * (0.23 * x).cos();
+                let secondary = 1.0 + 0.15 * (0.19 * x).sin();
+                let interaction = 0.5 + 0.1 * (0.31 * x).cos();
+                [
+                    baseline,
+                    baseline + primary,
+                    baseline + secondary,
+                    baseline + primary + secondary + interaction,
+                ]
+            })
+            .collect::<Vec<_>>();
+        let average =
+            |f: &dyn Fn(&[f64; 4]) -> f64| potential.iter().map(f).sum::<f64>() / UNITS as f64;
         let truths = [
             average(&|y| 0.5 * (y[1] - y[0] + y[3] - y[2])),
             average(&|y| 0.5 * (y[2] - y[0] + y[3] - y[1])),
@@ -347,14 +392,20 @@ mod tests {
         for rep in 0..REPLICATES {
             let order = allocation(UNITS, rep);
             let cells = std::array::from_fn::<_, 4, _>(|cell| {
-                order[cell * CELL_SIZE..(cell + 1) * CELL_SIZE].iter()
-                    .map(|&i| potential[i][cell]).collect::<Vec<_>>()
+                order[cell * CELL_SIZE..(cell + 1) * CELL_SIZE]
+                    .iter()
+                    .map(|&i| potential[i][cell])
+                    .collect::<Vec<_>>()
             });
             let fit = factorial_2x2(cells.each_ref().map(Vec::as_slice)).unwrap();
-            let intervals = [fit.primary_interval_95.unwrap(), fit.secondary_interval_95.unwrap(),
-                fit.interaction_interval_95.unwrap()];
+            let intervals = [
+                fit.primary_interval_95.unwrap(),
+                fit.secondary_interval_95.unwrap(),
+                fit.interaction_interval_95.unwrap(),
+            ];
             for k in 0..3 {
-                covered[k] += usize::from(intervals[k][0] <= truths[k] && truths[k] <= intervals[k][1]);
+                covered[k] +=
+                    usize::from(intervals[k][0] <= truths[k] && truths[k] <= intervals[k][1]);
             }
         }
         eprintln!("factorial pointwise intervals: {covered:?}/{REPLICATES}");
@@ -363,8 +414,12 @@ mod tests {
             assert!((0.93..=0.985).contains(&rate));
         }
         let sparse = std::array::from_fn::<_, 4, _>(|_| vec![0.0, 1.0]);
-        assert!(factorial_2x2(sparse.each_ref().map(Vec::as_slice)).unwrap()
-            .interaction_interval_95.is_none());
+        assert!(
+            factorial_2x2(sparse.each_ref().map(Vec::as_slice))
+                .unwrap()
+                .interaction_interval_95
+                .is_none()
+        );
     }
 
     #[test]
@@ -392,14 +447,13 @@ mod tests {
         const REPLICATES: usize = 2_000;
         let sizes = (0..CLUSTERS).map(|i| 2 + i % 3).collect::<Vec<_>>();
         let rows = sizes.iter().sum::<usize>();
-        let control = (0..CLUSTERS).map(|i| {
-            sizes[i] as f64 * (1.0 + 0.6 * (i as f64 * 0.37).sin())
-        }).collect::<Vec<_>>();
-        let treated = (0..CLUSTERS).map(|i| {
-            control[i] + sizes[i] as f64 * (2.0 + 0.25 * (i as f64 * 0.53).cos())
-        }).collect::<Vec<_>>();
-        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>()
-            / rows as f64;
+        let control = (0..CLUSTERS)
+            .map(|i| sizes[i] as f64 * (1.0 + 0.6 * (i as f64 * 0.37).sin()))
+            .collect::<Vec<_>>();
+        let treated = (0..CLUSTERS)
+            .map(|i| control[i] + sizes[i] as f64 * (2.0 + 0.25 * (i as f64 * 0.53).cos()))
+            .collect::<Vec<_>>();
+        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>() / rows as f64;
         let mut covered = 0;
         for rep in 0..REPLICATES {
             let order = allocation(CLUSTERS, rep);
@@ -423,22 +477,27 @@ mod tests {
         const REPLICATES: usize = 2_000;
         let sizes = (0..CLUSTERS).map(|i| 2 + i % 3).collect::<Vec<_>>();
         let rows = sizes.iter().sum::<usize>();
-        let control = (0..CLUSTERS).map(|i| {
-            sizes[i] as f64 * (1.0 + 0.6 * (i as f64 * 0.37).sin())
-        }).collect::<Vec<_>>();
-        let treated = (0..CLUSTERS).map(|i| {
-            control[i] + sizes[i] as f64 * (2.0 + 0.25 * (i as f64 * 0.53).cos())
-        }).collect::<Vec<_>>();
-        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>()
-            / rows as f64;
-        let covered = (0..REPLICATES).filter(|rep| {
-            let order = allocation(CLUSTERS, *rep);
-            let treatment = order[..CLUSTERS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
-            let comparison = order[CLUSTERS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
-            let [lower, upper] = complete_cluster_itt(&treatment, &comparison, rows)
-                .unwrap().interval_95.unwrap();
-            lower <= truth && truth <= upper
-        }).count();
+        let control = (0..CLUSTERS)
+            .map(|i| sizes[i] as f64 * (1.0 + 0.6 * (i as f64 * 0.37).sin()))
+            .collect::<Vec<_>>();
+        let treated = (0..CLUSTERS)
+            .map(|i| control[i] + sizes[i] as f64 * (2.0 + 0.25 * (i as f64 * 0.53).cos()))
+            .collect::<Vec<_>>();
+        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>() / rows as f64;
+        let covered = (0..REPLICATES)
+            .filter(|rep| {
+                let order = allocation(CLUSTERS, *rep);
+                let treatment =
+                    order[..CLUSTERS / 2].iter().map(|&i| treated[i]).collect::<Vec<_>>();
+                let comparison =
+                    order[CLUSTERS / 2..].iter().map(|&i| control[i]).collect::<Vec<_>>();
+                let [lower, upper] = complete_cluster_itt(&treatment, &comparison, rows)
+                    .unwrap()
+                    .interval_95
+                    .unwrap();
+                lower <= truth && truth <= upper
+            })
+            .count();
         let rate = covered as f64 / REPLICATES as f64;
         eprintln!("cluster Neyman boundary interval: {covered}/{REPLICATES} = {rate:.4}");
         assert!((0.93..=0.985).contains(&rate));

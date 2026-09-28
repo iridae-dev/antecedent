@@ -127,13 +127,21 @@ impl PanelDidQuery {
         let cohorts = cohorts.into();
         let periods = periods.into();
         let treated = cohorts.iter().map(|value| *value > 0).collect::<Vec<_>>();
-        let post = periods.iter().zip(cohorts.iter())
+        let post = periods
+            .iter()
+            .zip(cohorts.iter())
             .map(|(period, cohort)| *cohort > 0 && *period >= *cohort)
             .collect::<Vec<_>>();
         Self {
             design: DidSamplingDesign::StaggeredEventStudy,
-            outcome, treated: treated.into(), post: post.into(), subjects,
-            clusters: clusters.into(), periods, cohorts, target: None,
+            outcome,
+            treated: treated.into(),
+            post: post.into(),
+            subjects,
+            clusters: clusters.into(),
+            periods,
+            cohorts,
+            target: None,
             augmented: None,
         }
     }
@@ -158,7 +166,10 @@ impl PanelDidQuery {
         let mut query = Self::new(outcome_post, treated, post, subjects, clusters);
         query.design = DidSamplingDesign::AugmentedPanel;
         query.augmented = Some(AugmentedPanelNuisance {
-            outcome_pre, propensity, untreated_change_prediction, predictions_cross_fitted,
+            outcome_pre,
+            propensity,
+            untreated_change_prediction,
+            predictions_cross_fitted,
         });
         query
     }
@@ -203,32 +214,49 @@ impl PanelDidQuery {
         }
         if self.design == DidSamplingDesign::AugmentedPanel {
             let Some(nuisance) = &self.augmented else {
-                return Err(QueryError::InvalidRandomizedEffect("augmented panel DiD requires nuisance columns".into()));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "augmented panel DiD requires nuisance columns".into(),
+                ));
             };
-            let variables = [self.outcome, nuisance.outcome_pre, nuisance.propensity,
-                nuisance.untreated_change_prediction];
+            let variables = [
+                self.outcome,
+                nuisance.outcome_pre,
+                nuisance.propensity,
+                nuisance.untreated_change_prediction,
+            ];
             if variables.iter().collect::<std::collections::BTreeSet<_>>().len() != variables.len()
                 || self.subjects.iter().collect::<std::collections::BTreeSet<_>>().len() != n
                 || self.post.iter().any(|post| !post)
-                || !self.periods.is_empty() || !self.cohorts.is_empty() || self.target.is_some()
+                || !self.periods.is_empty()
+                || !self.cohorts.is_empty()
+                || self.target.is_some()
             {
-                return Err(QueryError::InvalidRandomizedEffect("augmented panel DiD requires distinct columns and one unique subject per row".into()));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "augmented panel DiD requires distinct columns and one unique subject per row"
+                        .into(),
+                ));
             }
         } else if self.augmented.is_some() {
-            return Err(QueryError::InvalidRandomizedEffect("nuisance columns require augmented panel DiD".into()));
+            return Err(QueryError::InvalidRandomizedEffect(
+                "nuisance columns require augmented panel DiD".into(),
+            ));
         }
-        if matches!(self.design, DidSamplingDesign::StaggeredGroupTime | DidSamplingDesign::StaggeredEventStudy) {
+        if matches!(
+            self.design,
+            DidSamplingDesign::StaggeredGroupTime | DidSamplingDesign::StaggeredEventStudy
+        ) {
             let (cohort, period) = if self.design == DidSamplingDesign::StaggeredGroupTime {
                 let Some((cohort, period)) = self.target else {
-                return Err(QueryError::InvalidRandomizedEffect(
-                    "staggered DiD requires a selected cohort and period".into(),
-                ));
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "staggered DiD requires a selected cohort and period".into(),
+                    ));
                 };
                 (cohort, period)
             } else {
                 (2, 2)
             };
-            if (self.design == DidSamplingDesign::StaggeredGroupTime && (cohort <= 1 || period < cohort))
+            if (self.design == DidSamplingDesign::StaggeredGroupTime
+                && (cohort <= 1 || period < cohort))
                 || self.periods.len() != n
                 || self.cohorts.len() != n
                 || self.periods.iter().any(|p| *p <= 0)

@@ -83,29 +83,79 @@ pub fn randomized_graphless_coordinate(
     has_ancova: bool,
 ) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
     match design {
-        RandomizationDesign::Bernoulli
-            if estimand == RandomizedEstimand::TreatmentOnTreated =>
-            ("complier_effect", "bernoulli_one_sided", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Bernoulli if received_treatment =>
-            ("complier_effect", "bernoulli", "wald_ratio_influence", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Bernoulli if fixed_cuped =>
-            ("randomized_effect", "bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Bernoulli if has_ancova =>
-            ("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Bernoulli =>
-            ("randomized_effect", "bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Complete { .. } =>
-            ("randomized_effect", "complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Cluster { .. } =>
-            ("randomized_effect", "cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval"),
-        RandomizationDesign::Stratified { .. } =>
-            ("randomized_effect", "stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval"),
-        RandomizationDesign::Factorial2x2 { .. } =>
-            ("randomized_effect", "factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals"),
-        RandomizationDesign::MultiArm { .. } =>
-            ("randomized_effect", "multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals"),
-        RandomizationDesign::Switchback { .. } =>
-            ("randomized_effect", "switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval"),
+        RandomizationDesign::Bernoulli if estimand == RandomizedEstimand::TreatmentOnTreated => (
+            "complier_effect",
+            "bernoulli_one_sided",
+            "wald_ratio_influence",
+            "unit",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Bernoulli if received_treatment => (
+            "complier_effect",
+            "bernoulli",
+            "wald_ratio_influence",
+            "unit",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Bernoulli if fixed_cuped => (
+            "randomized_effect",
+            "bernoulli",
+            "fixed_cuped_ht_score",
+            "unit",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Bernoulli if has_ancova => {
+            ("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval")
+        }
+        RandomizationDesign::Bernoulli => (
+            "randomized_effect",
+            "bernoulli",
+            "independent_action_ht_score",
+            "unit",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Complete { .. } => (
+            "randomized_effect",
+            "complete",
+            "neyman_difference_in_means",
+            "unit",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Cluster { .. } => (
+            "randomized_effect",
+            "cluster",
+            "neyman_unit_weighted_cluster_totals",
+            "cluster",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Stratified { .. } => (
+            "randomized_effect",
+            "stratified",
+            "blocked_neyman_difference_in_means",
+            "unit",
+            "pointwise_95_normal_interval",
+        ),
+        RandomizationDesign::Factorial2x2 { .. } => (
+            "randomized_effect",
+            "factorial_2x2",
+            "fixed_cell_neyman_contrasts",
+            "unit",
+            "three_pointwise_95_normal_intervals",
+        ),
+        RandomizationDesign::MultiArm { .. } => (
+            "randomized_effect",
+            "multi_arm",
+            "independent_action_ht_scores",
+            "unit",
+            "all_action_pointwise_95_normal_intervals",
+        ),
+        RandomizationDesign::Switchback { .. } => (
+            "randomized_effect",
+            "switchback",
+            "independent_sequence_ht_score",
+            "sequence",
+            "pointwise_95_student_interval",
+        ),
     }
 }
 
@@ -242,22 +292,29 @@ impl RandomizedEffectQuery {
     pub fn validate(&self) -> Result<(), QueryError> {
         if let RandomizationDesign::MultiArm { assignment, probabilities, arms } = &self.design {
             let n = assignment.len();
-            if self.estimand != RandomizedEstimand::IntentionToTreat || self.received_treatment.is_some()
-                || self.fixed_cuped.is_some() || !self.ancova_covariates.is_empty()
+            if self.estimand != RandomizedEstimand::IntentionToTreat
+                || self.received_treatment.is_some()
+                || self.fixed_cuped.is_some()
+                || !self.ancova_covariates.is_empty()
                 || self.exact_randomization_test
             {
                 return Err(QueryError::InvalidRandomizedEffect("multi-arm contrasts do not combine with receipt adjustment, CUPED, ANCOVA, or exact Fisher inference".into()));
             }
-            if n < 3 || arms.len() < 3 || probabilities.len() != n
-                || self.realized_assignment.len() != n || self.assignment_probabilities.len() != n
-                || self.assignment_units.len() != n || self.outcome_units.len() != n
+            if n < 3
+                || arms.len() < 3
+                || probabilities.len() != n
+                || self.realized_assignment.len() != n
+                || self.assignment_probabilities.len() != n
+                || self.assignment_units.len() != n
+                || self.outcome_units.len() != n
                 || arms.iter().any(|arm| arm.trim().is_empty())
                 || arms.iter().collect::<std::collections::HashSet<_>>().len() != arms.len()
                 || self.assignment_units.iter().any(|unit| unit.trim().is_empty())
                 || self.outcome_units.iter().any(|unit| unit.trim().is_empty())
                 || self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
                 || self.outcome_units.iter().collect::<std::collections::HashSet<_>>().len() != n
-                || self.treatment_arms.0 != arms[0] || self.treatment_arms.1 != arms[1]
+                || self.treatment_arms.0 != arms[0]
+                || self.treatment_arms.1 != arms[1]
             {
                 return Err(QueryError::InvalidRandomizedEffect("multi-arm labels, assignment, probabilities, and distinct unit identities must align".into()));
             }
@@ -265,18 +322,24 @@ impl RandomizedEffectQuery {
             for i in 0..n {
                 let arm = assignment[i];
                 let row = &probabilities[i];
-                if arm >= arms.len() || row.len() != arms.len()
+                if arm >= arms.len()
+                    || row.len() != arms.len()
                     || row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p >= 1.0)
                     || (row.iter().sum::<f64>() - 1.0).abs() > 1e-8
                     || self.realized_assignment[i] != (arm != 0)
                     || (self.assignment_probabilities[i] - row[arm]).abs() > 1e-12
                 {
-                    return Err(QueryError::InvalidRandomizedEffect("multi-arm observed actions and known probability rows must agree".into()));
+                    return Err(QueryError::InvalidRandomizedEffect(
+                        "multi-arm observed actions and known probability rows must agree".into(),
+                    ));
                 }
                 observed[arm] += 1;
             }
             if observed.contains(&0) {
-                return Err(QueryError::InvalidRandomizedEffect("multi-arm positivity failure: every declared arm needs observed support".into()));
+                return Err(QueryError::InvalidRandomizedEffect(
+                    "multi-arm positivity failure: every declared arm needs observed support"
+                        .into(),
+                ));
             }
             return Ok(());
         }
@@ -291,19 +354,30 @@ impl RandomizedEffectQuery {
                 "exact randomization inference requires an unadjusted complete two-arm design with at most 20 units".into(),
             ));
         }
-        if matches!(self.estimand, RandomizedEstimand::ComplierAverageCausalEffect | RandomizedEstimand::TreatmentOnTreated) {
+        if matches!(
+            self.estimand,
+            RandomizedEstimand::ComplierAverageCausalEffect
+                | RandomizedEstimand::TreatmentOnTreated
+        ) {
             if !matches!(self.design, RandomizationDesign::Bernoulli)
                 || self.fixed_cuped.is_some()
                 || !self.ancova_covariates.is_empty()
-                || self.received_treatment.as_ref().is_none_or(|receipt| receipt.len() != self.realized_assignment.len())
+                || self
+                    .received_treatment
+                    .as_ref()
+                    .is_none_or(|receipt| receipt.len() != self.realized_assignment.len())
             {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "CACE/LATE requires Bernoulli assignment, row-aligned treatment receipt, and no CUPED adjustment".into(),
                 ));
             }
             if self.estimand == RandomizedEstimand::TreatmentOnTreated
-                && self.received_treatment.as_ref().is_some_and(|receipt|
-                    receipt.iter().zip(self.realized_assignment.iter()).any(|(received, assigned)| *received && !*assigned))
+                && self.received_treatment.as_ref().is_some_and(|receipt| {
+                    receipt
+                        .iter()
+                        .zip(self.realized_assignment.iter())
+                        .any(|(received, assigned)| *received && !*assigned)
+                })
             {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "treatment-on-treated requires observed one-sided noncompliance: no control-assigned unit received treatment".into(),
@@ -311,7 +385,8 @@ impl RandomizedEffectQuery {
             }
         } else if self.received_treatment.is_some() {
             return Err(QueryError::InvalidRandomizedEffect(
-                "treatment receipt is only valid for a CACE/LATE or treatment-on-treated query".into(),
+                "treatment receipt is only valid for a CACE/LATE or treatment-on-treated query"
+                    .into(),
             ));
         }
         if let Some((covariate, coefficient)) = self.fixed_cuped {
@@ -325,13 +400,17 @@ impl RandomizedEffectQuery {
             }
         }
         if !self.ancova_covariates.is_empty() {
-            let unique = self.ancova_covariates.iter().copied().collect::<std::collections::HashSet<_>>();
+            let unique =
+                self.ancova_covariates.iter().copied().collect::<std::collections::HashSet<_>>();
             if !matches!(self.design, RandomizationDesign::Bernoulli)
-                || self.fixed_cuped.is_some() || self.received_treatment.is_some()
+                || self.fixed_cuped.is_some()
+                || self.received_treatment.is_some()
                 || self.ancova_covariates.iter().any(|id| *id == self.outcome)
                 || unique.len() != self.ancova_covariates.len()
                 || self.realized_assignment.len() <= self.ancova_covariates.len() + 2
-                || self.assignment_probabilities.first().is_none_or(|first| self.assignment_probabilities.iter().any(|p| (*p - *first).abs() > 1e-12))
+                || self.assignment_probabilities.first().is_none_or(|first| {
+                    self.assignment_probabilities.iter().any(|p| (*p - *first).abs() > 1e-12)
+                })
             {
                 return Err(QueryError::InvalidRandomizedEffect(
                     "ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom".into(),
@@ -342,7 +421,8 @@ impl RandomizedEffectQuery {
             && (self.received_treatment.is_some() || self.fixed_cuped.is_some())
         {
             return Err(QueryError::InvalidRandomizedEffect(
-                "factorial contrasts do not combine with receipt adjustment or CUPED on this route".into(),
+                "factorial contrasts do not combine with receipt adjustment or CUPED on this route"
+                    .into(),
             ));
         }
         let n = self.realized_assignment.len();
@@ -372,8 +452,10 @@ impl RandomizedEffectQuery {
                 "retained randomized ITT requires one outcome unit per row".into(),
             ));
         }
-        if !matches!(self.design, RandomizationDesign::Cluster { .. } | RandomizationDesign::Switchback { .. })
-            && self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
+        if !matches!(
+            self.design,
+            RandomizationDesign::Cluster { .. } | RandomizationDesign::Switchback { .. }
+        ) && self.assignment_units.iter().collect::<std::collections::HashSet<_>>().len() != n
         {
             return Err(QueryError::InvalidRandomizedEffect(
                 "individual randomization requires one assignment unit per row".into(),
@@ -498,10 +580,16 @@ impl RandomizedEffectQuery {
                     }
                 }
             }
-            RandomizationDesign::Factorial2x2 { second_factor_assignment, cell_counts, second_factor_arms } => {
-                if second_factor_assignment.len() != n || cell_counts.iter().any(|count| *count < 2)
+            RandomizationDesign::Factorial2x2 {
+                second_factor_assignment,
+                cell_counts,
+                second_factor_arms,
+            } => {
+                if second_factor_assignment.len() != n
+                    || cell_counts.iter().any(|count| *count < 2)
                     || cell_counts.iter().sum::<usize>() != n
-                    || second_factor_arms.0.trim().is_empty() || second_factor_arms.1.trim().is_empty()
+                    || second_factor_arms.0.trim().is_empty()
+                    || second_factor_arms.1.trim().is_empty()
                     || second_factor_arms.0 == second_factor_arms.1
                 {
                     return Err(QueryError::InvalidRandomizedEffect(
@@ -509,11 +597,17 @@ impl RandomizedEffectQuery {
                     ));
                 }
                 let mut observed = [0_usize; 4];
-                for (&a, &b) in self.realized_assignment.iter().zip(second_factor_assignment.iter()) {
+                for (&a, &b) in self.realized_assignment.iter().zip(second_factor_assignment.iter())
+                {
                     observed[usize::from(a) + 2 * usize::from(b)] += 1;
                 }
                 let expected_primary = (cell_counts[1] + cell_counts[3]) as f64 / n as f64;
-                if observed != *cell_counts || self.assignment_probabilities.iter().any(|p| (*p - expected_primary).abs() > 1e-12) {
+                if observed != *cell_counts
+                    || self
+                        .assignment_probabilities
+                        .iter()
+                        .any(|p| (*p - expected_primary).abs() > 1e-12)
+                {
                     return Err(QueryError::InvalidRandomizedEffect(
                         "factorial observed cell counts and primary-factor inclusion probabilities must match the fixed four-cell allocation".into(),
                     ));
@@ -582,7 +676,9 @@ mod tests {
             RandomizationDesign::Switchback {
                 periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
             },
-            VariableId::from_raw(0), [true, false, true, false], [0.5; 4],
+            VariableId::from_raw(0),
+            [true, false, true, false],
+            [0.5; 4],
             ["s0", "s0", "s1", "s1"].map(Arc::<str>::from),
             ["r0", "r1", "r2", "r3"].map(Arc::<str>::from),
             ("off", "on"),
@@ -599,8 +695,10 @@ mod tests {
             periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
         };
         query.realized_assignment = [true, true, false, false].into();
-        assert!(query.validate().is_ok(),
-            "global arm support suffices when one sequence happens to realize one arm");
+        assert!(
+            query.validate().is_ok(),
+            "global arm support suffices when one sequence happens to realize one arm"
+        );
     }
 
     #[test]
@@ -616,7 +714,8 @@ mod tests {
     fn factorial_requires_four_supported_fixed_cells() {
         let base = RandomizedEffectQuery::with_design(
             RandomizationDesign::Factorial2x2 {
-                second_factor_assignment: [false, false, false, false, true, true, true, true].into(),
+                second_factor_assignment: [false, false, false, false, true, true, true, true]
+                    .into(),
                 cell_counts: [2; 4],
                 second_factor_arms: (Arc::from("off"), Arc::from("on")),
             },

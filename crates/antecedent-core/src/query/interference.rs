@@ -174,7 +174,11 @@ impl InterferenceQuery {
                 ));
             }
             AssignmentDesign::TwoStageSaturation {
-                clusters, low_probability, high_probability, high_clusters, realized_saturation,
+                clusters,
+                low_probability,
+                high_probability,
+                high_clusters,
+                realized_saturation,
             } if clusters.is_empty()
                 || clusters.len() != realized_saturation.len()
                 || !low_probability.is_finite()
@@ -188,12 +192,20 @@ impl InterferenceQuery {
                     "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0".into(),
                 ));
             }
-            AssignmentDesign::ObservedExposure { clusters, propensity_from, propensity_to, assume_network_exchangeability, .. }
-                if clusters.is_empty()
-                    || propensity_from.len() != clusters.len()
-                    || propensity_to.len() != clusters.len()
-                    || !assume_network_exchangeability
-                    || propensity_from.iter().chain(propensity_to.iter()).any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) =>
+            AssignmentDesign::ObservedExposure {
+                clusters,
+                propensity_from,
+                propensity_to,
+                assume_network_exchangeability,
+                ..
+            } if clusters.is_empty()
+                || propensity_from.len() != clusters.len()
+                || propensity_to.len() != clusters.len()
+                || !assume_network_exchangeability
+                || propensity_from
+                    .iter()
+                    .chain(propensity_to.iter())
+                    .any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) =>
             {
                 return Err(QueryError::InvalidInterference(
                     "observational exposure requires aligned positive propensities and an explicit network exchangeability assumption".into(),

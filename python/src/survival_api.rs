@@ -53,18 +53,33 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             tau: value.tau,
             minimum_event_risk_set: value.minimum_event_risk_set,
             uncertainty: value.uncertainty.to_string(),
-            rmst_difference_interval: value.rmst_difference_interval.map(|interval| interval.to_vec()),
-            difference_at_tau_interval: value.difference_at_tau_interval.map(|interval| interval.to_vec()),
+            rmst_difference_interval: value
+                .rmst_difference_interval
+                .map(|interval| interval.to_vec()),
+            difference_at_tau_interval: value
+                .difference_at_tau_interval
+                .map(|interval| interval.to_vec()),
             bootstrap_replicates_requested: value.bootstrap_replicates_requested,
             bootstrap_replicates_ok: value.bootstrap_replicates_ok,
             assignment_counts: (value.assignment_counts[0], value.assignment_counts[1]),
-            censoring_survival_provenance: value.censoring_survival_provenance.as_ref().map(ToString::to_string),
-            difference_band: value.difference_band.as_ref().map(|band| (
-                band.times.to_vec(), band.difference.to_vec(), band.lower.to_vec(),
-                band.upper.to_vec(), band.replicates_ok,
-                band.support_status.map(|status| status.as_str().to_string()),
-            )),
-            band_unavailable_reason: value.band_unavailable_reason.as_ref().map(ToString::to_string),
+            censoring_survival_provenance: value
+                .censoring_survival_provenance
+                .as_ref()
+                .map(ToString::to_string),
+            difference_band: value.difference_band.as_ref().map(|band| {
+                (
+                    band.times.to_vec(),
+                    band.difference.to_vec(),
+                    band.lower.to_vec(),
+                    band.upper.to_vec(),
+                    band.replicates_ok,
+                    band.support_status.map(|status| status.as_str().to_string()),
+                )
+            }),
+            band_unavailable_reason: value
+                .band_unavailable_reason
+                .as_ref()
+                .map(ToString::to_string),
         }
     }
 }

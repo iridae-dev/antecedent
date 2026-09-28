@@ -30,14 +30,16 @@ pub fn estimate_multi_arm(
     if outcomes.iter().any(|value| !value.is_finite()) {
         return Err("outcomes must be finite");
     }
-    let mut estimates = vec![ArmMean { value: 0.0, variance_bound: 0.0, observed_support: 0 }; arms];
+    let mut estimates =
+        vec![ArmMean { value: 0.0, variance_bound: 0.0, observed_support: 0 }; arms];
     for i in 0..n {
         if assignment[i] >= arms {
             return Err("assigned action index is outside the action set");
         }
         let row = &probabilities[i];
         let total = row.iter().sum::<f64>();
-        if row.len() != arms || row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
+        if row.len() != arms
+            || row.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
             || (total - 1.0).abs() > 1e-8
         {
             return Err("each action propensity must be positive and rows must sum to one");
@@ -45,7 +47,8 @@ pub fn estimate_multi_arm(
         let arm = assignment[i];
         let p = row[arm];
         estimates[arm].value += outcomes[i] / p / n as f64;
-        estimates[arm].variance_bound += (1.0 - p) * outcomes[i].powi(2) / p.powi(2) / (n as f64).powi(2);
+        estimates[arm].variance_bound +=
+            (1.0 - p) * outcomes[i].powi(2) / p.powi(2) / (n as f64).powi(2);
         estimates[arm].observed_support += 1;
     }
     if estimates.iter().any(|arm| arm.observed_support == 0) {

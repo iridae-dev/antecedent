@@ -1,14 +1,24 @@
 //! Retained supplied-propensity observational network exposure through the study lifecycle.
-#![allow(clippy::float_cmp, clippy::cast_sign_loss, clippy::cast_lossless, reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts")]
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts"
+)]
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent::{EstimatorId, InterferenceSpec, RefuteSuite, Study};
-use antecedent_core::{AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping, ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery, VariableId};
+use antecedent_core::{
+    AssignmentDesign, CausalQuery, ExecutionContext, ExposureLevel, ExposureMapping,
+    ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery, VariableId,
+};
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::Dag;
-use antecedent_io::{consume_analysis_result, interference_query_from_wire, interference_query_to_wire};
+use antecedent_io::{
+    consume_analysis_result, interference_query_from_wire, interference_query_to_wire,
+};
 
 fn fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
     let data = TabularData::from_f64_columns([("y", &[0.0, 0.0, 6.0, 6.0][..])]).unwrap();
@@ -48,10 +58,14 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
         .query(CausalQuery::Interference(query))
         .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
         .refute(RefuteSuite::None)
-        .build().unwrap();
+        .build()
+        .unwrap();
     let ctx = ExecutionContext::for_tests(352);
     let prepared = study.prepare(&ctx).unwrap();
-    assert_eq!(prepared.checked_interference_info().unwrap().estimator, EstimatorId::InterferenceObservationalIpw);
+    assert_eq!(
+        prepared.checked_interference_info().unwrap().estimator,
+        EstimatorId::InterferenceObservationalIpw
+    );
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, None);
     assert!((result.estimate.ate - 6.0).abs() < 1e-12);
@@ -59,12 +73,29 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
     let observed = result.interference.as_ref().unwrap();
     assert!((observed.contrast.hajek - 6.0).abs() < 1e-12);
     assert!((observed.contrast.conservative_variance - 36.0).abs() < 1e-12);
-    assert_eq!(observed.from_probability_method, antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated);
+    assert_eq!(
+        observed.from_probability_method,
+        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated
+    );
     assert!(result.interference_inference.as_ref().unwrap().interval.is_none());
-    assert!(result.interference_inference.as_ref().unwrap().interval_unavailable_reason.unwrap().contains("known, fixed"));
+    assert!(
+        result
+            .interference_inference
+            .as_ref()
+            .unwrap()
+            .interval_unavailable_reason
+            .unwrap()
+            .contains("known, fixed")
+    );
     assert!(result.estimate.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.interference.observational_ipw" && d.fields.iter().any(|(key, value)| key.as_ref() == "from_exposed_units" && value.as_ref() == "2")));
-    let artifact = prepared.encode_contracted_result(&result, "observational-network", &ctx).unwrap();
+    assert!(result.diagnostics.iter().any(|d| {
+        d.code.as_ref() == "estimate.interference.observational_ipw"
+            && d.fields
+                .iter()
+                .any(|(key, value)| key.as_ref() == "from_exposed_units" && value.as_ref() == "2")
+    }));
+    let artifact =
+        prepared.encode_contracted_result(&result, "observational-network", &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     assert_eq!(consumed.body.query, antecedent_io::CausalQueryWire::Interference(wire));
     assert!(consumed.body.standard_error.is_none());
@@ -117,7 +148,8 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
         .query(CausalQuery::Interference(query))
         .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
         .refute(RefuteSuite::None)
-        .build().unwrap();
+        .build()
+        .unwrap();
     let ctx = ExecutionContext::for_tests(353);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
@@ -136,7 +168,9 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
 #[test]
 fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
     let (data, assignment, mut query, mut edges) = fixture();
-    if let AssignmentDesign::ObservedExposure { assume_network_exchangeability, .. } = &mut query.assignment {
+    if let AssignmentDesign::ObservedExposure { assume_network_exchangeability, .. } =
+        &mut query.assignment
+    {
         *assume_network_exchangeability = false;
     }
     assert!(query.validate().is_err());
@@ -148,6 +182,7 @@ fn observational_network_refuses_missing_assumption_and_cross_cluster_edge() {
         .query(CausalQuery::Interference(query))
         .interference(InterferenceSpec { network, assignment: Arc::from(assignment) })
         .refute(RefuteSuite::None)
-        .build().unwrap();
+        .build()
+        .unwrap();
     assert!(study.prepare(&ExecutionContext::for_tests(352)).is_err());
 }

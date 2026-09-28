@@ -184,7 +184,11 @@ fn empirical_reference_posterior_is_non_degenerate() {
     let posterior = result.posterior.as_ref().expect("empirical-reference anomaly posterior");
     let (lo, hi) = (posterior.summaries.q025[0], posterior.summaries.q975[0]);
     assert!(hi > lo, "empirical posterior must be non-degenerate: [{lo}, {hi}]");
-    assert!(posterior.summaries.mean[0] > 0.0, "mean {} must be positive", posterior.summaries.mean[0]);
+    assert!(
+        posterior.summaries.mean[0] > 0.0,
+        "mean {} must be positive",
+        posterior.summaries.mean[0]
+    );
 }
 
 #[test]

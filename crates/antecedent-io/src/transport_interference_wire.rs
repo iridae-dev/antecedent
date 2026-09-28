@@ -396,7 +396,9 @@ const fn probability_method_to_wire(
             ExposureProbabilityMethodWire::MonteCarlo { draws, seed }
         }
         ExposureProbabilityMethod::SuppliedKnown => ExposureProbabilityMethodWire::SuppliedKnown,
-        ExposureProbabilityMethod::SuppliedExternallyEstimated => ExposureProbabilityMethodWire::SuppliedExternallyEstimated,
+        ExposureProbabilityMethod::SuppliedExternallyEstimated => {
+            ExposureProbabilityMethodWire::SuppliedExternallyEstimated
+        }
     }
 }
 
@@ -409,7 +411,9 @@ const fn probability_method_from_wire(
             ExposureProbabilityMethod::MonteCarlo { draws, seed }
         }
         ExposureProbabilityMethodWire::SuppliedKnown => ExposureProbabilityMethod::SuppliedKnown,
-        ExposureProbabilityMethodWire::SuppliedExternallyEstimated => ExposureProbabilityMethod::SuppliedExternallyEstimated,
+        ExposureProbabilityMethodWire::SuppliedExternallyEstimated => {
+            ExposureProbabilityMethod::SuppliedExternallyEstimated
+        }
     }
 }
 

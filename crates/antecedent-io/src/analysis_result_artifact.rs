@@ -777,7 +777,9 @@ pub struct RandomizedEffectWire {
     pub graphless_support_status: Option<String>,
 }
 
-fn default_randomized_itt() -> String { "itt".into() }
+fn default_randomized_itt() -> String {
+    "itt".into()
+}
 
 /// Randomized arm event-time curves and optional scalar pointwise intervals.
 /// Simultaneous 95% treatment-minus-control band on the reported event grid.
@@ -913,8 +915,13 @@ pub struct LongitudinalRegimeWire {
     pub observed_subjects: usize,
 }
 
-#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip_serializing_if requires an fn(&T) -> bool signature")]
-fn is_zero_usize(value: &usize) -> bool { *value == 0 }
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires an fn(&T) -> bool signature"
+)]
+fn is_zero_usize(value: &usize) -> bool {
+    *value == 0
+}
 
 fn default_longitudinal_result_method() -> String {
     "ipw".into()
@@ -1226,8 +1233,13 @@ fn graphless_status_ok(actual: Option<&str>, licensed: bool, allow_legacy_missin
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(clippy::too_many_lines)]
-fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graphless_missing: bool) -> Result<(), IoError> {
-    let Some(randomized) = &result.randomized_effect else { return Ok(()); };
+fn validate_randomized_graphless(
+    result: &AnalysisResultWire,
+    allow_legacy_graphless_missing: bool,
+) -> Result<(), IoError> {
+    let Some(randomized) = &result.randomized_effect else {
+        return Ok(());
+    };
     let crate::CausalQueryWire::RandomizedEffect(query) = &result.query else {
         return Err(IoError::Convert(
             "randomized result section is attached to a different query".into(),
@@ -1237,150 +1249,282 @@ fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graph
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
         {
-            ("bernoulli", "bernoulli_wald_cace_influence_variance_no_interval",
-                Some("bernoulli_wald_cace_influence_normal_interval"))
+            (
+                "bernoulli",
+                "bernoulli_wald_cace_influence_variance_no_interval",
+                Some("bernoulli_wald_cace_influence_normal_interval"),
+            )
         }
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated =>
         {
-            ("bernoulli", "bernoulli_one_sided_tot_influence_variance_no_interval",
-                Some("bernoulli_one_sided_tot_influence_normal_interval"))
+            (
+                "bernoulli",
+                "bernoulli_one_sided_tot_influence_variance_no_interval",
+                Some("bernoulli_one_sided_tot_influence_normal_interval"),
+            )
         }
-        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => {
-            ("bernoulli", "bernoulli_fixed_cuped_ht_conservative_variance_no_interval", Some("bernoulli_fixed_cuped_ht_score_normal_interval"))
-        }
-        crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => {
-            ("bernoulli", "bernoulli_ancova_hc0_variance_no_interval", Some("bernoulli_ancova_hc0_normal_interval"))
-        }
-        crate::RandomizationDesignWire::Bernoulli => {
-            ("bernoulli", "bernoulli_ht_design_variance_no_interval", Some("bernoulli_ht_score_normal_interval"))
-        }
-        crate::RandomizationDesignWire::Complete { .. } => {
-            ("complete", "complete_neyman_variance_upper_bound_no_interval", Some("complete_neyman_normal_interval"))
-        }
-        crate::RandomizationDesignWire::Cluster { .. } => {
-            ("cluster", "cluster_neyman_variance_upper_bound_no_interval", Some("cluster_neyman_normal_interval"))
-        }
-        crate::RandomizationDesignWire::Stratified => {
-            ("stratified", "stratified_neyman_variance_upper_bound_no_interval", Some("stratified_neyman_normal_interval"))
-        }
-        crate::RandomizationDesignWire::Factorial2x2 => {
-            ("factorial_2x2", "factorial_cell_neyman_variance_upper_bound_no_interval", Some("factorial_cell_neyman_pointwise_normal_intervals"))
-        }
-        crate::RandomizationDesignWire::Switchback => {
-            ("switchback", "switchback_independent_sequence_sandwich_variance_no_interval", Some("switchback_independent_sequence_student_interval"))
-        }
-        crate::RandomizationDesignWire::MultiArm => {
-            ("multi_arm", "multi_arm_covariance_free_variance_bound_no_interval", Some("multi_arm_ht_score_pointwise_normal_intervals"))
-        }
+        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => (
+            "bernoulli",
+            "bernoulli_fixed_cuped_ht_conservative_variance_no_interval",
+            Some("bernoulli_fixed_cuped_ht_score_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => (
+            "bernoulli",
+            "bernoulli_ancova_hc0_variance_no_interval",
+            Some("bernoulli_ancova_hc0_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Bernoulli => (
+            "bernoulli",
+            "bernoulli_ht_design_variance_no_interval",
+            Some("bernoulli_ht_score_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Complete { .. } => (
+            "complete",
+            "complete_neyman_variance_upper_bound_no_interval",
+            Some("complete_neyman_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Cluster { .. } => (
+            "cluster",
+            "cluster_neyman_variance_upper_bound_no_interval",
+            Some("cluster_neyman_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Stratified => (
+            "stratified",
+            "stratified_neyman_variance_upper_bound_no_interval",
+            Some("stratified_neyman_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Factorial2x2 => (
+            "factorial_2x2",
+            "factorial_cell_neyman_variance_upper_bound_no_interval",
+            Some("factorial_cell_neyman_pointwise_normal_intervals"),
+        ),
+        crate::RandomizationDesignWire::Switchback => (
+            "switchback",
+            "switchback_independent_sequence_sandwich_variance_no_interval",
+            Some("switchback_independent_sequence_student_interval"),
+        ),
+        crate::RandomizationDesignWire::MultiArm => (
+            "multi_arm",
+            "multi_arm_covariance_free_variance_bound_no_interval",
+            Some("multi_arm_ht_score_pointwise_normal_intervals"),
+        ),
     };
-    let (control, treated) =
-        if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
-            (
-                query.multi_arm_assignment.iter().filter(|&&arm| arm == 0).count(),
-                query.multi_arm_assignment.iter().filter(|&&arm| arm == 1).count(),
-            )
-        } else if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
-            let mut clusters = std::collections::BTreeMap::new();
-            for (unit, assignment) in
-                query.assignment_units.iter().zip(&query.realized_assignment)
-            {
-                clusters.insert(unit, *assignment);
-            }
-            (
-                clusters.values().filter(|assigned| !**assigned).count(),
-                clusters.values().filter(|assigned| **assigned).count(),
-            )
-        } else {
-            (
-                query.realized_assignment.iter().filter(|assigned| !**assigned).count(),
-                query.realized_assignment.iter().filter(|assigned| **assigned).count(),
-            )
-        };
-    let minimum_probability = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
-        query.multi_arm_probabilities.iter().flat_map(|row| row.iter().copied()).fold(f64::INFINITY, f64::min)
+    let (control, treated) = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+        (
+            query.multi_arm_assignment.iter().filter(|&&arm| arm == 0).count(),
+            query.multi_arm_assignment.iter().filter(|&&arm| arm == 1).count(),
+        )
+    } else if matches!(query.design, crate::RandomizationDesignWire::Cluster { .. }) {
+        let mut clusters = std::collections::BTreeMap::new();
+        for (unit, assignment) in query.assignment_units.iter().zip(&query.realized_assignment) {
+            clusters.insert(unit, *assignment);
+        }
+        (
+            clusters.values().filter(|assigned| !**assigned).count(),
+            clusters.values().filter(|assigned| **assigned).count(),
+        )
     } else {
-        query.assignment_probabilities.iter().copied()
-            .map(|p| if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
-                p.min(1.0 - p)
-            } else { p })
+        (
+            query.realized_assignment.iter().filter(|assigned| !**assigned).count(),
+            query.realized_assignment.iter().filter(|assigned| **assigned).count(),
+        )
+    };
+    let minimum_probability = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+        query
+            .multi_arm_probabilities
+            .iter()
+            .flat_map(|row| row.iter().copied())
+            .fold(f64::INFINITY, f64::min)
+    } else {
+        query
+            .assignment_probabilities
+            .iter()
+            .copied()
+            .map(|p| {
+                if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
+                    p.min(1.0 - p)
+                } else {
+                    p
+                }
+            })
             .fold(f64::INFINITY, f64::min)
     };
     let expected_allocations = if query.exact_randomization_test {
         let n = query.realized_assignment.len() as u64;
         let k = treated as u64;
         Some((0..k).fold(1_u64, |count, i| count * (n - i) / (i + 1)))
-    } else { None };
+    } else {
+        None
+    };
     let interval_supported = match &query.design {
-        crate::RandomizationDesignWire::Bernoulli =>
-            matches!(query.estimand, crate::RandomizedEstimandWire::Itt
-                | crate::RandomizedEstimandWire::CaceLate
-                | crate::RandomizedEstimandWire::TreatmentOnTreated)
-                && query.ancova_covariates.len() <= 2
+        crate::RandomizationDesignWire::Bernoulli => {
+            matches!(
+                query.estimand,
+                crate::RandomizedEstimandWire::Itt
+                    | crate::RandomizedEstimandWire::CaceLate
+                    | crate::RandomizedEstimandWire::TreatmentOnTreated
+            ) && query.ancova_covariates.len() <= 2
                 && query.realized_assignment.len() >= 400
-                && control >= 30 && treated >= 30
-                && query.assignment_probabilities.iter().all(|p| *p + 1e-12 >= 0.2 && *p <= 0.8 + 1e-12)
+                && control >= 30
+                && treated >= 30
+                && query
+                    .assignment_probabilities
+                    .iter()
+                    .all(|p| *p + 1e-12 >= 0.2 && *p <= 0.8 + 1e-12)
                 && (query.ancova_covariates.is_empty()
-                    || query.assignment_probabilities.iter().all(|p|
-                        (*p - query.assignment_probabilities[0]).abs() <= 1e-12)),
+                    || query
+                        .assignment_probabilities
+                        .iter()
+                        .all(|p| (*p - query.assignment_probabilities[0]).abs() <= 1e-12))
+        }
         crate::RandomizationDesignWire::Complete { .. }
         | crate::RandomizationDesignWire::Cluster { .. } => control >= 30 && treated >= 30,
         crate::RandomizationDesignWire::Stratified => {
             let mut blocks = std::collections::BTreeMap::<&str, (usize, usize)>::new();
             for (block, assigned) in query.blocks.iter().zip(&query.realized_assignment) {
                 let counts = blocks.entry(block).or_default();
-                if *assigned { counts.1 += 1; } else { counts.0 += 1; }
+                if *assigned {
+                    counts.1 += 1;
+                } else {
+                    counts.0 += 1;
+                }
             }
-            blocks.len() >= 4 && control >= 60 && treated >= 60
+            blocks.len() >= 4
+                && control >= 60
+                && treated >= 60
                 && blocks.values().all(|(c, t)| *c >= 15 && *t >= 15)
         }
-        crate::RandomizationDesignWire::Factorial2x2 => query.factorial_cell_counts
+        crate::RandomizationDesignWire::Factorial2x2 => query
+            .factorial_cell_counts
             .is_some_and(|counts| counts.iter().all(|count| *count >= 30)),
-        crate::RandomizationDesignWire::MultiArm =>
+        crate::RandomizationDesignWire::MultiArm => {
             query.multi_arm_assignment.len() >= 400
-                && query.multi_arm_probabilities.iter().all(|row|
-                    row.iter().all(|p| *p + 1e-12 >= 0.2))
-                && (0..query.multi_arm_labels.len()).all(|arm|
-                    query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count() >= 30),
+                && query
+                    .multi_arm_probabilities
+                    .iter()
+                    .all(|row| row.iter().all(|p| *p + 1e-12 >= 0.2))
+                && (0..query.multi_arm_labels.len()).all(|arm| {
+                    query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count()
+                        >= 30
+                })
+        }
         crate::RandomizationDesignWire::Switchback => {
             let mut sizes = std::collections::BTreeMap::<&str, usize>::new();
             for sequence in &query.assignment_units {
                 *sizes.entry(sequence.as_str()).or_default() += 1;
             }
-            sizes.len() >= 30 && control >= 30 && treated >= 30
-                && sizes.values().next().is_some_and(|first| *first > 0
-                    && sizes.values().all(|size| size == first))
+            sizes.len() >= 30
+                && control >= 30
+                && treated >= 30
+                && sizes
+                    .values()
+                    .next()
+                    .is_some_and(|first| *first > 0 && sizes.values().all(|size| size == first))
                 && minimum_probability + 1e-12 >= 0.2
-        },
+        }
     };
     let has_interval = randomized.interval_95.is_some();
     let graphless_method = match query.design {
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated =>
-            Some(("complier_effect", "bernoulli_one_sided", "wald_ratio_influence", "unit", "pointwise_95_normal_interval")),
+        {
+            Some((
+                "complier_effect",
+                "bernoulli_one_sided",
+                "wald_ratio_influence",
+                "unit",
+                "pointwise_95_normal_interval",
+            ))
+        }
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
-            Some(("complier_effect", "bernoulli", "wald_ratio_influence", "unit", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() =>
-            Some(("randomized_effect", "bernoulli", "fixed_cuped_ht_score", "unit", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() =>
-            Some(("randomized_effect", "bernoulli", "ancova_hc0", "unit", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Bernoulli => Some(("randomized_effect", "bernoulli", "independent_action_ht_score", "unit", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Complete { .. } => Some(("randomized_effect", "complete", "neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Cluster { .. } => Some(("randomized_effect", "cluster", "neyman_unit_weighted_cluster_totals", "cluster", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Stratified => Some(("randomized_effect", "stratified", "blocked_neyman_difference_in_means", "unit", "pointwise_95_normal_interval")),
-        crate::RandomizationDesignWire::Factorial2x2 => Some(("randomized_effect", "factorial_2x2", "fixed_cell_neyman_contrasts", "unit", "three_pointwise_95_normal_intervals")),
-        crate::RandomizationDesignWire::MultiArm => Some(("randomized_effect", "multi_arm", "independent_action_ht_scores", "unit", "all_action_pointwise_95_normal_intervals")),
-        crate::RandomizationDesignWire::Switchback =>
-            Some(("randomized_effect", "switchback", "independent_sequence_ht_score", "sequence", "pointwise_95_student_interval")),
+        {
+            Some((
+                "complier_effect",
+                "bernoulli",
+                "wald_ratio_influence",
+                "unit",
+                "pointwise_95_normal_interval",
+            ))
+        }
+        crate::RandomizationDesignWire::Bernoulli if query.fixed_cuped.is_some() => Some((
+            "randomized_effect",
+            "bernoulli",
+            "fixed_cuped_ht_score",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Bernoulli if !query.ancova_covariates.is_empty() => Some((
+            "randomized_effect",
+            "bernoulli",
+            "ancova_hc0",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Bernoulli => Some((
+            "randomized_effect",
+            "bernoulli",
+            "independent_action_ht_score",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Complete { .. } => Some((
+            "randomized_effect",
+            "complete",
+            "neyman_difference_in_means",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Cluster { .. } => Some((
+            "randomized_effect",
+            "cluster",
+            "neyman_unit_weighted_cluster_totals",
+            "cluster",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Stratified => Some((
+            "randomized_effect",
+            "stratified",
+            "blocked_neyman_difference_in_means",
+            "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Factorial2x2 => Some((
+            "randomized_effect",
+            "factorial_2x2",
+            "fixed_cell_neyman_contrasts",
+            "unit",
+            "three_pointwise_95_normal_intervals",
+        )),
+        crate::RandomizationDesignWire::MultiArm => Some((
+            "randomized_effect",
+            "multi_arm",
+            "independent_action_ht_scores",
+            "unit",
+            "all_action_pointwise_95_normal_intervals",
+        )),
+        crate::RandomizationDesignWire::Switchback => Some((
+            "randomized_effect",
+            "switchback",
+            "independent_sequence_ht_score",
+            "sequence",
+            "pointwise_95_student_interval",
+        )),
     };
     let mut block_counts = std::collections::BTreeMap::<&str, (usize, usize)>::new();
     let support_blocks = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
         &query.assignment_units
-    } else { &query.blocks };
+    } else {
+        &query.blocks
+    };
     for (block, assigned) in support_blocks.iter().zip(&query.realized_assignment) {
         let counts = block_counts.entry(block.as_str()).or_default();
-        if *assigned { counts.1 += 1; } else { counts.0 += 1; }
+        if *assigned {
+            counts.1 += 1;
+        } else {
+            counts.0 += 1;
+        }
     }
     let min_block_arm = block_counts.values().flat_map(|(c, t)| [*c, *t]).min().unwrap_or(0);
     let balanced_sequences = matches!(query.design, crate::RandomizationDesignWire::Switchback)
@@ -1388,18 +1532,30 @@ fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graph
             let size = first.0 + first.1;
             size > 0 && block_counts.values().all(|counts| counts.0 + counts.1 == size)
         });
-    let min_factorial_cell = query.factorial_cell_counts
-        .map_or(0, |counts| *counts.iter().min().unwrap_or(&0));
+    let min_factorial_cell =
+        query.factorial_cell_counts.map_or(0, |counts| *counts.iter().min().unwrap_or(&0));
     let min_action_rows = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
-        (0..query.multi_arm_labels.len()).map(|arm|
-            query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count())
-            .min().unwrap_or(0)
-    } else { control.min(treated) };
+        (0..query.multi_arm_labels.len())
+            .map(|arm| {
+                query.multi_arm_assignment.iter().filter(|&&assigned| assigned == arm).count()
+            })
+            .min()
+            .unwrap_or(0)
+    } else {
+        control.min(treated)
+    };
     let min_probability = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
-        query.multi_arm_probabilities.iter().flat_map(|row| row.iter().copied())
+        query
+            .multi_arm_probabilities
+            .iter()
+            .flat_map(|row| row.iter().copied())
             .fold(f64::INFINITY, f64::min)
     } else {
-        query.assignment_probabilities.iter().copied().map(|p| p.min(1.0 - p))
+        query
+            .assignment_probabilities
+            .iter()
+            .copied()
+            .map(|p| p.min(1.0 - p))
             .fold(f64::INFINITY, f64::min)
     };
     let reported_intervals = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
@@ -1411,85 +1567,123 @@ fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graph
     };
     let all_reported_intervals = match query.design {
         crate::RandomizationDesignWire::Factorial2x2 => reported_intervals == 3,
-        crate::RandomizationDesignWire::MultiArm =>
+        crate::RandomizationDesignWire::MultiArm => {
             randomized.multi_arm_intervals_95.len() == query.multi_arm_labels.len()
-                && reported_intervals + 1 == query.multi_arm_labels.len(),
+                && reported_intervals + 1 == query.multi_arm_labels.len()
+        }
         _ => has_interval,
     };
-    let graphless_licensed = graphless_method.is_some_and(|(family, design_key, method, assignment_unit, claim)| {
-        graphless_data::LICENSES.iter().any(|row| {
-            row.family == family
-                && row.design == design_key
-                && row.method == method
-                && row.inference_claim == claim
-                && row.assignment_unit == assignment_unit
-                && control >= row.min_assignment_units_per_arm
-                && treated >= row.min_assignment_units_per_arm
-                && query.realized_assignment.len() >= row.min_rows
-                && block_counts.len() >= row.min_blocks
-                && min_block_arm >= row.min_block_arm
-                && min_factorial_cell >= row.min_factorial_cell
-                && min_action_rows >= row.min_action_rows
-                && min_probability + 1e-12 >= row.min_probability
-                && reported_intervals >= row.min_reported_intervals
-                && (!row.requires_balanced_sequences || balanced_sequences)
-                && (row.max_covariates == 0 || query.ancova_covariates.len() <= row.max_covariates)
-                && (!row.all_reported_intervals || all_reported_intervals)
-                && has_interval
-        })
-    });
+    let graphless_licensed =
+        graphless_method.is_some_and(|(family, design_key, method, assignment_unit, claim)| {
+            graphless_data::LICENSES.iter().any(|row| {
+                row.family == family
+                    && row.design == design_key
+                    && row.method == method
+                    && row.inference_claim == claim
+                    && row.assignment_unit == assignment_unit
+                    && control >= row.min_assignment_units_per_arm
+                    && treated >= row.min_assignment_units_per_arm
+                    && query.realized_assignment.len() >= row.min_rows
+                    && block_counts.len() >= row.min_blocks
+                    && min_block_arm >= row.min_block_arm
+                    && min_factorial_cell >= row.min_factorial_cell
+                    && min_action_rows >= row.min_action_rows
+                    && min_probability + 1e-12 >= row.min_probability
+                    && reported_intervals >= row.min_reported_intervals
+                    && (!row.requires_balanced_sequences || balanced_sequences)
+                    && (row.max_covariates == 0
+                        || query.ancova_covariates.len() <= row.max_covariates)
+                    && (!row.all_reported_intervals || all_reported_intervals)
+                    && has_interval
+            })
+        });
     let expected_uncertainty = if has_interval {
         interval_uncertainty.unwrap_or(point_uncertainty)
-    } else { point_uncertainty };
+    } else {
+        point_uncertainty
+    };
     let z95 = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
         antecedent_stats::student_t_ppf(0.975, (block_counts.len() - 1) as f64)
-    } else { 1.959_963_984_540_054 };
+    } else {
+        1.959_963_984_540_054
+    };
     let primary_interval_valid = match (randomized.standard_error, randomized.interval_95) {
         (None, None) => result.standard_error.is_none(),
         (Some(se), Some([lower, upper])) => {
-            interval_supported && interval_uncertainty.is_some()
-                && se.is_finite() && se > 0.0
+            interval_supported
+                && interval_uncertainty.is_some()
+                && se.is_finite()
+                && se > 0.0
                 && result.standard_error.is_some_and(|top| (top - se).abs() <= 1e-10)
-                && lower.is_finite() && upper.is_finite()
+                && lower.is_finite()
+                && upper.is_finite()
                 && (lower - (randomized.effect - z95 * se)).abs() <= 1e-8
                 && (upper - (randomized.effect + z95 * se)).abs() <= 1e-8
-                && (matches!(query.design, crate::RandomizationDesignWire::Bernoulli | crate::RandomizationDesignWire::MultiArm)
-                    || (se * se - randomized.variance).abs() <= 1e-8)
+                && (matches!(
+                    query.design,
+                    crate::RandomizationDesignWire::Bernoulli
+                        | crate::RandomizationDesignWire::MultiArm
+                ) || (se * se - randomized.variance).abs() <= 1e-8)
         }
         _ => false,
     };
-    let extra_intervals_valid = if matches!(query.design, crate::RandomizationDesignWire::Factorial2x2) {
-        match (randomized.second_factor_effect, randomized.second_factor_variance,
-            randomized.second_factor_interval_95, randomized.factorial_interaction,
-            randomized.factorial_interaction_variance, randomized.factorial_interaction_interval_95) {
-            (Some(second), Some(second_var), Some([sl, su]), Some(interaction), Some(interaction_var), Some([il, iu])) if has_interval =>
-                (sl - (second - z95 * second_var.sqrt())).abs() <= 1e-8
-                && (su - (second + z95 * second_var.sqrt())).abs() <= 1e-8
-                && (il - (interaction - z95 * interaction_var.sqrt())).abs() <= 1e-8
-                && (iu - (interaction + z95 * interaction_var.sqrt())).abs() <= 1e-8,
-            (_, _, None, _, _, None) if !has_interval => true,
-            _ => false,
-        }
-    } else {
-        randomized.second_factor_interval_95.is_none()
-            && randomized.factorial_interaction_interval_95.is_none()
-    };
-    let multi_arm_intervals_valid = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
-        if has_interval {
-            randomized.multi_arm_intervals_95.len() == query.multi_arm_labels.len()
-                && randomized.multi_arm_values.len() == query.multi_arm_labels.len()
-                && randomized.multi_arm_intervals_95.len() >= 2
-                && randomized.multi_arm_intervals_95[0].is_none()
-                && randomized.multi_arm_intervals_95.iter().enumerate().skip(1).all(|(arm, interval)|
-                    interval.is_some_and(|[lower, upper]| {
-                        let contrast = randomized.multi_arm_values[arm].1 - randomized.multi_arm_values[0].1;
-                        lower.is_finite() && upper.is_finite() && lower < upper
-                            && ((lower + upper) / 2.0 - contrast).abs() <= 1e-8
-                    }))
-                && randomized.multi_arm_intervals_95[1] == randomized.interval_95
-        } else { randomized.multi_arm_intervals_95.is_empty()
-            || randomized.multi_arm_intervals_95.iter().all(Option::is_none) }
-    } else { randomized.multi_arm_intervals_95.is_empty() };
+    let extra_intervals_valid =
+        if matches!(query.design, crate::RandomizationDesignWire::Factorial2x2) {
+            match (
+                randomized.second_factor_effect,
+                randomized.second_factor_variance,
+                randomized.second_factor_interval_95,
+                randomized.factorial_interaction,
+                randomized.factorial_interaction_variance,
+                randomized.factorial_interaction_interval_95,
+            ) {
+                (
+                    Some(second),
+                    Some(second_var),
+                    Some([sl, su]),
+                    Some(interaction),
+                    Some(interaction_var),
+                    Some([il, iu]),
+                ) if has_interval => {
+                    (sl - (second - z95 * second_var.sqrt())).abs() <= 1e-8
+                        && (su - (second + z95 * second_var.sqrt())).abs() <= 1e-8
+                        && (il - (interaction - z95 * interaction_var.sqrt())).abs() <= 1e-8
+                        && (iu - (interaction + z95 * interaction_var.sqrt())).abs() <= 1e-8
+                }
+                (_, _, None, _, _, None) if !has_interval => true,
+                _ => false,
+            }
+        } else {
+            randomized.second_factor_interval_95.is_none()
+                && randomized.factorial_interaction_interval_95.is_none()
+        };
+    let multi_arm_intervals_valid =
+        if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
+            if has_interval {
+                randomized.multi_arm_intervals_95.len() == query.multi_arm_labels.len()
+                    && randomized.multi_arm_values.len() == query.multi_arm_labels.len()
+                    && randomized.multi_arm_intervals_95.len() >= 2
+                    && randomized.multi_arm_intervals_95[0].is_none()
+                    && randomized.multi_arm_intervals_95.iter().enumerate().skip(1).all(
+                        |(arm, interval)| {
+                            interval.is_some_and(|[lower, upper]| {
+                                let contrast = randomized.multi_arm_values[arm].1
+                                    - randomized.multi_arm_values[0].1;
+                                lower.is_finite()
+                                    && upper.is_finite()
+                                    && lower < upper
+                                    && ((lower + upper) / 2.0 - contrast).abs() <= 1e-8
+                            })
+                        },
+                    )
+                    && randomized.multi_arm_intervals_95[1] == randomized.interval_95
+            } else {
+                randomized.multi_arm_intervals_95.is_empty()
+                    || randomized.multi_arm_intervals_95.iter().all(Option::is_none)
+            }
+        } else {
+            randomized.multi_arm_intervals_95.is_empty()
+        };
     if result.estimate != Some(randomized.effect)
         || !primary_interval_valid
         || result.interval_lower.is_some()
@@ -1498,7 +1692,11 @@ fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graph
         || !randomized.variance.is_finite()
         || randomized.variance < 0.0
         || randomized.assignment_design != design
-        || !graphless_status_ok(randomized.graphless_support_status.as_deref(), graphless_licensed, allow_legacy_graphless_missing)
+        || !graphless_status_ok(
+            randomized.graphless_support_status.as_deref(),
+            graphless_licensed,
+            allow_legacy_graphless_missing,
+        )
         || randomized.uncertainty != expected_uncertainty
         || !extra_intervals_valid
         || !multi_arm_intervals_valid
@@ -1523,22 +1721,41 @@ fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graph
                 && randomized.factorial_interaction_variance.is_some()))
         || randomized.second_factor_effect.is_some_and(|value| !value.is_finite())
         || randomized.factorial_interaction.is_some_and(|value| !value.is_finite())
-        || randomized.second_factor_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - randomized.variance).abs() > 1e-12)
-        || randomized.factorial_interaction_variance.is_some_and(|value| !value.is_finite() || value < 0.0 || (value - 4.0 * randomized.variance).abs() > 1e-12)
+        || randomized.second_factor_variance.is_some_and(|value| {
+            !value.is_finite() || value < 0.0 || (value - randomized.variance).abs() > 1e-12
+        })
+        || randomized.factorial_interaction_variance.is_some_and(|value| {
+            !value.is_finite() || value < 0.0 || (value - 4.0 * randomized.variance).abs() > 1e-12
+        })
         || (matches!(query.design, crate::RandomizationDesignWire::MultiArm)
             == randomized.multi_arm_values.is_empty())
-        || (matches!(query.design, crate::RandomizationDesignWire::MultiArm) && (
-            randomized.multi_arm_values.len() != query.multi_arm_labels.len()
-            || randomized.multi_arm_values.iter().enumerate().any(|(i, (label, value, variance, support))|
-                label != &query.multi_arm_labels[i] || !value.is_finite() || !variance.is_finite() || *variance < 0.0
-                || *support != query.multi_arm_assignment.iter().filter(|&&arm| arm == i).count())
-            || randomized.multi_arm_values.get(1).is_none_or(|(_, value, variance, _)|
-                (randomized.effect - (value - randomized.multi_arm_values[0].1)).abs() > 1e-10
-                || (randomized.variance - 2.0 * (variance + randomized.multi_arm_values[0].2)).abs() > 1e-10)
-        ))
+        || (matches!(query.design, crate::RandomizationDesignWire::MultiArm)
+            && (randomized.multi_arm_values.len() != query.multi_arm_labels.len()
+                || randomized.multi_arm_values.iter().enumerate().any(
+                    |(i, (label, value, variance, support))| {
+                        label != &query.multi_arm_labels[i]
+                            || !value.is_finite()
+                            || !variance.is_finite()
+                            || *variance < 0.0
+                            || *support
+                                != query
+                                    .multi_arm_assignment
+                                    .iter()
+                                    .filter(|&&arm| arm == i)
+                                    .count()
+                    },
+                )
+                || randomized.multi_arm_values.get(1).is_none_or(|(_, value, variance, _)| {
+                    (randomized.effect - (value - randomized.multi_arm_values[0].1)).abs() > 1e-10
+                        || (randomized.variance
+                            - 2.0 * (variance + randomized.multi_arm_values[0].2))
+                            .abs()
+                            > 1e-10
+                })))
         || (query.exact_randomization_test
-            && randomized.randomization_p_value.is_none_or(|p| !p.is_finite()
-                || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0))
+            && randomized.randomization_p_value.is_none_or(|p| {
+                !p.is_finite() || p < 1.0 / expected_allocations.unwrap() as f64 || p > 1.0
+            }))
         || (!query.exact_randomization_test && randomized.randomization_p_value.is_some())
         || (query.estimand != crate::RandomizedEstimandWire::Itt
             && (randomized.intention_to_treat_effect.is_none_or(|value| !value.is_finite())
@@ -1568,11 +1785,14 @@ fn validate_randomized_graphless(result: &AnalysisResultWire, allow_legacy_graph
 }
 
 fn validate_ratio_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
-    let Some(fit) = &result.local_polynomial_ratio else { return Ok(()); };
+    let Some(fit) = &result.local_polynomial_ratio else {
+        return Ok(());
+    };
     let crate::CausalQueryWire::LocalPolynomialRatio(query) = &result.query else {
         return Err(IoError::Convert("local ratio result requires matching query".into()));
     };
-    let legacy_point_only = fit.uncertainty == "rbc_point_with_unvalidated_hc0_standard_error_no_interval";
+    let legacy_point_only =
+        fit.uncertainty == "rbc_point_with_unvalidated_hc0_standard_error_no_interval";
     let interval_available = !legacy_point_only && fit.standard_error > 0.0;
     let z = antecedent_stats::normal_ppf(0.975);
     let lower = fit.effect - z * fit.standard_error;
@@ -1581,24 +1801,40 @@ fn validate_ratio_graphless(result: &AnalysisResultWire) -> Result<(), IoError> 
     let bounds_match = |bounds: Option<f64>, expected: f64| {
         if interval_available {
             bounds.is_some_and(|value| value.is_finite() && (value - expected).abs() <= tolerance)
-        } else { bounds.is_none() }
+        } else {
+            bounds.is_none()
+        }
     };
     let ratio_design = if fit.kink { "regression_kink" } else { "fuzzy_jump" };
-    let ratio_method = if fit.kink { "local_quartic_slope_rbc_hc0_delta" } else { "local_quadratic_cubic_rbc_hc0_delta" };
-    let ratio_licensed = interval_available && graphless_data::LICENSES.iter().any(|row| {
-        row.family == "local_polynomial_ratio" && row.design == ratio_design
-            && row.method == ratio_method && row.inference_claim == "pointwise_95_normal_interval"
-            && row.assignment_unit == "unit"
-            && fit.n_right >= row.min_assignment_units_per_arm
-            && fit.n_left >= row.min_assignment_units_per_arm
-            && 1 >= row.min_reported_intervals
-    });
-    #[allow(clippy::float_cmp, reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch")]
+    let ratio_method = if fit.kink {
+        "local_quartic_slope_rbc_hc0_delta"
+    } else {
+        "local_quadratic_cubic_rbc_hc0_delta"
+    };
+    let ratio_licensed = interval_available
+        && graphless_data::LICENSES.iter().any(|row| {
+            row.family == "local_polynomial_ratio"
+                && row.design == ratio_design
+                && row.method == ratio_method
+                && row.inference_claim == "pointwise_95_normal_interval"
+                && row.assignment_unit == "unit"
+                && fit.n_right >= row.min_assignment_units_per_arm
+                && fit.n_left >= row.min_assignment_units_per_arm
+                && 1 >= row.min_reported_intervals
+        });
+    #[allow(
+        clippy::float_cmp,
+        reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch"
+    )]
     if fit.cutoff != query.cutoff
         || fit.bandwidth != query.bandwidth
         || fit.kink != query.kink
         || result.estimate != Some(fit.effect)
-        || (if interval_available { result.standard_error != Some(fit.standard_error) } else { result.standard_error.is_some() })
+        || (if interval_available {
+            result.standard_error != Some(fit.standard_error)
+        } else {
+            result.standard_error.is_some()
+        })
         || !bounds_match(fit.ci_lower, lower)
         || !bounds_match(fit.ci_upper, upper)
         || result.interval_lower.is_some()
@@ -1625,8 +1861,13 @@ fn validate_ratio_graphless(result: &AnalysisResultWire) -> Result<(), IoError> 
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(clippy::too_many_lines)]
-fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_graphless_missing: bool) -> Result<(), IoError> {
-    let Some(regime) = &result.longitudinal_regime else { return Ok(()); };
+fn validate_longitudinal_graphless(
+    result: &AnalysisResultWire,
+    allow_legacy_graphless_missing: bool,
+) -> Result<(), IoError> {
+    let Some(regime) = &result.longitudinal_regime else {
+        return Ok(());
+    };
     let crate::CausalQueryWire::LongitudinalRegime(query) = &result.query else {
         return Err(IoError::Convert(
             "longitudinal regime result is attached to a different query".into(),
@@ -1649,16 +1890,27 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
     let n = query.subject_ids.len();
     let dr_cells = n.checked_mul(query.periods);
     let dr_matching_subjects = if matches!(query.periods, 2 | 3)
-        && dr_cells.is_some_and(|cells| query.treatment_history.len() == cells
-            && query.regime_actions.len() == cells)
-        && query.outcome_observed.len() == n {
-        (0..n).filter(|&i| query.outcome_observed[i]
-            && (0..query.periods).all(|t| {
-                let j = query.periods * i + t;
-                query.treatment_history[j] == query.regime_actions[j]
-            })).count()
-    } else { 0 };
-    let dr_min_action = query.regime_actions.iter().zip(&query.treatment_probabilities)
+        && dr_cells.is_some_and(|cells| {
+            query.treatment_history.len() == cells && query.regime_actions.len() == cells
+        })
+        && query.outcome_observed.len() == n
+    {
+        (0..n)
+            .filter(|&i| {
+                query.outcome_observed[i]
+                    && (0..query.periods).all(|t| {
+                        let j = query.periods * i + t;
+                        query.treatment_history[j] == query.regime_actions[j]
+                    })
+            })
+            .count()
+    } else {
+        0
+    };
+    let dr_min_action = query
+        .regime_actions
+        .iter()
+        .zip(&query.treatment_probabilities)
         .map(|(action, p)| if *action { *p } else { 1.0 - p })
         .fold(1.0_f64, f64::min);
     let dr_min_censor = query.censoring_probabilities.iter().copied().fold(1.0_f64, f64::min);
@@ -1666,49 +1918,86 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
         && query.probabilities_known_by_design
         && query.excluded_fold_predictions
         && query.prediction_fold_ids == query.fold_ids
-        && (query.periods == 2 && n >= 300
+        && (query.periods == 2
+            && n >= 300
             && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 200
             && dr_matching_subjects >= 50
-            && dr_min_action >= 0.4 && dr_min_censor >= 0.85
-            || query.periods == 3 && n >= 800
-            && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 600
-            && dr_matching_subjects >= 60
-            && dr_min_action >= 0.5 && dr_min_censor >= 0.9)
+            && dr_min_action >= 0.4
+            && dr_min_censor >= 0.85
+            || query.periods == 3
+                && n >= 800
+                && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 600
+                && dr_matching_subjects >= 60
+                && dr_min_action >= 0.5
+                && dr_min_censor >= 0.9)
         && dr_cells.is_some_and(|cells| query.q_predictions.len() == cells)
         && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0);
     let g_formula_expected = if query.method == "g_formula"
         && query.known_fixed_outcome_predictions
-        && query.probabilities_known_by_design {
+        && query.probabilities_known_by_design
+    {
         antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
-            &query.period_outcome_predictions, &query.regime_actions,
-            &query.treatment_probabilities, &query.censoring_probabilities,
-            n, query.periods, query.minimum_probability,
-        ).ok().and_then(|summary| {
+            &query.period_outcome_predictions,
+            &query.regime_actions,
+            &query.treatment_probabilities,
+            &query.censoring_probabilities,
+            n,
+            query.periods,
+            query.minimum_probability,
+        )
+        .ok()
+        .and_then(|summary| {
             antecedent_estimate::longitudinal_regime::g_formula_fixed_q_pointwise_interval_95(
-                &summary, &query.period_outcome_predictions, n, query.periods,
-            ).map(|interval| (summary.value, interval))
+                &summary,
+                &query.period_outcome_predictions,
+                n,
+                query.periods,
+            )
+            .map(|interval| (summary.value, interval))
         })
-    } else { None };
+    } else {
+        None
+    };
     let expected_reason = match query.method.as_str() {
-        "ipw" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_or_degenerate_score"),
-        "g_formula" if !query.known_fixed_outcome_predictions => Some("prediction_model_uncertainty_not_accounted"),
-        "g_formula" if !query.probabilities_known_by_design => Some("known_sequential_randomization_required_for_fixed_q_interval"),
-        "g_formula" if g_formula_expected.is_none() => Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score"),
-        "sequential_dr" if regime.value_interval_95.is_none() => Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"),
-        "marginal_structural_model" if regime.value_interval_95.is_none() => Some("insufficient_independent_subject_support_for_msm_intervals"),
+        "ipw" if regime.value_interval_95.is_none() => {
+            Some("insufficient_independent_subject_support_or_degenerate_score")
+        }
+        "g_formula" if !query.known_fixed_outcome_predictions => {
+            Some("prediction_model_uncertainty_not_accounted")
+        }
+        "g_formula" if !query.probabilities_known_by_design => {
+            Some("known_sequential_randomization_required_for_fixed_q_interval")
+        }
+        "g_formula" if g_formula_expected.is_none() => {
+            Some("insufficient_two_period_subject_support_or_degenerate_fixed_q_score")
+        }
+        "sequential_dr" if regime.value_interval_95.is_none() => {
+            Some("insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval")
+        }
+        "marginal_structural_model" if regime.value_interval_95.is_none() => {
+            Some("insufficient_independent_subject_support_for_msm_intervals")
+        }
         _ => None,
     };
     let expected_uncertainty = if query.method == "marginal_structural_model" {
-        if regime.value_interval_95.is_some() { "pointwise_subject_clustered_cr1_95" }
-        else { "pointwise_subject_clustered_cr1_no_interval" }
+        if regime.value_interval_95.is_some() {
+            "pointwise_subject_clustered_cr1_95"
+        } else {
+            "pointwise_subject_clustered_cr1_no_interval"
+        }
     } else if query.method == "sequential_dr" && regime.value_interval_95.is_some() {
         "pointwise_subject_score_conditional_excluded_fold_q_95"
     } else if query.method == "g_formula" && regime.value_interval_95.is_some() {
         "pointwise_subject_score_conditional_fixed_known_q_95"
     } else if regime.value_interval_95.is_some() {
         "pointwise_subject_score_95"
-    } else { "point_only_no_interval" };
-    #[allow(clippy::float_cmp, reason = "wire interval bounds must equal the recomputed values exactly; drift is a real mismatch")]
+    } else {
+        "point_only_no_interval"
+    };
+    #[allow(
+        clippy::float_cmp,
+        reason = "wire interval bounds must equal the recomputed values exactly; drift is a real mismatch"
+    )]
     let interval_valid = match regime.value_interval_95 {
         Some(bounds) => {
             let se = regime.value_standard_error.unwrap_or(f64::NAN);
@@ -1720,7 +2009,8 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
                         && (se - expected_se).abs() <= 1e-10
                         && bounds == expected_bounds
                 })
-                && bounds[0].is_finite() && bounds[1].is_finite()
+                && bounds[0].is_finite()
+                && bounds[1].is_finite()
                 && (bounds[0] - (regime.value - span)).abs() <= tolerance
                 && (bounds[1] - (regime.value + span)).abs() <= tolerance
         }
@@ -1729,13 +2019,19 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
     let period_intervals_valid = if regime.period_intervals_95.is_empty() {
         regime.value_interval_95.is_none() || query.method != "marginal_structural_model"
     } else {
-        eligible_msm && regime.value_interval_95.is_some()
+        eligible_msm
+            && regime.value_interval_95.is_some()
             && regime.period_intervals_95.len() == query.periods
-            && regime.period_intervals_95.iter().zip(&regime.period_effects)
-                .zip(&regime.standard_errors).all(|((bounds, center), se)| {
+            && regime
+                .period_intervals_95
+                .iter()
+                .zip(&regime.period_effects)
+                .zip(&regime.standard_errors)
+                .all(|((bounds, center), se)| {
                     let span = antecedent_stats::normal_ppf(0.975) * se;
                     let tolerance = 1e-10 * (1.0 + center.abs() + span.abs());
-                    bounds[0].is_finite() && bounds[1].is_finite()
+                    bounds[0].is_finite()
+                        && bounds[1].is_finite()
                         && (bounds[0] - (center - span)).abs() <= tolerance
                         && (bounds[1] - (center + span)).abs() <= tolerance
                 })
@@ -1787,8 +2083,11 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
         );
     let graphless_licensed =
         graphless_dr_licensed || graphless_g_formula_licensed || graphless_msm_licensed;
-    if !graphless_status_ok(regime.graphless_support_status.as_deref(), graphless_licensed, allow_legacy_graphless_missing)
-    {
+    if !graphless_status_ok(
+        regime.graphless_support_status.as_deref(),
+        graphless_licensed,
+        allow_legacy_graphless_missing,
+    ) {
         return Err(IoError::Convert(
             "longitudinal regime graphless license does not match evidenced support".into(),
         ));
@@ -1802,10 +2101,13 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
         || !regime.value.is_finite()
-        || regime.value_standard_error.is_some_and(|se| !se.is_finite() || se < 0.0
-            || !(matches!(query.method.as_str(), "ipw" | "marginal_structural_model")
-                || query.method == "g_formula" && g_formula_expected.is_some()
-                || query.method == "sequential_dr" && regime.value_interval_95.is_some()))
+        || regime.value_standard_error.is_some_and(|se| {
+            !se.is_finite()
+                || se < 0.0
+                || !(matches!(query.method.as_str(), "ipw" | "marginal_structural_model")
+                    || query.method == "g_formula" && g_formula_expected.is_some()
+                    || query.method == "sequential_dr" && regime.value_interval_95.is_some())
+        })
         || !interval_valid
         || !period_intervals_valid
         || query.method == "sequential_dr" && regime.interval_reason.as_deref() != expected_reason
@@ -1837,57 +2139,99 @@ fn validate_longitudinal_graphless(result: &AnalysisResultWire, allow_legacy_gra
     if query.method == "marginal_structural_model" {
         if regime.period_effects.len() != query.periods
             || regime.standard_errors.len() != query.periods
-            || regime.stabilizing_numerator_probabilities != query.stabilizing_numerator_probabilities
+            || regime.stabilizing_numerator_probabilities
+                != query.stabilizing_numerator_probabilities
             || regime.observed_subjects <= query.periods + 1
             || regime.observed_subjects > query.subject_ids.len()
             || regime.period_effects.iter().any(|v| !v.is_finite())
-            || regime.standard_errors.iter().any(|v| !v.is_finite() || *v < 0.0) {
-            return Err(IoError::Convert("invalid longitudinal MSM coefficients or uncertainty".into()));
+            || regime.standard_errors.iter().any(|v| !v.is_finite() || *v < 0.0)
+        {
+            return Err(IoError::Convert(
+                "invalid longitudinal MSM coefficients or uncertainty".into(),
+            ));
         }
-    } else if !regime.period_effects.is_empty() || !regime.standard_errors.is_empty()
-        || !regime.stabilizing_numerator_probabilities.is_empty() || regime.observed_subjects != 0 {
+    } else if !regime.period_effects.is_empty()
+        || !regime.standard_errors.is_empty()
+        || !regime.stabilizing_numerator_probabilities.is_empty()
+        || regime.observed_subjects != 0
+    {
         return Err(IoError::Convert("MSM-only result fields attached to a regime value".into()));
     }
     Ok(())
 }
 
-fn validate_continuous_dose_graphless(result: &AnalysisResultWire, allow_legacy_graphless_missing: bool) -> Result<(), IoError> {
-    let Some(fit) = &result.continuous_dose_response else { return Ok(()); };
-    let crate::CausalQueryWire::ContinuousDoseResponse(query) = &result.query else {
-        return Err(IoError::Convert("continuous-dose result is attached to a different query".into()));
+// A flat sequence of independent field checks; splitting would scatter the contract.
+#[allow(clippy::too_many_lines)]
+fn validate_continuous_dose_graphless(
+    result: &AnalysisResultWire,
+    allow_legacy_graphless_missing: bool,
+) -> Result<(), IoError> {
+    let Some(fit) = &result.continuous_dose_response else {
+        return Ok(());
     };
-    let groups: std::collections::BTreeSet<&str> = query.baseline_groups.iter().map(String::as_str).collect();
+    let crate::CausalQueryWire::ContinuousDoseResponse(query) = &result.query else {
+        return Err(IoError::Convert(
+            "continuous-dose result is attached to a different query".into(),
+        ));
+    };
+    let groups: std::collections::BTreeSet<&str> =
+        query.baseline_groups.iter().map(String::as_str).collect();
     let policy_requested = query.fixed_policy.is_some();
-    let policy_interval = fit.fixed_policy.as_ref().is_some_and(|value| value.incremental_interval_95.is_some());
+    let policy_interval =
+        fit.fixed_policy.as_ref().is_some_and(|value| value.incremental_interval_95.is_some());
     let expected_uncertainty = if policy_interval {
         "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
     } else if policy_requested {
         "fixed_group_kernel_smoothed_paired_variance_no_interval"
-    } else { "point_only_no_interval" };
-    #[allow(clippy::float_cmp, reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch")]
-    if result.estimate.is_some() || result.standard_error.is_some()
-        || result.interval_lower.is_some() || result.interval_upper.is_some()
-        || fit.bandwidth != query.bandwidth || fit.density_provenance != query.density_provenance
+    } else {
+        "point_only_no_interval"
+    };
+    #[allow(
+        clippy::float_cmp,
+        reason = "wire fields must equal the frozen query bytes exactly; any drift is a real mismatch"
+    )]
+    if result.estimate.is_some()
+        || result.standard_error.is_some()
+        || result.interval_lower.is_some()
+        || result.interval_upper.is_some()
+        || fit.bandwidth != query.bandwidth
+        || fit.density_provenance != query.density_provenance
         || fit.uncertainty != expected_uncertainty
         || fit.fixed_policy.is_some() != policy_requested
         || fit.points.len() != groups.len() * query.target_doses.len()
         || (!policy_requested && fit.graphless_support_status.is_some())
     {
-        return Err(IoError::Convert("continuous-dose result must match its query and uncertainty".into()));
+        return Err(IoError::Convert(
+            "continuous-dose result must match its query and uncertainty".into(),
+        ));
     }
     for (index, point) in fit.points.iter().enumerate() {
         let group = groups.iter().nth(index / query.target_doses.len()).copied().unwrap_or("");
         let target = query.target_doses[index % query.target_doses.len()];
-        #[allow(clippy::float_cmp, reason = "target dose must equal the frozen query grid value exactly")]
-        if point.baseline_group != group || point.target_dose != target
+        #[allow(
+            clippy::float_cmp,
+            reason = "target dose must equal the frozen query grid value exactly"
+        )]
+        if point.baseline_group != group
+            || point.target_dose != target
             || point.local_rows < query.min_local_support
-            || ![point.response, point.effective_sample_size, point.minimum_dose_density,
-                point.maximum_normalized_weight, point.local_outcome_sd].iter().all(|value| value.is_finite())
-            || point.effective_sample_size <= 0.0 || point.minimum_dose_density <= 0.0
+            || ![
+                point.response,
+                point.effective_sample_size,
+                point.minimum_dose_density,
+                point.maximum_normalized_weight,
+                point.local_outcome_sd,
+            ]
+            .iter()
+            .all(|value| value.is_finite())
+            || point.effective_sample_size <= 0.0
+            || point.minimum_dose_density <= 0.0
             || !(0.0..=1.0).contains(&point.maximum_normalized_weight)
             || point.local_outcome_sd < 0.0
         {
-            return Err(IoError::Convert("continuous-dose point or local support is invalid".into()));
+            return Err(IoError::Convert(
+                "continuous-dose point or local support is invalid".into(),
+            ));
         }
     }
     if let Some(value) = &fit.fixed_policy {
@@ -1898,18 +2242,24 @@ fn validate_continuous_dose_graphless(result: &AnalysisResultWire, allow_legacy_
         let mut expected_reference = reference_doses.clone();
         expected_policy.sort_by(|a, b| a.0.cmp(&b.0));
         expected_reference.sort_by(|a, b| a.0.cmp(&b.0));
-        let minimum_group_rows = groups.iter().map(|group| query.baseline_groups.iter()
-            .filter(|observed| observed.as_str() == *group).count()).min().unwrap_or(0);
-        let intervals = [value.policy_interval_95, value.reference_interval_95,
-            value.incremental_interval_95];
-        let variances = [value.policy_variance, value.reference_variance,
-            value.incremental_variance];
+        let minimum_group_rows = groups
+            .iter()
+            .map(|group| {
+                query.baseline_groups.iter().filter(|observed| observed.as_str() == *group).count()
+            })
+            .min()
+            .unwrap_or(0);
+        let intervals =
+            [value.policy_interval_95, value.reference_interval_95, value.incremental_interval_95];
+        let variances =
+            [value.policy_variance, value.reference_variance, value.incremental_variance];
         let centers = [value.policy_value, value.reference_value, value.incremental_value];
         let supported = graphless_data::LICENSES.iter().any(|row| {
             row.family == "continuous_dose_policy"
                 && row.design == "fixed_group_kernel"
                 && row.method == "inverse_density_kernel_paired_scores"
-                && row.inference_claim == "policy_reference_incremental_pointwise_95_normal_intervals"
+                && row.inference_claim
+                    == "policy_reference_incremental_pointwise_95_normal_intervals"
                 && row.assignment_unit == "unit"
                 && query.baseline_groups.len() >= row.min_rows
                 && minimum_group_rows >= row.min_group_rows
@@ -1919,10 +2269,12 @@ fn validate_continuous_dose_graphless(result: &AnalysisResultWire, allow_legacy_
                     || value.maximum_normalized_weight <= row.max_normalized_weight + 1e-12)
                 && value.minimum_dose_density + 1e-12 >= row.min_dose_density
                 && (!row.requires_known_density || query.density_provenance == "known")
-                && row.min_reported_intervals == 3 && row.all_reported_intervals
+                && row.min_reported_intervals == 3
+                && row.all_reported_intervals
                 && variances.iter().all(|variance| *variance > 0.0)
         });
-        if value.policy_doses != expected_policy || value.reference_doses != expected_reference
+        if value.policy_doses != expected_policy
+            || value.reference_doses != expected_reference
             || !centers.iter().chain(&variances).all(|number| number.is_finite())
             || (value.policy_value - value.reference_value - value.incremental_value).abs() > 1e-8
             || variances.iter().any(|variance| *variance < 0.0)
@@ -1931,20 +2283,28 @@ fn validate_continuous_dose_graphless(result: &AnalysisResultWire, allow_legacy_
             || value.minimum_effective_sample_size <= 0.0
             || !value.maximum_normalized_weight.is_finite()
             || !(0.0..=1.0).contains(&value.maximum_normalized_weight)
-            || !value.minimum_dose_density.is_finite() || value.minimum_dose_density <= 0.0
+            || !value.minimum_dose_density.is_finite()
+            || value.minimum_dose_density <= 0.0
             || policy_interval != supported
-            || !graphless_status_ok(fit.graphless_support_status.as_deref(), supported, allow_legacy_graphless_missing)
+            || !graphless_status_ok(
+                fit.graphless_support_status.as_deref(),
+                supported,
+                allow_legacy_graphless_missing,
+            )
             || intervals.iter().any(|interval| interval.is_some() != policy_interval)
             || intervals.iter().zip(centers).zip(variances).any(|((interval, center), variance)| {
                 interval.is_some_and(|[lower, upper]| {
                     let radius = 1.959_963_984_540_054 * variance.sqrt();
-                    !lower.is_finite() || !upper.is_finite()
+                    !lower.is_finite()
+                        || !upper.is_finite()
                         || (lower - (center - radius)).abs() > 1e-8
                         || (upper - (center + radius)).abs() > 1e-8
                 })
             })
         {
-            return Err(IoError::Convert("continuous-dose policy value or paired interval is invalid".into()));
+            return Err(IoError::Convert(
+                "continuous-dose policy value or paired interval is invalid".into(),
+            ));
         }
     }
     Ok(())
@@ -1953,12 +2313,16 @@ fn validate_continuous_dose_graphless(result: &AnalysisResultWire, allow_legacy_
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(clippy::too_many_lines)]
 fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
-    let Some(policy) = &result.policy_value else { return Ok(()); };
+    let Some(policy) = &result.policy_value else {
+        return Ok(());
+    };
     let expected_uncertainty = match &result.query {
         crate::CausalQueryWire::PolicyValue(query) if query.multi_action.is_some() => {
             "multi_action_ipw_row_score_standard_error_independent_subjects"
         }
-        crate::CausalQueryWire::PolicyValue(query) if query.mu0.is_empty() && query.mu1.is_empty() => {
+        crate::CausalQueryWire::PolicyValue(query)
+            if query.mu0.is_empty() && query.mu1.is_empty() =>
+        {
             "ipw_row_score_standard_error_independent_subjects"
         }
         crate::CausalQueryWire::PolicyValue(_) => "row_score_standard_error_independent_subjects",
@@ -1967,41 +2331,56 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
     let expected_interval = match &result.query {
         crate::CausalQueryWire::PolicyValue(query) => {
             let (n, policy_matches, reference_matches) = if let Some(multi) = &query.multi_action {
-                (multi.assignment.len(),
-                 multi.assignment.iter().zip(&multi.actions).filter(|(a, b)| a == b).count(),
-                 multi.assignment.iter().zip(&multi.reference).filter(|(a, b)| a == b).count())
+                (
+                    multi.assignment.len(),
+                    multi.assignment.iter().zip(&multi.actions).filter(|(a, b)| a == b).count(),
+                    multi.assignment.iter().zip(&multi.reference).filter(|(a, b)| a == b).count(),
+                )
             } else {
-                (query.assignment.len(),
-                 query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
-                 query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count())
+                (
+                    query.assignment.len(),
+                    query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
+                    query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count(),
+                )
             };
             let multi_constraints_couple = query.multi_action.as_ref().is_some_and(|multi| {
                 let n = multi.assignment.len();
-                [(&multi.capacities, &multi.costs, multi.budget),
-                 (&multi.reference_capacities, &multi.reference_costs, multi.reference_budget)]
-                    .into_iter().any(|(capacities, costs, budget)| {
-                        capacities.iter().any(|&limit| limit < n)
-                            || budget.is_some_and(|limit| {
-                                let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
-                                limit + 1e-12 < n as f64 * maximum_cost
-                            })
-                    })
+                [
+                    (&multi.capacities, &multi.costs, multi.budget),
+                    (&multi.reference_capacities, &multi.reference_costs, multi.reference_budget),
+                ]
+                .into_iter()
+                .any(|(capacities, costs, budget)| {
+                    capacities.iter().any(|&limit| limit < n)
+                        || budget.is_some_and(|limit| {
+                            let maximum_cost = costs.iter().copied().fold(0.0_f64, f64::max);
+                            limit + 1e-12 < n as f64 * maximum_cost
+                        })
+                })
             });
             n >= (if query.multi_action.is_some() || !query.mu0.is_empty() { 300 } else { 120 })
-                && policy_matches >= 10 && reference_matches >= 10
-                && !query.global_constraints_present && !multi_constraints_couple
-                && (query.multi_action.is_some() || query.mu0.is_empty()
-                    || query.disjoint_training_subjects || query.crossfit_fold_ownership_valid)
-                && policy.policy_standard_error > 0.0 && policy.incremental_standard_error > 0.0
+                && policy_matches >= 10
+                && reference_matches >= 10
+                && !query.global_constraints_present
+                && !multi_constraints_couple
+                && (query.multi_action.is_some()
+                    || query.mu0.is_empty()
+                    || query.disjoint_training_subjects
+                    || query.crossfit_fold_ownership_valid)
+                && policy.policy_standard_error > 0.0
+                && policy.incremental_standard_error > 0.0
         }
         _ => false,
     };
     let z = antecedent_stats::normal_ppf(0.975);
     let bounds_match = |bounds: Option<[f64; 2]>, center: f64, se: f64| {
-        let Some(bounds) = bounds else { return true; };
+        let Some(bounds) = bounds else {
+            return true;
+        };
         let span = z * se;
         let tolerance = 1e-10 * (1.0 + center.abs() + span.abs());
-        expected_interval && (bounds[0] - (center - span)).abs() <= tolerance
+        expected_interval
+            && (bounds[0] - (center - span)).abs() <= tolerance
             && (bounds[1] - (center + span)).abs() <= tolerance
     };
     if result.estimate.is_some()
@@ -2026,10 +2405,21 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
         || policy.reference_standard_error < 0.0
         || policy.incremental_standard_error < 0.0
         || policy.policy_interval_95.is_some() != policy.incremental_interval_95.is_some()
-        || policy.policy_interval_95.iter().chain(policy.incremental_interval_95.iter())
+        || policy
+            .policy_interval_95
+            .iter()
+            .chain(policy.incremental_interval_95.iter())
             .any(|bounds| !bounds.iter().all(|value| value.is_finite()) || bounds[0] > bounds[1])
-        || !bounds_match(policy.policy_interval_95, policy.policy_value, policy.policy_standard_error)
-        || !bounds_match(policy.incremental_interval_95, policy.incremental_value, policy.incremental_standard_error)
+        || !bounds_match(
+            policy.policy_interval_95,
+            policy.policy_value,
+            policy.policy_standard_error,
+        )
+        || !bounds_match(
+            policy.incremental_interval_95,
+            policy.incremental_value,
+            policy.incremental_standard_error,
+        )
         || !(0.0..=1.0).contains(&policy.propensity_min)
         || !(0.0..=1.0).contains(&policy.propensity_max)
         || policy.propensity_min > policy.propensity_max
@@ -2045,36 +2435,58 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
     };
     if let Some(regret) = &policy.regret {
         let Some(design) = &query.regret else {
-            return Err(IoError::Convert("finite-class regret requires its bound candidate query".into()));
+            return Err(IoError::Convert(
+                "finite-class regret requires its bound candidate query".into(),
+            ));
         };
         let k = design.candidates.len();
         let n = query.assignment.len();
-        if n < 400 || !(2..=16).contains(&k) || design.selected_index >= k
+        if n < 400
+            || !(2..=16).contains(&k)
+            || design.selected_index >= k
             || regret.selected_index != design.selected_index
-            || regret.candidate_values.len() != k || regret.contrast_standard_errors.len() != k
-            || query.global_constraints_present || query.multi_action.is_some()
-            || !query.mu0.is_empty() || !query.uplift_bins.is_empty()
+            || regret.candidate_values.len() != k
+            || regret.contrast_standard_errors.len() != k
+            || query.global_constraints_present
+            || query.multi_action.is_some()
+            || !query.mu0.is_empty()
+            || !query.uplift_bins.is_empty()
             || query.propensity.iter().any(|p| !(0.2..=0.8).contains(p))
             || design.training_subject_ids.is_empty()
-            || design.training_subject_ids.iter().any(|id| query.evaluation_subject_ids.contains(id))
-            || design.candidates.iter().any(|candidate| candidate.len() != n
-                || query.assignment.iter().zip(candidate).filter(|(a, b)| a == b).count() < 50)
+            || design
+                .training_subject_ids
+                .iter()
+                .any(|id| query.evaluation_subject_ids.contains(id))
+            || design.candidates.iter().any(|candidate| {
+                candidate.len() != n
+                    || query.assignment.iter().zip(candidate).filter(|(a, b)| a == b).count() < 50
+            })
             || design.candidates[design.selected_index] != query.actions
         {
-            return Err(IoError::Convert("finite-class regret support or ownership is invalid".into()));
+            return Err(IoError::Convert(
+                "finite-class regret support or ownership is invalid".into(),
+            ));
         }
         let selected = regret.candidate_values[regret.selected_index];
         let critical = antecedent_stats::normal_ppf(1.0 - 0.05 / (2.0 * (k - 1) as f64));
         let mut lower: f64 = 0.0;
         let mut upper: f64 = 0.0;
         let mut point: f64 = 0.0;
-        for (j, (&value, &se)) in regret.candidate_values.iter()
-            .zip(&regret.contrast_standard_errors).enumerate() {
-            if !value.is_finite() || !se.is_finite() || se < 0.0
-                || (j == regret.selected_index && se != 0.0) {
-                return Err(IoError::Convert("finite-class regret candidate score is invalid".into()));
+        for (j, (&value, &se)) in
+            regret.candidate_values.iter().zip(&regret.contrast_standard_errors).enumerate()
+        {
+            if !value.is_finite()
+                || !se.is_finite()
+                || se < 0.0
+                || (j == regret.selected_index && se != 0.0)
+            {
+                return Err(IoError::Convert(
+                    "finite-class regret candidate score is invalid".into(),
+                ));
             }
-            if j == regret.selected_index { continue; }
+            if j == regret.selected_index {
+                continue;
+            }
             let difference = value - selected;
             let span = critical * se;
             point = point.max(difference);
@@ -2082,9 +2494,14 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
             upper = upper.max(difference + span);
         }
         let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
-        if !close(selected, policy.policy_value) || !close(point, regret.regret)
-            || !close(lower, regret.interval_95[0]) || !close(upper, regret.interval_95[1]) {
-            return Err(IoError::Convert("finite-class regret interval does not match paired candidate contrasts".into()));
+        if !close(selected, policy.policy_value)
+            || !close(point, regret.regret)
+            || !close(lower, regret.interval_95[0])
+            || !close(upper, regret.interval_95[1])
+        {
+            return Err(IoError::Convert(
+                "finite-class regret interval does not match paired candidate contrasts".into(),
+            ));
         }
     } else if query.regret.is_some() {
         return Err(IoError::Convert("finite-class regret query requires a regret result".into()));
@@ -2092,25 +2509,36 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
     if policy.uplift_bins.len() != query.uplift_bin_count
         || (!query.uplift_bins.is_empty() && query.uplift_bins.len() != query.assignment.len())
         || policy.uplift_bins.iter().enumerate().any(|(rank, bin)| {
-            let rows = query.uplift_bins.iter().enumerate()
-                .filter(|&(_, &group)| group == rank).collect::<Vec<_>>();
+            let rows = query
+                .uplift_bins
+                .iter()
+                .enumerate()
+                .filter(|&(_, &group)| group == rank)
+                .collect::<Vec<_>>();
             let treated = rows.iter().filter(|&&(i, _)| query.assignment[i]).count();
             let controls = rows.len() - treated;
             let interval_valid = bin.interval_95.is_none_or(|bounds| {
                 let span = z * bin.standard_error;
                 let tolerance = 1e-10 * (1.0 + bin.effect.abs() + span.abs());
-                rows.len() >= 300 && treated >= 50 && controls >= 50
+                rows.len() >= 300
+                    && treated >= 50
+                    && controls >= 50
                     && !query.uplift_training_subject_ids.is_empty()
-                    && query.uplift_training_subject_ids.iter()
+                    && query
+                        .uplift_training_subject_ids
+                        .iter()
                         .all(|id| !query.evaluation_subject_ids.contains(id))
                     && bin.standard_error > 0.0
                     && bounds.iter().all(|value| value.is_finite())
                     && (bounds[0] - (bin.effect - span)).abs() <= tolerance
                     && (bounds[1] - (bin.effect + span)).abs() <= tolerance
             });
-            bin.rank != rank || bin.evaluation_rows != rows.len()
-                || !bin.effect.is_finite() || !bin.standard_error.is_finite()
-                || bin.standard_error < 0.0 || !interval_valid
+            bin.rank != rank
+                || bin.evaluation_rows != rows.len()
+                || !bin.effect.is_finite()
+                || !bin.standard_error.is_finite()
+                || bin.standard_error < 0.0
+                || !interval_valid
         })
     {
         return Err(IoError::Convert("invalid policy uplift-bin support or interval".into()));
@@ -2118,7 +2546,9 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
     if let Some(multi) = &query.multi_action {
         let k = multi.action_labels.len();
         if k < 2 {
-            return Err(IoError::Convert("multi-action CATE requires a control and an action".into()));
+            return Err(IoError::Convert(
+                "multi-action CATE requires a control and an action".into(),
+            ));
         }
         let mut groups = multi.cate_groups.clone();
         groups.sort_unstable();
@@ -2127,10 +2557,17 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
             || policy.multi_action_cate.iter().enumerate().any(|(index, point)| {
                 let group = &groups[index / (k - 1)];
                 let action = index % (k - 1) + 1;
-                let rows = multi.cate_groups.iter().enumerate()
-                    .filter(|(_, label)| *label == group).map(|(row, _)| row).collect::<Vec<_>>();
-                let observed_action = rows.iter().filter(|&&row| multi.assignment[row] == action).count();
-                let observed_control = rows.iter().filter(|&&row| multi.assignment[row] == 0).count();
+                let rows = multi
+                    .cate_groups
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, label)| *label == group)
+                    .map(|(row, _)| row)
+                    .collect::<Vec<_>>();
+                let observed_action =
+                    rows.iter().filter(|&&row| multi.assignment[row] == action).count();
+                let observed_control =
+                    rows.iter().filter(|&&row| multi.assignment[row] == 0).count();
                 let strong_overlap = rows.iter().all(|&row| {
                     multi.propensities[row * k] >= 0.2
                         && multi.propensities[row * k + action] >= 0.2
@@ -2138,18 +2575,24 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
                 let interval_valid = point.interval_95.is_none_or(|bounds| {
                     let span = z * point.standard_error;
                     let tolerance = 1e-10 * (1.0 + point.effect.abs() + span.abs());
-                    rows.len() >= 300 && observed_action >= 50 && observed_control >= 50
-                        && strong_overlap && point.standard_error > 0.0
+                    rows.len() >= 300
+                        && observed_action >= 50
+                        && observed_control >= 50
+                        && strong_overlap
+                        && point.standard_error > 0.0
                         && bounds.iter().all(|value| value.is_finite())
                         && (bounds[0] - (point.effect - span)).abs() <= tolerance
                         && (bounds[1] - (point.effect + span)).abs() <= tolerance
                 });
-                point.group != group.as_str() || point.action != multi.action_labels[action].as_str()
+                point.group != group.as_str()
+                    || point.action != multi.action_labels[action].as_str()
                     || point.evaluation_rows != rows.len()
                     || point.observed_action_rows != observed_action
                     || point.observed_control_rows != observed_control
-                    || !point.effect.is_finite() || !point.standard_error.is_finite()
-                    || point.standard_error < 0.0 || !interval_valid
+                    || !point.effect.is_finite()
+                    || !point.standard_error.is_finite()
+                    || point.standard_error < 0.0
+                    || !interval_valid
             })
         {
             return Err(IoError::Convert("invalid multi-action CATE support or interval".into()));
@@ -2158,46 +2601,83 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
         return Err(IoError::Convert("multi-action CATE requires a multi-action query".into()));
     }
     let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
-        query.multi_action.is_some(), query.mu0.is_empty(),
-        !policy.uplift_bins.is_empty(), !policy.multi_action_cate.is_empty(),
+        query.multi_action.is_some(),
+        query.mu0.is_empty(),
+        !policy.uplift_bins.is_empty(),
+        !policy.multi_action_cate.is_empty(),
         query.regret.is_some(),
-        !query.mu0.is_empty() && query.crossfit_fold_ownership_valid
+        !query.mu0.is_empty()
+            && query.crossfit_fold_ownership_valid
             && !query.disjoint_training_subjects,
     );
-    let (treated, control, min_action_rows, min_probability, policy_matches, reference_matches, uncoupled) =
-        if let Some(multi) = &query.multi_action {
-            let n = multi.assignment.len();
-            let k = multi.action_labels.len();
-            let treated = multi.assignment.iter().filter(|&&action| action != 0).count();
-            let policy_matches = multi.assignment.iter().zip(&multi.actions).filter(|(a, b)| a == b).count();
-            let reference_matches = multi.assignment.iter().zip(&multi.reference).filter(|(a, b)| a == b).count();
-            let coupled = [(&multi.capacities, &multi.costs, multi.budget),
-                (&multi.reference_capacities, &multi.reference_costs, multi.reference_budget)]
-                .into_iter().any(|(capacities, costs, budget)| {
-                    capacities.iter().any(|&limit| limit < n)
-                        || budget.is_some_and(|limit| limit + 1e-12 < n as f64
-                            * costs.iter().copied().fold(0.0_f64, f64::max))
-                });
-            (treated, n - treated,
-             (0..k).map(|action| multi.assignment.iter().filter(|&&a| a == action).count()).min().unwrap_or(0),
-             multi.propensities.iter().copied().fold(f64::INFINITY, f64::min),
-             policy_matches, reference_matches, !query.global_constraints_present && !coupled)
-        } else {
-            let n = query.assignment.len();
-            let treated = query.assignment.iter().filter(|&&assigned| assigned).count();
-            (treated, n - treated, treated.min(n - treated),
-             query.propensity.iter().copied().map(|p| p.min(1.0 - p)).fold(f64::INFINITY, f64::min),
-             query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
-             query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count(),
-             !query.global_constraints_present)
-        };
+    let (
+        treated,
+        control,
+        min_action_rows,
+        min_probability,
+        policy_matches,
+        reference_matches,
+        uncoupled,
+    ) = if let Some(multi) = &query.multi_action {
+        let n = multi.assignment.len();
+        let k = multi.action_labels.len();
+        let treated = multi.assignment.iter().filter(|&&action| action != 0).count();
+        let policy_matches =
+            multi.assignment.iter().zip(&multi.actions).filter(|(a, b)| a == b).count();
+        let reference_matches =
+            multi.assignment.iter().zip(&multi.reference).filter(|(a, b)| a == b).count();
+        let coupled = [
+            (&multi.capacities, &multi.costs, multi.budget),
+            (&multi.reference_capacities, &multi.reference_costs, multi.reference_budget),
+        ]
+        .into_iter()
+        .any(|(capacities, costs, budget)| {
+            capacities.iter().any(|&limit| limit < n)
+                || budget.is_some_and(|limit| {
+                    limit + 1e-12 < n as f64 * costs.iter().copied().fold(0.0_f64, f64::max)
+                })
+        });
+        (
+            treated,
+            n - treated,
+            (0..k)
+                .map(|action| multi.assignment.iter().filter(|&&a| a == action).count())
+                .min()
+                .unwrap_or(0),
+            multi.propensities.iter().copied().fold(f64::INFINITY, f64::min),
+            policy_matches,
+            reference_matches,
+            !query.global_constraints_present && !coupled,
+        )
+    } else {
+        let n = query.assignment.len();
+        let treated = query.assignment.iter().filter(|&&assigned| assigned).count();
+        (
+            treated,
+            n - treated,
+            treated.min(n - treated),
+            query.propensity.iter().copied().map(|p| p.min(1.0 - p)).fold(f64::INFINITY, f64::min),
+            query.assignment.iter().zip(&query.actions).filter(|(a, b)| a == b).count(),
+            query.assignment.iter().zip(&query.reference).filter(|(a, b)| a == b).count(),
+            !query.global_constraints_present,
+        )
+    };
     let min_bin_rows = policy.uplift_bins.iter().map(|bin| bin.evaluation_rows).min().unwrap_or(0);
-    let min_bin_arm_rows = if policy.uplift_bins.is_empty() { 0 } else {
-        (0..policy.uplift_bins.len()).flat_map(|bin| {
-            let treated = query.uplift_bins.iter().enumerate()
-                .filter(|&(row, &rank)| rank == bin && query.assignment[row]).count();
-            [treated, policy.uplift_bins[bin].evaluation_rows - treated]
-        }).min().unwrap_or(0)
+    let min_bin_arm_rows = if policy.uplift_bins.is_empty() {
+        0
+    } else {
+        (0..policy.uplift_bins.len())
+            .flat_map(|bin| {
+                let treated = query
+                    .uplift_bins
+                    .iter()
+                    .enumerate()
+                    .filter(|&(row, &rank)| rank == bin && query.assignment[row])
+                    .count();
+                [treated, policy.uplift_bins[bin].evaluation_rows - treated]
+            })
+            .min()
+            .unwrap_or(0)
     };
     let scalar_intervals = usize::from(policy.policy_interval_95.is_some())
         + usize::from(policy.incremental_interval_95.is_some());
@@ -2207,12 +2687,20 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
     let all_reported_intervals = scalar_intervals == 2
         && policy.uplift_bins.iter().all(|bin| bin.interval_95.is_some())
         && policy.multi_action_cate.iter().all(|point| point.interval_95.is_some());
-    let min_group_rows = policy.multi_action_cate.iter().map(|point| point.evaluation_rows).min().unwrap_or(0);
-    let min_group_arm_rows = policy.multi_action_cate.iter()
-        .flat_map(|point| [point.observed_action_rows, point.observed_control_rows]).min().unwrap_or(0);
+    let min_group_rows =
+        policy.multi_action_cate.iter().map(|point| point.evaluation_rows).min().unwrap_or(0);
+    let min_group_arm_rows = policy
+        .multi_action_cate
+        .iter()
+        .flat_map(|point| [point.observed_action_rows, point.observed_control_rows])
+        .min()
+        .unwrap_or(0);
     let licensed = graphless_data::LICENSES.iter().any(|row| {
-        row.family == "policy_value" && row.design == design && row.method == method
-            && row.inference_claim == claim && row.assignment_unit == "unit"
+        row.family == "policy_value"
+            && row.design == design
+            && row.method == method
+            && row.inference_claim == claim
+            && row.assignment_unit == "unit"
             && query.evaluation_subject_ids.len() >= row.min_rows
             && treated >= row.min_assignment_units_per_arm
             && control >= row.min_assignment_units_per_arm
@@ -2220,19 +2708,27 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
             && min_probability + 1e-12 >= row.min_probability
             && policy_matches >= row.min_policy_matches
             && reference_matches >= row.min_reference_matches
-            && min_bin_rows >= row.min_bin_rows && min_bin_arm_rows >= row.min_bin_arm_rows
-            && min_group_rows >= row.min_group_rows && min_group_arm_rows >= row.min_group_arm_rows
+            && min_bin_rows >= row.min_bin_rows
+            && min_bin_arm_rows >= row.min_bin_arm_rows
+            && min_group_rows >= row.min_group_rows
+            && min_group_arm_rows >= row.min_group_arm_rows
             && reported_intervals >= row.min_reported_intervals
             && (!row.all_reported_intervals || all_reported_intervals)
             && (!row.requires_uncoupled_constraints || uncoupled)
             && (!row.requires_disjoint_nuisance_training || query.disjoint_training_subjects)
-            && (!row.requires_rank_ownership || (!query.uplift_training_subject_ids.is_empty()
-                && query.uplift_training_subject_ids.iter()
-                    .all(|id| !query.evaluation_subject_ids.contains(id))))
+            && (!row.requires_rank_ownership
+                || (!query.uplift_training_subject_ids.is_empty()
+                    && query
+                        .uplift_training_subject_ids
+                        .iter()
+                        .all(|id| !query.evaluation_subject_ids.contains(id))))
             && scalar_intervals == 2
     });
     if !graphless_status_ok(policy.graphless_support_status.as_deref(), licensed, true) {
-        return Err(IoError::Convert("policy graphless support status does not match exact design and interval evidence".into()));
+        return Err(IoError::Convert(
+            "policy graphless support status does not match exact design and interval evidence"
+                .into(),
+        ));
     }
     Ok(())
 }
@@ -2240,7 +2736,9 @@ fn validate_policy_graphless(result: &AnalysisResultWire) -> Result<(), IoError>
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(clippy::too_many_lines)]
 fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
-    let Some(did) = &result.panel_did else { return Ok(()); };
+    let Some(did) = &result.panel_did else {
+        return Ok(());
+    };
     let crate::CausalQueryWire::PanelDid(query) = &result.query else {
         return Err(IoError::Convert(
             "panel DiD result section is attached to a different query".into(),
@@ -2254,9 +2752,7 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
         let subject = query.subjects[i].as_str();
         let cluster = query.clusters[i].as_str();
         match subjects.insert(subject, (query.treated[i], cluster)) {
-            Some((group, old_cluster))
-                if group != query.treated[i] || old_cluster != cluster =>
-            {
+            Some((group, old_cluster)) if group != query.treated[i] || old_cluster != cluster => {
                 return Err(IoError::Convert(
                     "panel DiD query changes treatment or cluster within a subject".into(),
                 ));
@@ -2265,11 +2761,13 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
             None => {}
         }
         group_clusters[usize::from(query.treated[i])].insert(cluster);
-        cell_clusters[usize::from(query.treated[i])][usize::from(query.post[i])]
-            .insert(cluster);
+        cell_clusters[usize::from(query.treated[i])][usize::from(query.post[i])].insert(cluster);
     }
     let representative = did.event_time_effects.iter().find(|effect| effect.2 >= 0);
-    #[allow(clippy::float_cmp, reason = "representative effect/SE must equal the sealed event-time rows exactly")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "representative effect/SE must equal the sealed event-time rows exactly"
+    )]
     let event_study_valid = if query.staggered_event_study {
         let mut unit_metadata = std::collections::BTreeMap::<&str, (i64, &str)>::new();
         let mut observed_periods = std::collections::BTreeSet::new();
@@ -2277,17 +2775,28 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
             let subject = query.subjects[i].as_str();
             let metadata = (query.cohorts[i], query.clusters[i].as_str());
             if unit_metadata.insert(subject, metadata).is_some_and(|old| old != metadata) {
-                return Err(IoError::Convert("event study changes cohort or cluster within subject".into()));
+                return Err(IoError::Convert(
+                    "event study changes cohort or cluster within subject".into(),
+                ));
             }
             observed_periods.insert(query.periods[i]);
         }
-        let adoption_cohorts: std::collections::BTreeSet<_> = unit_metadata.values()
-            .map(|(cohort, _)| *cohort).filter(|cohort| *cohort > 0).collect();
-        let expected_keys: std::collections::BTreeSet<_> = adoption_cohorts.iter()
-            .flat_map(|cohort| observed_periods.iter().filter(move |period| **period != *cohort - 1)
-                .map(move |period| (*cohort, *period))).collect();
-        let actual_keys: std::collections::BTreeSet<_> = did.event_time_effects.iter()
-            .map(|effect| (effect.0, effect.1)).collect();
+        let adoption_cohorts: std::collections::BTreeSet<_> = unit_metadata
+            .values()
+            .map(|(cohort, _)| *cohort)
+            .filter(|cohort| *cohort > 0)
+            .collect();
+        let expected_keys: std::collections::BTreeSet<_> = adoption_cohorts
+            .iter()
+            .flat_map(|cohort| {
+                observed_periods
+                    .iter()
+                    .filter(move |period| **period != *cohort - 1)
+                    .map(move |period| (*cohort, *period))
+            })
+            .collect();
+        let actual_keys: std::collections::BTreeSet<_> =
+            did.event_time_effects.iter().map(|effect| (effect.0, effect.1)).collect();
         let control_count = unit_metadata.values().filter(|(cohort, _)| *cohort == 0).count();
         !did.event_time_effects.is_empty()
             && actual_keys == expected_keys
@@ -2296,18 +2805,32 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
             && did.event_time_effects.iter().all(|effect| {
                 let (cohort, period, event_time, point, treated, controls, se, clusters) = *effect;
                 let expected_treated = unit_metadata.values().filter(|(g, _)| *g == cohort).count();
-                let expected_clusters = unit_metadata.values()
+                let expected_clusters = unit_metadata
+                    .values()
                     .filter(|(g, _)| *g == cohort || *g == 0)
                     .map(|(_, cluster)| *cluster)
-                    .collect::<std::collections::BTreeSet<_>>().len();
-                cohort > 0 && period > 0 && event_time == period - cohort
-                    && event_time != -1 && point.is_finite() && se.is_finite() && se >= 0.0
-                    && treated == expected_treated && controls == control_count
-                    && clusters == expected_clusters && treated >= 2 && controls >= 2 && clusters >= 4
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len();
+                cohort > 0
+                    && period > 0
+                    && event_time == period - cohort
+                    && event_time != -1
+                    && point.is_finite()
+                    && se.is_finite()
+                    && se >= 0.0
+                    && treated == expected_treated
+                    && controls == control_count
+                    && clusters == expected_clusters
+                    && treated >= 2
+                    && controls >= 2
+                    && clusters >= 4
             })
-            && representative.is_some_and(|effect| did.effect == effect.3
-                && did.standard_error == Some(effect.6))
-    } else { did.event_time_effects.is_empty() };
+            && representative.is_some_and(|effect| {
+                did.effect == effect.3 && did.standard_error == Some(effect.6)
+            })
+    } else {
+        did.event_time_effects.is_empty()
+    };
     let event_intervals_valid = if query.staggered_event_study {
         if did.event_time_intervals_95.is_empty() {
             did.interval_95.is_none()
@@ -2315,44 +2838,64 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
         } else if did.event_time_intervals_95.len() != did.event_time_effects.len() {
             false
         } else {
-            let mut clusters_by_cohort = std::collections::BTreeMap::<i64, std::collections::BTreeSet<&str>>::new();
+            let mut clusters_by_cohort =
+                std::collections::BTreeMap::<i64, std::collections::BTreeSet<&str>>::new();
             for (cohort, cluster) in query.cohorts.iter().zip(&query.clusters) {
                 clusters_by_cohort.entry(*cohort).or_default().insert(cluster);
             }
             let controls = clusters_by_cohort.get(&0).map_or(0, std::collections::BTreeSet::len);
-            let valid = did.event_time_effects.iter().zip(&did.event_time_intervals_95)
-                .all(|(effect, interval)| {
-                    let treated = clusters_by_cohort.get(&effect.0).map_or(0, std::collections::BTreeSet::len);
-                    let supported = effect.2 >= 0 && treated >= 24 && controls >= 24
-                        && effect.7 >= 48 && effect.6.is_finite() && effect.6 > 0.0;
+            let valid = did.event_time_effects.iter().zip(&did.event_time_intervals_95).all(
+                |(effect, interval)| {
+                    let treated = clusters_by_cohort
+                        .get(&effect.0)
+                        .map_or(0, std::collections::BTreeSet::len);
+                    let supported = effect.2 >= 0
+                        && treated >= 24
+                        && controls >= 24
+                        && effect.7 >= 48
+                        && effect.6.is_finite()
+                        && effect.6 > 0.0;
                     match interval {
                         Some(bounds) if supported => {
                             let span = antecedent_stats::normal_ppf(0.975) * effect.6;
                             let tolerance = 1e-10 * (1.0 + effect.3.abs() + span.abs());
-                            bounds[0].is_finite() && bounds[1].is_finite()
+                            bounds[0].is_finite()
+                                && bounds[1].is_finite()
                                 && (bounds[0] - (effect.3 - span)).abs() <= tolerance
                                 && (bounds[1] - (effect.3 + span)).abs() <= tolerance
                         }
                         None => !supported,
                         _ => false,
                     }
-                });
-            let representative_interval = did.event_time_effects.iter().position(|effect| effect.2 >= 0)
+                },
+            );
+            let representative_interval = did
+                .event_time_effects
+                .iter()
+                .position(|effect| effect.2 >= 0)
                 .and_then(|index| did.event_time_intervals_95[index]);
             let expected_uncertainty = if did.event_time_intervals_95.iter().any(Option::is_some) {
                 "event_time_pointwise_normal_intervals_independent_clusters"
-            } else { "cluster_robust_standard_error_no_interval" };
-            valid && did.interval_95 == representative_interval
+            } else {
+                "cluster_robust_standard_error_no_interval"
+            };
+            valid
+                && did.interval_95 == representative_interval
                 && did.uncertainty == expected_uncertainty
         }
-    } else { did.event_time_intervals_95.is_empty() };
+    } else {
+        did.event_time_intervals_95.is_empty()
+    };
     let (treated_subjects, comparison_subjects) = if query.staggered_event_study {
         representative.map_or((0, 0), |effect| (effect.4, effect.5))
     } else if let Some((target, _)) = query.staggered_target {
         let mut cohort_by_subject = std::collections::BTreeMap::new();
         for (subject, cohort) in query.subjects.iter().zip(&query.cohorts) {
-            if cohort_by_subject.insert(subject.as_str(), *cohort).is_some_and(|old| old != *cohort) {
-                return Err(IoError::Convert("staggered DiD query changes adoption cohort within subject".into()));
+            if cohort_by_subject.insert(subject.as_str(), *cohort).is_some_and(|old| old != *cohort)
+            {
+                return Err(IoError::Convert(
+                    "staggered DiD query changes adoption cohort within subject".into(),
+                ));
             }
         }
         (
@@ -2366,10 +2909,14 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
     let clusters = if query.staggered_event_study {
         representative.map_or(0, |effect| effect.7)
     } else if let Some((target, _)) = query.staggered_target {
-        query.clusters.iter().zip(&query.cohorts)
+        query
+            .clusters
+            .iter()
+            .zip(&query.cohorts)
             .filter(|(_, cohort)| **cohort == 0 || **cohort == target)
             .map(|(cluster, _)| cluster)
-            .collect::<std::collections::BTreeSet<_>>().len()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
     } else {
         query.clusters.iter().collect::<std::collections::BTreeSet<_>>().len()
     };
@@ -2377,14 +2924,22 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
         (Some((pre, propensity, prediction, declared)), Some((p_min, p_max, ess, recorded))) => {
             let variables = [query.outcome, *pre, *propensity, *prediction];
             variables.iter().collect::<std::collections::BTreeSet<_>>().len() == 4
-                && !duplicate_subject && query.post.iter().all(|post| *post)
-                && query.periods.is_empty() && query.cohorts.is_empty()
-                && query.staggered_target.is_none() && !query.staggered_event_study
+                && !duplicate_subject
+                && query.post.iter().all(|post| *post)
+                && query.periods.is_empty()
+                && query.cohorts.is_empty()
+                && query.staggered_target.is_none()
+                && !query.staggered_event_study
                 && !query.repeated_cross_section
                 && *declared == *recorded
-                && p_min.is_finite() && p_max.is_finite()
-                && *p_min > 0.0 && *p_min <= *p_max && *p_max < 1.0
-                && ess.is_finite() && *ess > 0.0 && *ess <= comparison_subjects as f64 + 1e-9
+                && p_min.is_finite()
+                && p_max.is_finite()
+                && *p_min > 0.0
+                && *p_min <= *p_max
+                && *p_max < 1.0
+                && ess.is_finite()
+                && *ess > 0.0
+                && *ess <= comparison_subjects as f64 + 1e-9
                 && did.standard_error.is_none()
                 && did.uncertainty == "point_only_no_standard_error"
         }
@@ -2400,66 +2955,96 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
             group_clusters.iter().all(|members| members.len() >= 30)
         };
     let interval_valid = if query.staggered_event_study {
-        let representative_scalar_valid = match (did.interval_95, did.standard_error, result.standard_error) {
-            (Some(_), Some(section_se), Some(reported_se)) =>
-                section_se.is_finite() && section_se > 0.0
-                    && (reported_se - section_se).abs() <= 1e-10 * (1.0 + section_se.abs()),
-            (None, _, None) => true,
-            _ => false,
-        };
+        let representative_scalar_valid =
+            match (did.interval_95, did.standard_error, result.standard_error) {
+                (Some(_), Some(section_se), Some(reported_se)) => {
+                    section_se.is_finite()
+                        && section_se > 0.0
+                        && (reported_se - section_se).abs() <= 1e-10 * (1.0 + section_se.abs())
+                }
+                (None, _, None) => true,
+                _ => false,
+            };
         representative_scalar_valid && event_intervals_valid
-    } else { match (did.interval_95, did.standard_error) {
-        (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
-            let radius = 1.959_963_984_540_054 * se;
-            let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
-            bounds.iter().all(|value| value.is_finite())
-                && (bounds[0] - (did.effect - radius)).abs() <= tolerance
-                && (bounds[1] - (did.effect + radius)).abs() <= tolerance
-                && result.standard_error.is_some_and(|reported| (reported - se).abs() <= tolerance)
-                && did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
+    } else {
+        match (did.interval_95, did.standard_error) {
+            (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
+                let radius = 1.959_963_984_540_054 * se;
+                let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
+                bounds.iter().all(|value| value.is_finite())
+                    && (bounds[0] - (did.effect - radius)).abs() <= tolerance
+                    && (bounds[1] - (did.effect + radius)).abs() <= tolerance
+                    && result
+                        .standard_error
+                        .is_some_and(|reported| (reported - se).abs() <= tolerance)
+                    && did.uncertainty == "cluster_robust_normal_interval_independent_clusters"
+            }
+            (None, _) => {
+                result.standard_error.is_none()
+                    && (query.augmented.is_some()
+                        || did.uncertainty == "cluster_robust_standard_error_no_interval")
+            }
+            _ => false,
         }
-        (None, _) => result.standard_error.is_none()
-            && (query.augmented.is_some() || did.uncertainty == "cluster_robust_standard_error_no_interval"),
-        _ => false,
-    }};
-    let did_design = if query.repeated_cross_section { "repeated_cross_section_2x2" } else { "panel_2x2" };
-    let did_method = if query.repeated_cross_section { "four_cell_cluster_scores_cr1" } else { "cluster_change_scores_cr1" };
-    let min_cell_clusters = cell_clusters.iter().flatten().map(std::collections::BTreeSet::len).min().unwrap_or(0);
+    };
+    let did_design =
+        if query.repeated_cross_section { "repeated_cross_section_2x2" } else { "panel_2x2" };
+    let did_method = if query.repeated_cross_section {
+        "four_cell_cluster_scores_cr1"
+    } else {
+        "cluster_change_scores_cr1"
+    };
+    let min_cell_clusters =
+        cell_clusters.iter().flatten().map(std::collections::BTreeSet::len).min().unwrap_or(0);
     let did_licensed = if query.staggered_event_study {
         // Post-adoption event-time intervals: license the representative
         // group-time ATT interval when its adoption cohort and the
         // never-treated controls each clear the independent-cluster gate.
-        let mut clusters_by_cohort = std::collections::BTreeMap::<i64, std::collections::BTreeSet<&str>>::new();
+        let mut clusters_by_cohort =
+            std::collections::BTreeMap::<i64, std::collections::BTreeSet<&str>>::new();
         for (cohort, cluster) in query.cohorts.iter().zip(&query.clusters) {
             clusters_by_cohort.entry(*cohort).or_default().insert(cluster);
         }
         let controls = clusters_by_cohort.get(&0).map_or(0, std::collections::BTreeSet::len);
-        let representative_treated = representative.map_or(0, |effect|
-            clusters_by_cohort.get(&effect.0).map_or(0, std::collections::BTreeSet::len));
-        let published_intervals = did.event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
-        interval_valid && event_intervals_valid && did.interval_95.is_some()
+        let representative_treated = representative.map_or(0, |effect| {
+            clusters_by_cohort.get(&effect.0).map_or(0, std::collections::BTreeSet::len)
+        });
+        let published_intervals =
+            did.event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
+        interval_valid
+            && event_intervals_valid
+            && did.interval_95.is_some()
             && graphless_data::LICENSES.iter().any(|row| {
-                row.family == "difference_in_differences" && row.design == "staggered_event_study"
+                row.family == "difference_in_differences"
+                    && row.design == "staggered_event_study"
                     && row.method == "never_treated_event_study_cluster_cr1"
-                    && row.inference_claim == "post_adoption_event_time_pointwise_95_normal_intervals"
+                    && row.inference_claim
+                        == "post_adoption_event_time_pointwise_95_normal_intervals"
                     && row.assignment_unit == "cluster"
                     && representative_treated >= row.min_assignment_units_per_arm
                     && controls >= row.min_assignment_units_per_arm
                     && published_intervals >= row.min_reported_intervals
             })
     } else {
-        query.augmented.is_none() && query.staggered_target.is_none()
-        && !query.staggered_event_study && interval_valid && did.interval_95.is_some()
-        && graphless_data::LICENSES.iter().any(|row| {
-            row.family == "difference_in_differences" && row.design == did_design
-                && row.method == did_method && row.inference_claim == "pointwise_95_normal_interval"
-                && row.assignment_unit == "cluster"
-                && group_clusters[0].len() >= row.min_assignment_units_per_arm
-                && group_clusters[1].len() >= row.min_assignment_units_per_arm
-                && (!query.repeated_cross_section || (!duplicate_subject
-                    && 4 >= row.min_blocks && min_cell_clusters >= row.min_block_arm))
-                && 1 >= row.min_reported_intervals
-        })
+        query.augmented.is_none()
+            && query.staggered_target.is_none()
+            && !query.staggered_event_study
+            && interval_valid
+            && did.interval_95.is_some()
+            && graphless_data::LICENSES.iter().any(|row| {
+                row.family == "difference_in_differences"
+                    && row.design == did_design
+                    && row.method == did_method
+                    && row.inference_claim == "pointwise_95_normal_interval"
+                    && row.assignment_unit == "cluster"
+                    && group_clusters[0].len() >= row.min_assignment_units_per_arm
+                    && group_clusters[1].len() >= row.min_assignment_units_per_arm
+                    && (!query.repeated_cross_section
+                        || (!duplicate_subject
+                            && 4 >= row.min_blocks
+                            && min_cell_clusters >= row.min_block_arm))
+                    && 1 >= row.min_reported_intervals
+            })
     };
     if result.estimate != Some(did.effect)
         || !interval_valid
@@ -2476,14 +3061,15 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
         || (query.repeated_cross_section
             && (duplicate_subject
                 || cell_clusters.iter().flatten().any(|members| members.len() < 2)))
-        || (!query.repeated_cross_section && query.staggered_target.is_none() && !query.staggered_event_study && query.augmented.is_none()
+        || (!query.repeated_cross_section
+            && query.staggered_target.is_none()
+            && !query.staggered_event_study
+            && query.augmented.is_none()
             && group_clusters.iter().any(|members| members.len() < 2))
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
     {
-        return Err(IoError::Convert(
-            "invalid panel DiD payload or fabricated interval".into(),
-        ));
+        return Err(IoError::Convert("invalid panel DiD payload or fabricated interval".into()));
     }
     Ok(())
 }
@@ -2491,7 +3077,9 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(clippy::too_many_lines)]
 fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
-    let Some(curve) = &result.survival else { return Ok(()); };
+    let Some(curve) = &result.survival else {
+        return Ok(());
+    };
     let crate::CausalQueryWire::Survival(query) = &result.query else {
         return Err(IoError::Convert(
             "survival result section is attached to a different query".into(),
@@ -2502,29 +3090,38 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
         && curve.difference_at_tau_interval.is_none()
         && curve.bootstrap_replicates_requested.is_none()
         && curve.bootstrap_replicates_ok.is_none();
-    let pointwise_bootstrap = curve.uncertainty == "subject_stratified_percentile_bootstrap_pointwise_95"
+    let pointwise_bootstrap = curve.uncertainty
+        == "subject_stratified_percentile_bootstrap_pointwise_95"
         && curve.bootstrap_replicates_requested.is_some_and(|n| (199..=100_000).contains(&n))
         && curve.bootstrap_replicates_ok.is_some_and(|ok| {
             let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
             ok >= 199 && ok >= requested.saturating_sub(requested / 10) && ok <= requested
         })
         && curve.difference_at_tau_interval.is_some_and(|limits| {
-            limits[0].is_finite() && limits[1].is_finite()
-                && -1.0 <= limits[0] && limits[0] <= limits[1] && limits[1] <= 1.0
+            limits[0].is_finite()
+                && limits[1].is_finite()
+                && -1.0 <= limits[0]
+                && limits[0] <= limits[1]
+                && limits[1] <= 1.0
         })
         && if query.target_cause.is_some() {
             curve.rmst_difference_interval.is_none()
         } else {
             curve.rmst_difference_interval.is_some_and(|limits| {
-                limits[0].is_finite() && limits[1].is_finite()
-                    && -curve.tau <= limits[0] && limits[0] <= limits[1] && limits[1] <= curve.tau
+                limits[0].is_finite()
+                    && limits[1].is_finite()
+                    && -curve.tau <= limits[0]
+                    && limits[0] <= limits[1]
+                    && limits[1] <= curve.tau
             })
         };
     let band_valid = match (&curve.difference_band, &curve.band_unavailable_reason) {
         (Some(band), None) => {
             let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
-            query.delayed_entry.is_none() && query.censoring_columns.is_empty()
-                && pointwise_bootstrap && requested >= 399
+            query.delayed_entry.is_none()
+                && query.censoring_columns.is_empty()
+                && pointwise_bootstrap
+                && requested >= 399
                 && band.replicates_ok >= 399
                 && band.replicates_ok >= requested.saturating_sub(requested / 10)
                 && band.replicates_ok <= requested
@@ -2532,13 +3129,22 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
                 && band.difference.len() == curve.times.len()
                 && band.lower.len() == curve.times.len()
                 && band.upper.len() == curve.times.len()
-                && band.difference.iter().zip(&curve.treated).zip(&curve.control)
-                    .all(|((&difference, &treated), &control)| (difference - (treated - control)).abs() <= 1e-10)
-                && band.lower.iter().zip(&band.difference).zip(&band.upper)
-                    .all(|((&lower, &difference), &upper)| {
-                        lower.is_finite() && difference.is_finite() && upper.is_finite()
-                            && -1.0 <= lower && lower <= difference && difference <= upper && upper <= 1.0
-                    })
+                && band.difference.iter().zip(&curve.treated).zip(&curve.control).all(
+                    |((&difference, &treated), &control)| {
+                        (difference - (treated - control)).abs() <= 1e-10
+                    },
+                )
+                && band.lower.iter().zip(&band.difference).zip(&band.upper).all(
+                    |((&lower, &difference), &upper)| {
+                        lower.is_finite()
+                            && difference.is_finite()
+                            && upper.is_finite()
+                            && -1.0 <= lower
+                            && lower <= difference
+                            && difference <= upper
+                            && upper <= 1.0
+                    },
+                )
         }
         (None, Some(reason)) => pointwise_bootstrap && !reason.trim().is_empty(),
         (None, None) => true,
@@ -2566,7 +3172,8 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
                 row.family == "survival"
                     && row.design == scalar_design
                     && row.method == scalar_method
-                    && row.inference_claim == "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+                    && row.inference_claim
+                        == "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
                     && row.assignment_unit == "unit"
                     && control >= row.min_assignment_units_per_arm
                     && treated >= row.min_assignment_units_per_arm
@@ -2600,18 +3207,27 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
                 })
             })
     });
-    #[allow(clippy::float_cmp, reason = "survival curve endpoints and tau must equal the frozen query/boundary values exactly")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "survival curve endpoints and tau must equal the frozen query/boundary values exactly"
+    )]
     if result.estimate.is_some()
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
         || curve.censoring_survival_provenance.as_deref()
-            != (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
+            != (!query.censoring_columns.is_empty())
+                .then_some("caller_supplied_fixed_not_fitted_or_verified")
         || !(point_only || pointwise_bootstrap)
         || !graphless_status_ok(curve.graphless_support_status.as_deref(), scalar_licensed, false)
         || !graphless_status_ok(
-            curve.difference_band.as_ref().and_then(|band| band.graphless_support_status.as_deref()),
-            band_licensed, false)
+            curve
+                .difference_band
+                .as_ref()
+                .and_then(|band| band.graphless_support_status.as_deref()),
+            band_licensed,
+            false,
+        )
         || (curve.assignment_counts.is_some_and(|counts| counts.contains(&0)))
         || !band_valid
         || curve.tau != query.tau
@@ -2646,9 +3262,7 @@ fn validate_survival_graphless(result: &AnalysisResultWire) -> Result<(), IoErro
         || curve.rmst_control.is_some_and(|v| !v.is_finite() || !(0.0..=curve.tau).contains(&v))
         || curve.rmst_treated.is_some_and(|v| !v.is_finite() || !(0.0..=curve.tau).contains(&v))
     {
-        return Err(IoError::Convert(
-            "invalid survival payload or fabricated uncertainty".into(),
-        ));
+        return Err(IoError::Convert("invalid survival payload or fabricated uncertainty".into()));
     }
     Ok(())
 }
@@ -2677,7 +3291,9 @@ fn validate_result(
     validate_query_ids(&result.query, variable_names.len())?;
     if let Some(inference) = &result.interference_inference {
         let crate::CausalQueryWire::Interference(query) = &result.query else {
-            return Err(IoError::Convert("interference inference is attached to a different query".into()));
+            return Err(IoError::Convert(
+                "interference inference is attached to a different query".into(),
+            ));
         };
         let expected = match &query.assignment {
             crate::AssignmentDesignWire::ClusterRandomization { .. } => "cluster_total_neyman_welch",
@@ -2685,33 +3301,57 @@ fn validate_result(
             crate::AssignmentDesignWire::ObservedExposure { .. } => "observational_known_exposure_cluster_t",
             _ => return Err(IoError::Convert("independent-cluster inference requires a cluster or supplied-exposure interference design".into())),
         };
-        let minimum_first_stage_clusters = if matches!(&query.assignment,
-            crate::AssignmentDesignWire::TwoStageSaturation { .. }) { 24 } else { 8 };
-        if inference.method != expected || inference.from_exposed_units == 0
-            || inference.to_exposed_units == 0 || inference.from_exposed_clusters == 0
+        let minimum_first_stage_clusters = if matches!(
+            &query.assignment,
+            crate::AssignmentDesignWire::TwoStageSaturation { .. }
+        ) {
+            24
+        } else {
+            8
+        };
+        if inference.method != expected
+            || inference.from_exposed_units == 0
+            || inference.to_exposed_units == 0
+            || inference.from_exposed_clusters == 0
             || inference.to_exposed_clusters == 0
             || (inference.interval.is_some() == inference.interval_unavailable_reason.is_some())
         {
-            return Err(IoError::Convert("interference inference method, support, or interval status is inconsistent".into()));
+            return Err(IoError::Convert(
+                "interference inference method, support, or interval status is inconsistent".into(),
+            ));
         }
         if let Some(interval) = &inference.interval {
-            if let crate::AssignmentDesignWire::ObservedExposure { provenance, .. } = &query.assignment {
+            if let crate::AssignmentDesignWire::ObservedExposure { provenance, .. } =
+                &query.assignment
+            {
                 if provenance != "known"
-                    || inference.from_exposed_clusters < 8 || inference.to_exposed_clusters < 8
+                    || inference.from_exposed_clusters < 8
+                    || inference.to_exposed_clusters < 8
                     || interval.degrees_of_freedom < 29.0
                 {
                     return Err(IoError::Convert("observational exposure interval requires known probabilities and independent-cluster support".into()));
                 }
             }
-            if !interval.lower.is_finite() || !interval.upper.is_finite()
+            if !interval.lower.is_finite()
+                || !interval.upper.is_finite()
                 || interval.lower >= interval.upper
-                || !interval.standard_error.is_finite() || interval.standard_error <= 0.0
-                || !interval.degrees_of_freedom.is_finite() || interval.degrees_of_freedom <= 0.0
-                || interval.first_stage_arm_clusters.iter().any(|&count| count < minimum_first_stage_clusters)
-                || inference.from_exposed_clusters < 8 || inference.to_exposed_clusters < 8
-                || result.estimate.is_none_or(|effect| effect < interval.lower || effect > interval.upper)
+                || !interval.standard_error.is_finite()
+                || interval.standard_error <= 0.0
+                || !interval.degrees_of_freedom.is_finite()
+                || interval.degrees_of_freedom <= 0.0
+                || interval
+                    .first_stage_arm_clusters
+                    .iter()
+                    .any(|&count| count < minimum_first_stage_clusters)
+                || inference.from_exposed_clusters < 8
+                || inference.to_exposed_clusters < 8
+                || result
+                    .estimate
+                    .is_none_or(|effect| effect < interval.lower || effect > interval.upper)
             {
-                return Err(IoError::Convert("interference pointwise interval violates its support or scalar claim".into()));
+                return Err(IoError::Convert(
+                    "interference pointwise interval violates its support or scalar claim".into(),
+                ));
             }
         }
         // A published, support-passing interval on one of the three off-axis
@@ -2719,10 +3359,14 @@ fn validate_result(
         // unsupported interval was already refused above, so recomputing the
         // license from the published interval catches a forged status.
         let graphless_licensed = inference.interval.is_some();
-        if !graphless_status_ok(inference.graphless_support_status.as_deref(), graphless_licensed, allow_legacy_graphless_missing)
-        {
+        if !graphless_status_ok(
+            inference.graphless_support_status.as_deref(),
+            graphless_licensed,
+            allow_legacy_graphless_missing,
+        ) {
             return Err(IoError::Convert(
-                "interference graphless license does not match the published interval support".into(),
+                "interference graphless license does not match the published interval support"
+                    .into(),
             ));
         }
     }
@@ -2743,16 +3387,22 @@ fn validate_result(
     if let crate::CausalQueryWire::SyntheticControl(query) = &result.query {
         if query.difference_in_differences {
             if result.synthetic_did.is_none() || result.synthetic_control.is_some() {
-                return Err(IoError::Convert("synthetic DiD artifact requires its distinct weight result section".into()));
+                return Err(IoError::Convert(
+                    "synthetic DiD artifact requires its distinct weight result section".into(),
+                ));
             }
         } else if result.synthetic_control.is_none() || result.synthetic_did.is_some() {
-            return Err(IoError::Convert("synthetic-control artifact requires its donor-support result section".into()));
+            return Err(IoError::Convert(
+                "synthetic-control artifact requires its donor-support result section".into(),
+            ));
         }
     }
     if matches!(result.query, crate::CausalQueryWire::LocalPolynomialRatio(_))
         && result.local_polynomial_ratio.is_none()
     {
-        return Err(IoError::Convert("local ratio artifact is missing its design-specific result section".into()));
+        return Err(IoError::Convert(
+            "local ratio artifact is missing its design-specific result section".into(),
+        ));
     }
     validate_ratio_graphless(result)?;
     if matches!(result.query, crate::CausalQueryWire::Survival(_)) && result.survival.is_none() {
@@ -2812,126 +3462,236 @@ fn validate_result(
     if matches!(result.query, crate::CausalQueryWire::ContinuousDoseResponse(_))
         != result.continuous_dose_response.is_some()
     {
-        return Err(IoError::Convert("continuous-dose query and result section must appear together".into()));
+        return Err(IoError::Convert(
+            "continuous-dose query and result section must appear together".into(),
+        ));
     }
     validate_continuous_dose_graphless(result, allow_legacy_graphless_missing)?;
     validate_policy_graphless(result)?;
     validate_did_graphless(result)?;
     if let Some(fit) = &result.synthetic_control {
         let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
-            return Err(IoError::Convert("synthetic-control result is attached to a different query".into()));
+            return Err(IoError::Convert(
+                "synthetic-control result is attached to a different query".into(),
+            ));
         };
         if query.difference_in_differences {
-            return Err(IoError::Convert("synthetic-control result is attached to a synthetic DiD query".into()));
+            return Err(IoError::Convert(
+                "synthetic-control result is attached to a synthetic DiD query".into(),
+            ));
         }
-        let donors: std::collections::BTreeSet<&str> = query.units.iter()
-            .map(String::as_str).filter(|unit| *unit != query.treated_unit.as_str()).collect();
-        let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
-            .filter(|period| *period < query.intervention_period).collect();
-        let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
-            .filter(|period| *period >= query.intervention_period).collect();
-        let weight_names: Vec<&str> = fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
+        let donors: std::collections::BTreeSet<&str> = query
+            .units
+            .iter()
+            .map(String::as_str)
+            .filter(|unit| *unit != query.treated_unit.as_str())
+            .collect();
+        let pre: std::collections::BTreeSet<i64> = query
+            .periods
+            .iter()
+            .copied()
+            .filter(|period| *period < query.intervention_period)
+            .collect();
+        let post: std::collections::BTreeSet<i64> = query
+            .periods
+            .iter()
+            .copied()
+            .filter(|period| *period >= query.intervention_period)
+            .collect();
+        let weight_names: Vec<&str> =
+            fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect();
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
-        #[allow(clippy::float_cmp, reason = "randomization null effect must equal the frozen sharp-null query value exactly")]
+        #[allow(
+            clippy::float_cmp,
+            reason = "randomization null effect must equal the frozen sharp-null query value exactly"
+        )]
         if result.estimate != Some(fit.effect)
             || result.standard_error.is_some()
-            || result.interval_lower.is_some() || result.interval_upper.is_some()
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
             || !fit.effect.is_finite()
-            || !fit.pre_treatment_rmse.is_finite() || fit.pre_treatment_rmse < 0.0
-            || !fit.placebo_rank.is_finite() || !(0.0..=1.0).contains(&fit.placebo_rank)
-            || !fit.effective_donors.is_finite() || fit.effective_donors < 1.0
-            || fit.donor_weights.len() != donors.len() || donors.len() < 3
+            || !fit.pre_treatment_rmse.is_finite()
+            || fit.pre_treatment_rmse < 0.0
+            || !fit.placebo_rank.is_finite()
+            || !(0.0..=1.0).contains(&fit.placebo_rank)
+            || !fit.effective_donors.is_finite()
+            || fit.effective_donors < 1.0
+            || fit.donor_weights.len() != donors.len()
+            || donors.len() < 3
             || weight_names != donors.iter().copied().collect::<Vec<_>>()
             || fit.donor_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
             || (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
             || (fit.effective_donors - 1.0 / squared_mass).abs() > 1e-8
             || fit.placebo_effects.len() != donors.len()
             || fit.placebo_effects.iter().any(|effect| !effect.is_finite())
-            || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
-            || (!query.uniform_unit_randomization && (
-                (query.augmentation_ridge.is_none() && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
-                || fit.randomization_p_value.is_some() || fit.randomization_null_effect.is_some()
-                || !fit.randomization_statistics.is_empty()))
-            || (query.augmentation_ridge.is_none() && (
-                fit.unadjusted_effect.is_some() || fit.outcome_model_correction.is_some()
-                || fit.augmentation_ridge.is_some()))
-            || (query.augmentation_ridge.is_some() && (
-                (!query.uniform_unit_randomization && fit.uncertainty != "point_only_augmented_no_interval")
-                || fit.augmentation_ridge != query.augmentation_ridge
-                || !fit.unadjusted_effect.is_some_and(f64::is_finite)
-                || !fit.outcome_model_correction.is_some_and(f64::is_finite)
-                || (fit.unadjusted_effect.unwrap_or(f64::NAN)
-                    - fit.outcome_model_correction.unwrap_or(f64::NAN) - fit.effect).abs() > 1e-8))
-            || (query.uniform_unit_randomization && (
-                fit.randomization_null_effect.is_some_and(|effect|
-                    !effect.is_finite() || effect != query.sharp_null_effect.unwrap_or(0.0))
-                || (query.sharp_null_effect.is_some() && fit.randomization_null_effect.is_none())
-                || !query.sharp_null_effect.unwrap_or(0.0).is_finite()
-                ||
-                (query.augmentation_ridge.is_none()
-                    && fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval")
-                || (query.augmentation_ridge.is_some()
-                    && fit.uncertainty != "point_only_augmented_with_exact_unit_randomization_p_value_no_interval")
-                || fit.randomization_statistics.len() != donors.len() + 1
-                || fit.randomization_statistics.len() > 32
-                || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
-                    != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
-                || fit.randomization_statistics.iter().any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
-                || fit.randomization_p_value != fit.randomization_statistics.iter()
-                    .find(|(unit, _)| unit == &query.treated_unit)
-                    .map(|(_, observed)| fit.randomization_statistics.iter()
-                        .filter(|(_, statistic)| statistic >= observed).count() as f64
-                        / fit.randomization_statistics.len() as f64)))
+            || fit.n_pre_periods != pre.len()
+            || fit.n_post_periods != post.len()
+            || (!query.uniform_unit_randomization
+                && ((query.augmentation_ridge.is_none()
+                    && fit.uncertainty != "point_only_with_unlicensed_placebo_rank")
+                    || fit.randomization_p_value.is_some()
+                    || fit.randomization_null_effect.is_some()
+                    || !fit.randomization_statistics.is_empty()))
+            || (query.augmentation_ridge.is_none()
+                && (fit.unadjusted_effect.is_some()
+                    || fit.outcome_model_correction.is_some()
+                    || fit.augmentation_ridge.is_some()))
+            || (query.augmentation_ridge.is_some()
+                && ((!query.uniform_unit_randomization
+                    && fit.uncertainty != "point_only_augmented_no_interval")
+                    || fit.augmentation_ridge != query.augmentation_ridge
+                    || !fit.unadjusted_effect.is_some_and(f64::is_finite)
+                    || !fit.outcome_model_correction.is_some_and(f64::is_finite)
+                    || (fit.unadjusted_effect.unwrap_or(f64::NAN)
+                        - fit.outcome_model_correction.unwrap_or(f64::NAN)
+                        - fit.effect)
+                        .abs()
+                        > 1e-8))
+            || (query.uniform_unit_randomization
+                && (fit.randomization_null_effect.is_some_and(|effect| {
+                    !effect.is_finite() || effect != query.sharp_null_effect.unwrap_or(0.0)
+                }) || (query.sharp_null_effect.is_some()
+                    && fit.randomization_null_effect.is_none())
+                    || !query.sharp_null_effect.unwrap_or(0.0).is_finite()
+                    || (query.augmentation_ridge.is_none()
+                        && fit.uncertainty
+                            != "point_only_with_exact_unit_randomization_p_value_no_interval")
+                    || (query.augmentation_ridge.is_some()
+                        && fit.uncertainty
+                            != "point_only_augmented_with_exact_unit_randomization_p_value_no_interval")
+                    || fit.randomization_statistics.len() != donors.len() + 1
+                    || fit.randomization_statistics.len() > 32
+                    || fit
+                        .randomization_statistics
+                        .iter()
+                        .map(|(unit, _)| unit.as_str())
+                        .collect::<Vec<_>>()
+                        != query
+                            .units
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .into_iter()
+                            .collect::<Vec<_>>()
+                    || fit
+                        .randomization_statistics
+                        .iter()
+                        .any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
+                    || fit.randomization_p_value
+                        != fit
+                            .randomization_statistics
+                            .iter()
+                            .find(|(unit, _)| unit == &query.treated_unit)
+                            .map(|(_, observed)| {
+                                fit.randomization_statistics
+                                    .iter()
+                                    .filter(|(_, statistic)| statistic >= observed)
+                                    .count() as f64
+                                    / fit.randomization_statistics.len() as f64
+                            })))
         {
-            return Err(IoError::Convert("invalid synthetic-control payload or fabricated interval".into()));
+            return Err(IoError::Convert(
+                "invalid synthetic-control payload or fabricated interval".into(),
+            ));
         }
     }
     if let Some(fit) = &result.synthetic_did {
         let crate::CausalQueryWire::SyntheticControl(query) = &result.query else {
-            return Err(IoError::Convert("synthetic DiD result is attached to a different query".into()));
+            return Err(IoError::Convert(
+                "synthetic DiD result is attached to a different query".into(),
+            ));
         };
-        let donors: std::collections::BTreeSet<&str> = query.units.iter().map(String::as_str)
-            .filter(|unit| *unit != query.treated_unit.as_str()).collect();
-        let pre: std::collections::BTreeSet<i64> = query.periods.iter().copied()
-            .filter(|period| *period < query.intervention_period).collect();
-        let post: std::collections::BTreeSet<i64> = query.periods.iter().copied()
-            .filter(|period| *period >= query.intervention_period).collect();
-        #[allow(clippy::float_cmp, reason = "randomization null effect must equal the frozen sharp-null query value exactly")]
+        let donors: std::collections::BTreeSet<&str> = query
+            .units
+            .iter()
+            .map(String::as_str)
+            .filter(|unit| *unit != query.treated_unit.as_str())
+            .collect();
+        let pre: std::collections::BTreeSet<i64> = query
+            .periods
+            .iter()
+            .copied()
+            .filter(|period| *period < query.intervention_period)
+            .collect();
+        let post: std::collections::BTreeSet<i64> = query
+            .periods
+            .iter()
+            .copied()
+            .filter(|period| *period >= query.intervention_period)
+            .collect();
+        #[allow(
+            clippy::float_cmp,
+            reason = "randomization null effect must equal the frozen sharp-null query value exactly"
+        )]
         if !query.difference_in_differences
             || result.estimate != Some(fit.effect)
-            || result.standard_error.is_some() || result.interval_lower.is_some() || result.interval_upper.is_some()
-            || !fit.effect.is_finite() || !fit.pre_treatment_rmse.is_finite() || fit.pre_treatment_rmse < 0.0
-            || donors.len() < 2 || pre.len() < 2 || post.is_empty()
-            || fit.n_donors != donors.len() || fit.n_pre_periods != pre.len() || fit.n_post_periods != post.len()
-            || fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>() != donors.iter().copied().collect::<Vec<_>>()
+            || result.standard_error.is_some()
+            || result.interval_lower.is_some()
+            || result.interval_upper.is_some()
+            || !fit.effect.is_finite()
+            || !fit.pre_treatment_rmse.is_finite()
+            || fit.pre_treatment_rmse < 0.0
+            || donors.len() < 2
+            || pre.len() < 2
+            || post.is_empty()
+            || fit.n_donors != donors.len()
+            || fit.n_pre_periods != pre.len()
+            || fit.n_post_periods != post.len()
+            || fit.donor_weights.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
+                != donors.iter().copied().collect::<Vec<_>>()
             || fit.donor_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
             || (fit.donor_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
-            || fit.time_weights.iter().map(|(period, _)| *period).collect::<Vec<_>>() != pre.iter().copied().collect::<Vec<_>>()
+            || fit.time_weights.iter().map(|(period, _)| *period).collect::<Vec<_>>()
+                != pre.iter().copied().collect::<Vec<_>>()
             || fit.time_weights.iter().any(|(_, weight)| !weight.is_finite() || *weight < 0.0)
             || (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
-            || (!query.uniform_unit_randomization && (
-                fit.uncertainty != "point_only_no_interval"
-                || fit.randomization_p_value.is_some() || fit.randomization_null_effect.is_some()
-                || !fit.randomization_statistics.is_empty()))
-            || (query.uniform_unit_randomization && (
-                fit.randomization_null_effect.is_some_and(|effect|
-                    !effect.is_finite() || effect != query.sharp_null_effect.unwrap_or(0.0))
-                || (query.sharp_null_effect.is_some() && fit.randomization_null_effect.is_none())
-                || !query.sharp_null_effect.unwrap_or(0.0).is_finite()
-                ||
-                fit.uncertainty != "point_only_with_exact_unit_randomization_p_value_no_interval"
-                || fit.randomization_statistics.len() != donors.len() + 1
-                || fit.randomization_statistics.len() > 32
-                || fit.randomization_statistics.iter().map(|(unit, _)| unit.as_str()).collect::<Vec<_>>()
-                    != query.units.iter().map(String::as_str).collect::<std::collections::BTreeSet<_>>().into_iter().collect::<Vec<_>>()
-                || fit.randomization_statistics.iter().any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
-                || fit.randomization_p_value != fit.randomization_statistics.iter()
-                    .find(|(unit, _)| unit == &query.treated_unit)
-                    .map(|(_, observed)| fit.randomization_statistics.iter()
-                        .filter(|(_, statistic)| statistic >= observed).count() as f64
-                        / fit.randomization_statistics.len() as f64)))
+            || (!query.uniform_unit_randomization
+                && (fit.uncertainty != "point_only_no_interval"
+                    || fit.randomization_p_value.is_some()
+                    || fit.randomization_null_effect.is_some()
+                    || !fit.randomization_statistics.is_empty()))
+            || (query.uniform_unit_randomization
+                && (fit.randomization_null_effect.is_some_and(|effect| {
+                    !effect.is_finite() || effect != query.sharp_null_effect.unwrap_or(0.0)
+                }) || (query.sharp_null_effect.is_some()
+                    && fit.randomization_null_effect.is_none())
+                    || !query.sharp_null_effect.unwrap_or(0.0).is_finite()
+                    || fit.uncertainty
+                        != "point_only_with_exact_unit_randomization_p_value_no_interval"
+                    || fit.randomization_statistics.len() != donors.len() + 1
+                    || fit.randomization_statistics.len() > 32
+                    || fit
+                        .randomization_statistics
+                        .iter()
+                        .map(|(unit, _)| unit.as_str())
+                        .collect::<Vec<_>>()
+                        != query
+                            .units
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .into_iter()
+                            .collect::<Vec<_>>()
+                    || fit
+                        .randomization_statistics
+                        .iter()
+                        .any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
+                    || fit.randomization_p_value
+                        != fit
+                            .randomization_statistics
+                            .iter()
+                            .find(|(unit, _)| unit == &query.treated_unit)
+                            .map(|(_, observed)| {
+                                fit.randomization_statistics
+                                    .iter()
+                                    .filter(|(_, statistic)| statistic >= observed)
+                                    .count() as f64
+                                    / fit.randomization_statistics.len() as f64
+                            })))
         {
-            return Err(IoError::Convert("invalid synthetic DiD weights, support, or fabricated interval".into()));
+            return Err(IoError::Convert(
+                "invalid synthetic DiD weights, support, or fabricated interval".into(),
+            ));
         }
     }
     validate_survival_graphless(result)?;
@@ -3490,14 +4250,27 @@ mod tests {
                 units.push(std::sync::Arc::<str>::from(format!("u{unit}")));
                 clusters.push(std::sync::Arc::<str>::from(format!("c{unit}")));
                 periods.push(period);
-                cohorts.push(if unit < 4 { 0 } else if unit < 8 { 3 } else { 4 });
+                cohorts.push(if unit < 4 {
+                    0
+                } else if unit < 8 {
+                    3
+                } else {
+                    4
+                });
             }
         }
         let query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(
             antecedent_core::PanelDidQuery::staggered_group_time(
-                antecedent_core::VariableId::from_raw(1), units, clusters, periods, cohorts, 3, 4,
+                antecedent_core::VariableId::from_raw(1),
+                units,
+                clusters,
+                periods,
+                cohorts,
+                3,
+                4,
             ),
-        )).unwrap();
+        ))
+        .unwrap();
         let mut result = fixture();
         result.query = query.clone();
         result.identification.query = query;
@@ -3517,8 +4290,11 @@ mod tests {
             augmented: None,
         });
         let encoded = encode_analysis_result_artifact(
-            &result, vec!["treatment".into(), "outcome".into()], "staggered-did-result",
-        ).unwrap();
+            &result,
+            vec!["treatment".into(), "outcome".into()],
+            "staggered-did-result",
+        )
+        .unwrap();
         let mut bytes = Vec::new();
         encoded.write_to(&mut bytes).unwrap();
         let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();

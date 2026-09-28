@@ -57,20 +57,38 @@ impl From<&antecedent::PanelDidEstimate> for PanelDidSection {
     fn from(value: &antecedent::PanelDidEstimate) -> Self {
         Self {
             effect: value.effect,
-            standard_error: if value.augmented.is_some() { None } else { Some(value.standard_error) },
+            standard_error: if value.augmented.is_some() {
+                None
+            } else {
+                Some(value.standard_error)
+            },
             interval_95: value.interval_95.map(|bounds| (bounds[0], bounds[1])),
             treated_subjects: value.treated_subjects,
             comparison_subjects: value.comparison_subjects,
             clusters: value.clusters,
             uncertainty: value.uncertainty.to_string(),
             graphless_support_status: None,
-            event_time_effects: value.event_time_effects.iter().map(|effect| (
-                effect.cohort, effect.period, effect.event_time, effect.effect,
-                effect.treated_subjects, effect.comparison_subjects,
-                effect.standard_error, effect.clusters,
-            )).collect(),
-            event_time_intervals_95: value.event_time_intervals_95.iter()
-                .map(|interval| interval.map(|bounds| (bounds[0], bounds[1]))).collect(),
+            event_time_effects: value
+                .event_time_effects
+                .iter()
+                .map(|effect| {
+                    (
+                        effect.cohort,
+                        effect.period,
+                        effect.event_time,
+                        effect.effect,
+                        effect.treated_subjects,
+                        effect.comparison_subjects,
+                        effect.standard_error,
+                        effect.clusters,
+                    )
+                })
+                .collect(),
+            event_time_intervals_95: value
+                .event_time_intervals_95
+                .iter()
+                .map(|interval| interval.map(|bounds| (bounds[0], bounds[1])))
+                .collect(),
             augmented: value.augmented,
         }
     }
@@ -102,7 +120,11 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
         Self {
             effect: value.effect,
             pre_treatment_rmse: value.pre_treatment_rmse,
-            donor_weights: value.donor_weights.iter().map(|(unit, weight)| (unit.to_string(), *weight)).collect(),
+            donor_weights: value
+                .donor_weights
+                .iter()
+                .map(|(unit, weight)| (unit.to_string(), *weight))
+                .collect(),
             placebo_effects: value.placebo_effects.to_vec(),
             placebo_rank: value.placebo_rank,
             effective_donors: value.effective_donors,
@@ -111,8 +133,11 @@ impl From<&antecedent::SyntheticControlEstimate> for SyntheticControlSection {
             uncertainty: value.uncertainty.to_string(),
             randomization_p_value: value.randomization_p_value,
             randomization_null_effect: value.randomization_null_effect,
-            randomization_statistics: value.randomization_statistics.iter().map(|(unit, statistic)|
-                (unit.to_string(), *statistic)).collect(),
+            randomization_statistics: value
+                .randomization_statistics
+                .iter()
+                .map(|(unit, statistic)| (unit.to_string(), *statistic))
+                .collect(),
             unadjusted_effect: value.unadjusted_effect,
             outcome_model_correction: value.outcome_model_correction,
             augmentation_ridge: value.augmentation_ridge,
@@ -142,7 +167,11 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
         Self {
             effect: value.effect,
             pre_treatment_rmse: value.pre_treatment_rmse,
-            donor_weights: value.donor_weights.iter().map(|(unit, weight)| (unit.to_string(), *weight)).collect(),
+            donor_weights: value
+                .donor_weights
+                .iter()
+                .map(|(unit, weight)| (unit.to_string(), *weight))
+                .collect(),
             time_weights: value.time_weights.to_vec(),
             n_donors: value.n_donors,
             n_pre_periods: value.n_pre_periods,
@@ -150,8 +179,11 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
             uncertainty: value.uncertainty.to_string(),
             randomization_p_value: value.randomization_p_value,
             randomization_null_effect: value.randomization_null_effect,
-            randomization_statistics: value.randomization_statistics.iter().map(|(unit, statistic)|
-                (unit.to_string(), *statistic)).collect(),
+            randomization_statistics: value
+                .randomization_statistics
+                .iter()
+                .map(|(unit, statistic)| (unit.to_string(), *statistic))
+                .collect(),
         }
     }
 }
@@ -255,8 +287,7 @@ fn panel_difference_in_differences(
     if values.iter().any(|value| !value.is_finite()) {
         return Err(PyValueError::new_err("outcomes must be finite"));
     }
-    let mut rows: BTreeMap<&str, PanelRow<'_>> =
-        BTreeMap::new();
+    let mut rows: BTreeMap<&str, PanelRow<'_>> = BTreeMap::new();
     for i in 0..n {
         let id = subjects[i].as_str();
         if id.is_empty() {
@@ -359,8 +390,7 @@ fn group_time_att(
     }
 
     // Per unit: its adoption cohort and exactly one outcome at every common period.
-    let mut units: BTreeMap<&str, UnitPanel<'_>> =
-        BTreeMap::new();
+    let mut units: BTreeMap<&str, UnitPanel<'_>> = BTreeMap::new();
     let mut all_periods = BTreeSet::new();
     for i in 0..n {
         if subjects[i].is_empty() {
@@ -486,12 +516,23 @@ fn staggered_event_study(
     let values: Vec<f64> = outcome.as_array().iter().copied().collect();
     let effects = antecedent_estimate::staggered_event_study::estimate(
         &values, &subjects, &periods, &cohorts, &clusters,
-    ).map_err(PyValueError::new_err)?;
-    Ok(effects.into_iter().map(|effect| (
-        effect.cohort, effect.period, effect.event_time, effect.effect,
-        effect.treated_subjects, effect.comparison_subjects,
-        effect.standard_error, effect.clusters,
-    )).collect())
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok(effects
+        .into_iter()
+        .map(|effect| {
+            (
+                effect.cohort,
+                effect.period,
+                effect.event_time,
+                effect.effect,
+                effect.treated_subjects,
+                effect.comparison_subjects,
+                effect.standard_error,
+                effect.clusters,
+            )
+        })
+        .collect())
 }
 
 /// Balanced-panel synthetic control using the shared native estimator.
@@ -505,10 +546,22 @@ fn synthetic_control(
 ) -> PyResult<SyntheticControlFit> {
     let values: Vec<f64> = outcome.as_array().iter().copied().collect();
     let fit = antecedent_estimate::synthetic_control::fit_synthetic_control(
-        &values, &units, &periods, &treated_unit, intervention_period,
-    ).map_err(PyValueError::new_err)?;
-    Ok((fit.effect, fit.pre_treatment_rmse, fit.donor_weights,
-        fit.placebo_effects, fit.placebo_rank, fit.n_pre_periods, fit.n_post_periods))
+        &values,
+        &units,
+        &periods,
+        &treated_unit,
+        intervention_period,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        fit.effect,
+        fit.pre_treatment_rmse,
+        fit.donor_weights,
+        fit.placebo_effects,
+        fit.placebo_rank,
+        fit.n_pre_periods,
+        fit.n_post_periods,
+    ))
 }
 
 /// Balanced-panel synthetic difference in differences using the shared kernel.
@@ -522,10 +575,22 @@ fn synthetic_difference_in_differences(
 ) -> PyResult<SyntheticDidFit> {
     let values: Vec<f64> = outcome.as_array().iter().copied().collect();
     let fit = antecedent_estimate::synthetic_control::fit_synthetic_did(
-        &values, &units, &periods, &treated_unit, intervention_period,
-    ).map_err(PyValueError::new_err)?;
-    Ok((fit.effect, fit.pre_treatment_rmse, fit.donor_weights, fit.time_weights,
-        fit.n_donors, fit.n_pre_periods, fit.n_post_periods))
+        &values,
+        &units,
+        &periods,
+        &treated_unit,
+        intervention_period,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        fit.effect,
+        fit.pre_treatment_rmse,
+        fit.donor_weights,
+        fit.time_weights,
+        fit.n_donors,
+        fit.n_pre_periods,
+        fit.n_post_periods,
+    ))
 }
 
 /// Augmented panel DiD from caller-supplied untreated-change predictions and
@@ -546,11 +611,22 @@ fn augmented_panel_difference_in_differences(
         pre.as_slice().ok_or_else(|| PyValueError::new_err("pre outcome must be contiguous"))?,
         post.as_slice().ok_or_else(|| PyValueError::new_err("post outcome must be contiguous"))?,
         &treated,
-        propensity.as_slice().ok_or_else(|| PyValueError::new_err("propensity must be contiguous"))?,
-        prediction.as_slice().ok_or_else(|| PyValueError::new_err("prediction must be contiguous"))?,
-    ).map_err(PyValueError::new_err)?;
-    Ok((fit.effect, fit.treated_subjects, fit.control_subjects,
-        fit.propensity_min, fit.propensity_max, fit.effective_control_sample_size))
+        propensity
+            .as_slice()
+            .ok_or_else(|| PyValueError::new_err("propensity must be contiguous"))?,
+        prediction
+            .as_slice()
+            .ok_or_else(|| PyValueError::new_err("prediction must be contiguous"))?,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        fit.effect,
+        fit.treated_subjects,
+        fit.control_subjects,
+        fit.propensity_min,
+        fit.propensity_max,
+        fit.effective_control_sample_size,
+    ))
 }
 
 /// Local quadratic fuzzy RD or kink with cubic-pilot bias correction and HC0 inference.
@@ -568,10 +644,20 @@ fn local_polynomial_fuzzy_discontinuity(
     let treatment: Vec<f64> = treatment.as_array().iter().copied().collect();
     let fit = antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio(
         &running, &outcome, &treatment, cutoff, bandwidth, kink,
-    ).map_err(PyValueError::new_err)?;
-    Ok((fit.estimate, fit.reduced_form, fit.first_stage, fit.n_left, fit.n_right,
-        fit.standard_error, fit.ci_lower, fit.ci_upper,
-        fit.reduced_form_standard_error, fit.first_stage_standard_error))
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((
+        fit.estimate,
+        fit.reduced_form,
+        fit.first_stage,
+        fit.n_left,
+        fit.n_right,
+        fit.standard_error,
+        fit.ci_lower,
+        fit.ci_upper,
+        fit.reduced_form_standard_error,
+        fit.first_stage_standard_error,
+    ))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

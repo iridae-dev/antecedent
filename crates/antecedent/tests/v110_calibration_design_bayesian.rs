@@ -195,8 +195,10 @@ const INTERFERENCE_CELL: Cell =
 fn interference_query_dag_bayesian_neighbor_count_nominal_coverage() {
     // contrast (own 0, nb 0) -> (own 1, nb 0) = BETA0 (the neighbor term cancels).
     let truth = BETA0;
-    let mut tallies =
-        keyed_pair("interference_query_dag_bayesian_neighbor_count_nominal_coverage", INTERFERENCE_CELL);
+    let mut tallies = keyed_pair(
+        "interference_query_dag_bayesian_neighbor_count_nominal_coverage",
+        INTERFERENCE_CELL,
+    );
     let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0401, rep);
         let (study, result) = run_interference(seed)?;

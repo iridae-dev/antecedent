@@ -270,7 +270,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 match query.estimand {
                     crate::RandomizedEstimandWire::Itt => "itt".into(),
                     crate::RandomizedEstimandWire::CaceLate => "cace_late".into(),
-                    crate::RandomizedEstimandWire::TreatmentOnTreated => "treatment_on_treated".into(),
+                    crate::RandomizedEstimandWire::TreatmentOnTreated => {
+                        "treatment_on_treated".into()
+                    }
                 },
             ),
             ("exact_randomization_test".into(), query.exact_randomization_test.to_string()),
@@ -294,15 +296,23 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             (
                 "precision_adjustment".into(),
                 if query.ancova_covariates.is_empty() {
-                    query.fixed_cuped.map_or_else(|| "none".into(), |(id, coefficient)| {
-                        format!("fixed_cuped:{id}:{coefficient}")
-                    })
+                    query.fixed_cuped.map_or_else(
+                        || "none".into(),
+                        |(id, coefficient)| format!("fixed_cuped:{id}:{coefficient}"),
+                    )
                 } else {
                     format!("ancova:{:?}", query.ancova_covariates)
                 },
             ),
             ("switchback_periods".into(), query.periods.join(",")),
-            ("factorial_second_assignment".into(), query.second_factor_assignment.iter().map(|value| if *value { '1' } else { '0' }).collect()),
+            (
+                "factorial_second_assignment".into(),
+                query
+                    .second_factor_assignment
+                    .iter()
+                    .map(|value| if *value { '1' } else { '0' })
+                    .collect(),
+            ),
             ("factorial_cell_counts".into(), format!("{:?}", query.factorial_cell_counts)),
             ("factorial_second_arms".into(), format!("{:?}", query.second_factor_arms)),
             ("temporal_coordinates".into(), "none".into()),
@@ -326,24 +336,28 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         ],
         CausalQueryWire::SyntheticControl(query) => {
             let mut dimensions = vec![
-            (
-                "query_kind".into(),
-                if query.difference_in_differences { "synthetic_did" } else { "synthetic_control" }
+                (
+                    "query_kind".into(),
+                    if query.difference_in_differences {
+                        "synthetic_did"
+                    } else {
+                        "synthetic_control"
+                    }
                     .into(),
-            ),
-            ("outcome".into(), query.outcome.to_string()),
-            ("treated_unit".into(), query.treated_unit.clone()),
-            ("intervention_period".into(), query.intervention_period.to_string()),
-            (
-                "donor_pool_size".into(),
-                query
-                    .units
-                    .iter()
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .len()
-                    .saturating_sub(1)
-                    .to_string(),
-            ),
+                ),
+                ("outcome".into(), query.outcome.to_string()),
+                ("treated_unit".into(), query.treated_unit.clone()),
+                ("intervention_period".into(), query.intervention_period.to_string()),
+                (
+                    "donor_pool_size".into(),
+                    query
+                        .units
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        .saturating_sub(1)
+                        .to_string(),
+                ),
             ];
             if query.uniform_unit_randomization {
                 dimensions.push(("uniform_unit_randomization".into(), "true".into()));

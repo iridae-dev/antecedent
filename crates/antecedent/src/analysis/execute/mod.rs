@@ -298,33 +298,37 @@ mod bayesian_path;
 mod bayesian_robust_ate_path;
 mod bayesian_specialist_path;
 mod checked_bayesian_static_mediation;
-mod checked_interference;
-mod checked_panel_did;
-mod checked_synthetic_control;
 mod checked_continuous_dose;
+mod checked_interference;
 mod checked_local_polynomial_ratio;
+mod checked_longitudinal_regime;
+mod checked_panel_did;
 mod checked_randomized;
 mod checked_static_mediation;
 mod checked_survival;
-mod checked_longitudinal_regime;
+mod checked_synthetic_control;
 mod checked_temporal_class_effect;
 mod checked_temporal_effect;
 mod checked_temporal_mediation;
 pub(crate) use checked_bayesian_static_mediation::CheckedBayesianStaticMediationOperation;
 pub(crate) use checked_cell_aipw_response::CheckedCellAipwResponseOperation;
 pub use checked_cell_aipw_response::DagResponseOrigin;
+pub(crate) use checked_continuous_dose::CheckedContinuousDoseOperation;
 pub(crate) use checked_interference::CheckedInterferenceOperation;
+pub(crate) use checked_local_polynomial_ratio::{
+    CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification,
+};
+pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_identification;
-pub(crate) use checked_synthetic_control::{CheckedSyntheticControlOperation, synthetic_control_identification};
-pub(crate) use checked_continuous_dose::CheckedContinuousDoseOperation;
-pub(crate) use checked_local_polynomial_ratio::{CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification};
 pub(crate) use checked_randomized::{
     CheckedPolicyValueOperation, CheckedRandomizedOperation, randomized_identification,
 };
 pub(crate) use checked_static_mediation::CheckedStaticMediationOperation;
 pub(crate) use checked_survival::{CheckedSurvivalOperation, survival_identification};
-pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
+pub(crate) use checked_synthetic_control::{
+    CheckedSyntheticControlOperation, synthetic_control_identification,
+};
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod class_envelope_se;
 mod class_posterior;

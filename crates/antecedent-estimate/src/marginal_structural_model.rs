@@ -33,30 +33,56 @@ pub struct MsmIntervals95 {
 /// effective weighted support for the subject-clustered CR1 approximation.
 #[must_use]
 pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIntervals95> {
-    if subjects < 300 || fit.observed_subjects < 200 || fit.effective_sample_size < 150.0
+    if subjects < 300
+        || fit.observed_subjects < 200
+        || fit.effective_sample_size < 150.0
         || fit.intercept_standard_error <= 0.0
-        || fit.standard_errors.iter().any(|&se| se <= 0.0 || !se.is_finite()) { return None; }
+        || fit.standard_errors.iter().any(|&se| se <= 0.0 || !se.is_finite())
+    {
+        return None;
+    }
     let z = antecedent_stats::normal_ppf(0.975);
     let interval = |center: f64, se: f64| [center - z * se, center + z * se];
     let result = MsmIntervals95 {
         intercept: interval(fit.intercept, fit.intercept_standard_error),
-        period_effects: fit.period_effects.iter().zip(&fit.standard_errors)
-            .map(|(&center, &se)| interval(center, se)).collect(),
+        period_effects: fit
+            .period_effects
+            .iter()
+            .zip(&fit.standard_errors)
+            .map(|(&center, &se)| interval(center, se))
+            .collect(),
     };
-    result.intercept.iter().chain(result.period_effects.iter().flatten()).all(|x| x.is_finite()).then_some(result)
+    result
+        .intercept
+        .iter()
+        .chain(result.period_effects.iter().flatten())
+        .all(|x| x.is_finite())
+        .then_some(result)
 }
 
 /// Fit one terminal-outcome row per subject; all histories are subject-major.
 // arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn fit_binary_msm(
-    y: &[f64], a: &[bool], p: &[f64], numerator: &[f64], observed: &[bool],
-    censor: &[f64], periods: usize, floor: f64,
+    y: &[f64],
+    a: &[bool],
+    p: &[f64],
+    numerator: &[f64],
+    observed: &[bool],
+    censor: &[f64],
+    periods: usize,
+    floor: f64,
 ) -> Result<MsmSummary, &'static str> {
     let n = y.len();
     let cells = n.checked_mul(periods).ok_or("MSM dimensions overflow")?;
-    if n == 0 || periods == 0 || a.len() != cells || p.len() != cells
-        || censor.len() != cells || observed.len() != n || numerator.len() != periods {
+    if n == 0
+        || periods == 0
+        || a.len() != cells
+        || p.len() != cells
+        || censor.len() != cells
+        || observed.len() != n
+        || numerator.len() != periods
+    {
         return Err("MSM arrays must have matching subject and period dimensions");
     }
     if !(floor.is_finite() && 0.0 < floor && floor <= 0.5) {
@@ -67,7 +93,9 @@ pub fn fit_binary_msm(
     }
     let columns = periods + 1;
     let included = observed.iter().filter(|&&x| x).count();
-    if included <= columns { return Err("MSM requires more observed subjects than coefficients"); }
+    if included <= columns {
+        return Err("MSM requires more observed subjects than coefficients");
+    }
     let mut design = vec![vec![0.0; columns]; n];
     let mut weights = vec![0.0; n];
     let mut max_weight: f64 = 0.0;
@@ -75,9 +103,14 @@ pub fn fit_binary_msm(
     let mut sumsq = 0.0;
     for i in 0..n {
         design[i][0] = 1.0;
-        if observed[i] && !y[i].is_finite() { return Err("observed terminal outcomes must be finite"); }
+        if observed[i] && !y[i].is_finite() {
+            return Err("observed terminal outcomes must be finite");
+        }
         let mut weight = 1.0;
-        #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned per-period slices")]
+        #[allow(
+            clippy::needless_range_loop,
+            reason = "index used for multiple aligned per-period slices"
+        )]
         for t in 0..periods {
             let j = i * periods + t;
             if !p[j].is_finite() || p[j] < floor || p[j] > 1.0 - floor {
@@ -91,7 +124,9 @@ pub fn fit_binary_msm(
                 let top = if a[j] { numerator[t] } else { 1.0 - numerator[t] };
                 let bottom = if a[j] { p[j] } else { 1.0 - p[j] };
                 weight *= top / (bottom * censor[j]);
-                if !weight.is_finite() { return Err("stabilized sequential weight overflowed"); }
+                if !weight.is_finite() {
+                    return Err("stabilized sequential weight overflowed");
+                }
             }
         }
         if observed[i] {
@@ -99,16 +134,22 @@ pub fn fit_binary_msm(
             max_weight = max_weight.max(weight);
             sum += weight;
             sumsq += weight * weight;
-            if !sum.is_finite() || !sumsq.is_finite() { return Err("stabilized weight diagnostics overflowed"); }
+            if !sum.is_finite() || !sumsq.is_finite() {
+                return Err("stabilized weight diagnostics overflowed");
+            }
         }
     }
     let mut bread_input = vec![vec![0.0; columns]; columns];
     let mut rhs = vec![0.0; columns];
     for i in 0..n {
-        if !observed[i] { continue; }
+        if !observed[i] {
+            continue;
+        }
         for j in 0..columns {
             rhs[j] += weights[i] * design[i][j] * y[i];
-            for k in 0..columns { bread_input[j][k] += weights[i] * design[i][j] * design[i][k]; }
+            for k in 0..columns {
+                bread_input[j][k] += weights[i] * design[i][j] * design[i][k];
+            }
         }
     }
     if rhs.iter().chain(bread_input.iter().flatten()).any(|v| !v.is_finite()) {
@@ -116,63 +157,103 @@ pub fn fit_binary_msm(
     }
     let bread = invert(bread_input)?;
     let beta = matvec(&bread, &rhs);
-    if beta.iter().any(|v| !v.is_finite()) { return Err("MSM coefficients are non-finite"); }
+    if beta.iter().any(|v| !v.is_finite()) {
+        return Err("MSM coefficients are non-finite");
+    }
     let mut meat = vec![vec![0.0; columns]; columns];
     for i in 0..n {
-        if !observed[i] { continue; }
+        if !observed[i] {
+            continue;
+        }
         let residual = y[i] - dot(&design[i], &beta);
         #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
         for j in 0..columns {
             for k in 0..columns {
-                meat[j][k] += weights[i] * weights[i] * design[i][j] * design[i][k] * residual * residual;
+                meat[j][k] +=
+                    weights[i] * weights[i] * design[i][j] * design[i][k] * residual * residual;
             }
         }
     }
     let mut covariance = matmul(&matmul(&bread, &meat), &bread);
     let correction = included as f64 / (included - columns) as f64;
-    for row in &mut covariance { for v in row { *v *= correction; } }
+    for row in &mut covariance {
+        for v in row {
+            *v *= correction;
+        }
+    }
     let intercept_standard_error = covariance[0][0].max(0.0).sqrt();
-    let standard_errors = (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
+    let standard_errors =
+        (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
     let ess = sum * sum / sumsq;
     if covariance.iter().flatten().any(|v| !v.is_finite())
         || !intercept_standard_error.is_finite()
-        || standard_errors.iter().any(|v| !v.is_finite()) || !ess.is_finite() {
+        || standard_errors.iter().any(|v| !v.is_finite())
+        || !ess.is_finite()
+    {
         return Err("MSM covariance is non-finite");
     }
-    Ok(MsmSummary { intercept: beta[0], intercept_standard_error, period_effects: beta[1..].to_vec(),
-        standard_errors, effective_sample_size: ess, maximum_weight: max_weight,
-        observed_subjects: included })
+    Ok(MsmSummary {
+        intercept: beta[0],
+        intercept_standard_error,
+        period_effects: beta[1..].to_vec(),
+        standard_errors,
+        effective_sample_size: ess,
+        maximum_weight: max_weight,
+        observed_subjects: included,
+    })
 }
 
 fn invert(mut a: Vec<Vec<f64>>) -> Result<Vec<Vec<f64>>, &'static str> {
     let n = a.len();
     let mut inverse = vec![vec![0.0; n]; n];
     #[allow(clippy::needless_range_loop, reason = "index sets the matrix diagonal inverse[i][i]")]
-    for i in 0..n { inverse[i][i] = 1.0; }
+    for i in 0..n {
+        inverse[i][i] = 1.0;
+    }
     for j in 0..n {
         let pivot = (j..n).max_by(|&x, &y| a[x][j].abs().total_cmp(&a[y][j].abs())).unwrap();
         let scale = a[pivot].iter().map(|v| v.abs()).fold(0.0, f64::max);
-        if a[pivot][j].abs() <= 1e-12 * scale.max(1.0) { return Err("weighted MSM design is rank-deficient"); }
+        if a[pivot][j].abs() <= 1e-12 * scale.max(1.0) {
+            return Err("weighted MSM design is rank-deficient");
+        }
         a.swap(j, pivot);
         inverse.swap(j, pivot);
         let divisor = a[j][j];
-        for k in 0..n { a[j][k] /= divisor; inverse[j][k] /= divisor; }
+        for k in 0..n {
+            a[j][k] /= divisor;
+            inverse[j][k] /= divisor;
+        }
         for i in 0..n {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             let factor = a[i][j];
-            for k in 0..n { a[i][k] -= factor * a[j][k]; inverse[i][k] -= factor * inverse[j][k]; }
+            for k in 0..n {
+                a[i][k] -= factor * a[j][k];
+                inverse[i][k] -= factor * inverse[j][k];
+            }
         }
     }
     Ok(inverse)
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 { a.iter().zip(b).map(|(x, y)| x * y).sum() }
-fn matvec(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> { a.iter().map(|row| dot(row, b)).collect() }
+fn dot(a: &[f64], b: &[f64]) -> f64 {
+    a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+fn matvec(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
+    a.iter().map(|row| dot(row, b)).collect()
+}
 fn matmul(a: &[Vec<f64>], b: &[Vec<f64>]) -> Vec<Vec<f64>> {
     let n = a.len();
     let mut out = vec![vec![0.0; n]; n];
     #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
-    for i in 0..n { for j in 0..n { for k in 0..n { out[i][k] += a[i][j] * b[j][k]; } } }
+    for i in 0..n {
+        for j in 0..n {
+            for k in 0..n {
+                out[i][k] += a[i][j] * b[j][k];
+            }
+        }
+    }
     out
 }
 
@@ -181,18 +262,29 @@ mod tests {
     use super::*;
     #[test]
     fn exact_additive_truth_and_refusals() {
-        let a = [false, false, false, true, true, false, true, true,
-            false, false, false, true, true, false, true, true];
+        let a = [
+            false, false, false, true, true, false, true, true, false, false, false, true, true,
+            false, true, true,
+        ];
         let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
-        let result = fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01).unwrap();
+        let result =
+            fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01).unwrap();
         assert!((result.intercept - 1.0).abs() < 1e-12);
         assert!((result.period_effects[0] - 2.0).abs() < 1e-12);
         assert!((result.period_effects[1] - 3.0).abs() < 1e-12);
         assert_eq!(result.observed_subjects, 8);
         assert!(result.standard_errors.iter().all(|v| v.is_finite()));
         assert!(pointwise_intervals_95(&result, 8).is_none());
-        assert!(fit_binary_msm(&y, &a, &[0.0; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01).unwrap_err().contains("positivity"));
-        assert!(fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01).unwrap_err().contains("censoring"));
+        assert!(
+            fit_binary_msm(&y, &a, &[0.0; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01)
+                .unwrap_err()
+                .contains("positivity")
+        );
+        assert!(
+            fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01)
+                .unwrap_err()
+                .contains("censoring")
+        );
     }
 
     #[test]
@@ -224,20 +316,35 @@ mod tests {
                 let noise = (uniform() - 0.5) * 2.0 * (1.0 + f64::from(a0));
                 outcomes.push(1.0 + 2.0 * f64::from(a0) + 3.0 * f64::from(a1) + noise);
             }
-            let fit = fit_binary_msm(&outcomes, &treatment, &probabilities, &[0.5; 2],
-                &observed, &censoring, 2, 0.01).unwrap();
+            let fit = fit_binary_msm(
+                &outcomes,
+                &treatment,
+                &probabilities,
+                &[0.5; 2],
+                &observed,
+                &censoring,
+                2,
+                0.01,
+            )
+            .unwrap();
             if let Some(intervals) = pointwise_intervals_95(&fit, n) {
-                let bounds = [intervals.intercept, intervals.period_effects[0], intervals.period_effects[1]];
+                let bounds =
+                    [intervals.intercept, intervals.period_effects[0], intervals.period_effects[1]];
                 for (j, target) in truth.into_iter().enumerate() {
                     covered[j] += usize::from(bounds[j][0] <= target && target <= bounds[j][1]);
                 }
-            } else { skipped += 1; }
+            } else {
+                skipped += 1;
+            }
         }
         let mcse = (0.95_f64 * 0.05 / f64::from(simulations)).sqrt();
         assert!(skipped <= simulations / 100, "weak-support skips {skipped}");
         for (j, count) in covered.into_iter().enumerate() {
             let coverage = count as f64 / f64::from(simulations);
-            assert!((coverage - 0.95).abs() <= 3.0 * mcse, "MSM coefficient {j} coverage {coverage}");
+            assert!(
+                (coverage - 0.95).abs() <= 3.0 * mcse,
+                "MSM coefficient {j} coverage {coverage}"
+            );
         }
     }
 }

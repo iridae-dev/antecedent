@@ -193,8 +193,12 @@ impl CheckedAttributionOperation {
                 let mut extra_diagnostics = Vec::new();
                 if posterior.is_some() {
                     let disclosure = match query.reference {
-                        antecedent_core::AnomalyReference::Empirical => "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional.",
-                        antecedent_core::AnomalyReference::Fixed { .. } => "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)].",
+                        antecedent_core::AnomalyReference::Empirical => {
+                            "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional."
+                        }
+                        antecedent_core::AnomalyReference::Fixed { .. } => {
+                            "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)]."
+                        }
                     };
                     extra_diagnostics.push(bayesian_attribution_diagnostic(disclosure));
                 }
@@ -321,11 +325,9 @@ impl CheckedAttributionOperation {
             })
             .collect::<Vec<_>>();
         let registry = crate::gcm::MechanismRegistry::standard();
-        let scorer_query = antecedent_core::AnomalyAttributionQuery::new(
-            query.targets.clone(),
-            query.max_units,
-        )
-        .with_reference(query.reference);
+        let scorer_query =
+            antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
+                .with_reference(query.reference);
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xA110_7A7E);
         for _ in 0..draws {
             if ctx.cancellation.is_cancelled() {

@@ -155,8 +155,7 @@ fn run_change(data: TabularData, seed: u64) -> Option<(Study, StudyResult)> {
     Some((study, result))
 }
 
-const CHANGE_CELL: Cell =
-    Cell { estimator: "gcm.attribution.bayesian", dgp: "change_data" };
+const CHANGE_CELL: Cell = Cell { estimator: "gcm.attribution.bayesian", dgp: "change_data" };
 
 /// Modular Dirichlet row-weight bootstrap of the two-population mean shift.
 ///
@@ -172,8 +171,10 @@ const CHANGE_CELL: Cell =
 fn change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage() {
     // total_change = A2 − A1 (the x-laws are identical, so B·E[x] cancels).
     let truth = A2 - A1;
-    let mut tallies =
-        keyed_pair("change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage", CHANGE_CELL);
+    let mut tallies = keyed_pair(
+        "change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage",
+        CHANGE_CELL,
+    );
     let runs = map_replicates(n_sim(), |rep| {
         let seed = stream_seed(0x110_0301, rep);
         let (study, result) = run_change(change_data(seed), seed)?;

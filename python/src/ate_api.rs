@@ -2237,14 +2237,18 @@ pub(crate) fn ate_result_from_analysis(
         refutations,
         policy_value: result.policy_value.as_ref().map(|value| {
             let mut section = crate::policy_api::PolicyValueSection::from(value);
-            section.graphless_support_status = result.support_status
-                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
             section
         }),
         continuous_dose_response: result.continuous_dose_response.as_ref().map(|value| {
             let mut section = crate::policy_api::ContinuousDoseResponseSection::from(value);
-            section.graphless_support_status = result.support_status
-                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
             section
         }),
         assumption_count: result.identification.required_assumptions.len(),
@@ -2404,29 +2408,37 @@ pub(crate) fn ate_result_from_analysis(
             .transport
             .as_ref()
             .map(crate::transport_interference_api::TransportSection::from_estimate),
-        interference: result
-            .interference
-            .as_ref()
-            .map(|estimate| crate::transport_interference_api::InterferenceSection::from_estimate(estimate, &result.diagnostics, result.interference_inference.as_ref())),
+        interference: result.interference.as_ref().map(|estimate| {
+            crate::transport_interference_api::InterferenceSection::from_estimate(
+                estimate,
+                &result.diagnostics,
+                result.interference_inference.as_ref(),
+            )
+        }),
         randomized_effect: result.randomized_effect.as_ref().map(|value| {
             let mut section = crate::experiment_api::RandomizedEffectSection::from(value);
-            section.graphless_support_status = result.support_status
+            section.graphless_support_status = result
+                .support_status
                 .map(antecedent::support::CellStatus::as_str)
                 .map(str::to_string);
             section
         }),
         panel_did: result.panel_did.as_ref().map(|value| {
             let mut section = crate::quasi_api::PanelDidSection::from(value);
-            section.graphless_support_status = result.support_status
-                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
             section
         }),
         synthetic_control: result.synthetic_control.as_ref().map(Into::into),
         synthetic_did: result.synthetic_did.as_ref().map(Into::into),
         local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|value| {
             let mut section = crate::quasi_api::LocalPolynomialRatioSection::from(value);
-            section.graphless_support_status = result.support_status
-                .map(antecedent::support::CellStatus::as_str).map(str::to_string);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
             section
         }),
         survival: result.survival.as_ref().map(Into::into),

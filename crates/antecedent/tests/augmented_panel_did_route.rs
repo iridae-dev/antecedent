@@ -12,14 +12,22 @@ fn fixture(propensity: [f64; 6]) -> (TabularData, PanelDidQuery) {
     let post = [15.0, 17.0, 18.0, 11.0, 17.0, 13.0];
     let prediction = [2.0; 6];
     let data = TabularData::from_f64_columns([
-        ("pre", pre.as_slice()), ("post", post.as_slice()),
-        ("p", propensity.as_slice()), ("m0", prediction.as_slice()),
-    ]).unwrap();
+        ("pre", pre.as_slice()),
+        ("post", post.as_slice()),
+        ("p", propensity.as_slice()),
+        ("m0", prediction.as_slice()),
+    ])
+    .unwrap();
     let ids = (0..6).map(|i| Arc::<str>::from(format!("s{i}"))).collect::<Vec<_>>();
     let query = PanelDidQuery::augmented_panel(
-        VariableId::from_raw(1), VariableId::from_raw(0),
-        VariableId::from_raw(2), VariableId::from_raw(3),
-        [true, true, true, false, false, false], ids.clone(), ids, true,
+        VariableId::from_raw(1),
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        VariableId::from_raw(3),
+        [true, true, true, false, false, false],
+        ids.clone(),
+        ids,
+        true,
     );
     (data, query)
 }
@@ -37,11 +45,16 @@ fn augmented_panel_did_retains_known_truth_and_point_only_semantics() {
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_standard_error");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
     assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
-    for required in ["strict_propensity_overlap", "supplied_nuisance_predictions_valid_for_evaluation_rows"] {
+    for required in
+        ["strict_propensity_overlap", "supplied_nuisance_predictions_valid_for_evaluation_rows"]
+    {
         assert!(result.identification.required_assumptions.entries.iter().any(|record|
             matches!(&record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required)));
     }
-    assert_eq!(Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap().panel_did, result.panel_did);
+    assert_eq!(
+        Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap().panel_did,
+        result.panel_did
+    );
     let bytes = prepared.encode_contracted_result(&result, "augmented-panel-did", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(body.panel_did.as_ref().unwrap().augmented, Some((0.5, 0.5, 3.0, true)));
@@ -49,7 +62,14 @@ fn augmented_panel_did_retains_known_truth_and_point_only_semantics() {
     assert!(body.interval_lower.is_none() && body.interval_upper.is_none());
     let mut fabricated = body.clone();
     fabricated.panel_did.as_mut().unwrap().augmented.as_mut().unwrap().2 = 99.0;
-    assert!(antecedent_io::encode_analysis_result_artifact(&fabricated, header.variable_names, "fabricated").is_err());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &fabricated,
+            header.variable_names,
+            "fabricated"
+        )
+        .is_err()
+    );
 }
 
 #[test]
