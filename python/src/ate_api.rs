@@ -2475,121 +2475,6 @@ pub(crate) struct GraphEdge {
     pub(crate) at_target: String,
 }
 
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, treatment, outcome, modifier, *,
-    control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=199, threads=None, accepted=false,
-    outcome_functional=None,
-))]
-fn analyze_conditional(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, String)>,
-    treatment: String,
-    outcome: String,
-    modifier: String,
-    control_level: f64,
-    active_level: f64,
-    refute: Option<Bound<'_, PyAny>>,
-    validators: Option<Bound<'_, PyAny>>,
-    seed: u64,
-    bootstrap: u32,
-    threads: Option<u32>,
-    accepted: bool,
-    outcome_functional: Option<Bound<'_, PyDict>>,
-) -> PyResult<AteAnalysisResult> {
-    let outcome_functional = parse_outcome_functional(outcome_functional.as_ref())?;
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
-    detach_catch(py, move || {
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
-        let mut inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
-            .with_effect_modifiers([w_id]);
-        if let Some(functional) = outcome_functional {
-            inner = inner.with_outcome_functional(functional);
-        }
-        let cq = ConditionalEffectQuery::try_new(inner)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = bind_dag(Study::tabular(data), dag, accepted)
-            .query(CausalQuery::ConditionalEffect(cq))
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result, false)
-    })
-}
-
-/// Static mediation (treatment → mediator(s) → outcome) via the facade.
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, treatment, outcome, mediators, *,
-    contrast="mediated", control_level=0.0, active_level=1.0,
-    refute=None, seed=1, bootstrap=0, threads=None
-))]
-fn analyze_mediation(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, String)>,
-    treatment: String,
-    outcome: String,
-    mediators: Vec<String>,
-    contrast: &str,
-    control_level: f64,
-    active_level: f64,
-    refute: Option<Bound<'_, PyAny>>,
-    seed: u64,
-    bootstrap: u32,
-    threads: Option<u32>,
-) -> PyResult<AteAnalysisResult> {
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let contrast = contrast.to_string();
-    detach_catch(py, move || {
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let mut med_ids = Vec::with_capacity(mediators.len());
-        for m in &mediators {
-            med_ids.push(data.schema().id_of(m).map_err(py_err)?);
-        }
-        let contrast = match contrast.to_ascii_lowercase().as_str() {
-            "total" => MediationContrast::Total,
-            "direct" => MediationContrast::Direct,
-            "mediated" | "indirect" => MediationContrast::Mediated,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown mediation contrast {other:?}; use total|direct|mediated"
-                )));
-            }
-        };
-        let mut q = MediationQuery::binary(t_id, y_id, med_ids, contrast);
-        q.control = Intervention::set(t_id, Value::f64(control_level));
-        q.active = Intervention::set(t_id, Value::f64(active_level));
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::tabular(data)
-            .graph(dag)
-            .query(CausalQuery::Mediation(q))
-            .refute(suite)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result, false)
-    })
-}
-
 /// Identify-only on a static ADMG (no estimation).
 ///
 /// An ADMG carries bidirected edges, so it is the only static graph type that
@@ -3450,8 +3335,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_graph_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_conditional, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate_admg, m)?)?;
     m.add_function(wrap_pyfunction!(identify_structure, m)?)?;

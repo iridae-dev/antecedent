@@ -42,7 +42,6 @@ mod learned_trial_api;
 mod observation_api;
 mod observational_interference_api;
 mod policy_api;
-mod policy_continuous_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
@@ -2729,7 +2728,6 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     graph_io::register(m)?;
     design_api::register(m)?;
     policy_api::register(m)?;
-    policy_continuous_api::register(m)?;
     experiment_api::register(m)?;
     interference_saturation_api::register(m)?;
     observational_interference_api::register(m)?;
