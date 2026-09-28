@@ -6,7 +6,7 @@ answer means—its assumptions, identification status, empirical support,
 uncertainty, provenance, and limits—when the analysis is estimated, reused,
 combined, saved, transported, or consumed by other software.
 
-> **Antecedent 2.1.0 is the current release.** Install it with
+> **Antecedent 2.1.0.** Install it with
 > `python -m pip install --upgrade antecedent` (Python 3.11+), then begin with
 > the [Python quickstart](python-workflow.md). Read the
 > [2.1.0 release notes](release-notes/v2.1.0.md) when upgrading from an earlier
