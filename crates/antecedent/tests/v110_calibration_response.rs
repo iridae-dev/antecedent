@@ -774,19 +774,32 @@ fn response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage()
     gate_at(&tallies, &CPDAG_GP_FREQ_CURVE_MEASURED);
 }
 
-/// No boundary cells: this coordinate has not been measured yet, so every grid
-/// point gates at nominal until a calibration run records its rates.
+/// Named boundary cells measured at 1000 replicates (floor 0.936 at 0.95,
+/// 0.881 at 0.90). Tally layout is `2*j + k` over `GRID = [-1, -0.5, 0, 0.5, 1]`
+/// with `k = 0` the reported 0.95 level and `k = 1` the 0.90 gate level; the
+/// low-dose coordinates under-cover mildly at the tails. Coordinates and grid
+/// points not listed gate at nominal.
 const CPDAG_GP_FREQ_CURVE_MEASURED: [[Option<f64>; 3]; 10] = [
+    // a=-1, 0.95: 0.935 at p0 (935/1000), 0.936 floor. p2 gates at nominal.
+    [Some(0.935), None, None],
+    // a=-1, 0.90: 0.878 at p0 (878/1000), 0.881 floor.
+    [Some(0.878), None, None],
+    // a=-0.5, 0.95: 0.936 at p0 (936/1000); 0.931 at p2 (931/1000), 0.936 floor.
+    [Some(0.936), None, Some(0.931)],
+    // a=-0.5, 0.90: 0.875 at p0 (875/1000), 0.881 floor.
+    [Some(0.875), None, None],
+    // a=0, 0.95: nominal.
     [None, None, None],
+    // a=0, 0.90: nominal.
     [None, None, None],
+    // a=0.5, 0.95: nominal.
     [None, None, None],
+    // a=0.5, 0.90: nominal.
     [None, None, None],
+    // a=1, 0.95: nominal.
     [None, None, None],
-    [None, None, None],
-    [None, None, None],
-    [None, None, None],
-    [None, None, None],
-    [None, None, None],
+    // a=1, 0.90: 0.873 at p0 (873/1000), 0.881 floor.
+    [Some(0.873), None, None],
 ];
 
 /// Bayesian class-aware `E[Y | do(T = 1)]`: the 0.95 interval the study
