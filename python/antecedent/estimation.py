@@ -193,6 +193,7 @@ from .transport.advanced import (
     TransportResponseGridQuery,
 )
 
+
 def _refutation_reports_from_raw(validation: Any) -> list[RefutationReport]:
     """One :class:`RefutationReport` per entry in a nested ``validation.reports``."""
     return [

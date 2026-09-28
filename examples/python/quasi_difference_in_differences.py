@@ -48,8 +48,7 @@ def main() -> None:
         query=PanelDifferenceInDifferences("y", "id", "group", "after"),
     ).panel_did
     print(
-        f"panel DiD estimate={panel.estimate} se={panel.standard_error} "
-        f"clusters={panel.clusters}"
+        f"panel DiD estimate={panel.estimate} se={panel.standard_error} clusters={panel.clusters}"
     )
     # The panel fixture carries the same exact treatment effect of 4.
     assert abs(panel.estimate - 4.0) < 1e-9, panel.estimate
