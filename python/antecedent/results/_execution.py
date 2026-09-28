@@ -438,7 +438,7 @@ class ResultAPI:
         if survival is not None:
             detail = (
                 "randomized_survival_pointwise_bootstrap"
-                if getattr(survival, "bootstrap_replicates_ok", None) is not None
+                if getattr(survival, "survival_at_tau_difference_interval", None) is not None
                 else "randomized_survival_point_only"
             )
             return Answer(
