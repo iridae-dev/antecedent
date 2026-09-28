@@ -50,3 +50,8 @@ arrow-schema = { workspace = true }
 numpy = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[build-dependencies]
+# Same version as the pyo3 the extension links. Used only to discover libpython
+# for the cargo-test harness; the cdylib stays an extension module.
+pyo3-build-config = "0.29"
