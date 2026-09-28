@@ -6343,8 +6343,8 @@ grid = [
 dgp = "crates/antecedent/tests/v19_calibration.rs::noisy_xy_single_atom_graph_posterior"
 test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
 facets = ["core", "estimator.bayesian", "identity.response", "suite.v19_calibration"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
@@ -6379,8 +6379,8 @@ grid = [
 dgp = "crates/antecedent/tests/v19_calibration.rs::noisy_xy_single_atom_graph_posterior"
 test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
 facets = ["core", "estimator.bayesian", "identity.response", "suite.v19_calibration"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage.set_1_h_1"
@@ -9619,8 +9619,8 @@ grid = [
 dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
 test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage"
 facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage"
@@ -9763,8 +9763,8 @@ grid = [
 dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
 test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage"
 facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage"
@@ -9979,8 +9979,8 @@ grid = [
 dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
 test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
 facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage"
@@ -10195,8 +10195,8 @@ grid = [
 dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
 test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
 facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.pulse_effect.temporal_cpdag.frequentist.identified_set.l90.frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage"
@@ -12895,8 +12895,8 @@ grid = [
 dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
 test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage"
 facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage"
@@ -13003,8 +13003,8 @@ grid = [
 dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
 test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage"
 facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
-calibration_sha = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
-surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+calibration_sha = "a9feea85587bd06af266f78047be467514ec91ef"
+surface_list_blob = "da67d6f65ba01b7feea243c8e0a6ec5cf54dccca"
 
 [[record]]
 id = "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage"
