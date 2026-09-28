@@ -402,8 +402,8 @@ fn pointwise_profile_results(
             profile: profile.clone(),
             estimate: fitted,
             standard_error,
-            lower_95: fitted - 1.96 * standard_error,
-            upper_95: fitted + 1.96 * standard_error,
+            lower_95: fitted - 1.959_963_984_540_054 * standard_error,
+            upper_95: fitted + 1.959_963_984_540_054 * standard_error,
             control_count,
             treated_count,
         });
