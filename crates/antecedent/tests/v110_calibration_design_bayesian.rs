@@ -227,13 +227,18 @@ fn interference_query_dag_bayesian_neighbor_count_nominal_coverage() {
 // ================================================================ transport
 
 const TRANSPORT_DRAWS: usize = 2_000;
-/// Individuals drawn to seed the frozen target population; those with `S = 0`
-/// become the fixed target rows.
-const TARGET_POOL: usize = 8_000;
+/// Base size of *both* the frozen-target draw and each replicate's trial draw,
+/// scaled together by [`grid_n`] at every sample-size grid point.
+///
+/// The two pools must stay the *same* size. The Dahabreh trial-to-target IPW
+/// estimand normalizes the selection-odds-reweighted trial sum by the target
+/// row count (`÷ target_n`), which is unbiased only when the trial and target
+/// rows are drawn from equally sized populations: with pools of sizes
+/// `P_trial` and `P_target`, `E[estimate] = (P_trial / P_target)·E_target[τ]`,
+/// so unequal pools scale the estimate by their size ratio. A single shared,
+/// grid-scaled base keeps `P_trial = P_target` at grid points 0, 1 and 2.
+const POOL: usize = 8_000;
 const TARGET_SEED: u64 = 0x110_0402_FEED;
-/// Individuals drawn per replicate; those with `S = 1` become that replicate's
-/// fresh trial sample.
-const TRIAL_POOL: usize = 2_000;
 
 /// One individual of the transport DGP (`transport_data` in the frequentist
 /// twin): `x ~ N(0,1)`; trial membership `S | x ~ Bern(σ(0.5x))`; inside the
@@ -267,9 +272,11 @@ fn draw_pool(pool: usize, seed: u64) -> Vec<Individual> {
 }
 
 /// The fixed target rows (`S = 0`) drawn once from [`TARGET_SEED`], held frozen
-/// across every replicate.
+/// across every replicate. The pool is grid-scaled so it stays the same size as
+/// each replicate's trial pool (see [`POOL`]); within a grid point it is the
+/// same target the Bayesian bootstrap conditions on across replicates.
 fn frozen_target() -> Vec<Individual> {
-    draw_pool(TARGET_POOL, TARGET_SEED).into_iter().filter(|ind| !ind.trial).collect()
+    draw_pool(grid_n(POOL), TARGET_SEED).into_iter().filter(|ind| !ind.trial).collect()
 }
 
 /// Columns `a, y, trial, s, e, x`: the frozen target rows followed by this
@@ -277,7 +284,7 @@ fn frozen_target() -> Vec<Individual> {
 /// Bayesian bootstrap conditions on exactly the trial-sampling uncertainty it
 /// propagates.
 fn transport_frozen_data(target: &[Individual], seed: u64) -> TabularData {
-    let n_trial_pool = grid_n(TRIAL_POOL);
+    let n_trial_pool = grid_n(POOL);
     let trial_rows: Vec<Individual> =
         draw_pool(n_trial_pool, seed).into_iter().filter(|ind| ind.trial).collect();
     let total = target.len() + trial_rows.len();
