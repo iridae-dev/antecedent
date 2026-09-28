@@ -20,19 +20,6 @@ from ._native import default_user_threads, omitted_defaults
 OMITTED: dict[str, Any] = omitted_defaults()
 
 TEMPORAL_QUERY_KINDS = frozenset({"pulse", "sustained", "temporal_mediation"})
-RESPONSE_QUERY_KINDS = frozenset(
-    {
-        "response_curve",
-        "intervention_response",
-        "counterfactual",
-        "average_derivative",
-        "point_derivative",
-        "elasticity",
-        "semi_elasticity",
-        "directional_derivative",
-        "response_jacobian",
-    }
-)
 
 
 def resolve_threads(threads: int | None) -> int:

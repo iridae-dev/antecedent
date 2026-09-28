@@ -916,10 +916,3 @@ def unavailable_from_stage(study: Any) -> AnalysisResult | CausalResponseView:
     else:
         detail = not_certified_detail(identified, query=query)
     return _unavailable_result(study, query, detail, shape=shape, stage=stage)
-
-
-def answer_from_transport(result: Any) -> Answer | None:
-    section = getattr(result, "transport", None)
-    if section is None or section.unavailable is None:
-        return None
-    return Answer("unavailable", detail=section.unavailable)
