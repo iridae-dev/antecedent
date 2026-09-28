@@ -2590,8 +2590,7 @@ pub(crate) use crate::analysis::identification_cache::{
     CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
     CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
     build_admg_graph_posterior_response_identification_cache,
-    build_dbn_posterior_identification_cache,
-    build_dbn_posterior_mediation_identification_cache,
+    build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
     build_temporal_class_posterior_identification_cache, temporal_dag_from_dbn_atom,
 };

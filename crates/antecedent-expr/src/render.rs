@@ -16,7 +16,8 @@ pub(crate) struct Style {
     cond_mid: &'static str,
     /// Opening of a `do(...)` intervention (`\mathrm{do}(` vs `do(`).
     do_open: &'static str,
-    /// Subscript delimiters for a population / kernel label (`_{` `}` vs `_` ``).
+    /// Subscript delimiters for a population / kernel label (`_{` and `}` in LaTeX;
+    /// a bare `_` and nothing in plain text).
     sub_open: &'static str,
     sub_close: &'static str,
     /// Regime tail prefix, before the raw regime id.
@@ -95,14 +96,13 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
             regime,
         } => {
             let vars = fmt_vars(arena.var_set(*variables));
-            let cond = fmt_vars(arena.var_set(*conditioned_on));
+            let conditioned = arena.var_set(*conditioned_on);
             let assignments = arena.intervention_assignments(*intervention);
-            let interv = fmt_assignments(assignments);
-            let observed_cond = fmt_conditioning(arena.var_set(*conditioned_on), assignments);
             let head = fmt_p_head(arena, *population, s);
             let tail = fmt_regime(*regime, s);
             match domain {
                 DomainRef::Observational => {
+                    let observed_cond = fmt_conditioning(conditioned, assignments);
                     if observed_cond.is_empty() {
                         format!("{head}({vars}{tail})")
                     } else {
@@ -110,6 +110,8 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
                     }
                 }
                 DomainRef::Interventional => {
+                    let cond = fmt_vars(conditioned);
+                    let interv = fmt_assignments(assignments);
                     if cond.is_empty() {
                         format!("{head}({vars}{}{}{interv}){tail})", s.cond_mid, s.do_open)
                     } else {
@@ -120,8 +122,11 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
         }
         ExprNode::Kernel { body, bound, population, regime } => {
             let pop = arena.population(*population);
-            let pop =
-                if pop.is_empty() { String::new() } else { format!("{}{pop}{}", s.sub_open, s.sub_close) };
+            let pop = if pop.is_empty() {
+                String::new()
+            } else {
+                format!("{}{pop}{}", s.sub_open, s.sub_close)
+            };
             format!(
                 "K{pop}_{{{}}}{}{}{}{}",
                 fmt_vars(arena.var_set(*bound)),
@@ -137,24 +142,10 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
             parts.join(s.product_join)
         }
         ExprNode::SumOut { variables, expr } => {
-            format!(
-                "{}_{{{}}}{}{}{}",
-                s.sum_sym,
-                fmt_vars(arena.var_set(*variables)),
-                s.bracket_open,
-                render_expr(arena, *expr, s),
-                s.bracket_close,
-            )
+            render_marginal(arena, s.sum_sym, *variables, *expr, s)
         }
         ExprNode::IntegralOut { variables, expr } => {
-            format!(
-                "{}_{{{}}}{}{}{}",
-                s.int_sym,
-                fmt_vars(arena.var_set(*variables)),
-                s.bracket_open,
-                render_expr(arena, *expr, s),
-                s.bracket_close,
-            )
+            render_marginal(arena, s.int_sym, *variables, *expr, s)
         }
         ExprNode::Ratio { numerator, denominator } => {
             format!(
@@ -191,6 +182,23 @@ pub(crate) fn render_expr(arena: &CausalExprArena, id: ExprId, s: &Style) -> Str
             )
         }
     }
+}
+
+/// A sum or integral over `variables`: the operator symbol, its bound subscript, and the body.
+fn render_marginal(
+    arena: &CausalExprArena,
+    symbol: &str,
+    variables: crate::VarSetId,
+    expr: ExprId,
+    s: &Style,
+) -> String {
+    format!(
+        "{symbol}_{{{}}}{}{}{}",
+        fmt_vars(arena.var_set(variables)),
+        s.bracket_open,
+        render_expr(arena, expr, s),
+        s.bracket_close,
+    )
 }
 
 fn fmt_p_head(arena: &CausalExprArena, population: crate::PopulationKeyId, s: &Style) -> String {

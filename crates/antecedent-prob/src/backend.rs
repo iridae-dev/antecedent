@@ -201,7 +201,6 @@ impl LaplaceWorkspace {
             self.grow_count = self.grow_count.saturating_add(1);
         }
     }
-
 }
 
 fn resize_min(buf: &mut Vec<f64>, need: usize) -> bool {

@@ -128,7 +128,6 @@ impl TransportIdentification {
             ),
         }
     }
-
 }
 
 /// Conservative sID-style identifier covering direct transport, general pre-treatment

@@ -366,7 +366,6 @@ impl Notears {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

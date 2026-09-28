@@ -29,8 +29,7 @@ use antecedent_stats::{
 };
 
 use crate::constraints::{
-    ContextKind, DiscoveryConstraints, JpcmciNodeRole, SpaceDummyCiMode,
-    TimeDummyCiMode,
+    ContextKind, DiscoveryConstraints, JpcmciNodeRole, SpaceDummyCiMode, TimeDummyCiMode,
 };
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;

@@ -184,8 +184,7 @@ pub struct ComposedPrior {
     pub kish_ess: Option<f64>,
 }
 
-impl ComposedPrior {
-}
+impl ComposedPrior {}
 
 /// Compose external Gaussian coefficient priors with a baseline.
 ///

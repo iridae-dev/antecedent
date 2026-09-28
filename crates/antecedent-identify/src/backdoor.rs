@@ -533,8 +533,7 @@ fn total_cost(z: &[DenseNodeId], dag: &Dag, costs: &[(VariableId, f64)]) -> f64 
         .sum()
 }
 
-impl BackdoorIdentifier {
-}
+impl BackdoorIdentifier {}
 
 pub(crate) fn is_backdoor_adjustment(
     mutilated: &Dag,

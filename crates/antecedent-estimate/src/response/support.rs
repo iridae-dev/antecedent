@@ -9,12 +9,12 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus,
 };
 use antecedent_stats::{
-    LocalQuadraticWorkspace, QuantileRule, gaussian_local_quadratic_influence_prechecked, mad_sigma,
-    median_sorted, quantile_sorted,
+    LocalQuadraticWorkspace, QuantileRule, gaussian_local_quadratic_influence_prechecked,
+    mad_sigma, median_sorted, quantile_sorted,
 };
 
 use super::{

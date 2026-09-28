@@ -26,9 +26,9 @@ pub use exact_plan::{
 };
 pub mod latex;
 pub mod pretty;
-mod render;
 pub mod program;
 pub mod provider;
+mod render;
 pub mod simplify;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand, RdDesignParams};

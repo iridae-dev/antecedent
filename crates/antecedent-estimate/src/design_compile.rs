@@ -8,9 +8,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
-use antecedent_data::{
-    CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix,
-};
+use antecedent_data::{CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix};
 use antecedent_stats::{
     CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, StandardizationRecord, StatsError, standardize_columns,

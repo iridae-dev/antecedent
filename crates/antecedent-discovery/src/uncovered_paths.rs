@@ -33,7 +33,6 @@ impl EndpointPattern {
     pub const fn circle_circle() -> Self {
         Self { at_from: Some(Endpoint::Circle), at_to: Some(Endpoint::Circle) }
     }
-
 }
 
 fn marks_from_to<G: PagOps>(

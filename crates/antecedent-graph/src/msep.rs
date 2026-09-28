@@ -668,7 +668,6 @@ impl Pag {
             ClassSeparation::Undetermined => Err(GraphError::SeparationUndetermined),
         }
     }
-
 }
 
 #[cfg(test)]

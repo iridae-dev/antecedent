@@ -82,7 +82,6 @@ impl Assignment {
             Err(_) => None,
         }
     }
-
 }
 
 /// Resolved distribution factor identity (no string keys).

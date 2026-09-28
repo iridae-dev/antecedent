@@ -29,8 +29,8 @@ use antecedent_core::{
     DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticSeverity, IdentificationStatus,
     Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
-    TargetPopulation, VariableId,
+    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
+    VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -58,12 +58,12 @@ use policy::{
     DiscreteAtom, additive_policy_rows, exact_discrete_intervention_rows,
     intervention_needs_quadrature, policy_support, static_bayesian_policy,
 };
+#[cfg(test)]
+use support::outcome_tail_ratio;
 use support::{
     multivariate_support, push_outcome_tail_diagnostic, push_pseudo_outcome_winsor_shift,
     support_report,
 };
-#[cfg(test)]
-use support::outcome_tail_ratio;
 use transform::{
     bias_corrected_interval_note, delta_method_interval_note, delta_method_standard_error,
     fieller_elasticity_interval, fieller_interval_note, transform_derivative,
