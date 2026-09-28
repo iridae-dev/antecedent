@@ -293,3 +293,4 @@ core crates/antecedent-learn-burn/
 testmod crates/antecedent-prob/src/hmc.rs
 testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
 testmod crates/antecedent-validate/src/tests.rs
+testmod crates/antecedent-core/src/query/tests.rs

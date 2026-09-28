@@ -546,6 +546,11 @@ def is_test_consumer(rel: str) -> bool:
 
 def _reaches(user: str, member: str, deps: dict[str, set[str]]) -> bool:
     """Can code in `user` name an item `member` defines?"""
+    # A workspace-global surface input (root Cargo.toml / Cargo.lock, toolchain,
+    # shared calibration harness) is compiled/consumed by every test, so any
+    # measured record's test reaches it and can replay-exercise its drift.
+    if not member.startswith("crates/"):
+        return True
     unit_user, unit_member = _unit(user), _unit(member)
     if unit_user == unit_member:
         return True
