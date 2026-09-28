@@ -1523,6 +1523,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_arm_linear_ci_coverage"
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "frontdoor.functional"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean"
+identification = "point"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9175
+mcse = 0.013756248580190752
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.945, mcse = 0.005097793640389931, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9175, mcse = 0.013756248580190752, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_scm"
+test = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_arm_linear_ci_coverage"
+facets = ["core", "estimator.frontdoor", "identity.frontdoor", "suite.calibration_coverage"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_saturated_ci_coverage"
 query = "AverageEffect"
 graph_class = "Dag"
@@ -2639,6 +2675,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_frequentist_envelope_nominal_coverage"
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "linear.adjustment.ate"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean"
+identification = "partial"
+nominal = 0.9
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.1428571428571429
+observed = 0.8775
+mcse = 0.016393119745795798
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.8775, mcse = 0.016393119745795798, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.89, mcse = 0.015644487847162013, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.92, mcse = 0.013564659966250532, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data"
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::average_effect_pag_frequentist_envelope_nominal_coverage"
+facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "identity.envelope", "suite.v19_static_envelope_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.average_effect.pag.frequentist.analytic_se.l90.static_pag_ate_envelope_frequentist_nominal_90_coverage"
 query = "AverageEffect"
 graph_class = "Pag"
@@ -2672,6 +2744,42 @@ dgp = "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data"
 test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_frequentist_nominal_90_coverage"
 facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "identity.envelope", "suite.v19_static_envelope_calibration"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.average_effect.pag.frequentist.analytic_se.l95.average_effect_pag_frequentist_envelope_nominal_coverage"
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "linear.adjustment.ate"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean"
+identification = "partial"
+nominal = 0.95
+n_min = 200
+n_max = 800
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.1428571428571429
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "reported_level"
+grid = [
+  { point = 0, n_min = 200, n_max = 200, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "reported_level" },
+  { point = 1, n_min = 400, n_max = 400, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "reported_level" },
+  { point = 2, n_min = 800, n_max = 800, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "reported_level" },
+]
+dgp = "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data"
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::average_effect_pag_frequentist_envelope_nominal_coverage"
+facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "identity.envelope", "suite.v19_static_envelope_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -5087,6 +5195,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.intervention_response.admg.frequentist.bootstrap_se.l95.intervention_response_admg_graph_posterior_frequentist_nominal_coverage.a_1"
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "functional.effect"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9225
+mcse = 0.013369157602481916
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9225, mcse = 0.013369157602481916, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::intervention_response_admg_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.functional", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage"
 query = "InterventionResponse"
 graph_class = "CoDetermined"
@@ -6164,6 +6308,78 @@ dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::agreeing_temporal_se
 test = "crates/antecedent/tests/v110_calibration_backlog.rs::temporal_cpdag_intervention_response_frequentist_nominal_coverage"
 facets = ["core", "estimator.temporal_response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Bayesian"
+estimator = "response.temporal.bayesian"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=8"
+functional = "all_observed.mean.complete.pulse.h1"
+identification = "point"
+nominal = 0.9
+n_min = 80
+n_max = 320
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.885
+mcse = 0.01595109714094927
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.895, mcse = 0.015327671055969331, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.9025, mcse = 0.014831870246196198, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.885, mcse = 0.01595109714094927, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_calibration.rs::noisy_xy_single_atom_graph_posterior"
+test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
+facets = ["core", "estimator.bayesian", "identity.response", "suite.v19_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Bayesian"
+estimator = "response.temporal.bayesian"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=8"
+functional = "all_observed.mean.complete.pulse.h1"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.93
+mcse = 0.01275735082217307
+replicates = 400
+boundary = false
+role = "reported_level"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "reported_level" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "reported_level" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "reported_level" },
+]
+dgp = "crates/antecedent/tests/v19_calibration.rs::noisy_xy_single_atom_graph_posterior"
+test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage"
+facets = ["core", "estimator.bayesian", "identity.response", "suite.v19_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -7571,6 +7787,114 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.interventional_distribution.admg.bayesian.posterior_quantile.l90.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Bayesian"
+estimator = "functional.distribution"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "laplace.gaussian_identity.prior_scale=10"
+functional = "all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.88
+mcse = 0.01624807680927192
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.88, mcse = 0.01624807680927192, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.8905, mcse = 0.006982469119158352, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9, mcse = 0.015, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_admg.rs::interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"
+facets = ["core", "estimator.functional", "suite.v110_calibration_admg"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.interventional_distribution.admg.bayesian.posterior_quantile.l95.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Bayesian"
+estimator = "functional.distribution"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "laplace.gaussian_identity.prior_scale=10"
+functional = "all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.941
+mcse = 0.005268728499363013
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.941, mcse = 0.005268728499363013, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_admg.rs::interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"
+facets = ["core", "estimator.functional", "suite.v110_calibration_admg"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage"
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "functional.distribution"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9145
+mcse = 0.006252589463574273
+replicates = 2000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.89, mcse = 0.015644487847162013, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9145, mcse = 0.006252589463574273, replicates = 2000, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9175, mcse = 0.013756248580190752, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_distribution_admg.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage"
+facets = ["core", "estimator.functional", "suite.v110_calibration_distribution_admg"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage"
 query = "InterventionalDistribution"
 graph_class = "Admg"
@@ -7604,6 +7928,42 @@ dgp = "crates/antecedent/tests/v110_calibration_distribution_admg.rs::frontdoor_
 test = "crates/antecedent/tests/v110_calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_nominal_coverage"
 facets = ["core", "estimator.functional", "suite.v110_calibration_distribution_admg"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.interventional_distribution.admg.frequentist.bootstrap_se.l95.interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage"
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "functional.distribution"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9525
+mcse = 0.010635289135702893
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9575, mcse = 0.004510751046111944, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_distribution_admg.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_distribution_admg.rs::interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage"
+facets = ["core", "estimator.functional", "suite.v110_calibration_distribution_admg"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -12503,6 +12863,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage"
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Bayesian"
+estimator = "bayesian.temporal.gcomp"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=8"
+functional = "pulse.h1.all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 80
+n_max = 320
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.895
+mcse = 0.015327671055969331
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.901, mcse = 0.006678285708173917, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.91, mcse = 0.014309088021254182, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.895, mcse = 0.015327671055969331, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage"
+facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage"
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -12572,6 +12968,42 @@ dgp = "crates/antecedent/tests/common/fixtures.rs::pag_series"
 test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_pag_pulse_nominal_90_coverage"
 facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v19_calibration"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage"
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Bayesian"
+estimator = "bayesian.temporal.gcomp"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=8"
+functional = "pulse.h1.all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9545, mcse = 0.004659922209651143, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage"
+facets = ["core", "estimator.bayesian", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -12755,6 +13187,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage"
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.linear.adjustment"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mixture"
+posterior = ""
+functional = "pulse.h1.all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 80
+n_max = 320
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8775
+mcse = 0.016393119745795798
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9025, mcse = 0.014831870246196198, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.8775, mcse = 0.016393119745795798, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.9125, mcse = 0.014128318194321646, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage"
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -12932,6 +13400,42 @@ dgp = "crates/antecedent/tests/common/fixtures.rs::pag_series"
 test = "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_pag_pulse_envelope_nominal_90_coverage"
 facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.v19_calibration"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage"
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.linear.adjustment"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mixture"
+posterior = ""
+functional = "pulse.h1.all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9275
+mcse = 0.012965699942540704
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.9275, mcse = 0.012965699942540704, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -13292,6 +13796,78 @@ dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::frontdoor_data"
 test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_admg_frequentist_pointwise_nominal_coverage"
 facets = ["core", "estimator.functional", "identity.response", "suite.v110_calibration_backlog"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage.a_0"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "functional.effect"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.functional", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage.a_1"
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "functional.effect"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 500
+n_max = 1500
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.92
+mcse = 0.013564659966250532
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.92, mcse = 0.013564659966250532, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::frontdoor_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.functional", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -13832,6 +14408,366 @@ dgp = "crates/antecedent/tests/v19_static_calibration.rs::class_response_data"
 test = "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage"
 facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v19_static_calibration"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.89
+mcse = 0.009894442884771228
+replicates = 1000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.89, mcse = 0.009894442884771228, replicates = 1000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.896, mcse = 0.009653186002558947, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.89, mcse = 0.009894442884771228, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.887
+mcse = 0.010011543337567888
+replicates = 1000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.887, mcse = 0.010011543337567888, replicates = 1000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.895, mcse = 0.009694070352540258, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.908, mcse = 0.009139803061335619, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.873
+mcse = 0.010529529904036551
+replicates = 1000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.873, mcse = 0.010529529904036551, replicates = 1000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.89, mcse = 0.009894442884771228, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.894, mcse = 0.009734680272099335, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.875
+mcse = 0.010458250331675944
+replicates = 1000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.875, mcse = 0.010458250331675944, replicates = 1000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.895, mcse = 0.009694070352540258, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.891, mcse = 0.009854897259738428, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.878
+mcse = 0.010349685985574635
+replicates = 1000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.878, mcse = 0.010349685985574635, replicates = 1000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.906, mcse = 0.009228434320078352, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.895, mcse = 0.009694070352540258, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.942
+mcse = 0.007391616873188169
+replicates = 1000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.943, mcse = 0.007331507348424336, replicates = 1000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.951, mcse = 0.006826346021115546, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.942, mcse = 0.007391616873188169, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a_0_5"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.947
+mcse = 0.007084560677981384
+replicates = 1000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.947, mcse = 0.007084560677981384, replicates = 1000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.947, mcse = 0.007084560677981384, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.95, mcse = 0.006892024376045114, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a_1"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.938
+mcse = 0.00762600813007697
+replicates = 1000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.938, mcse = 0.00762600813007697, replicates = 1000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.95, mcse = 0.006892024376045114, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.943, mcse = 0.007331507348424336, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a__0_5"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.931
+mcse = 0.008014923580421711
+replicates = 1000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.936, mcse = 0.007739767438366605, replicates = 1000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.954, mcse = 0.006624499981130654, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.931, mcse = 0.008014923580421711, replicates = 1000, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage.a__1"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.0077958322198467015
+replicates = 1000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.935, mcse = 0.0077958322198467015, replicates = 1000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.946, mcse = 0.0071473071852271785, replicates = 1000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.957, mcse = 0.006414904519944161, replicates = 1000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data"
+test = "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_response"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -15128,6 +16064,186 @@ dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::pag_data"
 test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_pag_frequentist_accepted_pointwise_nominal_coverage"
 facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.a_0"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9435, mcse = 0.005162739098579358, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::pag_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_pag_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.a_0_5"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.004987171041783106
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9475, mcse = 0.004987171041783106, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::pag_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_pag_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.a_1"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9395
+mcse = 0.005331029450303197
+replicates = 2000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9395, mcse = 0.005331029450303197, replicates = 2000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.97, mcse = 0.008529361054615993, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::pag_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_pag_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.a__0_5"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.005097793640389931
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.945, mcse = 0.005097793640389931, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::pag_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_pag_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.a__1"
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.kennedy_dr"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9395
+mcse = 0.005331029450303197
+replicates = 2000
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 250, n_max = 250, observed = 0.9395, mcse = 0.005331029450303197, replicates = 2000, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 500, n_max = 500, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1000, n_max = 1000, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_backlog.rs::pag_data"
+test = "crates/antecedent/tests/v110_calibration_backlog.rs::response_curve_pag_frequentist_pointwise_nominal_coverage"
+facets = ["core", "estimator.response", "identity.envelope", "identity.response", "suite.v110_calibration_backlog"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -19955,6 +21071,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.sequential.gcomp"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mixture"
+posterior = ""
+functional = "sustained:2.h1.all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 80
+n_max = 320
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8825
+mcse = 0.016100756969782512
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.91, mcse = 0.014309088021254182, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.915, mcse = 0.013944084767384337, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.8825, mcse = 0.016100756969782512, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::sustained_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.temporal_sequential", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage"
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -20060,6 +21212,42 @@ dgp = "crates/antecedent/tests/common/fixtures.rs::confounded_series"
 test = "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage"
 facets = ["core", "estimator.temporal_adjustment", "identity.envelope", "identity.temporal", "suite.v19_calibration"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.sequential.gcomp"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mixture"
+posterior = ""
+functional = "sustained:2.h1.all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9275
+mcse = 0.012965699942540704
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.9275, mcse = 0.012965699942540704, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::sustained_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.temporal_sequential", "identity.envelope", "identity.temporal", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -23807,6 +24995,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.mediation"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mediation"
+posterior = ""
+functional = "mediated.all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 80
+n_max = 320
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9225
+mcse = 0.013369157602481916
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9225, mcse = 0.013369157602481916, replicates = 400, boundary = true, role = "named_boundary" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.91, mcse = 0.014309088021254182, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.892, mcse = 0.006940316995642202, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::mediation_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.temporal_mediation", "identity.envelope", "identity.temporal_mediation", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.kappa_med_kappa"
 query = "TemporalMediationEffect"
 graph_class = "TemporalCpdag"
@@ -23876,6 +25100,78 @@ dgp = "crates/antecedent/tests/v110_calibration_temporal.rs::mediation_series"
 test = "crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage"
 facets = ["core", "estimator.temporal_mediation", "identity.envelope", "identity.temporal_mediation", "suite.v110_calibration_temporal"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.mediation"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mediation"
+posterior = ""
+functional = "mediated.all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 199
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9445
+mcse = 0.005119558086397692
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.9445, mcse = 0.005119558086397692, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_temporal_class.rs::mediation_series"
+test = "crates/antecedent/tests/v110_calibration_temporal_class.rs::temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+facets = ["core", "estimator.temporal_mediation", "identity.envelope", "identity.temporal_mediation", "suite.v110_calibration_temporal_class"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage.mediated"
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Bayesian"
+estimator = "temporal.mediation.bayesian"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=8"
+functional = "mediated.all_observed"
+identification = "point"
+nominal = 0.9
+n_min = 80
+n_max = 320
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.89
+mcse = 0.015644487847162013
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.8925, mcse = 0.01548739406743433, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.89, mcse = 0.015644487847162013, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.91, mcse = 0.014309088021254182, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_calibration.rs::mediation_series_single_atom_graph_posterior"
+test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage"
+facets = ["core", "estimator.bayesian_mediation", "identity.temporal_mediation", "suite.v19_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -24272,6 +25568,42 @@ dgp = "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation"
 test = "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage"
 facets = ["core", "estimator.bayesian_mediation", "identity.temporal_mediation", "suite.v19_bayesian_temporal"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage.mediated"
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Bayesian"
+estimator = "temporal.mediation.bayesian"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=8"
+functional = "mediated.all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 0
+posterior_draws_min = 1000
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "reported_level"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "reported_level" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "reported_level" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "reported_level" },
+]
+dgp = "crates/antecedent/tests/v19_calibration.rs::mediation_series_single_atom_graph_posterior"
+test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage"
+facets = ["core", "estimator.bayesian_mediation", "identity.temporal_mediation", "suite.v19_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
@@ -24959,6 +26291,42 @@ calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
+id = "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage"
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+modality = "series"
+inference = "Frequentist"
+estimator = "temporal.mediation"
+interval_method = "circular_block_se"
+se_kind = ""
+dependence = "circular_block:mediation"
+posterior = ""
+functional = "mediated.all_observed"
+identification = "point"
+nominal = 0.95
+n_min = 80
+n_max = 320
+replicates_min = 40
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 80, n_max = 80, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 160, n_max = 160, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 320, n_max = 320, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/common/fixtures.rs::mediation_series"
+test = "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_dag_graph_posterior_temporal_mediation_effect_single_atom_nominal_coverage"
+facets = ["core", "estimator.temporal_mediation", "identity.temporal_mediation", "suite.v19_calibration"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
 id = "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar05_n160_nominal_90_coverage"
 query = "TemporalMediationEffect"
 graph_class = "TemporalDag"
@@ -25244,6 +26612,78 @@ dgp = "crates/antecedent/tests/common/driven_dgp.rs::mediation_series"
 test = "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_iid_n160_nominal_90_coverage"
 facets = ["core", "estimator.temporal_mediation", "identity.temporal_mediation", "suite.v19_temporal_frequentist"]
 calibration_sha = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.transport_query.admg.bayesian.posterior_quantile.l90.transport_query_admg_bayesian_bootstrap_nominal_coverage"
+query = "TransportQuery"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Bayesian"
+estimator = "transport.trial_bayesian_bootstrap"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "laplace.gaussian_identity.prior_scale=10"
+functional = ""
+identification = "point"
+nominal = 0.9
+n_min = 3898
+n_max = 16063
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.8875
+mcse = 0.015799030824705677
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 3898, n_max = 4060, observed = 0.9, mcse = 0.015, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 7851, n_max = 8122, observed = 0.88, mcse = 0.01624807680927192, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 15660, n_max = 16063, observed = 0.8875, mcse = 0.015799030824705677, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_design_bayesian.rs::transport_data_frozen_target"
+test = "crates/antecedent/tests/v110_calibration_design_bayesian.rs::transport_query_admg_bayesian_bootstrap_nominal_coverage"
+facets = ["core", "estimator.transport", "suite.v110_calibration_design_bayesian"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
+surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
+
+[[record]]
+id = "cov.transport_query.admg.bayesian.posterior_quantile.l95.transport_query_admg_bayesian_bootstrap_nominal_coverage"
+query = "TransportQuery"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Bayesian"
+estimator = "transport.trial_bayesian_bootstrap"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "laplace.gaussian_identity.prior_scale=10"
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 3898
+n_max = 16063
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.9275
+mcse = 0.012965699942540704
+replicates = 400
+boundary = true
+role = "named_boundary"
+grid = [
+  { point = 0, n_min = 3898, n_max = 4060, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 7851, n_max = 8122, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 15660, n_max = 16063, observed = 0.9275, mcse = 0.012965699942540704, replicates = 400, boundary = true, role = "named_boundary" },
+]
+dgp = "crates/antecedent/tests/v110_calibration_design_bayesian.rs::transport_data_frozen_target"
+test = "crates/antecedent/tests/v110_calibration_design_bayesian.rs::transport_query_admg_bayesian_bootstrap_nominal_coverage"
+facets = ["core", "estimator.transport", "suite.v110_calibration_design_bayesian"]
+calibration_sha = "60a26225a4a0377b09832938be331e5f34e3d662"
 surface_list_blob = "a4e386ff7fd1661188bc0b372d2fb089ee7c63bf"
 
 [[record]]
