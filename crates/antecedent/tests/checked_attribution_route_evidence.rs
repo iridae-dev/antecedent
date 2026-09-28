@@ -118,6 +118,18 @@ fn all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refuse
 
 #[test]
 fn all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused() {
+    // Debug builds of the shared prepared dispatcher carry frames close to the
+    // default test-thread stack, so the evidence body runs on its own thread.
+    std::thread::Builder::new()
+        .name("checked-attribution-evidence".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(bayesian_static_dag_attribution_plans_body)
+        .expect("spawn evidence thread")
+        .join()
+        .expect("evidence body panicked");
+}
+
+fn bayesian_static_dag_attribution_plans_body() {
     let ctx = ExecutionContext::for_tests(14);
     let inference = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8));
 
