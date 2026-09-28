@@ -24,7 +24,6 @@ from ..results import (
     SupportReport,
     ValidationView,
 )
-from ..results._execution import Answer
 from ._day1 import (
     Evidence,
     Source,
