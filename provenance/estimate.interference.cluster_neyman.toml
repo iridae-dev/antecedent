@@ -1,0 +1,24 @@
+feature_id = "estimate.interference.cluster_neyman"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings under a known assignment design"] },
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["conservative variance that omits the unobservable treatment-effect variance, applied here to independent clusters"] },
+]
+
+implementation_deviations = [
+ "Licensed for complete cluster randomization on a fixed partial-interference network. The contrast is the (0,0) to (1,1) total effect of assigning a cluster, not a direct-versus-spillover decomposition.",
+ "The interval is a pointwise Welch interval from between-cluster Neyman variation. It is not Aronow and Samii's joint-exposure-probability variance.",
+ "Partial interference and the exposure mapping are declared. Bernoulli and observational designs do not inherit this estimator.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/interference.rs",
+ "crates/antecedent/src/analysis/execute/checked_interference.rs",
+]

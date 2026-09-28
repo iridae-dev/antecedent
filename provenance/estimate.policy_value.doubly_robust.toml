@@ -1,0 +1,23 @@
+feature_id = "estimate.policy_value.doubly_robust"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Doubly Robust Policy Evaluation and Learning", sections = ["augmented inverse-probability score for the value of a fixed policy"] },
+]
+
+implementation_deviations = [
+ "Propensities and nuisance predictions are caller-supplied. This estimator does not fit them, cross-fit them, or learn the policy.",
+ "The policy and its reference are frozen before the evaluation outcomes. The interval is a pointwise Wald interval from paired independent-subject scores.",
+ "Publishing the interval requires the caller to have established fixed recommendations, known randomized propensities, independent subjects, and held-out nuisance predictions. The support floor is 120 evaluation rows and 10 matches for the policy and the reference.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/policy_value.rs",
+ "crates/antecedent/tests/policy_value_route.rs",
+]

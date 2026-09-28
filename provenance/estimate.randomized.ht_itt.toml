@@ -1,0 +1,23 @@
+feature_id = "estimate.randomized.ht_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["inverse-probability estimator of a population total, applied here to an action contrast with known assignment probabilities"] },
+]
+
+implementation_deviations = [
+ "The row score is I(A=action)Y/p_action minus I(A=reference)Y/p_reference. Probabilities are known inputs.",
+ "The published variance is the independent-row score sandwich. Between-row effect variation enters that sandwich and is absent from the fixed-population randomization variance, so the sandwich is conservative for that randomization variance.",
+ "The normal interval is withheld unless the calibrated support floor is met: enough rows, enough observed rows in each contrasted action, and a minimum declared action probability.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_scores.rs",
+ "crates/antecedent/tests/randomized_trial_route.rs",
+]
