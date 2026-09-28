@@ -47,26 +47,39 @@ const BOOT: u32 = 199;
 // Data-generating processes (columns match the class-posterior lag masks).
 // ---------------------------------------------------------------------------
 
-/// Pulse law on `[t (0), y (1), z (2)]`:
-/// `z[s] ~ N(0,1)`, `t[s] = 0.5 z[s] + e`, `y[s] = 1 + 2 t[s-1] + 0.8 z[s-1] + e`.
+/// Pulse law on `[t (0), y (1), z (2), w (3)]`:
+/// `z[s] ~ N(0,1)`, `w[s] = 0.4 z[s] + e`, `t[s] = 0.5 z[s] + 0.4 w[s] + e`,
+/// `y[s] = 1 + 2 t[s-1] + 0.8 z[s-1] + e`.
 ///
 /// `z@-1` confounds `t@-1` and `y` (via `z[s-1] -> t[s-1]` and `z[s-1] -> y[s]`),
 /// so adjusting for `{z@-1}` identifies the lag-1 effect of `t` on `y`. The pulse
 /// contrast `E[y | do(t@-1 = 1)] - E[y | do(t@-1 = 0)] = 2.0*(1 - 0) = 2.0`; the
 /// intercept and the `0.8 z@-1` term cancel in the do(1)-do(0) contrast.
+///
+/// `w` is the second contemporaneous parent of `t` (`t = 0.5 z + 0.4 w`, `w` a
+/// child of `z`) and has no path to `y`: it is the visibility witness that makes
+/// the definite lag-1 `t@-1 -> y@0` edge visible under a PAG (Zhang 2008), the
+/// temporal analog of the static `agreeing_pag`'s `r`. The only backdoor path it
+/// opens, `t@-1 <- w@-1 <- z@-1 -> y@0`, is already blocked by `{z@-1}`, so the
+/// adjustment set and the truth `2.0` are unchanged.
 fn pulse_series(n: usize, seed: u64) -> TimeSeriesData {
     const BURN: usize = 10;
     let len = n + BURN;
     let mut noise = gaussian(seed);
-    let (mut t, mut y, mut z) = (vec![0.0; len], vec![0.0; len], vec![0.0; len]);
+    let (mut t, mut y, mut z, mut w) =
+        (vec![0.0; len], vec![0.0; len], vec![0.0; len], vec![0.0; len]);
     for s in 0..len {
         z[s] = noise();
-        t[s] = 0.5 * z[s] + noise();
+        w[s] = 0.4 * z[s] + noise();
+        t[s] = 0.5 * z[s] + 0.4 * w[s] + noise();
         let (t1, z1) = if s == 0 { (0.0, 0.0) } else { (t[s - 1], z[s - 1]) };
         y[s] = 1.0 + 2.0 * t1 + 0.8 * z1 + noise();
     }
-    TimeSeriesData::from_f64_columns([("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])], 1)
-        .unwrap()
+    TimeSeriesData::from_f64_columns(
+        [("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..]), ("w", &w[BURN..])],
+        1,
+    )
+    .unwrap()
 }
 
 /// Sustained law on `[t (0), y (1), z (2)]`, the pulse law plus a lag-2 `t -> y`
@@ -154,14 +167,16 @@ fn temporal_atom(
     .unwrap()
 }
 
-/// Pulse atom on `[t, y, z]`: lag-1 edges `t@-1 -> y` and `z@-1 -> y`.
-/// Bits (lag-1, `from*3 + to`): `t(0)->y(1)` = 1, `z(2)->y(1)` = 7; mask `130`.
+/// Pulse atom on `[t, y, z, w]`: lag-1 edges `t@-1 -> y` and `z@-1 -> y`.
+/// Bits (lag-1, `from*4 + to`): `t(0)->y(1)` = 1, `z(2)->y(1)` = 9; mask `514`.
 fn pulse_atom(kind: GraphPosteriorAtomKind) -> GraphPosterior {
-    let lag_mask = (1u64 << 1) | (1u64 << 7);
-    // Contemporaneous z -> t (the DGP's t = 0.5 z), so z@-1 confounds the lag-1
-    // t -> y effect and identification adjusts for it.
-    let contemporaneous = set_edge(0, 3, 2, 0, true);
-    temporal_atom(kind, 3, contemporaneous, 1, lag_mask)
+    let lag_mask = (1u64 << 1) | (1u64 << 9);
+    // Contemporaneous z -> t and w -> t (the DGP's t = 0.5 z + 0.4 w): z@-1
+    // confounds the lag-1 t -> y effect and identification adjusts for it, while
+    // w@-1 (no edge to y@0) is the visibility witness that makes t@-1 -> y@0
+    // visible under the Pag atom kind (matches pulse_series).
+    let contemporaneous = set_edge(set_edge(0, 4, 2, 0, true), 4, 3, 0, true);
+    temporal_atom(kind, 4, contemporaneous, 1, lag_mask)
 }
 
 /// Sustained atom on `[t, y, z]`: the pulse edges plus `t@-2 -> y`.
