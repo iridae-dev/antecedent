@@ -193,10 +193,6 @@ from .transport.advanced import (
     TransportResponseGridQuery,
 )
 
-# Preferred name for the native temporal DTO.
-NativeAnalysisResult = TemporalAnalysisResult
-
-
 def _refutation_reports_from_raw(validation: Any) -> list[RefutationReport]:
     """One :class:`RefutationReport` per entry in a nested ``validation.reports``."""
     return [
