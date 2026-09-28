@@ -50,7 +50,7 @@ test that drops its builder, executes the retained plan, and inspects it.
 `scripts/gate_support_matrix.sh` resolves those citations and
 `scripts/gate_checked_execution.sh` runs them.
 
-Interval calibration of the 472 licensed cells: 395 cite coverage records; 73 across 35 distinct coordinates have no coverage measurement for their estimator (`estimator_grid_not_measured`); 4 report no interval (`no_interval_reported`). A licensed cell therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
+Interval calibration of the 472 licensed cells: 424 cite coverage records; 44 across 22 distinct coordinates have no coverage measurement for their estimator (`estimator_grid_not_measured`); 4 report no interval (`no_interval_reported`). A licensed cell therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
