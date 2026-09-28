@@ -24,7 +24,7 @@ use antecedent_core::{
     TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge};
 use antecedent_graph::{
     Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalPag,
     TieredBackground, WithinTier,
@@ -1181,10 +1181,13 @@ fn lag_bit4(from: usize, to: usize) -> u64 {
 fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     let n = 4;
     let lag_mask = lag_bit4(0, 1) | lag_bit4(2, 1);
+    // Contemporaneous z -> t (the DGP's t = 0.5 z), so z@-1 confounds the lag-1
+    // t -> y effect and identification adjusts for it (matches agreeing_temporal_cpdag).
+    let contemporaneous = set_edge(0, n, 2, 0, true);
     GraphPosterior::new(
         n,
         vec![1.0],
-        vec![0u64],
+        vec![contemporaneous],
         vec![0.0; n * n],
         vec![0.0; n * n],
         1.0,
