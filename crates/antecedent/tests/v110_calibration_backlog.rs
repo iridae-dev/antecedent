@@ -1057,6 +1057,12 @@ fn temporal_response(horizons: &[u32]) -> TemporalResponseSpec {
     TemporalResponseSpec::new(horizons.to_vec(), TemporalPolicy::pulse(-1), None).unwrap()
 }
 
+/// Series DGP for the temporal-class fixtures: `z ~ N(0,1)`, `w = 0.4 z + eps`,
+/// `t = 0.5 z + 0.4 w + eps`, `y[s] = 1 + 2 t[s-1] + 0.8 z[s-1] + eps`. `t` has
+/// two contemporaneous parents, the confounder `z` (also a parent of `y`) and
+/// `w` (a child of `z`, no path to `y`); `w`'s arrowhead into `t` with no
+/// adjacency to `y` is the visibility witness that makes the lag-1 `t -> y`
+/// edge visible under a PAG, mirroring the static `agreeing_pag`'s `r`.
 fn agreeing_temporal_series(n: usize, seed: u64) -> TimeSeriesData {
     const BURN: usize = 10;
     let len = n + BURN;
@@ -1066,7 +1072,7 @@ fn agreeing_temporal_series(n: usize, seed: u64) -> TimeSeriesData {
     for s in 0..len {
         z[s] = noise();
         w[s] = 0.4 * z[s] + noise();
-        t[s] = 0.5 * z[s] + noise();
+        t[s] = 0.5 * z[s] + 0.4 * w[s] + noise();
         let (t_lag, z_lag) = if s == 0 { (0.0, 0.0) } else { (t[s - 1], z[s - 1]) };
         y[s] = 1.0 + 2.0 * t_lag + 0.8 * z_lag + noise();
     }
@@ -1077,8 +1083,11 @@ fn agreeing_temporal_series(n: usize, seed: u64) -> TimeSeriesData {
     .unwrap()
 }
 
-/// `Z@-1 -> T@-1`, `Z@-1 -> Y`, `T@-1 -> Y`, `W@-1 — Z@-1`. Both orientations
-/// of the ambiguous edge adjust `{Z@-1}`, so they share one band.
+/// `Z@-1 -> T@-1`, `W@-1 -> T@-1`, `Z@-1 -> Y`, `T@-1 -> Y`, `W@-1 — Z@-1`.
+/// `W@-1` is the second parent of `T@-1` the DGP gives it (`t = 0.5 z + 0.4 w`)
+/// and is not adjacent to `Y`. Both orientations of the ambiguous `W@-1 — Z@-1`
+/// edge leave `Z@-1` a non-collider on the only backdoor path, so both adjust
+/// `{Z@-1}` and share one band.
 fn agreeing_temporal_cpdag() -> TemporalCpdag {
     let mut graph = TemporalCpdag::empty();
     let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -1086,6 +1095,7 @@ fn agreeing_temporal_cpdag() -> TemporalCpdag {
     let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
     let w1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
     graph.insert_directed(z1, t1).unwrap();
+    graph.insert_directed(w1, t1).unwrap();
     graph.insert_directed(z1, y0).unwrap();
     graph.insert_directed(t1, y0).unwrap();
     graph.insert_undirected(w1, z1).unwrap();
@@ -1146,9 +1156,12 @@ fn temporal_bayes() -> InferenceMode {
     InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400).prior_scale(8.0))
 }
 
-/// `Z@-1 o-> T@-1`, `Z@-1 -> Y@0`, `T@-1 -> Y@0`, `W@-1 o-o Z@-1`. The
-/// analog of the static `agreeing_pag`: the definite `T@-1 -> Y@0` edge is
-/// visible, and every completion of the circle marks still adjusts `{Z@-1}`
+/// `Z@-1 o-> T@-1`, `W@-1 o-> T@-1`, `Z@-1 -> Y@0`, `T@-1 -> Y@0`,
+/// `W@-1 o-o Z@-1`. The analog of the static `agreeing_pag`: `W@-1` is the
+/// second parent of `T@-1` the DGP gives it (`t = 0.5 z + 0.4 w`) with an
+/// arrowhead into `T@-1` and no adjacency to `Y@0`, so it is the visibility
+/// witness that makes the definite `T@-1 -> Y@0` edge visible (the static twin's
+/// role for `r`). Every completion of the circle marks still adjusts `{Z@-1}`
 /// (`Z@-1 -> T@-1` or `Z@-1 <-> T@-1` both leave `Z@-1` a non-collider on the
 /// only backdoor path), so the identified set collapses to one shared band the
 /// way `agreeing_temporal_cpdag` does.
@@ -1161,6 +1174,7 @@ fn agreeing_temporal_pag() -> TemporalPag {
     graph.insert_directed(z1, y0).unwrap();
     graph.insert_directed(t1, y0).unwrap();
     graph.insert_circle_arrow(z1, t1).unwrap();
+    graph.insert_circle_arrow(w1, t1).unwrap();
     graph.insert_circle_circle_with_middle(w1, z1, MiddleMark::Unknown).unwrap();
     graph
 }
@@ -1173,17 +1187,22 @@ fn lag_bit4(from: usize, to: usize) -> u64 {
 
 /// One fully identified single-atom temporal class posterior (weight `[1.0]`)
 /// over the four variables of `agreeing_temporal_series`. The atom carries the
-/// two directed lagged edges `T@-1 -> Y@0` and `Z@-1 -> Y@0` (no contemporaneous
-/// edges, no circle marks), so the g-computation adjusts `{Z@-1}` and identifies
+/// two directed lagged edges `T@-1 -> Y@0` and `Z@-1 -> Y@0` and the two
+/// contemporaneous parents of `T@-1` the DGP gives it, `Z@-1 -> T@-1` (the
+/// confounder identification adjusts for) and `W@-1 -> T@-1` (the visibility
+/// witness, not adjacent to `Y@0`, that makes `T@-1 -> Y@0` visible under the
+/// `Pag` atom kind). The g-computation adjusts `{Z@-1}` and identifies
 /// `E[Y@0 | do(T@-1 = a)]` to the same level the explicit graph does. This is a
 /// genuine `.graph_posterior` construction (atom kind decides the reported
 /// TemporalCpdag / TemporalPag class), not the classifier's name tolerance.
 fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     let n = 4;
     let lag_mask = lag_bit4(0, 1) | lag_bit4(2, 1);
-    // Contemporaneous z -> t (the DGP's t = 0.5 z), so z@-1 confounds the lag-1
-    // t -> y effect and identification adjusts for it (matches agreeing_temporal_cpdag).
-    let contemporaneous = set_edge(0, n, 2, 0, true);
+    // Contemporaneous z -> t and w -> t (the DGP's t = 0.5 z + 0.4 w): z@-1
+    // confounds the lag-1 t -> y effect and identification adjusts for it, while
+    // w@-1 (no edge to y@0) is the visibility witness that makes t@-1 -> y@0
+    // visible under the Pag atom kind (matches agreeing_temporal_cpdag / _pag).
+    let contemporaneous = set_edge(set_edge(0, n, 2, 0, true), n, 3, 0, true);
     GraphPosterior::new(
         n,
         vec![1.0],
