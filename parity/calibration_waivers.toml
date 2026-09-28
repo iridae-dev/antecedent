@@ -138,12 +138,12 @@ differences = [
 "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage" = "279a360a48ea48b6d7e4df8d26246b28b97b708de5c01c6c104a597222bb6c24"
 
 [[waiver]]
-id = "cleanup-2-1-703-1bff59be"
+id = "cleanup-2-1-703-98ccb1a3"
 from = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
-to = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
+to = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
 reviewed_by = "Charles Hinshaw"
 justification = """
-The 2.1 dead-code / SOLID-DRY cleanup plus the unused-faer-feature trim: removed unreachable code, unified byte-identical helpers, consolidated the 95% z constant to its exact value, relocated code between modules verbatim, and dropped faer default features we do not use -- drifting these surface paths without moving any record this waiver covers. The temporal and class graph-posterior Bayesian cells, whose numbers did move in this range, are re-measured rather than waived.\
+Surface drift since these records were measured, reviewed as unable to move a covered number: the 2.1 dead-code removal and shared-helper consolidation, the exact 95% z constant, verbatim module moves, the trimmed workspace manifests, formatting, and the boundary-cell bookkeeping in the calibration suites. The range also holds behavioural changes to the temporal graph-posterior response paths (single-atom DBN-posterior uncertainty, the draws-agnostic temporal-class band, the class-posterior joint-influence gate, the pooled temporal class-posterior interval); the records on those paths were re-run and match their stored values. Records built on the changed pulse series fixture are re-measured, not waived.\
 """
 paths = [
   "Cargo.lock",
@@ -353,7 +353,7 @@ exercises = [
 ]
 
 [[waiver.replay]]
-record = "cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage"
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l90.class_posterior_frequentist_ate_joint_if_nominal_90_coverage"
 exercises = [
   "crates/antecedent-estimate/src/adjustment.rs",
 ]
@@ -443,20 +443,20 @@ exercises = [
 ]
 
 [[waiver.replay]]
-record = "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage"
+record = "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage"
 exercises = [
   "crates/antecedent/tests/v110_calibration_temporal_class.rs",
 ]
 
 [waiver.outcome]
-replayed_at = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
+replayed_at = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
 identical = true
 records = [
   "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
   "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage",
   "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage",
   "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage",
-  "cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage",
+  "cov.average_effect.cpdag.frequentist.analytic_se.l90.class_posterior_frequentist_ate_joint_if_nominal_90_coverage",
   "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
   "cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_frequentist_nominal_90_coverage",
   "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage",
@@ -471,7 +471,7 @@ records = [
   "cov.average_effect.unknown.frequentist.simultaneous_band.l95.average_effect_unknown_frequentist_joint_band_nominal_coverage",
   "cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_query_dag_bayesian_neighbor_count_nominal_coverage",
   "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage",
-  "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage",
+  "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage",
 ]
 differences = [
 ]
@@ -481,11 +481,11 @@ differences = [
 "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage" = "46fbdeb2d08279a6c60c07364dfda5a4b38745ea67b6cddfe494f40db5dc52be"
 "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage" = "51b02213df386e5def29f36288190f8bd455d3fecc93e17988cf52d26c5bd81b"
 "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage" = "936df28c4ad5597e993f27f79b941d5f091a5ddc5254b8a6b8d09f926fb4636b"
+"cov.average_effect.cpdag.frequentist.analytic_se.l90.class_posterior_frequentist_ate_joint_if_nominal_90_coverage" = "635167edf7f3bc4fac4feed161b1d2d4456f2855c55645b27091a7424fe509b1"
 "cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage" = "1b1ae2133cce2712683c45ab265b614b1104fd9f508126018c7faf263e1bb112"
 "cov.average_effect.dag.frequentist.analytic_se.l95.causal_forest_analytic_ci_coverage" = "bdb7027d8bfd6da75258de27631180e07a16fd4edbf19cb2eba545397cd815ce"
 "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_saturated_ci_coverage" = "5914aa8faba559d508841b4596e1faaec9035e05988c0bd2560eb3a32014f7ec"
 "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_ci_coverage" = "1f8c2c77fb6ebd1a9dd8413393409db0e08b57d5a3bd664222277ae7b4f3e910"
-"cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage" = "21d97349effc05dc38acfb0b71ff831588b5adcc05f788b6116a3ba38faca3e3"
 "cov.average_effect.dag.frequentist.analytic_se.l95.matching_heterogeneous_atc_ci_coverage" = "08179df57c896a205aa5d0ab278aac9df06fd1ff87c765e77894ca10fd8a84ab"
 "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage" = "4ff749056a39202e1dc98ba5f2d0788f1f9438159ecf9fe1432388c1898fafe3"
 "cov.average_effect.dag.frequentist.anderson_rubin.l95.iv_2sls_analytic_ci_coverage" = "c669cddc7d8418572d1ac0626bf746a0a002db88bd7c8db42e65bbafb7fbc350"
@@ -495,16 +495,16 @@ differences = [
 "cov.intervention_response.cpdag.frequentist.analytic_se.l90.intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage" = "4281850bcee22c91e1fdef94812cdd0f852bd70362b6718e7f5858ba461503e8"
 "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_graph_posterior_intervention_response_nominal_coverage" = "920276baaee2db2e21b775736994b1d1338b994b2bbacd9ec90af367b3035b20"
 "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage" = "a8cedd0ed44f5bfc3ecc817e9bde6716364f71b6c2b750601d1766f620c66bfd"
-"cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage" = "f9bd6ef0407b833f76e4389dc3231d7c619c9e52f6de2b5a0df55d735360c638"
+"cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage" = "279a360a48ea48b6d7e4df8d26246b28b97b708de5c01c6c104a597222bb6c24"
 "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.kappa_med_kappa" = "b50c4fdcbfd454a3d9479deda09ddd22372c3568e2c146d74c219d8c41a24368"
 
 [[waiver]]
-id = "cleanup-2-1-103-1bff59be"
+id = "cleanup-2-1-103-98ccb1a3"
 from = "60a26225a4a0377b09832938be331e5f34e3d662"
-to = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
+to = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
 reviewed_by = "Charles Hinshaw"
 justification = """
-The 2.1 dead-code / SOLID-DRY cleanup plus the unused-faer-feature trim: removed unreachable code, unified byte-identical helpers, consolidated the 95% z constant to its exact value, relocated code between modules verbatim, and dropped faer default features we do not use -- drifting these surface paths without moving any record this waiver covers. The temporal and class graph-posterior Bayesian cells, whose numbers did move in this range, are re-measured rather than waived.\
+Surface drift since these records were measured, reviewed as unable to move a covered number: the 2.1 dead-code removal and shared-helper consolidation, the exact 95% z constant, verbatim module moves, the trimmed workspace manifests, formatting, and the boundary-cell bookkeeping in the calibration suites. The range also holds behavioural changes to the temporal graph-posterior response paths (single-atom DBN-posterior uncertainty, the draws-agnostic temporal-class band, the class-posterior joint-influence gate, the pooled temporal class-posterior interval); the records on those paths were re-run and match their stored values. Records built on the changed pulse series fixture are re-measured, not waived.\
 """
 paths = [
   "Cargo.lock",
@@ -587,6 +587,8 @@ paths = [
   "crates/antecedent/src/analysis/statistical.rs",
   "crates/antecedent/src/planner/logical.rs",
   "crates/antecedent/src/strategy_table/dispatch.rs",
+  "crates/antecedent/tests/v110_calibration_backlog.rs",
+  "crates/antecedent/tests/v110_calibration_temporal_class.rs",
 ]
 
 [[waiver.replay]]
@@ -675,6 +677,14 @@ exercises = [
   "crates/antecedent-estimate/src/response/policy.rs",
   "crates/antecedent-estimate/src/response/support.rs",
   "crates/antecedent-estimate/src/response/transform.rs",
+  "crates/antecedent/tests/v110_calibration_backlog.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/temporal_mediation.rs",
+  "crates/antecedent/tests/v110_calibration_temporal_class.rs",
 ]
 
 [[waiver.replay]]
@@ -683,20 +693,14 @@ exercises = [
   "crates/antecedent-estimate/src/frontdoor.rs",
 ]
 
-[[waiver.replay]]
-record = "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage"
-exercises = [
-  "crates/antecedent-estimate/src/temporal_mediation.rs",
-]
-
 [waiver.outcome]
-replayed_at = "1bff59be1c44d8d164ea162a84c3c14bd274412f"
+replayed_at = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
 identical = true
 records = [
   "cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_frequentist_envelope_nominal_coverage",
   "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.a_0",
-  "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_arm_linear_ci_coverage",
   "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_functional_arm_linear_ci_coverage",
 ]
 differences = [
 ]
