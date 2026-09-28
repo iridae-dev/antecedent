@@ -2731,6 +2731,20 @@ fn mix_response_uncertainty(items: &[(f64, &ResponseUncertainty)]) -> ResponseUn
             return (*uncertainty).clone();
         }
     }
+    // Markov-equivalent completions of a fully identified class produce the same
+    // adjustment, hence the same estimate and the same interval (for a Bayesian
+    // response, the same retained draws). Their weighted posterior is that one
+    // distribution, so the class interval is the shared interval — collapsing
+    // agreeing completions invents nothing, unlike averaging distinct components.
+    if let Some((first_weight, first)) = items.first() {
+        if first_weight.is_finite()
+            && *first_weight > 0.0
+            && !matches!(**first, ResponseUncertainty::None)
+            && items.iter().all(|(weight, u)| weight.is_finite() && *weight > 0.0 && *u == *first)
+        {
+            return (*first).clone();
+        }
+    }
     ResponseUncertainty::None
 }
 
