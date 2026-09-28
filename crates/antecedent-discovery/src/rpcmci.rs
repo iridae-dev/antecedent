@@ -391,7 +391,6 @@ impl Rpcmci {
             diagnostics,
         })
     }
-
 }
 
 /// Effective-row mask: keep sample `i` (raw time `i + max_lag`) only when the full

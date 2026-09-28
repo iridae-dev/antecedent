@@ -24,7 +24,9 @@ use antecedent_core::{
     TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge};
+use antecedent_discovery::{
+    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+};
 use antecedent_graph::{
     Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalPag,
     TieredBackground, WithinTier,

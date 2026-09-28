@@ -286,6 +286,7 @@ fn effect_col(result: &StudyResult) -> usize {
 /// the single identified atom is not `NotIdentified`, and that the interval is
 /// actually published (a hollow, withheld interval fails here instead of
 /// silently recording a miss).
+#[allow(clippy::too_many_arguments)]
 fn coverage(
     test: &'static str,
     dgp: &'static str,

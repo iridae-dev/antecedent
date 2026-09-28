@@ -2316,7 +2316,8 @@ impl super::Study {
                 // `InterventionResponse` band now retains its posterior draws (only the
                 // single-atom graph-posterior scalar path consumes them), so drop them
                 // here to keep the completions poolable and the class band unchanged.
-                if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty {
+                if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty
+                {
                     *draws = None;
                 }
                 let atom_assumptions = response.assumptions.clone();

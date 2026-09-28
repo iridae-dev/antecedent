@@ -556,8 +556,7 @@ pub fn temporal_dag_from_dbn_masks(
 trait LaggedGraph {
     fn nodes(&self) -> &[NodeRef];
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError>;
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId)
-    -> Result<(), GraphError>;
+    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError>;
 }
 
 impl LaggedGraph for TemporalCpdag {
@@ -567,11 +566,7 @@ impl LaggedGraph for TemporalCpdag {
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
         TemporalCpdag::add_lagged(self, variable, lag)
     }
-    fn insert_directed(
-        &mut self,
-        from: DenseNodeId,
-        to: DenseNodeId,
-    ) -> Result<(), GraphError> {
+    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
         TemporalCpdag::insert_directed(self, from, to)
     }
 }
@@ -583,11 +578,7 @@ impl LaggedGraph for TemporalPag {
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
         TemporalPag::add_lagged(self, variable, lag)
     }
-    fn insert_directed(
-        &mut self,
-        from: DenseNodeId,
-        to: DenseNodeId,
-    ) -> Result<(), GraphError> {
+    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
         TemporalPag::insert_directed(self, from, to)
     }
 }
