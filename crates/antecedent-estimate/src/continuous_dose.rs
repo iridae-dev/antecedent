@@ -205,7 +205,7 @@ pub fn fixed_dose_policy_value(
         && incremental_variance > 0.0;
     let interval = |value: f64, variance: f64| {
         interval_supported.then(|| {
-            let radius = 1.959_963_984_540_054 * variance.sqrt();
+            let radius = antecedent_stats::NORMAL_Q975 * variance.sqrt();
             [value - radius, value + radius]
         })
     };

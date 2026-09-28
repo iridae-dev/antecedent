@@ -1605,7 +1605,7 @@ fn validate_randomized_graphless(
     let z95 = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
         antecedent_stats::student_t_ppf(0.975, (block_counts.len() - 1) as f64)
     } else {
-        1.959_963_984_540_054
+        antecedent_stats::NORMAL_Q975
     };
     let primary_interval_valid = match (randomized.standard_error, randomized.interval_95) {
         (None, None) => result.standard_error.is_none(),
@@ -2294,7 +2294,7 @@ fn validate_continuous_dose_graphless(
             || intervals.iter().any(|interval| interval.is_some() != policy_interval)
             || intervals.iter().zip(centers).zip(variances).any(|((interval, center), variance)| {
                 interval.is_some_and(|[lower, upper]| {
-                    let radius = 1.959_963_984_540_054 * variance.sqrt();
+                    let radius = antecedent_stats::NORMAL_Q975 * variance.sqrt();
                     !lower.is_finite()
                         || !upper.is_finite()
                         || (lower - (center - radius)).abs() > 1e-8
@@ -2969,7 +2969,7 @@ fn validate_did_graphless(result: &AnalysisResultWire) -> Result<(), IoError> {
     } else {
         match (did.interval_95, did.standard_error) {
             (Some(bounds), Some(se)) if interval_supported && se.is_finite() && se > 0.0 => {
-                let radius = 1.959_963_984_540_054 * se;
+                let radius = antecedent_stats::NORMAL_Q975 * se;
                 let tolerance = 1e-8 * (1.0 + did.effect.abs() + radius.abs());
                 bounds.iter().all(|value| value.is_finite())
                     && (bounds[0] - (did.effect - radius)).abs() <= tolerance
