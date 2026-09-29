@@ -1,9 +1,35 @@
-# Every action in .github/workflows is pinned to a commit SHA (with the tag it
-# resolves to in a trailing comment). Dependabot proposes the bumps, so the pins
-# stay fresh without going back to mutable tags.
+# Every action in .github/workflows is pinned to a commit SHA, with the release
+# tag in a trailing comment. That comment is the version Dependabot bumps, so it
+# has to be the full tag (`v2.9.2`), not a floating major (`v2`).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+    # The pin comment is the Rust toolchain this job installs, not an action
+    # release. dtolnay/rust-toolchain has no current semver tag.
+    ignore:
+      - dependency-name: "dtolnay/rust-toolchain"
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ["*"]
+
+  - package-ecosystem: uv
+    directory: /python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
