@@ -58,18 +58,53 @@ pub fn dag_wire_from_gml(gml: &str) -> Result<DagWire, IoError> {
 
 /// Parse GML into [`DagWire`] plus node labels in dense-id order.
 fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoError> {
+    let doc = parse_gml_document(gml)?;
+    let edges: Vec<(u32, u32)> = doc.edges.iter().map(|e| (e.from, e.to)).collect();
+    // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
+    match graph_dot::remap_numeric_dense(&doc.names, &edges)? {
+        // Dense id == numeric label in this case, so the label carries no
+        // information beyond the dense index; fall back to index strings.
+        Some(wire) => {
+            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
+            Ok((wire, names))
+        }
+        None => {
+            let node_count = u32::try_from(doc.names.len()).map_err(|_| IoError::TooLarge)?;
+            Ok((DagWire { node_count, edges }, doc.names))
+        }
+    }
+}
+
+/// One GML `edge` block, bound to declared node ids.
+pub(crate) struct GmlRawEdge {
+    pub(crate) from: u32,
+    pub(crate) to: u32,
+    /// Remaining edge attributes (lowercased keys), e.g. `undirected`, `mark_a`.
+    pub(crate) attrs: HashMap<String, String>,
+}
+
+/// A parsed `graph [ directed 1 ... ]` document: nodes in declaration order
+/// and edges bound against node `id` keys.
+pub(crate) struct GmlDocument {
+    /// Display names (`label`, else `id`) in dense-id (declaration) order.
+    pub(crate) names: Vec<String>,
+    pub(crate) edges: Vec<GmlRawEdge>,
+}
+
+/// Parse the shared GML subset used by every graph kind.
+///
+/// Nodes are collected before any edge is bound, so declaration order does
+/// not matter; an edge endpoint naming no declared node and a node `id`
+/// declared twice are both refused rather than silently repaired.
+pub(crate) fn parse_gml_document(gml: &str) -> Result<GmlDocument, IoError> {
     let tokens = tokenize(gml)?;
     let mut i = 0;
     expect_ident(&tokens, &mut i, "graph")?;
     expect_char(&tokens, &mut i, '[')?;
 
     let mut directed: Option<bool> = None;
-    // Edges reference node `id`; display names prefer `label` when present.
-    let mut id_order: Vec<String> = Vec::new();
-    let mut id_index: HashMap<String, u32> = HashMap::new();
-    let mut names: Vec<String> = Vec::new();
-    let mut edges: Vec<(u32, u32)> = Vec::new();
-
+    let mut nodes: Vec<HashMap<String, String>> = Vec::new();
+    let mut raw_edges: Vec<HashMap<String, String>> = Vec::new();
     while i < tokens.len() {
         if matches!(&tokens[i], Tok::Char(']')) {
             break;
@@ -77,51 +112,15 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
         match &tokens[i] {
             Tok::Ident(k) if k.eq_ignore_ascii_case("directed") => {
                 i += 1;
-                let v = expect_number(&tokens, &mut i)?;
-                directed = Some(v != 0.0);
+                directed = Some(expect_number(&tokens, &mut i)? != 0.0);
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("node") => {
                 i += 1;
-                expect_char(&tokens, &mut i, '[')?;
-                let mut id: Option<String> = None;
-                let mut label: Option<String> = None;
-                while i < tokens.len() && !matches!(&tokens[i], Tok::Char(']')) {
-                    let key = expect_any_ident(&tokens, &mut i)?.to_ascii_lowercase();
-                    let val = expect_value(&tokens, &mut i)?;
-                    match key.as_str() {
-                        "id" => id = Some(val),
-                        "label" => label = Some(val),
-                        _ => {}
-                    }
-                }
-                expect_char(&tokens, &mut i, ']')?;
-                let id = id.ok_or_else(|| IoError::Convert("node missing id".into()))?;
-                let display = label.unwrap_or_else(|| id.clone());
-                let dense = graph_dot::intern(&id, &mut id_order, &mut id_index)?;
-                if dense as usize == names.len() {
-                    names.push(display);
-                }
+                nodes.push(parse_attr_block(&tokens, &mut i)?);
             }
             Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
                 i += 1;
-                expect_char(&tokens, &mut i, '[')?;
-                let mut source: Option<String> = None;
-                let mut target: Option<String> = None;
-                while i < tokens.len() && !matches!(&tokens[i], Tok::Char(']')) {
-                    let key = expect_any_ident(&tokens, &mut i)?.to_ascii_lowercase();
-                    let val = expect_value(&tokens, &mut i)?;
-                    match key.as_str() {
-                        "source" => source = Some(val),
-                        "target" => target = Some(val),
-                        _ => {}
-                    }
-                }
-                expect_char(&tokens, &mut i, ']')?;
-                let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
-                let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-                let from = gml_bind_id(&s, &mut id_order, &mut id_index, &mut names)?;
-                let to = gml_bind_id(&t, &mut id_order, &mut id_index, &mut names)?;
-                edges.push((from, to));
+                raw_edges.push(parse_attr_block(&tokens, &mut i)?);
             }
             Tok::Ident(_) => {
                 // Skip unknown key/value pairs at graph level.
@@ -130,48 +129,54 @@ fn dag_wire_and_names_from_gml(gml: &str) -> Result<(DagWire, Vec<String>), IoEr
                     let _ = expect_value(&tokens, &mut i);
                 }
             }
-            other => {
-                return Err(IoError::Convert(format!("unexpected GML token {other:?}")));
-            }
+            other => return Err(IoError::Convert(format!("unexpected GML token {other:?}"))),
         }
     }
-
     if directed != Some(true) {
         return Err(IoError::Convert("GML graph must be directed 1".into()));
     }
-    if names.is_empty() {
+    if nodes.is_empty() {
         return Err(IoError::Convert("empty GML graph".into()));
     }
 
-    // Prefer numeric contiguous labels when all nodes are numeric 0..n-1.
-    match graph_dot::remap_numeric_dense(&names, &edges)? {
-        // Dense id == numeric label in this case, so the label carries no
-        // information beyond the dense index; fall back to index strings.
-        Some(wire) => {
-            let names = (0..wire.node_count).map(|i| i.to_string()).collect();
-            Ok((wire, names))
+    let mut id_order: Vec<String> = Vec::new();
+    let mut id_index: HashMap<String, u32> = HashMap::new();
+    let mut names = Vec::with_capacity(nodes.len());
+    for mut node in nodes {
+        let id = node.remove("id").ok_or_else(|| IoError::Convert("node missing id".into()))?;
+        if id_index.contains_key(&id) {
+            return Err(IoError::Convert(format!("GML node id `{id}` is declared twice")));
         }
-        None => {
-            let node_count = u32::try_from(names.len()).map_err(|_| IoError::TooLarge)?;
-            Ok((DagWire { node_count, edges }, names))
-        }
+        graph_dot::intern(&id, &mut id_order, &mut id_index)?;
+        names.push(node.remove("label").unwrap_or(id));
     }
+    let bind = |attrs: &mut HashMap<String, String>, key: &str| -> Result<u32, IoError> {
+        let v = attrs.remove(key).ok_or_else(|| IoError::Convert(format!("edge missing {key}")))?;
+        id_index
+            .get(&v)
+            .copied()
+            .ok_or_else(|| IoError::Convert(format!("GML edge {key} `{v}` names no declared node")))
+    };
+    let mut edges = Vec::with_capacity(raw_edges.len());
+    for mut attrs in raw_edges {
+        let from = bind(&mut attrs, "source")?;
+        let to = bind(&mut attrs, "target")?;
+        edges.push(GmlRawEdge { from, to, attrs });
+    }
+    Ok(GmlDocument { names, edges })
 }
 
-/// Resolve an edge endpoint against node `id` keys, creating a phantom node
-/// named by that id when the endpoint was not declared.
-fn gml_bind_id(
-    id: &str,
-    id_order: &mut Vec<String>,
-    id_index: &mut HashMap<String, u32>,
-    names: &mut Vec<String>,
-) -> Result<u32, IoError> {
-    if let Some(&d) = id_index.get(id) {
-        return Ok(d);
+/// Parse `[ key value ... ]` into a map with lowercased keys.
+fn parse_attr_block(tokens: &[Tok], i: &mut usize) -> Result<HashMap<String, String>, IoError> {
+    expect_char(tokens, i, '[')?;
+    let mut attrs = HashMap::new();
+    while *i < tokens.len() && !matches!(&tokens[*i], Tok::Char(']')) {
+        let key = expect_any_ident(tokens, i)?.to_ascii_lowercase();
+        let val = expect_value(tokens, i)?;
+        attrs.insert(key, val);
     }
-    let d = graph_dot::intern(id, id_order, id_index)?;
-    names.push(id.to_string());
-    Ok(d)
+    expect_char(tokens, i, ']')?;
+    Ok(attrs)
 }
 
 /// Emit GML from wire.
@@ -421,6 +426,37 @@ mod tests {
         let gml = "graph [ directed 0 node [ id 0 ] node [ id 1 ] edge [ source 0 target 1 ] ]";
         let err = dag_from_gml(gml).unwrap_err();
         assert!(matches!(err, IoError::Convert(_)));
+    }
+
+    #[test]
+    fn edge_to_undeclared_node_is_refused() {
+        let gml = r#"graph [ directed 1 node [ id "A" ] node [ id "B" ]
+            edge [ source "A" target "C" ] ]"#;
+        let err = dag_from_gml(gml).unwrap_err();
+        assert!(matches!(&err, IoError::Convert(m) if m.contains("`C`")), "{err:?}");
+        let err = crate::graph_mixed::cpdag_from_gml(gml).unwrap_err();
+        assert!(matches!(&err, IoError::Convert(m) if m.contains("`C`")), "{err:?}");
+    }
+
+    #[test]
+    fn duplicate_node_id_is_refused() {
+        let gml = r#"graph [ directed 1 node [ id "A" label "a1" ] node [ id "A" label "a2" ]
+            node [ id "B" ] edge [ source "A" target "B" ] ]"#;
+        let err = dag_from_gml(gml).unwrap_err();
+        assert!(matches!(&err, IoError::Convert(m) if m.contains("twice")), "{err:?}");
+        let err = crate::graph_mixed::admg_from_gml(gml).unwrap_err();
+        assert!(matches!(&err, IoError::Convert(m) if m.contains("twice")), "{err:?}");
+    }
+
+    #[test]
+    fn edge_before_node_declaration_keeps_the_label() {
+        let gml = r#"graph [ directed 1 edge [ source "a" target "b" ]
+            node [ id "a" label "Alpha" ] node [ id "b" label "Beta" ] ]"#;
+        let (dag, names) = dag_with_names_from_gml(gml).unwrap();
+        assert_eq!(names, vec!["Alpha".to_string(), "Beta".to_string()]);
+        assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+        let (_g, names) = crate::graph_mixed::pag_with_names_from_gml(gml).unwrap();
+        assert_eq!(names, vec!["Alpha".to_string(), "Beta".to_string()]);
     }
 
     #[test]
