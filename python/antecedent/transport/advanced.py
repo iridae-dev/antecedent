@@ -76,6 +76,12 @@ from ._multi_source import (
     consume_multi_source_z_transport_artifact,
     identify_multi_source_z_transport,
 )
+from ._scenarios import (
+    TransportScenario,
+    TransportScenarioSet,
+    consume_transport_scenarios_artifact,
+    prepare_transport_scenarios,
+)
 
 __all__ = [
     "ClassicalTransportIdentification",
@@ -109,6 +115,8 @@ __all__ = [
     "ZTransportCandidate",
     "ZTransportSensitivityResult",
     "TransportResponseGrid",
+    "TransportScenario",
+    "TransportScenarioSet",
     "TransportResponseGridQuery",
     "TrialAipwData",
     "TrialAipwQuery",
@@ -123,6 +131,7 @@ __all__ = [
     "consume_identification",
     "consume_response_grid",
     "consume_statistical",
+    "consume_transport_scenarios_artifact",
     "estimate_trial_effect",
     "evaluate_exact",
     "evaluate_statistical_grid",
@@ -140,6 +149,7 @@ __all__ = [
     "prepare_response_grid",
     "prepare_statistical",
     "prepare_trial",
+    "prepare_transport_scenarios",
     "reload_lowered_expression",
     "reload_lowered_program",
     "restore_lowered_program",

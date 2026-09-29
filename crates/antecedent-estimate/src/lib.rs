@@ -79,6 +79,7 @@ pub mod temporal_response_dispersion;
 pub mod temporal_sequential;
 pub mod temporal_sequential_tuples;
 pub mod transport;
+pub mod transport_scenarios;
 pub mod util;
 
 #[cfg(test)]

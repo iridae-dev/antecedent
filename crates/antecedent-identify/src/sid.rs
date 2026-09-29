@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 mod meta;
 mod mz_transport;
+pub mod scenarios;
 mod z_transport;
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{

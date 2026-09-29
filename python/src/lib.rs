@@ -63,6 +63,7 @@ mod transport_exact_api;
 mod transport_grid_api;
 mod transport_interference_api;
 mod transport_mz_api;
+mod transport_scenario_api;
 mod transport_statistical_api;
 mod transport_z_api;
 
@@ -2596,6 +2597,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transport_statistical_api::register(m)?;
     transport_z_api::register(m)?;
     transport_mz_api::register(m)?;
+    transport_scenario_api::register(m)?;
     learned_trial_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;

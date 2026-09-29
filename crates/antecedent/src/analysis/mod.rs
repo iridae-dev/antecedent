@@ -28,6 +28,7 @@ mod learned_trial;
 mod mz_transport;
 mod statistical;
 mod transport_grid;
+mod transport_scenarios;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
@@ -63,6 +64,7 @@ pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,
 };
+pub use transport_scenarios::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
 pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_artifact};
 pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod graph_posterior_target;

@@ -4346,6 +4346,54 @@ class PreparedZTransportStage:
     @property
     def seed(self) -> int: ...
 
+class PreparedTransportScenariosStage:
+    def estimate(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> str: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    def aggregate_interval(self) -> None: ...
+    def plan_summary(self) -> list[tuple[str, str]]: ...
+    def export(self) -> bytes: ...
+
+def prepare_transport_scenarios_stage(
+    scenarios: list[tuple[str, Admg, list[str], float | None]],
+    outcomes: list[str],
+    treatments: list[str],
+    source: str,
+    target: str,
+    catalog: Any,
+    laws: Any,
+    assignments: dict[str, float],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_scenarios: int = 64,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedTransportScenariosStage: ...
+def consume_transport_scenarios_artifact(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_scenarios: int = 64,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    max_laws: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
 class MultiSourceZTransportStage:
     @property
     def outcome(self) -> str: ...

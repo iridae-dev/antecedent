@@ -49,13 +49,14 @@ fabricated joint over both sources' interventions stays closed.
 ## 2.2 cells, closed until promotion
 
 These rows are frozen in `parity/promotion_2_2.toml` and refused until
-`scripts/gate_promotion.sh` accepts their evidence. None is licensed by this
-table, and no row here changes any cell above.
+`scripts/gate_promotion.sh` accepts their evidence. A row marked licensed has
+been promoted and has licensed stage rows in `parity/transport_stages.toml`;
+no row here changes any cell above.
 
 | Cell | Evidence premise | Identification | Execution | Uncertainty |
 | --- | --- | --- | --- | --- |
 | X1 multi-source limited experiments (mz-transportability), up to four sources | Per-source joint-regime laws; target observational joint | Closed (`cell_not_licensed`); planned sound and incomplete within declared bounds | Closed | Closed; planned calibrated joint bootstrap, withheld when dependence is unknown |
-| X2 finite supplied graph/selection scenarios | Evidence bound per scenario | Closed; each scenario uses an already licensed fixed-graph route | Closed | Closed; planned structural envelope only. Cross-scenario inference stays refused (`scenario_aggregate_not_licensed`) |
+| X2 finite supplied graph/selection scenarios (licensed 2.2A) | One catalog bound independently per scenario; exact or empirical plug-in laws | Each fixed selection-ADMG scenario decided by the licensed classical catalog route; only a verified s-hedge is a per-scenario impossibility claim; up to 64 scenarios over at most 12 shared variables | Every scenario retained with its status; structural envelope over identified scenarios; declared-weight report without renormalization; checked artifact replay | Structural envelope only, not a confidence interval; cross-scenario inference refuses (`scenario_aggregate_not_licensed`); CPDAG/PAG input refuses |
 | X4 learned continuous-outcome trial transport and estimator menu | Binary randomized source, continuous outcome, IID designs | Closed; existing direct/baseline standardization certificate | Closed | Closed; planned one calibrated whole-estimator bootstrap |
 | X5 two-step discrete temporal sequence | Unrolled finite discrete joints per window | Closed; planned sID on the two-slice unrolling | Closed | Point-only; temporal intervals stay refused in 2.2 |
 | X9 bounded mixed-source proof search | Upgraded catalog descriptors per distribution | Closed; planned sound, incomplete bounded search | Closed | Point-only |

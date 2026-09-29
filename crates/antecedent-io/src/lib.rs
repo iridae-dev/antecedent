@@ -51,6 +51,7 @@ pub mod transport_catalog_wire;
 pub mod transport_certificate;
 pub mod transport_interference_wire;
 pub mod transport_proof;
+pub mod transport_scenario_artifact;
 pub mod wire;
 pub mod z_transport_artifact;
 

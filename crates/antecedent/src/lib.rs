@@ -96,6 +96,7 @@ pub use analysis::{
     ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use analysis::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};

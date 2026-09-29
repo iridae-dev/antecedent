@@ -88,7 +88,7 @@ id = "2.2A.X2.finite_scenario_envelope"
 workstream = "X2"
 milestone = "A"
 work_package = "A2"
-status = "frozen"
+status = "promoted"
 consumer_question = "Which transport conclusions survive each of a finite, explicitly supplied set of graph/selection scenarios?"
 theorem = "No new theorem: each scenario is decided independently by an already licensed fixed-graph transport contract (classical sID, z-transport). The envelope is a report over those results, not an identification claim about an equivalence class."
 reference = "https://arxiv.org/abs/1312.7485v1"
@@ -115,21 +115,24 @@ refusals = [
   { code = "transport_budget_cancel", detail = "scenarios.unevaluated_budget", when = "Remaining scenarios are recorded unevaluated, never dropped." },
 ]
 routes = [
-  { name = "antecedent.transport.scenarios.prepare", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.scenarios.structural_envelope", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.scenarios.weighted_report", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.scenarios.consume", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.advanced.prepare_transport_scenarios", stage = "prepare", status = "licensed" },
+  { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.estimate.structural_envelope", stage = "evaluate", status = "licensed" },
+  { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.estimate.weighted_report", stage = "evaluate", status = "licensed" },
+  { name = "antecedent.transport.advanced.consume_transport_scenarios_artifact", stage = "consume", status = "licensed" },
   { name = "transport.scenarios.aggregate_inference", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true },
   { name = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", permanent_in_release = true },
 ]
 fixtures = [
-  { id = "x2.conflicting_identified.positive", role = "positive", intent = "All scenarios identified with conflicting answers; envelope spans them." },
-  { id = "x2.unidentified_mass.negative", role = "negative", intent = "Positive unidentified mass retained and named." },
-  { id = "x2.weighted_no_renormalization.negative", role = "negative", intent = "Weighted set with unidentified mass is not renormalized over survivors." },
-  { id = "x2.per_scenario_evidence.positive", role = "positive", intent = "Scenarios with different evidence obligations bind independently." },
-  { id = "x2.budget_truncated.budget", role = "budget", intent = "Budget-truncated set records unevaluated scenarios." },
-  { id = "x2.permutation.invariance", role = "invariance", intent = "Scenario order does not change identity or report." },
-  { id = "x2.roundtrip.artifact", role = "artifact", intent = "Artifact retains failed and successful scenarios." },
+  { id = "x2.conflicting_identified.positive", role = "positive", intent = "All scenarios identified with conflicting answers; envelope spans them.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "identified_scenarios_disagree_and_the_envelope_spans_them" },
+  { id = "x2.unidentified_mass.negative", role = "negative", intent = "Positive unidentified mass retained and named.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "an_unidentified_scenario_is_retained_with_positive_mass" },
+  { id = "x2.weighted_no_renormalization.negative", role = "negative", intent = "Weighted set with unidentified mass is not renormalized over survivors.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "declared_weights_are_never_renormalized_over_survivors" },
+  { id = "x2.per_scenario_evidence.positive", role = "positive", intent = "Scenarios with different evidence obligations bind independently.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "each_scenario_binds_its_own_evidence_obligations" },
+  { id = "x2.budget_truncated.budget", role = "budget", intent = "Budget-truncated set records unevaluated scenarios.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "a_scenario_budget_leaves_the_rest_unevaluated_with_a_receipt" },
+  { id = "x2.permutation.invariance", role = "invariance", intent = "Scenario order does not change identity or report.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "scenario_order_does_not_change_the_report_or_identity" },
+  { id = "x2.roundtrip.artifact", role = "artifact", intent = "Artifact retains failed and successful scenarios.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "artifact_keeps_every_scenario_and_fails_on_mutation" },
+  { id = "x2.refusals.negative", role = "negative", intent = "Cross-scenario inference refuses with scenario_aggregate_not_licensed; a CPDAG/PAG input refuses with route_not_supported.", evidence_test = "python/tests/test_transport_scenarios.py", evidence_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
+  { id = "x2.refresh.lifecycle", role = "lifecycle", intent = "Refresh keeps every decision and recompiles against new laws.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "estimate_after_refresh_keeps_decisions_and_moves_points" },
+  { id = "x2.python_roundtrip.artifact", role = "artifact", intent = "Python surface: prepare, estimate, export and independent consume keep every scenario.", evidence_test = "python/tests/test_transport_scenarios.py", evidence_assertion = "test_artifact_round_trip_keeps_failed_scenarios_and_refuses_tampering" },
 ]
 
 [[record]]
