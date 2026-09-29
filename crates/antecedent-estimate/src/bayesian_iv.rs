@@ -2,10 +2,11 @@
 //!
 //! The first stage is `T ~ 1 + Z`; the structural equation is `Y ~ 1 + T + v`,
 //! where `v` is the structural treatment disturbance and its coefficient in the outcome
-//! equation captures correlated structural errors (control function). Posterior draws propagate first-stage coefficient uncertainty and weight those draws by the
-//! integrated conditional outcome likelihood before drawing outcome coefficients. This is a
-//! joint posterior under declared fixed variances, not a generic IV guarantee. A
-//! first-stage F statistic below the configured threshold is refused.
+//! equation captures correlated structural errors (control function). Posterior draws propagate
+//! first-stage coefficient uncertainty. Under declared fixed variances those draws are weighted
+//! by the integrated conditional outcome likelihood, giving a joint posterior; with plug-in
+//! variances they are left unweighted. This is not a generic IV guarantee. A first-stage F
+//! statistic below the configured threshold is refused.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -195,7 +196,7 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
             }
         }
     }
-    let mut state = seed.max(1);
+    let mut state = seeded_state(seed);
     let mut effect_draws = Vec::with_capacity(draws);
     for _ in 0..draws {
         let z = [normal(&mut state), normal(&mut state), normal(&mut state), normal(&mut state)];
@@ -333,22 +334,10 @@ fn fit_bayesian_iv_inner(
 fn mean(x: &[f64]) -> f64 {
     x.iter().sum::<f64>() / x.len() as f64
 }
+/// Exchangeable-rank (type-6) quantile of sorted posterior draws, the rule every
+/// posterior-draw interval in the crate uses; `NaN` for an empty sample.
 fn quantile(sorted: &[f64], p: f64) -> f64 {
-    let at = p * (sorted.len() - 1) as f64;
-    // `p` is an internal fixed quantile probability and the caller supplies nonempty draws.
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "clamped quantile rank is in the valid slice-index range"
-    )]
-    let lo = at.floor() as usize;
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "clamped quantile rank is in the valid slice-index range"
-    )]
-    let hi = at.ceil() as usize;
-    sorted[lo] + (at - lo as f64) * (sorted[hi] - sorted[lo])
+    antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 
 type NormalPosterior = ([f64; 3], [[f64; 3]; 3], f64);
@@ -407,7 +396,7 @@ fn weighted_resample(values: &[f64], log_weights: &[f64], n: usize, seed: u64) -
         running += w / total;
         cumulative.push(running);
     }
-    let mut state = seed.max(1);
+    let mut state = seeded_state(seed);
     let offset = uniform(&mut state) / n as f64;
     let mut out = Vec::with_capacity(n);
     let mut j = 0;
@@ -420,6 +409,12 @@ fn weighted_resample(values: &[f64], log_weights: &[f64], n: usize, seed: u64) -
     }
     out
 }
+/// Mixes a caller seed through the splitmix64 finalizer so nearby seeds start unrelated
+/// xorshift streams; an unmixed xorshift state makes the first draw nearly linear in the seed.
+fn seeded_state(seed: u64) -> u64 {
+    crate::splitmix::seed_mix(seed).max(1)
+}
+
 fn uniform(state: &mut u64) -> f64 {
     *state ^= *state << 13;
     *state ^= *state >> 7;
@@ -477,7 +472,7 @@ fn first_stage_draws(
             }
         }
     }
-    let mut state = seed.max(1);
+    let mut state = seeded_state(seed);
     let mut out = Vec::with_capacity(2 * n);
     for _ in 0..n {
         let z = [normal(&mut state), normal(&mut state)];
@@ -552,7 +547,7 @@ fn gaussian_draws(
             }
         }
     }
-    let mut rng = seed.max(1);
+    let mut rng = seeded_state(seed);
     let mut out = Vec::with_capacity(n * 3);
     for _ in 0..n {
         let z = [normal(&mut rng), normal(&mut rng), normal(&mut rng)];
@@ -576,6 +571,19 @@ fn normal(state: &mut u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn consecutive_seeds_start_independent_standard_normal_streams() {
+        let first: Vec<f64> =
+            (0..4000_u64).map(|seed| normal(&mut seeded_state(42 + seed))).collect();
+        let mean = first.iter().sum::<f64>() / first.len() as f64;
+        let var = first.iter().map(|z| (z - mean).powi(2)).sum::<f64>() / first.len() as f64;
+        let lag1 = first.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum::<f64>()
+            / (first.len() - 1) as f64
+            / var;
+        assert!((var - 1.0).abs() < 0.1, "first-draw variance {var}");
+        assert!(lag1.abs() < 0.1, "lag-1 correlation {lag1}");
+    }
+
     #[test]
     fn joint_fixed_loading_intervals_calibrate_under_the_declared_law() {
         let mut covered = 0usize;

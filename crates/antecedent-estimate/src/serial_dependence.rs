@@ -978,25 +978,10 @@ fn cholesky(a: &[f64], m: usize) -> Option<Vec<f64>> {
     cholesky_into(a, &mut l, m).then_some(l)
 }
 
-/// [`cholesky`] into a caller-provided factor (`false` when not positive definite).
+/// [`cholesky`] into a caller-provided factor (`false` when not positive definite,
+/// including a pivot lost to cancellation); the shared kernel factorization.
 fn cholesky_into(a: &[f64], l: &mut [f64], m: usize) -> bool {
-    for i in 0..m {
-        for j in 0..=i {
-            let mut s = a[i * m + j];
-            for k in 0..j {
-                s -= l[i * m + k] * l[j * m + k];
-            }
-            if i == j {
-                if s <= 0.0 || !s.is_finite() {
-                    return false;
-                }
-                l[i * m + i] = s.sqrt();
-            } else {
-                l[i * m + j] = s / l[j * m + j];
-            }
-        }
-    }
-    true
+    antecedent_kernels::cholesky_spd_into(a, m, l).is_ok()
 }
 
 /// Solve `L L' x = b` from a Cholesky factor.

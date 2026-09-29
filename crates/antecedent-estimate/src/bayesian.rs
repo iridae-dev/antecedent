@@ -110,6 +110,14 @@ pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
 pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str = "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
      GaussianIdentity; unit_ids were ignored for this likelihood";
 
+/// Diagnostics note when `unit_ids` request random-intercept GLS whitening of a
+/// Gaussian fit but whitening cannot apply (fewer than two units, no unit with
+/// repeated rows, or no positive between-unit variance component), so the rows are
+/// fitted as independent.
+pub const RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE: &str = "random_intercept.gls_whiten.fallback_iid: unit_ids were supplied but compound-symmetry GLS \
+     whitening did not apply (degenerate grouping or no positive between-unit variance), so \
+     the rows were fitted as independent";
+
 /// `(requested, used)` draw counts when the HMC draw floor raised the request.
 #[must_use]
 pub fn hmc_draw_floor_from_notes(notes: &[Arc<str>]) -> Option<(usize, usize)> {
@@ -1082,13 +1090,19 @@ impl BayesianGComputationAte {
         // GLS whitening is a Gaussian residual transform. Applying it to Poisson /
         // binomial / other GLM outcomes silently corrupts the likelihood.
         let whitened = match (likelihood, problem.unit_ids.as_deref()) {
-            (BayesLikelihood::GaussianIdentity, Some(ids)) => random_intercept_gls_whiten(
-                &problem.design.matrix,
-                &problem.design.outcome,
-                problem.design.nrows,
-                problem.design.ncols,
-                ids,
-            ),
+            (BayesLikelihood::GaussianIdentity, Some(ids)) => {
+                let whitened = random_intercept_gls_whiten(
+                    &problem.design.matrix,
+                    &problem.design.outcome,
+                    problem.design.nrows,
+                    problem.design.ncols,
+                    ids,
+                );
+                if whitened.is_none() {
+                    extra_notes.push(Arc::from(RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE));
+                }
+                whitened
+            }
             (_, Some(_)) => {
                 extra_notes.push(Arc::from(RANDOM_INTERCEPT_WHITEN_SKIP_NOTE));
                 None
@@ -2875,6 +2889,26 @@ mod tests {
                 .any(|n| n.as_ref() == RANDOM_INTERCEPT_WHITEN_SKIP_NOTE),
             "stacked fit must not emit the skip note"
         );
+
+        // A Gaussian fit discloses when whitening could not apply and the rows were
+        // fitted as independent (every row its own unit leaves no within-unit spread).
+        let gaussian =
+            BayesianGComputationAte { likelihood: BayesLikelihood::GaussianIdentity, ..bayes };
+        let status = IdentificationStatus::NonparametricallyIdentified;
+        let has_fallback_note = |post: &CausalPosterior| {
+            post.diagnostics
+                .notes
+                .iter()
+                .any(|n| n.as_ref() == RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE)
+        };
+        let mut singleton_units = stacked.clone();
+        singleton_units.unit_ids = Some((0..n as u32).collect());
+        let fallback = gaussian.fit(&singleton_units, status, &mut ws, &ctx).unwrap();
+        assert!(has_fallback_note(&fallback), "{:?}", fallback.diagnostics.notes);
+        let whitened = gaussian.fit(&hierarchical, status, &mut ws, &ctx).unwrap();
+        assert!(!has_fallback_note(&whitened), "{:?}", whitened.diagnostics.notes);
+        let plain = gaussian.fit(&stacked, status, &mut ws, &ctx).unwrap();
+        assert!(!has_fallback_note(&plain), "{:?}", plain.diagnostics.notes);
     }
 
     /// Seeded standard-normal draws for the calibration DGPs: Box-Muller over an LCG.
@@ -2889,12 +2923,7 @@ mod tests {
     fn box_muller_lcg(seed: u64) -> impl FnMut() -> f64 {
         const LCG_MUL: u64 = 6_364_136_223_846_793_005;
         const TWO_POW_53: f64 = (1u64 << 53) as f64;
-        let mut state = {
-            let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            z ^ (z >> 31)
-        };
+        let mut state = crate::splitmix::seed_mix(seed);
         let mut next_unit = move || {
             state = state.wrapping_mul(LCG_MUL).wrapping_add(1);
             ((state >> 11) as f64) / TWO_POW_53

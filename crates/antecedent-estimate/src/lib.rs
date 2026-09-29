@@ -271,6 +271,7 @@ pub use transport::{
 };
 pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 
+mod splitmix;
 mod static_mediation;
 pub use static_mediation::{
     MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,

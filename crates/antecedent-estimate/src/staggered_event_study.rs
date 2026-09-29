@@ -238,13 +238,7 @@ mod tests {
     fn calibrated_event_time_cluster_coverage_and_thin_cluster_boundary() {
         let simulations = 2_000;
         let mut state = 0x39AD_5C72_0F81_EB46_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         for clusters_per_group in [4, 8, 16, 24, 32] {
             let mut subjects = Vec::new();
             let mut clusters = Vec::new();
@@ -319,13 +313,7 @@ mod tests {
         let subjects_per_cluster = 2;
         let simulations = 2_000;
         let mut state = 0x7EC4_2A91_5D0F_B836_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let mut subjects = Vec::new();
         let mut clusters = Vec::new();
         let mut cohorts = Vec::new();

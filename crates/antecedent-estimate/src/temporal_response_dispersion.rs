@@ -130,13 +130,7 @@ mod tests {
     /// Deterministic AR(1) series with Gaussian innovations (Box–Muller on splitmix64).
     fn gaussian_series(n: usize, rho: f64, seed: u64) -> Vec<f64> {
         let mut state = seed;
-        let mut next = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / (1u64 << 53) as f64
-        };
+        let mut next = || crate::splitmix::splitmix64_unit(&mut state);
         let mut out = Vec::with_capacity(n);
         let mut previous = 0.0;
         for _ in 0..n {

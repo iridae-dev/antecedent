@@ -891,7 +891,7 @@ the caller's held-out split or claims simultaneous coverage.
 `prepare` / `analyze`, reporting `result.continuous_dose_response`. Baseline
 group labels remain bound to the prepared row
 order; the outcome, observed dose, and caller-supplied density travel as native
-table columns. The retained Study route uses a triangular-kernel inverse-density
+table columns. The retained Study route uses an Epanechnikov-kernel inverse-density
 estimator. For each group and target, the result reports the local response,
 row count, effective sample size, minimum density, maximum normalized weight,
 and descriptive local outcome SD. These target-grid points remain point-only.

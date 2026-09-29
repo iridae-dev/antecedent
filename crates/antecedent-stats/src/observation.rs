@@ -208,6 +208,77 @@ pub fn kaplan_meier_ipcw(
     survival_floor: f64,
 ) -> Result<KaplanMeierIpcw, StatsError> {
     let n = time.len();
+    let steps = censoring_product_limit(time, event, entry, survival_floor)?;
+    // Left-limit of the censoring survival: product-limit value after every jump strictly
+    // before `at`. Equals 1 when no censoring precedes `at`.
+    let survival_before = |at: f64| -> f64 {
+        let jumps_before = steps.partition_point(|(t, _)| *t < at);
+        if jumps_before == 0 { 1.0 } else { steps[jumps_before - 1].1 }
+    };
+    let tail_restriction = first_step_below_floor(&steps, survival_floor);
+    let weights = (0..n)
+        .map(|i| {
+            if event[i] == 0.0 {
+                return Ok(0.0);
+            }
+            let at_event = survival_before(time[i]);
+            // Conditional on delayed entry at L, P(C > T | C > L) = G(T−)/G(L−), so the
+            // IPCW is G(L−)/G(T−). Without entry, G(L−)=1 and this collapses to 1/G(T−).
+            let at_entry = entry.map_or(1.0, |values| survival_before(values[i]));
+            if at_event < survival_floor || at_entry < survival_floor {
+                return Err(StatsError::Unsupported {
+                    message: "censoring survival is below the configured positivity floor",
+                });
+            }
+            if at_event <= 0.0 {
+                return Err(StatsError::Unsupported {
+                    message: "censoring survival at the event time is non-positive",
+                });
+            }
+            Ok(at_entry / at_event)
+        })
+        .collect::<Result<Vec<f64>, StatsError>>()?;
+    Ok(KaplanMeierIpcw { weights, tail_restriction })
+}
+
+/// The marginal Kaplan–Meier censoring survival's administrative-censoring boundary:
+/// the first censoring time at which it drops below `survival_floor`, as reported by
+/// [`KaplanMeierIpcw::tail_restriction`], without computing weights.
+///
+/// A conditional (covariate-adjusted) censoring model fitted to the same data cannot
+/// observe an event past this boundary either — every unit still at risk there was
+/// censored — so its corrected mean is restricted to the boundary as well.
+///
+/// # Errors
+///
+/// Invalid inputs or an empty risk set.
+pub fn censoring_tail_restriction(
+    time: &[f64],
+    event: &[f64],
+    survival_floor: f64,
+) -> Result<Option<f64>, StatsError> {
+    let steps = censoring_product_limit(time, event, None, survival_floor)?;
+    Ok(first_step_below_floor(&steps, survival_floor))
+}
+
+/// The first jump time at which the whole remaining risk set was censored (survival
+/// reaches, or is driven below, the floor): an administrative-censoring boundary past
+/// which no event can ever be observed. Checked over every jump, rather than only at rows
+/// with `event=1`: a data set can have no event past this boundary at all, in which case
+/// a per-row floor check never fires even though the tail is exactly as unidentified.
+fn first_step_below_floor(steps: &[(f64, f64)], survival_floor: f64) -> Option<f64> {
+    steps.iter().find(|(_, survival)| *survival < survival_floor).map(|&(t, _)| t)
+}
+
+/// Validate the inputs and return the censoring product-limit jumps `(time, G(time))`.
+#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
+fn censoring_product_limit(
+    time: &[f64],
+    event: &[f64],
+    entry: Option<&[f64]>,
+    survival_floor: f64,
+) -> Result<Vec<(f64, f64)>, StatsError> {
+    let n = time.len();
     if n == 0 || event.len() != n || entry.is_some_and(|v| v.len() != n) {
         return Err(StatsError::Shape {
             message: "Kaplan-Meier inputs must align and be nonempty",
@@ -269,43 +340,7 @@ pub fn kaplan_meier_ipcw(
         survival *= 1.0 - censored as f64 / risk as f64;
         steps.push((t, survival));
     }
-    // Left-limit of the censoring survival: product-limit value after every jump strictly
-    // before `at`. Equals 1 when no censoring precedes `at`.
-    let survival_before = |at: f64| -> f64 {
-        let jumps_before = steps.partition_point(|(t, _)| *t < at);
-        if jumps_before == 0 { 1.0 } else { steps[jumps_before - 1].1 }
-    };
-    // The first jump time at which the whole remaining risk set was censored (survival
-    // reaches, or is driven below, the floor): an administrative-censoring boundary past
-    // which no event can ever be observed. Checked here, over every jump, rather than only
-    // at rows with `event=1`: a data set can have no event past this boundary at all, in
-    // which case the per-row floor check below never fires even though the tail is exactly
-    // as unidentified.
-    let tail_restriction =
-        steps.iter().find(|(_, survival)| *survival < survival_floor).map(|&(t, _)| t);
-    let weights = (0..n)
-        .map(|i| {
-            if event[i] == 0.0 {
-                return Ok(0.0);
-            }
-            let at_event = survival_before(time[i]);
-            // Conditional on delayed entry at L, P(C > T | C > L) = G(T−)/G(L−), so the
-            // IPCW is G(L−)/G(T−). Without entry, G(L−)=1 and this collapses to 1/G(T−).
-            let at_entry = entry.map_or(1.0, |values| survival_before(values[i]));
-            if at_event < survival_floor || at_entry < survival_floor {
-                return Err(StatsError::Unsupported {
-                    message: "censoring survival is below the configured positivity floor",
-                });
-            }
-            if at_event <= 0.0 {
-                return Err(StatsError::Unsupported {
-                    message: "censoring survival at the event time is non-positive",
-                });
-            }
-            Ok(at_entry / at_event)
-        })
-        .collect::<Result<Vec<f64>, StatsError>>()?;
-    Ok(KaplanMeierIpcw { weights, tail_restriction })
+    Ok(steps)
 }
 
 /// One Gaussian observation-likelihood contribution.

@@ -333,7 +333,7 @@ pub enum EstimatorId {
     InterferenceBayesianGaussian,
     /// Horvitz--Thompson design-based Bernoulli ITT.
     RandomizedHt,
-    /// Local triangular-kernel response with supplied inverse dose density.
+    /// Local Epanechnikov-kernel response with supplied inverse dose density.
     ContinuousDoseKernel,
     /// Bernoulli ITT adjusted by a declared pre-assignment covariate with fixed coefficient.
     RandomizedFixedCupedHt,

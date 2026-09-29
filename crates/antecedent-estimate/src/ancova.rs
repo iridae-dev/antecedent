@@ -155,12 +155,8 @@ fn invert_gram(mut matrix: Vec<Vec<f64>>) -> Result<Vec<Vec<f64>>, &'static str>
 mod tests {
     use super::*;
 
-    fn uniform(mut state: u64) -> f64 {
-        state ^= state >> 30;
-        state = state.wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        state ^= state >> 27;
-        state = state.wrapping_mul(0x94D0_49BB_1331_11EB);
-        ((state ^ (state >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    fn uniform(state: u64) -> f64 {
+        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
     }
 
     #[test]

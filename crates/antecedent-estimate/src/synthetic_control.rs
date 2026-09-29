@@ -186,6 +186,11 @@ fn project_simplex(values: &[f64]) -> Vec<f64> {
     values.iter().map(|value| (*value - theta).max(0.0)).collect()
 }
 
+fn demean(values: &[f64]) -> Vec<f64> {
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    values.iter().map(|value| value - mean).collect()
+}
+
 /// Fit donor weights by projected gradient descent on the simplex.
 /// The fixed iteration cap and sorted donor ordering make the result deterministic.
 fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> (Vec<f64>, f64) {
@@ -806,17 +811,22 @@ pub fn fit_synthetic_did(
         .collect();
     let (unit_weights, pre_rmse) = fit_weights(&target_pre, &donor_pre);
 
-    // SDID time weights solve the dual simplex problem: represent the average
-    // pre-period donor profile as a convex combination of individual periods.
-    let target_donor_mean: Vec<f64> = donors
-        .iter()
-        .map(|(_, observed)| {
-            pre.iter().map(|period| observed[period]).sum::<f64>() / pre.len() as f64
-        })
-        .collect();
+    // SDID time weights (Arkhangelsky et al.) represent each donor's post-period
+    // mean as a convex combination of its pre-period values, up to a common
+    // intercept. Demeaning across donors absorbs that intercept.
+    let target_donor_mean = demean(
+        &donors
+            .iter()
+            .map(|(_, observed)| {
+                post.iter().map(|period| observed[period]).sum::<f64>() / post.len() as f64
+            })
+            .collect::<Vec<_>>(),
+    );
     let period_profiles: Vec<Vec<f64>> = pre
         .iter()
-        .map(|period| donors.iter().map(|(_, observed)| observed[period]).collect())
+        .map(|period| {
+            demean(&donors.iter().map(|(_, observed)| observed[period]).collect::<Vec<_>>())
+        })
         .collect();
     let (time_weights, _) = fit_weights(&target_donor_mean, &period_profiles);
 
@@ -913,6 +923,29 @@ mod synthetic_did_tests {
         )
     )]
     use super::{exact_synthetic_did_unit_randomization_test, fit_synthetic_did};
+
+    #[test]
+    fn time_weights_match_donor_post_periods_rather_than_staying_uniform() {
+        // Donors load on a factor that is active only in pre-period 3 and the post period,
+        // so the post-period donor means are reproduced by period 3 alone.
+        let loadings = [("treated", 1.5), ("d0", 0.0), ("d1", 1.0), ("d2", 2.0), ("d3", 3.0)];
+        let factor = [0.0, 0.0, 1.0, 1.0];
+        let mut units = Vec::new();
+        let mut periods = Vec::new();
+        let mut outcome = Vec::new();
+        for (index, (unit, loading)) in loadings.into_iter().enumerate() {
+            for (period, f) in (1..=4).zip(factor) {
+                units.push(unit.to_string());
+                periods.push(period);
+                let effect = if unit == "treated" && period == 4 { 7.0 } else { 0.0 };
+                outcome.push(index as f64 + loading * f + effect);
+            }
+        }
+        let fit = fit_synthetic_did(&outcome, &units, &periods, "treated", 4).unwrap();
+        let period_three = fit.time_weights.iter().find(|(period, _)| *period == 3).unwrap().1;
+        assert!(period_three > 0.99, "time weights {:?}", fit.time_weights);
+        assert!((fit.effect - 7.0).abs() < 1e-6, "effect {}", fit.effect);
+    }
 
     #[test]
     fn additive_unit_and_time_effects_recover_known_treatment_and_refuse_sparse_pre_support() {
