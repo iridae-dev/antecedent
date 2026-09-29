@@ -4346,6 +4346,79 @@ class PreparedZTransportStage:
     @property
     def seed(self) -> int: ...
 
+class MultiSourceZTransportStage:
+    @property
+    def outcome(self) -> str: ...
+    def decision(self) -> dict[str, Any]: ...
+    def prepare_exact(
+        self,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedMultiSourceZTransportStage: ...
+    def prepare_empirical(
+        self,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedMultiSourceZTransportStage: ...
+
+class PreparedMultiSourceZTransportStage:
+    def estimate(
+        self,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+        seed: int | None = None,
+    ) -> str: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    def export(self) -> bytes: ...
+    @property
+    def cited_sources(self) -> list[str]: ...
+    @property
+    def seed(self) -> int: ...
+
+def identify_multi_source_z_transport_stage(
+    graph: Admg,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    sources: list[tuple[str, list[str], dict[str, float], list[str]]],
+    catalog: Any,
+    *,
+    max_operations: int = 4096,
+    max_depth: int = 24,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> MultiSourceZTransportStage: ...
+def consume_multi_source_z_transport_artifact(
+    artifact: bytes,
+    *,
+    max_search_operations: int = 4096,
+    max_search_depth: int = 24,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def identify_z_transport_stage(
     graph: Admg,
     selections: list[str],

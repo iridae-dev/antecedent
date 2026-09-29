@@ -62,11 +62,11 @@ refusals = [
   { code = "sampling_dependence_unknown", detail = "mz_transport.interval_withheld", when = "Point retained; interval withheld because inter-source dependence is undeclared." },
 ]
 routes = [
-  { name = "antecedent_identify.decide_multi_source_z_transport", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_identify.decide_mz_transport", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
   { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_exact", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.estimate_refresh", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.estimate", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
   { name = "antecedent.transport.multi_source_z_transport.uncertainty_joint_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.consume_multi_source_z_transport", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.advanced.consume_multi_source_z_transport_artifact", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
 ]
 fixtures = [
   { id = "x1.combined_catalog_only.positive", role = "positive", intent = "No single source identifies; the combined catalog does; exact SCM truth.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "combined_catalog_identifies_what_no_single_source_can" },
@@ -79,6 +79,7 @@ fixtures = [
   { id = "x1.refresh.lifecycle", role = "lifecycle", intent = "Matching snapshot refresh keeps the proof; changed source/regime/catalog identity forces re-preparation.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "refresh_keeps_the_proof_and_refuses_changed_evidence_identity" },
   { id = "x1.mutated_artifact.negative", role = "negative", intent = "Mutated result, premises, source identity, bindings, data identity, bookkeeping or limits fail independent consumption.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "a_mutated_artifact_fails_independent_consumption" },
   { id = "x1.dependence.negative", role = "negative", intent = "Undeclared, linked or unresolvable shared sampling withholds the interval, never the point.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "undeclared_or_unsupported_dependence_withholds_the_interval_not_the_point" },
+  { id = "x1.python_roundtrip.artifact", role = "artifact", intent = "Python surface: identify, prepare, estimate, export and independent consume match the Rust route.", evidence_test = "python/tests/test_transport_multi_source.py", evidence_assertion = "test_exported_result_is_recomputed_by_an_independent_consumer" },
   { id = "x1.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the joint bootstrap under independent and shared designs." },
 ]
 

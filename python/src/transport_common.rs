@@ -117,12 +117,27 @@ impl TransportPyErr for antecedent_io::z_transport_artifact::ZTransportArtifactE
     }
 }
 
+impl TransportPyErr for antecedent_io::mz_transport_artifact::MzTransportArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::mz_transport_artifact::MzTransportArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            E::ProofMismatch(inner) | E::CatalogBinding(inner) if inner.is_budget_or_cancel() => {
+                inner.into_transport_py_err()
+            }
+            // Every other consumer check is a consistency failure of the artifact.
+            other => serialization_error(other),
+        }
+    }
+}
+
 impl TransportPyErr for antecedent_io::IoError {
     fn into_transport_py_err(self) -> PyErr {
         use antecedent_io::IoError as E;
         match self {
             E::Refused { code, message } => coded_refusal(code, message),
             E::ZTransport(inner) => inner.into_transport_py_err(),
+            E::MzTransport(inner) => inner.into_transport_py_err(),
             E::UnsupportedVersion { .. } => serialization_error(self),
             // The facade still carries some refusals as converted messages.
             E::Convert(message) => classify(&message),

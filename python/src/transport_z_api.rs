@@ -219,7 +219,7 @@ fn limits_receipt_json(
     })
 }
 
-fn to_py_json(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+pub(crate) fn to_py_json(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
     Ok(py.import("json")?.call_method1("loads", (value.to_string(),))?.unbind())
 }
 
@@ -1227,7 +1227,7 @@ fn identify_z_transport_stage(
     Ok(ZTransportStage { result, graph: named_graph, diagram, query, limits })
 }
 
-fn intervention_assignments(
+pub(crate) fn intervention_assignments(
     names: &[String],
     assignment: BTreeMap<String, f64>,
 ) -> PyResult<Arc<[antecedent_core::InterventionAssignment]>> {

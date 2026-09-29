@@ -70,6 +70,12 @@ from ._impl import (
     replay_z_transport_proposal,
     restore_lowered_program,
 )
+from ._multi_source import (
+    MultiSourceZTransportQuery,
+    ZTransportSource,
+    consume_multi_source_z_transport_artifact,
+    identify_multi_source_z_transport,
+)
 
 __all__ = [
     "ClassicalTransportIdentification",
@@ -83,6 +89,7 @@ __all__ = [
     "ExactTransportDistribution",
     "ExactTransportQuery",
     "LearnedTrialEstimate",
+    "MultiSourceZTransportQuery",
     "MissingEvidenceCertificate",
     "NotCertifiedCertificate",
     "NonTransportableCertificate",
@@ -108,7 +115,9 @@ __all__ = [
     "TrialNuisanceDiagnostics",
     "TrialTransportEstimate",
     "VariableCoordinate",
+    "ZTransportSource",
     "consume_exact",
+    "consume_multi_source_z_transport_artifact",
     "consume_z_transport_artifact",
     "consume_z_transport_sensitivity_artifact",
     "consume_identification",
@@ -120,6 +129,7 @@ __all__ = [
     "identify",
     "identify_classical",
     "identify_meta",
+    "identify_multi_source_z_transport",
     "identify_z_transport",
     "plan_z_transport_evidence",
     "replay_z_transport_proposal",
