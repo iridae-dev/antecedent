@@ -1350,17 +1350,14 @@ impl StudyResult {
     /// Primary scalar effect for display and tests.
     ///
     /// Prefer this over reading [`EffectEstimate::ate`] directly when the query may be a
-    /// distribution, mediation, or counterfactual: returns the interventional mean,
-    /// mediation total, or mean ITE when present, otherwise the estimate's `ate` field.
+    /// distribution or counterfactual: returns the interventional mean or mean ITE when
+    /// present, otherwise the estimate's `ate` field. For a mediation query this is the
+    /// queried contrast (total, direct, or mediated), the same scalar the contract and an
+    /// exported artifact carry; the other contrasts are on [`Self::mediation`].
     #[must_use]
     pub fn effect(&self) -> f64 {
         if let Some(dist) = &self.distribution {
             return dist.mean;
-        }
-        if let Some(med) = &self.mediation {
-            if let Some(total) = med.total {
-                return total;
-            }
         }
         if let Some(cf) = &self.counterfactual {
             return cf.mean_ite;

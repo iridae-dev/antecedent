@@ -572,14 +572,12 @@ impl PreparedStudy {
                 let CausalQuery::PanelDid(query) = self.query() else {
                     unreachable!("licensed DiD result must retain its DiD query")
                 };
-                let (design, method) =
-                    if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
-                        ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
-                    } else {
-                        ("panel_2x2", "cluster_change_scores_cr1")
-                    };
+                // Shared with the execute-side licence so the published
+                // coordinate is the key the design was licensed under.
+                let key = super::execute::panel_did_graphless_key(query.design);
                 Arc::from(format!(
-                    "graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"
+                    "graphless:{}/{}/{}/{}",
+                    key.family, key.design, key.method, key.inference_claim
                 ))
             });
         }
@@ -2095,7 +2093,7 @@ fn compile_with_payloads(
             accepted_variable_names: study.graph.variable_names().map(Arc::from),
             support_status: study.support_status,
             identifier: study.identifier.map(|id| Arc::from(id.as_str())),
-            estimator: study.estimator.map(|id| Arc::from(id.as_str())),
+            estimator: advertised_estimator(study, resolved_estimator.as_deref()).map(Arc::from),
             resolved_estimator,
             row_count: data_row_count(&study.data),
             modality: Arc::from(snapshot_modality(&study.data)),
@@ -2483,6 +2481,26 @@ fn identification_search_capped(result: &IdentificationResult) -> bool {
         .any(|diagnostic| diagnostic.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE)
 }
 
+/// Estimator name the contract may advertise.
+///
+/// A builder placeholder ([`Study::caller_selected_estimator`] is `None`) is
+/// advertised only while it agrees with the plan, or before a plan resolves
+/// one: `inference()` binds `BayesianGcomp` on every static average effect,
+/// including classes whose compiler keeps an identifier-native estimator
+/// (`functional.effect` on an ADMG), and advertising both names makes the
+/// functional-program contract fail to verify. A caller-selected estimator is
+/// kept even when it disagrees; the verifier then refuses it.
+fn advertised_estimator(study: &Study, resolved_estimator: Option<&str>) -> Option<&'static str> {
+    study
+        .caller_selected_estimator()
+        .or_else(|| {
+            study.estimator.filter(|placeholder| {
+                resolved_estimator.is_none_or(|resolved| resolved == placeholder.as_str())
+            })
+        })
+        .map(|id| id.as_str())
+}
+
 /// Inferential commitments of the compiled program. `resolved_estimator` is
 /// the prepared plan's `logical_plan.estimator`; cheap inspection compiles no
 /// plan and leaves it `None`.
@@ -2501,7 +2519,7 @@ fn inferential_commitments(
     }
     InferentialCommitmentsWire {
         format: IDENTITY_FORMAT,
-        estimator: study.estimator.map(|id| id.as_str().to_string()),
+        estimator: advertised_estimator(study, resolved_estimator).map(str::to_string),
         resolved_estimator: resolved_estimator.map(str::to_string),
         identifier: study.identifier.map(|id| id.as_str().to_string()),
         inference: match study.inference {
@@ -3348,16 +3366,8 @@ fn executed_scalar(result: &StudyResult) -> Option<f64> {
     if result.response.is_some() {
         return None;
     }
-    if let Some(distribution) = &result.distribution {
-        return distribution.mean.is_finite().then_some(distribution.mean);
-    }
-    if let Some(counterfactual) = &result.counterfactual {
-        return counterfactual.mean_ite.is_finite().then_some(counterfactual.mean_ite);
-    }
-    result
-        .estimate
-        .as_effect()
-        .and_then(|estimate| estimate.ate.is_finite().then_some(estimate.ate))
+    let scalar = result.effect();
+    scalar.is_finite().then_some(scalar)
 }
 
 fn body_frame(

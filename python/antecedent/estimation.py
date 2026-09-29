@@ -41,6 +41,7 @@ from ._native import (
 from ._native import (
     prepare_cells_batch as _prepare_cells_batch,
 )
+from ._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -538,11 +539,7 @@ def _panel_did_from_raw(
         ),
         support_status=(
             section.graphless_support_status
-            or (
-                "off_axis_interval_evidence"
-                if section.interval_95 is not None
-                else "unlicensed_point_utility"
-            )
+            or unset_panel_license(has_interval=section.interval_95 is not None)
         ),
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
@@ -919,10 +916,9 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
         fixed_policy=fixed_policy,
         support_status=(
             section.graphless_support_status
-            or (
-                "off_axis_pointwise_95"
-                if fixed_policy is not None and fixed_policy.incremental_interval_95 is not None
-                else "unlicensed_point_utility"
+            or unset_dose_license(
+                has_incremental_interval=fixed_policy is not None
+                and fixed_policy.incremental_interval_95 is not None
             )
         ),
         evaluation_method=(
@@ -955,14 +951,11 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=(
             section.graphless_support_status
-            or (
-                "off_axis_simultaneous_95"
-                if section.regret is not None
-                else "off_axis_pointwise_95"
-                if section.policy_interval_95 is not None
+            or unset_policy_license(
+                has_regret=section.regret is not None,
+                has_interval=section.policy_interval_95 is not None
                 or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
-                or any(interval is not None for *_, interval in section.multi_action_cate)
-                else "unlicensed_point_utility"
+                or any(interval is not None for *_, interval in section.multi_action_cate),
             )
         ),
         prediction_ownership=section.prediction_ownership,

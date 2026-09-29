@@ -534,7 +534,7 @@ impl super::Study {
                 columns,
                 identification.required_assumptions,
                 identification.status,
-                "gcm.attribution.shared_dirichlet_row_weights",
+                super::ANOMALY_DIRICHLET_BACKEND,
                 false,
             )?);
             let disclosure = match scorer_query.reference {
@@ -660,7 +660,7 @@ impl super::Study {
                 posterior_columns,
                 identification.required_assumptions,
                 identification.status,
-                "gcm.attribution.shared_population_dirichlet_row_weights",
+                super::CHANGE_DIRICHLET_BACKEND,
                 true,
             )?;
             if let Some(index) = posterior.effect_column() {
@@ -1235,7 +1235,9 @@ fn counterfactual_posterior(
         identification,
         prior_sensitivity: None,
         conflict_summary: None,
-        diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gcm.fit.bayesian"),
+        diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+            super::COUNTERFACTUAL_DIRICHLET_BACKEND,
+        ),
         assumptions,
         unidentified_mass: 0.0,
         unevaluable_mass: 0.0,

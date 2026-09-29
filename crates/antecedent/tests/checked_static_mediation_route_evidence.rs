@@ -144,6 +144,8 @@ fn static_mediation_plan_executes_every_contrast_and_licensed_validation_suite_i
                     .unwrap();
                 let one_shot = builder.run(&context).unwrap();
                 assert!((one_shot.estimate.ate - truth).abs() < 1e-10);
+                // The primary scalar is the queried contrast, not the mediation total.
+                assert_eq!(one_shot.effect().to_bits(), one_shot.estimate.ate.to_bits());
                 assert!(
                     one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
                 );

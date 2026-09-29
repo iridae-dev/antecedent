@@ -51,6 +51,43 @@ fn conditional_scm() -> (TabularData, Dag, ConditionalEffectQuery) {
 }
 
 #[test]
+fn bayesian_conditional_default_estimator_ignores_builder_call_order() {
+    let ctx = ExecutionContext::for_tests(812);
+    let (data, graph, query) = conditional_scm();
+    let config = BayesianConfig::conjugate().n_draws(64).prior_scale(30.0);
+    let inference_first = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .inference(InferenceMode::Bayesian(config.clone()))
+        .query(CausalQuery::ConditionalEffect(query.clone()))
+        .refute(RefuteSuite::None);
+    let query_first = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::ConditionalEffect(query))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None);
+    let mut estimators = Vec::new();
+    for (label, builder) in [("inference-first", inference_first), ("query-first", query_first)] {
+        let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
+        assert!(
+            prepared.checked_bayesian_conditional_operation().is_some(),
+            "{label}: expected the sealed Bayesian conditional operation"
+        );
+        assert_eq!(
+            prepared.plan().logical.record.estimator.as_deref(),
+            Some("conditional.bayesian"),
+            "{label}: resolved estimator"
+        );
+        let contract = prepared.contract().unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        prepared
+            .encode_contracted_result(&result, &format!("bayesian-conditional-{label}"), &ctx)
+            .unwrap();
+        estimators.push((contract.estimator.clone(), contract.identities.program));
+    }
+    assert_eq!(estimators[0], estimators[1], "call order changed the contract");
+}
+
+#[test]
 fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_drop() {
     let ctx = ExecutionContext::for_tests(811);
     let (data, graph, query) = conditional_scm();

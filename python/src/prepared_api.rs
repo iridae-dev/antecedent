@@ -658,6 +658,11 @@ fn contract_to_map(
     );
     if let Some(status) = contract.support_status {
         out.insert("matrix_status".into(), status.as_str().to_string());
+    } else if let Some(support) = contract.reasoning.support.as_ref() {
+        // Graphless families leave the license enum unset and record `off_axis`
+        // on the support slot. The sealed artifact already publishes that
+        // string; the live contract has to carry the same one.
+        out.insert("matrix_status".into(), support.matrix_status.to_string());
     }
     if let Some(support) = contract.reasoning.support.as_ref() {
         if let Some(coordinate) = &support.matrix_coordinate {

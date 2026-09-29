@@ -1847,6 +1847,10 @@ impl super::Study {
         let mut prepare_demoted = 0usize;
         let mut fit_demoted = 0usize;
         let mut draws_demoted = 0usize;
+        // Identified weight of atoms whose estimation (unfolding, preparation,
+        // fitting or draw extraction) failed: a refusal to estimate, kept apart
+        // from structural non-identification in `unidentified_mass`.
+        let mut unevaluable_weight = 0.0_f64;
         for (key, estimand, identification, indexer) in fit_atoms {
             if multi_step {
                 let Ok(graph) =
@@ -1855,6 +1859,7 @@ impl super::Study {
                     if let Some(idx) = keys.iter().position(|&k| k == key) {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                     prepare_demoted += 1;
                     continue;
                 };
@@ -1895,6 +1900,7 @@ impl super::Study {
                     if let Some(idx) = keys.iter().position(|&k| k == key) {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                     fit_demoted += 1;
                     continue;
                 };
@@ -1920,6 +1926,7 @@ impl super::Study {
                     if let Some(idx) = keys.iter().position(|&k| k == key) {
                         flags[idx] = GraphIdentFlag::Unidentified;
                     }
+                    unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                     draws_demoted += 1;
                 }
                 continue;
@@ -1937,6 +1944,7 @@ impl super::Study {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
+                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                 prepare_demoted += 1;
                 continue;
             };
@@ -1946,6 +1954,7 @@ impl super::Study {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
+                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                 prepare_demoted += 1;
                 continue;
             };
@@ -1961,6 +1970,7 @@ impl super::Study {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
+                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                 fit_demoted += 1;
                 continue;
             };
@@ -1986,6 +1996,7 @@ impl super::Study {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
                     flags[idx] = GraphIdentFlag::Unidentified;
                 }
+                unevaluable_weight += identified_weight_for_key(&identified.graphs, key);
                 draws_demoted += 1;
             }
         }
@@ -2033,6 +2044,14 @@ impl super::Study {
         )
         .map_err(CausalError::from)?;
         report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
+        // The estimation-failure demotions above are flagged `Unidentified`
+        // (the envelope has no third state); split their mass back out so a
+        // refusal to estimate is never published as non-identification.
+        let total_weight = fitted_graphs.total_weight();
+        let unevaluable_mass =
+            if total_weight > 0.0 { unevaluable_weight / total_weight } else { 0.0 };
+        posterior.unevaluable_mass = unevaluable_mass;
+        posterior.unidentified_mass = (posterior.unidentified_mass - unevaluable_mass).max(0.0);
         // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
         if posterior.identification == IdentificationStatus::GraphDependent {
             identification.status = IdentificationStatus::GraphDependent;
@@ -2056,7 +2075,11 @@ impl super::Study {
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
+            if prepare_demoted + fit_demoted + draws_demoted > 0 {
+                DiagnosticSeverity::Warning
+            } else {
+                DiagnosticSeverity::Info
+            },
             identified.identify_demotion.summary(prepare_demoted, fit_demoted, draws_demoted),
         ));
         if let Some(cs) = posterior.conflict_summary.as_ref() {

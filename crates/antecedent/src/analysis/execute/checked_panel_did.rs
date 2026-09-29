@@ -261,12 +261,7 @@ impl CheckedPanelDidOperation {
             augmented: None,
         });
         if crate::support::license_if_graphless(
-            crate::support::GraphlessSupportKey {
-                family: "difference_in_differences",
-                design: "panel_2x2",
-                method: "cluster_change_scores_cr1",
-                inference_claim: "pointwise_95_normal_interval",
-            },
+            panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
                 treated: clusters[1].len(),
@@ -429,12 +424,7 @@ impl CheckedPanelDidOperation {
             event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
         let graphless_licensed = representative_interval.is_some()
             && crate::support::license_if_graphless(
-                crate::support::GraphlessSupportKey {
-                    family: "difference_in_differences",
-                    design: "staggered_event_study",
-                    method: "never_treated_event_study_cluster_cr1",
-                    inference_claim: "post_adoption_event_time_pointwise_95_normal_intervals",
-                },
+                panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
                     treated: representative_treated_clusters,
@@ -796,12 +786,7 @@ impl CheckedPanelDidOperation {
             augmented: None,
         });
         if crate::support::license_if_graphless(
-            crate::support::GraphlessSupportKey {
-                family: "difference_in_differences",
-                design: "repeated_cross_section_2x2",
-                method: "four_cell_cluster_scores_cr1",
-                inference_claim: "pointwise_95_normal_interval",
-            },
+            panel_did_graphless_key(antecedent_core::DidSamplingDesign::RepeatedCrossSection),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
                 treated: group_clusters[1].len(),
@@ -820,6 +805,40 @@ impl CheckedPanelDidOperation {
         result.treatment = None;
         result.rebind_interval(false);
         Ok(result)
+    }
+}
+
+/// Graphless licence key for a `DiD` sampling design.
+///
+/// Execution licenses against this key and the contract publishes it as the
+/// matrix coordinate, so the two cannot drift. Staggered group-time and
+/// augmented panels have no licensed method; their key matches no licence row.
+pub(crate) fn panel_did_graphless_key(
+    design: antecedent_core::DidSamplingDesign,
+) -> crate::support::GraphlessSupportKey<'static> {
+    use antecedent_core::DidSamplingDesign;
+    let (design, method, inference_claim) = match design {
+        DidSamplingDesign::BalancedPanel => {
+            ("panel_2x2", "cluster_change_scores_cr1", "pointwise_95_normal_interval")
+        }
+        DidSamplingDesign::RepeatedCrossSection => (
+            "repeated_cross_section_2x2",
+            "four_cell_cluster_scores_cr1",
+            "pointwise_95_normal_interval",
+        ),
+        DidSamplingDesign::StaggeredEventStudy => (
+            "staggered_event_study",
+            "never_treated_event_study_cluster_cr1",
+            "post_adoption_event_time_pointwise_95_normal_intervals",
+        ),
+        DidSamplingDesign::StaggeredGroupTime => ("staggered_group_time", "unlicensed", "none"),
+        DidSamplingDesign::AugmentedPanel => ("augmented_panel", "unlicensed", "none"),
+    };
+    crate::support::GraphlessSupportKey {
+        family: "difference_in_differences",
+        design,
+        method,
+        inference_claim,
     }
 }
 

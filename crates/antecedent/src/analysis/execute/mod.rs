@@ -320,6 +320,7 @@ pub(crate) use checked_local_polynomial_ratio::{
 };
 pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
 pub(crate) use checked_panel_did::CheckedPanelDidOperation;
+pub(crate) use checked_panel_did::panel_did_graphless_key;
 pub(crate) use checked_panel_did::panel_did_identification;
 pub(crate) use checked_randomized::{
     CheckedPolicyValueOperation, CheckedRandomizedOperation, randomized_identification,
@@ -389,6 +390,10 @@ pub(super) use tuple_bootstrap::{
 };
 
 pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
+pub(crate) use dispatch::{
+    ANOMALY_DIRICHLET_BACKEND, CHANGE_DIRICHLET_BACKEND, COUNTERFACTUAL_DIRICHLET_BACKEND,
+    ROBUST_ATE_BOOTSTRAP_BACKEND,
+};
 pub(crate) use static_path::DistributionGraph;
 pub(crate) use transport_interference_path::live_transport_identification;
 

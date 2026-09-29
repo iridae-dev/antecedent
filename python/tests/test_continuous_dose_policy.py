@@ -50,6 +50,7 @@ def test_fixed_dose_policy_uses_retained_analyze_and_prepare():
     assert value.reference_interval_95 is not None
     assert value.incremental_interval_95 is not None
     assert result.answer.detail == "fixed_group_kernel_smoothed_dose_policy_value"
+    assert ant.load(result.export(artifact_id="dose-policy")).answer == result.answer
     assert (
         ant.prepare(data, query=query, refute="none").estimate(data).continuous_dose_response
         == response
@@ -91,3 +92,4 @@ def test_fixed_dose_policy_refuses_malformed_rules_and_withholds_external_densit
     assert value.incremental_interval_95 is None
     assert value.policy_interval_95 is None
     assert value.reference_interval_95 is None
+    assert ant.load(result.export(artifact_id="dose-policy-external")).answer == result.answer
