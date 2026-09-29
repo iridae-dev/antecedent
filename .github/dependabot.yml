@@ -24,6 +24,12 @@ updates:
     groups:
       cargo:
         patterns: ["*"]
+    # MSRV is Rust 1.85. A major bump (Dependabot counts a 0.x minor as
+    # major) is what pulled arrow 60 (rustc 1.88) and burn 0.21 (rustc 1.92)
+    # into one red pull request. Patch and in-range minor updates still open.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: uv
     directory: /python
