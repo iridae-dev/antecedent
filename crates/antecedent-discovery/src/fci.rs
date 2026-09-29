@@ -173,6 +173,7 @@ impl Fci {
         let col_owned = collect_float_columns(data, variables)?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
         let n = cols[0].len();
+        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
         if n < 3 {
             return Err(DiscoveryError::stats_msg("insufficient rows for FCI"));
         }
@@ -324,6 +325,7 @@ impl Fci {
                 )),
             });
         }
+        diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, "fci"));
         if state.conflicts > 0 || orient_delta.conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("fci.orientation_conflict"),

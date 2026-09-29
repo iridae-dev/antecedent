@@ -61,7 +61,8 @@ impl ZDesign {
                 if ws.len() < n {
                     return Err(StatsError::Shape { message: "weights length < nrows" });
                 }
-                ws[..n].iter().map(|&v| sanitize_weight(v)).collect()
+                ensure_valid_weights(&ws[..n])?;
+                ws[..n].to_vec()
             }
             None => vec![1.0; n],
         };
@@ -154,6 +155,21 @@ impl ZDesign {
             }
         }
         Ok(out)
+    }
+}
+
+/// Refuse NaN, infinite or negative observation weights.
+///
+/// Zeroing them instead would drop rows from the fit with nothing in the result saying so.
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] on the first invalid weight.
+pub(crate) fn ensure_valid_weights(weights: &[f64]) -> Result<(), StatsError> {
+    if weights.iter().all(|w| w.is_finite() && *w >= 0.0) {
+        Ok(())
+    } else {
+        Err(StatsError::Shape { message: "observation weights must be finite and non-negative" })
     }
 }
 

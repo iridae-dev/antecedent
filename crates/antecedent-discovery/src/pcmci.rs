@@ -20,7 +20,9 @@ use antecedent_stats::FdrAdjustment;
 
 use crate::engine::{DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
-use crate::evidence::{graph_evidence_from_scored_with_sepsets, threshold_scored_links};
+use crate::evidence::{
+    fdr_family_size, graph_evidence_from_scored_with_sepsets, threshold_scored_links,
+};
 use crate::pcmci_family::pcmci_family_builders;
 use crate::result::{AlgorithmRecord, DagDiscoveryResult};
 
@@ -111,11 +113,15 @@ impl Pcmci {
         let mut result = pc_mci(&self.engine, workspace)?;
         let alpha = self.engine.constraints.alpha;
 
-        let scored = threshold_scored_links(
-            result.evidence.links.iter().copied().collect(),
-            self.fdr,
+        let links: Vec<_> = result.evidence.links.iter().copied().collect();
+        let fdr_diagnostic = crate::ci::fdr_resolution_diagnostic(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
             alpha,
+            fdr_family_size(&links, self.fdr),
         );
+        let scored = threshold_scored_links(links, self.fdr, alpha);
+        result.diagnostics.extend(fdr_diagnostic);
 
         result.evidence = graph_evidence_from_scored_with_sepsets(scored, &result.sepsets)?;
         result.algorithm = AlgorithmRecord {
@@ -257,6 +263,35 @@ mod calibration_tests {
         )
         .unwrap();
         (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
+    }
+
+    /// A permutation test with 49 replicates cannot report p below 0.02, while BH over the
+    /// 8-link family keeps a lone link only at p <= 0.05/8. The strong planted link then
+    /// vanishes; the result must say why instead of looking like evidence of no links.
+    #[test]
+    fn fdr_beyond_permutation_resolution_is_reported() {
+        let (data, vars) = planted_lag1_series(200, 7);
+        let constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(2), min_lag: Lag::from_raw(1) },
+            significance: antecedent_stats::SignificanceMethod::BlockShuffle {
+                replicates: 49,
+                block_size: 1,
+            },
+            ..DiscoveryConstraints::default()
+        };
+        let code = "ci.fdr_resolution";
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let with_fdr = Pcmci::new().with_constraints(constraints.clone());
+        let result = with_fdr.run(&data, &vars, &mut ws, &ctx).unwrap();
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == code),
+            "{:?}",
+            result.diagnostics
+        );
+        let without = Pcmci::new().with_fdr(false).with_constraints(constraints);
+        let result = without.run(&data, &vars, &mut ws, &ctx).unwrap();
+        assert!(!result.diagnostics.iter().any(|d| d.code.as_ref() == code));
     }
 
     /// Independent noise series: PCMCI link retention rate should track α.

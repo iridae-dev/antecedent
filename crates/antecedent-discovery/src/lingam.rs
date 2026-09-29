@@ -24,7 +24,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, distance_correlation,
@@ -224,7 +224,29 @@ impl DirectLingam {
             })
             .collect();
 
-        refuse_gaussian_consistent_residuals(&orig, &order)?;
+        let gaussian = gaussian_consistent_residuals(&orig, &order)?;
+        let mut diagnostics = Vec::new();
+        if gaussian.len() >= 2 {
+            let names: Vec<String> = gaussian
+                .iter()
+                .map(|&i| {
+                    data.schema()
+                        .get(variables[i])
+                        .map_or_else(|_| format!("{:?}", variables[i]), |v| v.name.to_string())
+                })
+                .collect();
+            diagnostics.push(DiscoveryDiagnostic {
+                code: Arc::from("direct_lingam.gaussian_residuals"),
+                message: Arc::from(format!(
+                    "{} exogenous residuals are consistent with Gaussian errors (Jarque-Bera, \
+                     alpha 0.05): {}. LiNGAM identifies the causal order only when at most one \
+                     error is Gaussian, so the relative order of these variables, and the \
+                     direction of edges between them, is not identified",
+                    names.len(),
+                    names.join(", ")
+                )),
+            });
+        }
 
         let max_parents = self.constraints.max_parents.unwrap_or(p.saturating_sub(1));
         let mut dag = Dag::empty();
@@ -233,7 +255,6 @@ impl DirectLingam {
         }
 
         let mut edge_coefs: Vec<(usize, usize, f64)> = Vec::new();
-        let backend = FaerBackend;
         let mut ls_ws = LeastSquaresWorkspace::default();
         // Standard deviations for the unit-free coefficient scale.
         let sd: Vec<f64> =
@@ -280,16 +301,9 @@ impl DirectLingam {
                     x[c * n + r] = orig[par][r];
                 }
             }
+            let f = predecessor_regression(&x, n, k, &orig[child], &mut ls_ws)?;
             let coefs: Vec<(usize, f64)> =
-                if let Ok(f) = backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) {
-                    preds.iter().enumerate().map(|(i, &par)| (par, f.coefficients[i])).collect()
-                } else {
-                    // Fall back to pairwise coefficients on rank failure.
-                    preds
-                        .iter()
-                        .map(|&par| (par, simple_regression_coef(&orig[child], &orig[par])))
-                        .collect()
-                };
+                preds.iter().enumerate().map(|(i, &par)| (par, f.coefficients[i])).collect();
             for (par, beta) in select(child, &coefs) {
                 edge_coefs.push((par, child, beta));
             }
@@ -371,7 +385,7 @@ impl DirectLingam {
             },
             assumptions: discovery_assumptions("direct_lingam", true),
             iterations: Vec::<DiscoveryIteration>::new(),
-            diagnostics: Vec::<DiscoveryDiagnostic>::new(),
+            diagnostics,
             performance: DiscoveryPerformanceRecord {
                 ci_tests: 0,
                 links_retained: u64::try_from(edge_count).unwrap_or(u64::MAX),
@@ -393,13 +407,17 @@ fn require_finite_column(col: &[f64]) -> Result<(), DiscoveryError> {
     Ok(())
 }
 
-/// Refuse when every exogenous residual under the estimated order is consistent
-/// with a Gaussian law (Jarque–Bera at α=0.05). Under joint Gaussianity the
-/// `LiNGAM` order is not identifiable, so returning an order would be silent fiction.
-fn refuse_gaussian_consistent_residuals(
+/// Variables whose exogenous residual under the estimated order is consistent with a Gaussian
+/// law (Jarque–Bera at α=0.05), in causal order.
+///
+/// Refuses when every residual is: under joint Gaussianity the `LiNGAM` order is not
+/// identifiable at all, so returning an order would be silent fiction. Two or more
+/// Gaussian-consistent residuals leave only their relative order unidentified; the caller
+/// reports that rather than refusing.
+fn gaussian_consistent_residuals(
     centered: &[Vec<f64>],
     order: &[usize],
-) -> Result<(), DiscoveryError> {
+) -> Result<Vec<usize>, DiscoveryError> {
     let n = centered.first().map_or(0, Vec::len);
     if n < 8 || order.is_empty() {
         // Too few rows for a reliable moment test; still require at least one
@@ -410,33 +428,63 @@ fn refuse_gaussian_consistent_residuals(
                 "DirectLiNGAM refuses data consistent with Gaussian errors; order is unidentifiable",
             ));
         }
-        return Ok(());
+        return Ok(Vec::new());
     }
 
-    let mut any_non_gaussian = false;
+    let mut gaussian = Vec::new();
     for (pos, &idx) in order.iter().enumerate() {
         let resid = if pos == 0 {
             centered[idx].clone()
         } else {
-            residual_on_predecessors(&centered[idx], centered, &order[..pos])
+            residual_on_predecessors(&centered[idx], centered, &order[..pos])?
         };
-        if !residual_looks_gaussian(&resid) {
-            any_non_gaussian = true;
-            break;
+        if residual_looks_gaussian(&resid) {
+            gaussian.push(idx);
         }
     }
-    if !any_non_gaussian {
+    if gaussian.len() == order.len() {
         return Err(DiscoveryError::stats_msg(
             "DirectLiNGAM refuses residuals consistent with Gaussian errors (Jarque–Bera); \
              causal order is unidentifiable under Gaussian noise",
         ));
     }
-    Ok(())
+    Ok(gaussian)
 }
 
-fn residual_on_predecessors(y: &[f64], cols: &[Vec<f64>], preds: &[usize]) -> Vec<f64> {
+/// Regress a variable on its causal predecessors (column-major `x`, `n × k`).
+///
+/// Full-rank designs use the QR solve. When collinear predecessors make the design rank
+/// deficient, the individual coefficients are not identified; the minimum-norm solution keeps
+/// the joint fit (its residual is the exact projection residual) and spreads the effect over
+/// the collinear columns, instead of marginal pairwise slopes that double count it.
+fn predecessor_regression(
+    x: &[f64],
+    n: usize,
+    k: usize,
+    y: &[f64],
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<antecedent_stats::LeastSquaresFit, DiscoveryError> {
+    let backend = FaerBackend;
+    match backend.least_squares(x, n, k, y, ls_ws) {
+        Err(antecedent_stats::StatsError::RankDeficient { .. }) => {
+            backend.min_norm_least_squares(x, n, k, y)
+        }
+        other => other,
+    }
+    .map_err(|e| {
+        DiscoveryError::stats_msg(format!(
+            "DirectLiNGAM cannot regress a variable on its causal predecessors ({e})"
+        ))
+    })
+}
+
+fn residual_on_predecessors(
+    y: &[f64],
+    cols: &[Vec<f64>],
+    preds: &[usize],
+) -> Result<Vec<f64>, DiscoveryError> {
     if preds.is_empty() {
-        return y.to_vec();
+        return Ok(y.to_vec());
     }
     let n = y.len();
     let k = preds.len();
@@ -446,25 +494,17 @@ fn residual_on_predecessors(y: &[f64], cols: &[Vec<f64>], preds: &[usize]) -> Ve
             x[c * n + r] = cols[par][r];
         }
     }
-    let backend = FaerBackend;
     let mut ls_ws = LeastSquaresWorkspace::default();
-    if let Ok(fit) = backend.least_squares(&x, n, k, y, &mut ls_ws) {
-        let mut resid = y.to_vec();
-        for r in 0..n {
-            let mut pred = 0.0;
-            for (c, coef) in fit.coefficients.iter().enumerate() {
-                pred += coef * x[c * n + r];
-            }
-            resid[r] -= pred;
-        }
-        return resid;
-    }
-    // Pairwise residualize when the joint fit fails.
+    let fit = predecessor_regression(&x, n, k, y, &mut ls_ws)?;
     let mut resid = y.to_vec();
-    for &par in preds {
-        resid = regress_residual(&resid, &cols[par]);
+    for r in 0..n {
+        let mut pred = 0.0;
+        for (c, coef) in fit.coefficients.iter().enumerate() {
+            pred += coef * x[c * n + r];
+        }
+        resid[r] -= pred;
     }
-    resid
+    Ok(resid)
 }
 
 /// Jarque–Bera normality gate: `JB = n/6 (S² + K²/4)` with asymptotic χ²(2).
@@ -629,6 +669,124 @@ mod tests {
         let data = TabularData::new(storage);
         let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
         (data, vars)
+    }
+
+    /// A table of float columns `x0, x1, ...`.
+    fn table(columns: Vec<Vec<f64>>) -> (TabularData, Vec<VariableId>) {
+        let mut b = CausalSchemaBuilder::new();
+        for i in 0..columns.len() {
+            b.add_variable(
+                format!("x{i}"),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let owned = columns
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let n = c.len();
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
+                        Arc::from(c),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+        (data, vars)
+    }
+
+    /// Deterministic standard normal draws (Box–Muller on an LCG).
+    fn gaussian(n: usize, seed: u64) -> Vec<f64> {
+        let mut s = seed;
+        let mut unit = || {
+            s = s.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            ((s >> 11) as f64 / (1u64 << 53) as f64).clamp(1e-12, 1.0 - 1e-12)
+        };
+        (0..n)
+            .map(|_| {
+                let (u, v) = (unit(), unit());
+                (-2.0 * u.ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
+            })
+            .collect()
+    }
+
+    /// Two Gaussian exogenous errors: their relative order is not identified. The run still
+    /// returns a graph, but must say which variables' order it cannot vouch for.
+    #[test]
+    fn direct_lingam_reports_two_gaussian_consistent_residuals() {
+        let n = 500;
+        let x0 = gaussian(n, 3);
+        let x1 = gaussian(n, 11);
+        let x2: Vec<f64> = (0..n)
+            .map(|i| x0[i] + x1[i] + (((i as f64 * 0.419) % 1.0) - 0.5).powi(3) * 8.0)
+            .collect();
+        let (data, vars) = table(vec![x0, x1, x2]);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = DirectLingam::new().run(&data, &vars, &mut ws, &ctx).unwrap();
+        let diag = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "direct_lingam.gaussian_residuals")
+            .unwrap_or_else(|| panic!("{:?}", result.diagnostics));
+        assert!(diag.message.contains("x0") && diag.message.contains("x1"), "{}", diag.message);
+        // The non-Gaussian chain carries no such warning.
+        let (data, vars) = lingam_chain(500);
+        let result = DirectLingam::new().run(&data, &vars, &mut ws, &ctx).unwrap();
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    }
+
+    /// An exactly collinear pair (`x1 = 2·x0`) leaves the joint regression of `x2` on both
+    /// rank deficient. The minimum-norm solve keeps the joint fit: the pair's coefficients
+    /// jointly reproduce the least-squares slope `s` of `x2` on `x0` (`β0 + 2·β1 = s`), split
+    /// in the minimum-norm ratio `β1 = 2·β0`, instead of the pairwise slopes `s` and `s/2`,
+    /// which together double count the effect.
+    #[test]
+    fn direct_lingam_resolves_rank_deficient_regressions_by_minimum_norm() {
+        let n = 400;
+        let cube = |k: f64| -> Vec<f64> {
+            (0..n).map(|i| (((i as f64 * k) % 1.0) - 0.5).powi(3) * 4.0).collect()
+        };
+        let x0 = cube(0.137);
+        let x1: Vec<f64> = x0.iter().map(|v| 2.0 * v).collect();
+        let e2 = cube(0.419);
+        let x2: Vec<f64> = (0..n).map(|i| 0.9 * x0[i] + e2[i]).collect();
+        let centred = |v: &[f64]| {
+            let m = v.iter().sum::<f64>() / n as f64;
+            v.iter().map(|a| a - m).collect::<Vec<f64>>()
+        };
+        let (c0, c2) = (centred(&x0), centred(&x2));
+        let slope = c0.iter().zip(&c2).map(|(a, b)| a * b).sum::<f64>()
+            / c0.iter().map(|a| a * a).sum::<f64>();
+        let (data, vars) = table(vec![x0, x1, x2]);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = DirectLingam::new().run(&data, &vars, &mut ws, &ctx).unwrap();
+        let coef = |src: usize| {
+            result
+                .evidence
+                .edge_evidence
+                .iter()
+                .find(|e| e.link.source == vars[src] && e.link.target == vars[2])
+                .and_then(|e| e.statistic)
+                .unwrap_or(0.0)
+        };
+        let (b0, b1) = (coef(0), coef(1));
+        assert!((b0 + 2.0 * b1 - slope).abs() < 1e-9, "b0={b0} b1={b1} slope={slope}");
+        assert!((b1 - 2.0 * b0).abs() < 1e-9, "b0={b0} b1={b1}");
+        assert!((b0 - slope).abs() > 0.1, "pairwise slope reported: {b0}");
     }
 
     #[test]

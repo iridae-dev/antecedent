@@ -521,33 +521,94 @@ mod tests {
         assert!(report.power() > 0.50, "power too low: {}", report.power());
     }
 
+    /// Every-PR Type I ceiling: α plus three binomial Monte Carlo SE at `trials` draws.
+    fn smoke_type_i_ceiling(alpha: f64, trials: u32) -> f64 {
+        alpha + 3.0 * (alpha * (1.0 - alpha) / f64::from(trials)).sqrt()
+    }
+
     #[test]
     fn gsquared_calibration_type_i_and_power() {
         let report = calibrate_gsquared(&GSquared::new(), 300, 120, 0.05, 11).unwrap();
-        assert!(report.type_i_rate() < 0.15, "G² type I too high: {}", report.type_i_rate());
+        let ceiling = smoke_type_i_ceiling(0.05, 120);
+        assert!(
+            report.type_i_rate() <= ceiling,
+            "G² type I too high: {} (ceiling {ceiling})",
+            report.type_i_rate()
+        );
         assert!(report.power() > 0.40, "G² power too low: {}", report.power());
     }
 
     #[test]
     fn robust_parcorr_calibration_smoke() {
-        // Loose every-PR smoke. Tighter Type I lives in
+        // Every-PR smoke at alpha + 3 SE. The exact binomial gate lives in
         // `robust_parcorr_calibration_gate` (scripts/gate_calibration.sh).
         let report =
             calibrate_parcorr_like(&RobustPartialCorrelation::new(), 180, 60, 0.05, 13).unwrap();
-        assert!(report.type_i_rate() < 0.25);
+        let ceiling = smoke_type_i_ceiling(0.05, 60);
+        assert!(report.type_i_rate() <= ceiling, "{} > {ceiling}", report.type_i_rate());
         assert!(report.power() > 0.30);
     }
 
     #[test]
     fn weighted_parcorr_calibration_smoke() {
-        // Loose every-PR smoke. Tighter Type I lives in
+        // Every-PR smoke at alpha + 3 SE. The exact binomial gate lives in
         // `weighted_parcorr_calibration_gate` (scripts/gate_calibration.sh).
         let n = 180usize;
         let w = vec![1.0; n];
         let report =
             calibrate_parcorr_like(&WeightedPartialCorrelation::new(w), n, 60, 0.05, 17).unwrap();
-        assert!(report.type_i_rate() < 0.25);
+        let ceiling = smoke_type_i_ceiling(0.05, 60);
+        assert!(report.type_i_rate() <= ceiling, "{} > {ceiling}", report.type_i_rate());
         assert!(report.power() > 0.30);
+    }
+
+    /// Partial-correlation p-values depend on the data only through correlations, so rescaling
+    /// every column (X, Y and Z alike, or one at a time) by 0.1 or 10 must not move them.
+    #[test]
+    fn parcorr_family_p_values_are_invariant_to_rescaling() {
+        let n = 150usize;
+        let mut rng = trial_ctx(0x5CA1E, 0).rng.stream_for(StreamDomain::StatsCi, 0x5CA1E);
+        let base = confounded_gaussian(n, 1.0, &mut rng);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let w: Vec<f64> = (0..n).map(|i| 0.5 + (i % 5) as f64).collect();
+        let tests: [(&str, &dyn ConditionalIndependence); 3] = [
+            ("parcorr", &PartialCorrelation::new()),
+            ("robust", &RobustPartialCorrelation::new()),
+            ("weighted", &WeightedPartialCorrelation::new(w)),
+        ];
+        let p_value = |ci: &dyn ConditionalIndependence, cols: &[Vec<f64>]| {
+            let refs: Vec<&[f64]> = cols.iter().map(Vec::as_slice).collect();
+            let req = CiBatchRequest {
+                columns: &refs,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            ci.test_batch_adhoc(&req, &mut ws, &trial_ctx(1, 0)).unwrap().results[0].p_value
+        };
+        for (name, ci) in tests {
+            let p0 = p_value(ci, &base);
+            for factor in [0.1, 10.0] {
+                for scaled_col in [None, Some(0), Some(1), Some(2)] {
+                    let cols: Vec<Vec<f64>> = base
+                        .iter()
+                        .enumerate()
+                        .map(|(j, c)| {
+                            let f = if scaled_col.is_none_or(|k| k == j) { factor } else { 1.0 };
+                            c.iter().map(|v| v * f).collect()
+                        })
+                        .collect();
+                    let p = p_value(ci, &cols);
+                    assert!(
+                        (p - p0).abs() <= 1e-9 * p0.max(1e-3),
+                        "{name}: p moved from {p0} to {p} rescaling {scaled_col:?} by {factor}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

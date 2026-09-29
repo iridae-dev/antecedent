@@ -303,8 +303,12 @@ fn knn_stat_from_index(knn: &mut KnnDependenceWorkspace, k: usize) -> Result<f64
 ///
 /// - Empty `Z`: one stratum (every row), so exchangeable / block shuffles are well defined.
 /// - Discrete `Z` (few distinct joint levels): exact level strata.
-/// - Continuous `Z`: contiguous windows after ordering in standardised Z-space so that
-///   permuting Y within a window preserves local Y–Z dependence under H0.
+/// - Continuous univariate `Z`: adjacent pairs after sorting Z, so permuting Y within a pair
+///   preserves local Y–Z dependence under H0.
+/// - Continuous multivariate `Z`: refused ([`StatsError::Unsupported`]). No row grouping keeps
+///   the null honest: ordering by the norm of Z pairs `z = (2, 0)` with `z = (-2, 0)`, and even
+///   true nearest-neighbour pairs sit `O(n^{-1/|Z|})` apart, which for `|Z| >= 2` shrinks no
+///   faster than the statistic's own noise, so every swap blurs Y–Z and Type I stays inflated.
 ///
 /// Non-finite Z values are refused: rank/sort paths must not coerce NaN into a finite stratum.
 fn z_permutation_strata(
@@ -333,8 +337,15 @@ fn z_permutation_strata(
         sorted_keys.sort_unstable();
         return Ok(sorted_keys.into_iter().filter_map(|key| map.remove(&key)).collect());
     }
+    if z.len() >= 2 {
+        return Err(StatsError::Unsupported {
+            message: "KnnDependence cannot build a valid conditional permutation null for a \
+                      continuous conditioning set of two or more variables; use ParCorr, GPDC, \
+                      or discretised Z",
+        });
+    }
     // Pairwise (size-2) windows: larger local groups re-break Y–Z and inflate type I.
-    Ok(local_z_neighbourhood_strata(columns, z, n, 2))
+    Ok(local_z_neighbourhood_strata(columns[z[0]], n, 2))
 }
 
 fn ensure_finite_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<(), StatsError> {
@@ -363,59 +374,12 @@ fn joint_z_keys(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<u64> {
     keys
 }
 
-/// Order rows along a 1-D embedding of standardised Z, then cut into contiguous
-/// windows of size `neighbourhood`. For univariate Z this is an ordinary sort;
-/// for multivariate Z the embedding is distance from the origin in Z-space
-/// (with the first coordinate as a tie-break), which keeps nearby Z together.
-fn local_z_neighbourhood_strata(
-    columns: &[&[f64]],
-    z: &[usize],
-    n: usize,
-    neighbourhood: usize,
-) -> Vec<Vec<usize>> {
-    let zdim = z.len();
-    let mut feats = vec![0.0; n * zdim];
-    for (j, &zc) in z.iter().enumerate() {
-        let col = columns[zc];
-        let mean = col.iter().take(n).sum::<f64>() / n as f64;
-        let var = col
-            .iter()
-            .take(n)
-            .map(|v| {
-                let d = v - mean;
-                d * d
-            })
-            .sum::<f64>()
-            / n as f64;
-        let sd = var.sqrt();
-        if sd.is_finite() && sd > 0.0 {
-            for r in 0..n {
-                feats[r * zdim + j] = (col[r] - mean) / sd;
-            }
-        }
-    }
+/// Sort rows by univariate Z, then cut into contiguous windows of size `neighbourhood`.
+fn local_z_neighbourhood_strata(col: &[f64], n: usize, neighbourhood: usize) -> Vec<Vec<usize>> {
     let mut order: Vec<usize> = (0..n).collect();
-    if zdim == 1 {
-        order.sort_by(|&a, &b| {
-            feats[a]
-                .partial_cmp(&feats[b])
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.cmp(&b))
-        });
-    } else {
-        order.sort_by(|&a, &b| {
-            let da: f64 = (0..zdim).map(|j| feats[a * zdim + j].powi(2)).sum();
-            let db: f64 = (0..zdim).map(|j| feats[b * zdim + j].powi(2)).sum();
-            da.partial_cmp(&db)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| {
-                    feats[a * zdim]
-                        .partial_cmp(&feats[b * zdim])
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .then_with(|| a.cmp(&b))
-        });
-    }
+    order.sort_by(|&a, &b| {
+        col[a].partial_cmp(&col[b]).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.cmp(&b))
+    });
     let m = neighbourhood.clamp(2, n);
     let mut strata = Vec::new();
     let mut start = 0usize;
@@ -512,7 +476,8 @@ fn looks_discrete(col: &[f64]) -> bool {
     integerish && uniq.len() <= col.len().saturating_div(4).max(8)
 }
 
-/// Symbolic CMI on already-binned/ordinal integer codes (G²-style on symbol pairs).
+/// Symbolic CMI on already-binned symbols (G²-style on symbol pairs); each distinct finite
+/// value is a symbol.
 #[derive(Clone, Debug, Default)]
 pub struct SymbolicCmi;
 
@@ -527,7 +492,7 @@ impl SymbolicCmi {
 impl ConditionalIndependenceTest for SymbolicCmi {
     #[allow(
         clippy::cast_possible_truncation,
-        reason = "y_perm is a permuted copy of a column that encode_categories already range-checked into i32"
+        reason = "y_perm holds exact f64 images of the i32 codes from encode_categories"
     )]
     fn test_batch(
         &self,
@@ -555,7 +520,8 @@ impl ConditionalIndependenceTest for SymbolicCmi {
             let strata = discrete_strata(request.columns, z, n)?;
             ensure_permutation_support(&strata, &xi, &yi)?;
             let mi = conditional_symbolic_mi(&xi, &yi, &strata);
-            let mut y_perm = request.columns[q.y].to_vec();
+            // Permute exact f64 images of the Y codes so the block permutation can move them.
+            let mut y_perm: Vec<f64> = yi.iter().copied().map(f64::from).collect();
             let mut yi_perm = yi.clone();
             let mut rng = ctx.rng.stream_for(
                 StreamDomain::StatsCi,
@@ -583,7 +549,7 @@ impl ConditionalIndependenceTest for SymbolicCmi {
                     }
                 }
                 for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
-                    *code = value.round() as i32;
+                    *code = *value as i32;
                 }
                 let null = conditional_symbolic_mi(&xi, &yi_perm, &strata);
                 if null >= mi {
@@ -892,9 +858,11 @@ mod tests {
         static UNCONDITIONAL: [CiQuery; 1] = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
         static CONDITIONAL: [CiQuery; 1] = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
 
-        let x: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).sin()).collect();
-        let y: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).cos()).collect();
-        let z: Vec<f64> = (0..60).map(|i| (i as f64 * 0.11).sin()).collect();
+        // Rounded so symbols recur: distinct continuous values would each be a singleton
+        // category, leaving `SymbolicCmi` no permutation support.
+        let x: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).sin().round()).collect();
+        let y: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).cos().round()).collect();
+        let z: Vec<f64> = (0..60).map(|i| (i as f64 * 0.11).sin().round()).collect();
         let cols: [&[f64]; 3] = [&x, &y, &z];
         let z_flat = [2usize];
         let mut ws = CiWorkspace::default();
@@ -989,6 +957,59 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let out = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].statistic > 0.5);
+    }
+
+    /// Non-integer symbols are labels: shifting every symbol by 0.3 (and conditioning on a
+    /// fractional Z) yields the same statistic and permutation p-value as the integer coding.
+    #[test]
+    fn symbolic_treats_non_integer_values_as_symbols() {
+        let n = 90usize;
+        let z: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+        let x: Vec<f64> = (0..n).map(|i| ((i / 3) % 3) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| ((i / 3 + i / 9) % 3) as f64).collect();
+        let shift = |v: &[f64]| v.iter().map(|a| a * 1.5 + 0.3).collect::<Vec<f64>>();
+        let (xs, ys, zs) = (shift(&x), shift(&y), shift(&z));
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let run = |cols: [&[f64]; 3]| {
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &[2],
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::default(),
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(4);
+            SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+        };
+        let coded = run([&x, &y, &z]);
+        let labelled = run([&xs, &ys, &zs]);
+        assert!(coded.statistic > 0.0);
+        assert_eq!(coded.statistic.to_bits(), labelled.statistic.to_bits());
+        assert_eq!(coded.p_value.to_bits(), labelled.p_value.to_bits());
+    }
+
+    /// When every X symbol occurs once, every rearrangement of Y is a relabelled copy of the
+    /// observed table, so the null never moves and the add-one p-value is exactly 1. That is a
+    /// valid, conservative p-value (the data cannot reject independence), not an error.
+    #[test]
+    fn symbolic_null_that_cannot_move_gives_conservative_p_of_one() {
+        let n = 30usize;
+        let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+        let cols: [&[f64]; 2] = [&x, &y];
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &[],
+            significance: SignificanceMethod::BlockShuffle { replicates: 19, block_size: 1 },
+            confidence: ConfidenceMethod::default(),
+        };
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(3);
+        let out = SymbolicCmi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
+        assert_eq!(out.results[0].p_value.to_bits(), 1.0_f64.to_bits());
     }
 
     #[test]
@@ -1243,6 +1264,61 @@ mod tests {
         assert!(
             rate < 0.25,
             "continuous-Z kNN type I near 1 (or badly inflated): {rate} ({rejects}/{trials})"
+        );
+    }
+
+    /// Bivariate Z with X and Y both driven by the first Z coordinate, so X ⊥ Y | Z. Continuous
+    /// bivariate Z used to be grouped by the norm of Z, pairing z = (2, 0) with z = (-2, 0) and
+    /// rejecting every trial; it is now refused. Discrete bivariate Z keeps exact level strata
+    /// and a controlled Type I rate.
+    #[test]
+    fn knn_bivariate_z_conditional_null() {
+        let n = 100usize;
+        let trials = 60u32;
+        let alpha = 0.05;
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(0x2D_2D_u64);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
+        let z_flat = [2usize, 3];
+        let ci = KnnDependence::new(5);
+        let mut rejects = 0u32;
+        for t in 0..trials {
+            let mut rng = ctx.rng.stream_for(StreamDomain::StatsCi, 0x2D2_u64 ^ u64::from(t));
+            let mut normal = || {
+                let u = (rng.next_u64() as f64) / (u64::MAX as f64);
+                let v = (rng.next_u64() as f64) / (u64::MAX as f64);
+                (-2.0 * u.max(1e-12).ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
+            };
+            let z1: Vec<f64> = (0..n).map(|_| normal()).collect();
+            let z2: Vec<f64> = (0..n).map(|_| normal()).collect();
+            let x: Vec<f64> = z1.iter().map(|&a| a + 0.35 * normal()).collect();
+            let y: Vec<f64> = z1.iter().map(|&a| a + 0.35 * normal()).collect();
+            let cols: [&[f64]; 4] = [&x, &y, &z1, &z2];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 },
+                confidence: ConfidenceMethod::None,
+            };
+            let err = ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap_err();
+            assert!(matches!(err, StatsError::Unsupported { .. }), "{err:?}");
+
+            let d1: Vec<f64> = z1.iter().map(|v| v.round().clamp(-1.0, 1.0)).collect();
+            let d2: Vec<f64> = z2.iter().map(|v| f64::from(u8::from(*v > 0.0))).collect();
+            let x: Vec<f64> = d1.iter().map(|&a| 2.0 * a + 0.35 * normal()).collect();
+            let y: Vec<f64> = d1.iter().map(|&a| 2.0 * a + 0.35 * normal()).collect();
+            let cols: [&[f64]; 4] = [&x, &y, &d1, &d2];
+            let req = CiBatchRequest { columns: &cols, ..req };
+            if ci.test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0].p_value < alpha {
+                rejects += 1;
+            }
+        }
+        let rate = f64::from(rejects) / f64::from(trials);
+        // alpha + 3 binomial SE at 60 trials is about 0.135.
+        assert!(
+            rate < 0.14,
+            "discrete bivariate-Z kNN type I inflated: {rate} ({rejects}/{trials})"
         );
     }
 

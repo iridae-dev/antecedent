@@ -97,8 +97,17 @@ pub fn fit_observation_logistic(
         GlmDesignRef { x_colmajor: &design, nrows: n, ncols: ncols + 1, y: indicator },
         &FaerBackend,
         &mut workspace,
-        &GlmOptions::default(),
+        // `require_ok` refuses any separated fit, so the ridge refit would be discarded.
+        &GlmOptions::default().without_separation_ridge(),
     )?;
+    // Without the refit, a separated fit also fails to converge; name the cause.
+    if fit.separated {
+        return Err(StatsError::Backend(
+            "observation model indicates (quasi-)complete separation; observation probabilities \
+             are not identified"
+                .into(),
+        ));
+    }
     fit.require_ok()?;
     let probabilities = (0..n)
         .map(|row| {
@@ -510,6 +519,15 @@ fn log_interval_mass(lower: f64, upper: f64) -> Result<f64, StatsError> {
 mod tests {
     use super::*;
     use antecedent_kernels::norm_pdf;
+
+    /// Perfectly separated observation indicators are refused as separation.
+    #[test]
+    fn observation_logistic_refuses_separated_indicators() {
+        let x: Vec<f64> = (0..20).map(f64::from).collect();
+        let r: Vec<f64> = x.iter().map(|&v| f64::from(u8::from(v >= 10.0))).collect();
+        let err = fit_observation_logistic(&r, &x, 1, 0.01).unwrap_err();
+        assert!(err.to_string().contains("separation"), "{err}");
+    }
 
     #[test]
     fn aipw_collapses_to_predictions_on_unobserved_rows() {
