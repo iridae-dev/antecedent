@@ -1,0 +1,5 @@
+# resolver = "2" in Cargo.toml is not MSRV-aware: a `cargo update` could lock a
+# dependency that needs a newer Rust than the workspace rust-version (1.85).
+# Prefer versions compatible with rust-version when resolving (cargo >= 1.84).
+[resolver]
+incompatible-rust-versions = "fallback"
