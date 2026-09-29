@@ -172,3 +172,29 @@ fn exchanged_treatment_is_bound_by_the_request_and_unsupplied_levels_are_refused
         Err(EvalError::ProviderKind(message)) if message.contains("no cited source experiment")
     ));
 }
+
+#[test]
+fn a_world_supplied_twice_binds_and_evaluates_the_lowest_regime() {
+    let source = case_b_scm(false);
+    let target = case_b_scm(true);
+    let pick = |population: &str| if population == "target" { &target } else { &source };
+    let diagram = diagram(3, &[(0, 2), (1, 2)], &[(1, 2)], &[0]);
+    let query = query(2, 1, &[1], &[(1, false)]);
+    // Regimes 1 and 3 both supply the do(X=0) world.
+    let specs = vec![
+        Spec { population: "target", kind: RegimeKind::Observational, assignments: vec![] },
+        Spec { population: "source", kind: RegimeKind::Experimental, assignments: vec![(1, 0)] },
+        Spec { population: "source", kind: RegimeKind::Experimental, assignments: vec![(1, 1)] },
+        Spec { population: "source", kind: RegimeKind::Experimental, assignments: vec![(1, 0)] },
+    ];
+    let (catalog, data) = build(&pick, 3, &specs, &["source", "target"]);
+    let (_, bound) = identify_and_bind(&diagram, &query, &catalog);
+    let cited = bound.cited_regimes().iter().map(|regime| regime.raw()).collect::<Vec<_>>();
+    assert_eq!(cited, [0, 1, 2]);
+    // The uncited duplicate law never competes at evaluation.
+    for level in [false, true] {
+        let truth = target.risk(&[(1, bit(level))], 2);
+        let risk = evaluate_risk(&bound, &data, 1, level).unwrap();
+        assert!((risk - truth).abs() < 1e-12, "P*(Y=1 | do(X={level}))={risk} != {truth}");
+    }
+}

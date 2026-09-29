@@ -60,7 +60,8 @@ pub use sid::{
     ZTransportTerminalRecord, bind_z_transport_catalog, decide_two_source_z_transport,
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_catalog_transport,
     identify_classical_transport, identify_meta_catalog, identify_meta_transport,
-    identify_z_transport, identify_z_transport_reporting, validate_z_experiment_family,
+    identify_z_transport, identify_z_transport_reporting, intervention_ancestral_treatments,
+    intervention_levels_conflict, intervention_mutilated_admg, validate_z_experiment_family,
     validate_z_transport_query, verify_classical_transport, verify_meta_s_hedge,
     verify_meta_transport, verify_z_transport_derivation, verify_z_transport_obstruction,
 };

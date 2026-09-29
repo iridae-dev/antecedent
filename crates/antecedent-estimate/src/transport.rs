@@ -680,7 +680,7 @@ pub(crate) fn compile_exact_z_transport(
     ExactEvaluationPlan::compile(
         functional.arena(),
         functional.root(),
-        data.with_world_bound_leaves(),
+        data.with_world_bound_leaves(functional.cited_regimes()),
         query.outcomes.clone(),
         request,
         limits,

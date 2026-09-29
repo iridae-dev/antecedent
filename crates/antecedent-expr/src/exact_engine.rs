@@ -4,7 +4,7 @@ use crate::exact::CompensatedSum;
 use crate::simplify::{MarginalConditional, marginal_conditional};
 use crate::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, EvalContext, EvalError,
-    ExprNode, FactorSpec,
+    ExprId, ExprNode, FactorSpec,
 };
 use antecedent_core::{Value, VariableId};
 use std::cell::Cell;
@@ -203,6 +203,12 @@ impl<'a> ExactSession<'a> {
                 let conditional = self.marginal_conditional_of(numerator, denominator);
                 if let Some(conditional) = &conditional {
                     self.refuse_empirical_empty_ratio_conditioner(conditional, env)?;
+                } else if let Some(nested) = marginal_conditional(
+                    self.arena,
+                    self.plan.origins[numerator],
+                    self.plan.origins[denominator],
+                ) {
+                    self.refuse_empirical_empty_nested_conditioner(&nested, env)?;
                 }
                 let num = self.slot(numerator, env)?.required()?;
                 let den = self.slot(denominator, env)?.required()?;
@@ -283,14 +289,8 @@ impl<'a> ExactSession<'a> {
         conditional: &MarginalConditional,
         env: &mut Assignment,
     ) -> Result<(), EvalError> {
-        let ExprNode::Distribution {
-            variables,
-            conditioned_on,
-            intervention,
-            domain,
-            population,
-            regime,
-        } = self.arena.node(conditional.joint).clone()
+        let ExprNode::Distribution { variables, conditioned_on, .. } =
+            self.arena.node(conditional.joint).clone()
         else {
             return Ok(());
         };
@@ -307,6 +307,64 @@ impl<'a> ExactSession<'a> {
             summed.iter().copied().filter(|v| marginalised.binary_search(v).is_err()).collect();
         let conditions: Vec<VariableId> =
             joint.iter().copied().filter(|v| summed.binary_search(v).is_err()).collect();
+        self.probe_conditioning_event(conditional.joint, &outcomes, &conditions, env)
+    }
+
+    /// The empirical-support guard for a marginal ratio over a composite joint, such as the
+    /// product of conditionals a nested district factor builds: the ratio conditions on the
+    /// joint's free variables outside the denominator's summed set, so that stratum must be
+    /// observed in the law every leaf reads. Leaves reading different laws (population,
+    /// regime, domain or intervention world) have no single stratum to probe and pass.
+    fn refuse_empirical_empty_nested_conditioner(
+        &self,
+        conditional: &MarginalConditional,
+        env: &mut Assignment,
+    ) -> Result<(), EvalError> {
+        let mut leaves = Vec::new();
+        let mut stack = vec![conditional.joint];
+        while let Some(id) = stack.pop() {
+            match self.arena.node(id) {
+                ExprNode::Distribution { .. } => leaves.push(id),
+                _ => stack.extend(self.arena.children_of(id)),
+            }
+        }
+        let law_of = |id: ExprId| match self.arena.node(id) {
+            ExprNode::Distribution { intervention, domain, population, regime, .. } => {
+                Some((*intervention, *domain, *population, *regime))
+            }
+            _ => None,
+        };
+        let Some(&first) = leaves.first() else {
+            return Ok(());
+        };
+        if leaves.iter().any(|&leaf| law_of(leaf) != law_of(first)) {
+            return Ok(());
+        }
+        let free = crate::simplify::free_vars(self.arena, conditional.joint, &mut HashMap::new());
+        let summed = &conditional.denominator_summed;
+        let conditions: Vec<VariableId> =
+            free.iter().copied().filter(|v| summed.binary_search(v).is_err()).collect();
+        if conditions.is_empty() {
+            return Ok(());
+        }
+        self.probe_conditioning_event(first, &[], &conditions, env)
+    }
+
+    /// Ask the provider for `P(outcomes | conditions)` in the law `leaf` reads, only for its
+    /// support refusals: structural `zero_conditioning_mass` passes, `sampling_zero` and every
+    /// other provider error refuse.
+    fn probe_conditioning_event(
+        &self,
+        leaf: ExprId,
+        outcomes: &[VariableId],
+        conditions: &[VariableId],
+        env: &mut Assignment,
+    ) -> Result<(), EvalError> {
+        let ExprNode::Distribution { intervention, domain, population, regime, .. } =
+            self.arena.node(leaf).clone()
+        else {
+            return Ok(());
+        };
         let mut assignments = self.arena.intervention_assignments(intervention).to_vec();
         for a in &mut assignments {
             if a.is_symbolic() {
@@ -315,8 +373,8 @@ impl<'a> ExactSession<'a> {
             }
         }
         let spec = FactorSpec {
-            variables: &outcomes,
-            conditioned_on: &conditions,
+            variables: outcomes,
+            conditioned_on: conditions,
             intervention: &assignments,
             domain,
             population: self.arena.population(population),

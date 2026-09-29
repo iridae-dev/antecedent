@@ -495,3 +495,89 @@ fn two_line11_terminals_from_different_families_do_not_certify_an_obstruction() 
         "{decision:?}"
     );
 }
+
+fn shared_treatment_catalog(population: &str, level: bool, outcome: VariableId) -> EvidenceCatalog {
+    let regime = EvidenceRegime::try_new(
+        RegimeId::from_raw(0),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [X],
+        [InterventionAssignment { variable: X, value: Value::Bool(level) }],
+        [X, outcome],
+        population,
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    EvidenceCatalog::try_new(
+        [environment("alpha"), environment("beta"), environment("target")],
+        [regime],
+        [RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(0),
+            snapshot_identity: Arc::from(format!("do-x-{level}-{population}")),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        }],
+        None,
+    )
+    .unwrap()
+}
+
+/// X→Z, X→Y with outcomes {Z, Y} under do(X). Z and Y are m-separated given X,
+/// so the outcome groups factorize, but both groups depend on the shared
+/// treatment X. A product of P^α_{X=0}(z) and P^β_{X=1}(y) is not the law of
+/// any single intervention, so sources that fix X at different levels never
+/// combine; at a common level they do.
+#[test]
+fn intervention_separated_groups_require_one_level_for_a_shared_treatment() {
+    let mut graph = Admg::with_variables(4);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap(); // W→X
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap(); // X→Z
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap(); // X→Y
+    let source = |population: &str, level: bool| ZTransportSourceSpec {
+        population: Arc::from(population),
+        controllable: Arc::from([X]),
+        experiment_assignment: Arc::from([InterventionAssignment {
+            variable: X,
+            value: Value::Bool(level),
+        }]),
+        selection_targets: Arc::from([]),
+    };
+    let decide = |alpha_level: bool, beta_level: bool, seed: u64| {
+        let query = TwoSourceZTransportQuery {
+            outcomes: Arc::from([Z, Y]),
+            treatments: Arc::from([X]),
+            target: Arc::from("target"),
+            sources: [source("alpha", alpha_level), source("beta", beta_level)],
+        };
+        decide_two_source_z_transport(
+            &graph,
+            &query,
+            [
+                &shared_treatment_catalog("alpha", alpha_level, Z),
+                &shared_treatment_catalog("beta", beta_level, Y),
+            ],
+            SidLimits::default(),
+            &ExecutionContext::for_tests(seed),
+        )
+        .unwrap()
+    };
+    let mixed = decide(false, true, 90);
+    assert!(
+        !matches!(mixed, TwoSourceZTransportDecision::CombinedIdentified { .. }),
+        "components at X=0 and X=1 must not combine into one target law: {mixed:?}"
+    );
+    let aligned = decide(false, false, 91);
+    assert!(
+        matches!(
+            aligned,
+            TwoSourceZTransportDecision::CombinedIdentified {
+                factorization: ComponentFactorization::InterventionSeparatedGroups,
+                ..
+            }
+        ),
+        "components at one shared level combine: {aligned:?}"
+    );
+}
