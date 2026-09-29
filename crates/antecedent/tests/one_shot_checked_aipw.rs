@@ -77,17 +77,40 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
         // ... so the one-shot run executes that retained operation.
         let one_shot = study.run(&ctx).unwrap();
         let clicked = prepared.estimate(&data, &ctx).unwrap();
+        // The two routes agree bit for bit. The analytic and bootstrap SE pins
+        // were taken on one libm; glibc and the macOS libm differ by one ulp
+        // on this logistic fit, so the pin allows that and nothing more.
+        assert_eq!(
+            one_shot.effect().to_bits(),
+            clicked.effect().to_bits(),
+            "replicates={replicates}"
+        );
+        assert_eq!(
+            one_shot.estimate.se_analytic.to_bits(),
+            clicked.estimate.se_analytic.to_bits(),
+            "replicates={replicates}"
+        );
+        assert_eq!(
+            one_shot.estimate.se_bootstrap.map(f64::to_bits),
+            clicked.estimate.se_bootstrap.map(f64::to_bits),
+            "replicates={replicates}"
+        );
         for result in [&one_shot, &clicked] {
             assert_eq!(result.effect().to_bits(), LEGACY_ATE_BITS, "replicates={replicates}");
-            assert_eq!(
-                result.estimate.se_analytic.to_bits(),
-                LEGACY_SE_BITS,
-                "replicates={replicates}"
+            let se_bits = result.estimate.se_analytic.to_bits();
+            assert!(
+                se_bits.abs_diff(LEGACY_SE_BITS) <= 1,
+                "replicates={replicates} se bits {se_bits:#x} vs {LEGACY_SE_BITS:#x}"
             );
-            assert_eq!(
-                result.estimate.se_bootstrap.map(f64::to_bits),
-                (replicates > 0).then_some(LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES),
-                "replicates={replicates}"
+            let bootstrap_bits = result.estimate.se_bootstrap.map(f64::to_bits);
+            let pinned_bootstrap =
+                (replicates > 0).then_some(LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES);
+            assert!(
+                bootstrap_bits
+                    .zip(pinned_bootstrap)
+                    .is_none_or(|(actual, pinned)| { actual.abs_diff(pinned) <= 1 })
+                    && bootstrap_bits.is_some() == pinned_bootstrap.is_some(),
+                "replicates={replicates} bootstrap bits {bootstrap_bits:?} vs {pinned_bootstrap:?}"
             );
             assert!((result.effect() - 2.0).abs() < 0.2, "ate={}", result.effect());
             let codes: Vec<&str> = result.diagnostics.iter().map(|d| d.code.as_ref()).collect();
