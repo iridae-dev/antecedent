@@ -10,4 +10,4 @@ description = "Optional Burn neural-net provider for antecedent-learn; emits Vec
 workspace = true
 
 [dependencies]
-burn = { version = "0.16", default-features = false, features = ["std", "autodiff", "ndarray"] }
+burn = { version = "0.21", default-features = false, features = ["std", "autodiff", "ndarray"] }
