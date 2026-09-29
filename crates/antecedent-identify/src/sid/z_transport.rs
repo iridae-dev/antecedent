@@ -8,7 +8,7 @@
 
 use super::{IdentificationBudget, IdentificationError};
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceKind,
+    DistributionAvailability, EvidenceCatalog,
     InterventionAssignment as CatalogInterventionAssignment, RegimeKind, VariableDomain,
     VariableId,
 };
@@ -808,7 +808,7 @@ pub fn validate_z_experiment_family(
                     .filter_map(|value| value.value.as_f64().map(|v| (value.variable, v)))
                     .collect::<Vec<_>>();
                 kind_matches
-                    && regime.evidence_kind == EvidenceKind::Available
+                    && regime.supplies_population_law()
                     && regime.population.as_ref() == query.source.as_ref()
                     && same_variable_set(&regime.interventions, &intervened)
                     && (regime_values.len() == assignment.len()
@@ -2040,7 +2040,7 @@ pub fn bind_z_transport_catalog(
             .iter()
             .find(|regime| {
                 regime.population.as_ref() == query.source.as_ref()
-                    && regime.evidence_kind == EvidenceKind::Available
+                    && regime.supplies_population_law()
                     && regime.kind == RegimeKind::Experimental
                     && same_variable_set(&regime.interventions, &assignment_variables)
                     && regime.intervention_values.len() == query.experiment_assignment.len()
@@ -2115,7 +2115,7 @@ pub fn bind_z_transport_catalog(
         .iter()
         .find(|regime| {
             regime.population.as_ref() == query.source.as_ref()
-                && regime.evidence_kind == EvidenceKind::Available
+                && regime.supplies_population_law()
                 && regime.kind == RegimeKind::Experimental
                 && same_variable_set(&regime.interventions, &intervention_variables)
                 && regime.intervention_values.len() == assignments.len()
@@ -2191,7 +2191,9 @@ pub fn bind_z_transport_catalog(
     })
 }
 
-fn cited_regimes(mut cited: Vec<antecedent_core::RegimeId>) -> Arc<[antecedent_core::RegimeId]> {
+pub(super) fn cited_regimes(
+    mut cited: Vec<antecedent_core::RegimeId>,
+) -> Arc<[antecedent_core::RegimeId]> {
     cited.sort_unstable_by_key(|regime| regime.raw());
     cited.dedup();
     cited.into()
@@ -2305,7 +2307,7 @@ fn bind_leaf(
         .iter()
         .filter(|regime| {
             regime.population.as_ref() == population
-                && regime.evidence_kind == EvidenceKind::Available
+                && regime.supplies_population_law()
                 && regime_matches_world(regime, interventions)
                 && regime_supplies_margin(catalog, regime, needed)
         })
@@ -2388,7 +2390,7 @@ fn bind_leaf(
     Ok(LeafBinding::PerWorld(regimes))
 }
 
-fn bind_recursive_expression(
+pub(super) fn bind_recursive_expression(
     id: ExprId,
     arena: &mut CausalExprArena,
     catalog: &EvidenceCatalog,
@@ -2512,7 +2514,7 @@ fn inspect_z_expression(
     let mut supplied_by = Vec::new();
     for regime in catalog.regimes.iter().filter(|regime| {
         regime.population.as_ref() == name
-            && regime.evidence_kind == EvidenceKind::Available
+            && regime.supplies_population_law()
             && regime_matches_world(regime, assignments)
     }) {
         exact_regime = true;
@@ -2655,30 +2657,80 @@ fn search_trz(
     Ok(search_trz_detailed(diagram, query, limits, ctx, &mut None)?.identified)
 }
 
+/// One source a `TRz` line-10 exchange may consult.
+pub(super) struct TrzDomain<'q> {
+    pub(super) population: &'q Arc<str>,
+    pub(super) controllable: &'q [VariableId],
+    pub(super) experiment_assignment: &'q [CatalogInterventionAssignment],
+    pub(super) selection_targets: &'q [VariableId],
+}
+
+/// Shared inputs of one recursive search: the queried treatments, the target,
+/// and the sources line 10 may exchange into (one for `TRz`, several for `TR^mz`).
+pub(super) struct TrzCall<'q> {
+    pub(super) outcomes: &'q Arc<[VariableId]>,
+    pub(super) treatments: &'q Arc<[VariableId]>,
+    pub(super) target: &'q Arc<str>,
+    /// A source population distinct from the target. The engine's classical
+    /// query needs one; this recursion never builds a kernel from it, since every
+    /// exchanged kernel carries its own source's population.
+    pub(super) anchor: &'q Arc<str>,
+    pub(super) domains: Vec<TrzDomain<'q>>,
+}
+
+impl<'q> TrzCall<'q> {
+    fn single(diagram: &'q SelectionDiagram, query: &'q ZTransportQuery) -> Self {
+        Self {
+            outcomes: &query.outcomes,
+            treatments: &query.treatments,
+            target: &query.target,
+            anchor: &query.source,
+            domains: vec![TrzDomain {
+                population: &query.source,
+                controllable: &query.controllable,
+                experiment_assignment: &query.experiment_assignment,
+                selection_targets: diagram.selection_targets(),
+            }],
+        }
+    }
+}
+
+/// One source's line-11 premises at a multi-source terminal.
 #[derive(Clone, Debug, PartialEq)]
-struct TrzTerminalFailure {
-    outcomes: Vec<u32>,
-    treatments: Vec<u32>,
-    vertices: Vec<u32>,
-    c0: Vec<u32>,
+pub(super) struct TrzSourceTerminal {
+    pub(super) population: String,
+    pub(super) remaining_controllable: Vec<u32>,
+    pub(super) candidate_active: Vec<u32>,
+    pub(super) selection_separated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TrzTerminalFailure {
+    pub(super) outcomes: Vec<u32>,
+    pub(super) treatments: Vec<u32>,
+    pub(super) vertices: Vec<u32>,
+    pub(super) c0: Vec<u32>,
     remaining_controllable: Vec<u32>,
     candidate_active: Vec<u32>,
-    active_interventions: Vec<(u32, Option<f64>)>,
+    pub(super) active_interventions: Vec<(u32, Option<f64>)>,
     selection_separated: bool,
-    rules: Vec<String>,
+    pub(super) rules: Vec<String>,
+    /// Per-source premises when several sources were searched; empty for `TRz`,
+    /// whose single source uses the fields above.
+    pub(super) sources: Vec<TrzSourceTerminal>,
 }
 
 #[derive(Debug)]
-struct TrzSearchResult {
-    identified: Option<(CausalExprArena, ExprId, Vec<String>)>,
-    terminal_failure: Option<TrzTerminalFailure>,
-    unassigned: Option<VariableId>,
+pub(super) struct TrzSearchResult {
+    pub(super) identified: Option<(CausalExprArena, ExprId, Vec<String>)>,
+    pub(super) terminal_failure: Option<TrzTerminalFailure>,
+    pub(super) unassigned: Option<VariableId>,
     /// Every recursive rule the search applied, in order, whatever the outcome.
-    explored_rules: Vec<String>,
+    pub(super) explored_rules: Vec<String>,
     /// Recursive subproblems the search charged.
-    steps_explored: usize,
+    pub(super) steps_explored: usize,
     /// Deepest recursion level the search reached.
-    depth_reached: usize,
+    pub(super) depth_reached: usize,
 }
 
 fn search_trz_detailed(
@@ -2688,11 +2740,23 @@ fn search_trz_detailed(
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<TrzSearchResult, IdentificationError> {
+    search_trz_call(diagram, &TrzCall::single(diagram, query), limits, ctx, receipt)
+}
+
+/// Run the recursive search for `call` on the shared causal graph of `diagram`.
+/// Selection targets are read per source from `call`, never from `diagram`.
+pub(super) fn search_trz_call(
+    diagram: &SelectionDiagram,
+    call: &TrzCall<'_>,
+    limits: super::SidLimits,
+    ctx: &antecedent_core::ExecutionContext,
+    receipt: &mut Option<ZTransportLimitsReceipt>,
+) -> Result<TrzSearchResult, IdentificationError> {
     let classical = super::ClassicalTransportQuery {
-        outcomes: Arc::clone(&query.outcomes),
-        treatments: Arc::clone(&query.treatments),
-        source: Arc::clone(&query.source),
-        target: Arc::clone(&query.target),
+        outcomes: Arc::clone(call.outcomes),
+        treatments: Arc::clone(call.treatments),
+        source: Arc::clone(call.anchor),
+        target: Arc::clone(call.target),
     };
     // A budget or cancellation observed at engine construction stops the search
     // before any recursive accounting is taken, so the receipt reports the
@@ -2726,9 +2790,10 @@ fn search_trz_detailed(
     let irrelevant = BitSet::with_len(diagram.causal_graph().node_count());
     let outcome = search_trz_state(
         &mut engine,
-        initial,
-        query,
-        &query.controllable,
+        &initial,
+        call,
+        None,
+        &[],
         &[],
         &irrelevant,
         0,
@@ -2798,8 +2863,9 @@ fn search_limits_receipt(
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // Mirrors the paper rule state explicitly.
 fn search_trz_state(
     engine: &mut super::Engine<'_>,
-    state: super::State,
-    query: &ZTransportQuery,
+    state: &super::State,
+    call: &TrzCall<'_>,
+    active: Option<usize>,
     remaining_controllable: &[VariableId],
     active_interventions: &[antecedent_expr::InterventionAssignment],
     irrelevant: &BitSet,
@@ -2827,8 +2893,9 @@ fn search_trz_state(
         };
         return search_trz_state(
             engine,
-            next,
-            query,
+            &next,
+            call,
+            active,
             remaining_controllable,
             active_interventions,
             irrelevant,
@@ -2851,8 +2918,9 @@ fn search_trz_state(
         fixed.union_with(&enlarged);
         let Some(child) = search_trz_state(
             engine,
-            next,
-            query,
+            &next,
+            call,
+            active,
             remaining_controllable,
             active_interventions,
             &fixed,
@@ -2873,7 +2941,7 @@ fn search_trz_state(
         let free = engine.arena.free_variables(child);
         if enlarged_vars.iter().any(|variable| free.contains(variable)) {
             trace.push("ztr.line3.kernel_weighted".into());
-            return Ok(Some(engine.enlarge_output(&state, &enlarged, child)?));
+            return Ok(Some(engine.enlarge_output(state, &enlarged, child)?));
         }
         return Ok(Some(child));
     }
@@ -2890,8 +2958,9 @@ fn search_trz_state(
             };
             let Some(child) = search_trz_state(
                 engine,
-                next,
-                query,
+                &next,
+                call,
+                active,
                 remaining_controllable,
                 active_interventions,
                 irrelevant,
@@ -2920,7 +2989,7 @@ fn search_trz_state(
         if containing.iter().any(|d| d.equal_set(district)) {
             // `TRz` rule 7: C0 is a c-component of D, so its kernel is available.
             trace.push("ztr.line7.factor".into());
-            let kernel = engine.factor(&state, district)?;
+            let kernel = engine.factor(state, district)?;
             return Ok(Some(engine.marginal(kernel, &super::difference(district, &state.y))?));
         }
         let larger = containing.iter().find(|d| district.is_subset_of(d)).ok_or(
@@ -2932,14 +3001,15 @@ fn search_trz_state(
             y: state.y.clone(),
             x: super::intersection(&state.x, larger),
             v: larger.clone(),
-            kernel: engine.factor(&state, larger)?,
+            kernel: engine.factor(state, larger)?,
         };
         // `TRz` rule 8: recurse into the containing c-component of D.
         trace.push("ztr.line8.recurse".into());
         return search_trz_state(
             engine,
-            next,
-            query,
+            &next,
+            call,
+            active,
             remaining_controllable,
             active_interventions,
             irrelevant,
@@ -2950,29 +3020,71 @@ fn search_trz_state(
         );
     }
 
-    let mut activated = BitSet::with_len(engine.diagram.causal_graph().node_count());
-    for variable in remaining_controllable.iter().copied() {
-        let dense = engine.prepared.var_to_dense(variable)?;
-        if state.x.contains(dense) {
-            activated.insert(dense);
+    // `TRz` line 10 (`TR^mz` line 10 with several sources): with no active
+    // experiment every source is a candidate; once a subcall exchanged into one
+    // source, only that source's remaining controllables may be exchanged, so a
+    // c-factor never mixes sources.
+    let candidates = active.map_or_else(|| (0..call.domains.len()).collect(), |i| vec![i]);
+    let mut eligibility = Vec::with_capacity(candidates.len());
+    for index in candidates {
+        let domain = &call.domains[index];
+        let controllable =
+            if active == Some(index) { remaining_controllable } else { domain.controllable };
+        let mut activated = BitSet::with_len(engine.diagram.causal_graph().node_count());
+        for variable in controllable.iter().copied() {
+            let dense = engine.prepared.var_to_dense(variable)?;
+            if state.x.contains(dense) {
+                activated.insert(dense);
+            }
         }
+        let separated = engine.admissible_selections(state, &[], domain.selection_targets)?;
+        eligibility.push((index, controllable, activated, separated));
     }
-    let selection_separated = engine.source_admissible(&state)?;
-    if !activated.any() || !selection_separated {
+    if !eligibility.iter().any(|(_, _, activated, separated)| activated.any() && *separated) {
         // `TRz` rule 11: rule 10 cannot exchange an active experiment.
-        if terminal_failure.is_none() {
+        let single = call.domains.len() == 1;
+        let replace = terminal_failure.as_ref().is_none_or(|recorded| {
+            // With several sources, prefer a terminal reached with no active
+            // experiment: only that state is forced on every search path.
+            !single && !recorded.active_interventions.is_empty() && active_interventions.is_empty()
+        });
+        if replace {
             let mut c0 = engine.vars(district)?.iter().map(|v| v.raw()).collect::<Vec<_>>();
             c0.sort_unstable();
-            let mut candidate_active =
-                engine.vars(&activated)?.iter().map(|v| v.raw()).collect::<Vec<_>>();
-            candidate_active.sort_unstable();
+            let raw_sorted = |engine: &super::Engine<'_>, set: &BitSet| {
+                engine.vars(set).map(|vars| {
+                    let mut raw = vars.iter().map(|v| v.raw()).collect::<Vec<_>>();
+                    raw.sort_unstable();
+                    raw
+                })
+            };
             trace.push("ztr.line11.fail".into());
+            let (remaining, candidate_active, selection_separated, sources) = if single {
+                let (_, controllable, activated, separated) = &eligibility[0];
+                (
+                    controllable.iter().map(|v| v.raw()).collect(),
+                    raw_sorted(engine, activated)?,
+                    *separated,
+                    Vec::new(),
+                )
+            } else {
+                let mut sources = Vec::with_capacity(eligibility.len());
+                for (index, controllable, activated, separated) in &eligibility {
+                    sources.push(TrzSourceTerminal {
+                        population: call.domains[*index].population.to_string(),
+                        remaining_controllable: controllable.iter().map(|v| v.raw()).collect(),
+                        candidate_active: raw_sorted(engine, activated)?,
+                        selection_separated: *separated,
+                    });
+                }
+                (Vec::new(), Vec::new(), false, sources)
+            };
             *terminal_failure = Some(TrzTerminalFailure {
                 outcomes: engine.vars(&state.y)?.iter().map(|v| v.raw()).collect(),
                 treatments: engine.vars(&state.x)?.iter().map(|v| v.raw()).collect(),
                 vertices: engine.vars(&state.v)?.iter().map(|v| v.raw()).collect(),
                 c0,
-                remaining_controllable: remaining_controllable.iter().map(|v| v.raw()).collect(),
+                remaining_controllable: remaining,
                 candidate_active,
                 active_interventions: active_interventions
                     .iter()
@@ -2980,11 +3092,54 @@ fn search_trz_state(
                     .collect(),
                 selection_separated,
                 rules: trace.clone(),
+                sources,
             });
         }
         return Ok(None);
     }
-    let active_vars = engine.vars(&activated)?;
+    for (index, controllable, activated, separated) in eligibility {
+        if !activated.any() || !separated {
+            continue;
+        }
+        if let Some(result) = exchange_trz_source(
+            engine,
+            state,
+            call,
+            index,
+            controllable,
+            &activated,
+            active_interventions,
+            irrelevant,
+            depth,
+            trace,
+            terminal_failure,
+            unassigned,
+        )? {
+            return Ok(Some(result));
+        }
+    }
+    Ok(None)
+}
+
+/// `TRz` rule 10 for one source: exchange its active controllables for that
+/// source's experiment and recurse with the source active.
+#[allow(clippy::too_many_arguments)] // The recursion state of `search_trz_state`.
+fn exchange_trz_source(
+    engine: &mut super::Engine<'_>,
+    state: &super::State,
+    call: &TrzCall<'_>,
+    index: usize,
+    controllable: &[VariableId],
+    activated: &BitSet,
+    active_interventions: &[antecedent_expr::InterventionAssignment],
+    irrelevant: &BitSet,
+    depth: usize,
+    trace: &mut Vec<String>,
+    terminal_failure: &mut Option<TrzTerminalFailure>,
+    unassigned: &mut Option<VariableId>,
+) -> Result<Option<ExprId>, IdentificationError> {
+    let domain = &call.domains[index];
+    let active_vars = engine.vars(activated)?;
     // The level each exchanged coordinate takes in the cited source experiment.
     // A queried treatment and a coordinate that rule 4 handed to this district
     // stay symbolic: the evaluation request binds the former and the enclosing
@@ -2995,8 +3150,8 @@ fn search_trz_state(
     let mut exchanged = Vec::with_capacity(active_vars.len());
     for variable in active_vars.iter().copied() {
         let dense = engine.prepared.var_to_dense(variable)?;
-        if irrelevant.contains(dense) && !query.treatments.contains(&variable) {
-            let Some(assignment) = query
+        if irrelevant.contains(dense) && !call.treatments.contains(&variable) {
+            let Some(assignment) = domain
                 .experiment_assignment
                 .iter()
                 .find(|assignment| assignment.variable == variable)
@@ -3012,10 +3167,14 @@ fn search_trz_state(
             exchanged.push(antecedent_expr::InterventionAssignment::symbolic(variable));
         }
     }
-    trace.push(format!(
-        "ztr.line10.source_exchange:{:?}",
-        exchanged.iter().map(|a| (a.variable.raw(), a.value.as_f64())).collect::<Vec<_>>()
-    ));
+    let exchanged_levels =
+        exchanged.iter().map(|a| (a.variable.raw(), a.value.as_f64())).collect::<Vec<_>>();
+    if call.domains.len() == 1 {
+        trace.push(format!("ztr.line10.source_exchange:{exchanged_levels:?}"));
+    } else {
+        trace
+            .push(format!("ztr.line10.source_exchange:{}:{exchanged_levels:?}", domain.population));
+    }
     let mut cumulative = active_interventions.to_vec();
     for assignment in exchanged {
         if !cumulative.iter().any(|a| a.variable == assignment.variable) {
@@ -3029,28 +3188,37 @@ fn search_trz_state(
     // cited source law itself; otherwise the c-factor is identified from that
     // law by the interventional-distribution recursion on the graph with the
     // exchanged coordinates removed (sID^z line 7).
-    let remaining = super::difference(&state.v, &activated);
-    let Some(kernel) = source_c_factor(engine, &remaining, &cumulative, query, depth, trace)?
+    let remaining = super::difference(&state.v, activated);
+    let Some(kernel) = source_c_factor(
+        engine,
+        &remaining,
+        &cumulative,
+        domain.population,
+        call.target,
+        depth,
+        trace,
+    )?
     else {
         return Ok(None);
     };
     let next = super::State {
-        y: state.y,
-        x: super::difference(&state.x, &activated),
+        y: state.y.clone(),
+        x: super::difference(&state.x, activated),
         v: remaining,
         kernel,
     };
     // Fig. 4 line 10 recurses into `TRz` on the reduced graph and retains
     // experiments over the remaining controllable variables.
-    let remaining = remaining_controllable
+    let remaining = controllable
         .iter()
         .copied()
         .filter(|variable| !active_vars.contains(variable))
         .collect::<Vec<_>>();
     search_trz_state(
         engine,
-        next,
-        query,
+        &next,
+        call,
+        Some(index),
         &remaining,
         &cumulative,
         irrelevant,
@@ -3068,7 +3236,8 @@ fn source_c_factor(
     engine: &mut super::Engine<'_>,
     remaining: &BitSet,
     cumulative: &[antecedent_expr::InterventionAssignment],
-    query: &ZTransportQuery,
+    source: &Arc<str>,
+    target: &Arc<str>,
     depth: usize,
     trace: &mut Vec<String>,
 ) -> Result<Option<ExprId>, IdentificationError> {
@@ -3096,7 +3265,7 @@ fn source_c_factor(
     }
     let kept = engine.vars(&closure)?;
     let outside = kept.iter().copied().filter(|v| !remaining_vars.contains(v)).collect::<Vec<_>>();
-    let population = engine.arena.intern_population(Arc::clone(&query.source));
+    let population = engine.arena.intern_population(Arc::clone(source));
     if outside.is_empty() {
         let variables = engine.arena.intern_var_set(remaining_vars);
         let conditioned_on = engine.arena.empty_var_set();
@@ -3142,15 +3311,15 @@ fn source_c_factor(
     let classical = super::ClassicalTransportQuery {
         outcomes: remaining_vars.clone().into(),
         treatments: outside.into(),
-        source: Arc::clone(&query.source),
-        target: Arc::clone(&query.target),
+        source: Arc::clone(source),
+        target: Arc::clone(target),
     };
     let limits = super::SidLimits {
         steps: engine.limits.steps.saturating_sub(engine.steps).max(1),
         depth: engine.limits.depth.saturating_sub(depth).max(1),
     };
     let mut sub = super::Engine::new(&diagram, &classical, limits, engine.ctx)?;
-    let initial = sub.initial_source_kernel(&query.source, cumulative)?;
+    let initial = sub.initial_source_kernel(source, cumulative)?;
     let solved = sub.solve(initial, false, 0);
     engine.steps = engine.steps.saturating_add(sub.steps);
     let Some(root_step) = solved? else {
@@ -3229,6 +3398,7 @@ fn transplant(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_core::EvidenceKind;
     use antecedent_core::{
         DependenceGroup, Environment, RegimeBinding, RegimeId, SamplingDesign, Value,
         VariableCoordinate,

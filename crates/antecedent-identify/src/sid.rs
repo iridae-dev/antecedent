@@ -28,7 +28,9 @@ pub use meta::{
 pub use mz_transport::{
     MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MzTransportQuery, ValidatedMzTransportQuery, validate_mz_transport_query,
+    MzSearchInspection, MzStageRecord, MzTransportDecision, MzTransportDerivation,
+    MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
+    decide_mz_transport, validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
