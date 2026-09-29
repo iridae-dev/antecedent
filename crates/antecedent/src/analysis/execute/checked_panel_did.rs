@@ -37,10 +37,13 @@ impl CheckedPanelDidOperation {
         };
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
         if study.graph.class() != GraphClass::RandomizedTrial
+            || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
+            || study.graph_posterior.is_some()
+            || study.tiered.is_some()
             || query.treated.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
@@ -58,6 +61,16 @@ impl CheckedPanelDidOperation {
                     .get(variable)
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
             }
+        }
+        let (plan_id, identifier, estimator) = panel_did_plan_ids(query.design);
+        if physical.logical.query != study.query
+            || physical.logical.record.plan_id.as_ref() != plan_id
+            || physical.logical.record.identifier.as_deref() != Some(identifier)
+            || physical.logical.record.estimator.as_deref() != Some(estimator)
+        {
+            return Err(CausalError::Compile {
+                message: "panel DiD design differs from its compiled plan".into(),
+            });
         }
         let (identification, estimand) = panel_did_identification(query);
         Ok(Self {
@@ -806,6 +819,21 @@ impl CheckedPanelDidOperation {
         result.rebind_interval(false);
         Ok(result)
     }
+}
+
+/// Plan id, identifier and estimator a compiled `DiD` plan records for `design`.
+pub(super) fn panel_did_plan_ids(
+    design: antecedent_core::DidSamplingDesign,
+) -> (&'static str, &'static str, &'static str) {
+    use antecedent_core::DidSamplingDesign;
+    let estimator = match design {
+        DidSamplingDesign::BalancedPanel => "quasi.panel_change_score",
+        DidSamplingDesign::RepeatedCrossSection => "quasi.repeated_cross_section_four_cell",
+        DidSamplingDesign::StaggeredGroupTime => "quasi.staggered_group_time_never_treated",
+        DidSamplingDesign::StaggeredEventStudy => "quasi.staggered_event_study_never_treated",
+        DidSamplingDesign::AugmentedPanel => "quasi.augmented_panel_supplied_nuisance",
+    };
+    ("quasi.panel_did", "quasi.parallel_trends", estimator)
 }
 
 /// Graphless licence key for a `DiD` sampling design.

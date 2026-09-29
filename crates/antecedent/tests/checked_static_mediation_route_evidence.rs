@@ -83,6 +83,36 @@ fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation()
     }
 }
 
+#[test]
+fn static_result_wire_carries_the_queried_contrast_and_every_component() {
+    let base = data(0.0);
+    let context = ExecutionContext::for_tests(205);
+    let mut query = MediationQuery::binary(v(0), v(2), [v(1)], MediationContrast::Direct);
+    query.control = Intervention::set(v(0), Value::f64(0.2));
+    query.active = Intervention::set(v(0), Value::f64(0.8));
+    let study = Study::tabular(base.clone())
+        .graph(graph())
+        .query(CausalQuery::Mediation(query.clone()))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = study.prepare(&context).unwrap().estimate(&base, &context).unwrap();
+    let wire = result.static_result_wire(&CausalQuery::Mediation(query), None).unwrap();
+    let mediation = result.mediation.as_ref().unwrap();
+    assert_eq!(wire.estimate.to_bits(), result.estimate.ate.to_bits());
+    assert_eq!(
+        wire.mediation,
+        Some([mediation.total.unwrap(), mediation.direct.unwrap(), mediation.mediated.unwrap()])
+    );
+    assert_eq!((wire.control_level, wire.active_level), (0.2, 0.8));
+    assert_eq!(wire.refutations.len(), result.refutations.len());
+    assert!(wire.unit_effects.is_none());
+    // A query without hard levels cannot name the contrast's endpoints.
+    let mut soft = MediationQuery::binary(v(0), v(2), [v(1)], MediationContrast::Direct);
+    soft.control = Intervention::shift(v(0), Value::f64(1.0));
+    assert!(result.static_result_wire(&CausalQuery::Mediation(soft), None).is_err());
+}
+
 fn data(direct_delta: f64) -> TabularData {
     let (mut t, mut m, mut y, mut x) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     // Balanced four-factor design gives independent errors and exact known

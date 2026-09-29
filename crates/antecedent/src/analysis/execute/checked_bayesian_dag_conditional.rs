@@ -42,6 +42,15 @@ impl CheckedBayesianConditionalOperation {
         self.stage_sink = sink;
     }
 
+    /// Replace the caller validators run by this sealed operation. Names are
+    /// checked by the prepared handle before the swap.
+    pub(crate) fn set_custom_validators(
+        &mut self,
+        validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    ) {
+        self.validators = validators;
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
         graph: &Dag,
@@ -178,9 +187,19 @@ impl CheckedBayesianConditionalOperation {
         let InferenceMode::Bayesian(config) = &self.inference else {
             unreachable!("checked constructor requires Bayesian inference")
         };
+        // Fit on the identified columns only, as the one-shot route does;
+        // the retained estimand keeps the caller's ids for the result.
+        let full_cols = data.schema().len();
+        let (projected, query_est, estimand_est) =
+            project_for_ate_estimate(data, &self.query.inner, &estimand)?;
+        let projected_cols = projected.schema().len();
+        let conditional_est =
+            antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let mut fitter = bayesian_gcomp(config, ctx);
-        let prepared =
-            fitter.prepare_conditional(data, &estimand, &self.query).map_err(CausalError::from)?;
+        let prepared = fitter
+            .prepare_conditional(&projected, &estimand_est, &conditional_est)
+            .map_err(CausalError::from)?;
         let (prior, conflict) = resolve_bayesian_prior_with_conflict(config, &prepared, Some(ctx))?;
         fitter.prior = prior;
         let mut workspace = BayesianGCompWorkspace::default();
@@ -214,18 +233,21 @@ impl CheckedBayesianConditionalOperation {
         );
         let mut refutations = Vec::new();
         let mut diagnostics = Vec::new();
+        if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
+            diagnostics.push(projection);
+        }
         let mut predictive_checks = Vec::new();
         clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
         let mut refute_workspace = EstimationWorkspace::default();
         if self.refute != RefuteSuite::None {
             let mean_query = {
-                let mut query = self.query.inner.clone();
+                let mut query = query_est;
                 query.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
                 query
             };
             let (reports, not_applicable) = run_refuters(
-                data,
-                &estimand,
+                &projected,
+                &estimand_est,
                 &mean_query,
                 &estimate,
                 &mut refute_workspace,

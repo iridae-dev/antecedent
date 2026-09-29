@@ -78,35 +78,10 @@ impl PreparedTransportGridStage {
         }).collect();
         serde_json::json!({"execution_id":result.identity(),"points":points,"interval_scope":"pointwise","simultaneous_bands":false}).to_string()
     }
-    /// Native four-slot reasoning, mirroring [`TransportGridResult::reasoning`] before any
-    /// point has been executed (identification is a structural property of the accepted
-    /// proof, not of an execution; the other three slots stay unavailable until then).
+    /// Native four-slot reasoning: the executed grid's, or the prepared stage's
+    /// pre-execution inspection.
     fn reasoning(&self) -> antecedent_core::ReasoningView {
-        self.last.as_ref().map_or_else(
-            || {
-                use antecedent_core::{
-                    AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
-                    IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope,
-                    ReasoningView, SlotAvailability,
-                };
-                ReasoningView::new(
-                    SlotAvailability::Available(IdentificationSlot::identified_singleton(
-                        IdentificationStatus::NonparametricallyIdentified,
-                    )),
-                    SlotAvailability::unavailable("execution_specific"),
-                    SlotAvailability::unavailable("execution_specific"),
-                    SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
-                        "transport.population_selection_graph",
-                        ObligationScope::Program,
-                        AssumptionSource::UserDeclared,
-                        ObligationKind::UserAssertion,
-                        AssumptionStatus::Declared,
-                        "The accepted graph and source-specific mechanism selections describe the declared populations.",
-                    )])),
-                )
-            },
-            TransportGridResult::reasoning,
-        )
+        self.last.as_ref().map_or_else(|| self.inner.inspect(), TransportGridResult::reasoning)
     }
 }
 #[pymethods]
@@ -206,9 +181,9 @@ impl PreparedTransportGridStage {
         let uncertainty_available = reasoning.uncertainty.is_available();
         serde_json::json!({
             "identification":{"available":reasoning.identification.is_available(),"summary":identification_status,"payload":{"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", ""),"theorem_scope":proof.evidence_setting(),"sources":proof.sources(),"rules":proof.rules(),"required_factors":factors,"required_bindings":query.functional.arena().leaf_bindings(query.functional.root()).iter().map(|b|serde_json::json!({"population":b.population.as_ref(),"regime":b.regime.map(antecedent_core::RegimeId::raw)})).collect::<Vec<_>>()}},
-            "support":{"available":self.last.is_some(),"summary":"grid_local_support","payload":{"points":points,"population_positivity":"assumed_not_empirically_proven"}},
+            "support":{"available":reasoning.support.is_available(),"summary":"grid_local_support","payload":{"points":points,"population_positivity":"assumed_not_empirically_proven","slot":crate::transport_common::support_slot_json(&reasoning.support)}},
             "uncertainty":{"available":uncertainty_available,"summary":if uncertainty_available{"pointwise_bootstrap"}else{"unavailable"},"payload":{"calibration_status":"not_bound_to_this_execution","simultaneous_bands":false}},
-            "assumptions":{"available":true,"summary":"declared_population_selections_and_provider_contract","payload":{"empirically_verified":false,"target":proof.query().target.as_ref(),"sources":proof.sources()}},
+            "assumptions":{"available":reasoning.assumptions.is_available(),"summary":"declared_population_selections_and_provider_contract","payload":{"empirically_verified":false,"target":proof.query().target.as_ref(),"sources":proof.sources(),"obligations":crate::transport_common::obligation_ids(&reasoning.assumptions)}},
             "execution_id":self.last.as_ref().map(TransportGridResult::identity),"capabilities":{"storage":true,"proof_verification":true,"numerical_verification":true,"estimator_replay":self.inner.can_reestimate()},"evidence_contract":antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(query.functional.catalog()),"supported_operations":["estimate","replace_snapshot","refresh","export","mean","contrast","scalar_projection"],"formula":query.functional.arena().pretty(query.functional.root()).replace(":=NaN", "")
         }).to_string()
     }

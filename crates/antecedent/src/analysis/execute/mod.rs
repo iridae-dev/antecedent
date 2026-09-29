@@ -410,6 +410,9 @@ pub(crate) use temporal_posterior_response::dbn_posterior_response_supported;
 mod block_length_tests;
 
 #[cfg(test)]
+mod quasi_plan_self_check_tests;
+
+#[cfg(test)]
 mod class_mixture_mass_tests {
     //! A class mixture's published masses are the envelope's own split.
     use antecedent_identify::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};

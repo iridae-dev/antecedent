@@ -1261,6 +1261,77 @@ impl StudyResult {
     ) -> Result<AnalysisResultWire, CausalError> {
         body_for(&body_frame(query, temporal, None, registry)?, self)
     }
+
+    /// The portable static-result body of an executed mediation or
+    /// counterfactual result: the one producer of
+    /// [`antecedent_io::StaticResultWire`]. `query` is the query that produced
+    /// the result and fixes the control and active levels; `registry` is the
+    /// originating study's population registry.
+    ///
+    /// # Errors
+    ///
+    /// A result without a mediation or counterfactual payload, a mediation
+    /// payload missing a component, a query without hard control and active
+    /// levels ([`CausalError::Compile`]), or an identification encoding failure.
+    pub fn static_result_wire(
+        &self,
+        query: &antecedent_core::CausalQuery,
+        registry: Option<&antecedent_core::PopulationRegistry>,
+    ) -> Result<antecedent_io::StaticResultWire, CausalError> {
+        use antecedent_core::{CausalQuery, Intervention};
+        let compile = |message: &str| CausalError::Compile { message: message.into() };
+        let hard = |intervention: &Intervention| match intervention {
+            Intervention::Set { value, .. } => value.as_f64(),
+            _ => None,
+        };
+        let (control_level, active_level) = match query {
+            CausalQuery::Mediation(q) => (hard(&q.control), hard(&q.active)),
+            CausalQuery::Counterfactual(q) => {
+                (hard(&q.control), q.interventions.first().and_then(hard))
+            }
+            CausalQuery::NestedCounterfactual(q) => {
+                (Some(q.control_value()), Some(q.active_value()))
+            }
+            _ => (None, None),
+        };
+        if self.mediation.is_none() && self.counterfactual.is_none() {
+            return Err(compile("static result requires a mediation or counterfactual payload"));
+        }
+        let published = crate::PublishedScalarUncertainty::select(&self.estimate);
+        Ok(antecedent_io::StaticResultWire {
+            identification: antecedent_io::identification_to_wire_with_registry(
+                &self.identification,
+                registry,
+            )?,
+            estimate: self.estimate.ate,
+            standard_error: published.standard_error,
+            interval_lower: published.lower,
+            interval_upper: published.upper,
+            assumptions: antecedent_io::assumptions_to_wire(&self.estimate.assumptions),
+            support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
+            diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
+            refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
+            unit_effects: self.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
+            unit_extrapolative: self
+                .counterfactual
+                .as_ref()
+                .and_then(|c| c.unit_extrapolative.as_ref())
+                .map(|flags| flags.to_vec()),
+            mediation: self
+                .mediation
+                .as_ref()
+                .map(|m| {
+                    Ok::<_, CausalError>([
+                        m.total.ok_or_else(|| compile("mediation total is unavailable"))?,
+                        m.direct.ok_or_else(|| compile("mediation direct is unavailable"))?,
+                        m.mediated.ok_or_else(|| compile("mediation mediated is unavailable"))?,
+                    ])
+                })
+                .transpose()?,
+            control_level: control_level.ok_or_else(|| compile("missing control"))?,
+            active_level: active_level.ok_or_else(|| compile("missing active"))?,
+        })
+    }
 }
 
 /// Uncertainty component of a response interval by what its level means: a credible

@@ -515,3 +515,27 @@ pub(crate) fn unframe_named_artifact(
         .ok_or_else(|| serialization_error(format!("invalid {what} artifact format")))?;
     antecedent_io::from_cbor(payload).map_err(serialization_error)
 }
+
+/// A native support slot for an inspection payload: its matrix status and
+/// coordinate and its empirical support, or the reason it is unavailable.
+pub(crate) fn support_slot_json(
+    slot: &antecedent_core::SlotAvailability<antecedent_core::SupportSlot>,
+) -> serde_json::Value {
+    match slot.as_ref() {
+        Some(support) => serde_json::json!({
+            "matrix_status": support.matrix_status.as_ref(),
+            "matrix_coordinate": support.matrix_coordinate.as_deref(),
+            "empirical": support.empirical.label(ToString::to_string),
+        }),
+        None => serde_json::json!({ "unavailable": slot.label(|_| String::new()) }),
+    }
+}
+
+/// Obligation ids of a native assumption slot, empty when it is unavailable.
+pub(crate) fn obligation_ids(
+    slot: &antecedent_core::SlotAvailability<antecedent_core::AssumptionSlot>,
+) -> Vec<String> {
+    slot.as_ref().map_or_else(Vec::new, |assumptions| {
+        assumptions.obligations.iter().map(|obligation| obligation.id.to_string()).collect()
+    })
+}

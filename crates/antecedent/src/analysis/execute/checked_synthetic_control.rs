@@ -33,6 +33,22 @@ impl std::fmt::Debug for CheckedSyntheticControlOperation {
     }
 }
 
+/// Plan id, identifier and estimator a compiled synthetic panel plan records.
+pub(super) fn synthetic_panel_plan_ids(
+    method: antecedent_core::SyntheticPanelMethod,
+) -> (&'static str, &'static str, &'static str) {
+    match method {
+        antecedent_core::SyntheticPanelMethod::Control => (
+            "quasi.synthetic_control",
+            "quasi.convex_donor_counterfactual",
+            "quasi.synthetic_control_simplex",
+        ),
+        antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+            ("quasi.synthetic_did", "quasi.convex_unit_time_trends", "quasi.synthetic_did_simplex")
+        }
+    }
+}
+
 impl CheckedSyntheticControlOperation {
     pub(crate) fn checked(
         study: &Study,
@@ -51,6 +67,8 @@ impl CheckedSyntheticControlOperation {
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
+            || study.graph_posterior.is_some()
+            || study.tiered.is_some()
             || query.units.len() != data.row_count()
         {
             return Err(CausalError::Unsupported {
@@ -60,6 +78,16 @@ impl CheckedSyntheticControlOperation {
         data.schema()
             .get(query.outcome)
             .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let (plan_id, identifier, estimator) = synthetic_panel_plan_ids(query.method);
+        if physical.logical.query != study.query
+            || physical.logical.record.plan_id.as_ref() != plan_id
+            || physical.logical.record.identifier.as_deref() != Some(identifier)
+            || physical.logical.record.estimator.as_deref() != Some(estimator)
+        {
+            return Err(CausalError::Compile {
+                message: "synthetic panel design differs from its compiled plan".into(),
+            });
+        }
         let (identification, estimand) = synthetic_control_identification(query);
         Ok(Self {
             query: query.clone(),
