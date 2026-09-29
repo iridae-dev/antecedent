@@ -22,4 +22,6 @@ bash scripts/gate_coverage_citations.sh --self-test
 bash scripts/gate_evidence_reachability.sh --self-test
 bash scripts/gate_metadata_consistency.sh --self-test
 bash scripts/gate_support_matrix.sh --self-test
+bash scripts/gate_graphless_support.sh --self-test
+bash scripts/gate_named_tests.sh --self-test
 echo "gate self-tests: ok"

@@ -12,7 +12,8 @@
 #   * integration-test, bench and example targets may allow them file-wide, with a reason.
 #
 # Every allow of these lints, at any scope, must carry a `reason` (an item-level allow may
-# instead state it in a comment on the same line).
+# instead state it in a comment on the same line). `#[expect(...)]` suppresses the lint
+# exactly as `#[allow(...)]` does and is held to the same rules.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -24,7 +25,7 @@ import sys
 from pathlib import Path
 
 LINTS = ("cast_possible_truncation", "cast_sign_loss", "float_cmp")
-ATTR = re.compile(r"#(?P<inner>!?)\[(?P<cfg>cfg_attr\(test,\s*)?allow\((?P<body>[^\]]*?)\)\)?\]", re.S)
+ATTR = re.compile(r"#(?P<inner>!?)\[(?P<cfg>cfg_attr\(test,\s*)?(?P<kind>allow|expect)\((?P<body>[^\]]*?)\)\)?\]", re.S)
 TARGETS = ("/tests/", "/benches/", "/examples/")
 
 files = subprocess.run(
@@ -45,10 +46,10 @@ for name in files:
         end = text.find("\n", m.end())
         trailing_comment = "//" in text[m.end() : end if end != -1 else len(text)]
         if "reason" not in body and not (trailing_comment and not m.group("inner")):
-            problems.append(f"{name}:{line}: allow of {', '.join(named)} carries no `reason = \"...\"`")
+            problems.append(f"{name}:{line}: {m.group('kind')} of {', '.join(named)} carries no `reason = \"...\"`")
         if m.group("inner") and not m.group("cfg") and not target:
             problems.append(
-                f"{name}:{line}: library code allows {', '.join(named)} file-wide; put the "
+                f"{name}:{line}: library code {m.group('kind')}s {', '.join(named)} file-wide; put the "
                 "allow (with its reason) on the item or statement that needs it"
             )
 for problem in problems:

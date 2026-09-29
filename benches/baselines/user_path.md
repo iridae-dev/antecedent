@@ -5,6 +5,7 @@ Machine class: not recorded; docs/hot_paths.md describes these baselines as Appl
 Commit: 6a1a2463 (the commit that added this file; the measured commit was not written down)
 
 Not a `hot_paths.md` merge blocker. Not in `scripts/gate_release.sh` Criterion smoke.
+No wall times are recorded in this file (none published); each run prints them to stderr.
 
 Harness: `crates/antecedent/benches/user_path.rs`.
 

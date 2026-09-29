@@ -178,22 +178,8 @@ def docs(rows: list[dict]) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--evidence-tests", action="store_true")
     args = parser.parse_args()
     rows = load_rows()
-    if args.evidence_tests:
-        citations = sorted({row[field] for row in rows for field in ("known_truth_test", "retained_route_test")})
-        for citation in citations:
-            path, function = citation.split("::")
-            if path.startswith("crates/antecedent-estimate/src/"):
-                print(f"antecedent-estimate\tlib\t-\t{function}")
-            elif path.startswith("crates/antecedent-estimate/tests/"):
-                print(f"antecedent-estimate\ttest\t{Path(path).stem}\t{function}")
-            elif path.startswith("crates/antecedent/tests/"):
-                print(f"antecedent\ttest\t{Path(path).stem}\t{function}")
-            else:
-                raise ValueError(f"unsupported graphless evidence target: {path}")
-        return
     for target, expected in ((RUST, rust(rows)), (IO_RUST, rust(rows, io=True)), (DOC, docs(rows))):
         if args.check:
             if not target.exists() or target.read_text() != expected:

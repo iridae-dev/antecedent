@@ -62,8 +62,14 @@ EVIDENCE_KINDS = {
 }
 # An implementation_exists row that produces one of these is a statistical procedure
 # a reader would take as validated; it must say that no numerical truth backs it.
+# A term matches at a word start or inside a CamelCase name (`PosteriorWidth`,
+# `ExpectedPosteriorWidth`); `SE` is matched as a whole word only.
 STATISTICAL_QUANTITY = re.compile(
-    r"\b(interval|band|posterior|credible|p-value|EVPI|EVSI|decision|utility|coverage)", re.I
+    r"(?:\b|(?-i:(?<=[a-z])(?=[A-Z])))"
+    r"(interval|band|posterior|credible|p-value|EVPI|EVSI|decision|utility|coverage"
+    r"|standard[ _-]errors?|bootstrap|prior|draws?|envelope|cluster(?:ed)?|probability)"
+    r"|\bSEs?\b",
+    re.I,
 )
 # Kinds that assert an upstream package produced the truth being matched.
 EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}

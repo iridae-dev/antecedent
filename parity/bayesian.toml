@@ -102,6 +102,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-io/src/posterior.rs"
 evidence_assertion = "posterior_artifact_round_trip"
+limitations = "Serialization round trip only: the test checks that meta and draws survive encode/decode, not any statistical property of the draws."
 notes = "CBOR meta + f64 LE draws section"
 
 [[capabilities]]
@@ -188,6 +189,7 @@ evidence_kind = "implementation_exists"
 smoke_fixture = "conformance/bayesian/prior_bank_catalog"
 evidence_test = "crates/antecedent/tests/bayesian.rs"
 evidence_assertion = "prior_bank_catalog"
+limitations = "Catalog and compatibility-report bookkeeping only: the test and smoke fixture check metadata, labels and compatibility verdicts, not the numerical content of any prior."
 notes = "PriorSourceMeta / PriorCatalog / CompatibilityReport; CBOR prior_source.meta; durable coef labels; python_facade=full (antecedent.priors.PriorCatalog); conformance/bayesian/prior_bank_catalog"
 
 [[capabilities]]
