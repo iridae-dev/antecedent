@@ -8,11 +8,13 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same PR supersedes the one in flight; pushes to main are
-# never cancelled, so every main commit keeps the CI run a release verifies.
+# A newer push on the same ref replaces the run in flight. Main used to queue
+# every commit so a release tag could point at one whose CI had finished; that
+# queue left a rewritten-away run blocking every later commit. The commit that
+# is about to be tagged has to stay at the branch head until its CI finishes.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always

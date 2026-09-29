@@ -34,12 +34,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      # pdoc only imports the extension. The release profile turns on thin LTO
+      # and codegen-units = 1, which was most of this job.
       - name: Build manylinux wheel for pdoc
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: python
           command: build
-          args: --release --out dist -i 3.12
+          args: --profile dev --out dist -i 3.12
           target: x86_64
           manylinux: auto
           sccache: "true"
