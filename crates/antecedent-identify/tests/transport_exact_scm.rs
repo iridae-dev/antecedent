@@ -226,10 +226,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
     let treatment_mask: usize = treatments.iter().map(|t| 1usize << t).sum();
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this sweep, and the masks share that budget.
-    let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    let workers = std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1);
     let masks: Vec<usize> = (0..8).collect();
     let width = (masks.len() / workers).max(1);
-    let chunks: Vec<Vec<usize>> = masks.chunks(width).map(|chunk| chunk.to_vec()).collect();
+    let chunks: Vec<Vec<usize>> = masks.chunks(width).map(<[usize]>::to_vec).collect();
     let query = &query;
     let ctx = &ctx;
     let edges = &edges;
@@ -254,12 +254,12 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                 )
                 .unwrap();
                 let result =
-                    identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx)
+                    identify_classical_transport(&diagram, query, SidLimits::default(), ctx)
                         .unwrap();
                 let proof = match result {
                     ClassicalTransportResult::Identified(proof) => proof,
                     ClassicalTransportResult::ProvenNonTransportable(witness) => {
-                        antecedent_identify::sid::verify_s_hedge(&diagram, &query, &witness, &ctx)
+                        antecedent_identify::sid::verify_s_hedge(&diagram, query, &witness, ctx)
                             .unwrap();
                         continue;
                     }
@@ -441,10 +441,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                                 )),
                                 ExactEvaluationLimits::default(),
                                 LawTolerance::default(),
-                                &ctx,
+                                ctx,
                             )
                             .unwrap();
-                        let result = plan.evaluate(&ctx).unwrap();
+                        let result = plan.evaluate(ctx).unwrap();
                         assert!(
                             (result.mean(v(outcome)).unwrap() - expected).abs() < 1e-10,
                             "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} treatments={treatments:?} outcome={outcome} level={level} base={base}"
@@ -760,7 +760,8 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
     };
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this test, and the families split that budget.
-    let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(64);
+    let workers =
+        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
     let rules = std::sync::Mutex::new(std::collections::BTreeSet::new());
     let edges = &edges;
     let query = &query;
