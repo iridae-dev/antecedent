@@ -306,6 +306,40 @@ impl TheoremScope {
         }
     }
 
+    /// Multi-source limited-experiment transport (`TR^mz`), bounded.
+    ///
+    /// `TR^mz` (Bareinboim, Lee, Honavar & Pearl, `NeurIPS` 2013) is `TR^z` with a
+    /// loop over source domains at line 10; Bareinboim & Pearl (`NeurIPS` 2014,
+    /// UCLA R-443, Theorems 4–5) prove it complete for the information family of
+    /// experiments on every subset of each source's controllable set. This
+    /// implementation binds formulas to a supplied catalog within 12 observed
+    /// variables, 2–4 sources, 4 controllables per source and 64 candidate
+    /// regimes, so it is sound and incomplete; a failure is an obstruction only
+    /// when evaluated over the declared controllable sets, and budget exhaustion
+    /// is never one.
+    #[must_use]
+    pub fn mz_transportability() -> Self {
+        Self {
+            family: TheoremFamily::LimitedExperiment,
+            reference: TheoremReference {
+                citation: Arc::from(
+                    "Bareinboim, Lee, Honavar & Pearl, Transportability from Multiple Environments with Limited Experiments, NeurIPS 2013 (TR^mz, Figure 3); Bareinboim & Pearl, Transportability from Multiple Environments with Limited Experiments: Completeness Results, NeurIPS 2014, UCLA R-443 (Theorems 4-5)",
+                ),
+                version: Arc::from("bareinboim-lee-honavar-pearl-trmz-nips2013-r443-bounded-v1"),
+            },
+            graph_assumptions: GraphAssumptionSet::SemiMarkovianSelectionAdmg,
+            observed: Arc::from([]),
+            allowed_experiments: ExperimentFamily::TheoremExperiments,
+            distribution_family: TransportDistributionFamily::FiniteExactTables,
+            query_scope: TransportQueryScope::TargetInterventionalResponse,
+            outcome_guarantees: OutcomeGuarantee::SoundIncomplete,
+            computation_limits: ComputationLimits {
+                max_standardizer_candidates: 20,
+                multi_node_c_component_recursion: true,
+            },
+        }
+    }
+
     /// Durable inspect token used by exact-law preparation.
     #[must_use]
     pub fn exact_law_inspect_label() -> &'static str {

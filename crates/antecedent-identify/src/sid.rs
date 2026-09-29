@@ -18,11 +18,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod meta;
+mod mz_transport;
 mod z_transport;
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
     CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
     identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+};
+pub use mz_transport::{
+    MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
+    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
+    MzTransportQuery, ValidatedMzTransportQuery, validate_mz_transport_query,
 };
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
