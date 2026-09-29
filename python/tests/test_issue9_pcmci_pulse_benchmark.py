@@ -8,10 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("antecedent")
-
 
 def test_issue9_pcmci_pulse_benchmark_example() -> None:
     import runpy

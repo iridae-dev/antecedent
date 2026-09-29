@@ -64,14 +64,14 @@ def test_review_required_is_still_a_causal_review_error():
     """`except CausalReviewError` must keep catching `ReviewRequired` after the
     alias -> real-subclass change (P5a)."""
     assert issubclass(antecedent.errors.ReviewRequired, antecedent.errors.CausalReviewError)
-    with pytest.raises(antecedent.errors.CausalReviewError):
+    with pytest.raises(antecedent.errors.CausalReviewError, match="boom"):
         raise antecedent.errors.ReviewRequired("boom")
 
 
 def test_review_required_reexport_catches_too():
     """`except antecedent.ReviewRequired` must catch the same error the native layer
     (and `build_review_error`) raise."""
-    with pytest.raises(antecedent.ReviewRequired):
+    with pytest.raises(antecedent.ReviewRequired, match="boom"):
         raise antecedent.errors.build_review_error(
             "boom",
             kind="generic",

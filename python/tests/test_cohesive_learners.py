@@ -3,7 +3,7 @@
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent.errors import CausalEstimateError
+from antecedent.errors import CausalEstimateError, CausalTypeError
 from antecedent.estimators import DML, CausalForest, DRLearner
 from antecedent.learners import ElasticNet, GradientBoostedTrees, Linear, Logistic, NeuralNet, Ridge
 from antecedent.prediction import FittedEffectModel
@@ -73,6 +73,17 @@ def test_fitted_effect_predicts_after_verified_reload(estimator):
         loaded.predict({"wrong": [1.0]})
     with pytest.raises(ValueError, match="must be finite one-dimensional columns"):
         loaded.predict({"z": [float("nan")]})
+
+
+def test_fitted_effect_prediction_warns_on_digit_strings():
+    # The strict ingest refuses digit strings; prediction still parses them for now
+    # but says so, naming the column.
+    model = analyze(DRLearner(final_learner=Linear())).fitted_model
+    with pytest.warns(FutureWarning, match="column 'z'"):
+        parsed = model.predict({"z": np.array(["1", "2"])})
+    assert parsed == model.predict({"z": np.array([1.0, 2.0])})
+    with pytest.raises(CausalTypeError, match="'z'"):
+        model.predict({"z": np.array(["one", "two"])})
 
 
 def test_model_payload_mutation_cannot_reuse_parent_claim():

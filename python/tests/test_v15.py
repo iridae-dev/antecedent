@@ -555,7 +555,7 @@ def test_codetermined_joint_cells_are_cell_aipw():
     click = prepared.estimate(data)
     assert np.isfinite(click.estimate)
     unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
-    with pytest.raises((CausalUnsupportedError, CausalIdentifyError), match="no single ADMG"):
+    with pytest.raises(CausalIdentifyError, match="no single ADMG"):
         antecedent.analyze(
             data,
             graph=unknown,
@@ -629,7 +629,7 @@ def test_prepared_batch_prepare_cells_codetermined_pair_family():
     assert first.estimate.ate == pytest.approx(solo.estimate, abs=1e-12)
     assert first.estimate.ate == pytest.approx(fresh.estimate, abs=1e-12)
     unknown = TieredBackground(tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.UNKNOWN)
-    with pytest.raises((CausalUnsupportedError, CausalIdentifyError), match="no single ADMG"):
+    with pytest.raises(CausalIdentifyError, match="no single ADMG"):
         antecedent.estimation.PreparedBatch.prepare_cells(
             data,
             graph=unknown,

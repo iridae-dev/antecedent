@@ -210,15 +210,13 @@ def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
     )
     assert bayesian.posterior is not None
     assert bayesian.posterior.backend == "gcm.attribution.shared_dirichlet_row_weights"
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(CausalUnsupportedError, match="licensed only for an explicit Dag"):
         ant.analyze(
             _two_period_chain(),
             graph=ant.AcceptedGraph(_dag()),
             query=_change_query(),
         )
-    with pytest.raises(
-        (CausalUnsupportedError, ant.errors.CausalTypeError, ant.errors.CausalValueError)
-    ):
+    with pytest.raises(ant.errors.CausalTypeError, match="requires graph=Dag"):
         ant.analyze(
             _outlier_chain(),
             graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),
@@ -253,5 +251,7 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
 
 @pytest.mark.parametrize("scale", [0.0, -1.0, float("nan")])
 def test_fixed_anomaly_reference_rejects_invalid_scale(scale):
-    with pytest.raises(ant.errors.CausalValueError):
+    with pytest.raises(
+        ant.errors.CausalValueError, match="finite center and a finite positive scale"
+    ):
         ant.AnomalyReference(center=0.0, scale=scale)

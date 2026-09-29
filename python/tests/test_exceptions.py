@@ -11,7 +11,9 @@ def test_unknown_ci_raises_compile_error():
     n = 40
     x = np.linspace(0.0, 1.0, n)
     y = x + 0.01
-    with pytest.raises(antecedent.errors.CausalCompileError):
+    with pytest.raises(
+        antecedent.errors.CausalCompileError, match="unknown CI test name: not_a_real_ci"
+    ):
         antecedent.discovery.PCMCI(max_lag=1, ci="not_a_real_ci").run((["x", "y"], [x, y]), seed=1)
 
 
@@ -19,7 +21,7 @@ def test_unknown_edge_variable_raises_data_error():
     n = 30
     t = np.zeros(n)
     y = np.ones(n)
-    with pytest.raises(antecedent.errors.CausalDataError):
+    with pytest.raises(antecedent.errors.CausalDataError, match="unknown variable name `missing`"):
         antecedent.analyze(
             {"t": t, "y": y},
             graph=[("missing", "y")],

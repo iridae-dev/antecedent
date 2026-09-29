@@ -263,14 +263,7 @@ fn checked_program_from_wire(
             "checked functional program does not match its retained transport identification proof",
         ));
     }
-    // A program limit is a resource refusal on this path too, as it is when the
-    // program is rebuilt from the proof.
-    functional_program_from_wire(&wire, ProgramLimits::default()).map_err(|e| match e {
-        antecedent_io::IoError::Convert(message) if message.ends_with("limit exceeded") => {
-            crate::CausalResourceError::new_err(message)
-        }
-        other => error(other),
-    })
+    functional_program_from_wire(&wire, ProgramLimits::default()).map_err(error)
 }
 
 fn lower_identified_formula(

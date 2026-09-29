@@ -55,14 +55,14 @@ def test_response_query_validation_and_repr():
 def test_stage_specs_are_frozen_and_keep_assumptions_separate():
     intervention_spec = intervention.Set("dose", 1.0)
     assert intervention_spec.variable == "dose"
-    with pytest.raises(dataclasses.FrozenInstanceError):
+    with pytest.raises(dataclasses.FrozenInstanceError, match="cannot assign to field 'value'"):
         intervention_spec.value = 2.0  # type: ignore[misc]
 
     mechanism = observation.RightCensored("event_time", "time", "censor_time", "event")
     assumption = observation.IndependentGiven(["age", "group"])
     assert mechanism.censoring == "censor_time"
     assert assumption.variables == ["age", "group"]
-    with pytest.raises(dataclasses.FrozenInstanceError):
+    with pytest.raises(dataclasses.FrozenInstanceError, match="cannot assign to field 'latent'"):
         mechanism.latent = "changed"  # type: ignore[misc]
 
     diagram = transport.SelectionDiagram("trial", "target", ["age"])

@@ -193,7 +193,9 @@ def test_golden_path_2_1(case: Case) -> None:
             assert type(updated) is type(result)
             assert updated.program_id == result.program_id
         elif case.refresh == "refused":
-            with pytest.raises(CausalUnsupportedError):
+            with pytest.raises(
+                CausalUnsupportedError, match="bound to the prepared evaluation rows"
+            ):
                 study.refresh(data)
 
 

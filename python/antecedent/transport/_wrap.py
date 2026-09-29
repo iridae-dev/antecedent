@@ -25,6 +25,7 @@ from ..results import (
     ValidationView,
 )
 from ._day1 import (
+    _CATALOG_SEARCH_INCOMPLETE,
     Evidence,
     Source,
     Transport,
@@ -50,6 +51,7 @@ from ._impl import (
     consume_identification,
     consume_response_grid,
     consume_statistical,
+    inspect_catalog,
 )
 from ._restricted import (
     SCOPE as Z_SCOPE,
@@ -410,6 +412,42 @@ def encode_restricted_execution(study: Any, execution: RestrictedTransportExecut
     )
 
 
+def _parse_view_envelope(
+    encoded: bytes,
+) -> tuple[dict[str, Any], Transport | None, bytes | None, bytes | None, list[bytes]]:
+    """Parse the JSON envelope and its base64 fields, or refuse as a serialization error.
+
+    A truncated or hand-edited blob must surface as ``CausalSerializationError``,
+    never as a raw ``JSONDecodeError``/``binascii.Error``/``KeyError``.
+    """
+
+    def unpack(field: Any) -> bytes | None:
+        return None if field is None else base64.b64decode(field, validate=True)
+
+    try:
+        payload = json.loads(encoded[len(VIEW_PREFIX) :])
+        if not isinstance(payload, dict):
+            raise TypeError("the envelope is not a JSON object")
+        query = _query_from_dict(payload.get("query"))
+        items = (
+            [payload["specialist_artifact"]]
+            if payload.get("specialist_artifact") is not None
+            else payload.get("specialist_artifacts") or []
+        )
+        artifacts = [base64.b64decode(item, validate=True) for item in items]
+        return (
+            payload,
+            query,
+            unpack(payload.get("identification_artifact")),
+            unpack(payload.get("identification_snapshot")),
+            artifacts,
+        )
+    except (ValueError, TypeError, KeyError, AttributeError) as error:
+        raise CausalSerializationError(
+            f"transported view artifact is malformed or truncated: {error}"
+        ) from error
+
+
 def decode_transport_view(encoded: bytes) -> AnalysisResult | CausalResponseView:
     """Rebuild a transported result from its verified native artifacts.
 
@@ -419,24 +457,15 @@ def decode_transport_view(encoded: bytes) -> AnalysisResult | CausalResponseView
     directly, so editing the envelope by hand cannot upgrade what the result
     claims.
     """
-    payload = json.loads(encoded[len(VIEW_PREFIX) :])
-    query = _query_from_dict(payload.get("query"))
-    identification_artifact = payload.get("identification_artifact")
-    identification_snapshot = payload.get("identification_snapshot")
+    payload, query, identification_artifact, identification_snapshot, artifacts = (
+        _parse_view_envelope(encoded)
+    )
     identified: Any = None
     if identification_artifact is not None:
-        identified = consume_identification(base64.b64decode(identification_artifact))
+        identified = consume_identification(identification_artifact)
     elif identification_snapshot is not None:
-        identified = identification_from_snapshot(base64.b64decode(identification_snapshot))
+        identified = identification_from_snapshot(identification_snapshot)
     shape, worlds = lower_question(query.question) if query is not None else (None, [])
-    artifacts = [
-        base64.b64decode(item)
-        for item in (
-            [payload["specialist_artifact"]]
-            if payload.get("specialist_artifact") is not None
-            else payload.get("specialist_artifacts") or []
-        )
-    ]
     specialist: Any = None
     if artifacts and all(item.startswith(Z_TRANSPORT_PREFIX) for item in artifacts):
         specialist = consume_restricted_artifacts(
@@ -839,14 +868,21 @@ def _contrast_unavailable_detail(
     diagnostic and hide the real (already-known) reason the contrast is
     unavailable.
     """
+    native = warnings[0] if warnings else "every requested grid point is unbound"
     identified = stage.get("identified")
     catalog = stage.get("catalog")
-    if identified is not None and catalog is not None:
-        try:
-            return missing_evidence_detail(identified, catalog, query=query)
-        except Exception:
-            pass
-    return warnings[0] if warnings else "every requested grid point is unbound"
+    if identified is None or catalog is None or _is_restricted(identified):
+        return native
+    try:
+        search = inspect_catalog(identified, catalog)
+    except _CATALOG_SEARCH_INCOMPLETE:
+        return native
+    # The catalog template names the unbound joint; it only applies when the
+    # search actually found one. A support failure (an empty stratum, a zero
+    # denominator) has nothing missing, so its native detail is the answer.
+    if search.get("outcome") != "missing_evidence" or not search.get("missing_factors"):
+        return native
+    return missing_evidence_detail(identified, catalog, search=search, query=query)
 
 
 def _wrap_grid(

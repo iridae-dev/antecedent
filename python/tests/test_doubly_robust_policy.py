@@ -66,7 +66,7 @@ def test_doubly_robust_policy_refuses_missing_or_leaking_ownership_metadata():
 
 
 def test_doubly_robust_policy_refuses_invalid_propensity_and_duplicate_subjects():
-    with pytest.raises((CausalValueError, ValueError), match="propensities"):
+    with pytest.raises(ValueError, match="propensities"):
         _call(propensity=1.0)
     with pytest.raises(CausalValueError, match="unique"):
         _call(evaluation_subject_ids=["same"] * 8)
@@ -86,11 +86,7 @@ def test_policy_artifact_answer_preserves_typed_values_and_uncertainty():
     }
     answer = answer_from_artifact({"claim": {"kind": "policy_value"}}, payload)
     assert answer.kind == "policy_value"
-    # An unset license loads as the label the live estimate publishes.
-    assert answer.structured == {
-        **payload["policy_value"],
-        "graphless_support_status": "unlicensed_point_utility",
-    }
+    assert answer.structured == payload["policy_value"]
 
 
 def test_retained_finite_class_regret_has_simultaneous_bound_and_artifact():
@@ -233,21 +229,6 @@ def test_retained_randomized_ipw_policy_needs_no_nuisance_predictions():
             evaluation_subject_ids=["a", "b"],
             training_subject_ids=["train"],
         )
-
-
-def test_unlicensed_policy_value_answer_round_trips_through_load():
-    query = policy.PolicyValue(
-        outcome="y",
-        assignment=[False, True, False, True],
-        propensity=0.5,
-        policy=policy.BinaryPolicy([False, True, False, True]),
-        evaluation_subject_ids=["a", "b", "c", "d"],
-    )
-    result = ant.analyze({"y": [1.0, 3.0, 1.0, 3.0]}, query=query, refute="none")
-    assert result.policy_value.support_status == "unlicensed_point_utility"
-    loaded = ant.load(result.export(artifact_id="policy-unlicensed"))
-    assert loaded.answer == result.answer
-    assert loaded.answer.structured["graphless_support_status"] == "unlicensed_point_utility"
 
 
 def test_policy_value_without_predictions_survives_dataclasses_replace():

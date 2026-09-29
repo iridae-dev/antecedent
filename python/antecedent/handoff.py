@@ -656,4 +656,4 @@ def _graph_posterior_result(result: object) -> bool:
     )
 
 
-__all__ = ["EconMLSpec", "ExternalEstimate", "econml"]
+__all__ = ["EconMLProviderAdapter", "EconMLSpec", "ExternalEstimate", "econml"]

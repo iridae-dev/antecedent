@@ -19,6 +19,24 @@ from typing import Any, Protocol, cast, runtime_checkable
 import numpy as np
 from numpy.typing import NDArray
 
+# Provenance keys only the registry writes: they record which registry entry ran,
+# how it was trusted, and which verification evidence backs it. A provider's own
+# values for them are dropped, so it cannot forge its trust record.
+_HOST_PROVENANCE_KEYS = frozenset(
+    {
+        "registry_name",
+        "entry_point",
+        "trust_boundary",
+        "verification_evidence_digest",
+        "verification_evidence_origin",
+        "request_digest_method",
+    }
+)
+
+
+def _provider_provenance(provenance: Mapping[str, str]) -> dict[str, str]:
+    return {k: v for k, v in provenance.items() if k not in _HOST_PROVENANCE_KEYS}
+
 
 @runtime_checkable
 class CiBatchTest(Protocol):
@@ -557,8 +575,8 @@ class ProviderRegistry:
             raise ValueError("provider uncertainty must be scalar or match the estimate shape")
         if uncertainty is not None and spec.uncertainty_semantics == "point_only":
             raise ValueError("point-only provider returned uncertainty")
-        provenance = dict(spec.provenance)
-        provenance.update(raw.provenance)
+        provenance = _provider_provenance(spec.provenance)
+        provenance.update(_provider_provenance(raw.provenance))
         provenance["registry_name"] = name
         if name in self._entry_points:
             provenance["entry_point"] = self._entry_points[name]
@@ -673,6 +691,7 @@ __all__ = [
     "CausalProvider",
     "CausalProviderSpec",
     "EffectValidator",
+    "ExecutableProvider",
     "MechanismWrapper",
     "ProviderTrust",
     "ProviderExecution",

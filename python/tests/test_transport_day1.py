@@ -213,7 +213,46 @@ def test_missing_evidence_inspect_and_unavailable_answer():
     partial = transport.ExactTransportData((_exact().laws[1],))
     result = analyze(partial, graph=_graph(), query=query)
     assert result.answer.kind == "unavailable"
-    assert "unbound" in result.answer.detail
+    # The structural catalog binds the joint; what is missing is the x=0 law, and
+    # the native per-point detail says exactly that.
+    assert "missing_exact_provider" in result.answer.detail
+    assert "Float64(0.0)" in result.answer.detail
+
+
+def test_empty_treated_stratum_keeps_the_native_detail():
+    # Only x=0 rows: the treated stratum is empty, which is a per-point provider
+    # failure, not an unbound joint in some source. The catalog template must not
+    # replace the native detail with "the required joint in a source is unbound".
+    data = {"x": [0.0] * 50, "y": [0.0] * 25 + [1.0] * 25}
+    result = analyze(data, graph=_graph(), query=_ate())
+    assert result.answer.kind == "unavailable"
+    assert "in a source is unbound" not in result.answer.detail
+    assert "missing_exact_provider" in result.answer.detail
+    assert "Float64(1.0)" in result.answer.detail
+
+
+def test_truncated_or_malformed_view_is_a_serialization_error():
+    from antecedent import load
+    from antecedent.transport._wrap import VIEW_PREFIX
+
+    blob = analyze(_statistical(), graph=_graph(), query=_ate()).export()
+    assert blob.startswith(VIEW_PREFIX)
+    envelope = json.loads(blob[len(VIEW_PREFIX) :])
+
+    def reencode(payload):
+        return VIEW_PREFIX + json.dumps(payload).encode()
+
+    bad_base64 = dict(envelope, specialist_artifacts=["!!not base64!!"])
+    bad_base64.pop("specialist_artifact", None)
+    no_question = dict(envelope, query={"target": "target"})
+    for broken in (
+        blob[: len(blob) // 2],
+        reencode(bad_base64),
+        reencode(no_question),
+        reencode(["not", "an", "object"]),
+    ):
+        with pytest.raises(CausalSerializationError, match="malformed or truncated"):
+            load(broken)
 
 
 def test_result_shape_matches_across_regimes():
@@ -751,7 +790,7 @@ def test_statistical_payload_shape_and_support_budget_are_enforced():
     before = study.export()
     from antecedent.errors import CausalCancelledError
 
-    with pytest.raises(CausalCancelledError):
+    with pytest.raises(CausalCancelledError, match="transport statistical execution cancelled"):
         study.estimate(cancel=token)
     assert study.export() == before
     assert study.estimate().probabilities == pytest.approx(result.probabilities)

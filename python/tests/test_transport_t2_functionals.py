@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent
 import pytest
+from antecedent.errors import CausalResourceError, CausalSerializationError, CausalValueError
 from antecedent.transport import advanced as transport
 
 
@@ -66,9 +67,9 @@ def test_reloaded_functional_program_executes_and_replays_checked_wire() -> None
     assert free
     program = transport.reload_lowered_program(identification)
     assert program.source_root == program.executable_root
-    with pytest.raises(ValueError, match="provider catalog"):
+    with pytest.raises(CausalValueError, match="provider catalog"):
         program.evaluate_exact()
-    with pytest.raises(ValueError, match="provider laws"):
+    with pytest.raises(CausalValueError, match="provider laws"):
         program.evaluate_exact(catalog)
 
     law = transport.ExactDiscreteLaw(
@@ -84,9 +85,9 @@ def test_reloaded_functional_program_executes_and_replays_checked_wire() -> None
     changed_catalog = transport.EvidenceCatalog(
         regimes=[transport.EvidenceRegime("observational", "target", measured=["a"])],
     )
-    with pytest.raises(ValueError, match="catalog differs"):
+    with pytest.raises(CausalValueError, match="catalog differs"):
         program.evaluate_exact(changed_catalog, (law,), {"a": 1.0, "y": 1.0})
-    with pytest.raises(ValueError, match="budget must be positive"):
+    with pytest.raises(CausalValueError, match="budget must be positive"):
         program.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}, max_operations=0)
 
     wire = program.to_wire_json()
@@ -98,14 +99,42 @@ def test_reloaded_functional_program_executes_and_replays_checked_wire() -> None
 
     payload = json.loads(wire)
     payload["executable"] = 999
-    with pytest.raises(ValueError, match="checked functional program"):
+    with pytest.raises(CausalSerializationError, match="checked functional program"):
         transport.restore_lowered_program(identification, json.dumps(payload))
     # The wire denies unknown fields before any root is checked.
-    with pytest.raises(ValueError, match="unknown field `ignored`"):
+    with pytest.raises(CausalSerializationError, match="unknown field `ignored`"):
         transport.restore_lowered_program(identification, json.dumps({**payload, "ignored": 1}))
+    with pytest.raises(CausalSerializationError, match="key must be a string"):
+        transport.restore_lowered_program(identification, "{not json")
     del identification
     assert program.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
     assert replayed.evaluate_exact(catalog, (law,), {"a": 1.0, "y": 1.0}) == pytest.approx(estimate)
+
+
+def test_exhausted_evaluation_budget_is_a_resource_error() -> None:
+    graph = antecedent.graph.Admg.from_edges(["c", "a", "y"], [("c", "a"), ("c", "y"), ("a", "y")])
+    catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("observational", "target", measured=["c", "a", "y"])],
+    )
+    query = transport.TransportQuery(
+        antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+        transport.SelectionDiagram("trial", "target", []),
+        catalog=catalog,
+    )
+    program = transport.reload_lowered_program(transport.identify(graph=graph, query=query))
+    law = transport.ExactDiscreteLaw(
+        "target",
+        "observational",
+        (("c", (0.0, 1.0)), ("a", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.1, 0.15, 0.1, 0.15, 0.1, 0.15, 0.1, 0.15),
+        "exact-confounded-law",
+    )
+    at = {"a": 1.0, "y": 1.0}
+    assert program.evaluate_exact(catalog, (law,), at) == pytest.approx(0.6)
+    with pytest.raises(CausalResourceError, match="operation budget exceeded"):
+        program.evaluate_exact(catalog, (law,), at, max_operations=1)
+    with pytest.raises(CausalResourceError, match="support budget exceeded"):
+        program.evaluate_exact(catalog, (law,), at, max_support_rows=1)
 
 
 def test_source_and_target_leaves_stay_distinct() -> None:

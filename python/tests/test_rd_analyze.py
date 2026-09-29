@@ -8,6 +8,8 @@ import pytest
 from antecedent.errors import CausalUnsupportedError
 from antecedent.quasi import SharpRegressionDiscontinuity
 
+from _repo_text import REPO_ROOT, load_json
+
 
 def test_rd_sharp_via_query():
     rng = np.random.default_rng(25)
@@ -76,3 +78,33 @@ def test_sharp_rd_estimator_spelling_points_to_the_query():
             query=antecedent.AverageEffect("t", "y"),
             estimator="rd.sharp",
         )
+
+
+@pytest.mark.parametrize(("se", "key"), [(None, "se_hc1"), ("homoskedastic", "se_homoskedastic")])
+def test_sharp_rd_analytic_se_matches_the_rust_reference_pin(se, key):
+    """The Python facade reports the jump and SE the Rust conformance test pins.
+
+    `estimate_rd_sharp_analytic_se_matches_reference` (crates/antecedent/tests/
+    estimate_conformance.rs) holds the native estimator to the textbook values in
+    conformance/estimate/rd_sharp (reference.py) at relative tolerance 1e-9; the
+    facade must not rescale, round or re-derive them on the way out.
+    """
+    block = load_json(REPO_ROOT / "conformance/estimate/rd_sharp/expected.json")["se_reference"]
+    running = block["running"]
+    cutoff = block["cutoff"]
+    data = {
+        "t": [float(value >= cutoff) for value in running],
+        "y": block["outcome"],
+        "r": running,
+    }
+    result = antecedent.analyze(
+        data,
+        query=SharpRegressionDiscontinuity("y", "t", "r", cutoff, block["bandwidth"], se=se),
+        seed=3,
+        bootstrap=0,
+    )
+    expected = block["expected"]
+    rel = block["relative_tolerance"]
+    assert result.estimate.ate == pytest.approx(expected["jump"], rel=rel)
+    assert result.estimate.se_analytic == pytest.approx(expected[key], rel=rel)
+    assert result.estimate.se_bootstrap is None

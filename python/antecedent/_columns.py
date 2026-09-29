@@ -3,8 +3,10 @@
 A design-carrying query (randomized experiment, policy value, ...) may name a
 row-aligned input by the data column that holds it instead of passing the array
 inline: ``PolicyValue("y", assignment="arm", ...)`` rather than
-``PolicyValue("y", assignment=[...], ...)``. This keeps the query readable and
-makes ``refresh(new_data)`` re-read the design from the new table.
+``PolicyValue("y", assignment=[...], ...)``. This keeps the query readable. The
+design is read once, at prepare, and frozen into the prepared study: a later
+``refresh(new_data)`` drops the named design columns if the table still carries
+them and never re-reads the design from the new table.
 
 A class opts in by declaring ``_COLUMN_FIELDS`` (row-aligned field name → element
 kind) and, in its ``__post_init__``, calling :func:`defer_columns` first: while any
@@ -65,11 +67,50 @@ def resolved_scalar(value: float | Sequence[float] | str) -> float | Sequence[fl
     return value
 
 
+def _cast_bool(arr: np.ndarray, field: str, name: str) -> tuple[bool, ...]:
+    """Booleans, or numbers that are exactly 0 or 1; anything else is refused.
+
+    ``bool(v)`` would turn NaN, arm codes ``2``, and the string ``"False"`` into
+    ``True``; the inline path refuses those, so the column path does too.
+    """
+    out: list[bool] = []
+    for value in arr.tolist():
+        if isinstance(value, (bool, np.bool_)) or (
+            isinstance(value, (int, float, np.integer, np.floating)) and value in (0, 1)
+        ):
+            out.append(bool(value))
+        else:
+            raise CausalValueError(
+                f"{field}={name!r}: column values must be bool or encoded as 0/1; got {value!r}"
+            )
+    return tuple(out)
+
+
+def _cast_int(arr: np.ndarray, field: str, name: str) -> tuple[int, ...]:
+    """Finite integral numbers; a fractional, non-finite, or non-numeric value is refused."""
+    out: list[int] = []
+    for value in arr.tolist():
+        if isinstance(value, (bool, np.bool_)) or not isinstance(
+            value, (int, float, np.integer, np.floating)
+        ):
+            raise CausalValueError(
+                f"{field}={name!r}: column values must be integers; got {value!r}"
+            )
+        if isinstance(value, (float, np.floating)) and not (
+            np.isfinite(value) and float(value).is_integer()
+        ):
+            raise CausalValueError(
+                f"{field}={name!r}: column values must be finite integers; got {value!r}"
+            )
+        out.append(int(value))
+    return tuple(out)
+
+
 _KIND_CAST = {
-    "bool": lambda arr: tuple(bool(v) for v in arr),
-    "str": lambda arr: tuple(str(v) for v in arr),
-    "float": lambda arr: tuple(float(v) for v in arr),
-    "int": lambda arr: tuple(int(v) for v in arr),
+    "bool": _cast_bool,
+    "str": lambda arr, field, name: tuple(str(v) for v in arr),
+    "float": lambda arr, field, name: tuple(float(v) for v in arr),
+    "int": _cast_int,
 }
 
 
@@ -128,12 +169,16 @@ def _data_column_map(data: Any, names: set[str]) -> dict[str, Any]:
     return out
 
 
-def _drop_columns(data: Any, names: set[str]) -> Any:
+def drop_columns(data: Any, names: set[str] | frozenset[str]) -> Any:
     """Return ``data`` without the design columns, so the numeric ingest never sees them."""
     if not names:
         return data
     if isinstance(data, Mapping):
         return {key: value for key, value in data.items() if key not in names}
+    if hasattr(data, "column_names") and hasattr(data, "drop_columns"):
+        # pyarrow.Table: ``.columns`` holds the arrays, the names are ``column_names``.
+        present = [name for name in names if name in data.column_names]
+        return data.drop_columns(present) if present else data
     if hasattr(data, "drop") and hasattr(data, "columns"):
         present = [name for name in names if name in getattr(data, "columns", ())]
         return data.drop(columns=present) if present else data
@@ -152,7 +197,7 @@ def resolve_query(query: Any, data: Any) -> tuple[Any, Any]:
     if not names:
         return query, data
     columns = _data_column_map(data, names)
-    return resolve_columns(query, columns), _drop_columns(data, names)
+    return resolve_columns(query, columns), drop_columns(data, names)
 
 
 def _resolve_one(columns: Mapping[str, Any], name: str, kind: str, field: str) -> Any:
@@ -164,7 +209,8 @@ def _resolve_one(columns: Mapping[str, Any], name: str, kind: str, field: str) -
     arr = np.asarray(columns[name])
     if arr.ndim != 1:
         raise CausalValueError(f"{field}={name!r} must name a one-dimensional column")
-    return _KIND_CAST.get(kind, lambda a: tuple(a.tolist()))(arr)
+    cast = _KIND_CAST.get(kind)
+    return tuple(arr.tolist()) if cast is None else cast(arr, field, name)
 
 
 def resolve_columns(obj: Any, columns: Mapping[str, Any]) -> Any:

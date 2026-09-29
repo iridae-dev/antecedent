@@ -128,7 +128,7 @@ def test_temporal_mediation_effect_three_identifier_prefix():
 def test_query_dataclasses_are_frozen(cls, positional, kind, extra):
     del kind
     instance = cls(*positional, **extra)
-    with pytest.raises(dataclasses.FrozenInstanceError):
+    with pytest.raises(dataclasses.FrozenInstanceError, match="cannot assign to field 'kind'"):
         instance.kind = "tampered"  # type: ignore[misc]
 
 

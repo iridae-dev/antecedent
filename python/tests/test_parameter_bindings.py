@@ -171,7 +171,7 @@ def test_accept_discovered_reaches_plan():
     data = _data(n=300)
     accepted = _analyze(data=data, graph=None, discovery=PC(), accept_discovered=True)
     assert _bound(accepted, "accept_discovered") == "accepted"
-    with pytest.raises(ReviewRequired):
+    with pytest.raises(ReviewRequired, match="static PAG review incomplete"):
         _analyze(
             data=data,
             graph=None,
@@ -363,7 +363,7 @@ def test_cancel_reaches_plan():
 
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(CausalCancelled):
+    with pytest.raises(CausalCancelled, match="cancelled during identify"):
         _analyze(bootstrap=199, cancel=token)
 
 
