@@ -138,11 +138,36 @@ root_queries = [q for q in queries if q != "TransportQuery"]
 # rename support cells or their evidence records.
 query_axis_aliases = {"NestedCounterfactual": "NestedCounterfactualEffect"}
 mapped_live_queries = [query_axis_aliases.get(q, q) for q in live_queries]
-expected_public_queries = root_queries + off_axis_public_queries + public_query_companions
-if sorted(expected_public_queries) != sorted(mapped_live_queries):
+# The root namespace is frozen (docs/api_naming.md). Geometric queries and the
+# companions that are actually re-exported there belong in the Queries block.
+# The 2.1 design families are public on their stage modules, not at the root.
+public_names = set(public)
+root_companions = [name for name in public_query_companions if name in public_names]
+expected_root_queries = root_queries + root_companions
+if sorted(expected_root_queries) != sorted(mapped_live_queries):
     fail.append(
-        "parity/support_axes.toml public query exports != python __all__ query names: "
-        f"axes={sorted(expected_public_queries)} live={sorted(mapped_live_queries)}"
+        "parity/support_axes.toml root query exports != python __all__ query names: "
+        f"axes={sorted(expected_root_queries)} live={sorted(mapped_live_queries)}"
+    )
+# Python spellings that are not the support-axis id.
+class_to_axis = {"LongitudinalRegime": "LongitudinalRegimeQuery"}
+stage_files = [
+    root / "python/antecedent/experiment.py",
+    root / "python/antecedent/policy.py",
+    root / "python/antecedent/survival.py",
+    root / "python/antecedent/regimes.py",
+    root / "python/antecedent/query.py",
+]
+found_public_types: set[str] = set()
+for path in stage_files:
+    for name in re.findall(r"^class ([A-Za-z][A-Za-z0-9]*)\b", path.read_text(), re.M):
+        found_public_types.add(class_to_axis.get(name, name))
+needed_public_types = set(off_axis_public_queries) | set(public_query_companions)
+missing_public_types = sorted(needed_public_types - found_public_types)
+if missing_public_types:
+    fail.append(
+        "support-axis public types missing from the stage or query modules: "
+        + ", ".join(missing_public_types)
     )
 if set(off_axis_public_queries) & set(queries):
     fail.append("off_axis_public_queries overlaps geometric queries")
