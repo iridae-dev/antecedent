@@ -686,8 +686,24 @@ pub fn evaluate_exact_mz_transport(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
+    prepare_exact_mz_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Validate the supplied laws against the frozen catalog and compile the checked
+/// mz formula once, without evaluating it.
+///
+/// # Errors
+/// Provider/catalog disagreement, a request outside the cited levels, or a
+/// compile-time resource limit.
+pub fn prepare_exact_mz_transport(
+    functional: &antecedent_identify::BoundMzTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
     validate_exact_laws(functional.catalog(), &data)?;
-    compile_exact_z_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+    compile_exact_z_transport(functional, data, request, limits, ctx)
 }
 
 /// Validate source joint-law providers and compile the checked zTR formula.

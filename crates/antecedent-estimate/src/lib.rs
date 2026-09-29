@@ -267,10 +267,10 @@ pub use temporal_sequential_tuples::{
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
     TransportResponseGridEstimate, evaluate_exact_mz_transport, evaluate_exact_transport,
-    evaluate_exact_z_transport, is_support_failure, prepare_exact_transport,
-    prepare_exact_z_transport, refuse_budget, refuse_cancelled, refuse_eval,
-    transport_augmented_response_grid, transport_outcome_kind, trial_to_target_bayesian_bootstrap,
-    trial_to_target_effect, trial_to_target_ipw_se,
+    evaluate_exact_z_transport, is_support_failure, prepare_exact_mz_transport,
+    prepare_exact_transport, prepare_exact_z_transport, refuse_budget, refuse_cancelled,
+    refuse_eval, transport_augmented_response_grid, transport_outcome_kind,
+    trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
 };
 pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 

@@ -13,132 +13,20 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    DependenceGroup, EvidenceCatalog, ExecutionContext, InterventionAssignment, RegimeKind, Value,
-};
+use antecedent_core::{DependenceGroup, EvidenceCatalog, ExecutionContext, Value};
 use antecedent_estimate::{
     Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_exact_mz_transport, mz_sampling_dependence,
     mz_transport_bootstrap_interval,
 };
-use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_identify::{
-    BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MzTransportDecision, MzTransportQuery,
-    MzTransportRoute, ZTransportSourceSpec, bind_mz_transport_catalog, decide_mz_transport,
+    BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MzTransportDecision, MzTransportRoute,
+    ZTransportSourceSpec, bind_mz_transport_catalog, decide_mz_transport,
 };
-use common::z_scm::{Scm, Spec, bit, build, diagram, risk_of, vid};
-
-const Z1: usize = 0;
-const X: usize = 1;
-const Z2: usize = 2;
-const Y: usize = 3;
-
-// Exogenous bits: e0 = Z1<->X, e1 = Z1<->Z2, e2 = Z1<->Y; e3..e6 private to Z1, X, Z2, Y.
-const EXO: [f64; 7] = [0.35, 0.6, 0.45, 0.3, 0.7, 0.65, 0.4];
-
-fn x_mechanism() -> common::z_scm::Mechanism {
-    Box::new(|v, e| bit(v[Z1] == 1) ^ bit(e[0] == 1 && e[4] == 1))
-}
-fn z2_target() -> common::z_scm::Mechanism {
-    Box::new(|v, e| bit((v[X] == 1 && e[5] == 1) || (v[X] == 0 && e[1] == 1)))
-}
-fn y_target() -> common::z_scm::Mechanism {
-    Box::new(|v, e| bit((v[Z2] == 1 && e[6] == 1) || (e[2] == 1 && e[6] == 0)))
-}
-
-fn target_scm() -> Scm {
-    Scm {
-        n: 4,
-        exo_p: EXO.to_vec(),
-        f: vec![
-            Box::new(|_, e| bit((e[0] == 1 && e[3] == 1) || (e[1] == 1 && e[2] == 1))),
-            x_mechanism(),
-            z2_target(),
-            y_target(),
-        ],
-    }
-}
-
-/// Source `a`: the Z1 and Z2 mechanisms differ from the target.
-fn source_a_scm() -> Scm {
-    Scm {
-        n: 4,
-        exo_p: EXO.to_vec(),
-        f: vec![
-            Box::new(|_, e| bit(e[3] == 1 || e[1] == 1)),
-            x_mechanism(),
-            Box::new(|v, e| bit(v[X] == 1) ^ bit(e[1] == 1 && e[5] == 1)),
-            y_target(),
-        ],
-    }
-}
-
-/// Source `b`: the Z1 and Y mechanisms differ from the target.
-fn source_b_scm() -> Scm {
-    Scm {
-        n: 4,
-        exo_p: EXO.to_vec(),
-        f: vec![
-            Box::new(|_, e| bit(e[0] == 1 && e[2] == 1)),
-            x_mechanism(),
-            z2_target(),
-            Box::new(|v, e| bit(v[Z2] == 1) ^ bit(e[2] == 1 && e[6] == 1)),
-        ],
-    }
-}
-
-fn graph() -> antecedent_graph::Admg {
-    diagram(4, &[(Z1, X), (X, Z2), (Z2, Y)], &[(Z1, X), (Z1, Z2), (Z1, Y)], &[])
-        .causal_graph()
-        .clone()
-}
-
-fn sources() -> Vec<ZTransportSourceSpec> {
-    vec![
-        ZTransportSourceSpec {
-            population: Arc::from("a"),
-            controllable: Arc::from([vid(Z2)]),
-            experiment_assignment: Arc::from([]),
-            selection_targets: Arc::from([vid(Z1), vid(Z2)]),
-        },
-        ZTransportSourceSpec {
-            population: Arc::from("b"),
-            controllable: Arc::from([vid(Z1)]),
-            experiment_assignment: Arc::from([InterventionAssignment {
-                variable: vid(Z1),
-                value: Value::Bool(false),
-            }]),
-            selection_targets: Arc::from([vid(Z1), vid(Y)]),
-        },
-    ]
-}
-
-fn query(sources: Vec<ZTransportSourceSpec>) -> MzTransportQuery {
-    MzTransportQuery {
-        outcomes: Arc::from([vid(Y)]),
-        treatments: Arc::from([vid(X)]),
-        target: Arc::from("target"),
-        sources: sources.into(),
-    }
-}
-
-/// Target observational law; `do(Z2 = 0/1)` in `a`; `do(Z1 = 0)` in `b`.
-fn evidence() -> (EvidenceCatalog, ExactTransportData) {
-    let specs = [
-        Spec { population: "target", kind: RegimeKind::Observational, assignments: vec![] },
-        Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(Z2, 0)] },
-        Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(Z2, 1)] },
-        Spec { population: "b", kind: RegimeKind::Experimental, assignments: vec![(Z1, 0)] },
-    ];
-    let (target, a, b) = (target_scm(), source_a_scm(), source_b_scm());
-    let scm_for = |population: &str| -> &Scm {
-        match population {
-            "a" => &a,
-            "b" => &b,
-            _ => &target,
-        }
-    };
-    build(&scm_for, 4, &specs, &["target", "a", "b"])
-}
+use common::mz_fixture::{
+    X, Y, empirical, evidence, graph, query, source_b_scm, sources, target_scm, with_studies,
+};
+use common::z_scm::{risk_of, vid};
 
 fn bound(
     sources: Vec<ZTransportSourceSpec>,
@@ -210,48 +98,6 @@ fn source_order_does_not_change_the_number() {
     let backward = bound(reversed, &catalog);
     assert_eq!(forward.cited_regimes(), backward.cited_regimes());
     assert_eq!(evaluate(&forward).to_bits(), evaluate(&backward).to_bits());
-}
-
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    reason = "fixture probabilities are in [0, 1] and the sample sizes fit u64"
-)]
-fn empirical(data: &ExactTransportData, n: f64) -> ExactTransportData {
-    let laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let counts =
-                law.probabilities().iter().map(|p| (p * n).round() as u64).collect::<Vec<_>>();
-            let total = counts.iter().sum::<u64>() as f64;
-            ExactDiscreteLaw::try_empirical(
-                law.population(),
-                law.regime(),
-                law.interventions().to_vec(),
-                law.axes().to_vec(),
-                counts.iter().map(|c| *c as f64 / total).collect::<Vec<_>>(),
-                law.snapshot_identity(),
-                law.tolerance(),
-            )
-            .unwrap()
-            .with_empirical_counts(counts)
-            .unwrap()
-        })
-        .collect::<Vec<_>>();
-    ExactTransportData::try_new(laws, data.max_support_rows()).unwrap()
-}
-
-/// Declare every regime its own study, so independence between them is known.
-fn with_studies(catalog: &EvidenceCatalog) -> EvidenceCatalog {
-    let mut out = catalog.clone();
-    let mut regimes = out.regimes.to_vec();
-    for regime in &mut regimes {
-        regime.study = Some(Arc::from(format!("study-{}", regime.id.raw())));
-    }
-    out.regimes = regimes.into();
-    out
 }
 
 #[test]

@@ -231,6 +231,28 @@ pub struct MzTransportDerivation {
     root: ExprId,
     rules: Vec<String>,
     single: Option<Box<ZTransportDerivation>>,
+    /// Stages evaluated before the identifying one, in order.
+    stages: Vec<MzStageRecord>,
+}
+
+/// Portable premises of an mz derivation. The expression arena travels
+/// separately; [`MzTransportDerivation::from_record_checked`] re-decides the
+/// query against its catalog and accepts only an identical derivation.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MzTransportDerivationRecord {
+    /// Shared causal-graph identity.
+    pub graph_signature: String,
+    /// `target_only`, `single_source`, or `combined`.
+    pub route: String,
+    /// The identifying source (`single_source`) or cited sources (`combined`).
+    pub populations: Vec<String>,
+    /// Root expression id in the accompanying arena.
+    pub root: u32,
+    /// Checked rule trace.
+    pub rules: Vec<String>,
+    /// `(stage, outcome)` of every stage evaluated before identification.
+    pub stages: Vec<(String, String)>,
 }
 
 impl MzTransportDerivation {
@@ -268,6 +290,63 @@ impl MzTransportDerivation {
     #[must_use]
     pub fn single_source(&self) -> Option<&ZTransportDerivation> {
         self.single.as_deref()
+    }
+    /// Search receipt: every stage evaluated before the identifying one.
+    #[must_use]
+    pub fn stages(&self) -> &[MzStageRecord] {
+        &self.stages
+    }
+
+    /// Export the proof premises for an independently checked artifact.
+    #[must_use]
+    pub fn to_record(&self) -> MzTransportDerivationRecord {
+        let (route, populations) = match &self.route {
+            MzTransportRoute::TargetOnly => ("target_only", Vec::new()),
+            MzTransportRoute::SingleSource { population } => {
+                ("single_source", vec![population.to_string()])
+            }
+            MzTransportRoute::Combined { populations } => {
+                ("combined", populations.iter().map(ToString::to_string).collect())
+            }
+        };
+        MzTransportDerivationRecord {
+            graph_signature: self.graph_signature.clone(),
+            route: route.into(),
+            populations,
+            root: self.root.raw(),
+            rules: self.rules.clone(),
+            stages: self.stages.iter().map(|s| (s.stage.clone(), s.outcome.to_owned())).collect(),
+        }
+    }
+
+    /// Reconstruct a derivation from an untrusted record: the bounded decision is
+    /// re-run on `graph`, `query` and `catalog` under the caller's limits, and the
+    /// record and arena must equal the derivation it produces.
+    ///
+    /// # Errors
+    /// The decision does not identify, or any recorded premise or expression differs.
+    pub fn from_record_checked(
+        graph: &antecedent_graph::Admg,
+        query: &MzTransportQuery,
+        catalog: &EvidenceCatalog,
+        record: &MzTransportDerivationRecord,
+        arena: &CausalExprArena,
+        limits: SearchLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IdentificationError> {
+        let MzTransportDecision::Identified { derivation, .. } =
+            decide_mz_transport(graph, query, catalog, limits, ctx)?
+        else {
+            return Err(IdentificationError::invalid_derivation(
+                "mz_transport.proof_not_reproduced",
+            ));
+        };
+        if derivation.to_record() != *record || derivation.arena != *arena {
+            return Err(IdentificationError::invalid_derivation(
+                "mz_transport.proof_record_mismatch",
+            ));
+        }
+        Ok(*derivation)
     }
 }
 
@@ -424,6 +503,7 @@ pub fn decide_mz_transport(
                     arena,
                     root,
                     trace,
+                    &stages,
                 )?;
                 match bind(&derivation, catalog, &query) {
                     Ok(cited) => {
@@ -471,6 +551,7 @@ pub fn decide_mz_transport(
                     root: bound.derivation().root(),
                     rules: z.to_record().rules,
                     single: Some(z),
+                    stages: stages.clone(),
                 };
                 return Ok(MzTransportDecision::Identified {
                     derivation: Box::new(derivation),
@@ -516,7 +597,8 @@ pub fn decide_mz_transport(
     if let Some((arena, root, trace)) = result.identified {
         let populations = leaf_sources(&arena, root, &query)?;
         let route = MzTransportRoute::Combined { populations: populations.into() };
-        let derivation = recursive_derivation(&query, &signature, route, arena, root, trace)?;
+        let derivation =
+            recursive_derivation(&query, &signature, route, arena, root, trace, &stages)?;
         return match bind(&derivation, catalog, &query) {
             Ok(cited) => {
                 Ok(MzTransportDecision::Identified { derivation: Box::new(derivation), cited })
@@ -581,6 +663,7 @@ fn recursive_derivation(
     arena: CausalExprArena,
     root: ExprId,
     trace: Vec<String>,
+    stages: &[MzStageRecord],
 ) -> Result<MzTransportDerivation, IdentificationError> {
     let derivation = MzTransportDerivation {
         query: query.clone(),
@@ -590,6 +673,7 @@ fn recursive_derivation(
         root,
         rules: std::iter::once("mztr.recursive_reduction".to_owned()).chain(trace).collect(),
         single: None,
+        stages: stages.to_vec(),
     };
     check_leaves(&derivation)?;
     Ok(derivation)

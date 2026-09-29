@@ -84,6 +84,9 @@ pub enum IoError {
     /// A z-transport artifact failed one of its typed consumer checks.
     #[error("z-transport artifact: {0}")]
     ZTransport(#[from] crate::z_transport_artifact::ZTransportArtifactError),
+    /// A multi-source mz-transport artifact failed one of its typed consumer checks.
+    #[error("mz-transport artifact: {0}")]
+    MzTransport(#[from] crate::mz_transport_artifact::MzTransportArtifactError),
 }
 
 impl From<antecedent_identify::IdentificationError> for IoError {

@@ -25,6 +25,7 @@ mod contract_identity;
 mod exact;
 mod execute;
 mod learned_trial;
+mod mz_transport;
 mod statistical;
 mod transport_grid;
 mod z_transport;
@@ -53,6 +54,7 @@ pub use exact::{
     ExactStudyResult,
 };
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
+pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,

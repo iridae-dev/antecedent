@@ -33,7 +33,7 @@ id = "2.2A.X1.multi_source_limited_experiment"
 workstream = "X1"
 milestone = "A"
 work_package = "A1"
-status = "frozen"
+status = "in_progress"
 consumer_question = "Can a catalog of limited experiments spread across several source populations identify the target effect when no single source can?"
 theorem = "mz-transportability: transportability from multiple environments with limited experiments (TRmz)."
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
@@ -69,14 +69,16 @@ routes = [
   { name = "antecedent.transport.consume_multi_source_z_transport", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
 ]
 fixtures = [
-  { id = "x1.combined_catalog_only.positive", role = "positive", intent = "No single source identifies; the combined catalog does; exact SCM truth." },
-  { id = "x1.missing_joint_regime.negative", role = "negative", intent = "Separate do(A), do(B) supplied; do(A,B) required; typed missing regime." },
-  { id = "x1.fabricated_cross_source_joint.negative", role = "negative", intent = "Factor would mix sources inside one c-factor; refused by name." },
-  { id = "x1.search_budget.budget", role = "budget", intent = "Budget exhaustion returns incomplete with receipt, never non-transportable." },
-  { id = "x1.source_order.invariance", role = "invariance", intent = "Permuting sources leaves proof semantics, identity and point unchanged." },
-  { id = "x1.exact_scm.truth", role = "truth", intent = "Exact numerical agreement with an enumerated latent SCM." },
-  { id = "x1.roundtrip.artifact", role = "artifact", intent = "Consumer rechecks proof, source bindings and point without fetching." },
-  { id = "x1.refresh.lifecycle", role = "lifecycle", intent = "Matching snapshot refresh keeps the proof; changed source/regime/catalog identity forces re-preparation." },
+  { id = "x1.combined_catalog_only.positive", role = "positive", intent = "No single source identifies; the combined catalog does; exact SCM truth.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "combined_catalog_identifies_what_no_single_source_can" },
+  { id = "x1.missing_joint_regime.negative", role = "negative", intent = "Separate do(A), do(B) supplied; do(A,B) required; typed missing regime.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "separate_experiments_never_stand_in_for_the_joint_regime" },
+  { id = "x1.fabricated_cross_source_joint.negative", role = "negative", intent = "Factor would mix sources inside one c-factor; refused by name.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "splitting_the_joint_experiment_across_sources_is_never_identified" },
+  { id = "x1.search_budget.budget", role = "budget", intent = "Budget exhaustion returns incomplete with receipt, never non-transportable.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "exhausted_search_returns_a_receipt_never_a_verdict" },
+  { id = "x1.source_order.invariance", role = "invariance", intent = "Permuting sources leaves proof semantics, identity and point unchanged.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "source_declaration_order_does_not_change_the_result" },
+  { id = "x1.exact_scm.truth", role = "truth", intent = "Exact numerical agreement with an enumerated latent SCM.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "combined_formula_matches_the_target_interventional_truth" },
+  { id = "x1.roundtrip.artifact", role = "artifact", intent = "Consumer rechecks proof, source bindings and point without fetching.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "exported_point_is_recomputed_by_an_independent_consumer" },
+  { id = "x1.refresh.lifecycle", role = "lifecycle", intent = "Matching snapshot refresh keeps the proof; changed source/regime/catalog identity forces re-preparation.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "refresh_keeps_the_proof_and_refuses_changed_evidence_identity" },
+  { id = "x1.mutated_artifact.negative", role = "negative", intent = "Mutated result, premises, source identity, bindings, data identity, bookkeeping or limits fail independent consumption.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "a_mutated_artifact_fails_independent_consumption" },
+  { id = "x1.dependence.negative", role = "negative", intent = "Undeclared, linked or unresolvable shared sampling withholds the interval, never the point.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "undeclared_or_unsupported_dependence_withholds_the_interval_not_the_point" },
   { id = "x1.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the joint bootstrap under independent and shared designs." },
 ]
 

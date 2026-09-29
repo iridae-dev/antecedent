@@ -36,6 +36,7 @@ pub mod migrate;
 #[allow(unsafe_code)]
 pub mod mmap_file;
 pub mod model_bundle;
+pub mod mz_transport_artifact;
 pub mod plan_wire;
 pub mod posterior;
 pub mod posterior_convert;
