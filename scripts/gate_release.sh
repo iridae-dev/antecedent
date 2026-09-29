@@ -45,6 +45,11 @@ bash scripts/gate_metadata_consistency.sh
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
 
+# 2.2 cells stay closed until their frozen promotion record carries executed
+# positive, negative and artifact evidence (parity/promotion_2_2.toml).
+echo "== 2.2 promotion records =="
+bash scripts/gate_promotion.sh
+
 echo "== public support matrix =="
 bash scripts/gate_support_matrix.sh
 

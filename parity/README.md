@@ -207,3 +207,14 @@ Release: artifact format freeze, wheel matrix, conformance docs, hot-path
 baselines, security review (`release.toml`, ADR 0017). Package version is
 whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
 here; a hardcoded copy in this file sat five minor releases behind for months.
+
+2.2 promotion: `promotion_2_2.toml` freezes each 2.2 cell (theorem, graph class,
+population semantics, evidence family, provider, estimand, inference claim,
+bounds, refusal codes, identity inputs, wire changes, fixture ids, coverage-record
+ids) before implementation. Its routes stay closed until the record is
+`promoted` with executed positive, negative and artifact fixtures (budget for a
+search, calibration for an interval); `gate_promotion.sh` enforces this, and no
+2.2 interval may cite `estimator_grid_not_measured`. Every new bounded search
+runs under `antecedent_core::SearchBudget` (operation and depth limits, plus the
+context's cancellation and hard memory limit on every charge), and a promoted
+search's budget fixture must exercise it.

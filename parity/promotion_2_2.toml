@@ -1,0 +1,310 @@
+# 2.2 promotion records (ROADMAP.md 2.2 A/B; work package A0).
+#
+# One record per 2.2 cell freezes its scientific surface before implementation:
+# consumer question, theorem, graph class, population semantics, evidence family,
+# provider, estimand, inference claim, computation bound and refusal boundary.
+# scripts/check_promotion_records.py (run by scripts/gate_promotion.sh) enforces:
+#
+#   - every frozen field is present and every refusal code is registered;
+#   - a bounded search declares cancellation, operation, depth and memory limits;
+#   - a record's routes stay closed until the record is `promoted`, and a
+#     2.2 route cannot be licensed in parity/transport_stages.toml ahead of it;
+#   - a `promoted` record cites executed positive, negative, artifact (and, for a
+#     search, budget) fixtures, plus coverage records for any calibrated interval;
+#   - no 2.2 record publishes a nominal-only interval (`estimator_grid_not_measured`
+#     is not a 2.2 inference claim).
+#
+# Record status: frozen -> in_progress -> promoted, or carried_forward (the cell
+# failed its gate; its refusal stays visible and the rest of 2.2 still ships).
+# Routes here are closed until promotion; on promotion the licensed row moves to
+# its owning stage registry and this record points at it.
+#
+# Inference-claim vocabulary (release notes must use the same words):
+#   point_only            exact or plug-in point, no interval
+#   calibrated            interval with a coverage record at its own coordinate
+#   structural_envelope   range over supplied structural scenarios; not a CI
+#   assumption_range      range over a declared sensitivity set; not a CI
+#   none                  no numerical claim (identification/inspection only)
+version = 1
+release = "2.2"
+
+[[record]]
+id = "2.2A.X1.multi_source_limited_experiment"
+workstream = "X1"
+milestone = "A"
+work_package = "A1"
+status = "frozen"
+consumer_question = "Can a catalog of limited experiments spread across several source populations identify the target effect when no single source can?"
+theorem = "mz-transportability: transportability from multiple environments with limited experiments (TRmz)."
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+guarantee = "sound_incomplete"
+graph_class = "Finite discrete selection ADMG shared by target and sources; one selection diagram per source over the same named observed variables."
+population_semantics = "One target population with observational evidence only; each source is a separate population with its own selection targets, controllable set, and supplied catalog. Theoretical experimental availability (controllable set) is kept distinct from the regimes actually supplied."
+evidence_family = "Per-source joint-regime experimental laws do(Z_i=z) with their jointly measured margins; target observational joint. do(A,B) is never inferred from separate do(A) and do(B) entries."
+provider = "Existing exact finite-law evaluator; empirical tables through the same checked formula (no separate estimator route)."
+estimand = "Target interventional outcome distribution P*(y | do(x)) and its numeric means/contrasts."
+inference_claim = "calibrated"
+inference_notes = "Exact laws are point_only. An empirical interval ships only for independent studies or declared shared units, via joint outer bootstrap sharing replicate ids; unknown dependence withholds it (sampling_dependence_unknown). The interval ships only after its coverage records exist."
+owners = ["antecedent-core", "antecedent-identify", "antecedent-expr", "antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
+identity_inputs = ["graph digest", "ordered-canonical source set (sorted by population id; permutation invariant)", "per-source selection targets", "per-source controllable set", "per-source supplied regime set with intervention values", "target query (outcomes, treatments, values)", "search limits", "evidence snapshot ids (data identity; refresh-replaceable)"]
+wire_changes = ["Additive: multi-source z-transport artifact v1 (separate from the v2 single-source artifact); per-leaf source population on proof nodes; search receipt with explored/unevaluated regions; sampling-dependence declaration per source pair."]
+compatibility = "The single- and two-source routes and their artifacts are unchanged; two-source queries keep their registered factorizations. The new route is a superset only through its own artifact version."
+coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_shared_units"]
+search = true
+bounds = { max_observed = 12, max_sources = 4, max_controllable_per_source = 4, max_candidate_regimes = 64, max_search_states = 4096, max_depth = 24, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
+refusals = [
+  { code = "transport_not_certified", detail = "mz_transport.search_incomplete", when = "Licensed rules exhausted within budget without a formula or theorem-backed obstruction." },
+  { code = "transport_proven_non_transportable", detail = "mz_transport.checked_obstruction", when = "Every source reaches a checked line-11 terminal under a shared controllable set and selection targets, as the theorem licenses." },
+  { code = "transport_missing_evidence", detail = "mz_transport.missing_joint_regime", when = "A certified factor cites a joint regime no source supplied." },
+  { code = "transport_not_certified", detail = "mz_transport.fabricated_joint", when = "A factor would need one joint over several sources' interventions." },
+  { code = "transport_budget_cancel", detail = "mz_transport.budget", when = "Steps, depth, memory or cancellation stopped the search; receipt records explored and unevaluated regions." },
+  { code = "route_not_supported", detail = "mz_transport.bounds_exceeded", when = "More sources, observed variables, controllables or candidate regimes than the declared bounds." },
+  { code = "sampling_dependence_unknown", detail = "mz_transport.interval_withheld", when = "Point retained; interval withheld because inter-source dependence is undeclared." },
+]
+routes = [
+  { name = "antecedent_identify.decide_multi_source_z_transport", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_exact", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.estimate_refresh", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.multi_source_z_transport.uncertainty_joint_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.consume_multi_source_z_transport", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x1.combined_catalog_only.positive", role = "positive", intent = "No single source identifies; the combined catalog does; exact SCM truth." },
+  { id = "x1.missing_joint_regime.negative", role = "negative", intent = "Separate do(A), do(B) supplied; do(A,B) required; typed missing regime." },
+  { id = "x1.fabricated_cross_source_joint.negative", role = "negative", intent = "Factor would mix sources inside one c-factor; refused by name." },
+  { id = "x1.search_budget.budget", role = "budget", intent = "Budget exhaustion returns incomplete with receipt, never non-transportable." },
+  { id = "x1.source_order.invariance", role = "invariance", intent = "Permuting sources leaves proof semantics, identity and point unchanged." },
+  { id = "x1.exact_scm.truth", role = "truth", intent = "Exact numerical agreement with an enumerated latent SCM." },
+  { id = "x1.roundtrip.artifact", role = "artifact", intent = "Consumer rechecks proof, source bindings and point without fetching." },
+  { id = "x1.refresh.lifecycle", role = "lifecycle", intent = "Matching snapshot refresh keeps the proof; changed source/regime/catalog identity forces re-preparation." },
+  { id = "x1.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the joint bootstrap under independent and shared designs." },
+]
+
+[[record]]
+id = "2.2A.X2.finite_scenario_envelope"
+workstream = "X2"
+milestone = "A"
+work_package = "A2"
+status = "frozen"
+consumer_question = "Which transport conclusions survive each of a finite, explicitly supplied set of graph/selection scenarios?"
+theorem = "No new theorem: each scenario is decided independently by an already licensed fixed-graph transport contract (classical sID, z-transport). The envelope is a report over those results, not an identification claim about an equivalence class."
+reference = "https://arxiv.org/abs/1312.7485v1"
+guarantee = "per_scenario_contract_guarantee"
+graph_class = "Finite list of fixed DAG/selection-ADMG scenarios admitted by existing licensed transport rows; ADMG rows enter only after 2.2B B1 passes. No CPDAG/PAG-native transport ID."
+population_semantics = "Shared named variable coordinates, domains, units and cardinalities across scenarios; the same target question; edges and selection targets vary per scenario."
+evidence_family = "Evidence bound independently per scenario; evidence certified for one scenario never satisfies another."
+provider = "Whatever the scenario's licensed route uses (exact or empirical plug-in)."
+estimand = "Per-scenario target response; unweighted structural envelope (min/max over identified scenarios with the unidentified/unevaluated set named); optional declared-weight mixture report with residual mass preserved."
+inference_claim = "structural_envelope"
+inference_notes = "Within-scenario inference only where that scenario's row already licenses it. Cross-scenario aggregate inference with shared data is 2.3A and refuses (scenario_aggregate_not_licensed). Spread is never labelled a confidence interval or sharp bound."
+owners = ["antecedent-core", "antecedent-identify", "antecedent-io", "antecedent", "python/antecedent/transport"]
+identity_inputs = ["canonical scenario set (sorted scenario digests; permutation invariant)", "declared weights (exact rationals/f64 bits) when supplied", "shared coordinate schema", "target question", "evaluation budget"]
+wire_changes = ["Additive: scenario-set wire and scenario-envelope artifact v1 retaining every scenario with status identified | structurally_unidentified | missing_evidence | unsupported_provider | unevaluated_budget."]
+compatibility = "Fixed-graph transport artifacts are unchanged; a one-scenario set is a separate artifact, not a relabelled fixed-graph result."
+coverage_records = []
+search = true
+bounds = { max_scenarios = 64, max_observed = 12, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
+refusals = [
+  { code = "scenario_aggregate_not_licensed", detail = "scenarios.shared_data_aggregate", when = "An inferential statement across scenarios sharing data is requested (2.3A)." },
+  { code = "schema_mismatch", detail = "scenarios.coordinate_mismatch", when = "Scenarios disagree on named variables, domains, units or cardinalities." },
+  { code = "invalid_argument", detail = "scenarios.invalid_weights", when = "Declared weights are negative, non-finite, or exceed total mass one." },
+  { code = "route_not_supported", detail = "scenarios.equivalence_class_input", when = "A CPDAG/PAG is supplied in place of an explicit scenario list." },
+  { code = "transport_budget_cancel", detail = "scenarios.unevaluated_budget", when = "Remaining scenarios are recorded unevaluated, never dropped." },
+]
+routes = [
+  { name = "antecedent.transport.scenarios.prepare", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.scenarios.structural_envelope", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.scenarios.weighted_report", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.scenarios.consume", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "transport.scenarios.aggregate_inference", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true },
+  { name = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", permanent_in_release = true },
+]
+fixtures = [
+  { id = "x2.conflicting_identified.positive", role = "positive", intent = "All scenarios identified with conflicting answers; envelope spans them." },
+  { id = "x2.unidentified_mass.negative", role = "negative", intent = "Positive unidentified mass retained and named." },
+  { id = "x2.weighted_no_renormalization.negative", role = "negative", intent = "Weighted set with unidentified mass is not renormalized over survivors." },
+  { id = "x2.per_scenario_evidence.positive", role = "positive", intent = "Scenarios with different evidence obligations bind independently." },
+  { id = "x2.budget_truncated.budget", role = "budget", intent = "Budget-truncated set records unevaluated scenarios." },
+  { id = "x2.permutation.invariance", role = "invariance", intent = "Scenario order does not change identity or report." },
+  { id = "x2.roundtrip.artifact", role = "artifact", intent = "Artifact retains failed and successful scenarios." },
+]
+
+[[record]]
+id = "2.2A.X4.learned_continuous_trial_transport"
+workstream = "X4"
+milestone = "A"
+work_package = "A3"
+status = "frozen"
+consumer_question = "What is the mean effect of a randomized binary treatment on a continuous outcome in an overlap-supported target population, and which graph-specific estimators are eligible?"
+theorem = "Trial-to-target transport of the conditional-mean functional under mean exchangeability over the certified standardizers and positivity of trial participation; augmented inverse-odds estimator is model doubly robust (outcome regression or participation model correct) with known randomization probabilities. No efficiency claim."
+reference = "https://doi.org/10.1002/sim.8426"
+guarantee = "model_double_robustness_of_point_only"
+graph_class = "Certified direct or baseline-standardization transport derivation (existing prepare_trial graph contract)."
+population_semantics = "Target is the overlap-supported target population; nested-cohort (trial participants plus nonparticipants from one IID cohort, target = nonparticipants) and independent-samples (separate IID trial and representative target samples) are distinct declared designs."
+evidence_family = "Binary randomized source treatment with known probabilities; complete baseline covariates equal to the certified standardizers; continuous source outcome; IID sampling only."
+provider = "Existing TrialAipw via antecedent-learn LearnerSpec; all nuisances cross-fitted with preprocessing inside folds."
+estimand = "psi = E_target[ E(Y | X, A=1, S=1) - E(Y | X, A=0, S=1) ]."
+inference_claim = "calibrated"
+inference_notes = "Exactly one interval method: joint outer refit percentile bootstrap of the whole cross-fitted estimator, grouped per design, with a replicate floor. No CATE-wide or simultaneous claim. The existing prepare_trial nominal interval keeps its 2.1 status until this cell's records exist."
+owners = ["antecedent-learn", "antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
+identity_inputs = ["graph certificate digest", "sampling design", "LearnerSpec for outcome and membership", "fold count and fold assignment seed", "bootstrap replicate count and seed", "overlap thresholds", "sample snapshot ids"]
+wire_changes = ["Additive: estimator-menu inspection wire; learned continuous transport artifact records provider implementation/version, fold provenance, membership and treatment-overlap diagnostics separately."]
+compatibility = "learned_trial wire v1 artifacts stay consumable; the calibrated cell is a new artifact version with its interval provenance."
+coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_independent_samples_continuous_mean_contrast"]
+search = false
+bounds = { max_bootstrap = 2000, min_bootstrap = 199, max_folds = 20, cancellation = true }
+refusals = [
+  { code = "transport_support_failure", detail = "learned_transport.membership_overlap", when = "Source-membership propensities leave the declared overlap region." },
+  { code = "transport_support_failure", detail = "learned_transport.treatment_overlap", when = "Randomization probabilities leave (0, 1) or the declared bound." },
+  { code = "sampling_dependence_unknown", detail = "learned_transport.non_iid_design", when = "Clustered, linked or undeclared sampling." },
+  { code = "estimator_inference_mismatch", detail = "learned_transport.bootstrap_below_floor", when = "Requested replicates below the calibrated floor; point retained, interval withheld." },
+  { code = "route_not_supported", detail = "learned_transport.cate_requested", when = "Heterogeneous or simultaneous targets requested." },
+]
+routes = [
+  { name = "antecedent.transport.estimator_menu", stage = "representation", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.prepare_learned_continuous", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.consume_learned_continuous", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x4.good_overlap_known_truth.positive", role = "positive", intent = "Known-truth DGP with good overlap under both designs." },
+  { id = "x4.weak_overlap.negative", role = "negative", intent = "Weak-overlap boundary refuses rather than extrapolating." },
+  { id = "x4.misspecified_nuisance.positive", role = "positive", intent = "One nuisance misspecified: point stays consistent, matching only the claimed robustness." },
+  { id = "x4.menu_refusals.negative", role = "negative", intent = "Menu lists refused estimators with reasons consistent with graph conditions." },
+  { id = "x4.thread_budget.invariance", role = "invariance", intent = "Thread budget changes leave seeded replicate results identical." },
+  { id = "x4.roundtrip.artifact", role = "artifact", intent = "Artifact replays score and interval bookkeeping without refitting." },
+  { id = "x4.sample_size_grid.calibration", role = "calibration", intent = "Coverage across the sample-size grid at the replicate floor." },
+]
+
+[[record]]
+id = "2.2A.X5.two_step_temporal_transport"
+workstream = "X5"
+milestone = "A"
+work_package = "A4"
+status = "frozen"
+consumer_question = "Does a fixed two-step intervention sequence [a1, a2] transfer from the source to the target population, and what is its target response?"
+theorem = "Classical sID on the explicit two-slice unrolled selection diagram, identifying do(A1=a1, A2=a2) as one joint intervention; executed as the sequential g-formula over the identified history-aware functional."
+reference = "https://arxiv.org/abs/1312.7485v1"
+guarantee = "sound_incomplete"
+graph_class = "Explicit acyclic two-slice unrolling (ADR 0021 temporal coordinates) with baseline covariates, time-varying confounders and time-indexed selection nodes."
+population_semantics = "Fixed initial-state distribution declared per population; hard sequence semantics; source evidence availability declared per time step; mechanism differences are time-indexed selection targets."
+evidence_family = "Finite discrete source and target joints over the unrolled coordinates, per declared measurement window."
+provider = "Exact finite discrete law evaluator."
+estimand = "Target distribution and mean of Y_2 under do(A_1=a1, A_2=a2)."
+inference_claim = "point_only"
+inference_notes = "Temporal sampling, initial-state uncertainty and new-period refresh are 2.3A."
+owners = ["antecedent-core", "antecedent-identify", "antecedent-estimate", "antecedent-io", "antecedent"]
+identity_inputs = ["unrolled graph digest", "horizon (=2)", "ordered action sequence", "action alphabet", "per-step selection targets", "initial-state declaration", "measurement window", "snapshot ids"]
+wire_changes = ["Additive: temporal transport sequence artifact v1 recording sequence, horizon and per-slice invariances used."]
+compatibility = "No change to temporal response artifacts (ADR 0021) or static transport artifacts."
+coverage_records = []
+search = true
+bounds = { horizon = 2, max_actions = 8, max_history_states = 4096, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
+refusals = [
+  { code = "transport_support_failure", detail = "temporal_transport.history_outside_support", when = "A required history has no certified support." },
+  { code = "route_not_supported", detail = "temporal_transport.horizon", when = "Horizon other than 2, or a new period requested." },
+  { code = "transport_not_certified", detail = "temporal_transport.search_incomplete", when = "Sequence not identified by the licensed rules." },
+  { code = "transport_budget_cancel", detail = "temporal_transport.history_budget", when = "History growth exceeds the bound." },
+  { code = "estimator_inference_mismatch", detail = "temporal_transport.interval_requested", when = "Any interval requested (2.3A)." },
+]
+routes = [
+  { name = "antecedent_identify.identify_temporal_transport_sequence", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.temporal.prepare_exact_sequence", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.temporal.evaluate_exact_sequence", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.temporal.consume_sequence", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "transport.temporal.uncertainty", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", permanent_in_release = true },
+]
+fixtures = [
+  { id = "x5.mechanism_change_scm.positive", role = "positive", intent = "Known temporal SCM with a source/target mechanism change; exact truth." },
+  { id = "x5.time_varying_confounder.truth", role = "truth", intent = "Time-varying confounder handled by the joint sequence, not per-step products." },
+  { id = "x5.history_support.negative", role = "negative", intent = "History outside support refuses." },
+  { id = "x5.sequence_order.invariance", role = "invariance", intent = "[a,b] and [b,a] give different identities and answers." },
+  { id = "x5.invalid_horizon.negative", role = "negative", intent = "Invalid horizon/history refuses." },
+  { id = "x5.history_budget.budget", role = "budget", intent = "History bound exhaustion is typed." },
+  { id = "x5.roundtrip.artifact", role = "artifact", intent = "Round trip with sequence and horizon in identity." },
+]
+
+[[record]]
+id = "2.2A.X8.natural_indirect_effect"
+workstream = "X8"
+milestone = "A"
+work_package = "A5"
+status = "frozen"
+scope_decision = "Minimum scope chosen: natural indirect effect beside the licensed natural direct effect. The path-specific edge-intervention alternative is deferred; revisit if B5 needs its machinery."
+existing_surface = "MediationEffect already licenses a NaturalIndirect contrast through mediation.linear (a product-of-coefficients plug-in, no cross-world engine). This cell is distinct: NestedCounterfactualEffect evaluated by coupled abduction-action-prediction with per-unit shared abduced disturbances, so a non-separable outcome changes its value. The MediationEffect cell is neither promoted nor retired by this record."
+consumer_question = "How much of the treatment effect flows through the mediator for a fixed three-node Markovian DAG?"
+theorem = "Natural indirect effect under a fully specified structural causal model; cross-world quantity evaluated by coupled abduction-action-prediction with one shared exogenous draw."
+reference = "https://arxiv.org/abs/1301.2300"
+guarantee = "exact_under_specified_scm"
+graph_class = "Explicit Markovian DAG X->M, X->Y, M->Y (the licensed NestedCounterfactualEffect graph)."
+population_semantics = "Fixed single population; no transport."
+evidence_family = "Compatible fitted SCM (linear-Gaussian licensed row; non-separable outcome basis as the shared-abduction witness)."
+provider = "Existing nested counterfactual route (mediation.linear, fit_non_separable_nested_outcome)."
+estimand = "NIE = E[Y(active, M(active)) - Y(active, M(control))]."
+inference_claim = "point_only"
+inference_notes = "No sampling interval."
+owners = ["antecedent-core", "antecedent-counterfactual", "antecedent", "antecedent-io", "python"]
+identity_inputs = ["query contrast (natural_indirect)", "treatment levels", "graph digest", "fitted SCM snapshot"]
+wire_changes = ["Additive: NaturalIndirect contrast on the nested counterfactual query wire."]
+compatibility = "The NDE cell and artifacts are unchanged; NIE is a new contrast value."
+coverage_records = []
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "cross_world_not_identified", detail = "nested.incompatible_worlds", when = "Nested worlds outside the NDE/NIE contract." },
+  { code = "cell_not_licensed", detail = "nested.graph_outside_contract", when = "Accepted, uncertain, latent-confounded or temporal graph." },
+  { code = "estimator_inference_mismatch", detail = "nested.interval_requested", when = "Any interval or Bayesian inference requested." },
+]
+routes = [
+  { name = "antecedent.counterfactual.nested.natural_indirect", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed", registry = "support_licensed", query = "NestedCounterfactualEffect", contrast = "natural_indirect" },
+]
+fixtures = [
+  { id = "x8.exact_scm.positive", role = "positive", intent = "NIE matches exact SCM truth." },
+  { id = "x8.non_separable_shared_abduction.truth", role = "truth", intent = "Non-separable outcome makes shared per-unit abduction observable." },
+  { id = "x8.violated_consistency.negative", role = "negative", intent = "Violated consistency / non-identification refuses with cross_world_not_identified." },
+  { id = "x8.roundtrip.artifact", role = "artifact", intent = "Artifact preserves cross-world query semantics." },
+]
+
+[[record]]
+id = "2.2A.X9.mixed_source_proof_search"
+workstream = "X9"
+milestone = "A"
+work_package = "A6"
+status = "frozen"
+consumer_question = "Can complementary distributions from different studies identify a query that no named theorem route covers, and which step fails when they cannot?"
+theorem = "Bounded do-calculus and probability-rule search over an explicit set of input distributions (do-search), each candidate re-checked by the existing expression/proof checker. Sound; incomplete under the bound."
+reference = "https://www.jstatsoft.org/article/view/v099i05"
+guarantee = "sound_incomplete"
+graph_class = "Finite discrete ADMG with population- and regime-tagged input distributions."
+population_semantics = "Each catalog entry names its source/study, population, selection/sampling context and known shared data; theorem-scoped ID/sID/meta/z routes run first."
+evidence_family = "Upgraded EvidenceCatalog entries: jointly measured and conditioned variables, intervention variables and values, snapshot, evidence kind (joint law vs separate marginals vs posterior artifact), projection back to the original entry."
+provider = "Exact finite-law evaluator of the checked derivation."
+estimand = "Target interventional distribution named by the query."
+inference_claim = "point_only"
+inference_notes = "No interval in 2.2A."
+owners = ["antecedent-core", "antecedent-identify", "antecedent-expr", "antecedent-io", "antecedent"]
+identity_inputs = ["graph digest", "canonical catalog distribution identities", "frozen rule-set version", "search limits", "query"]
+wire_changes = ["Additive: catalog distribution descriptor fields; mixed-source proof artifact v1 with frontier/limit receipt and source-named leaves."]
+compatibility = "Existing catalog wire gains optional fields with defaults equal to today's semantics; older catalogs load unchanged."
+coverage_records = []
+search = true
+bounds = { max_observed = 10, max_distributions = 16, max_search_states = 20000, max_depth = 16, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
+refusals = [
+  { code = "transport_not_certified", detail = "mixed_search.not_certified", when = "Search exhausted the frozen rule set within budget; never a non-identification theorem." },
+  { code = "transport_budget_cancel", detail = "mixed_search.budget", when = "Frontier/limit receipt returned." },
+  { code = "transport_missing_evidence", detail = "mixed_search.missing_joint", when = "Derivation needs a joint that exists only as separate marginals." },
+  { code = "route_not_supported", detail = "mixed_search.posterior_as_law", when = "A posterior/model artifact is offered as an experimental law." },
+]
+routes = [
+  { name = "antecedent_identify.mixed_source_search", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.evaluate_mixed_source_exact", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.consume_mixed_source", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x9.complementary_studies.positive", role = "positive", intent = "Query identified only from complementary distributions of two studies; exact execution." },
+  { id = "x9.missing_joint.negative", role = "negative", intent = "Joint available only as marginals refuses with the exact missing leaf." },
+  { id = "x9.bounded_search.budget", role = "budget", intent = "Bounded unsuccessful search stays unresolved." },
+  { id = "x9.ananke_gid.parity", role = "parity", intent = "Ananke GID/AID parity case; disagreements recorded." },
+  { id = "x9.dosearch_mixed.parity", role = "parity", intent = "do-search mixed-distribution parity case." },
+  { id = "x9.roundtrip.artifact", role = "artifact", intent = "Replayable artifact with source-named leaves." },
+]

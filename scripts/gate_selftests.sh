@@ -16,6 +16,7 @@ bash scripts/gate_parity_schema.sh --self-test
 bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_transport.sh --self-test
+bash scripts/gate_promotion.sh --self-test
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
 bash scripts/gate_coverage_citations.sh --self-test

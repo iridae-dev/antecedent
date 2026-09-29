@@ -55,6 +55,8 @@ pub mod transport_result;
 pub use transport_result::TransportGridFailure;
 pub mod response;
 pub mod schema;
+pub mod search;
+pub use search::{SearchBudget, SearchLimits, SearchReceipt, SearchStop};
 pub mod temporal;
 pub mod tolerance;
 pub mod transform;

@@ -292,3 +292,14 @@ meaning = "A TransportPolicy wire name is not one the library defines."
 id = "transport_coef_index_out_of_range"
 applies_to = ["runtime_refusal"]
 meaning = "A coefficient index passed to a transport reweighting is outside the prior's dimension."
+
+# 2.2 (parity/promotion_2_2.toml). Registered before any route returns them.
+[[code]]
+id = "sampling_dependence_unknown"
+applies_to = ["runtime_refusal"]
+meaning = "The point is retained but its interval is withheld: sampling dependence between the studies or units it combines is undeclared, and independence is never assumed."
+
+[[code]]
+id = "scenario_aggregate_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."

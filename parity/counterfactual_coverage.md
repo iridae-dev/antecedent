@@ -54,3 +54,9 @@ not a separately licensed Study coordinate — the licensed frequentist cell sta
 linear-Gaussian and point-only). Natural indirect effects, other nested world
 pairs, and transported nested outcomes remain separate future cells and must not
 be inferred from this row.
+
+## 2.2 cells, closed until promotion
+
+| Query | Graph and evidence | Execution | Uncertainty or refusal |
+| --- | --- | --- | --- |
+| Natural indirect effect `Y(active, M(active)) − Y(active, M(control))` as a nested cross-world route (X8, `parity/promotion_2_2.toml`) | Same explicit three-node DAG and compatible SCM as the natural direct effect | Closed (`cell_not_licensed`) until promotion; distinct from the existing `MediationEffect` NaturalIndirect product-of-coefficients cell | Planned point-only |

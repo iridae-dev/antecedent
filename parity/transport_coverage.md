@@ -45,3 +45,17 @@ interval around the plug-in point, also with reason `estimator_grid_not_measured
 and no coverage record. Calibrated coverage remains closed. Cross-source
 combination is licensed for the two complementary factorizations above; a
 fabricated joint over both sources' interventions stays closed.
+
+## 2.2 cells, closed until promotion
+
+These rows are frozen in `parity/promotion_2_2.toml` and refused until
+`scripts/gate_promotion.sh` accepts their evidence. None is licensed by this
+table, and no row here changes any cell above.
+
+| Cell | Evidence premise | Identification | Execution | Uncertainty |
+| --- | --- | --- | --- | --- |
+| X1 multi-source limited experiments (mz-transportability), up to four sources | Per-source joint-regime laws; target observational joint | Closed (`cell_not_licensed`); planned sound and incomplete within declared bounds | Closed | Closed; planned calibrated joint bootstrap, withheld when dependence is unknown |
+| X2 finite supplied graph/selection scenarios | Evidence bound per scenario | Closed; each scenario uses an already licensed fixed-graph route | Closed | Closed; planned structural envelope only. Cross-scenario inference stays refused (`scenario_aggregate_not_licensed`) |
+| X4 learned continuous-outcome trial transport and estimator menu | Binary randomized source, continuous outcome, IID designs | Closed; existing direct/baseline standardization certificate | Closed | Closed; planned one calibrated whole-estimator bootstrap |
+| X5 two-step discrete temporal sequence | Unrolled finite discrete joints per window | Closed; planned sID on the two-slice unrolling | Closed | Point-only; temporal intervals stay refused in 2.2 |
+| X9 bounded mixed-source proof search | Upgraded catalog descriptors per distribution | Closed; planned sound, incomplete bounded search | Closed | Point-only |
