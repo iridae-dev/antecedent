@@ -76,15 +76,33 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Install cargo-nextest
+        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
+      # Test profile opt-level 2 speeds the numeric loops. It is not in
+      # Cargo.toml: that file is on the calibration surface, and local
+      # incremental builds stay at opt-level 0. Doctests stay on `cargo test`;
+      # nextest does not run them.
       - name: Test
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
-        run: cargo test --workspace
+        env:
+          CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+        run: |
+          cargo nextest run --workspace
+          cargo test --workspace --doc
 
       - name: Test optional learner and Gaussian-process features
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        env:
+          CARGO_PROFILE_TEST_OPT_LEVEL: "2"
         run: |
-          cargo test -p antecedent-learn --features ml-full,ml-neural
-          cargo test -p antecedent-model --features gaussian-process
+          cargo nextest run -p antecedent-learn --features ml-full,ml-neural
+          cargo test -p antecedent-learn --features ml-full,ml-neural --doc
+          cargo nextest run -p antecedent-model --features gaussian-process
+          cargo test -p antecedent-model --features gaussian-process --doc
 
       - name: crates.io publish dry-run
         if: github.event_name == 'pull_request'

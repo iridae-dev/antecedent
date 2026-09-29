@@ -224,7 +224,19 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
         target: Arc::from("target"),
     };
     let treatment_mask: usize = treatments.iter().map(|t| 1usize << t).sum();
-    for directed_mask in 0..8usize {
+    // Each directed mask is its own graph family. Nextest reserves the machine
+    // for this sweep, and the masks share that budget.
+    let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    let masks: Vec<usize> = (0..8).collect();
+    let width = (masks.len() / workers).max(1);
+    let chunks: Vec<Vec<usize>> = masks.chunks(width).map(|chunk| chunk.to_vec()).collect();
+    let query = &query;
+    let ctx = &ctx;
+    let edges = &edges;
+    std::thread::scope(|scope| {
+        for chunk in &chunks {
+            scope.spawn(move || {
+                for &directed_mask in chunk {
         for bidirected_mask in 0..8usize {
             for selected in 0..8usize {
                 let mut graph = Admg::with_variables(3);
@@ -441,7 +453,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                 }
             }
         }
-    }
+                }
+            });
+        }
+    });
 }
 
 /// Laws for X -> M -> Y with X <-> M, where only Y's mechanism differs in the target.
@@ -743,47 +758,69 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
         source: Arc::from("source"),
         target: Arc::from("target"),
     };
-    let ctx = ExecutionContext::for_tests(0);
-    let mut rules = std::collections::BTreeSet::new();
-    for directed in 0..64 {
-        for bidirected in 0..64 {
-            let mut graph = Admg::with_variables(4);
-            for (index, (a, b)) in edges.iter().enumerate() {
-                if directed & (1 << index) != 0 {
-                    graph.insert_directed(d(*a), d(*b)).unwrap();
-                }
-                if bidirected & (1 << index) != 0 {
-                    graph.insert_bidirected(d(*a), d(*b)).unwrap();
-                }
-            }
-            for selections in 0..16 {
-                let diagram = SelectionDiagram::try_new(
-                    graph.clone(),
-                    (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
-                )
-                .unwrap();
-                match identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx)
-                    .unwrap()
-                {
-                    ClassicalTransportResult::Identified(proof) => rules.extend(proof.rules()),
-                    ClassicalTransportResult::ProvenNonTransportable(witness) => {
-                        antecedent_identify::sid::verify_s_hedge(&diagram, &query, &witness, &ctx)
+    // Each directed mask is its own graph family. Nextest reserves the machine
+    // for this test, and the families split that budget.
+    let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(64);
+    let rules = std::sync::Mutex::new(std::collections::BTreeSet::new());
+    let edges = &edges;
+    let query = &query;
+    std::thread::scope(|scope| {
+        for worker in 0..workers {
+            let rules = &rules;
+            scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(0);
+                let mut local = std::collections::BTreeSet::new();
+                for directed in (worker..64).step_by(workers) {
+                    for bidirected in 0..64 {
+                        let mut graph = Admg::with_variables(4);
+                        for (index, (a, b)) in edges.iter().enumerate() {
+                            if directed & (1 << index) != 0 {
+                                graph.insert_directed(d(*a), d(*b)).unwrap();
+                            }
+                            if bidirected & (1 << index) != 0 {
+                                graph.insert_bidirected(d(*a), d(*b)).unwrap();
+                            }
+                        }
+                        for selections in 0..16 {
+                            let diagram = SelectionDiagram::try_new(
+                                graph.clone(),
+                                (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
+                            )
+                            .unwrap();
+                            match identify_classical_transport(
+                                &diagram, query, SidLimits::default(), &ctx,
+                            )
                             .unwrap()
+                            {
+                                ClassicalTransportResult::Identified(proof) => {
+                                    local.extend(proof.rules())
+                                }
+                                ClassicalTransportResult::ProvenNonTransportable(witness) => {
+                                    antecedent_identify::sid::verify_s_hedge(
+                                        &diagram, query, &witness, &ctx,
+                                    )
+                                    .unwrap()
+                                }
+                                ClassicalTransportResult::NotCertified => panic!(
+                                    "unchecked obstruction directed={directed} bidirected={bidirected} selections={selections}"
+                                ),
+                            }
+                        }
                     }
-                    ClassicalTransportResult::NotCertified => panic!(
-                        "unchecked obstruction directed={directed} bidirected={bidirected} selections={selections}"
-                    ),
                 }
-            }
+                rules.lock().unwrap().extend(local);
+            });
         }
-    }
+    });
+    let mut rules = rules.into_inner().unwrap();
+    let ctx = ExecutionContext::for_tests(0);
     // Line 3 requires an ancestor preceding the treatment in topological order.
     let mut graph = Admg::with_variables(4);
     for (a, b) in [(0, 1), (1, 3), (2, 3)] {
         graph.insert_directed(d(a), d(b)).unwrap();
     }
     let diagram = SelectionDiagram::try_new(graph, []).unwrap();
-    let mut query = query.clone();
+    let mut query = (*query).clone();
     query.treatments = Arc::from([v(1)]);
     let ClassicalTransportResult::Identified(proof) =
         identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx).unwrap()

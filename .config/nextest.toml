@@ -1,0 +1,10 @@
+# `cargo test` runs one binary to completion before the next. Most binaries are
+# one thread, so the cores sit idle behind the long ones. Nextest runs one test
+# per core. The transport sweeps spawn their own workers and take the whole
+# budget so those workers do not stack on top of other tests.
+[profile.default]
+test-threads = "num-cpus"
+
+[[profile.default.overrides]]
+filter = 'binary(transport_exact_scm) and test(/three_node_selection|every_treatment_position|four_node_branch/)'
+threads-required = "num-cpus"
