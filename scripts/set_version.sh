@@ -88,15 +88,25 @@ for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo
         edits[path] = t2
 
 init = root / "python" / "antecedent" / "__init__.py"
-init_new, n = re.subn(
-    r'(__version__\s*=\s*")[^"]+(")',
-    rf"\g<1>{version}\2",
-    init.read_text(),
-    count=1,
-)
-if n != 1:
+init_text = init.read_text()
+# A semver literal is kept in lockstep. Otherwise __version__ comes from the
+# extension or installed metadata; "unknown" is the sentinel when neither is
+# available, not a version pin.
+literal = re.search(r'__version__\s*=\s*"([^"]+)"', init_text)
+if literal and re.fullmatch(
+    r"[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?", literal.group(1)
+):
+    init_new, n = re.subn(
+        r'(__version__\s*=\s*")[^"]+(")',
+        rf"\g<1>{version}\2",
+        init_text,
+        count=1,
+    )
+    if n != 1:
+        sys.exit("python/antecedent/__init__.py: fallback __version__ not updated")
+    edits[init] = init_new
+elif "from ._native import __version__ as __version__" not in init_text:
     sys.exit("python/antecedent/__init__.py: fallback __version__ not updated")
-edits[init] = init_new
 
 uv = root / "python" / "uv.lock"
 if uv.is_file():

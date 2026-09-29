@@ -42,7 +42,8 @@ verify_tag() {
   trap 'rm -rf "$tmp"' RETURN
   # A publisher-only commit on top of a green main commit is the same release.
   # Windows runs `run:` steps in PowerShell, so a workflow fix must be able to
-  # ship without another full CI of an unchanged product tree.
+  # ship without another full CI of an unchanged product tree. The version
+  # check itself is one of those publisher files.
   ci_sha="$sha"
   run_id="$(gh run list --workflow ci.yml --commit "$ci_sha" --status success \
     --json databaseId --jq '.[0].databaseId // empty')"
@@ -55,7 +56,7 @@ verify_tag() {
       while IFS= read -r path; do
         [[ -z "$path" ]] && continue
         case "$path" in
-          .github/workflows/*|scripts/verify_release.sh) ;;
+          .github/workflows/*|scripts/verify_release.sh|scripts/set_version.sh) ;;
           *) publisher_only=0 ;;
         esac
       done < <(git diff --name-only "$parent" "$sha")
