@@ -1,11 +1,11 @@
 # Narrative docs for Read the Docs / local `mkdocs serve`.
 # Python API: pdoc HTML merged into the RTD site at /python/ (see .readthedocs.yaml).
 # Rust API: docs.rs/antecedent.
-site_name: Antecedent 2.0
-site_description: Stable 2.0 documentation for identification-first causal inference in Python and Rust
+site_name: Antecedent
+site_description: Documentation for identification-first causal inference in Python and Rust
 site_url: https://antecedent.readthedocs.io/
 repo_url: https://github.com/iridae-dev/antecedent
-edit_uri: edit/2.0/docs/
+edit_uri: edit/main/docs/
 
 theme:
   name: material
@@ -55,6 +55,20 @@ nav:
       - Transport theorem scope: guides/transport-scope.md
       - Transport names moved in 2.0: migrations/2.0-transport-day1.md
       - Prior bank: priors.md
+      - Graph uncertainty: graph_uncertainty.md
+  - Design-family studies:
+      - Survival outcomes: survival-outcomes.md
+      - Staggered-adoption event study: quasi-event-study.md
+      - Fuzzy RD and regression kink: quasi-rd-kink.md
+      - Synthetic control: quasi-synthetic-control.md
+      - Synthetic DiD and augmented panel DiD: quasi-synthetic-augmentation.md
+      - Sequential g-formula: longitudinal-gformula.md
+      - Sequential doubly robust regimes: longitudinal-doubly-robust.md
+      - Continuous dose response: continuous-dose-response.md
+      - Doubly robust policy evaluation: doubly-robust-policy-evaluation.md
+      - DR-Learner pointwise CATE: dr-pointwise-cate.md
+      - Observational network exposure: observational-network-exposure.md
+      - Saturation interference: saturation-interference.md
   - Concepts:
       - Capabilities: capabilities.md
       - Observation contract: observation-contract.md
@@ -64,6 +78,8 @@ nav:
       - Python API: python-api.md
       - Python workflow options: python-options.md
       - Support matrix: support-matrix.md
+      - Graphless support matrix: graphless-support-matrix.md
+      - Short-series thresholds: short-series-thresholds.md
       - Artifacts: artifacts.md
       - API naming: api_naming.md
   - Evidence and development:
@@ -72,6 +88,7 @@ nav:
       - 2.0 learner audit: audits/2.0-learner-audit.md
       - 2.0 milestone audit: audits/2.0-milestone-audit.md
       - Hot paths: hot_paths.md
+      - Practitioner acceptance: practitioner-acceptance.md
       - Security review: security_review.md
   - Release notes:
       - "2.1.1": release-notes/v2.1.1.md

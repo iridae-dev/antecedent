@@ -92,4 +92,4 @@ cargo run -p antecedent --example <name>
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |
 
-The three transport scripts use `antecedent.transport.Transport`, which is part of this 2.0.0 tree and is absent from the published 1.11 release. Callers moving 1.11 names should read the [transport migration](../docs/migrations/2.0-transport-day1.md). The scripts share one workflow and differ only in evidence. Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`. Exact and complementary-source examples make no sampling-coverage claim.
+The three transport scripts use `antecedent.transport.Transport`, which is absent from the 1.x releases (it arrived in 2.0). Callers moving 1.11 names should read the [transport migration](../docs/migrations/2.0-transport-day1.md). The scripts share one workflow and differ only in evidence. Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`. Exact and complementary-source examples make no sampling-coverage claim.

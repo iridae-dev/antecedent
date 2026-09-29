@@ -1,6 +1,91 @@
 # Changelog
 
-## 2.1.0 — draft
+## 2.1.1
+
+Corrections to 2.1.0. No new capability is licensed. Some estimates change on some inputs; some inputs that 2.1.0 accepted with a wrong or corrupted result are now refused; both are listed below.
+
+### Changed estimates
+
+These routes return different numbers from 2.1.0 on some inputs.
+
+- Synthetic difference in differences fits its time weights to each donor's post-period mean, up to a common intercept. 2.1.0 fit them to the pre-period mean, which uniform weights reproduce exactly, so it computed a synthetic-control-weighted DiD with a plain pre-period average. Additive panels give the same effect; factor-model panels do not.
+- Fuzzy regression discontinuity and regression kink count rows whose running variable equals the cutoff on the treated side, matching the `R >= cutoff` assignment rule. 2.1.0 dropped them from both sides.
+- Bayesian IV mixes its seed before drawing and reports exchangeable-rank quantiles. Nearby seeds previously started nearly identical streams, so draws were under-dispersed or off-centre; draws for a given seed change.
+- Negative binomial g-computation standard errors are no longer multiplied by the fitted dispersion α. The NB2 Fisher weight already carries α, so 2.1.0 scaled the standard error by √α (about three times too small at α = 0.1).
+- A transported coefficient prior is widened by the variance of its reweighted mean. When the transport weights have a Kish effective sample size below 20, the source is dropped (α = 0) and the reason is recorded.
+- A prior hydrated from a posterior that records no residual variance (a `PosteriorArtifact.from_moments` summary, a known-σ² or a GLM fit) keeps the source's absolute coefficient variances, and the target fit converts them with its own residual-variance estimate, recorded in a diagnostic note. 2.1.0 assumed σ² = 1, which mis-scaled the prior width by the target's σ². Such a prior cannot be composed with other priors.
+- Conjugate Gaussian posteriors are solved after equilibrating the posterior precision, so badly scaled designs keep their digits; the reported condition number is that of the equilibrated system.
+- `StudyResult::effect()` returns the queried mediation contrast (total, direct, or mediated), the scalar the contract and artifact already carried. 2.1.0 returned the total for every mediation query.
+
+### Fixed
+
+Artifacts and contracts
+
+- Verification applies interventional-distribution atom replay and the checked AIPW lowering and row-binding requirements when the contract resolved that estimator without declaring it. In 2.1.0 such a study verified with no replay, so an edited artifact could still verify. Resolved-only IV and front-door contracts are checked against the resolved procedure.
+- An interventional-distribution artifact is refused when it carries a scalar estimate its atoms do not define as a mean, or one that differs from that mean. A standard error without an estimate is refused, and the writer no longer emits one.
+- Anomaly attribution queries re-encode to their original bytes, so 2.0.0 artifacts keep their digests and claim ids.
+- Structural response masses outside [0, 1], trailing bytes after an artifact manifest, and manifests whose declared section sizes sum past 2 GiB are refused on load.
+- Bayesian ADMG average effects advertise the resolved `functional.effect` estimator instead of the auto-bound `bayesian.gcomp` placeholder, and a Bayesian `ConditionalEffect` resolves `bayesian.conditional` in either builder call order.
+- Graphless studies carry their `off_axis` support status on the live contract, and loaded panel DiD, policy-value and continuous-dose answers keep the unset support label the live answer publishes. A staggered event-study panel DiD publishes its own graphless coordinate, and staggered designs are labelled with their design and target.
+- Bayesian bootstrap posteriors (robust average effect, anomaly and change attribution, the GCM counterfactual) no longer carry a Gaussian-likelihood disclosure.
+- DBN posterior contrasts report failed estimation as unevaluable mass with a warning instead of as structural non-identification.
+
+Prepared studies
+
+- Refreshing a prepared linear-adjustment, GLM, RD, AIPW, IV, or front-door study with a different number of rows rebinds the retained fit. In 2.1.0 export failed after a shorter refresh and published the prepare-time row count after a longer one.
+- Validators rebound on a prepared study run on the sealed Bayesian g-computation, Bayesian conditional, and temporal class effect routes.
+- The sealed Bayesian conditional route fits and refutes on the identified columns, as the one-shot route does.
+
+Transport
+
+- Two-source z-transport no longer combines factors taken at different levels of a shared treatment. Intervention-factorized components are refused as `z_transport.components_not_independent` when they request a shared treatment at different levels or one side omits an ancestral treatment.
+- When two catalog regimes supply the same factor, every binding path chooses by one documented rule: a family regime first, otherwise the lowest regime id.
+- The z-transport planner can propose measuring the target population's observational joint when a recursive formula cites it. Transport evidence planning stops on cancellation; a candidate that exhausts its search limits is recorded as unresolved.
+- `validate_z_experiment_family` refuses a controllable set too wide to enumerate instead of overflowing. Transport intervals refuse a zero coverage level. Functional-program limits on the wire path raise a resource error.
+
+Statistics, discovery, and models
+
+- G² and symbolic CMI treat non-integer category values as labels instead of rounding them. Bayesian CI tests report exact independence when the conditioning set determines X or Y.
+- Discovery orientation rules (Meek R3, PAG R1 and R3) skip ambiguous triples, and a triple with no separating set is marked ambiguous. R9/R10 leave an edge unoriented instead of failing the run when the path search exhausts its budget. Discovery results record stationarity and linearity assumptions; FDR families finer than the test's p-value floor, DirectLiNGAM residuals whose order is not identified, and pairs a CI-screened posterior never proposed are reported. DirectLiNGAM fits collinear predecessors by minimum norm.
+- Conditional interventional sampling grows its particle set for tail evidence and refuses only past 64 times the base count.
+- Covariate-adjusted IPCW means flag a mean restricted by administrative censoring, and Bayesian random-intercept whitening discloses a fallback to iid.
+- Truncated attribution path enumeration is a resource refusal. Sensitivity thresholds that fall between grid points are judged by the last cleared point; path subset-stability checks are no longer reported as informative; simulation-based and synthetic-SCM calibration checks stop on cancellation.
+- The survival bootstrap refuses a known-censoring array that does not cover every subject, and `ridge_gram_inverse` returns an error instead of panicking on an empty design.
+
+Python
+
+- A design input named by a data column is validated like an inline array: a bool column accepts booleans or 0/1, an integer column finite whole numbers. In 2.1.0 `NaN` and `"False"` became `True` and 2.7 became 2.
+- `refresh` and `estimate` accept the table used at `analyze` for a column-named design, including pyarrow tables; named design columns are dropped, not re-read.
+- Checked transport programs and catalogs raise `CausalResourceError`, `CausalSerializationError`, `CausalUnsupportedError`, or `CausalValueError`; transport identification still raises `CausalIdentifyError`. A malformed transported view raises `CausalSerializationError`. Policy evaluation input checks raise `CausalValueError`.
+- A transported contrast with nothing missing keeps the native per-point detail. Provider-supplied values for registry-owned provenance keys are dropped. `PolicyValue`, `MultiActionCatePoint`, `SurvivalDifferenceBand`, `InterferencePointwiseInterval`, `ExecutableProvider`, and `EconMLProviderAdapter` are in their modules' `__all__`; `dataclasses.replace` works on an inverse-probability `PolicyValue`. Prediction warns when a feature needs a lenient numeric parse.
+
+### Now refused
+
+Each of these returned a wrong or corrupted result in 2.1.0.
+
+- kNN conditional-independence tests conditioned on two or more continuous variables: the permutation null did not hold its Type I error. PC and PCMCI runs using kNN stop at such conditioning sets.
+- Weighted partial correlation with NaN, infinite, or negative weights, and static discovery with a weight vector that does not match the rows; these rows were silently dropped or misaligned.
+- Clustered, multiway, and HAC standard errors for matching estimators, whose influence terms were charged to the wrong cluster.
+- Conjugate Gaussian posteriors whose equilibrated precision is still numerically singular.
+- Exact ratios conditioning on a stratum of a composite joint that the law never observed.
+- GML edges to undeclared nodes and duplicate node ids; DOT edge attributes a reader cannot represent, including a circle mark in an ADMG and half-specified marks; non-finite shift interventions; response influence row ids past the u32 range.
+
+### Compatibility
+
+Rust
+
+- `antecedent_io::CausalQueryWire::AnomalyAttribution.reference` is `Option<Option<(f64, f64)>>`: the outer `None` records a 2.0.0 body without the key. Code that builds or matches this variant must add the extra level.
+- `antecedent_expr` `with_world_bound_leaves` takes the cited regimes. `antecedent_stats::ridge_gram_inverse` returns `Result<Option<_>>`.
+
+Python
+
+- `CausalResourceError` and `CausalSerializationError` do not subclass `ValueError`; code that caught `ValueError` around checked transport programs, catalogs, or transported-view loading must catch the typed classes.
+
+### Known limitations
+
+Recorded for 2.2 in the roadmap: sequential Bayesian updating hydrates a diagonal prior and can be overconfident against pooling (see [priors](docs/priors.md)); the design ranker's entropy score is not monotone in the design amount.
+
+## 2.1.0
 
 Delta from 2.0.0. Antecedent 2.1.0 keeps the `identify → estimate → inspect → refresh → export → consume` lifecycle and adds design-family studies, restricted-experiment transport, a fixed-DAG natural direct effect, and model-scoped Bayesian routes. Every licensed route executes from a checked operation retained at preparation.
 
@@ -53,8 +138,8 @@ Python
 
 Rust
 
-- `IdentificationError` gains variants for cancellation, budgets, invalid input, invalid catalogs, missing evidence, and invalid derivations. Exhaustive matches must handle them.
-- `EstimationError::Refused` carries the transport reason codes. `IoError` gains `Refused` and `ZTransport` variants.
+- `IdentificationError` gains variants for cancellation, budgets, invalid input, unsupported input, invalid catalogs, missing evidence, and invalid derivations. The enum was already `#[non_exhaustive]`, so downstream matches keep compiling through their wildcard arm; code that routed every error through that arm now sees these cases there.
+- `EstimationError::Refused` carries the transport reason codes. `IoError` (also `#[non_exhaustive]`) gains `Refused` and `ZTransport` variants.
 - z-transport identification, verification, failure snapshots, the planner, and proposal replay take `SidLimits` and an `ExecutionContext`. Consumption takes `ZTransportConsumeLimits`. These entry points did not exist in 2.0.0.
 
 ## 2.0.0

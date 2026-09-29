@@ -98,6 +98,13 @@ the sum too narrow, negative correlation (typical of collinear lags such as
 narrow. Inspect the source's posterior correlation before transferring a
 strongly correlated source, or down-weight it (`α`).
 
+Sequential updating inherits the same approximation. Fitting batch B with a
+prior hydrated from batch A's posterior is not equivalent to fitting A and B
+together: on a confounded two-batch linear example the sequential posterior
+standard deviation of the effect is about 16% smaller than the pooled one
+(0.0385 against 0.0458). Treat a sequential posterior as possibly
+overconfident when the source coefficients are correlated.
+
 ## Temporal transfer is lag-aware
 
 Temporal Pulse / single-step Sustained designs carry lag-aware coefficient
