@@ -19,8 +19,8 @@
 
 [[waiver]]
 id = "temporal-and-suite-facets-e2c7b386"
-from = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
-to = "817ccc858296692ae040fcc663605df4763da015"
+from = "f32ab0c937a67b1e98982a31d5e4b103cecc828e"
+to = "7986d77e3d1764e39d052639cae01cfc0d16318a"
 reviewed_by = "Charles Hinshaw"
 justification = """
 Twelve paths drifted the facet hashes of the 703 coverage records measured at
@@ -112,7 +112,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "817ccc858296692ae040fcc663605df4763da015"
+replayed_at = "7986d77e3d1764e39d052639cae01cfc0d16318a"
 identical = true
 records = [
   "cov.intervention_response.temporal_cpdag.frequentist.circular_block_se.l95.intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage",
@@ -139,8 +139,8 @@ differences = [
 
 [[waiver]]
 id = "cleanup-2-1-703-98ccb1a3"
-from = "016781a953ae4c29d9419b4c9d927e3f09e2eaba"
-to = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
+from = "f32ab0c937a67b1e98982a31d5e4b103cecc828e"
+to = "22563d2413a124ebec8c02a0746bfeb05bfd305a"
 reviewed_by = "Charles Hinshaw"
 justification = """
 Surface drift since these records were measured, reviewed as unable to move a covered number: the 2.1 dead-code removal and shared-helper consolidation, the exact 95% z constant, verbatim module moves, the trimmed workspace manifests, formatting, and the boundary-cell bookkeeping in the calibration suites. The range also holds behavioural changes to the temporal graph-posterior response paths (single-atom DBN-posterior uncertainty, the draws-agnostic temporal-class band, the class-posterior joint-influence gate, the pooled temporal class-posterior interval); the records on those paths were re-run and match their stored values. Records built on the changed pulse series fixture are re-measured, not waived.\
@@ -449,7 +449,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
+replayed_at = "22563d2413a124ebec8c02a0746bfeb05bfd305a"
 identical = true
 records = [
   "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
@@ -500,8 +500,8 @@ differences = [
 
 [[waiver]]
 id = "cleanup-2-1-103-98ccb1a3"
-from = "60a26225a4a0377b09832938be331e5f34e3d662"
-to = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
+from = "07e9b40f9def32d83c658f19518165a4e1605dfe"
+to = "22563d2413a124ebec8c02a0746bfeb05bfd305a"
 reviewed_by = "Charles Hinshaw"
 justification = """
 Surface drift since these records were measured, reviewed as unable to move a covered number: the 2.1 dead-code removal and shared-helper consolidation, the exact 95% z constant, verbatim module moves, the trimmed workspace manifests, formatting, and the boundary-cell bookkeeping in the calibration suites. The range also holds behavioural changes to the temporal graph-posterior response paths (single-atom DBN-posterior uncertainty, the draws-agnostic temporal-class band, the class-posterior joint-influence gate, the pooled temporal class-posterior interval); the records on those paths were re-run and match their stored values. Records built on the changed pulse series fixture are re-measured, not waived.\
@@ -694,7 +694,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "98ccb1a313606dfc4c79ca56e009bef21667bcd7"
+replayed_at = "22563d2413a124ebec8c02a0746bfeb05bfd305a"
 identical = true
 records = [
   "cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_frequentist_envelope_nominal_coverage",
