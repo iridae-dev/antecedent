@@ -96,11 +96,19 @@ impl InferenceDiagnostics {
     /// (`separation_warning`) is refused — the Gaussian Hessian approximation
     /// is not a publication-grade posterior under (quasi-)complete separation.
     /// MCMC requires finite Ř ≤ 1.01, bulk and tail ESS ≥ 100, zero post-warmup
-    /// divergences, and movement on every chain.
+    /// divergences, and movement on every chain. An analytic (conjugate)
+    /// posterior requires a finite posterior-precision condition estimate no
+    /// larger than [`MAX_HESSIAN_CONDITION`].
     #[must_use]
     pub fn allows_posterior(&self) -> bool {
         match self.factorization {
-            HessianFactorization::Analytic => true,
+            // The analytic posterior is exact, but its precision solve is only
+            // trustworthy below the same condition ceiling as a Laplace factor.
+            HessianFactorization::Analytic => {
+                self.hessian_condition > 0.0
+                    && self.hessian_condition.is_finite()
+                    && self.hessian_condition <= MAX_HESSIAN_CONDITION
+            }
             HessianFactorization::Mcmc => self.converged && self.mcmc_publication_ok(),
             HessianFactorization::Cholesky => self.curvature_refusal().is_none(),
         }

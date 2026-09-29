@@ -556,6 +556,101 @@ impl PriorSet {
             _ => None,
         })
     }
+
+    /// Mark coefficient `indices` as holding **absolute** prior variances.
+    ///
+    /// A prior hydrated from a source posterior that records no residual
+    /// variance cannot be converted to the conjugate `V0` scale at hydrate time.
+    /// The marker is a [`PriorAssumption`] in [`Self::restrictions`] whose id is
+    /// `absolute_coefficient_scale:<i>,<j>,…`; a Gaussian fit resolves it with
+    /// the target's residual-variance estimate
+    /// ([`Self::resolve_absolute_coefficient_scale`]); GLM fits read `V0` at
+    /// `σ² ≡ 1`, so absolute and `V0` coincide there. Marking merges with an
+    /// existing marker.
+    pub fn mark_absolute_coefficient_scale(&mut self, indices: &[usize]) {
+        let mut all = self.absolute_coefficient_scale().unwrap_or_default();
+        all.extend_from_slice(indices);
+        all.sort_unstable();
+        all.dedup();
+        self.restrictions.retain(|r| absolute_scale_indices(&r.id).is_none());
+        if all.is_empty() {
+            return;
+        }
+        let list = all.iter().map(ToString::to_string).collect::<Vec<_>>().join(",");
+        self.restrictions.push(PriorAssumption {
+            id: Arc::from(format!("{ABSOLUTE_COEFFICIENT_SCALE_ID}:{list}")),
+            description: Arc::from(format!(
+                "coefficient prior variances at [{list}] are absolute Var(beta) from a source \
+                 posterior that records no residual variance; a Gaussian target converts them \
+                 to its conjugate V0 with its own residual-variance estimate (plug-in), a GLM \
+                 target uses them directly (sigma^2 = 1)"
+            )),
+        });
+    }
+
+    /// Coefficient indices whose prior variances are absolute, if marked.
+    #[must_use]
+    pub fn absolute_coefficient_scale(&self) -> Option<Vec<usize>> {
+        let mut out: Option<Vec<usize>> = None;
+        for r in &self.restrictions {
+            if let Some(idx) = absolute_scale_indices(&r.id) {
+                out.get_or_insert_with(Vec::new).extend(idx);
+            }
+        }
+        out
+    }
+
+    /// Convert marked absolute coefficient variances to `V0 = absolute / σ²`.
+    ///
+    /// Returns `None` when the prior carries no marker (callers keep the prior
+    /// as-is). The returned prior has the marker removed, so resolution is
+    /// applied once.
+    ///
+    /// # Errors
+    ///
+    /// Non-finite / non-positive `sigma2`, a marked index outside the
+    /// coefficient prior, or a marker without a coefficient prior.
+    pub fn resolve_absolute_coefficient_scale(
+        &self,
+        sigma2: f64,
+    ) -> Result<Option<Self>, ProbError> {
+        let Some(indices) = self.absolute_coefficient_scale() else {
+            return Ok(None);
+        };
+        validate_sigma2(sigma2)?;
+        let mut out = self.clone();
+        out.restrictions.retain(|r| absolute_scale_indices(&r.id).is_none());
+        let coef = out.specs.iter_mut().find_map(|s| match s {
+            PriorSpec::GaussianCoefficients(p) => Some(p),
+            _ => None,
+        });
+        let Some(coef) = coef else {
+            return Err(ProbError::InvalidPrior {
+                message: "absolute coefficient scale marker without a coefficient prior",
+            });
+        };
+        let mut variance = coef.variance.to_vec();
+        for &i in &indices {
+            let Some(v) = variance.get_mut(i) else {
+                return Err(ProbError::InvalidPrior {
+                    message: "absolute coefficient scale marker index out of range",
+                });
+            };
+            *v /= sigma2;
+        }
+        coef.variance = Arc::from(variance);
+        coef.validate()?;
+        Ok(Some(out))
+    }
+}
+
+/// Restriction-id prefix of the absolute-coefficient-scale marker
+/// ([`PriorSet::mark_absolute_coefficient_scale`]).
+pub const ABSOLUTE_COEFFICIENT_SCALE_ID: &str = "absolute_coefficient_scale";
+
+fn absolute_scale_indices(id: &str) -> Option<Vec<usize>> {
+    let list = id.strip_prefix(ABSOLUTE_COEFFICIENT_SCALE_ID)?.strip_prefix(':')?;
+    list.split(',').map(|s| s.parse::<usize>().ok()).collect()
 }
 
 #[cfg(test)]

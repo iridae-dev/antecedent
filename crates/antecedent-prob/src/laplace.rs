@@ -298,7 +298,10 @@ fn fit_gaussian_laplace(
     let model = GaussianVarianceModel::from_prior_set(prior)?;
     match model {
         GaussianVarianceModel::Known { sigma2 } => {
-            fit_gaussian_laplace_known(design, &coef_prior, sigma2, options, workspace)
+            crate::conjugate::fit_with_absolute_scale_resolved(design, prior, |prior| {
+                let coef_prior = prior.gaussian_coefficients().unwrap_or(&coef_prior);
+                fit_gaussian_laplace_known(design, coef_prior, sigma2, options, workspace)
+            })
         }
         GaussianVarianceModel::InvGamma { .. } => {
             // Laplace's Hessian at the NIG mode is block-diagonal and drops β–σ²

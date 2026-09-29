@@ -934,13 +934,15 @@ fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
     let mapping = antecedent_estimate::HydrateMapping::NamedParameters {
         pairs: vec![("slope_t".into(), "coef_a".into())],
     };
-    let quantities =
-        [antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") }];
+    let quantities = [
+        antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") },
+        antecedent_prob::PosteriorQuantityKind::ResidualVariance,
+    ];
     let bridge = antecedent_estimate::MediationPriorBridge {
         mapping: &mapping,
         quantities: &quantities,
-        mean: &[3.0],
-        sd: &[0.2],
+        mean: &[3.0, 1.0],
+        sd: &[0.2, 0.1],
         source_contrast: None,
     };
     let estimator =

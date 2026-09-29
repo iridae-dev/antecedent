@@ -75,7 +75,17 @@ Hydrating a prior from a posterior artifact (`IdenticalCoefficientSubspace`,
 `EffectFunctional`, `NamedParameters`, and every power / mixture compose built
 on them) reads only the per-coefficient posterior **means and standard
 deviations**, converts absolute SD² → `V0` with the source residual-variance
-mean, and **drops** posterior correlation between coefficients. That diagonal
+mean, and **drops** posterior correlation between coefficients. A source that
+records no residual variance (a known-σ² Gaussian fit, a GLM, or a draws-free
+`PosteriorArtifact.from_moments` summary) has no scale for that conversion, so
+the hydrated prior keeps the **absolute** SD² and marks it
+(`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
+target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
+known σ² or else the target's least-squares residual variance (df `n − p`), and
+records the plug-in and `σ̂²` in the posterior's diagnostic notes; a GLM target
+reads `V0` at `σ² ≡ 1`, where absolute and `V0` coincide. An absolute-scale
+prior cannot enter a power / mixture compose, whose precisions must share one
+scale. That diagonal
 approximation **can be tighter than the source marginal** on linear
 combinations of coefficients: dropping the covariance replaces `Σ` by
 `diag(Σ)`, and `diag(Σ) − Σ` is not positive semidefinite in general, so a
@@ -269,6 +279,11 @@ Documented in parity `bayes.prior_bank.transport`:
 - `InvariantConditionalOutcome` — `P(Y|do(T),X)` stable across populations
 - `InvariantEffectModifiers`
 - `InvariantPropensity` (without transport weights → α forced to 0)
+
+With `unit_effects` / `transport_weights`, the transported prior mean is the
+importance-weighted mean and its sampling variance `Σw²(e−ē)²/(Σw)²` (converted
+to `V0` units) is added to the source `V0`. When the weights' Kish ESS falls
+below `TRANSPORT_MIN_KISH_ESS = 20`, α is forced to 0 and the reason recorded.
 
 Unsupported environment / unidentified shifts are **not claimed**.
 

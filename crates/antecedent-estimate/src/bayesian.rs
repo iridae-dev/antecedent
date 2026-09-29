@@ -257,9 +257,11 @@ fn effect_functional_bind_col(
 /// Uses coefficient-column posterior means and SDs (index-aligned). Effect
 /// columns are ignored. Coefficient SDs are **absolute**; they are converted
 /// into conjugate scale `V0` via [`GaussianCoefficientPrior::from_absolute_variance`]
-/// using the source residual-variance posterior mean when a
-/// [`PosteriorQuantityKind::ResidualVariance`] column is present, otherwise
-/// `σ² = 1` (documented in the sequential-prior assumption text).
+/// using the source residual-variance posterior mean. A source without a
+/// [`PosteriorQuantityKind::ResidualVariance`] column keeps the absolute
+/// variances, marked with [`PriorSet::mark_absolute_coefficient_scale`]; the
+/// target fit converts them with its own residual-variance estimate (see
+/// [`residual_sigma2_for_hydrate`]).
 ///
 /// Hydration is **diagonal**: off-diagonal posterior covariance is dropped, so
 /// a transferred coefficient prior can be tighter than the source marginal on
@@ -312,7 +314,8 @@ pub fn hydrate_prior_from_quantity_summaries(
             )));
         }
     }
-    let sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
+    let source_sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
+    let sigma2 = source_sigma2.unwrap_or(1.0);
     let mut means = Vec::with_capacity(n_coef);
     let mut abs_vars = Vec::with_capacity(n_coef);
     for (_, col) in &coef_cols {
@@ -332,19 +335,34 @@ pub fn hydrate_prior_from_quantity_summaries(
         sigma2,
     )
     .map_err(EstimationError::from)?;
-    Ok(PriorSet {
+    let mut prior = PriorSet {
         specs: vec![PriorSpec::GaussianCoefficients(coef)],
         contrast: None,
         categorical: Vec::new(),
         restrictions: Vec::new(),
-    })
+    };
+    if source_sigma2.is_none() {
+        prior.mark_absolute_coefficient_scale(&(0..n_coef).collect::<Vec<_>>());
+    }
+    Ok(prior)
 }
 
-/// Source `σ²` for absolute→`V0` hydrate: residual-variance posterior mean, else 1.
+/// Source `σ²` for absolute→`V0` hydrate: the residual-variance posterior mean.
+///
+/// `None` when the source posterior has no
+/// [`PosteriorQuantityKind::ResidualVariance`] column (a known-σ² Gaussian fit,
+/// a GLM, or a draws-free summary artifact): it carries no scale to convert its
+/// absolute coefficient variances into the conjugate `V0` a Gaussian target
+/// prior is written in, and assuming `σ² = 1` would mis-scale the prior variance
+/// by the target's σ². The hydrated prior then keeps the **absolute** variances
+/// under [`PriorSet::mark_absolute_coefficient_scale`], and the target fit plugs
+/// in its own residual-variance estimate (`V0 = absolute / σ̂²_target`, recorded
+/// as a diagnostic note); a GLM target reads `V0` at `σ² ≡ 1`, where absolute
+/// and `V0` coincide.
 fn residual_sigma2_for_hydrate(
     quantities: &[PosteriorQuantityKind],
     mean: &[f64],
-) -> Result<f64, EstimationError> {
+) -> Result<Option<f64>, EstimationError> {
     for (i, q) in quantities.iter().enumerate() {
         if matches!(q, PosteriorQuantityKind::ResidualVariance) {
             let s2 = mean[i];
@@ -353,10 +371,10 @@ fn residual_sigma2_for_hydrate(
                     "hydrate_prior: residual_variance mean must be finite and > 0",
                 ));
             }
-            return Ok(s2);
+            return Ok(Some(s2));
         }
     }
-    Ok(1.0)
+    Ok(None)
 }
 
 /// Build a Gaussian coefficient [`PriorSet`] from a fitted posterior (sequential Bayes).
@@ -466,7 +484,8 @@ pub fn hydrate_prior(
             let (slope_mean, slope_sd) = identity_ate_to_slope(m, s, delta)?;
             let effect = EffectPrior::new(slope_mean, slope_sd.max(HYDRATE_VAR_FLOOR.sqrt()))
                 .map_err(EstimationError::from)?;
-            let sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
+            let source_sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
+            let sigma2 = source_sigma2.unwrap_or(1.0);
             let mut means: Vec<f64> = base_coef.mean.to_vec();
             let mut vars: Vec<f64> = base_coef.variance.to_vec();
             means[t_col] = effect.mean;
@@ -484,10 +503,14 @@ pub fn hydrate_prior(
                 restrictions: vec![PriorAssumption {
                     id: Arc::from("external_effect_prior"),
                     description: Arc::from(format!(
-                        "external effect-functional prior: identity-link ATE→β via N(μ/Δ, (σ/Δ)²) from `{source_quantity}` (Δ={delta}) onto {target_name}; implied NDE/ATE mean {implied}; absolute Var(β) converted to V0 with source σ²={sigma2}"
+                        "external effect-functional prior: identity-link ATE→β via N(μ/Δ, (σ/Δ)²) from `{source_quantity}` (Δ={delta}) onto {target_name}; implied NDE/ATE mean {implied}; {}",
+                        scale_conversion_note(source_sigma2)
                     )),
                 }],
             };
+            if source_sigma2.is_none() {
+                prior.mark_absolute_coefficient_scale(&[t_col]);
+            }
             merge_baseline_residuals(&mut prior, baseline);
             Ok(prior)
         }
@@ -501,7 +524,9 @@ pub fn hydrate_prior(
             let mut vars: Vec<f64> = base_coef.variance.to_vec();
             let name_index: std::collections::HashMap<&str, usize> =
                 target_coef_names.iter().enumerate().map(|(i, n)| (n.as_ref(), i)).collect();
-            let sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
+            let source_sigma2 = residual_sigma2_for_hydrate(quantities, mean)?;
+            let sigma2 = source_sigma2.unwrap_or(1.0);
+            let mut mapped = Vec::with_capacity(pairs.len());
             for (src, tgt) in pairs {
                 let (m, s) = quantity_moments(quantities, mean, sd, src)?;
                 let Some(&idx) = name_index.get(tgt.as_str()) else {
@@ -512,6 +537,7 @@ pub fn hydrate_prior(
                 means[idx] = m;
                 let abs_var = (s * s).max(HYDRATE_VAR_FLOOR * sigma2);
                 vars[idx] = abs_var / sigma2;
+                mapped.push(idx);
             }
             let coef =
                 GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(vars) };
@@ -524,14 +550,34 @@ pub fn hydrate_prior(
                 categorical: baseline.categorical.clone(),
                 restrictions: vec![PriorAssumption {
                     id: Arc::from("external_named_prior"),
-                    description: Arc::from(format!(
-                        "external named-parameter prior ({pair_desc}); absolute posterior Var converted to V0 with source σ²={sigma2}; diagonal only (off-diagonal covariance dropped)"
-                    )),
+                    description: Arc::from(match source_sigma2 {
+                        Some(sigma2) => format!(
+                            "external named-parameter prior ({pair_desc}); absolute posterior Var converted to V0 with source σ²={sigma2}; diagonal only (off-diagonal covariance dropped)"
+                        ),
+                        None => format!(
+                            "external named-parameter prior ({pair_desc}); {}; diagonal only (off-diagonal covariance dropped)",
+                            scale_conversion_note(None)
+                        ),
+                    }),
                 }],
             };
+            if source_sigma2.is_none() {
+                prior.mark_absolute_coefficient_scale(&mapped);
+            }
             merge_baseline_residuals(&mut prior, baseline);
             Ok(prior)
         }
+    }
+}
+
+/// How a hydrated absolute variance reached the target prior's scale.
+fn scale_conversion_note(source_sigma2: Option<f64>) -> String {
+    match source_sigma2 {
+        Some(sigma2) => format!("absolute Var(β) converted to V0 with source σ²={sigma2}"),
+        None => "absolute Var(β) kept on the absolute scale (the source records no residual \
+                 variance); the target fit converts it to V0 with its own residual-variance \
+                 estimate"
+            .to_owned(),
     }
 }
 
@@ -977,14 +1023,19 @@ impl BayesianGComputationAte {
         } else {
             AssumptionSource::AlgorithmDefault { algorithm: Arc::from("bayesian_gcomp") }
         };
+        let conversion = if prior.absolute_coefficient_scale().is_some() {
+            "absolute coefficient SD² kept on the absolute scale and converted to conjugate \
+             scale V0 at fit time via the target residual-variance estimate"
+        } else {
+            "absolute coefficient SD² converted to conjugate scale V0 via source residual variance"
+        };
         for spec in &prior.specs {
             let mut pa = spec.as_assumption();
             if sequential {
                 pa.description = Arc::from(format!(
                     "{} (sequential prior from posterior artifact; diagonal V0 only — \
                      off-diagonal posterior covariance dropped, so transferred priors can be \
-                     tighter than the source marginal on linear combinations; absolute \
-                     coefficient SD² converted to conjugate scale V0 via source residual variance)",
+                     tighter than the source marginal on linear combinations; {conversion})",
                     pa.description
                 ));
             }
@@ -3543,11 +3594,30 @@ mod tests {
         let sd_seq = post_seq.summaries.sd[eq_s];
         let sd_pool = post_pool.summaries.sd[eq_p];
         assert!(sd_seq.is_finite() && sd_pool.is_finite() && sd_seq > 0.0 && sd_pool > 0.0);
+        // Sequential conjugate updating reproduces the pooled posterior up to (a) the
+        // Monte Carlo error of the draw summaries the prior is hydrated from and compared
+        // on — relative SE 1/√(2D) per SD and SD/√D per mean at D = 400 draws — and (b)
+        // the diagonal hydration, which drops the batch-A coefficient correlations (a
+        // deterministic gap measured at 3.6% of the SD and 0.09 SD in the mean with
+        // D = 40 000 on this fixture, whose treatment column is nearly orthogonal to the
+        // others; a confounded design shows a larger gap). The bands are those two terms
+        // with a 4σ Monte Carlo allowance, in
+        // both directions: a V0 stored as the absolute SD² (orders narrower) or a lost
+        // batch (√2 wider) both fall far outside.
+        let draws = 400.0_f64;
+        let sd_band = 0.036 + 4.0 * (1.0 / draws).sqrt();
         let ratio = sd_pool / sd_seq;
         assert!(
-            ratio < 20.0,
-            "sequential SD {sd_seq} is orders narrower than pooled {sd_pool} (ratio {ratio}) — \
-             likely absolute SD² stored as V0"
+            (ratio - 1.0).abs() < sd_band,
+            "sequential SD {sd_seq} vs pooled {sd_pool}: ratio {ratio} outside 1 ± {sd_band}"
+        );
+        let mean_gap = (post_seq.summaries.mean[eq_s] - post_pool.summaries.mean[eq_p]).abs();
+        let mean_band = sd_pool * (0.09 + 4.0 * (2.0 / draws).sqrt());
+        assert!(
+            mean_gap < mean_band,
+            "sequential mean {} vs pooled {}: gap {mean_gap} exceeds {mean_band}",
+            post_seq.summaries.mean[eq_s],
+            post_pool.summaries.mean[eq_p]
         );
     }
 
@@ -3607,9 +3677,10 @@ mod tests {
             PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
             PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
             PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            PosteriorQuantityKind::ResidualVariance,
         ];
-        let mean = vec![0.1, 0.5, 2.0];
-        let sd = vec![1.0, 1.0, 0.4];
+        let mean = vec![0.1, 0.5, 2.0, 1.0];
+        let sd = vec![1.0, 1.0, 0.4, 0.1];
         let names: Vec<Arc<str>> =
             vec![Arc::from("intercept"), Arc::from("coef_t"), Arc::from("coef_z")];
         let baseline = PriorSet::weakly_informative(3);
@@ -3641,9 +3712,10 @@ mod tests {
             PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
             PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
             PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            PosteriorQuantityKind::ResidualVariance,
         ];
-        let mean = vec![0.0, 1.0, 2.0];
-        let sd = vec![1.0, 1.0, 0.5];
+        let mean = vec![0.0, 1.0, 2.0, 1.0];
+        let sd = vec![1.0, 1.0, 0.5, 0.1];
         let names2: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
         let baseline2 = PriorSet::weakly_informative(2);
         // Identical with wrong expected dim via target names of different length than source coefs.
@@ -3740,9 +3812,12 @@ mod tests {
 
     #[test]
     fn hydrate_effect_functional_lands_on_cate_coefficient() {
-        let quantities = vec![PosteriorQuantityKind::Effect { name: Arc::from("ate") }];
-        let mean = vec![1.2];
-        let sd = vec![0.3];
+        let quantities = vec![
+            PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            PosteriorQuantityKind::ResidualVariance,
+        ];
+        let mean = vec![1.2, 1.0];
+        let sd = vec![0.3, 0.1];
         let names: Vec<Arc<str>> = vec![
             Arc::from("intercept"),
             Arc::from("treatment_at_mean_modifier"),
@@ -3773,9 +3848,10 @@ mod tests {
             PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
             PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
             PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            PosteriorQuantityKind::ResidualVariance,
         ];
-        let mean = vec![0.0, 0.0, 1.5];
-        let sd = vec![1.0, 1.0, 0.2];
+        let mean = vec![0.0, 0.0, 1.5, 1.0];
+        let sd = vec![1.0, 1.0, 0.2, 0.1];
         let names: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
         let baseline = PriorSet::weakly_informative(2);
         let prior = hydrate_prior(
@@ -3792,5 +3868,145 @@ mod tests {
         let coef = prior.gaussian_coefficients().unwrap();
         assert!((coef.mean[1] - 1.5).abs() < 1e-12);
         assert!(prior.restrictions.iter().any(|r| r.id.as_ref() == "external_named_prior"));
+    }
+
+    #[test]
+    fn hydrate_keeps_absolute_variances_for_source_without_residual_variance() {
+        // A known-sigma^2 Gaussian, GLM, or draws-free summary source has no
+        // residual_variance column: the absolute coefficient variance is kept and
+        // marked for the target fit to convert with its own residual variance.
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
+            PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
+            PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+        ];
+        let mean = vec![0.0, 1.0, 2.0];
+        let sd = vec![0.3, 0.6, 0.5];
+        let names: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
+        let baseline = PriorSet::weakly_informative(2);
+
+        let prior =
+            hydrate_prior_from_quantity_summaries(&quantities, &mean, &sd, Some(2)).unwrap();
+        let coef = prior.gaussian_coefficients().unwrap();
+        assert_eq!(coef.variance.as_ref(), &[0.3 * 0.3, 0.6 * 0.6]);
+        assert_eq!(prior.absolute_coefficient_scale(), Some(vec![0, 1]));
+
+        let identical = hydrate_prior(
+            &HydrateMapping::IdenticalCoefficientSubspace,
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(identical.absolute_coefficient_scale(), Some(vec![0, 1]));
+        assert!(identical.residual_inv_gamma().is_some(), "baseline residual prior kept");
+
+        // Effect functional with Δ = 0.5: absolute Var(β_T) = (0.5 / 0.5)² = 1.
+        let effect = hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            Some(1),
+            Some(0.5),
+        )
+        .unwrap();
+        let coef = effect.gaussian_coefficients().unwrap();
+        assert_eq!(coef.variance.as_ref(), &[100.0, 1.0]);
+        assert_eq!(effect.absolute_coefficient_scale(), Some(vec![1]));
+        assert!(effect.restrictions.iter().any(|r| r.id.as_ref() == "external_effect_prior"));
+
+        let named = hydrate_prior(
+            &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            None,
+            None,
+        )
+        .unwrap();
+        let coef = named.gaussian_coefficients().unwrap();
+        assert_eq!(coef.variance.as_ref(), &[100.0, 0.25]);
+        assert_eq!(named.absolute_coefficient_scale(), Some(vec![1]));
+
+        // Resolving with a target σ̂² gives V0 = absolute / σ̂² on the mapped
+        // coefficient only; the baseline V0 is untouched.
+        let resolved = named.resolve_absolute_coefficient_scale(4.0).unwrap().unwrap();
+        assert_eq!(resolved.gaussian_coefficients().unwrap().variance.as_ref(), &[100.0, 0.0625]);
+        assert!(resolved.absolute_coefficient_scale().is_none());
+    }
+
+    #[test]
+    fn hydrate_with_residual_variance_is_unchanged() {
+        // A source recording σ² converts at hydrate time exactly as before: V0 =
+        // SD² / σ², no absolute-scale marker, and the same restriction records.
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: Some(Arc::from("intercept")) },
+            PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("coef_t")) },
+            PosteriorQuantityKind::Effect { name: Arc::from("ate") },
+            PosteriorQuantityKind::ResidualVariance,
+        ];
+        let mean = vec![0.0, 1.0, 2.0, 4.0];
+        let sd = vec![0.3, 0.6, 0.5, 0.2];
+        let names: Vec<Arc<str>> = vec![Arc::from("intercept"), Arc::from("coef_t")];
+        let baseline = PriorSet::weakly_informative(2);
+
+        let prior =
+            hydrate_prior_from_quantity_summaries(&quantities, &mean, &sd, Some(2)).unwrap();
+        let expected = GaussianCoefficientPrior::from_absolute_variance(
+            Arc::from(vec![0.0, 1.0]),
+            Arc::from(vec![0.3 * 0.3, 0.6 * 0.6]),
+            4.0,
+        )
+        .unwrap();
+        assert_eq!(prior.gaussian_coefficients().unwrap(), &expected);
+        assert!(prior.restrictions.is_empty());
+
+        let effect = hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            Some(1),
+            Some(0.5),
+        )
+        .unwrap();
+        assert_eq!(effect.gaussian_coefficients().unwrap().variance.as_ref(), &[100.0, 1.0 / 4.0]);
+        assert!(effect.absolute_coefficient_scale().is_none());
+        assert_eq!(effect.restrictions.len(), 1);
+        assert!(
+            effect.restrictions[0]
+                .description
+                .ends_with("absolute Var(β) converted to V0 with source σ²=4")
+        );
+
+        let named = hydrate_prior(
+            &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(named.gaussian_coefficients().unwrap().variance.as_ref(), &[100.0, 0.25 / 4.0]);
+        assert!(named.absolute_coefficient_scale().is_none());
+        assert_eq!(
+            named.restrictions[0].description.as_ref(),
+            "external named-parameter prior (ate->coef_t); absolute posterior Var converted to \
+             V0 with source σ²=4; diagonal only (off-diagonal covariance dropped)"
+        );
     }
 }

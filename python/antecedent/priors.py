@@ -531,7 +531,10 @@ def compose_external_priors(
         ``source_populations`` is unset.
     unit_effects / transport_weights:
         Optional unit-level effect contributions and target-alignment weights
-        for importance-weighted moment adjustment.
+        for importance-weighted moment adjustment. The transported mean is the
+        weighted mean; its sampling variance ``Σw²(e−ē)²/(Σw)²`` widens the
+        source ``V0``. When the weights' Kish ESS is below 20 the source's α is
+        forced to 0 with a recorded reason.
     coef_index:
         Coefficient index rewritten under reweight (default: last).
 

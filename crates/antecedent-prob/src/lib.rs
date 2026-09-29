@@ -77,11 +77,11 @@ pub use posterior::{
     PosteriorSchema, PosteriorSummary,
 };
 pub use prior::{
-    ContrastCoding, EffectPrior, GaussianCoefficientPrior, GaussianVarianceModel, InvGammaPrior,
-    PriorSet, PriorSpec,
+    ABSOLUTE_COEFFICIENT_SCALE_ID, ContrastCoding, EffectPrior, GaussianCoefficientPrior,
+    GaussianVarianceModel, InvGammaPrior, PriorSet, PriorSpec,
 };
 pub use transport::{
-    POPULATION_TAG_KEY, TRANSPORT_ASSUMPTION_ID, TransportAdjustment, TransportContext,
-    TransportError, TransportOutcome, TransportPolicy, apply_transport, compose_with_transport,
-    populations_require_transport,
+    POPULATION_TAG_KEY, TRANSPORT_ASSUMPTION_ID, TRANSPORT_MIN_KISH_ESS, TransportAdjustment,
+    TransportContext, TransportError, TransportOutcome, TransportPolicy, apply_transport,
+    compose_with_transport, populations_require_transport,
 };
