@@ -140,7 +140,7 @@ pub fn aggregate_model_collection_ranks(
 ///
 /// # Errors
 ///
-/// Posterior shape errors.
+/// Posterior shape errors, or a zero `block_size` ([`AttributionError::InvalidInput`]).
 pub fn posterior_contribution_ranks(
     draws: &PosteriorDraws,
     components: &[ComponentId],
@@ -152,7 +152,7 @@ pub fn posterior_contribution_ranks(
         ));
     }
     if block_size == 0 {
-        return Err(AttributionError::Budget { message: "block_size must be ≥ 1".into() });
+        return Err(AttributionError::invalid_input("block_size must be ≥ 1"));
     }
     let n_draws = draws.n_draws;
     if n_draws == 0 || draws.n_quantities() < components.len() {
@@ -287,6 +287,13 @@ mod tests {
         let draws = contribution_posterior_from_rows(1, 2, &[1e12 - 1.0, 1e12 + 1.0]).unwrap();
         let ranks = posterior_contribution_ranks(&draws, &[ComponentId::from_raw(0)], 1).unwrap();
         assert!((ranks[0].graph_std.unwrap() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn zero_block_size_is_an_invalid_argument_not_a_budget() {
+        let draws = contribution_posterior_from_rows(1, 2, &[1.0, 2.0]).unwrap();
+        let err = posterior_contribution_ranks(&draws, &[ComponentId::from_raw(0)], 0).unwrap_err();
+        assert!(matches!(err, AttributionError::InvalidInput { .. }), "{err:?}");
     }
 
     #[test]

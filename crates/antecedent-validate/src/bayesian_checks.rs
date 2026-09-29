@@ -2635,6 +2635,49 @@ mod tests {
         }
 
         #[test]
+        fn replicate_calibration_checks_stop_on_cancellation() {
+            let (data, estimand, query) = toy();
+            let mut prior = PriorSet {
+                specs: vec![PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(
+                    3, 5.0,
+                ))],
+                contrast: None,
+                categorical: Vec::new(),
+                restrictions: Vec::new(),
+            };
+            prior.push(PriorSpec::ResidualInvGamma(InvGammaPrior { shape: 3.0, scale: 2.0 }));
+            let bayes = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 99,
+                seed: 1,
+                prior: Some(prior),
+                ..BayesianGComputationAte::new()
+            };
+            let prep = bayes.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = BayesianGCompWorkspace::default();
+            let ctx = ExecutionContext::for_tests(1);
+            ctx.cancellation.cancel();
+            let sbc = SimulationBasedCalibration { n_reps: 50, n_draws: 99, seed: 0 }.check(
+                &bayes,
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ctx,
+            );
+            assert!(matches!(sbc, Err(ValidationError::Cancelled)), "{sbc:?}");
+            let calibration =
+                PosteriorCalibrationOnSyntheticScm { n_reps: 50, n_draws: 99, level: 0.9, seed: 0 }
+                    .check(
+                        &bayes,
+                        &prep,
+                        IdentificationStatus::NonparametricallyIdentified,
+                        &mut ws,
+                        &ctx,
+                    );
+            assert!(matches!(calibration, Err(ValidationError::Cancelled)), "{calibration:?}");
+        }
+
+        #[test]
         fn sbc_refuses_configurations_the_rank_theorem_cannot_support() {
             let (data, estimand, query) = toy();
             let bayes = BayesianGComputationAte {
@@ -3238,6 +3281,7 @@ impl SimulationBasedCalibration {
         est.n_draws = self.n_draws;
 
         for rep in 0..self.n_reps {
+            crate::common::check_cancelled(ctx)?;
             let (sigma2, beta) = if let Some(variance) = variance {
                 draw_generating_parameters(coefficients, variance, &mut rng)
             } else {
@@ -3471,6 +3515,7 @@ impl PosteriorCalibrationOnSyntheticScm {
         let alpha = ((1.0 - self.level) / 2.0).clamp(0.0, 0.5);
 
         for rep in 0..self.n_reps {
+            crate::common::check_cancelled(ctx)?;
             let true_ate = standard_normal(&mut rng);
             let mut beta = vec![0.0; p];
             let diff = problem.active - problem.control;

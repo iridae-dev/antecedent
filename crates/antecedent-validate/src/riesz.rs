@@ -44,8 +44,9 @@ pub struct RieszSensitivity {
     /// Ascending grid of residual confounding strengths `δ`, in units of `sd(Y)` so the
     /// verdict is invariant to outcome units.
     pub delta_grid: Vec<f64>,
-    /// Pass if the robustness `δ` *strictly exceeds* this threshold.
-    /// Equality fails: a residual shift at the bar already kills the effect.
+    /// Pass only if a probed `δ` at or above this threshold left the effect standing, so a
+    /// bar between two grid points is judged by the lower one. Equality of the robustness `δ`
+    /// with the bar fails: a residual shift at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Propensity clip for numerical stability.
     pub clip: f64,
@@ -165,7 +166,11 @@ impl RieszSensitivity {
         }
         // Smallest grid δ that tips the estimate; +∞ if the bound never covers zero.
         let robustness = explained_away_at.unwrap_or(f64::INFINITY);
-        let passed = robustness > self.pass_threshold;
+        let passed = crate::sensitivity::robustness_passes(
+            sorted.iter().copied(),
+            robustness,
+            self.pass_threshold,
+        );
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.riesz"),
             original_ate: problem.original.ate,
@@ -177,9 +182,13 @@ impl RieszSensitivity {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "Riesz bound explains away effect at δ={robustness} (||α||₂={alpha_l2}), \
-                     not strictly above threshold {}",
-                    self.pass_threshold
+                    "{} (||α||₂={alpha_l2})",
+                    crate::sensitivity::grid_failure_text(
+                        "Riesz bound: effect",
+                        "δ",
+                        robustness,
+                        self.pass_threshold,
+                    )
                 )))
             },
             replicates: self.delta_grid.len() as u32,

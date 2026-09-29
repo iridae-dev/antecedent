@@ -63,12 +63,15 @@ pub fn refute_path(
             );
         }
         let p = replicate_p_value(&values, original)?;
+        // Subsample refits are centred on the full-sample estimate by construction and
+        // `original` is judged against single-replicate spread, so this cannot fail for a
+        // wrong estimate: a pipeline stability check, not evidence for the effect.
         reports.push(RefutationReport::new(
             id,
             original,
             values.iter().sum::<f64>() / values.len() as f64,
             p,
-            true,
+            false,
             p >= 0.05,
             (p < 0.05).then(|| Arc::from("subsampled natural path contrast is unstable")),
             20,

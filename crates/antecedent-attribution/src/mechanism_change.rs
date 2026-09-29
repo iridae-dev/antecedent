@@ -363,7 +363,8 @@ const PARENT_SHIFT_ALPHA: f64 = 1e-4;
 ///
 /// # Errors
 ///
-/// Missing variable / gather / column data.
+/// Missing variable / gather / column data, or a parent whose mean-difference test cannot
+/// be evaluated ([`AttributionError::InvalidInput`]).
 fn parent_covariate_shift_detected(
     model: &CompiledCausalModel,
     baseline: &TabularData,
@@ -378,10 +379,17 @@ fn parent_covariate_shift_detected(
         let pv = model.output_layout.variables[parent.as_usize()];
         let b = baseline.float64_values(pv)?;
         let c = comparison.float64_values(pv)?;
-        if let Ok((_, p)) = mean_diff_two_sample(&b, &c) {
-            if p < PARENT_SHIFT_ALPHA {
-                return Ok(true);
-            }
+        // A check that cannot run (e.g. non-finite parent values) is not evidence of "no
+        // shift": skipping it would let an uncalibrated residual test through.
+        let (_, p) = mean_diff_two_sample(&b, &c).map_err(|_| {
+            AttributionError::invalid_input(
+                "the parent-covariate shift check could not be evaluated on a tested \
+                 mechanism's parents (too few or non-finite values), so the comparison is \
+                 refused",
+            )
+        })?;
+        if p < PARENT_SHIFT_ALPHA {
+            return Ok(true);
         }
     }
     Ok(false)
@@ -506,6 +514,50 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let model = CompiledCausalModel::compile(g).unwrap();
         (model, data)
+    }
+
+    #[test]
+    fn parent_shift_check_that_cannot_run_refuses() {
+        let (model, data) = two_period_data();
+        // Non-finite parent value in the comparison population: the parent mean-difference
+        // test cannot be evaluated, so the covariate-shift guard must refuse, not pass.
+        let mut xv = data.float64_values(VariableId::from_raw(0)).unwrap();
+        xv[50] = f64::NAN;
+        let yv = data.float64_values(VariableId::from_raw(1)).unwrap();
+        let n = xv.len();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity).unwrap(),
+            ),
+        ];
+        let schema = data.schema().clone();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let q = MechanismChangeQuery::new(
+            [VariableId::from_raw(1)],
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+            0.05,
+            10,
+        );
+        let err = detect_mechanism_changes(
+            &model,
+            &data,
+            &q,
+            MechanismChangeMethod::MeanDiff,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(&err, AttributionError::InvalidInput { message }
+                if message.contains("parent-covariate shift check")),
+            "{err:?}"
+        );
     }
 
     #[test]

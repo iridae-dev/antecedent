@@ -142,6 +142,12 @@ fn functional_bayesian_path_distribution_and_admg() {
                 "path suite={suite:?} must run the path subset-stability suite"
             );
             assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.")));
+            // Subsample refits are centred on the full-sample estimate by construction and
+            // judged against single-replicate spread, so they cannot fail: not evidence.
+            assert!(
+                result.refutations.iter().all(|r| !r.informative),
+                "path subset stability must not be reported as informative"
+            );
         }
     }
 
