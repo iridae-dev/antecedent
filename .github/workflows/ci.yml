@@ -26,12 +26,26 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    # Opt-level 2 speeds the numeric loops. It is not in Cargo.toml: that file
+    # is on the calibration surface, and local incremental builds stay at
+    # opt-level 0. Debuginfo stays off in this job so the optimized test
+    # binaries fit on the Ubuntu runner; the last run died in ld with
+    # "No space left on device" after Clippy had already filled the disk.
+    env:
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free Ubuntu disk
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
@@ -84,22 +98,15 @@ jobs:
         with:
           tool: nextest
 
-      # Test profile opt-level 2 speeds the numeric loops. It is not in
-      # Cargo.toml: that file is on the calibration surface, and local
-      # incremental builds stay at opt-level 0. Doctests stay on `cargo test`;
-      # nextest does not run them.
+      # Doctests stay on `cargo test`; nextest does not run them.
       - name: Test
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
-        env:
-          CARGO_PROFILE_TEST_OPT_LEVEL: "2"
         run: |
           cargo nextest run --workspace
           cargo test --workspace --doc
 
       - name: Test optional learner and Gaussian-process features
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
-        env:
-          CARGO_PROFILE_TEST_OPT_LEVEL: "2"
         run: |
           cargo nextest run -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
