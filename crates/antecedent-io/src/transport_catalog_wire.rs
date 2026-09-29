@@ -5,9 +5,9 @@
 use crate::{IoError, query_wire::ValueWire};
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta,
-    EvidenceKind, EvidenceProjection, EvidenceRegime, InterventionAssignment, LicensedWeights,
-    QueryError, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, TargetSampling,
-    VariableCoordinate, VariableDomain, VariableId,
+    EvidenceKind, EvidenceProjection, EvidenceRegime, InterventionAssignment, LawOrigin,
+    LicensedWeights, QueryError, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
+    SamplingSelection, TargetSampling, VariableCoordinate, VariableDomain, VariableId,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -132,6 +132,15 @@ pub struct EvidenceRegimeWire {
     pub population: String,
     /// None denotes a joint law; Some lists separately available marginals.
     pub separate_marginals: Option<Vec<u32>>,
+    /// Study that produced the regime. Absent means only the population was supplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub study: Option<String>,
+    /// Variables sample inclusion depends on. Absent means a population law.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_on: Option<Vec<u32>>,
+    /// Identity of the model artifact the law came from. Absent means a measured law.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_artifact: Option<String>,
 }
 
 /// Concrete table provenance.
@@ -212,6 +221,15 @@ impl EvidenceCatalogWire {
                         DistributionAvailability::SeparateMarginals { variables } => {
                             Some(ids(variables))
                         }
+                    },
+                    study: r.study.as_ref().map(ToString::to_string),
+                    selected_on: match &r.selection {
+                        SamplingSelection::Population => None,
+                        SamplingSelection::SelectedOn { variables } => Some(ids(variables)),
+                    },
+                    model_artifact: match &r.origin {
+                        LawOrigin::Measured => None,
+                        LawOrigin::ModelArtifact { artifact } => Some(artifact.to_string()),
                     },
                 })
                 .collect(),
@@ -300,6 +318,14 @@ impl EvidenceCatalogWire {
             )
             .map_err(convert)?;
             regime.label = r.label.as_deref().map(Arc::from);
+            regime.study = r.study.as_deref().map(Arc::from);
+            if let Some(variables) = &r.selected_on {
+                regime.selection =
+                    SamplingSelection::SelectedOn { variables: ids(variables).into() };
+            }
+            if let Some(artifact) = &r.model_artifact {
+                regime.origin = LawOrigin::ModelArtifact { artifact: Arc::from(artifact.as_str()) };
+            }
             regime = regime
                 .project(EvidenceProjection::Condition { on: ids(&r.conditioned_on).into() })
                 .map_err(convert)?;
@@ -390,5 +416,54 @@ mod tests {
         let mut invalid = wire;
         invalid.regimes[0].intervention_values.push((0, ValueWire::Float64(0.0)));
         assert!(invalid.to_catalog().is_err());
+    }
+
+    fn observational(id: u32) -> EvidenceRegime {
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(id),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [VariableId::from_raw(0), VariableId::from_raw(1)],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn descriptor_fields_round_trip_and_defaults_leave_the_wire_unchanged() {
+        let plain = EvidenceCatalog::try_new([], [observational(1)], [], None).unwrap();
+        let json = serde_json::to_string(&EvidenceCatalogWire::from_catalog(&plain)).unwrap();
+        // Default semantics add no keys, so existing catalog digests are unchanged.
+        for key in ["study", "selected_on", "model_artifact"] {
+            assert!(!json.contains(key), "{key} serialized at its default");
+        }
+        let mut described = observational(2);
+        described.study = Some(Arc::from("study-a"));
+        described.selection =
+            SamplingSelection::SelectedOn { variables: Arc::from([VariableId::from_raw(1)]) };
+        described.origin = LawOrigin::ModelArtifact { artifact: Arc::from("posterior-7") };
+        let catalog =
+            EvidenceCatalog::try_new([], [observational(1), described], [], None).unwrap();
+        let bytes = serde_json::to_vec(&EvidenceCatalogWire::from_catalog(&catalog)).unwrap();
+        let wire: EvidenceCatalogWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(wire.to_catalog().unwrap(), catalog);
+    }
+
+    #[test]
+    fn legacy_catalog_without_descriptor_fields_loads_with_todays_semantics() {
+        let legacy = r#"{"environments":[],"regimes":[{"id":3,"kind":"observational",
+            "evidence_kind":"available","interventions":[],"intervention_values":[],
+            "measured":[0],"population":"target","separate_marginals":null}],
+            "bindings":[],"target_sampling":null}"#;
+        let catalog =
+            serde_json::from_str::<EvidenceCatalogWire>(legacy).unwrap().to_catalog().unwrap();
+        let regime = &catalog.regimes[0];
+        assert_eq!(regime.study, None);
+        assert_eq!(regime.selection, SamplingSelection::Population);
+        assert_eq!(regime.origin, LawOrigin::Measured);
+        assert!(regime.supplies_population_law());
     }
 }

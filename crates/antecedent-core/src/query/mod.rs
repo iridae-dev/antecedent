@@ -29,6 +29,7 @@ mod transport;
 mod transport_catalog;
 mod transport_contract;
 mod transport_delta;
+mod transport_distribution;
 
 pub use crate::intervention::TemporalPolicy;
 
@@ -73,9 +74,9 @@ pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LicensedWeights,
-    RegimeBinding, RegimeKind, SamplingDesign, TargetSampling, UnmetDependency, VariableCoordinate,
-    VariableDomain,
+    EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LawOrigin,
+    LicensedWeights, RegimeBinding, RegimeKind, SamplingDesign, SamplingSelection, TargetSampling,
+    UnmetDependency, VariableCoordinate, VariableDomain,
 };
 pub use transport_contract::{
     ComputationLimits, ExperimentFamily, GraphAssumptionSet, OutcomeGuarantee, TheoremFamily,
@@ -84,6 +85,7 @@ pub use transport_contract::{
     TransportQueryScope, TransportSupportCoordinate, TransportUncertaintySupport,
 };
 pub use transport_delta::EvidenceCatalogDelta;
+pub use transport_distribution::{CatalogDistribution, SharedData};
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
