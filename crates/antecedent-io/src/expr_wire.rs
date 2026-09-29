@@ -113,7 +113,13 @@ pub fn functional_program_from_wire(
         ExprId::from_raw(wire.executable),
         limits,
     )
-    .map_err(|e| IoError::Convert(format!("invalid functional program: {e}")))
+    .map_err(|e| match e {
+        // Every limit refusal reads "... limit exceeded", as the checks above do.
+        antecedent_expr::ProgramError::Limit(limit) => {
+            IoError::Convert(format!("invalid functional program: {limit} limit exceeded"))
+        }
+        other => IoError::Convert(format!("invalid functional program: {other}")),
+    })
 }
 
 /// Durable derivation step, separate from expression algebraic identity.
@@ -547,6 +553,16 @@ mod tests {
             )
             .is_err()
         );
+        // Every limit refusal, including those the checked constructor raises,
+        // reads "... limit exceeded" so callers can classify it as a resource
+        // limit rather than an invalid program.
+        for limits in [
+            ProgramLimits { max_nodes: 0, max_table_entries: 10, max_depth: 10 },
+            ProgramLimits { max_nodes: 10, max_table_entries: 10, max_depth: 0 },
+        ] {
+            let error = functional_program_from_wire(&wire, limits).unwrap_err().to_string();
+            assert!(error.ends_with("limit exceeded"), "{error}");
+        }
         let mut invalid = wire;
         invalid.executable = u32::MAX;
         assert!(functional_program_from_wire(&invalid, ProgramLimits::default()).is_err());

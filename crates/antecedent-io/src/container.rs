@@ -45,7 +45,12 @@ pub const AUTO_COMPRESS_MAX_RATIO: f64 = 0.95;
 const SKIP_SCRATCH: usize = 64 * 1024;
 
 const MAX_MANIFEST_BYTES: usize = 16 * 1024 * 1024;
-const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
+/// Largest single section (on-wire or declared uncompressed) a reader accepts.
+pub(crate) const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
+/// Largest sum of declared `uncompressed_size` over a manifest's sections a
+/// reader accepts (four maximal sections). Checked before any payload is
+/// read, so a small file cannot force a huge total allocation.
+pub(crate) const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 4 * MAX_SECTION_BYTES as u64;
 
 /// Artifact manifest (canonical CBOR).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -272,8 +277,16 @@ pub(crate) fn read_header_and_manifest<R: Read>(
     }
     let mut manifest_buf = vec![0u8; manifest_len];
     r.read_exact(&mut manifest_buf)?;
-    let manifest: ArtifactManifest =
-        ciborium::from_reader(manifest_buf.as_slice()).map_err(|e| IoError::Cbor(e.to_string()))?;
+    // The manifest is one CBOR item; trailing bytes are refused like in section payloads.
+    let manifest: ArtifactManifest = crate::convert::from_cbor(&manifest_buf)?;
+    let total = manifest
+        .sections
+        .iter()
+        .try_fold(0u64, |acc, desc| acc.checked_add(desc.uncompressed_size))
+        .ok_or(IoError::TooLarge)?;
+    if total > MAX_TOTAL_UNCOMPRESSED_BYTES {
+        return Err(IoError::TooLarge);
+    }
     // Lookups are by id, so a repeated id would let one payload be read while another
     // is hashed, listed or skipped.
     let mut ids = HashSet::with_capacity(manifest.sections.len());
@@ -757,6 +770,59 @@ mod tests {
         assert_eq!(partial.sections[0].id, "meta");
         assert_eq!(&*partial.sections[0].data, meta.as_slice());
         assert_eq!(partial.manifest.sections.len(), 2);
+    }
+
+    /// Container header (magic, version, manifest) with `extra` appended to the manifest bytes.
+    fn header_bytes(manifest: &ArtifactManifest, extra: &[u8]) -> Vec<u8> {
+        let mut cbor = Vec::new();
+        ciborium::into_writer(manifest, &mut cbor).unwrap();
+        cbor.extend_from_slice(extra);
+        let mut buf = MAGIC.to_vec();
+        buf.extend_from_slice(&CONTAINER_VERSION.to_le_bytes());
+        buf.extend_from_slice(&u32::try_from(cbor.len()).unwrap().to_le_bytes());
+        buf.extend_from_slice(&cbor);
+        buf
+    }
+
+    fn declared_total_header(sizes: &[u64]) -> Vec<u8> {
+        let sections = sizes
+            .iter()
+            .enumerate()
+            .map(|(i, &size)| {
+                let (mut desc, sec) = pack_section(
+                    format!("s{i}"),
+                    "application/octet-stream",
+                    b"x".to_vec(),
+                    CompressPolicy::Never,
+                );
+                desc.uncompressed_size = size;
+                (desc, sec)
+            })
+            .collect();
+        header_bytes(&tiny_artifact(sections).manifest, &[])
+    }
+
+    #[test]
+    fn declared_uncompressed_total_is_capped_before_reading_sections() {
+        let per = MAX_SECTION_BYTES as u64;
+        let ok = declared_total_header(&[per, per, per, per]);
+        assert!(read_header_and_manifest(&mut ok.as_slice()).is_ok());
+        for sizes in [vec![per; 5], vec![u64::MAX, 1]] {
+            let buf = declared_total_header(&sizes);
+            let err = read_header_and_manifest(&mut buf.as_slice()).unwrap_err();
+            assert_eq!(err, IoError::TooLarge, "{sizes:?}");
+            let err = EncodedArtifact::read_from(buf.as_slice()).unwrap_err();
+            assert_eq!(err, IoError::TooLarge, "{sizes:?}");
+        }
+    }
+
+    #[test]
+    fn manifest_with_trailing_bytes_is_refused() {
+        let buf = header_bytes(&tiny_artifact(Vec::new()).manifest, &[0x00]);
+        let err = EncodedArtifact::read_from(buf.as_slice()).unwrap_err();
+        assert!(matches!(&err, IoError::Cbor(m) if m.contains("trailing")), "{err:?}");
+        let clean = header_bytes(&tiny_artifact(Vec::new()).manifest, &[]);
+        assert!(EncodedArtifact::read_from(clean.as_slice()).is_ok());
     }
 
     /// Hostile zstd frame that expands far past a lying `uncompressed_size`

@@ -3406,6 +3406,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
     identification.query = frame.query.clone();
     let effect = result.estimate.as_effect();
     let published = effect.map(crate::PublishedScalarUncertainty::select);
+    let executed_estimate = effect.and_then(|_| executed_scalar(result));
     let policy_value = result.policy_value.as_ref().map(|policy| antecedent_io::PolicyValueWire {
         policy_value: policy.policy_value,
         reference_value: policy.reference_value,
@@ -3463,7 +3464,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         identification,
         identification_variables,
         temporal_identification,
-        estimate: effect.and_then(|_| executed_scalar(result)),
+        estimate: executed_estimate,
         policy_value,
         continuous_dose_response: result.continuous_dose_response.as_ref().map(|fit| {
             antecedent_io::analysis_result_artifact::ContinuousDoseResponseWire {
@@ -3793,7 +3794,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                     .collect(),
             }
         }),
-        standard_error: published.as_ref().and_then(|p| p.standard_error),
+        // A standard error describes the published scalar; none rides without it.
+        standard_error: executed_estimate.and(published.as_ref().and_then(|p| p.standard_error)),
         interval_lower: published.as_ref().and_then(|p| p.lower),
         interval_upper: published.as_ref().and_then(|p| p.upper),
         assumptions: antecedent_io::assumptions_to_wire(

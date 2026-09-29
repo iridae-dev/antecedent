@@ -11,14 +11,12 @@ use std::sync::Arc;
 use memmap2::Mmap;
 
 use crate::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, decode_on_wire_arc, decode_on_wire_arc_owned,
-    read_header_and_manifest,
+    ArtifactManifest, EncodedArtifact, MAX_SECTION_BYTES, SectionBytes, decode_on_wire_arc,
+    decode_on_wire_arc_owned, read_header_and_manifest,
 };
 use crate::error::IoError;
 use crate::mmap_file::map_file_readonly;
 use crate::wire::SectionDescriptor;
-
-const MAX_SECTION_BYTES: usize = 512 * 1024 * 1024;
 
 /// Index entry for one section payload inside a seekable/mmap artifact.
 #[derive(Clone, Debug, Eq, PartialEq)]
