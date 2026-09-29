@@ -37,30 +37,67 @@ case "${1:-}" in
     ;;
 esac
 
-# Topological order of workspace library crates (leaves first). Keep in sync with
-# `cargo metadata` dep graph among `crates/*` (excludes python / antecedent-py).
-CRATES=(
-  antecedent-core
-  antecedent-expr
-  antecedent-graph
-  antecedent-kernels
-  antecedent-stats
-  antecedent-state
-  antecedent-prob
-  antecedent-design
-  antecedent-data
-  antecedent-model
-  antecedent-counterfactual
-  antecedent-attribution
-  antecedent-identify
-  antecedent-learn-burn
-  antecedent-learn
-  antecedent-estimate
-  antecedent-discovery
-  antecedent-validate
-  antecedent-io
-  antecedent
+# Leaves first, from the workspace graph. A hand list is how design was uploaded
+# before identify and io, which it depends on. antecedent-py is the extension
+# crate and is not published here.
+publish_order() {
+  python3 - <<'PY'
+import json
+import subprocess
+import sys
+from collections import defaultdict
+
+meta = json.loads(
+    subprocess.check_output(
+        ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+        text=True,
+    )
 )
+members = {
+    pkg["name"]: pkg
+    for pkg in meta["packages"]
+    if pkg["id"] in set(meta["workspace_members"]) and pkg["name"] != "antecedent-py"
+}
+deps = {name: set() for name in members}
+for name, pkg in members.items():
+    for dep in pkg.get("dependencies", []):
+        if dep["name"] in deps and dep.get("kind") in (None, "normal", "build"):
+            deps[name].add(dep["name"])
+
+dependents = defaultdict(set)
+indegree = {name: 0 for name in members}
+for name, upstream in deps.items():
+    for dep in upstream:
+        dependents[dep].add(name)
+        indegree[name] += 1
+
+ready = sorted(name for name, degree in indegree.items() if degree == 0)
+order = []
+while ready:
+    name = ready.pop(0)
+    order.append(name)
+    for dependent in sorted(dependents[name]):
+        indegree[dependent] -= 1
+        if indegree[dependent] == 0:
+            ready.append(dependent)
+            ready.sort()
+
+if len(order) != len(members):
+    sys.exit("crate publish graph has a cycle")
+for name in order:
+    print(name)
+PY
+}
+
+CRATES=()
+while IFS= read -r crate; do
+  [[ -n "$crate" ]] || continue
+  CRATES+=("$crate")
+done < <(publish_order)
+if [[ "${#CRATES[@]}" -eq 0 ]]; then
+  echo "crate publish order is empty" >&2
+  exit 1
+fi
 
 workspace_version() {
   # workspace.package.version in root Cargo.toml
