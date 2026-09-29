@@ -1009,7 +1009,7 @@ pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     let div_ok =
         diagnostics.n_postwarmup_divergences.or(diagnostics.n_divergences).is_some_and(|n| n == 0);
     // A chain that never accepted a structural move has bit-identical edge traces, which
-    // `graph_chain_diagnostics` reports as R̂ = 1.0 and ESS = `n_chains·n_draws` — perfect
+    // the chain diagnostics report as R̂ = 1.0 and ESS = `n_chains·n_draws` — perfect
     // scores that mean "nothing varied", not "everything converged". `all_chains_moved` is
     // the only signal that separates the two, so it has to be in the conjunction (as it is
     // in `InferenceDiagnostics::mcmc_publication_ok`).
@@ -1139,18 +1139,6 @@ pub fn graph_chain_summary(
     }
 }
 
-/// [`graph_chain_summary`] as `(rhat_max, ess_bulk_min, ess_tail_min, all_chains_moved)`.
-#[must_use]
-pub fn graph_chain_diagnostics(
-    traces: &[f64],
-    n_chains: usize,
-    n_draws: usize,
-    n_params: usize,
-) -> (f64, f64, f64, bool) {
-    let s = graph_chain_summary(traces, n_chains, n_draws, n_params);
-    (s.rhat_max, s.ess_bulk_min, s.ess_tail_min, s.all_chains_moved)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1158,7 +1146,7 @@ mod tests {
     /// A chain that never moved must not publish, however good its other diagnostics look.
     ///
     /// When every edge indicator is constant across every chain and draw,
-    /// `graph_chain_diagnostics` reports R̂ = 1.0 and ESS = `n_chains·n_draws` — flawless
+    /// the chain diagnostics report R̂ = 1.0 and ESS = `n_chains·n_draws` — flawless
     /// numbers that mean "nothing varied", not "everything converged". `all_chains_moved` is
     /// the only field that separates the two cases, so the gate has to consult it.
     #[test]

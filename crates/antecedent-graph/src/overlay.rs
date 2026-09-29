@@ -51,12 +51,6 @@ impl GraphOverlay {
         overlay
     }
 
-    /// Whether every directed edge of the base graph remains visible.
-    #[must_use]
-    pub fn is_observational(&self) -> bool {
-        !self.hide_incoming.any() && !self.hide_outgoing.any()
-    }
-
     /// Whether directed edge `from → to` is visible under this overlay.
     #[must_use]
     pub fn edge_visible(&self, from: DenseNodeId, to: DenseNodeId) -> bool {

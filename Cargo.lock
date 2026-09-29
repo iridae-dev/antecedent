@@ -60,7 +60,7 @@ checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
 name = "antecedent"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-attribution",
  "antecedent-core",
@@ -74,6 +74,7 @@ dependencies = [
  "antecedent-identify",
  "antecedent-io",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-model",
  "antecedent-prob",
  "antecedent-state",
@@ -81,6 +82,7 @@ dependencies = [
  "antecedent-validate",
  "arrow-array",
  "arrow-schema",
+ "ciborium",
  "criterion",
  "serde",
  "serde_json",
@@ -89,7 +91,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-attribution"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-counterfactual",
@@ -107,20 +109,19 @@ dependencies = [
 
 [[package]]
 name = "antecedent-core"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "antecedent-counterfactual"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
  "antecedent-graph",
  "antecedent-model",
- "antecedent-prob",
  "criterion",
  "serde_json",
  "thiserror 2.0.20",
@@ -128,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-data"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -139,25 +140,29 @@ dependencies = [
  "blake3",
  "realfft",
  "serde_json",
- "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "antecedent-design"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-io",
  "antecedent-kernels",
  "antecedent-prob",
  "antecedent-stats",
+ "blake3",
  "criterion",
+ "serde",
  "serde_json",
  "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "antecedent-discovery"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -172,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -191,14 +196,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
 ]
 
 [[package]]
 name = "antecedent-graph"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "criterion",
@@ -208,7 +213,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -222,10 +227,9 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
- "antecedent-data",
  "antecedent-discovery",
  "antecedent-estimate",
  "antecedent-expr",
@@ -246,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-kernels"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "criterion",
@@ -254,11 +258,12 @@ dependencies = [
 
 [[package]]
 name = "antecedent-learn"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
  "antecedent-learn-burn",
+ "antecedent-prob",
  "antecedent-stats",
  "forust-ml",
  "serde",
@@ -269,20 +274,19 @@ dependencies = [
 
 [[package]]
 name = "antecedent-learn-burn"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "burn",
 ]
 
 [[package]]
 name = "antecedent-model"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
  "antecedent-graph",
  "antecedent-kernels",
- "antecedent-prob",
  "antecedent-stats",
  "criterion",
  "serde_json",
@@ -291,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-prob"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -302,12 +306,13 @@ dependencies = [
 
 [[package]]
 name = "antecedent-py"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent",
  "antecedent-attribution",
  "antecedent-core",
  "antecedent-data",
+ "antecedent-design",
  "antecedent-discovery",
  "antecedent-estimate",
  "antecedent-expr",
@@ -322,13 +327,14 @@ dependencies = [
  "arrow-schema",
  "numpy",
  "pyo3",
+ "pyo3-build-config",
  "serde",
  "serde_json",
 ]
 
 [[package]]
 name = "antecedent-state"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -340,7 +346,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -352,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-validate"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -1617,13 +1623,10 @@ dependencies = [
  "generativity",
  "libm",
  "nano-gemm",
- "npyz",
  "num-complex",
  "num-traits",
  "private-gemm-x86",
  "pulp 0.22.3",
- "rand 0.9.5",
- "rand_distr 0.5.1",
  "rayon",
  "reborrow",
  "spindle",
@@ -2765,17 +2768,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "npyz"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f0e759e014e630f90af745101b614f761306ddc541681e546649068e25ec1b9"
-dependencies = [
- "byteorder",
- "num-bigint",
- "py_literal",
-]
-
-[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2816,7 +2808,6 @@ checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "bytemuck",
  "num-traits",
- "rand 0.8.8",
 ]
 
 [[package]]
@@ -2979,48 +2970,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "pest"
-version = "2.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d45aeb61b4bf818e12d4205f2466f8c4748f85f4fce0146d1c03d69d753f0ad"
-dependencies = [
- "memchr",
- "ucd-trie",
-]
-
-[[package]]
-name = "pest_derive"
-version = "2.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89cc5a242e25ed4e7704d0be240f2cfbe20a8c27e7e252d94835be93d92dc39f"
-dependencies = [
- "pest",
- "pest_generator",
-]
-
-[[package]]
-name = "pest_generator"
-version = "2.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7abf21475cc3820fe4b2ca2dc2142902f67a02189f3b5b3a229f4febc01a43e5"
-dependencies = [
- "pest",
- "pest_meta",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "pest_meta"
-version = "2.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adba4db388f687393c18c51348d44a41d870ca9df71a2c98172ea3035dc6936e"
-dependencies = [
- "pest",
-]
-
-[[package]]
 name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3171,24 +3120,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d8f70e07b9c3962945a74e59ca1c511bba65b6419468acc217c457d93f3c740"
 
 [[package]]
-name = "py_literal"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "102df7a3d46db9d3891f178dcc826dc270a6746277a9ae6436f8d29fd490a8e1"
-dependencies = [
- "num-bigint",
- "num-complex",
- "num-traits",
- "pest",
- "pest_derive",
-]
-
-[[package]]
 name = "pyo3"
 version = "0.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4688ddedf473e32662b9b067670129a8afb8c18e351482c70d62ba4a88171e8b"
 dependencies = [
+ "inventory",
  "libc",
  "once_cell",
  "portable-atomic",
@@ -4059,12 +3996,6 @@ dependencies = [
  "quote",
  "syn 3.0.6",
 ]
-
-[[package]]
-name = "ucd-trie"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
 
 [[package]]
 name = "ug"

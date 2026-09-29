@@ -28,13 +28,12 @@ arrow = [
 ]
 
 [dependencies]
-antecedent-core = { version = "2.0.0", path = "../antecedent-core" }
-antecedent-kernels = { version = "2.0.0", path = "../antecedent-kernels" }
+antecedent-core = { version = "2.1.0", path = "../antecedent-core" }
+antecedent-kernels = { version = "2.1.0", path = "../antecedent-kernels" }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
 arrow-data = { workspace = true, optional = true }
-thiserror = { workspace = true }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 

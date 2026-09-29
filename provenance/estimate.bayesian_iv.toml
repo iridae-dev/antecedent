@@ -1,0 +1,42 @@
+feature_id = "estimate.bayesian_iv"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table implementation id: estimate.bayesian_iv_joint_fixed_loading
+# (EstimatorId::BayesianIvJointLinear, public name iv.bayesian_joint_linear).
+#
+# No primary paper. The licensed route fits the two-equation Gaussian structural
+# system `T = alpha + pi Z + v`, `Y = mu + beta T + v + epsilon` with a fixed unit
+# loading of the treatment disturbance in the outcome equation, declared positive
+# variances for `v` and `epsilon`, and independent N(0, prior_sd^2) priors on
+# (alpha, pi, mu, beta). The joint posterior is the closed-form Gaussian obtained by
+# stacking both equations as weighted least-squares rows and adding the prior
+# precision; the treatment coefficient is then sampled from its marginal. That
+# construction, the fixed-loading restriction, and the first-stage-F refusal are
+# the repository's own; no publication introduces this estimator, and the
+# IV identification citations live in identify.iv and estimate.iv_2sls. The
+# free-loading control-function candidate that also lives in bayesian_iv.rs
+# (`fit_bayesian_iv`, `fit_bayesian_iv_fixed_variances`) is not the licensed route.
+papers = []
+
+implementation_deviations = [
+ "Exactly one instrument and no exogenous adjustment covariates; the staged route refuses more instruments, any covariate, a non-conjugate backend, and transferred or custom priors.",
+ "The outcome equation carries a fixed unit loading on the treatment disturbance `v`; this is a substantive restriction, not an estimated control-function coefficient, and the route must not be used when that loading is unknown.",
+ "Stage variances are declared by the caller, not estimated; the posterior is conditional on those values and on a homoskedastic Gaussian likelihood.",
+ "A first-stage F statistic below the configured threshold (10 on the public route) is refused; no Anderson-Rubin or other weak-instrument-robust posterior is substituted.",
+ "The equal-tailed posterior interval is model-conditional. The 300-replicate exact-law check in bayesian_iv.rs and bayesian_iv_rd_staged.rs is scoped evidence for this model; it is not a generic IV coverage guarantee.",
+ "Under heterogeneous effects the structural coefficient is reported through the common effect type without representing instrument-dependent LATE weighting (the same caveat as estimate.iv_2sls).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian_iv.rs (in-module tests: joint_fixed_loading_intervals_calibrate_under_the_declared_law, strong_instrument_recovers_structural_effect_and_prior_sensitivity_is_visible, weak_instrument_is_refused)",
+ "crates/antecedent/tests/bayesian_iv_rd_staged.rs (bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth, iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law)",
+ "crates/antecedent/src/analysis/execute/bayesian_specialist_path.rs (model-scope refusals)",
+ "conformance/estimate/bayesian_iv (synthetic known-truth fixture: true structural effect 2.0 under the declared joint Gaussian law)",
+ "python/tests/test_bayesian_estimator_lifecycle.py",
+]

@@ -48,6 +48,12 @@ bash scripts/gate_hot_path_baselines.sh
 echo "== public support matrix =="
 bash scripts/gate_support_matrix.sh
 
+# Every licensed cell executes each licensed estimator from a retained checked
+# operation with no builder alive: the checked_execution citations on
+# parity/support_licensed.toml run here, grouped by test target.
+echo "== checked execution evidence =="
+bash scripts/gate_checked_execution.sh
+
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 

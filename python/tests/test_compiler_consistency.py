@@ -26,6 +26,8 @@ import pytest
 from antecedent import _native
 from antecedent.ids import Estimator
 
+from _sealed_loads import assert_answer_kept
+
 REGISTERED = frozenset(_native.runtime_refusal_codes())
 GRAPH = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
 
@@ -52,7 +54,6 @@ def _rd(seed: int, n: int = 2000) -> dict[str, np.ndarray]:
 
 
 RD_GRAPH = [("x", "t"), ("x", "y"), ("t", "y")]
-RD_OPTIONS = dict(identifier="rd.sharp", running_variable="x", cutoff=0.0, bandwidth=0.3)
 
 
 def _cpdag() -> Any:
@@ -74,11 +75,100 @@ def _iv(seed: int, n: int = 800) -> dict[str, np.ndarray]:
     return {"t": t, "y": 1.5 * t + u + 0.3 * rng.normal(size=n), "z": z}
 
 
+def _binary_iv(seed: int, n: int = 1_200) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = (rng.uniform(size=n) < 0.5).astype(float)
+    u = rng.normal(size=n)
+    t = (1.6 * z + 0.4 * u + 0.2 * rng.normal(size=n) > 0.9).astype(float)
+    return {"t": t, "y": 1.5 * t + u + 0.2 * rng.normal(size=n), "z": z}
+
+
 def _frontdoor(seed: int, n: int = 800) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
     t = (rng.uniform(size=n) < 0.5).astype(float)
     m = t + 0.4 * rng.normal(size=n)
     return {"t": t, "m": m, "y": m + 0.4 * rng.normal(size=n)}
+
+
+def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
+    """The Python entry point retains the checked AIPW row binding across clicks."""
+    data = _static(27, 512)
+    graph = GRAPH
+    prepared = ant.prepare(
+        data,
+        graph=graph,
+        query=ant.AverageEffect("treatment", "outcome"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    first = prepared.estimate(data)
+    assert first.effect == pytest.approx(1.5, abs=0.3)
+    accepted = ant.artifacts.accept(first.export())
+    assert accepted["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "outcome": data["outcome"] + 0.75 * data["treatment"]}
+    refreshed = prepared.refresh(changed)
+    assert refreshed.effect == pytest.approx(first.effect + 0.75, abs=0.05)
+    accepted_refresh = ant.artifacts.accept(refreshed.export())
+    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    assert accepted_refresh["program"] == accepted["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
+def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> None:
+    """A checked front-door result survives public refresh and portable consumption."""
+    data = _frontdoor(31)
+    prepared = ant.prepare(
+        data,
+        graph=[("t", "m"), ("m", "y")],
+        query=ant.AverageEffect("t", "y"),
+        identifier="frontdoor",
+        estimator="frontdoor.linear_two_stage",
+        refute="none",
+        bootstrap=0,
+    )
+    first = prepared.estimate(data)
+    assert first.effect == pytest.approx(1.0, abs=0.15)
+    accepted = ant.artifacts.accept(first.export())
+    assert accepted["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "y": data["y"] + 0.4}
+    refreshed = prepared.refresh(changed)
+    assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
+    accepted_refresh = ant.artifacts.accept(refreshed.export())
+    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    assert accepted_refresh["program"] == accepted["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
+
+
+@pytest.mark.parametrize("estimator", ["iv.wald", "iv.2sls"])
+def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
+    estimator: str,
+) -> None:
+    """Both checked binary-IV procedures retain their identity across Python clicks."""
+    data = _binary_iv(41)
+    prepared = ant.prepare(
+        data,
+        graph=[("z", "t"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        identifier="iv",
+        estimator=estimator,
+        refute="none",
+        bootstrap=0,
+    )
+    first = prepared.estimate(data)
+    assert first.effect == pytest.approx(1.5, abs=0.35)
+    accepted = ant.artifacts.accept(first.export())
+    assert accepted["accepts_as_verified_program"] == "true"
+
+    changed = {**data, "y": data["y"] + 0.5}
+    refreshed = prepared.refresh(changed)
+    assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
+    accepted_refresh = ant.artifacts.accept(refreshed.export())
+    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    assert accepted_refresh["program"] == accepted["program"]
+    assert refreshed.data_snapshot_id != first.data_snapshot_id
 
 
 # (name, data, graph, query, extra analyze kwargs)
@@ -107,7 +197,13 @@ ESTIMATOR_ROUTES: list[tuple[str, Callable[[], Any], Any, Any, dict[str, Any]]] 
         ant.AverageEffect("t", "y"),
         {"identifier": "frontdoor"},
     ),
-    ("rd", lambda: _rd(1), RD_GRAPH, ant.AverageEffect("t", "y"), RD_OPTIONS),
+    (
+        "rd",
+        lambda: _rd(1),
+        None,
+        ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3),
+        {},
+    ),
     (
         "conditional",
         lambda: _static(1),
@@ -167,7 +263,9 @@ def test_no_estimator_runs_under_an_inference_mode_it_does_not_implement(
     assert not silent, f"{name}: ran a different inference mode than requested: {silent}"
     # The route is exercised: at least one Frequentist execution ran.
     assert any(entry.endswith("Frequentist") for entry in ran), (name, ran)
-    if name in ("dag", "dag_binary", "cpdag", "admg", "iv", "frontdoor", "rd"):
+    # (The "rd" route is a query that selects its own estimator and refuses
+    # estimator= overrides with option_not_applicable, not estimator_inference_mismatch.)
+    if name in ("dag", "dag_binary", "cpdag", "admg", "iv", "frontdoor"):
         assert mismatches > 0
 
 
@@ -234,7 +332,10 @@ def _refusals() -> list[tuple[str, Callable[[], Any]]]:
             "unknown estimator",
             lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="bogus"),
         ),
-        ("RD kwarg off route", lambda: ant.analyze(data, graph=GRAPH, query=query, bandwidth=0.3)),
+        (
+            "sharp RD estimator off route",
+            lambda: ant.analyze(data, graph=GRAPH, query=query, estimator="rd.sharp"),
+        ),
         (
             "regimes without RPCMCI",
             lambda: ant.analyze(data, graph=GRAPH, query=query, regimes=[0] * n),
@@ -366,8 +467,12 @@ def test_a_failed_validation_survives_export_and_load() -> None:
         validators=[_failing],
     )
     live = result.inspect().to_dict()
-    loaded = ant.load(result.export()).inspect().to_dict()
+    loaded_result = ant.load(result.export())
+    loaded = loaded_result.inspect().to_dict()
     assert live["support"]["payload"]["validation"]["passed"] is False
+    assert_answer_kept(loaded_result)
+    assert loaded_result.acceptance.verified is False
+    assert loaded_result.answer == result.answer
     assert loaded["support"]["payload"]["validation"]["passed"] is False
     assert loaded["support"]["payload"]["validation"]["count"] == 1
     assert _evidence(live) == _evidence(loaded)
@@ -399,8 +504,12 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
         _static(6), graph=GRAPH, query=ant.AverageEffect("treatment", "outcome"), refute="placebo"
     )
     live = result.inspect().to_dict()
-    loaded = ant.load(result.export()).inspect().to_dict()
+    loaded_result = ant.load(result.export())
+    loaded = loaded_result.inspect().to_dict()
     json.dumps(live, allow_nan=False)
+    assert_answer_kept(loaded_result)
+    assert loaded_result.acceptance.verified is False
+    assert loaded_result.answer == result.answer
     assert isinstance(live["contract"], dict) and isinstance(loaded["contract"], dict)
     assert live["contract"] == loaded["contract"]
     assert live["inference_binding"] == loaded["inference_binding"]
@@ -413,10 +522,7 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
 def test_sharp_rd_contract_names_per_execution_identification() -> None:
     study = ant.prepare(
         _rd(0),
-        graph=RD_GRAPH,
-        query=ant.AverageEffect("t", "y"),
-        estimator="rd.sharp",
-        **RD_OPTIONS,
+        query=ant.quasi.SharpRegressionDiscontinuity("y", "t", "x", 0.0, 0.3),
     )
     identification = study.inspect().identification
     assert identification.available is False

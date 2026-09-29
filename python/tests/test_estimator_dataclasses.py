@@ -1,6 +1,6 @@
 """Tests for `antecedent.estimators` — the typed dataclass front-end over `estimator_config=`.
 
-Covers: every dataclass's all-defaults `_wire()` is empty (or, for `SharpRd`, construction
+Covers: every dataclass's all-defaults `_wire()` is empty and its estimator id
 itself raises, since there is no meaningful all-defaults RD config); `estimator_id` matches
 the Rust wire id from `antecedent.ids.Estimator`; `_wire()` round-trips through the real
 `antecedent.analyze(...)` / `antecedent._native.analyze_ate` and matches a hand-written dict
@@ -13,7 +13,6 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent._native import analyze_ate
 from antecedent.estimators import (
     DML,
     UNSET,
@@ -30,7 +29,6 @@ from antecedent.estimators import (
     PropensityMatching,
     PropensityStratification,
     PropensityWeighting,
-    SharpRd,
 )
 from antecedent.ids import Estimator
 
@@ -55,21 +53,6 @@ def _public_scm(seed: int = 9, n: int = 400):
     t = (0.7 * z + rng.normal(size=n) * 0.5 > 0).astype(float)
     y = 1.5 * t + z + rng.normal(size=n) * 0.4
     return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
-
-
-# A sharp design as a graph: the running variable is the treatment's only cause.
-_RD_GRAPH = [("r", "t"), ("t", "y"), ("r", "y")]
-
-
-def _rd_data(seed: int = 25, n: int = 1500):
-    """Sharp RD fixture: running variable `r`, cutoff at 0."""
-    rng = np.random.default_rng(seed)
-    r = rng.uniform(-2.0, 2.0, size=n)
-    t = (r >= 0.0).astype(np.float64)
-    y = 1.0 + 2.0 * t + 0.3 * r + rng.normal(scale=0.2, size=n)
-    names = ["t", "y", "r"]
-    columns = [t, y, r]
-    return names, columns
 
 
 # --- all-defaults _wire() is a strict no-op ------------------------------------------------
@@ -99,49 +82,6 @@ _DEFAULT_INSTANCE_CASES = [
 def test_default_wire_is_empty_and_estimator_id_matches_rust(instance, expected_id):
     assert instance._wire() == {}
     assert instance.estimator_id == str(expected_id)
-
-
-def test_sharp_rd_default_construction_raises():
-    # rd.sharp has no meaningful all-defaults instance: the estimator cannot run without
-    # a running variable, cutoff, and bandwidth, so construction itself is the failure
-    # mode rather than an empty `_wire()`.
-    with pytest.raises(ValueError, match="running_variable, cutoff, and bandwidth"):
-        SharpRd()
-
-
-def test_sharp_rd_valid_instance_wire_and_estimator_id():
-    cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
-    assert cfg.estimator_id == str(Estimator.RD_SHARP)
-    assert cfg._wire() == {"running_variable": "r", "cutoff": 0.0, "bandwidth": 1.5}
-
-
-def test_sharp_rd_se_wires_as_se_kind_and_rejects_unknown_kinds():
-    cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se="homoskedastic")
-    assert cfg._wire() == {
-        "running_variable": "r",
-        "cutoff": 0.0,
-        "bandwidth": 1.5,
-        "se_kind": "homoskedastic",
-    }
-    with pytest.raises(ValueError, match="SharpRd se must be one of"):
-        SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se="cluster")  # type: ignore[arg-type]
-
-
-def test_sharp_rd_se_reaches_the_estimator_through_public_analyze():
-    names, columns = _rd_data()
-    data = {"t": columns[0], "y": columns[1], "r": columns[2]}
-    query = antecedent.AverageEffect(treatment="t", outcome="y")
-
-    def fit(se):
-        cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se=se)
-        return antecedent.analyze(
-            data, graph=_RD_GRAPH, query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
-        ).estimate
-
-    default, hc1, homoskedastic = fit(None), fit("hc1"), fit("homoskedastic")
-    assert default.se_analytic == hc1.se_analytic
-    assert homoskedastic.ate == hc1.ate
-    assert homoskedastic.se_analytic != hc1.se_analytic
 
 
 # --- real round-trips through analyze() / analyze_ate --------------------------------------
@@ -177,117 +117,6 @@ def test_linear_adjustment_wire_round_trips_through_public_analyze():
 
     assert via_dataclass.estimate.ate == pytest.approx(via_hand_dict.estimate.ate)
     assert via_dataclass.estimate.se_analytic == pytest.approx(via_hand_dict.estimate.se_analytic)
-
-
-def test_sharp_rd_wire_round_trips_through_native_analyze_ate():
-    names, columns = _rd_data()
-    cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
-
-    via_dataclass = analyze_ate(
-        names,
-        columns,
-        _RD_GRAPH,
-        "t",
-        "y",
-        estimator=cfg.estimator_id,
-        identifier="rd.sharp",
-        refute=False,
-        bootstrap=0,
-        seed=26,
-        estimator_config=cfg._wire(),
-    )
-    via_hand_dict = analyze_ate(
-        names,
-        columns,
-        _RD_GRAPH,
-        "t",
-        "y",
-        estimator="rd.sharp",
-        identifier="rd.sharp",
-        refute=False,
-        bootstrap=0,
-        seed=26,
-        estimator_config={"running_variable": "r", "cutoff": 0.0, "bandwidth": 1.5},
-    )
-
-    assert via_dataclass.ate == pytest.approx(via_hand_dict.ate)
-    assert via_dataclass.se_analytic == pytest.approx(via_hand_dict.se_analytic)
-    assert abs(via_dataclass.ate - 2.0) < 0.35
-
-
-def test_sharp_rd_wire_alone_is_sufficient_through_public_analyze():
-    """`estimator_config=` alone must satisfy the RD triple.
-
-    `handle_static_ate` used to demand the loose `running_variable`/`cutoff`/
-    `bandwidth` kwargs whenever `estimator="rd.sharp"`, raising before it ever
-    forwarded to Rust — even though Rust's `merge_rd_triple` accepts the triple
-    from either spelling. That made the typed `SharpRd(...)` config unusable on
-    its own. The gate now reads both, so the two spellings agree.
-    """
-    names, columns = _rd_data()
-    data = {"t": columns[0], "y": columns[1], "r": columns[2]}
-    query = antecedent.AverageEffect(treatment="t", outcome="y")
-    cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
-
-    config_only = antecedent.analyze(
-        data,
-        graph=_RD_GRAPH,
-        query=query,
-        seed=26,
-        bootstrap=0,
-        refute=False,
-        estimator=cfg.estimator_id,
-        estimator_config=cfg._wire(),
-    )
-    loose_too = antecedent.analyze(
-        data,
-        graph=_RD_GRAPH,
-        query=query,
-        seed=26,
-        bootstrap=0,
-        refute=False,
-        estimator=cfg.estimator_id,
-        running_variable=cfg.running_variable,
-        cutoff=cfg.cutoff,
-        bandwidth=cfg.bandwidth,
-        estimator_config=cfg._wire(),
-    )
-    assert config_only.estimate.ate == loose_too.estimate.ate
-    assert config_only.estimate.se_analytic == loose_too.estimate.se_analytic
-    assert abs(config_only.estimate.ate - 2.0) < 0.35
-
-
-def test_typed_estimator_instance_is_accepted_directly():
-    """`estimator=SharpRd(...)` carries its own config; passing both spellings is ambiguous."""
-    names, columns = _rd_data()
-    data = {"t": columns[0], "y": columns[1], "r": columns[2]}
-    query = antecedent.AverageEffect(treatment="t", outcome="y")
-    cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
-
-    direct = antecedent.analyze(
-        data, graph=_RD_GRAPH, query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
-    )
-    spelled_out = antecedent.analyze(
-        data,
-        graph=_RD_GRAPH,
-        query=query,
-        seed=26,
-        bootstrap=0,
-        refute=False,
-        estimator=cfg.estimator_id,
-        estimator_config=cfg._wire(),
-    )
-    assert direct.estimate.ate == spelled_out.estimate.ate
-
-    with pytest.raises(ValueError, match="already carries its configuration"):
-        antecedent.analyze(
-            data,
-            graph=_RD_GRAPH,
-            query=query,
-            seed=26,
-            estimator=cfg,
-            estimator_config=cfg._wire(),
-        )
 
 
 # --- se_kind / cluster_ids / multiway_ids / se_lag validation ------------------------------
@@ -370,36 +199,6 @@ def test_frontdoor_two_stage_has_no_multiway_or_panel_fields():
         FrontdoorLinearTwoStage(panel_times=[0, 1])  # type: ignore[call-arg]
     cfg = FrontdoorLinearTwoStage(se="cluster", cluster_ids=[0, 1, 2])
     assert cfg._wire() == {"se_kind": "cluster", "cluster_ids": [0, 1, 2]}
-
-
-# --- SharpRd triple + bandwidth positivity --------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "missing_needle"),
-    [
-        ({"cutoff": 0.0, "bandwidth": 1.0}, "running_variable"),
-        ({"running_variable": "r", "bandwidth": 1.0}, "cutoff"),
-        ({"running_variable": "r", "cutoff": 0.0}, "bandwidth"),
-        ({"running_variable": "r"}, "cutoff, bandwidth"),
-    ],
-    ids=["missing-running-variable", "missing-cutoff", "missing-bandwidth", "missing-two"],
-)
-def test_sharp_rd_missing_field_raises_and_names_it(kwargs, missing_needle):
-    with pytest.raises(ValueError, match="running_variable, cutoff, and bandwidth") as exc:
-        SharpRd(**kwargs)
-    assert missing_needle in str(exc.value)
-
-
-def test_sharp_rd_bandwidth_zero_raises():
-    with pytest.raises(ValueError, match="bandwidth") as exc:
-        SharpRd(running_variable="r", cutoff=0.0, bandwidth=0.0)
-    assert "bandwidth" in str(exc.value)
-
-
-def test_sharp_rd_bandwidth_negative_raises():
-    with pytest.raises(ValueError, match="bandwidth"):
-        SharpRd(running_variable="r", cutoff=0.0, bandwidth=-1.0)
 
 
 # --- LinearAdjustment fit_kind validation, including the lasso trap ------------------------

@@ -28,6 +28,8 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian, Frequentist
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
 
+from _sealed_loads import assert_answer_kept
+
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCTS = tomllib.loads((ROOT / "parity" / "python_products.toml").read_text(encoding="utf-8"))
 ROWS = {row["name"]: row for row in PRODUCTS.get("parameter", [])}
@@ -56,7 +58,7 @@ def _analyze(**kwargs: Any):
 
 def _contract(result: Any) -> dict[str, Any]:
     loaded = ant.load(result.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     return loaded.artifact.contract
 
 
@@ -331,17 +333,15 @@ def _rd_data(n: int = 400) -> dict[str, np.ndarray]:
 
 
 def _rd(data: dict[str, np.ndarray], **kwargs: Any):
-    kwargs.setdefault("running_variable", "r")
-    kwargs.setdefault("cutoff", 0.0)
-    kwargs.setdefault("bandwidth", 1.2)
-    rv = kwargs["running_variable"]
+    rv = kwargs.pop("running_variable", "r")
+    cutoff = kwargs.pop("cutoff", 0.0)
+    bandwidth = kwargs.pop("bandwidth", 1.2)
     # A sharp design's treatment column is that design's threshold rule.
-    data = {**data, "t": (data[rv] >= kwargs["cutoff"]).astype(float)}
+    data = {**data, "t": (data[rv] >= cutoff).astype(float)}
     return _analyze(
         data=data,
-        graph=[(rv, "t"), (rv, "y"), ("t", "y")],
-        estimator="rd.sharp",
-        identifier="rd.sharp",
+        graph=None,
+        query=ant.quasi.SharpRegressionDiscontinuity("y", "t", rv, cutoff, bandwidth),
         **kwargs,
     )
 
@@ -432,7 +432,7 @@ def test_controls_reaches_plan():
     graph, data, query = _transport_query()
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancelled"):
+    with pytest.raises(ant.errors.CausalCancelledError, match="cancelled"):
         ant.analyze(
             data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
         )

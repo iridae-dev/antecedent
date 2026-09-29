@@ -82,14 +82,18 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
-    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, ExactFactorRequirement,
-    ExactPreparedState, ExactStudyIdentities, ExactStudyInspection, ExactStudyResult,
-    InterferenceSpec, LatencyMode, LearnedTrialResult, LearnedTrialState, LicensedNeighbor,
-    NextAction, OperationKind, OperationReadiness, OperationReport, PremiseChange, PreparedBatch,
-    PreparedStudy, RdConfig, RefuteSuite, SemanticApplicability, SharedBatchDesign,
-    SharedCovariateDesign, StageEvent, StageResultSink, StatisticalBindingView,
-    StatisticalContrast, StatisticalPreparedState, StatisticalStudyInspection,
-    StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
+    CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
+    CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
+    CheckedStaticClassResponseInfo, CheckedTemporalClassMediationInfo,
+    CheckedTemporalMediationInfo, CheckedTransportTrialInfo, CheckedUnknownTieredAverageInfo,
+    ComputeBudget, ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities,
+    ExactStudyInspection, ExactStudyResult, InterferenceSpec, LatencyMode, LearnedTrialResult,
+    LearnedTrialState, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
+    OperationReport, PremiseChange, PreparedBatch, PreparedStudy, PreparedZTransport, RdConfig,
+    RefuteSuite, SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent,
+    StageResultSink, StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
+    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
+    ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
@@ -101,9 +105,12 @@ pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
 pub use result::{
-    AnalysisIdentification, ExecutedContract, PERCENTILE_95_MIN_REPLICATES,
-    PublishedScalarUncertainty, RowWeightsBinding, StructuralAggregationPolicy,
-    StructuralWeightBasis, StudyResult,
+    AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract,
+    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,
+    PanelDidEstimate, PolicyValueEstimate, PrimaryEstimate, PublishedScalarUncertainty,
+    RandomizedEffectEstimate, RowWeightsBinding, StructuralAggregationPolicy,
+    StructuralWeightBasis, StudyResult, SurvivalEstimate, SyntheticControlEstimate,
+    SyntheticDidEstimate,
 };
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,

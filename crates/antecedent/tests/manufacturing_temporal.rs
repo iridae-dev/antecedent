@@ -332,7 +332,9 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: R
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
-    assert_eq!(cached_count(&fresh), 0, "fresh DBN-posterior execution must identify its atoms");
+    // The one-shot facade prepares the checked plan and estimates from its
+    // retained atom proofs, so the fresh run reports the cached identification.
+    assert_eq!(cached_count(&fresh), 1, "fresh DBN-posterior execution seals then estimates");
     assert_eq!(cached_count(&click), 1, "prepared execution must consume its cache exactly once");
     assert_eq!(cached_count(&refreshed), 1, "same-schema refresh must reuse identification");
     let post = fresh.posterior.as_ref().expect("DBN mixture posterior");
@@ -696,7 +698,9 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
-    assert_eq!(cached_count(&fresh), 0);
+    // A one-shot run now prepares and executes the sealed DBN-posterior mediation
+    // operation, so the fresh result reports its identification as cached once.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
     assert_eq!(cached_count(&refreshed), 1);
     let post = fresh.posterior.as_ref().expect("DBN mediation mixture posterior");
@@ -779,7 +783,9 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
     assert_eq!(click.estimate.se_bootstrap, fresh.estimate.se_bootstrap);
-    assert_eq!(cached_count(&fresh), 0);
+    // A one-shot run now prepares and executes the sealed DBN-posterior mediation
+    // operation, so the fresh result reports its identification as cached once.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
 
     // Known truth: the requested (mediated) contrast of the identified atom.
@@ -1323,7 +1329,9 @@ fn dbn_posterior_response_curve_matches_identified_atom() {
     ));
     let mixture = fresh.structural_response.as_ref().unwrap();
     assert!((mixture.unidentified_mass - unidentified_truth).abs() < 1e-12);
-    assert_eq!(cached_count(&fresh), 0);
+    // `Study::run` prepares the sealed DBN-posterior response plan and executes
+    // from its retained atom proofs, so the one-shot result reports the reuse.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
     assert_eq!(cached_count(&refreshed), 1);
 
@@ -1576,7 +1584,8 @@ fn manufacturing_dbn_posterior_discovered_prepare_reuses_identification() {
     let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2, "clicks must not re-identify discovered atoms");
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert_eq!(cached_count(&fresh), 0);
+    // The one-shot facade seals the discovered atoms, then estimates from them.
+    assert_eq!(cached_count(&fresh), 1);
     assert_eq!(cached_count(&click), 1);
     assert_eq!(cached_count(&refreshed), 1);
     let post = fresh.posterior.as_ref().expect("DBN mixture posterior");

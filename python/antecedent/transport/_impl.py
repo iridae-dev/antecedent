@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import KW_ONLY, dataclass, field
+from dataclasses import KW_ONLY, dataclass, field, replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, get_args, overload
 
 if TYPE_CHECKING:
@@ -17,15 +18,21 @@ if TYPE_CHECKING:
 import numpy as np
 
 from .._defaults import OMITTED
+from .._native import consume_z_transport_artifact as _consume_z_transport_artifact
+from .._native import (
+    consume_z_transport_sensitivity_artifact as _consume_z_transport_sensitivity_artifact,
+)
 from .._native import estimate_trial_transport as _estimate_trial_transport
 from .._native import identify_transport as _identify_transport
+from .._native import identify_z_transport_stage as _identify_z_transport_stage
+from .._native import replay_z_transport_proposal as _replay_z_transport_proposal
 from .._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .._transport_results import (
     TransportContrast,
     TransportGridPoint,
     TransportUncertainty,
 )
-from ..errors import CausalTypeError, CausalValueError
+from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
 from ..learners import LearnerSpec, Logistic, Ridge, _learner_wire
 from ..query import (
@@ -48,11 +55,11 @@ class TransportStage(TypedDict):
     and re-bind data without holding a native execution.
     """
 
-    identified: ClassicalTransportIdentification
-    catalog: EvidenceCatalog
+    identified: Any
+    catalog: EvidenceCatalog | None
     bound: ExactTransportData | StatisticalTransportData | TrialAipwData | None
-    shape: str
-    worlds: list[dict[str, float]]
+    shape: str | None
+    worlds: list[Mapping[str, float]]
     provider: EmpiricalTable | LearnedCategorical | TrialAipw | str | None
     graph: Admg | None
 
@@ -74,6 +81,56 @@ class SelectionDiagram:
             raise CausalValueError("selections must not contain duplicates")
         if any(not value.strip() for value in self.selections):
             raise CausalValueError("selections must contain variable names")
+
+
+@dataclass(frozen=True, slots=True)
+class ZTransportQuery:
+    """Query for the bounded single-source discrete z-transport route.
+
+    The declared controllable variables bound the possible source experiments.
+    A concrete assignment selects values for a positive formula; an empty
+    assignment is valid for a catalog-aware negative theorem decision, which
+    checks the complete experimental family instead.
+    """
+
+    diagram: SelectionDiagram
+    outcomes: Sequence[str]
+    treatments: Sequence[str]
+    controllable: Sequence[str]
+    experiment_assignment: Mapping[str, float]
+
+    def __post_init__(self) -> None:
+        for field_name in ("outcomes", "treatments", "controllable"):
+            values = tuple(getattr(self, field_name))
+            if not values or len(set(values)) != len(values) or any(not v.strip() for v in values):
+                raise CausalValueError(
+                    f"zTR {field_name} must be non-empty, distinct variable names"
+                )
+            object.__setattr__(self, field_name, values)
+        if not set(self.experiment_assignment).issubset(self.controllable):
+            raise CausalValueError("zTR experiment assignments must name controllable variables")
+        if any(not math.isfinite(value) for value in self.experiment_assignment.values()):
+            raise CausalValueError("zTR experiment assignments must be finite")
+        object.__setattr__(
+            self, "experiment_assignment", MappingProxyType(dict(self.experiment_assignment))
+        )
+
+
+class ZTransportSensitivityResult(TypedDict):
+    """Exact assumption range from discrete outcome-kernel contamination."""
+
+    status: str
+    estimand: str
+    baseline: float
+    assumption_range: dict[str, float]
+    delta_domain: list[float]
+    decision_threshold: float | None
+    tipping_fraction: float | None
+    minimizing_outcome_by_stratum: list[int]
+    maximizing_outcome_by_stratum: list[int]
+    interval_interpretation: str
+    method: str
+    baseline_binding: dict[str, Any]
 
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
@@ -294,6 +351,77 @@ class EvidenceCatalog:
     @staticmethod
     def empty() -> EvidenceCatalog:
         return EvidenceCatalog()
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceCatalogDelta:
+    """Immutable proposed laws for a transport-planning preview.
+
+    The original catalog retains its evidence status. The returned preview is
+    a temporary input for identification and binding; it does not contain data.
+    """
+
+    proposed_regimes: Sequence[EvidenceRegime]
+
+    def __post_init__(self) -> None:
+        ids = [regime.id for regime in self.proposed_regimes]
+        if len(set(ids)) != len(ids):
+            raise CausalValueError("catalog delta regime ids must be unique")
+        if any(regime.evidence_kind != "proposed" for regime in self.proposed_regimes):
+            raise CausalValueError("catalog delta requires proposed regimes")
+
+    def preview(self, base: EvidenceCatalog) -> EvidenceCatalog:
+        """Return a separate catalog with hypothetical results available."""
+        if set(regime.id for regime in base.regimes) & set(
+            regime.id for regime in self.proposed_regimes
+        ):
+            raise CausalValueError("catalog delta conflicts with a base regime")
+        return EvidenceCatalog(
+            environments=base.environments,
+            regimes=(
+                *base.regimes,
+                *(replace(r, evidence_kind="available") for r in self.proposed_regimes),
+            ),
+            bindings=base.bindings,
+            target_sampling=base.target_sampling,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ZTransportCandidate:
+    """One proposed zTR study and its hypothetical catalog additions.
+
+    ``catalog`` is the full hypothetical catalog, retaining the base entries
+    and adding proposed regimes for this candidate. A verified proposal is
+    returned only when its declared design can produce a checked,
+    bound formula against the frozen failure snapshot.
+    """
+
+    id: str
+    catalog: EvidenceCatalog
+    design_kind: Literal["intervene", "measure"]
+    targets: Sequence[str] = ()
+    measured: Sequence[str] = ()
+    cost: float = 0.0
+    sample_budget: int = 0
+    recruitment_sampling: str = "independent"
+    feasibility_constraints: Sequence[str] = ()
+    tag: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.id.strip():
+            raise CausalValueError("candidate id must be non-empty")
+        if self.design_kind not in ("intervene", "measure"):
+            raise CausalValueError("design_kind must be 'intervene' or 'measure'")
+        if not math.isfinite(self.cost) or self.cost < 0:
+            raise CausalValueError("candidate cost must be a finite non-negative number")
+        _non_negative("sample_budget", self.sample_budget)
+        _non_negative("tag", self.tag)
+        if not any(regime.evidence_kind == "proposed" for regime in self.catalog.regimes):
+            raise CausalValueError("candidate catalog must add proposed regimes")
+        object.__setattr__(self, "targets", tuple(self.targets))
+        object.__setattr__(self, "measured", tuple(self.measured))
+        object.__setattr__(self, "feasibility_constraints", tuple(self.feasibility_constraints))
 
 
 @dataclass(frozen=True, slots=True)
@@ -602,6 +730,209 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
     )
 
 
+def _non_negative(name: str, value: int) -> int:
+    """A non-negative int, refused as a typed value error before it reaches native code."""
+    if value is None:
+        raise CausalValueError(f"{name} must be a non-negative integer")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise CausalTypeError(f"{name} must be an integer")
+    if value < 0:
+        raise CausalValueError(f"{name} must be a non-negative integer, got {value}")
+    return value
+
+
+def _optional_non_negative(name: str, value: int | None) -> int | None:
+    """:func:`_non_negative`, with ``None`` meaning "no limit"."""
+    return None if value is None else _non_negative(name, value)
+
+
+def identify_z_transport(
+    *,
+    graph: Admg,
+    query: ZTransportQuery,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> Any:
+    """Create a native stage for bounded single-source z-transport search.
+
+    The returned stage exposes ``outcome`` and ``reason``. Positive formulas
+    are checked before binding evidence; a negative search is not treated as a
+    theorem obstruction unless the complete experimental-family premises hold.
+    Call ``stage.decide(catalog)`` to check those premises and obtain a
+    replayable bounded obstruction or a precise missing-evidence result.
+    On an identified result, call ``prepare_exact`` or ``prepare_empirical``
+    to obtain a point-only execution. The limits are retained by the stage and
+    inherited by every decision, preparation and proposal made from it.
+    """
+    if not isinstance(graph, Admg):
+        raise CausalTypeError("transport.identify_z_transport requires graph=Admg(...)")
+    if not isinstance(query, ZTransportQuery):
+        raise CausalTypeError("query must be a ZTransportQuery")
+    return _identify_z_transport_stage(
+        graph,
+        list(query.diagram.selections),
+        query.diagram.source,
+        query.diagram.target,
+        list(query.outcomes),
+        list(query.treatments),
+        list(query.controllable),
+        dict(query.experiment_assignment),
+        max_steps=_non_negative("max_steps", max_steps),
+        max_depth=_non_negative("max_depth", max_depth),
+        max_support_rows=_non_negative("max_support_rows", max_support_rows),
+        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+        cancel=cancel,
+    )
+
+
+class _ReplayLimits(TypedDict):
+    """Validated replay limits, keeping the mandatory bounds int and the rest optional."""
+
+    max_operations: int
+    max_depth: int
+    max_support_rows: int | None
+    max_laws: int | None
+    max_law_cells: int | None
+    memory_bytes: int | None
+
+
+def _consume_limits(
+    max_operations: int,
+    max_depth: int,
+    max_support_rows: int | None,
+    max_laws: int | None,
+    max_law_cells: int | None,
+    memory_bytes: int | None,
+) -> _ReplayLimits:
+    """Validated consumer-side replay limits; ``None`` keeps the native default."""
+    return {
+        "max_operations": _non_negative("max_operations", max_operations),
+        "max_depth": _non_negative("max_depth", max_depth),
+        "max_support_rows": _optional_non_negative("max_support_rows", max_support_rows),
+        "max_laws": _optional_non_negative("max_laws", max_laws),
+        "max_law_cells": _optional_non_negative("max_law_cells", max_law_cells),
+        "memory_bytes": _optional_non_negative("memory_bytes", memory_bytes),
+    }
+
+
+def consume_z_transport_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> str:
+    """Independently verify and recompute an exported point-only zTR result.
+
+    The replay runs under the consumer's own limits (``max_operations``,
+    ``max_depth``, ``max_support_rows``, ``max_laws``, ``max_law_cells``);
+    nothing the artifact recorded raises them, and an artifact whose stored
+    laws or recorded limits exceed them is refused.
+    """
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("artifact must be bytes")
+    return _consume_z_transport_artifact(
+        artifact,
+        **_consume_limits(
+            max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+        ),
+        cancel=cancel,
+    )
+
+
+def plan_z_transport_evidence(
+    stage: Any,
+    catalog: EvidenceCatalog,
+    candidates: Sequence[ZTransportCandidate],
+    *,
+    failure_snapshot: bytes | None = None,
+    max_evaluated: int | None = None,
+    cancel: Any = None,
+) -> tuple[dict[str, Any], tuple[Any, ...]]:
+    """Assess candidates against a stage's frozen failure and catalog.
+
+    Passing ``failure_snapshot`` reuses an exported snapshot and verifies that
+    it exactly matches this stage and catalog before planning. At most
+    ``max_evaluated`` candidates are assessed (all of them by default); the
+    report's ``candidate_universe_size``, ``search_limit``, ``evaluated``,
+    ``unevaluated`` and ``truncated`` keys are the budget receipt.
+    """
+    import json
+
+    if not hasattr(stage, "plan_evidence"):
+        raise CausalTypeError("stage must be returned by identify_z_transport")
+    if failure_snapshot is not None and not isinstance(failure_snapshot, bytes):
+        raise CausalTypeError("failure_snapshot must be bytes")
+    if max_evaluated is not None and _non_negative("max_evaluated", max_evaluated) == 0:
+        raise CausalValueError("max_evaluated must be at least one")
+    report, proposals = stage.plan_evidence(
+        catalog,
+        list(candidates),
+        failure_snapshot,
+        max_evaluated=max_evaluated,
+        cancel=cancel,
+    )
+    return json.loads(report), tuple(proposals)
+
+
+def consume_z_transport_sensitivity_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> ZTransportSensitivityResult:
+    """Independently verify and recompute a portable zTR sensitivity range.
+
+    The embedded baseline replays under the consumer's own limits, as in
+    :func:`consume_z_transport_artifact`.
+    """
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("artifact must be bytes")
+    return _consume_z_transport_sensitivity_artifact(
+        artifact,
+        **_consume_limits(
+            max_operations, max_depth, max_support_rows, max_laws, max_law_cells, memory_bytes
+        ),
+        cancel=cancel,
+    )
+
+
+def replay_z_transport_proposal(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> None:
+    """Independently replay a portable hypothetical zTR study proposal.
+
+    The frozen failure is re-derived under the caller's identification limits
+    before the hypothetical proof is rebound.
+    """
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("proposal artifact must be bytes")
+    _replay_z_transport_proposal(
+        artifact,
+        max_steps=_non_negative("max_steps", max_steps),
+        max_depth=_non_negative("max_depth", max_depth),
+        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
+        cancel=cancel,
+    )
+
+
 def reload_lowered_expression(
     identification: TransportIdentification,
 ) -> tuple[str, str, tuple[tuple[str, int | None], ...], tuple[int, ...]]:
@@ -614,6 +945,29 @@ def reload_lowered_expression(
         identification.expr_root,
     )
     return pretty, latex, tuple(zip(populations, regimes, strict=True)), tuple(free)
+
+
+def reload_lowered_program(identification: TransportIdentification) -> Any:
+    """Return a bounded, checked executable program for an identified expression.
+
+    The returned native program owns the validated arena and semantic schema.
+    Exact evaluation requires an explicit catalog and provider laws; this
+    function does not infer or fetch them.
+    """
+    if not isinstance(identification, TransportIdentification):
+        raise CausalTypeError("reload_lowered_program requires a TransportIdentification")
+    if identification._native is None or not identification.transportable:
+        raise CausalValueError("identification has no checked expression to reload")
+    return identification._native.reload_checked_program()
+
+
+def restore_lowered_program(identification: TransportIdentification, wire_json: str) -> Any:
+    """Independently import and verify a checked program against its identification."""
+    if not isinstance(identification, TransportIdentification):
+        raise CausalTypeError("restore_lowered_program requires a TransportIdentification")
+    if identification._native is None or not identification.transportable:
+        raise CausalValueError("identification has no checked expression to reload")
+    return identification._native.load_checked_program(wire_json)
 
 
 def estimate_trial_effect(
@@ -691,6 +1045,7 @@ __all__ = [
     "DistributionAvailabilityName",
     "Environment",
     "EvidenceCatalog",
+    "EvidenceCatalogDelta",
     "EvidenceKindName",
     "EvidenceRegime",
     "MissingEvidenceCertificate",
@@ -700,6 +1055,8 @@ __all__ = [
     "PopulationFactor",
     "RecursiveFactorizationFormula",
     "reload_lowered_expression",
+    "reload_lowered_program",
+    "restore_lowered_program",
     "RegimeBinding",
     "RegimeKindName",
     "SamplingDesignName",
@@ -710,11 +1067,19 @@ __all__ = [
     "TransportIdentification",
     "TransportOverlapReport",
     "TransportQuery",
+    "ZTransportQuery",
+    "ZTransportCandidate",
+    "ZTransportSensitivityResult",
     "TrialTransportEstimate",
     "VariableCoordinate",
     "VariableDomainName",
     "estimate_trial_effect",
     "identify",
+    "identify_z_transport",
+    "consume_z_transport_artifact",
+    "plan_z_transport_evidence",
+    "consume_z_transport_sensitivity_artifact",
+    "replay_z_transport_proposal",
 ]
 
 
@@ -734,12 +1099,20 @@ class ExactDiscreteLaw:
     interventions: tuple[tuple[str, float], ...] = ()
     absolute_tolerance: float = 1e-12
     relative_tolerance: float = 1e-10
+    empirical_counts: tuple[int, ...] | None = None
 
     def __post_init__(self) -> None:
         # Freeze caller-owned sequences before retaining them as a snapshot.
         object.__setattr__(self, "axes", tuple((name, tuple(values)) for name, values in self.axes))
         object.__setattr__(self, "probabilities", tuple(self.probabilities))
         object.__setattr__(self, "interventions", tuple(tuple(item) for item in self.interventions))
+        if self.empirical_counts is not None:
+            counts = tuple(self.empirical_counts)
+            if len(counts) != len(self.probabilities):
+                raise CausalValueError("empirical_counts must have one count per probability")
+            for count in counts:
+                _non_negative("empirical_counts", count)
+            object.__setattr__(self, "empirical_counts", counts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -778,7 +1151,7 @@ class ExactTransportDistribution:
         from ..results._report import InspectionReport
 
         if self._execution is None:
-            raise ValueError("This display object has no native execution authority")
+            raise _no_native_authority()
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
     def to_dict(self) -> dict[str, Any]:
@@ -794,13 +1167,13 @@ class ExactTransportDistribution:
     def export(self) -> bytes:
         """Export the immutable native execution, independent of edited display fields."""
         if self._execution is None:
-            raise ValueError("This display object has no native execution authority")
+            raise _no_native_authority()
         return bytes(self._execution.export())
 
     def contrast(self, reference: ExactTransportDistribution, outcome: str) -> float:
         """Difference of means from two complete target laws; no sampling interval."""
         if self.outcomes != reference.outcomes:
-            raise ValueError("Contrast outcome coordinates must agree")
+            raise CausalValueError("Contrast outcome coordinates must agree")
         return self.mean(outcome) - reference.mean(outcome)
 
     def mean(self, outcome: str) -> float:
@@ -1060,7 +1433,7 @@ class StatisticalTransportDistribution:
         from ..results._report import InspectionReport
 
         if self._execution is None:
-            raise ValueError("This display object has no native execution authority")
+            raise _no_native_authority()
         return InspectionReport(**json.loads(self._execution.inspection_json()))
 
     def to_dict(self) -> dict[str, Any]:
@@ -1093,7 +1466,7 @@ class StatisticalTransportDistribution:
     ) -> TransportContrast:
         """Difference of means with paired bootstrap draws from compatible native runs."""
         if self._execution is None or reference._execution is None:
-            raise ValueError("Contrast requires native execution authority")
+            raise _no_native_authority()
         import json
 
         result = dict(json.loads(self._execution.contrast(reference._execution, outcome)))
@@ -1103,8 +1476,15 @@ class StatisticalTransportDistribution:
 
     def export(self) -> bytes:
         if self._execution is None:
-            raise ValueError("This display object has no native execution authority")
+            raise _no_native_authority()
         return bytes(self._execution.export())
+
+
+def _no_native_authority() -> CausalUnsupportedError:
+    """A display object edited or rebuilt away from its native execution cannot act."""
+    return CausalUnsupportedError(
+        "This display object has no native execution authority", reason_code="not_executed"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1200,7 +1580,7 @@ def evaluate_statistical_grid(
     shared-factor covariance when comparing two points from the same execution.
     """
     if not at:
-        raise ValueError("The treatment grid must not be empty")
+        raise CausalValueError("The treatment grid must not be empty")
     study = prepare_statistical(identification, catalog, data, at=at[0], **kwargs)
     points = study._native.estimate_grid([dict(point) for point in at], cancel=kwargs.get("cancel"))
     return tuple(_statistical_distribution(point, point.last_result()) for point in points)
@@ -1211,18 +1591,24 @@ def consume_statistical(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
 ) -> PreparedAnalysis[StatisticalTransportDistribution]:
-    """Verify portable proof and recomputed plug-in point; do not re-bootstrap."""
+    """Verify portable proof and recomputed plug-in point; do not re-bootstrap.
+
+    ``max_support_rows`` bounds the samples a later ``refresh`` or
+    ``replace_snapshot`` may bind to the consumed handle.
+    """
     from .. import _native
     from ..estimation import PreparedAnalysis, _Controls
 
     native = _native.consume_statistical_transport(
         artifact,
-        max_operations=max_operations,
-        max_depth=max_depth,
-        memory_bytes=memory_bytes,
+        max_operations=_non_negative("max_operations", max_operations),
+        max_depth=_non_negative("max_depth", max_depth),
+        max_support_rows=_non_negative("max_support_rows", max_support_rows),
+        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
         cancel=cancel,
     )
     return PreparedAnalysis(native, kind="statistical_transport", controls=_Controls(cancel=cancel))
@@ -1333,9 +1719,9 @@ def prepare(
         if not isinstance(data, TrialAipwData) or (
             provider is not None and not isinstance(provider, TrialAipw)
         ):
-            raise TypeError("TrialAipwQuery requires TrialAipwData and a TrialAipw provider")
+            raise CausalTypeError("TrialAipwQuery requires TrialAipwData and a TrialAipw provider")
         if catalog is not None or at is not None:
-            raise ValueError(
+            raise CausalValueError(
                 "The binary trial request already declares its populations and contrast"
             )
         return prepare_trial(
@@ -1349,7 +1735,7 @@ def prepare(
         request, (ExactTransportQuery, StatisticalTransportQuery, TransportResponseGridQuery)
     ):
         if catalog is not None or at is not None:
-            raise ValueError("The typed request already owns its catalog and coordinates")
+            raise CausalValueError("The typed request already owns its catalog and coordinates")
         catalog = request.catalog
         if isinstance(request, (StatisticalTransportQuery, TransportResponseGridQuery)):
             inference = inference or TransportInference(
@@ -1366,13 +1752,15 @@ def prepare(
                     isinstance(request.estimator, EmpiricalTable) or request.estimator == "plugin"
                 )
             ):
-                raise ValueError(
+                raise CausalValueError(
                     "Exact grid laws do not accept learner or sampling inference settings"
                 )
             if not isinstance(data, (ExactTransportData, StatisticalTransportData)) or isinstance(
                 provider, TrialAipw
             ):
-                raise TypeError("Grid requests require exact or categorical-law data/providers")
+                raise CausalTypeError(
+                    "Grid requests require exact or categorical-law data/providers"
+                )
             settings = inference or TransportInference()
             return prepare_response_grid(
                 request.identification,
@@ -1392,7 +1780,7 @@ def prepare(
         at = request.at
         request = request.identification
     if not isinstance(catalog, EvidenceCatalog) or at is None:
-        raise TypeError("Scalar transport requires a catalog and intervention coordinates")
+        raise CausalTypeError("Scalar transport requires a catalog and intervention coordinates")
     limits = dict(
         max_operations=controls.max_operations,
         max_depth=controls.max_depth,
@@ -1402,10 +1790,12 @@ def prepare(
     )
     if isinstance(data, ExactTransportData):
         if provider is not None or inference is not None:
-            raise ValueError("Exact laws do not accept learner or sampling inference settings")
+            raise CausalValueError(
+                "Exact laws do not accept learner or sampling inference settings"
+            )
         return prepare_exact(request, catalog, data, at=at, **limits)
     if not isinstance(data, StatisticalTransportData) or isinstance(provider, TrialAipw):
-        raise TypeError("Statistical transport requires categorical-law data/providers")
+        raise CausalTypeError("Statistical transport requires categorical-law data/providers")
     settings = inference or TransportInference()
     return prepare_statistical(
         request,
@@ -1551,6 +1941,34 @@ def inspect_catalog(
 
 
 __all__ += ["inspect_catalog"]
+
+
+def inspect_proof_graph(
+    identification: ClassicalTransportIdentification,
+    catalog: EvidenceCatalog,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+) -> dict[str, Any]:
+    """Return checked theorem steps and source-specific required factor leaves.
+
+    Every leaf names its supplying regime or the exact binding failure. Proposed
+    studies remain unavailable; use a hypothetical catalog delta for previews.
+    """
+    import json
+
+    return dict(
+        json.loads(
+            identification._native.proof_graph_json(
+                catalog,
+                max_steps=max_steps,
+                max_depth=max_depth,
+            )
+        )
+    )
+
+
+__all__ += ["inspect_proof_graph"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1759,6 +2177,14 @@ class TransportInference:
     coverage_level: float = OMITTED["transport_coverage_level"]
     seed: int = 1
 
+    def __post_init__(self) -> None:
+        _non_negative("bootstrap", self.bootstrap)
+        _non_negative("seed", self.seed)
+        if not isinstance(self.coverage_level, (int, float)) or not (
+            0.0 < float(self.coverage_level) < 1.0
+        ):
+            raise CausalValueError("coverage_level must lie strictly between 0 and 1")
+
 
 @dataclass(frozen=True, slots=True)
 class TransportControls:
@@ -1769,6 +2195,12 @@ class TransportControls:
     max_support_rows: int = 1_000_000
     memory_bytes: int | None = None
     cancel: Any = None
+
+    def __post_init__(self) -> None:
+        _non_negative("max_operations", self.max_operations)
+        _non_negative("max_depth", self.max_depth)
+        _non_negative("max_support_rows", self.max_support_rows)
+        _optional_non_negative("memory_bytes", self.memory_bytes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1857,8 +2289,9 @@ def prepare_trial(
         256,
         1_000_000,
     ):
-        raise ValueError(
-            "Discrete evaluator limits do not apply to trial AIPW; use memory_bytes and cancel"
+        raise CausalUnsupportedError(
+            "Discrete evaluator limits do not apply to trial AIPW; use memory_bytes and cancel",
+            reason_code="option_not_applicable",
         )
     options = dict(
         outcome=_learner_wire(provider.outcome),

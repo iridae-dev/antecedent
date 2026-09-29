@@ -318,26 +318,45 @@ pub fn estimate_trial_aipw(
             None => result.failures += 1,
         }
     }
-    if options.bootstrap >= 2 && result.failures == 0 {
-        let values: Vec<_> = result.replicates.iter().map(|(_, value)| *value).collect();
-        result.interval = Some(crate::statistical_transport::percentile_interval(
-            &values,
-            options.coverage_level,
-        ));
-        result.uncertainty_reason = None;
-    } else {
-        result.uncertainty_reason = Some(
-            if result.failures > 0 {
-                "bootstrap_replicate_failure"
-            } else if options.bootstrap == 0 {
-                "bootstrap_not_requested"
-            } else {
-                "insufficient_bootstrap_replicates"
-            }
-            .into(),
-        );
-    }
+    let values: Vec<_> = result.replicates.iter().map(|(_, value)| *value).collect();
+    let (interval, reason) = learned_trial_uncertainty(
+        &values,
+        result.failures,
+        options.bootstrap,
+        options.coverage_level,
+    );
+    result.interval = interval;
+    result.uncertainty_reason = reason.map(str::to_owned);
     Ok(result)
+}
+
+/// The pointwise interval of a learned-trial bootstrap, or why it is withheld.
+///
+/// The learned trial uses [`ReplicatePolicy::STRICT`]: any failed replicate
+/// withholds the interval, as does a request below two replicates. The wire
+/// replay recomputes the claim with this same function.
+#[must_use]
+pub fn learned_trial_uncertainty(
+    replicates: &[f64],
+    failures: u32,
+    bootstrap: u32,
+    coverage_level: f64,
+) -> (Option<(f64, f64)>, Option<&'static str>) {
+    let ok = u32::try_from(replicates.len()).unwrap_or(u32::MAX);
+    if crate::util::ReplicatePolicy::STRICT.decide(bootstrap, ok, failures).is_err() {
+        let reason = if failures > 0 {
+            "bootstrap_replicate_failure"
+        } else if bootstrap == 0 {
+            "bootstrap_not_requested"
+        } else {
+            "insufficient_bootstrap_replicates"
+        };
+        return (None, Some(reason));
+    }
+    match crate::statistical_transport::percentile_interval(replicates, coverage_level) {
+        Some(interval) => (Some(interval), None),
+        None => (None, Some(crate::statistical_transport::INTERVAL_NUMERICAL_FAILURE)),
+    }
 }
 
 fn fit_point(

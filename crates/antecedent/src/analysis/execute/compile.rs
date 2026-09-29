@@ -471,7 +471,6 @@ impl super::Study {
             }
             (Some(AnalysisRoute::StaticMediation), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                let CausalQuery::Mediation(q) = &self.query else { unreachable!() };
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 if self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
                     || self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
@@ -483,6 +482,11 @@ impl super::Study {
                         message: "static mediation requires path_specific.natural and mediation.linear without custom estimators, scalar validators, or discovery split",
                     });
                 }
+                let q = match &self.query {
+                    CausalQuery::Mediation(q) => q.clone(),
+                    CausalQuery::NestedCounterfactual(q) => q.as_mediation_query(),
+                    _ => unreachable!(),
+                };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 let path = antecedent_core::PathSpecificEffectQuery {
                     control: q.control.clone(),
@@ -501,7 +505,12 @@ impl super::Study {
                 })?;
                 plan.record.plan_id = Arc::from("static_mediation");
                 plan.record.estimator = Some(Arc::from("mediation.linear"));
-                plan.query = CausalQuery::Mediation(q.clone());
+                plan.query = match &self.query {
+                    CausalQuery::NestedCounterfactual(nested) => {
+                        CausalQuery::NestedCounterfactual(*nested)
+                    }
+                    _ => CausalQuery::Mediation(q),
+                };
                 Ok(plan)
             }
             (Some(AnalysisRoute::Transport), GraphClass::Admg) => {
@@ -524,7 +533,13 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("transport.sid")),
-                        estimator: Some(Arc::from("transport.trial_ipw")),
+                        estimator: Some(Arc::from(
+                            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                                "transport.trial_bayesian_bootstrap"
+                            } else {
+                                "transport.trial_ipw"
+                            },
+                        )),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([treatment, outcome]),
                     },
@@ -551,7 +566,28 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("interference.design")),
-                        estimator: Some(Arc::from("interference.ht_hajek")),
+                        estimator: Some(Arc::from(
+                            if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                                "interference.bayesian_gaussian"
+                            } else if matches!(
+                                q.assignment,
+                                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                            ) {
+                                "interference.cluster_neyman"
+                            } else if matches!(
+                                q.assignment,
+                                antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                            ) {
+                                "interference.saturation_exact"
+                            } else if matches!(
+                                q.assignment,
+                                antecedent_core::AssignmentDesign::ObservedExposure { .. }
+                            ) {
+                                "interference.observational_ipw"
+                            } else {
+                                "interference.ht_hajek"
+                            },
+                        )),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([outcome, outcome]),
                     },
@@ -560,9 +596,329 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (Some(AnalysisRoute::RandomizedEffect), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::RandomizedEffect(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.realized_assignment.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "randomized assignment metadata must align with the table rows"
+                            .into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("randomized_trial_itt"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from(match &q.design {
+                            antecedent_core::RandomizationDesign::Bernoulli => {
+                                if q.received_treatment.is_some() {
+                                    "randomized.wald_cace_late"
+                                } else if q.fixed_cuped.is_some() {
+                                    "randomized.fixed_cuped_ht_itt"
+                                } else if !q.ancova_covariates.is_empty() {
+                                    "randomized.ancova_itt"
+                                } else {
+                                    "randomized.ht_itt"
+                                }
+                            }
+                            antecedent_core::RandomizationDesign::Complete { .. }
+                            | antecedent_core::RandomizationDesign::Stratified { .. }
+                            | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
+                            | antecedent_core::RandomizationDesign::Cluster { .. } => {
+                                "randomized.neyman_itt"
+                            }
+                            antecedent_core::RandomizationDesign::Switchback { .. } => {
+                                "randomized.switchback_ht_itt"
+                            }
+                            antecedent_core::RandomizationDesign::MultiArm { .. } => {
+                                "randomized.ht_itt"
+                            }
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::PolicyValue(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.multi_action
+                    .as_ref()
+                    .map_or(q.assignment.len(), |multi| multi.assignment.len())
+                    != data.row_count()
+                {
+                    return Err(CausalError::Compile {
+                        message: "policy inputs must align with the table rows".into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(if q.multi_action.is_some() {
+                            "randomized_policy_value_multi_action_ipw"
+                        } else if q.mu0.is_empty() {
+                            "randomized_policy_value_ipw"
+                        } else {
+                            "randomized_policy_value_dr"
+                        }),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from(if q.multi_action.is_some() {
+                            "randomized.multi_action_ipw_policy"
+                        } else if q.mu0.is_empty() {
+                            "randomized.ipw_policy"
+                        } else {
+                            "randomized.dr_policy"
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::PanelDid(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.treated.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "panel DiD metadata must align with table rows".into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("quasi.panel_did"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("quasi.parallel_trends")),
+                        estimator: Some(Arc::from(match q.design {
+                            antecedent_core::DidSamplingDesign::BalancedPanel => {
+                                "quasi.panel_change_score"
+                            }
+                            antecedent_core::DidSamplingDesign::RepeatedCrossSection => {
+                                "quasi.repeated_cross_section_four_cell"
+                            }
+                            antecedent_core::DidSamplingDesign::StaggeredGroupTime => {
+                                "quasi.staggered_group_time_never_treated"
+                            }
+                            antecedent_core::DidSamplingDesign::StaggeredEventStudy => {
+                                "quasi.staggered_event_study_never_treated"
+                            }
+                            antecedent_core::DidSamplingDesign::AugmentedPanel => {
+                                "quasi.augmented_panel_supplied_nuisance"
+                            }
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::SyntheticControl(q) = &self.query else { unreachable!() };
+                q.validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                if q.units.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "synthetic-control metadata must align with table rows".into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(match q.method {
+                            antecedent_core::SyntheticPanelMethod::Control => {
+                                "quasi.synthetic_control"
+                            }
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                                "quasi.synthetic_did"
+                            }
+                        }),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(match q.method {
+                            antecedent_core::SyntheticPanelMethod::Control => {
+                                "quasi.convex_donor_counterfactual"
+                            }
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                                "quasi.convex_unit_time_trends"
+                            }
+                        })),
+                        estimator: Some(Arc::from(match q.method {
+                            antecedent_core::SyntheticPanelMethod::Control => {
+                                "quasi.synthetic_control_simplex"
+                            }
+                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                                "quasi.synthetic_did_simplex"
+                            }
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::ContinuousDoseResponse(q) = &self.query else { unreachable!() };
+                q.validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                if q.baseline_groups.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "continuous-dose baseline groups must align with table rows"
+                            .into(),
+                    });
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("policy.continuous_dose_response"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(
+                            IdentifierId::ContinuousDoseExchangeability.as_str(),
+                        )),
+                        estimator: Some(Arc::from(EstimatorId::ContinuousDoseKernel.as_str())),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome, q.dose, q.dose_density]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::LocalPolynomialRatio(q) = &self.query else { unreachable!() };
+                q.validate()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                for variable in [q.outcome, q.treatment, q.running] {
+                    data.schema()
+                        .get(variable)
+                        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                }
+                let label = if q.kink { "regression_kink" } else { "fuzzy_rd" };
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(format!("quasi.{label}")),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(format!("quasi.{label}.local_ratio"))),
+                        estimator: Some(Arc::from(format!(
+                            "quasi.{label}.bias_corrected_local_polynomial"
+                        ))),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome, q.treatment, q.running]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Survival(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
+                    .into_iter()
+                    .flatten()
+                {
+                    data.schema()
+                        .get(id)
+                        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                }
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("randomized.survival_product_limit"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from("randomized.survival_product_limit")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.duration, q.event, q.treatment]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::LongitudinalRegime(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if q.subject_ids.len() != data.row_count() {
+                    return Err(CausalError::Compile {
+                        message: "longitudinal subject histories must align with outcome rows"
+                            .into(),
+                    });
+                }
+                data.schema()
+                    .get(q.outcome)
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(match q.method {
+                            antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                                "longitudinal.ipw_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                                "longitudinal.g_formula_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                                "longitudinal.sequential_dr_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                                "longitudinal.marginal_structural_model"
+                            }
+                        }),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("randomized.design")),
+                        estimator: Some(Arc::from(match q.method {
+                            antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                                "longitudinal.ipw_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                                "longitudinal.g_formula_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                                "longitudinal.sequential_dr_regime"
+                            }
+                            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                                "longitudinal.marginal_structural_model"
+                            }
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([q.outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
-                // Parametric SCM paths: closed `gcm.parametric` / `gcm.fit`, not backdoor ATE.
+                // Parametric SCM paths use a query- and inference-specific estimator identity.
                 let (treatment, outcome) = gcm_query_vars(&self.query)?;
                 self.query
                     .validate()
@@ -574,7 +930,15 @@ impl super::Study {
                         discovery_algorithm: None,
                         graph_review_required: false,
                         identifier: Some(Arc::from("gcm.parametric")),
-                        estimator: Some(Arc::from("gcm.fit")),
+                        estimator: Some(Arc::from(match (&self.query, &self.inference) {
+                            (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
+                                "gcm.fit.bayesian"
+                            }
+                            (CausalQuery::ChangeAttribution(_), InferenceMode::Bayesian(_)) => {
+                                "gcm.attribution.bayesian"
+                            }
+                            _ => "gcm.fit",
+                        })),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([treatment, outcome]),
                     },
@@ -768,6 +1132,30 @@ impl super::Study {
             (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+            }
+            (Some(AnalysisRoute::RandomizedEffect), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::PolicyValue), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::ContinuousDoseResponse), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::PanelDid), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::SyntheticControl), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::LocalPolynomialRatio), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::Survival), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::LongitudinalRegime), GraphClass::RandomizedTrial) => {
+                self.compile_logical()?.compile_physical(ctx)
             }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");

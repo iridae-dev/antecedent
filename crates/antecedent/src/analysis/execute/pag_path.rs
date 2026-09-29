@@ -191,6 +191,9 @@ impl super::Study {
         let mut identify_cached = false;
         let mut extras_posterior = None;
         let mut n_draws = None;
+        let mut curve_bounds: Vec<(f64, f64)> = Vec::new();
+        let mut freq_curve_bounds: Vec<(f64, f64)> = Vec::new();
+        let mut freq_scalar: Option<ResponseUncertainty> = None;
         let mut support = None;
         let mut extra_diagnostics = Vec::new();
         for (i, level_query) in level_queries.iter().enumerate() {
@@ -239,9 +242,17 @@ impl super::Study {
                     level_query,
                     &level_id,
                     &level_est,
+                    self.bootstrap_replicates,
                     ctx,
                 )?;
                 extra_diagnostics.extend(response.support.warnings.iter().cloned());
+                if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty {
+                    if curve {
+                        freq_curve_bounds.push((*lower, *upper));
+                    } else if freq_scalar.is_none() {
+                        freq_scalar = Some(response.uncertainty.clone());
+                    }
+                }
                 let (scalar, _) = super::response_path::response_scalar_summary(&response);
                 (scalar, None, response.support)
             };
@@ -259,6 +270,13 @@ impl super::Study {
                 extras_posterior.clone_from(&posterior);
                 n_draws =
                     posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
+            }
+            if curve {
+                if let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
+                    posterior.as_ref().and_then(credible_scalar_uncertainty)
+                {
+                    curve_bounds.push((lower, upper));
+                }
             }
             if support.is_none() {
                 support = Some(level_support);
@@ -286,6 +304,7 @@ impl super::Study {
                 maxima: Arc::from(maxima),
             };
         }
+        let response_len = means.len();
         let estimate_payload = if curve {
             ResponseIdentification::PointIdentified(ResponseValue::Surface {
                 grid: Arc::from(grid),
@@ -301,7 +320,43 @@ impl super::Study {
             estimand: query.functional.clone(),
             identification_status: identification.status,
             estimate: estimate_payload,
-            uncertainty: ResponseUncertainty::None,
+            uncertainty: if curve && curve_bounds.len() == response_len && !curve_bounds.is_empty()
+            {
+                ResponseUncertainty::PointwiseBand {
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    lower: Arc::from(
+                        curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>(),
+                    ),
+                    upper: Arc::from(
+                        curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>(),
+                    ),
+                    interpretation: antecedent_core::IntervalInterpretation::Credible,
+                    draws: None,
+                }
+            } else if curve
+                && freq_curve_bounds.len() == response_len
+                && !freq_curve_bounds.is_empty()
+            {
+                ResponseUncertainty::PointwiseBand {
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    lower: Arc::from(
+                        freq_curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>(),
+                    ),
+                    upper: Arc::from(
+                        freq_curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>(),
+                    ),
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    draws: None,
+                }
+            } else if curve {
+                ResponseUncertainty::None
+            } else {
+                extras_posterior
+                    .as_ref()
+                    .and_then(credible_scalar_uncertainty)
+                    .or(freq_scalar)
+                    .unwrap_or(ResponseUncertainty::None)
+            },
             support: response_support,
             assumptions: identification.required_assumptions.clone(),
             provenance_id: Arc::from("estimate.response.general_id"),
@@ -392,7 +447,7 @@ impl super::Study {
     }
 
     /// PAG ATE via generalized-adjustment envelope + mass-weighted estimates.
-    pub(super) fn execute_pag(
+    pub(in crate::analysis) fn execute_pag(
         &self,
         data: &TabularData,
         pag: &Pag,
@@ -613,7 +668,7 @@ impl super::Study {
     }
 
     /// CPDAG ATE via MEC-completion envelope + mass-weighted estimates.
-    pub(super) fn execute_cpdag(
+    pub(in crate::analysis) fn execute_cpdag(
         &self,
         data: &TabularData,
         cpdag: &antecedent_graph::Cpdag,

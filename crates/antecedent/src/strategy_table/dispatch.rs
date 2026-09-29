@@ -176,7 +176,9 @@ pub fn identify_static_query_with_rd(
         | IdentifierId::RdSharp
         | IdentifierId::TemporalBackdoorUnfolded
         | IdentifierId::TransportSid
-        | IdentifierId::InterferenceDesign => {
+        | IdentifierId::InterferenceDesign
+        | IdentifierId::RandomizedDesign
+        | IdentifierId::ContinuousDoseExchangeability => {
             return Err(CausalError::Unsupported {
                 message: static_identifier_refusal(identifier),
             });
@@ -201,13 +203,7 @@ pub fn identify_cpdag(
             let id = GeneralizedAdjustmentIdentifier::new();
             id.identify_cpdag_envelope(cpdag, query).map_err(identify_err)
         }
-        other if other.is_dag_only() => Err(CausalError::Compile {
-            message: format!(
-                "DAG-only identification {:?} cannot accept a CPDAG; use generalized.adjustment",
-                other.as_str()
-            ),
-        }),
-        _ => Err(CausalError::Unsupported { message: "unsupported CPDAG identifier" }),
+        other => reject_non_generalized_identifier(other, "CPDAG", "unsupported CPDAG identifier"),
     }
 }
 
@@ -226,13 +222,7 @@ pub fn identify_pag(
             let id = GeneralizedAdjustmentIdentifier::new();
             id.identify_pag_envelope(pag, query).map_err(identify_err)
         }
-        other if other.is_dag_only() => Err(CausalError::Compile {
-            message: format!(
-                "DAG-only identification {:?} cannot accept a PAG; use generalized.adjustment",
-                other.as_str()
-            ),
-        }),
-        _ => Err(CausalError::Unsupported { message: "unsupported PAG identifier" }),
+        other => reject_non_generalized_identifier(other, "PAG", "unsupported PAG identifier"),
     }
 }
 
@@ -270,13 +260,11 @@ pub fn identify_temporal_cpdag_configured(
             let id = GeneralizedAdjustmentIdentifier { config };
             id.identify_temporal_cpdag_envelope(cpdag, query).map_err(identify_err)
         }
-        other if other.is_dag_only() => Err(CausalError::Compile {
-            message: format!(
-                "DAG-only identification {:?} cannot accept a TemporalCpdag; use generalized.adjustment",
-                other.as_str()
-            ),
-        }),
-        _ => Err(CausalError::Unsupported { message: "unsupported TemporalCpdag identifier" }),
+        other => reject_non_generalized_identifier(
+            other,
+            "TemporalCpdag",
+            "unsupported TemporalCpdag identifier",
+        ),
     }
 }
 
@@ -309,13 +297,11 @@ pub fn identify_temporal_pag_configured(
             let id = GeneralizedAdjustmentIdentifier { config };
             id.identify_temporal_pag_envelope(pag, query).map_err(identify_err)
         }
-        other if other.is_dag_only() => Err(CausalError::Compile {
-            message: format!(
-                "DAG-only identification {:?} cannot accept a TemporalPag; use generalized.adjustment",
-                other.as_str()
-            ),
-        }),
-        _ => Err(CausalError::Unsupported { message: "unsupported TemporalPag identifier" }),
+        other => reject_non_generalized_identifier(
+            other,
+            "TemporalPag",
+            "unsupported TemporalPag identifier",
+        ),
     }
 }
 
@@ -583,7 +569,7 @@ fn estimate_static_effect_default(
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
-        EstimatorId::GcmFit => {
+        EstimatorId::GcmFit | EstimatorId::GcmFitBayesian | EstimatorId::GcmAttributionBayesian => {
             Err(CausalError::Unsupported { message: "gcm.fit is not a static ATE estimator" })
         }
         EstimatorId::Dml => {
@@ -707,6 +693,28 @@ fn est_err(e: EstimationError) -> CausalError {
 
 fn identify_err(e: IdentificationError) -> CausalError {
     CausalError::from(e)
+}
+
+/// Shared refusal for the two non-`GeneralizedAdjustment` arms of the class-aware
+/// identify dispatchers ([`identify_cpdag`], [`identify_pag`],
+/// [`identify_temporal_cpdag_configured`], [`identify_temporal_pag_configured`]): a
+/// DAG-only identifier gets a [`CausalError::Compile`] naming the graph class it cannot
+/// accept; every other identifier is [`CausalError::Unsupported`].
+fn reject_non_generalized_identifier<T>(
+    identifier: IdentifierId,
+    label: &str,
+    unsupported: &'static str,
+) -> Result<T, CausalError> {
+    if identifier.is_dag_only() {
+        Err(CausalError::Compile {
+            message: format!(
+                "DAG-only identification {:?} cannot accept a {label}; use generalized.adjustment",
+                identifier.as_str()
+            ),
+        })
+    } else {
+        Err(CausalError::Unsupported { message: unsupported })
+    }
 }
 
 /// Class-aware response identification covering every intervention target.

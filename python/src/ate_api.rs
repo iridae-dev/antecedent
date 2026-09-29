@@ -2165,6 +2165,7 @@ pub(crate) fn ate_result_from_analysis(
     result: antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
+    let effect = result.estimate.as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
     let posterior_artifact = if include_posterior_artifact {
@@ -2223,17 +2224,34 @@ pub(crate) fn ate_result_from_analysis(
         structural_identified_set_interval_method: identified_set.method,
         structural_identified_set_interval_truncated: identified_set.truncated,
         certificate_json,
-        ate: result.estimate.ate,
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
-        bootstrap_replicates_failed: result.estimate.bootstrap_replicates_failed,
+        ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
+        se_analytic: effect.map_or(f64::NAN, |estimate| estimate.se_analytic),
+        se_bootstrap: effect.and_then(|estimate| estimate.se_bootstrap),
+        bootstrap_replicates_failed: effect
+            .and_then(|estimate| estimate.bootstrap_replicates_failed),
         adjustment_set,
         identification_status,
         refutation_passed: validation.passed,
         refutation_ran: validation.ran,
         refutation_count: validation.count,
         refutations,
-        assumption_count: result.estimate.assumptions.len(),
+        policy_value: result.policy_value.as_ref().map(|value| {
+            let mut section = crate::policy_api::PolicyValueSection::from(value);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
+            section
+        }),
+        continuous_dose_response: result.continuous_dose_response.as_ref().map(|value| {
+            let mut section = crate::policy_api::ContinuousDoseResponseSection::from(value);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
+            section
+        }),
+        assumption_count: result.identification.required_assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
         method,
         estimator_id,
@@ -2314,9 +2332,8 @@ pub(crate) fn ate_result_from_analysis(
         posterior,
         validation,
         performance,
-        assumptions: result
-            .estimate
-            .assumptions
+        assumptions: effect
+            .map_or(&result.identification.required_assumptions, |estimate| &estimate.assumptions)
             .entries
             .iter()
             .map(|r| format!("{:?}", r.assumption))
@@ -2391,10 +2408,41 @@ pub(crate) fn ate_result_from_analysis(
             .transport
             .as_ref()
             .map(crate::transport_interference_api::TransportSection::from_estimate),
-        interference: result
-            .interference
-            .as_ref()
-            .map(crate::transport_interference_api::InterferenceSection::from_estimate),
+        interference: result.interference.as_ref().map(|estimate| {
+            crate::transport_interference_api::InterferenceSection::from_estimate(
+                estimate,
+                &result.diagnostics,
+                result.interference_inference.as_ref(),
+            )
+        }),
+        randomized_effect: result.randomized_effect.as_ref().map(|value| {
+            let mut section = crate::experiment_api::RandomizedEffectSection::from(value);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
+            section
+        }),
+        panel_did: result.panel_did.as_ref().map(|value| {
+            let mut section = crate::quasi_api::PanelDidSection::from(value);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
+            section
+        }),
+        synthetic_control: result.synthetic_control.as_ref().map(Into::into),
+        synthetic_did: result.synthetic_did.as_ref().map(Into::into),
+        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|value| {
+            let mut section = crate::quasi_api::LocalPolynomialRatioSection::from(value);
+            section.graphless_support_status = result
+                .support_status
+                .map(antecedent::support::CellStatus::as_str)
+                .map(str::to_string);
+            section
+        }),
+        survival: result.survival.as_ref().map(Into::into),
+        longitudinal_regime: result.longitudinal_regime.as_ref().map(Into::into),
         anomaly: result
             .anomaly
             .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores, names)),
@@ -2425,121 +2473,6 @@ pub(crate) struct GraphEdge {
     /// Endpoint mark at `target`: `tail` | `arrow` | `circle` | `conflict`.
     #[pyo3(get)]
     pub(crate) at_target: String,
-}
-
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, treatment, outcome, modifier, *,
-    control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=199, threads=None, accepted=false,
-    outcome_functional=None,
-))]
-fn analyze_conditional(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, String)>,
-    treatment: String,
-    outcome: String,
-    modifier: String,
-    control_level: f64,
-    active_level: f64,
-    refute: Option<Bound<'_, PyAny>>,
-    validators: Option<Bound<'_, PyAny>>,
-    seed: u64,
-    bootstrap: u32,
-    threads: Option<u32>,
-    accepted: bool,
-    outcome_functional: Option<Bound<'_, PyDict>>,
-) -> PyResult<AteAnalysisResult> {
-    let outcome_functional = parse_outcome_functional(outcome_functional.as_ref())?;
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let custom_validators = callbacks::parse_validators(validators.as_ref())?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
-    detach_catch(py, move || {
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
-        let mut inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
-            .with_effect_modifiers([w_id]);
-        if let Some(functional) = outcome_functional {
-            inner = inner.with_outcome_functional(functional);
-        }
-        let cq = ConditionalEffectQuery::try_new(inner)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = bind_dag(Study::tabular(data), dag, accepted)
-            .query(CausalQuery::ConditionalEffect(cq))
-            .refute(suite)
-            .custom_validators(custom_validators)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result, false)
-    })
-}
-
-/// Static mediation (treatment → mediator(s) → outcome) via the facade.
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, treatment, outcome, mediators, *,
-    contrast="mediated", control_level=0.0, active_level=1.0,
-    refute=None, seed=1, bootstrap=0, threads=None
-))]
-fn analyze_mediation(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, String)>,
-    treatment: String,
-    outcome: String,
-    mediators: Vec<String>,
-    contrast: &str,
-    control_level: f64,
-    active_level: f64,
-    refute: Option<Bound<'_, PyAny>>,
-    seed: u64,
-    bootstrap: u32,
-    threads: Option<u32>,
-) -> PyResult<AteAnalysisResult> {
-    let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
-    let contrast = contrast.to_string();
-    detach_catch(py, move || {
-        let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let mut med_ids = Vec::with_capacity(mediators.len());
-        for m in &mediators {
-            med_ids.push(data.schema().id_of(m).map_err(py_err)?);
-        }
-        let contrast = match contrast.to_ascii_lowercase().as_str() {
-            "total" => MediationContrast::Total,
-            "direct" => MediationContrast::Direct,
-            "mediated" | "indirect" => MediationContrast::Mediated,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown mediation contrast {other:?}; use total|direct|mediated"
-                )));
-            }
-        };
-        let mut q = MediationQuery::binary(t_id, y_id, med_ids, contrast);
-        q.control = Intervention::set(t_id, Value::f64(control_level));
-        q.active = Intervention::set(t_id, Value::f64(active_level));
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let analysis = Study::tabular(data)
-            .graph(dag)
-            .query(CausalQuery::Mediation(q))
-            .refute(suite)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        ate_result_from_analysis(&names, result, false)
-    })
 }
 
 /// Identify-only on a static ADMG (no estimation).
@@ -3402,8 +3335,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_ate_graph_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(analyze_path_specific, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_conditional, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate, m)?)?;
     m.add_function(wrap_pyfunction!(identify_ate_admg, m)?)?;
     m.add_function(wrap_pyfunction!(identify_structure, m)?)?;

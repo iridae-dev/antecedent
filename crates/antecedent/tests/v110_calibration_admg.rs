@@ -274,6 +274,10 @@ fn interventional_distribution_admg_frontdoor_bayesian_nominal_coverage() {
         P_Y1_DO_T1,
         0x110_0103,
     );
+    // Grid point 1's first pass draws 0.912 (0.95) / 0.873 (0.90) at 400
+    // replicates; the recheck re-measures at 2000 to 0.941 (floor 0.940) and
+    // 0.890 (floor 0.887), both above the precision floor, so the cell gates at
+    // nominal — the recheck, not a named boundary, carries it.
     gate(&tallies, &[None, None]);
 }
 

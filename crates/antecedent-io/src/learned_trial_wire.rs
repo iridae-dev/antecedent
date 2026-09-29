@@ -84,29 +84,14 @@ impl LearnedTrialWire {
         {
             return Err(err("learned trial score/replicate evidence mismatch"));
         }
-        let expected = if self.options.bootstrap >= 2 && self.result.failures == 0 {
-            let values: Vec<_> = self.result.replicates.iter().map(|(_, v)| *v).collect();
-            Some(antecedent_estimate::statistical_transport::percentile_interval(
-                &values,
-                self.options.coverage_level,
-            ))
-        } else {
-            None
-        };
-        let reason = if expected.is_some() {
-            None
-        } else {
-            Some(
-                if self.result.failures > 0 {
-                    "bootstrap_replicate_failure"
-                } else if self.options.bootstrap == 0 {
-                    "bootstrap_not_requested"
-                } else {
-                    "insufficient_bootstrap_replicates"
-                }
-                .to_owned(),
-            )
-        };
+        let values: Vec<_> = self.result.replicates.iter().map(|(_, v)| *v).collect();
+        let (expected, reason) = antecedent_estimate::learned_trial_uncertainty(
+            &values,
+            self.result.failures,
+            self.options.bootstrap,
+            self.options.coverage_level,
+        );
+        let reason = reason.map(str::to_owned);
         if expected != self.result.interval || reason != self.result.uncertainty_reason {
             return Err(err("learned trial uncertainty claim mismatch"));
         }

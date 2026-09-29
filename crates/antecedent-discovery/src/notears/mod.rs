@@ -38,7 +38,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
 
-use crate::constraints::DiscoveryConstraints;
+use crate::constraints::{DiscoveryConstraints, forbidden_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::lingam::StaticDagDiscoveryResult;
@@ -364,27 +364,6 @@ impl Notears {
 
         Ok(NotearsDiscoveryResult { discovery, weights: Arc::from(soft_w), dim: d })
     }
-}
-
-fn forbidden_edge(
-    constraints: &DiscoveryConstraints,
-    variables: &[VariableId],
-    par: usize,
-    child: usize,
-) -> bool {
-    let Some(&src) = variables.get(par) else {
-        return true;
-    };
-    let Some(&tgt) = variables.get(child) else {
-        return true;
-    };
-    let link = LaggedLink {
-        source: src,
-        source_lag: Lag::CONTEMPORANEOUS,
-        target: tgt,
-        target_lag: Lag::CONTEMPORANEOUS,
-    };
-    constraints.is_forbidden(link) || constraints.tier_forbids(src, tgt)
 }
 
 #[cfg(test)]

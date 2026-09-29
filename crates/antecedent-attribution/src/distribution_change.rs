@@ -12,7 +12,7 @@ use antecedent_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
     ShapleyConfig, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
@@ -216,6 +216,71 @@ fn distribution_change_on_populations(
         SelectionPolicy::BestScore,
     )?;
 
+    distribution_change_with_mechanisms(
+        graph_model,
+        baseline_mechs,
+        comparison_mechs,
+        query,
+        options,
+        ctx,
+    )
+}
+
+/// Evaluate a mechanism attribution after refitting both populations under shared
+/// Bayesian-bootstrap row weights. Mechanism families are selected once on the
+/// unweighted populations and held fixed for these refits.
+///
+/// The two weight vectors correspond to the resolved baseline and comparison rows.
+/// Within each population, one weight is shared by every mechanism factorization.
+///
+/// # Errors
+/// Invalid weights, incompatible selected mechanisms, or attribution failures.
+pub fn distribution_change_with_row_weights(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    baseline_weights: &[f64],
+    comparison_weights: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
+    validate_distribution_change_query(query)?;
+    let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
+    if baseline_weights.len() != baseline_data.row_count()
+        || comparison_weights.len() != comparison_data.row_count()
+    {
+        return Err(AttributionError::invalid_input(
+            "Bayesian attribution row weights must match resolved population sizes",
+        ));
+    }
+    let registry = MechanismRegistry::standard();
+    let (_, baseline_assignments) =
+        registry.assign_and_fit(graph_model, &baseline_data, SelectionPolicy::BestScore)?;
+    let (_, comparison_assignments) =
+        registry.assign_and_fit(graph_model, &comparison_data, SelectionPolicy::BestScore)?;
+    let baseline = registry.refit_weighted(
+        graph_model,
+        &baseline_data,
+        &baseline_assignments,
+        baseline_weights,
+    )?;
+    let comparison = registry.refit_weighted(
+        graph_model,
+        &comparison_data,
+        &comparison_assignments,
+        comparison_weights,
+    )?;
+    distribution_change_with_mechanisms(graph_model, baseline, comparison, query, options, ctx)
+}
+
+fn distribution_change_with_mechanisms(
+    graph_model: &CompiledCausalModel,
+    baseline_mechs: CompiledMechanismStore,
+    comparison_mechs: CompiledMechanismStore,
+    query: &ChangeAttributionQuery,
+    options: &DistributionChangeOptions,
+    ctx: &ExecutionContext,
+) -> Result<ChangeAttributionResult, AttributionError> {
     let outcome_dense = resolve_outcome_dense(graph_model, query.outcome)?;
 
     let (players, player_kinds) =
@@ -954,5 +1019,34 @@ mod tests {
             "sum={sum} total={}",
             result.total_change
         );
+    }
+
+    #[test]
+    fn weighted_refit_attribution_matches_independent_change_and_efficiency() {
+        let (model, data) = two_period_chain_with_noise();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        );
+        let weights = vec![1.0; 40];
+        let result = distribution_change_with_row_weights(
+            &model,
+            &data,
+            &query,
+            &DistributionChangeOptions {
+                measure: DifferenceMeasure::MeanDiff,
+                n_samples: 100,
+                seed: 9,
+            },
+            &weights,
+            &weights,
+            &ExecutionContext::for_tests(9),
+        )
+        .unwrap();
+        let sum: f64 = result.contributions.iter().map(|c| c.contribution).sum();
+        // Independent fixture truth: Y shifts by +5 while X's population is unchanged.
+        assert!((result.total_change - 5.0).abs() < 0.3, "{}", result.total_change);
+        assert!((sum - result.total_change).abs() < 1e-8);
     }
 }

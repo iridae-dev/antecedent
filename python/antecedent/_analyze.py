@@ -6,10 +6,24 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal, Protocol
 
 from ._api import describe_refusal
+from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
+from .extensibility import ProviderQuery
+from .extensibility import providers as _providers
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
+from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
+from .quasi import (
+    AugmentedPanelDiD,
+    FuzzyRegressionDiscontinuity,
+    PanelDifferenceInDifferences,
+    RegressionKink,
+    SharpRegressionDiscontinuity,
+    StaggeredAdoption,
+    SyntheticControl,
+    SyntheticDifferenceInDifferences,
+)
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -22,6 +36,7 @@ from .query import (
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
+    NestedCounterfactual,
     PathSpecificEffect,
     PointDerivative,
     PulseEffect,
@@ -31,7 +46,9 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results import Analysis
+from .regimes import LongitudinalRegime
+from .results import Analysis, ProviderAnalysisResult
+from .survival import CompetingRisksOutcome, SurvivalOutcome
 from .transport import Transport, TransportControls, TransportInference
 from .transport.advanced import TransportQuery
 
@@ -51,12 +68,31 @@ def analyze(
     *,
     query: (
         AverageEffect
+        | ProviderQuery
+        | RandomizedEffect
+        | ComplierEffect
+        | TreatmentOnTreated
+        | SwitchbackEffect
+        | PolicyValue
+        | ConditionalDoseResponse
+        | MultiActionPolicyValue
+        | PanelDifferenceInDifferences
+        | AugmentedPanelDiD
+        | StaggeredAdoption
+        | SyntheticControl
+        | SyntheticDifferenceInDifferences
+        | FuzzyRegressionDiscontinuity
+        | RegressionKink
+        | SharpRegressionDiscontinuity
+        | SurvivalOutcome
+        | CompetingRisksOutcome
         | PulseEffect
         | SustainedEffect
         | InterventionalDistribution
         | PathSpecificEffect
         | ConditionalEffect
         | MediationEffect
+        | NestedCounterfactual
         | Counterfactual
         | TemporalMediationEffect
         | ResponseCurve
@@ -70,6 +106,7 @@ def analyze(
         | TransportQuery
         | Transport
         | InterferenceQuery
+        | LongitudinalRegime
         | AnomalyAttribution
         | ChangeAttribution
     ),
@@ -97,9 +134,6 @@ def analyze(
     bootstrap: int | None = None,
     threads: int | None = None,
     regimes: Sequence[int] | None = None,
-    running_variable: str | None = None,
-    cutoff: float | None = None,
-    bandwidth: float | None = None,
     population_registry: Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
@@ -129,17 +163,36 @@ def analyze(
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:
+        A typed query object. The graph-estimand queries live at the root:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
-        ``InterventionalDistribution``, ``PathSpecificEffect``,
-        ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``,
-        ``transport.Transport`` (T5–T9 compiler on an ``Admg``, with
-        ``provider=`` / ``TransportInference`` / ``controls=``),
-        ``transport.advanced.TransportQuery`` (the licensed trial-IPW cell on
-        an ``Admg`` selection diagram, with its trial columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
-        network and realized assignment), ``AnomalyAttribution`` /
-        ``ChangeAttribution`` (on a ``Dag`` or edge list; GCM parametric /
-        ``gcm.fit``), or a response-family query.
-        Both families return :data:`antecedent.Analysis`: consume
+        ``InterventionalDistribution``, ``PathSpecificEffect``, ``MediationEffect``,
+        ``ConditionalEffect``, ``Counterfactual``, ``NestedCounterfactual``,
+        ``TemporalMediationEffect``, the response family (``ResponseCurve`` /
+        ``AverageDerivative`` / ...), ``AnomalyAttribution`` / ``ChangeAttribution``
+        (on a ``Dag`` or edge list; GCM parametric / ``gcm.fit``), and
+        ``InterferenceQuery`` (with its network and realized assignment).
+
+        The specialized 2.1 families are on their stage modules and carry their
+        own design, so they take no ``graph=``:
+
+        - ``experiment.RandomizedEffect`` / ``ComplierEffect`` / ``SwitchbackEffect``
+          (randomized designs, CUPED, ANCOVA, factorial, multi-arm),
+        - ``policy.PolicyValue`` / ``MultiActionPolicyValue`` / ``ConditionalDoseResponse``,
+        - ``quasi.PanelDifferenceInDifferences`` / ``StaggeredAdoption`` /
+          ``SyntheticControl`` / ``SyntheticDifferenceInDifferences`` /
+          ``AugmentedPanelDiD`` / ``FuzzyRegressionDiscontinuity`` /
+          ``SharpRegressionDiscontinuity`` / ``RegressionKink``,
+        - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
+        - ``regimes.LongitudinalRegime``.
+
+        Transport: ``transport.Transport`` (the 2.0 compiler on an ``Admg``, with
+        ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed
+        ``transport.advanced.TransportQuery`` trial-IPW cell.
+        ``extensibility.ProviderQuery`` dispatches ``data`` and its request mapping
+        to a registered Python provider; its family-shaped output stays externally
+        attested and is not translated into a native point or interval claim.
+
+        ``analyze`` returns :data:`antecedent.Analysis`: consume
         ``result.answer`` / ``result.claim()``. ``as_point()`` / ``as_response()``
         narrow when the kind must be exact.
     graph:
@@ -201,6 +254,61 @@ def analyze(
     """
     from .estimation import PreparedAnalysis
 
+    if isinstance(query, ProviderQuery):
+        if (
+            any(
+                value is not None
+                for value in (
+                    graph,
+                    discovery,
+                    inference,
+                    identifier,
+                    estimator,
+                    refute,
+                    validators,
+                    bootstrap,
+                    threads,
+                    regimes,
+                    population_registry,
+                    estimator_config,
+                    latency,
+                    cancel,
+                    on_progress,
+                    on_stage,
+                    provider,
+                    controls,
+                    class_prior,
+                    max_completions,
+                )
+            )
+            or seed != 1
+            or not accept_discovered
+            or return_posterior_artifact
+        ):
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "ProviderQuery owns its request and execution; native graph, estimator, "
+                "inference, validation, transport, and execution controls do not apply",
+                reason_code="option_not_applicable",
+            )
+        if "data" in query.request:
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "ProviderQuery.request must not contain data; pass it as analyze(data, ...)",
+                reason_code="invalid_argument",
+            )
+        registered = _providers.get(query.provider)
+        request = {"data": data, **query.request}
+        provider_result = _providers.execute(query.provider, request)
+        return ProviderAnalysisResult(
+            provider_name=query.provider,
+            query_family=registered.spec.query_family,
+            provider_result=provider_result,
+            query=query,
+        )
+
     if return_posterior_artifact:
         from .discovery import DbnPosterior, GraphPosterior
         from .errors import CausalUnsupportedError as _Unsupported
@@ -236,9 +344,6 @@ def analyze(
         validators=validators,
         accept_discovered=accept_discovered,
         regimes=regimes,
-        running_variable=running_variable,
-        cutoff=cutoff,
-        bandwidth=bandwidth,
         provider=provider,
         controls=controls,
     )

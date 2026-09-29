@@ -15,6 +15,48 @@ type PulseWitnessReports = (
 
 /// TemporalDag graph-posterior response: complete-observation MeanCurve or
 /// one-coordinate InterventionResponse. Sequence overlays stay on the explicit path.
+/// Collapse a single-coordinate credible pointwise band that retains its draws
+/// into a `Scalar` credible interval (posterior SD as the standard error, the
+/// same draws so the published `[lower, upper]` is reconstructable). Any other
+/// uncertainty — a multi-cell band, a frequentist band, or a band without
+/// retained draws — is returned unchanged.
+fn collapse_single_coordinate_band_to_scalar(
+    uncertainty: ResponseUncertainty,
+) -> ResponseUncertainty {
+    let ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation, draws } =
+        &uncertainty
+    else {
+        return uncertainty;
+    };
+    if lower.len() != 1
+        || upper.len() != 1
+        || *interpretation != antecedent_core::IntervalInterpretation::Credible
+    {
+        return uncertainty;
+    }
+    let Some(column) = draws.as_ref().filter(|d| d.n_coordinates() == 1).and_then(|d| d.column(0))
+    else {
+        return uncertainty;
+    };
+    let n = column.len();
+    if n < 2 {
+        return uncertainty;
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let count = n as f64;
+    let mean = column.iter().sum::<f64>() / count;
+    let standard_error =
+        (column.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (count - 1.0)).sqrt();
+    ResponseUncertainty::Scalar {
+        standard_error,
+        level: *level,
+        lower: lower[0],
+        upper: upper[0],
+        interpretation: *interpretation,
+        draws: Some(antecedent_core::CredibleDraws::scalar(column.to_vec())),
+    }
+}
+
 pub(crate) fn dbn_posterior_response_supported(query: &ResponseQuery) -> Result<(), CausalError> {
     if query.temporal.is_none() {
         return Err(CausalError::Unsupported {
@@ -254,8 +296,19 @@ impl super::Study {
         if graph_dependent {
             identification.status = IdentificationStatus::GraphDependent;
         }
-        let uncertainty =
-            if weighted.len() == 1 { first.uncertainty.clone() } else { ResponseUncertainty::None };
+        let uncertainty = if weighted.len() == 1 {
+            let base = first.uncertainty.clone();
+            // A single-atom, single-coordinate InterventionResponse is a scalar
+            // estimand: surface its per-atom credible band as a Scalar so the
+            // facade publishes scalar uncertainty (a MeanCurve stays a band).
+            if matches!(query.functional, ResponseFunctional::InterventionResponse { .. }) {
+                collapse_single_coordinate_band_to_scalar(base)
+            } else {
+                base
+            }
+        } else {
+            ResponseUncertainty::None
+        };
         let mut assumptions = first.assumptions.clone();
         for (_, _, response) in weighted.iter().skip(1) {
             assumptions.extend_unique(&response.assumptions.entries);

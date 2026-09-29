@@ -47,11 +47,22 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
-    BoundTransportFunctional, CatalogTransportResult, CheckedTransportDerivation,
-    ClassicalTransportDerivation, ClassicalTransportQuery, ClassicalTransportResult, MetaSource,
-    MetaTransportQuery, SidLimits, identify_catalog_transport, identify_classical_transport,
-    identify_meta_catalog, identify_meta_transport, verify_classical_transport,
-    verify_meta_s_hedge, verify_meta_transport,
+    BoundTransportFunctional, BoundZTransportFunctional, CatalogTransportResult,
+    CheckedTransportDerivation, ClassicalTransportDerivation, ClassicalTransportQuery,
+    ClassicalTransportResult, ComponentFactorization, MetaSource, MetaTransportQuery, SidLimits,
+    TwoSourceZTransportComponent, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
+    Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED,
+    ZExperimentFamilyError, ZFactorObligation, ZProofOperation, ZTransportBudgetKind,
+    ZTransportDecision, ZTransportDerivation, ZTransportDerivationRecord, ZTransportLimitsReceipt,
+    ZTransportMissingEvidence, ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind,
+    ZTransportObstruction, ZTransportObstructionRecord, ZTransportOutcome,
+    ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportSourceSpec,
+    ZTransportTerminalRecord, bind_z_transport_catalog, decide_two_source_z_transport,
+    decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_catalog_transport,
+    identify_classical_transport, identify_meta_catalog, identify_meta_transport,
+    identify_z_transport, identify_z_transport_reporting, validate_z_experiment_family,
+    validate_z_transport_query, verify_classical_transport, verify_meta_s_hedge,
+    verify_meta_transport, verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 mod transport_lower;
 
@@ -78,7 +89,7 @@ pub use envelope::{
     GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
     carries_identified_mass, search_truncated,
 };
-pub use error::IdentificationError;
+pub use error::{IdentificationBudget, IdentificationError};
 pub use frontdoor::{
     FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, FrontDoorIdentifier, FrontDoorSearchConfig,
 };

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use antecedent_core::{CausalRng, TransportOutcomeKind};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 
 use crate::EstimationError;
@@ -20,9 +21,13 @@ fn require_dahabreh_compatible_formula(
         TransportIdentification::NotCertified(certificate) => {
             Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
         }
-        TransportIdentification::MissingEvidence(certificate) => {
-            Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
-        }
+        TransportIdentification::MissingEvidence(certificate) => Err(EstimationError::refused(
+            antecedent_core::reason_code!("transport_missing_evidence"),
+            format!(
+                "{stage} refused: required transport evidence is absent ({}): {}",
+                certificate.reason, certificate.message
+            ),
+        )),
         TransportIdentification::Transportable {
             formula: TransportFormula::Direct(_) | TransportFormula::Standardize { .. },
             ..
@@ -302,6 +307,86 @@ pub fn trial_to_target_effect(
     })
 }
 
+/// Bayesian-bootstrap draws for the identified trial-to-target IPW contrast.
+///
+/// Each draw puts a shared `Dirichlet(1, ..., 1)` law on the observed trial rows,
+/// keeping the trial sample size, target sample size, supplied selection odds,
+/// and supplied treatment probabilities fixed. It propagates uncertainty in the
+/// empirical trial outcome law, conditional on these supplied probabilities;
+/// it does not propagate uncertainty from fitting either probability model or
+/// from sampling the target rows. The identifying certificate is checked anew.
+///
+/// # Errors
+///
+/// Uncertified identification, invalid inputs, fewer than two draws, or a trial
+/// without observed units in both treatment arms.
+#[allow(clippy::too_many_arguments)] // Each slice is a distinct aligned trial/target input.
+pub fn trial_to_target_bayesian_bootstrap(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    n_draws: usize,
+    seed: u64,
+) -> Result<Vec<f64>, EstimationError> {
+    require_dahabreh_compatible_formula(identification, "Bayesian trial-to-target effect")?;
+    let target_n = validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    if n_draws < 2 {
+        return Err(EstimationError::data_msg(
+            "Bayesian trial-to-target effect requires at least two draws",
+        ));
+    }
+    let source_rows: Vec<usize> = trial
+        .iter()
+        .enumerate()
+        .filter_map(|(index, is_trial)| is_trial.then_some(index))
+        .collect();
+    if !source_rows.iter().any(|&i| treatment[i]) || !source_rows.iter().any(|&i| !treatment[i]) {
+        return Err(EstimationError::data_msg(
+            "Bayesian trial-to-target effect requires both observed treatment arms",
+        ));
+    }
+    let scores: Vec<f64> = source_rows
+        .iter()
+        .map(|&i| {
+            let s = selection_probability[i];
+            let e = treatment_probability[i];
+            let arm = if treatment[i] { e } else { 1.0 - e };
+            let sign = if treatment[i] { 1.0 } else { -1.0 };
+            sign * ((1.0 - s) / s) * outcome[i] / arm
+        })
+        .collect();
+    let mut rng = CausalRng::from_seed(seed);
+    let mut draws = Vec::with_capacity(n_draws);
+    for _ in 0..n_draws {
+        let weights: Vec<f64> =
+            source_rows.iter().map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let normalizer: f64 = weights.iter().sum();
+        if !normalizer.is_finite() || normalizer <= 0.0 {
+            return Err(EstimationError::stats_msg(
+                "Bayesian trial-to-target row weights failed to normalize",
+            ));
+        }
+        let numerator: f64 = weights.iter().zip(&scores).map(|(w, score)| w * score).sum();
+        let draw = numerator * source_rows.len() as f64 / (normalizer * target_n as f64);
+        if !draw.is_finite() {
+            return Err(EstimationError::stats_msg(
+                "Bayesian trial-to-target effect has a non-finite draw",
+            ));
+        }
+        draws.push(draw);
+    }
+    Ok(draws)
+}
+
 /// Checks shared by [`trial_to_target_effect`] and [`trial_to_target_ipw_se`]: equal
 /// non-empty lengths, both source and target rows, finite trial outcomes, and
 /// probabilities strictly inside (0, 1) (the treatment probability only on trial rows,
@@ -399,6 +484,76 @@ pub fn trial_to_target_ipw_se(
     Ok(sum_sq.sqrt() / target_n as f64)
 }
 
+/// The stable transport outcome kind of an exact-evaluation failure. Callers
+/// match the kind; they never parse the message.
+#[must_use]
+pub const fn transport_outcome_kind(error: &antecedent_expr::EvalError) -> TransportOutcomeKind {
+    use antecedent_expr::EvalError;
+    match error {
+        EvalError::ExactLaw(_)
+        | EvalError::ExactRatioSupport { .. }
+        | EvalError::DivisionByZero
+        | EvalError::EmptySupport(_)
+        | EvalError::MissingTableEntry => TransportOutcomeKind::SupportFailure,
+        EvalError::ProviderKind(_)
+        | EvalError::UnsupportedConditioning(_)
+        | EvalError::InvalidParameter(_)
+        | EvalError::SupportShape { .. }
+        | EvalError::DrawOutOfRange { .. } => TransportOutcomeKind::MissingProvider,
+        EvalError::UnsupportedIntegralOut => TransportOutcomeKind::UnsupportedEvaluator,
+        EvalError::MissingBinding(_) => TransportOutcomeKind::InvalidInput,
+        // A non-finite ratio and any evaluator failure not classified above.
+        _ => TransportOutcomeKind::NumericalFailure,
+    }
+}
+
+/// Whether an exact-evaluation failure is a support failure of one replicate
+/// or draw, which a bootstrap counts and skips rather than propagates.
+#[must_use]
+pub const fn is_support_failure(error: &antecedent_expr::EvalError) -> bool {
+    matches!(transport_outcome_kind(error), TransportOutcomeKind::SupportFailure)
+}
+
+/// The registered refusal for an exact-evaluation failure.
+#[must_use]
+pub fn refuse_eval(error: &antecedent_expr::EvalError) -> EstimationError {
+    let code = match transport_outcome_kind(error) {
+        TransportOutcomeKind::SupportFailure => {
+            antecedent_core::reason_code!("transport_support_failure")
+        }
+        TransportOutcomeKind::MissingProvider => {
+            antecedent_core::reason_code!("transport_missing_provider")
+        }
+        TransportOutcomeKind::UnsupportedEvaluator => {
+            antecedent_core::reason_code!("transport_unsupported_evaluator")
+        }
+        TransportOutcomeKind::InvalidInput => antecedent_core::reason_code!("invalid_argument"),
+        _ => antecedent_core::reason_code!("transport_numerical_failure"),
+    };
+    EstimationError::refused(code, error.to_string())
+}
+
+/// The registered refusal when a transport budget is exhausted.
+#[must_use]
+pub fn refuse_budget(message: impl Into<String>) -> EstimationError {
+    EstimationError::refused(antecedent_core::reason_code!("transport_budget_cancel"), message)
+}
+
+/// The registered refusal when the context is cancelled.
+///
+/// # Errors
+/// `transport_budget_cancel` once the cancellation token has fired.
+pub fn refuse_cancelled(
+    ctx: &antecedent_core::ExecutionContext,
+    stage: &str,
+) -> Result<(), EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        Err(refuse_budget(format!("{stage} cancelled")))
+    } else {
+        Ok(())
+    }
+}
+
 /// Weight magnitude above which [`TransportOverlapDiagnostic::extreme_weight_count`] flags a
 /// row. This is a diagnostic threshold meant to draw a reviewer's eye to poor overlap; it is not
 /// an inferential cutoff and does not itself clip, trim, or otherwise change any estimate.
@@ -446,28 +601,123 @@ pub fn evaluate_exact_transport(
     prepare_exact_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
 }
 
-/// Validate exact providers and compile without evaluating any probabilities.
+/// Evaluate the currently licensed point-only z-surrogate functional against
+/// exact or empirical joint-law tables. Empirical inputs produce a plug-in
+/// point estimate; this route publishes no interval or sampling guarantee.
 ///
 /// # Errors
-/// Provider contract, coverage, or resource limit violation.
-pub fn prepare_exact_transport(
-    functional: &antecedent_identify::BoundTransportFunctional,
+/// Request, catalog, provider, support, or resource validation failures.
+pub fn evaluate_exact_z_transport(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
+    prepare_exact_z_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Validate source joint-law providers and compile the checked zTR formula.
+///
+/// # Errors
+/// Provider/catalog disagreement, missing assignment, or resource limit.
+pub fn prepare_exact_z_transport(
+    functional: &antecedent_identify::BoundZTransportFunctional,
     data: antecedent_expr::ExactTransportData,
     request: antecedent_expr::Assignment,
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
-    use antecedent_core::{DistributionAvailability, VariableDomain};
+    validate_exact_laws(functional.catalog(), &data)?;
+    compile_exact_z_transport(functional, data, request, limits, ctx)
+}
+
+/// Compile the checked zTR formula against laws whose provider contract was
+/// already validated (a bootstrap or posterior draw rebuilds validated tables
+/// with new probabilities and need not revalidate them).
+///
+/// # Errors
+/// A request that does not bind the certified treatments at a cited level, or
+/// a compile-time resource limit.
+pub(crate) fn compile_exact_z_transport(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    use antecedent_core::same_intervention_level;
     use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
-    let treatments = &functional.derivation().query().treatments;
+
+    let query = functional.derivation().query();
+    require_treatment_request(&query.treatments, &request)?;
+    // A source factor that exchanged a treatment cites the experiment at the
+    // concrete level recorded in the proof, whatever the root shape (a bare
+    // direct-exchange distribution, or a summed product on the recursive
+    // route). Such a factor answers only the target intervention at that
+    // level; a request at another level would silently be answered with the
+    // proof's level, so it is refused here rather than evaluated.
+    for (treatment, cited) in cited_treatment_levels(functional) {
+        let requested = request.get(treatment);
+        match cited {
+            Some(level)
+                if requested.is_none_or(|value| !same_intervention_level(value, &level)) =>
+            {
+                return Err(EvalError::ProviderKind(
+                    "exact zTR request must match the concrete source intervention its formula cites",
+                ));
+            }
+            None if !request_level_is_cited(functional, treatment, requested) => {
+                return Err(EvalError::ProviderKind(
+                    "exact zTR request names a treatment level no cited source experiment supplies",
+                ));
+            }
+            _ => {}
+        }
+    }
+    // A factor whose exchanged coordinate is bound by an enclosing summation
+    // names no single regime; the concrete world selects its law.
+    ExactEvaluationPlan::compile(
+        functional.arena(),
+        functional.root(),
+        data.with_world_bound_leaves(),
+        query.outcomes.clone(),
+        request,
+        limits,
+        LawTolerance::default(),
+        ctx,
+    )
+}
+
+/// The request must bind exactly the certified treatment coordinates.
+fn require_treatment_request(
+    treatments: &[antecedent_core::VariableId],
+    request: &antecedent_expr::Assignment,
+) -> Result<(), antecedent_expr::EvalError> {
     if request.entries().len() != treatments.len()
-        || treatments.iter().any(|v| request.get(*v).is_none())
+        || treatments.iter().any(|variable| request.get(*variable).is_none())
     {
-        return Err(EvalError::ProviderKind(
+        return Err(antecedent_expr::EvalError::ProviderKind(
             "exact request must bind precisely the certified treatment coordinates",
         ));
     }
-    let catalog = functional.catalog();
+    Ok(())
+}
+
+/// Check every supplied law against the evidence regime it claims to realize:
+/// the regime must be satisfiable, joint and unconditioned, the law's
+/// interventions and axes must be the regime's, every catalog binding of the
+/// regime must name the law's snapshot, and every declared coordinate domain
+/// must agree with the law's axis values. Shared by the classical and z routes.
+///
+/// # Errors
+/// The first provider/catalog disagreement found.
+pub(crate) fn validate_exact_laws(
+    catalog: &antecedent_core::EvidenceCatalog,
+    data: &antecedent_expr::ExactTransportData,
+) -> Result<(), antecedent_expr::EvalError> {
+    use antecedent_core::{DistributionAvailability, VariableDomain};
+    use antecedent_expr::EvalError;
     for law in data.laws() {
         let regime = catalog
             .regimes
@@ -532,25 +782,293 @@ pub fn prepare_exact_transport(
             }
         }
     }
-    ExactEvaluationPlan::compile(
+    Ok(())
+}
+
+/// Whether a cited source regime supplies the requested level of `treatment`.
+fn request_level_is_cited(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    treatment: antecedent_core::VariableId,
+    requested: Option<&antecedent_core::Value>,
+) -> bool {
+    use antecedent_core::same_intervention_level;
+    let Some(requested) = requested else { return false };
+    functional
+        .cited_regimes()
+        .iter()
+        .filter_map(|id| functional.catalog().regimes.iter().find(|regime| regime.id == *id))
+        .filter(|regime| regime.interventions.contains(&treatment))
+        .any(|regime| {
+            regime.intervention_values.is_empty()
+                || regime.intervention_values.iter().any(|actual| {
+                    actual.variable == treatment
+                        && same_intervention_level(&actual.value, requested)
+                })
+        })
+}
+
+/// Every treatment coordinate a reachable source factor intervenes on, with its
+/// concrete level, or `None` when the factor leaves it symbolic for the request
+/// to bind.
+fn cited_treatment_levels(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+) -> Vec<(antecedent_core::VariableId, Option<antecedent_core::Value>)> {
+    use antecedent_expr::ExprNode;
+    let arena = functional.arena();
+    let treatments = &functional.derivation().query().treatments;
+    let mut pending = vec![functional.root()];
+    let mut seen = std::collections::BTreeSet::new();
+    let mut cited = Vec::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id.raw()) {
+            continue;
+        }
+        match arena.node(id) {
+            ExprNode::Distribution { intervention, .. } => {
+                for assignment in arena.intervention_assignments(*intervention) {
+                    if treatments.contains(&assignment.variable)
+                        && !cited.iter().any(|(v, _)| *v == assignment.variable)
+                    {
+                        let level = (!assignment.is_symbolic()).then(|| assignment.value.clone());
+                        cited.push((assignment.variable, level));
+                    }
+                }
+            }
+            ExprNode::Kernel { body, .. } => pending.push(*body),
+            ExprNode::Product(list) => pending.extend(arena.list(*list)),
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+                pending.push(*expr);
+            }
+            ExprNode::Ratio { numerator, denominator } => {
+                pending.extend([*numerator, *denominator]);
+            }
+            ExprNode::Expectation { distribution, .. } => pending.push(*distribution),
+            ExprNode::Contrast { left, right, .. } => pending.extend([*left, *right]),
+        }
+    }
+    cited
+}
+
+/// Validate exact providers and compile without evaluating any probabilities.
+///
+/// # Errors
+/// Provider contract, coverage, or resource limit violation.
+pub fn prepare_exact_transport(
+    functional: &antecedent_identify::BoundTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    let query = functional.derivation().query();
+    require_treatment_request(&query.treatments, &request)?;
+    validate_exact_laws(functional.catalog(), &data)?;
+    antecedent_expr::ExactEvaluationPlan::compile(
         functional.arena(),
         functional.root(),
         data,
-        functional.derivation().query().outcomes.clone(),
+        query.outcomes.clone(),
         request,
         limits,
-        LawTolerance::default(),
+        antecedent_expr::LawTolerance::default(),
         ctx,
     )
 }
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::{
+        DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
+        ExecutionContext, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value,
+        VariableCoordinate, VariableDomain, VariableId,
+    };
+    use antecedent_expr::{
+        DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
+        InterventionAssignment as ExprInterventionAssignment, LawTolerance,
+    };
+    use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
     use antecedent_identify::{
-        NotCertifiedCertificate, PopulationFactor, TransportCertificate, TransportFormula,
+        NotCertifiedCertificate, PopulationFactor, SidLimits, TransportCertificate,
+        TransportFormula, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+        identify_z_transport,
     };
 
     use super::*;
+
+    #[allow(clippy::too_many_lines)] // Central fixture wires the complete source catalog and law.
+    fn checked_z_fixture(
+        empirical: bool,
+    ) -> (antecedent_identify::BoundZTransportFunctional, ExactTransportData) {
+        let mut graph = Admg::with_variables(4);
+        for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        for (a, b) in [(0, 3), (1, 3), (1, 2)] {
+            graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (w, z, x, y) = (
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        );
+        let query = ZTransportQuery {
+            outcomes: Arc::from([y]),
+            treatments: Arc::from([x]),
+            controllable: Arc::from([z]),
+            experiment_assignment: Arc::from([antecedent_core::InterventionAssignment {
+                variable: z,
+                value: Value::Bool(false),
+            }]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let ZTransportResult::Identified(derivation) = identify_z_transport(
+            &diagram,
+            &query,
+            SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("fixture should be identified");
+        };
+        let coords = [w, z, x, y].map(|variable| VariableCoordinate {
+            variable,
+            domain: VariableDomain::Binary,
+            unit: None,
+        });
+        let environment =
+            Environment::try_new("source", coords, Arc::<[VariableId]>::from([])).unwrap();
+        let measured: Arc<[VariableId]> = Arc::from([w, z, x, y]);
+        let regimes = [false, true].map(|level| {
+            antecedent_core::EvidenceRegime::try_new(
+                RegimeId::from_raw(u32::from(level)),
+                RegimeKind::Experimental,
+                EvidenceKind::Available,
+                [z],
+                [antecedent_core::InterventionAssignment {
+                    variable: z,
+                    value: Value::Bool(level),
+                }],
+                Arc::clone(&measured),
+                "source",
+                DistributionAvailability::Joint,
+            )
+            .unwrap()
+        });
+        let bindings = [false, true].map(|level| RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(u32::from(level)),
+            snapshot_identity: Arc::from(format!("source-do-z-{level}")),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        });
+        let catalog = EvidenceCatalog::try_new([environment], regimes, bindings, None).unwrap();
+        let functional = bind_z_transport_catalog(&diagram, &query, &derivation, &catalog).unwrap();
+        let mut probabilities = Vec::with_capacity(8);
+        let mut counts = Vec::with_capacity(8);
+        for wv in [false, true] {
+            for xv in [false, true] {
+                for yv in [false, true] {
+                    let pw = if wv { 0.25 } else { 0.75 };
+                    let px = if xv { 0.35 } else { 0.65 };
+                    let py = if yv == xv { 0.80 } else { 0.20 };
+                    let probability: f64 = pw * px * py;
+                    probabilities.push(probability);
+                    // These finite decimal fixture probabilities produce integral counts.
+                    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    counts.push((probability * 10_000.0).round() as u64);
+                }
+            }
+        }
+        if empirical {
+            let count_total = counts.iter().sum::<u64>() as f64;
+            probabilities = counts.iter().map(|count| *count as f64 / count_total).collect();
+        }
+        let mut law = ExactDiscreteLaw::try_new(
+            "source",
+            RegimeId::from_raw(0),
+            [ExprInterventionAssignment::concrete(z, Value::Bool(false))],
+            [
+                DiscreteAxis {
+                    variable: w,
+                    values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+                },
+                DiscreteAxis {
+                    variable: x,
+                    values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+                },
+                DiscreteAxis {
+                    variable: y,
+                    values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+                },
+            ],
+            probabilities,
+            "source-do-z-false",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        if empirical {
+            law = law.with_empirical_counts(counts).unwrap();
+        }
+        let data = ExactTransportData::try_new([law], 128).unwrap();
+        (functional, data)
+    }
+
+    #[test]
+    fn z_transport_exact_provider_matches_independent_scm_truth() {
+        let (functional, data) = checked_z_fixture(false);
+        let outcome = VariableId::from_raw(3);
+        let request = antecedent_expr::Assignment::from_pairs([(
+            VariableId::from_raw(2),
+            Value::Bool(false),
+        )]);
+        let result = evaluate_exact_z_transport(
+            &functional,
+            data,
+            request,
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+        let true_mass = result
+            .atoms
+            .iter()
+            .zip(result.probabilities.iter())
+            .filter(|(atom, _)| atom[0] == Value::Bool(true))
+            .map(|(_, probability)| probability)
+            .sum::<f64>();
+        assert!((true_mass - 0.20).abs() < 1e-12, "P(Y=1)={true_mass}");
+        assert_eq!(result.outcomes.as_ref(), &[outcome]);
+    }
+
+    #[test]
+    fn z_transport_empirical_provider_is_plugin_point_only() {
+        let (functional, data) = checked_z_fixture(true);
+        let result = evaluate_exact_z_transport(
+            &functional,
+            data,
+            antecedent_expr::Assignment::from_pairs([(
+                VariableId::from_raw(2),
+                Value::Bool(false),
+            )]),
+            ExactEvaluationLimits::default(),
+            &ExecutionContext::for_tests(3),
+        )
+        .unwrap();
+        let true_mass = result
+            .atoms
+            .iter()
+            .zip(result.probabilities.iter())
+            .filter(|(atom, _)| atom[0] == Value::Bool(true))
+            .map(|(_, probability)| probability)
+            .sum::<f64>();
+        assert!((true_mass - 0.20).abs() < 0.002, "empirical P(Y=1)={true_mass}");
+        // ExactDistribution is a point law and has no interval fields by design.
+    }
 
     /// A minimal positive certificate, standing in for whatever
     /// `TransportIdentifier::identify` actually certified for a query. The estimators below
@@ -625,6 +1143,50 @@ mod tests {
         assert!(
             trial_to_target_ipw_se(&outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn bayesian_trial_transport_matches_two_row_dirichlet_law() {
+        // With one source row in each arm, equal supplied probabilities and
+        // outcomes (2, 0), the draw is exactly 4U for U ~ Beta(1, 1).
+        // Thus E[effect] = 2 and Var(effect) = 4/3 independently of the
+        // implementation's random-number generation and weight normalization.
+        let source = [true, true, false, false];
+        let treatment = [true, false, false, false];
+        let outcome = [2.0, 0.0, 0.0, 0.0];
+        let draw = || {
+            trial_to_target_bayesian_bootstrap(
+                &certified_identification(),
+                &outcome,
+                &treatment,
+                &source,
+                &[0.5; 4],
+                &[0.5; 4],
+                10_000,
+                41,
+            )
+            .unwrap()
+        };
+        let draws = draw();
+        assert_eq!(draws, draw());
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        let variance = draws.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / draws.len() as f64;
+        assert!((mean - 2.0).abs() < 0.08, "mean={mean}");
+        assert!((variance - 4.0 / 3.0).abs() < 0.08, "variance={variance}");
+        assert!(draws.iter().all(|&x| (0.0..=4.0).contains(&x)));
+        assert!(
+            trial_to_target_bayesian_bootstrap(
+                &certified_identification(),
+                &outcome,
+                &[true; 4],
+                &source,
+                &[0.5; 4],
+                &[0.5; 4],
+                100,
+                41,
+            )
+            .is_err()
         );
     }
 

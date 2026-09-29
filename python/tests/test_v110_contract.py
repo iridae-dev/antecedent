@@ -69,7 +69,7 @@ def test_same_shape_refresh_changes_only_data_identity() -> None:
     assert preview["input_data_snapshot"] != after["data_snapshot"]
 
 
-def test_contracted_artifact_is_independently_accepted() -> None:
+def test_contracted_linear_adjustment_replays_from_fit_statistics() -> None:
     from antecedent import artifacts
 
     data = _data()
@@ -109,7 +109,7 @@ def test_contracted_artifact_is_independently_accepted() -> None:
     assert accepted["variable_names"] == "t,y,z"
 
 
-def test_conditional_effect_contracted_artifact_is_independently_accepted() -> None:
+def test_conditional_effect_contracted_artifact_names_missing_checked_operation() -> None:
     from antecedent import artifacts
     from antecedent.query import ConditionalEffect
 
@@ -128,7 +128,8 @@ def test_conditional_effect_contracted_artifact_is_independently_accepted() -> N
     result = prepared.estimate(data)
     contract = prepared.inspect().contract
     accepted = artifacts.accept(prepared.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_conditional_effect_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
     assert accepted["target"] == contract["target"]
     assert accepted["query_kind"] == "conditional_effect"
@@ -141,7 +142,7 @@ def test_conditional_effect_contracted_artifact_is_independently_accepted() -> N
     assert abs(result.estimate.ate - 3.0) < 1e-6
 
 
-def test_mediation_contracted_artifact_is_independently_accepted() -> None:
+def test_mediation_contracted_artifact_names_missing_checked_operation() -> None:
     from antecedent import artifacts
     from antecedent.query import MediationEffect
 
@@ -159,7 +160,8 @@ def test_mediation_contracted_artifact_is_independently_accepted() -> None:
     result = prepared.estimate(data)
     contract = prepared.inspect().contract
     accepted = artifacts.accept(prepared.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_mediation_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
     assert accepted["target"] == contract["target"]
     assert accepted["query_kind"] == "mediation"
@@ -169,7 +171,7 @@ def test_mediation_contracted_artifact_is_independently_accepted() -> None:
     assert np.isfinite(result.estimate.ate)
 
 
-def test_response_curve_contracted_artifact_is_independently_accepted() -> None:
+def test_response_curve_contracted_artifact_names_missing_checked_grid() -> None:
     from antecedent import artifacts
     from antecedent.query import ResponseCurve
 
@@ -188,14 +190,15 @@ def test_response_curve_contracted_artifact_is_independently_accepted() -> None:
     prepared.estimate(data)
     contract = prepared.inspect().contract
     accepted = artifacts.accept(prepared.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_response_grid_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
     assert accepted["query_kind"] == "response"
     assert accepted["temporal_coordinates"] == "none"
     assert contract["matrix_coordinate"].startswith("ResponseCurve:")
 
 
-def test_intervention_response_contracted_artifact_is_independently_accepted() -> None:
+def test_intervention_response_contracted_artifact_names_missing_checked_operation() -> None:
     from antecedent import artifacts
     from antecedent.intervention import Set
     from antecedent.query import InterventionResponse
@@ -215,7 +218,8 @@ def test_intervention_response_contracted_artifact_is_independently_accepted() -
     result = prepared.estimate(data)
     contract = prepared.inspect().contract
     accepted = artifacts.accept(prepared.export())
-    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["accepts_as_verified_program"] == "false"
+    assert "dependencies.checked_intervention_response_operation" in accepted["unresolved"]
     assert accepted["program"] == contract["program"]
     assert accepted["query_kind"] == "response"
     assert accepted["temporal_coordinates"] == "none"
@@ -383,7 +387,9 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
     encoded = retargeted.export()
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
-    assert artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
+    acceptance = artifacts.accept(encoded)
+    assert acceptance["accepts_as_verified_program"] == "false"
+    assert "program.checked_aipw_lowering" in acceptance["unresolved"]
     section = loaded.contract
     carried = section["target_weights"]
     assert np.array_equal(np.asarray(carried["values"], dtype=float), weights)

@@ -67,6 +67,24 @@ impl TemporalPolicy {
         Self::Dynamic { rule, active_at: Arc::from(steps) }
     }
 
+    /// Whether this is a pulse or a sustained window rather than a dynamic
+    /// schedule.
+    #[must_use]
+    pub const fn is_pulse_or_sustained(&self) -> bool {
+        matches!(self, Self::Pulse { .. } | Self::Sustained { .. })
+    }
+
+    /// Whether this policy intervenes at exactly one step: a pulse, or a
+    /// sustained window whose `from` and `until` coincide.
+    #[must_use]
+    pub const fn is_single_step(&self) -> bool {
+        match self {
+            Self::Pulse { .. } => true,
+            Self::Sustained { from, until } => *from == *until,
+            Self::Dynamic { .. } => false,
+        }
+    }
+
     /// Whether step `t` is an active intervention time under this policy.
     #[must_use]
     pub fn is_active_at(&self, t: i32) -> bool {

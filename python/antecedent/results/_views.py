@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr
 
+from ..policy import DoublyRobustPolicyEvaluation
+from ..survival import CumulativeIncidenceEstimate, SurvivalEstimate
+
 if TYPE_CHECKING:
     from .._native import (
         AnomalyScores,
@@ -285,6 +288,10 @@ class PosteriorView(ResultModel):
     n_draws: int | None
     p_below_zero: float | None
     backend: str | None
+    #: Construction used for the published q025/q975 interval. New estimator
+    #: routes must select this from their estimator identity rather than infer
+    #: that every posterior-shaped result is an ordinary coefficient posterior.
+    interval_type: str | None = None
     artifact: bytes | list[int] | None = Field(default=None, exclude=True)
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
@@ -321,6 +328,8 @@ class PosteriorView(ResultModel):
             f"n_draws={self.n_draws}",
             f"backend={self.backend!r}",
         ]
+        if self.interval_type is not None:
+            parts.append(f"interval={self.interval_type!r}")
         if self.unidentified_mass is not None and self.unidentified_mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(self.unidentified_mass)}")
         if self.subsampled_out_mass > 0:
@@ -681,6 +690,15 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
     #: variance and exposure-probability methods (HT is ``estimate.ate``).
     interference: InterferenceEstimate | None = None
+    randomized_effect: Any | None = None
+    panel_did: Any | None = None
+    synthetic_control: Any | None = None
+    synthetic_did: Any | None = None
+    local_polynomial_ratio: Any | None = None
+    policy_value: DoublyRobustPolicyEvaluation | None = None
+    continuous_dose_response: Any | None = None
+    survival: SurvivalEstimate | CumulativeIncidenceEstimate | None = None
+    longitudinal_regime: Any | None = None
     #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
     #: row indices, and the top-scoring row).
     anomaly: list[AnomalyScores] | None = None

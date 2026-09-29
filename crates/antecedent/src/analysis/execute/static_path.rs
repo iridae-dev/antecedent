@@ -4,12 +4,21 @@ use super::*;
 use crate::estimator_spec::EstimatorSpec;
 
 impl super::Study {
+    #[expect(
+        clippy::float_cmp,
+        reason = "IV query intervention values are exact discrete declared values"
+    )]
     pub(super) fn execute_static(
         &self,
         data: &TabularData,
         graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
+        prepared_linear: Option<&super::super::prepared::CheckedLinearOperation>,
+        prepared_aipw: Option<&super::super::prepared::CheckedAipwOperation>,
+        prepared_frontdoor: Option<&super::super::prepared::CheckedFrontDoorOperation>,
+        bayesian_gcomp_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
+        prepared_iv: Option<&super::super::prepared::CheckedIvOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
@@ -24,8 +33,27 @@ impl super::Study {
         if matches!(estimator_id, EstimatorId::RdSharp) {
             return self.execute_rd(data, graph, query, physical, ctx);
         }
+        if matches!(estimator_id, EstimatorId::BayesianIvJointLinear) {
+            return self.execute_bayesian_iv(data, graph, query, physical, ctx);
+        }
+        if matches!(estimator_id, EstimatorId::BayesianRdLocalLinear) {
+            return self.execute_bayesian_rd(data, graph, query, physical, ctx);
+        }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self.execute_bayesian(data, graph, query, physical, ctx);
+            return self.execute_bayesian(
+                data,
+                graph,
+                query,
+                physical,
+                bayesian_gcomp_operation,
+                ctx,
+            );
+        }
+        if matches!(estimator_id, EstimatorId::BayesianBasisGcomp) {
+            return self.execute_bayesian_basis(data, graph, query, physical, ctx);
+        }
+        if matches!(estimator_id, EstimatorId::BayesianRobustAte) {
+            return self.execute_bayesian_robust_ate(data, graph, query, physical, ctx);
         }
         if matches!(estimator_id, EstimatorId::FunctionalEffect) {
             return self.execute_functional_ate(data, graph, query, physical, ctx);
@@ -85,23 +113,268 @@ impl super::Study {
             });
         }
         let mut estimate_ws = StaticEstimateWorkspaces::default();
-        // A caller-configured estimator wins; otherwise select by id and let the
-        // study fill bootstrap/overlap defaults. The builder refuses the ambiguous
-        // case (both set) at `build()` time, so there is nothing to reconcile here.
-        let estimator_spec =
-            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id));
-        let point = estimate_static_effect(
-            &estimator_spec,
-            &data_est,
-            &estimand_est,
-            &query_est,
-            assumptions,
-            0, // point stage: no bootstrap
-            self.overlap_policy,
-            self.population_registry.as_ref(),
-            ctx,
-            &mut estimate_ws,
-        )?;
+        // A prepared checked route has already selected its estimator and bound
+        // its configuration. Do not let the copied Study select a competing
+        // fitter while executing that retained operation.
+        let estimator_spec = if prepared_linear.is_some()
+            || prepared_aipw.is_some()
+            || prepared_frontdoor.is_some()
+            || prepared_iv.is_some()
+        {
+            EstimatorSpec::Default(estimator_id)
+        } else {
+            self.estimator_spec.clone().unwrap_or(EstimatorSpec::Default(estimator_id))
+        };
+        // Prepare against the original semantic variable IDs. Projection remaps tabular
+        // columns, while the identified expression still belongs to the original arena.
+        let checked_linear = if matches!(
+            query.outcome_functional,
+            antecedent_core::OutcomeFunctional::Mean
+        ) && matches!(
+            query.target_population,
+            antecedent_core::TargetPopulation::AllObserved
+        ) {
+            let fitter = match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte) => {
+                    Some(LinearAdjustmentAte::new())
+                }
+                EstimatorSpec::LinearAdjustmentAte(cfg) => Some((**cfg).clone()),
+                _ => None,
+            };
+            let fitter = prepared_linear.map_or(fitter, |operation| Some(operation.fitter.clone()));
+            fitter
+                    .map(|fitter| {
+                        let checked = match prepared_linear {
+                            Some(operation) => {
+                                if operation.preparation.source_functional() != estimand.functional
+                                    || operation.preparation.target().adjustment_set != estimand.adjustment_set
+                                {
+                                    return Err(CausalError::Compile {
+                                        message: "prepared adjustment lowering disagrees with selected identification".into(),
+                                    });
+                                }
+                                operation.preparation.clone()
+                            }
+                            None => fitter.prepare_checked(data, &identification, 0)?,
+                        };
+                        Ok::<_, CausalError>((fitter, checked))
+                    })
+                    .transpose()?
+        } else {
+            None
+        };
+        let checked_frontdoor_linear = if prepared_frontdoor.is_some() {
+            None
+        } else {
+            match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::FrontDoorTwoStage) => {
+                    let fitter = antecedent_estimate::FrontDoorTwoStage::new();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                EstimatorSpec::FrontDoorTwoStage(cfg) => {
+                    let fitter = (**cfg).clone();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                _ => None,
+            }
+        };
+        let checked_frontdoor_functional =
+            if matches!(estimator_spec, EstimatorSpec::Default(EstimatorId::FrontDoorFunctional)) {
+                // Point stage only: the uncertainty stage below attaches the
+                // study's replicate count, so the estimator's own default must
+                // not bootstrap here.
+                let fitter =
+                    antecedent_estimate::FrontDoorFunctional::new().with_bootstrap_replicates(0);
+                Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+            } else {
+                None
+            };
+        let checked_wald = if prepared_iv.is_some() {
+            None
+        } else {
+            match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::IvWald) => {
+                    let fitter = antecedent_estimate::WaldIv::new();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                EstimatorSpec::IvWald(cfg) => {
+                    let fitter = (**cfg).clone();
+                    Some((fitter.clone(), fitter.prepare_checked(data, &identification, 0)?))
+                }
+                _ => None,
+            }
+        };
+        // Route the supported single binary-instrument slice through the checked IV
+        // receipt. The generic 2SLS estimator still supports multiple/continuous
+        // instruments and adjustment covariates; those designs remain on its ordinary
+        // preparation path because the current receipt lowers the binary Wald functional.
+        let checked_iv_roles_supported = identification.estimands.first().is_some_and(|target| {
+            target.instruments.len() == 1
+                && target.mediators.is_empty()
+                && target.adjustment_set.is_empty()
+        });
+        let checked_2sls = if prepared_iv.is_some() || !checked_iv_roles_supported {
+            None
+        } else {
+            match &estimator_spec {
+                EstimatorSpec::Default(EstimatorId::Iv2Sls) => {
+                    let fitter = antecedent_estimate::TwoStageLeastSquares::new();
+                    match fitter.prepare_checked(data, &identification, 0) {
+                        Ok(checked) => Some((fitter, checked)),
+                        Err(antecedent_estimate::EstimationError::Unsupported {
+                            message:
+                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                        }) => None,
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                EstimatorSpec::Iv2Sls(cfg) => {
+                    let fitter = (**cfg).clone();
+                    match fitter.prepare_checked(data, &identification, 0) {
+                        Ok(checked) => Some((fitter, checked)),
+                        Err(antecedent_estimate::EstimationError::Unsupported {
+                            message:
+                                "checked IV currently requires a binary 0/1 instrument matching the checked Wald functional",
+                        }) => None,
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                _ => None,
+            }
+        };
+        let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
+        let mut iv_workspace = antecedent_estimate::TwoStageLeastSquaresWorkspace::default();
+        let point = if let Some(operation) = prepared_iv {
+            let (preparation, procedure) = match operation {
+                super::super::prepared::CheckedIvOperation::Wald { preparation, .. } => {
+                    (preparation, "Wald")
+                }
+                super::super::prepared::CheckedIvOperation::TwoSls { preparation, .. } => {
+                    (preparation, "2SLS")
+                }
+            };
+            let lowering = preparation.lowering();
+            let query_active = match &query.active {
+                antecedent_core::Intervention::Set { variable, value }
+                    if *variable == query.treatment =>
+                {
+                    value.as_f64()
+                }
+                _ => None,
+            };
+            let query_control = match &query.control {
+                antecedent_core::Intervention::Set { variable, value }
+                    if *variable == query.treatment =>
+                {
+                    value.as_f64()
+                }
+                _ => None,
+            };
+            if preparation.target().functional != estimand.functional
+                || lowering.treatment != query.treatment
+                || lowering.outcome != query.outcome
+                || lowering.active != query_active.unwrap_or(f64::NAN)
+                || lowering.control != query_control.unwrap_or(f64::NAN)
+            {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "prepared IV {procedure} lowering disagrees with selected identification or query"
+                    ),
+                });
+            }
+            match operation {
+                super::super::prepared::CheckedIvOperation::Wald { fitter, preparation } => {
+                    fitter.fit_checked(preparation, ctx).map_err(CausalError::from)?
+                }
+                super::super::prepared::CheckedIvOperation::TwoSls { fitter, preparation } => {
+                    fitter
+                        .fit_checked(preparation, &mut iv_workspace, ctx)
+                        .map_err(CausalError::from)?
+                }
+            }
+        } else if let Some((fitter, checked)) = &checked_linear {
+            if prepared_linear.is_some_and(|operation| operation.default_id)
+                || (prepared_linear.is_none()
+                    && matches!(
+                        estimator_spec,
+                        EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte)
+                    ))
+            {
+                // The progressive default route reports a genuine point stage.
+                // Its bootstrap belongs to the uncertainty stage below, even
+                // though the checked receipt retains the same bound design.
+                fitter
+                    .fit_point(
+                        checked.problem(),
+                        &mut estimate_ws.linear,
+                        checked.required_assumptions().clone(),
+                    )
+                    .map_err(CausalError::from)?
+            } else {
+                fitter
+                    .fit_checked(checked, &mut estimate_ws.linear, ctx)
+                    .map_err(CausalError::from)?
+            }
+        } else if let Some(operation) = prepared_aipw {
+            if operation.preparation.target().functional != estimand.functional
+                || operation.preparation.target().adjustment_set != estimand.adjustment_set
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared AIPW lowering disagrees with selected identification".into(),
+                });
+            }
+            operation
+                .fitter
+                .fit_checked(&operation.preparation, &mut estimate_ws.aipw, ctx)
+                .map_err(CausalError::from)?
+        } else if let Some(operation) = prepared_frontdoor {
+            if operation.preparation.target().functional != estimand.functional
+                || operation.preparation.lowering().treatment != query.treatment
+                || operation.preparation.lowering().outcome != query.outcome
+                || operation.preparation.lowering().population != query.target_population
+                || !matches!(
+                    &query.active,
+                    antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment
+                            && value.as_f64() == Some(operation.preparation.lowering().active)
+                )
+                || !matches!(
+                    &query.control,
+                    antecedent_core::Intervention::Set { variable, value }
+                        if *variable == query.treatment
+                            && value.as_f64() == Some(operation.preparation.lowering().control)
+                )
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared front-door lowering disagrees with selected identification or query".into(),
+                });
+            }
+            operation
+                .fitter
+                .fit_checked(&operation.preparation, &mut frontdoor_workspace, ctx)
+                .map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_frontdoor_linear {
+            fitter.fit_checked(checked, &mut frontdoor_workspace, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_frontdoor_functional {
+            fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_wald {
+            fitter.fit_checked(checked, ctx).map_err(CausalError::from)?
+        } else if let Some((fitter, checked)) = &checked_2sls {
+            fitter.fit_checked(checked, &mut iv_workspace, ctx).map_err(CausalError::from)?
+        } else {
+            estimate_static_effect(
+                &estimator_spec,
+                &data_est,
+                &estimand_est,
+                &query_est,
+                assumptions,
+                0, // point stage: no bootstrap
+                self.overlap_policy,
+                self.population_registry.as_ref(),
+                ctx,
+                &mut estimate_ws,
+            )?
+        };
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -115,11 +388,16 @@ impl super::Study {
         // replicate count and already ran it in the point fit, and the double-ML, DR-learner
         // and causal-forest fits take no replicate count: refitting any of them here would
         // reproduce the same estimate at the cost of a second full nuisance fit.
-        let skip_bootstrap_refill = self.bootstrap_replicates == 0
-            || self
-                .estimator_spec
-                .as_ref()
-                .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_)))
+        let skip_bootstrap_refill = prepared_aipw.is_some()
+            || prepared_frontdoor.is_some()
+            || prepared_linear.is_some_and(|operation| !operation.default_id)
+            || prepared_linear.is_some_and(|operation| operation.fitter.bootstrap_replicates == 0)
+            || (prepared_linear.is_none() && self.bootstrap_replicates == 0)
+            || (prepared_linear.is_none()
+                && self
+                    .estimator_spec
+                    .as_ref()
+                    .is_some_and(|spec| !matches!(spec, EstimatorSpec::Default(_))))
             || matches!(
                 estimator_id,
                 EstimatorId::IvWald
@@ -143,6 +421,38 @@ impl super::Study {
                 );
                 point
             }
+        } else if matches!(estimator_id, EstimatorId::FrontDoorTwoStage)
+            && checked_frontdoor_linear.is_some()
+        {
+            clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+            let (_, checked) = checked_frontdoor_linear.as_ref().expect("checked above");
+            let mut fitter = antecedent_estimate::FrontDoorTwoStage::new();
+            fitter.bootstrap_replicates = self.bootstrap_replicates;
+            let filled = fitter
+                .attach_bootstrap(checked.problem(), &mut frontdoor_workspace, ctx, point)
+                .map_err(CausalError::from)?;
+            clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+            super::super::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+            );
+            filled
+        } else if matches!(estimator_id, EstimatorId::FrontDoorFunctional)
+            && checked_frontdoor_functional.is_some()
+        {
+            clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
+            let (_, checked) = checked_frontdoor_functional.as_ref().expect("checked above");
+            let fitter = antecedent_estimate::FrontDoorFunctional::new()
+                .with_bootstrap_replicates(self.bootstrap_replicates);
+            let filled = fitter
+                .attach_bootstrap(checked.problem(), ctx, point)
+                .map_err(CausalError::from)?;
+            clock.finish(super::super::stage::STAGE_UNCERTAINTY);
+            super::super::stage::emit_stage(
+                self.stage_sink.as_ref(),
+                &super::super::stage::StageEvent::Uncertainty { estimate: filled.clone() },
+            );
+            filled
         } else if matches!(estimator_id, EstimatorId::LinearAdjustmentAte) {
             // Reuse warmed OLS workspace: re-prepare + attach bootstrap without refitting point.
             let cancelled_before = ctx.cancellation.is_cancelled();
@@ -156,11 +466,17 @@ impl super::Study {
                 clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
                 // A configured linear estimator never reaches here (it bootstrapped in the
                 // point fit), so this is the id-selected default the point stage also used.
-                let mut est = LinearAdjustmentAte::new();
-                est.bootstrap_replicates = self.bootstrap_replicates;
-                est.overlap = OverlapPolicy::ExplicitOverride;
-                let prep =
-                    est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?;
+                let mut est = prepared_linear
+                    .map_or_else(LinearAdjustmentAte::new, |operation| operation.fitter.clone());
+                if prepared_linear.is_none() {
+                    est.bootstrap_replicates = self.bootstrap_replicates;
+                    est.overlap = OverlapPolicy::ExplicitOverride;
+                }
+                let prep = if let Some((_, checked)) = &checked_linear {
+                    checked.problem().clone()
+                } else {
+                    est.prepare(&data_est, &estimand_est, &query_est).map_err(CausalError::from)?
+                };
                 let filled = est
                     .attach_bootstrap(&prep, &mut estimate_ws.linear, ctx, point)
                     .map_err(CausalError::from)?;
@@ -301,6 +617,7 @@ impl super::Study {
         graph: DistributionGraph<'_>,
         query: &antecedent_core::InterventionalDistributionQuery,
         physical: &PhysicalExecutionPlan,
+        distribution_operation: Option<&super::super::prepared::CheckedDistributionOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if matches!(graph, DistributionGraph::Admg(_)) {
@@ -339,15 +656,32 @@ impl super::Study {
             bootstrap_replicates: self.bootstrap_replicates,
             ..FunctionalDistribution::new()
         };
-        let prepared = est
-            .prepare(
+        let prepared = if let Some(operation) = distribution_operation {
+            let checked_arena =
+                antecedent_io::expr_arena_to_wire(operation.prepared().program().arena())
+                    .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+            let claim_arena = antecedent_io::expr_arena_to_wire(&identification.arena)
+                .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+            if operation.query() != query
+                || operation.prepared().estimand.functional != estimand.functional
+                || checked_arena != claim_arena
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared distribution target disagrees with selected identification"
+                        .into(),
+                });
+            }
+            operation.rebind(data)?
+        } else {
+            est.prepare(
                 data,
                 query,
                 &estimand,
                 &identification.arena,
                 identification.required_assumptions.clone(),
             )
-            .map_err(CausalError::from)?;
+            .map_err(CausalError::from)?
+        };
         let (dist, posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             if let InferenceMode::Bayesian(cfg) = &self.inference {
                 if cfg.prior_artifact.is_some()
@@ -657,11 +991,9 @@ impl super::Study {
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
         est.se_kind = rd.se_kind;
-        let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
+        let checked = est.prepare_checked(data, &identification, 0).map_err(CausalError::from)?;
         let mut ws = RdWorkspace::default();
-        let estimate = est
-            .fit(&prep, &mut ws, ctx, identification.required_assumptions.clone())
-            .map_err(CausalError::from)?;
+        let estimate = est.fit_checked(&checked, &mut ws, ctx).map_err(CausalError::from)?;
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, extra_diagnostics) = run_refuters(
@@ -708,8 +1040,11 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if self.estimator == Some(EstimatorId::BayesianBasisGcomp) {
+            return self.execute_bayesian_basis(data, graph, &query.inner, physical, ctx);
+        }
         if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            return self.execute_bayesian(data, graph, &query.inner, physical, ctx);
+            return self.execute_bayesian(data, graph, &query.inner, physical, None, ctx);
         }
         let started = Instant::now();
         let (identifier, _) = self.resolve_conditional_pair();
@@ -789,7 +1124,7 @@ impl super::Study {
     }
 
     /// Cpdag/Pag ConditionalEffect via the same generalized-adjustment envelope as ATE.
-    pub(super) fn execute_class_conditional(
+    pub(in crate::analysis) fn execute_class_conditional(
         &self,
         data: &TabularData,
         query: &antecedent_core::ConditionalEffectQuery,
@@ -1317,6 +1652,42 @@ impl super::Study {
             early_stopped: false,
             extras: IdentifiedExecuteExtras::default(),
         }))
+    }
+
+    /// Execute the prepared two-scenario Unknown-tier product without looking
+    /// up or rebuilding its identification from the retained Study cache.
+    pub(crate) fn execute_checked_unknown_tiered_average(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        background: &antecedent_graph::TieredBackground,
+        identification: IdentificationResult,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+    ) -> Result<StudyResult, CausalError> {
+        if background.within_tier != antecedent_graph::WithinTier::Unknown
+            || identification.query != CausalQuery::AverageEffect(query.clone())
+            || identification.estimands.len() != 2
+            || identification.status != IdentificationStatus::GraphDependent
+        {
+            return Err(CausalError::Conflict {
+                what: "checked Unknown-tier operation",
+                detail: "retained target, tier interpretation, or scenario envelope changed",
+            });
+        }
+        self.finish_tiered_unknown(
+            data,
+            query,
+            physical,
+            ctx,
+            identification,
+            identifier_id,
+            estimator_id,
+            true,
+            Instant::now(),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -6,44 +6,68 @@
 
 mod attribution;
 mod average;
+mod continuous_dose;
 mod counterfactual;
+mod did;
 mod distribution;
 mod error;
 mod functional;
 mod interference;
+mod local_polynomial_ratio;
+mod longitudinal_regime;
 mod mediation;
+mod nested_counterfactual;
+mod policy_value;
 mod population;
+mod randomized;
 mod response;
+mod survival;
+mod synthetic_control;
 mod target;
 mod temporal;
 mod transport;
 mod transport_catalog;
 mod transport_contract;
+mod transport_delta;
 
 pub use crate::intervention::TemporalPolicy;
 
 pub use attribution::{
-    AllocationMethod, AnomalyAttributionQuery, AttributionComponents, ChangeAttributionQuery,
-    MechanismChangeQuery, OrderedFloatBits, PopulationSelector, ShapleyConfig, ShapleyMode,
-    UnitChangeQuery,
+    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AttributionComponents,
+    ChangeAttributionQuery, MechanismChangeQuery, OrderedFloatBits, PopulationSelector,
+    ShapleyConfig, ShapleyMode, UnitChangeQuery,
 };
 pub use average::AverageEffectQuery;
+pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
 pub use counterfactual::CounterfactualQuery;
+pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
 pub use functional::OutcomeFunctional;
 pub use interference::{
     AssignmentDesign, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,
-    InterferenceFunctional, InterferenceQuery,
+    ExposurePropensityProvenance, InterferenceFunctional, InterferenceQuery,
 };
+pub use local_polynomial_ratio::LocalPolynomialRatioQuery;
+pub use longitudinal_regime::{LongitudinalRegimeMethod, LongitudinalRegimeQuery};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
+pub use nested_counterfactual::NestedCounterfactualQuery;
+pub use policy_value::{
+    FixedCandidateRegretInputs, MultiActionPolicyInputs, PolicyValueQuery,
+    policy_graphless_coordinate,
+};
 pub use population::{PopulationRegistry, PopulationSelection};
+pub use randomized::{
+    RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, randomized_graphless_coordinate,
+};
 pub use response::{
     ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
+pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
+pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
@@ -59,6 +83,7 @@ pub use transport_contract::{
     TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
     TransportQueryScope, TransportSupportCoordinate, TransportUncertaintySupport,
 };
+pub use transport_delta::EvidenceCatalogDelta;
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]
@@ -70,6 +95,8 @@ pub enum CausalQuery {
     TemporalEffect(TemporalEffectQuery),
     /// Counterfactual / unit-level what-if query .
     Counterfactual(CounterfactualQuery),
+    /// Fixed-contract nested natural direct effect.
+    NestedCounterfactual(NestedCounterfactualQuery),
     /// Anomaly attribution for one or more units .
     AnomalyAttribution(AnomalyAttributionQuery),
     /// Distribution / population change attribution .
@@ -92,6 +119,22 @@ pub enum CausalQuery {
     Transport(TransportQuery),
     /// Randomization-based causal effect under interference.
     Interference(InterferenceQuery),
+    /// Bernoulli randomized two-arm intention-to-treat effect.
+    RandomizedEffect(RandomizedEffectQuery),
+    /// Fixed randomized binary or multi-action policy value.
+    PolicyValue(PolicyValueQuery),
+    /// Local conditional continuous-dose response with supplied dose density.
+    ContinuousDoseResponse(ContinuousDoseResponseQuery),
+    /// Balanced two-period panel difference in differences.
+    PanelDid(PanelDidQuery),
+    /// Balanced-panel synthetic control with one treated unit and donor pool.
+    SyntheticControl(SyntheticControlQuery),
+    /// Fixed-bandwidth local fuzzy discontinuity or regression kink ratio.
+    LocalPolynomialRatio(LocalPolynomialRatioQuery),
+    /// Randomized right-censored survival or competing-risk functional.
+    Survival(SurvivalQuery),
+    /// Prespecified longitudinal regime value over subject histories.
+    LongitudinalRegime(LongitudinalRegimeQuery),
 }
 
 impl CausalQuery {
@@ -111,6 +154,12 @@ impl CausalQuery {
     #[must_use]
     pub fn counterfactual(query: CounterfactualQuery) -> Self {
         Self::Counterfactual(query)
+    }
+
+    /// Construct a nested counterfactual query.
+    #[must_use]
+    pub fn nested_counterfactual(query: NestedCounterfactualQuery) -> Self {
+        Self::NestedCounterfactual(query)
     }
 
     /// Construct an anomaly attribution query.
@@ -178,6 +227,48 @@ impl CausalQuery {
     pub fn interference(query: InterferenceQuery) -> Self {
         Self::Interference(query)
     }
+
+    /// Construct a randomized ITT query.
+    #[must_use]
+    pub fn randomized_effect(query: RandomizedEffectQuery) -> Self {
+        Self::RandomizedEffect(query)
+    }
+
+    /// Construct a held-out policy value query.
+    #[must_use]
+    pub fn policy_value(query: PolicyValueQuery) -> Self {
+        Self::PolicyValue(query)
+    }
+
+    /// Construct a balanced-panel `DiD` query.
+    #[must_use]
+    pub fn panel_did(query: PanelDidQuery) -> Self {
+        Self::PanelDid(query)
+    }
+
+    /// Construct a synthetic-control query.
+    #[must_use]
+    pub fn synthetic_control(query: SyntheticControlQuery) -> Self {
+        Self::SyntheticControl(query)
+    }
+
+    /// Construct a local fuzzy-discontinuity or regression-kink query.
+    #[must_use]
+    pub fn local_polynomial_ratio(query: LocalPolynomialRatioQuery) -> Self {
+        Self::LocalPolynomialRatio(query)
+    }
+
+    /// Construct a randomized survival or competing-risk query.
+    #[must_use]
+    pub fn survival(query: SurvivalQuery) -> Self {
+        Self::Survival(query)
+    }
+
+    /// Construct a prespecified longitudinal regime value query.
+    #[must_use]
+    pub fn longitudinal_regime(query: LongitudinalRegimeQuery) -> Self {
+        Self::LongitudinalRegime(query)
+    }
 }
 
 impl From<AverageEffectQuery> for CausalQuery {
@@ -195,6 +286,12 @@ impl From<TemporalEffectQuery> for CausalQuery {
 impl From<CounterfactualQuery> for CausalQuery {
     fn from(query: CounterfactualQuery) -> Self {
         Self::Counterfactual(query)
+    }
+}
+
+impl From<NestedCounterfactualQuery> for CausalQuery {
+    fn from(query: NestedCounterfactualQuery) -> Self {
+        Self::NestedCounterfactual(query)
     }
 }
 
@@ -264,6 +361,42 @@ impl From<InterferenceQuery> for CausalQuery {
     }
 }
 
+impl From<RandomizedEffectQuery> for CausalQuery {
+    fn from(query: RandomizedEffectQuery) -> Self {
+        Self::RandomizedEffect(query)
+    }
+}
+
+impl From<PanelDidQuery> for CausalQuery {
+    fn from(query: PanelDidQuery) -> Self {
+        Self::PanelDid(query)
+    }
+}
+
+impl From<SyntheticControlQuery> for CausalQuery {
+    fn from(query: SyntheticControlQuery) -> Self {
+        Self::SyntheticControl(query)
+    }
+}
+
+impl From<LocalPolynomialRatioQuery> for CausalQuery {
+    fn from(query: LocalPolynomialRatioQuery) -> Self {
+        Self::LocalPolynomialRatio(query)
+    }
+}
+
+impl From<SurvivalQuery> for CausalQuery {
+    fn from(query: SurvivalQuery) -> Self {
+        Self::Survival(query)
+    }
+}
+
+impl From<LongitudinalRegimeQuery> for CausalQuery {
+    fn from(query: LongitudinalRegimeQuery) -> Self {
+        Self::LongitudinalRegime(query)
+    }
+}
+
 impl CausalQuery {
     /// Target population of a population-scoped query.
     ///
@@ -281,12 +414,21 @@ impl CausalQuery {
             Self::Response(inner) => Some(&inner.target_population),
             Self::ConditionalEffect(inner) => Some(&inner.inner.target_population),
             Self::Counterfactual(_)
+            | Self::NestedCounterfactual(_)
             | Self::AnomalyAttribution(_)
             | Self::ChangeAttribution(_)
             | Self::MechanismChange(_)
             | Self::UnitChange(_)
             | Self::Transport(_)
-            | Self::Interference(_) => None,
+            | Self::Interference(_)
+            | Self::RandomizedEffect(_)
+            | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
+            | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 
@@ -301,55 +443,22 @@ impl CausalQuery {
             Self::Response(inner) => Some(&mut inner.target_population),
             Self::ConditionalEffect(inner) => Some(&mut inner.inner.target_population),
             Self::Counterfactual(_)
+            | Self::NestedCounterfactual(_)
             | Self::AnomalyAttribution(_)
             | Self::ChangeAttribution(_)
             | Self::MechanismChange(_)
             | Self::UnitChange(_)
             | Self::Transport(_)
-            | Self::Interference(_) => None,
+            | Self::Interference(_)
+            | Self::RandomizedEffect(_)
+            | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
+            | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
-    }
-
-    /// Whether this query is the static ATE path.
-    #[must_use]
-    pub const fn is_static_ate(&self) -> bool {
-        matches!(self, Self::AverageEffect(_))
-    }
-
-    /// Whether this query is a temporal effect.
-    #[must_use]
-    pub const fn is_temporal_effect(&self) -> bool {
-        matches!(self, Self::TemporalEffect(_))
-    }
-
-    /// Whether this query is counterfactual.
-    #[must_use]
-    pub const fn is_counterfactual(&self) -> bool {
-        matches!(self, Self::Counterfactual(_))
-    }
-
-    /// Whether this query is mediation.
-    #[must_use]
-    pub const fn is_mediation(&self) -> bool {
-        matches!(self, Self::Mediation(_))
-    }
-
-    /// Whether this query is a conditional effect.
-    #[must_use]
-    pub const fn is_conditional_effect(&self) -> bool {
-        matches!(self, Self::ConditionalEffect(_))
-    }
-
-    /// Whether this query is an interventional distribution.
-    #[must_use]
-    pub const fn is_distribution(&self) -> bool {
-        matches!(self, Self::Distribution(_))
-    }
-
-    /// Whether this query is path-specific.
-    #[must_use]
-    pub const fn is_path_specific(&self) -> bool {
-        matches!(self, Self::PathSpecific(_))
     }
 
     /// Validate the inner query.
@@ -362,6 +471,7 @@ impl CausalQuery {
             Self::AverageEffect(q) => q.validate(),
             Self::TemporalEffect(q) => q.validate(),
             Self::Counterfactual(q) => q.validate(),
+            Self::NestedCounterfactual(q) => q.validate(),
             Self::AnomalyAttribution(q) => q.validate(),
             Self::ChangeAttribution(q) => q.validate(),
             Self::MechanismChange(q) => q.validate(),
@@ -373,6 +483,14 @@ impl CausalQuery {
             Self::Response(q) => q.validate(),
             Self::Transport(q) => q.validate(),
             Self::Interference(q) => q.validate(),
+            Self::RandomizedEffect(q) => q.validate(),
+            Self::PolicyValue(q) => q.validate(),
+            Self::ContinuousDoseResponse(q) => q.validate(),
+            Self::PanelDid(q) => q.validate(),
+            Self::SyntheticControl(q) => q.validate(),
+            Self::LocalPolynomialRatio(q) => q.validate(),
+            Self::Survival(q) => q.validate(),
+            Self::LongitudinalRegime(q) => q.validate(),
         }
     }
 }

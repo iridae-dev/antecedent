@@ -19,6 +19,8 @@ import pytest
 from antecedent import population as P
 from antecedent.errors import CausalUnsupportedError
 
+from _sealed_loads import assert_answer_kept
+
 
 def _static(n: int = 1200, seed: int = 3) -> dict[str, np.ndarray]:
     """Binary treatment confounded by ``z`` whose effect grows with ``z``."""
@@ -181,15 +183,20 @@ def test_every_population_scoped_class_has_the_field() -> None:
         ant.DirectionalDerivative,
         ant.ResponseJacobian,
     }
-    unscoped = {ant.Counterfactual, ant.AnomalyAttribution, ant.ChangeAttribution}
+    unscoped = {
+        ant.Counterfactual,
+        ant.NestedCounterfactual,
+        ant.AnomalyAttribution,
+        ant.ChangeAttribution,
+    }
     for cls in scoped:
         field = {f.name: f for f in fields(cls)}["target_population"]
         assert field.default is None and field.kw_only, cls.__name__
     for cls in unscoped:
         assert "target_population" not in {f.name for f in fields(cls)}, cls.__name__
-    assert len(scoped) + len(unscoped) == len(
-        [name for name in ant.query.__all__ if name in ant.__all__]
-    )
+    query_names = {name for name in ant.query.__all__ if name in ant.__all__}
+    # AnomalyReference configures a query; it is not itself a query target.
+    assert query_names - {"AnomalyReference"} == {cls.__name__ for cls in scoped | unscoped}
 
 
 @pytest.mark.parametrize(
@@ -235,7 +242,7 @@ def test_the_all_observed_population_is_the_default_and_survives_export(
     assert declared.program_id == default.program_id
     assert declared.inspect().target_id == default.inspect().target_id
     loaded = ant.load(declared.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.inspect().target_id == declared.inspect().target_id
     assert loaded.answer == declared.answer
 
@@ -258,7 +265,7 @@ def test_average_effect_population_changes_the_answer_and_the_target() -> None:
     assert att.inspect().target_id != ate.inspect().target_id
     assert att.program_id != ate.program_id
     loaded = ant.load(att.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.inspect().target_id == att.inspect().target_id
     assert loaded.inspect().to_dict()["target"]["query"]["target_population"] == "treated"
 

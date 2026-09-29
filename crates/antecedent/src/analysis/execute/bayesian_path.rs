@@ -10,6 +10,7 @@ impl super::Study {
         graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
+        checked_operation: Option<&super::super::prepared::CheckedBayesianGcompOperation>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut clock = super::super::stage::StageClock::new();
@@ -24,11 +25,24 @@ impl super::Study {
         // only (identifier, graph, query) — rd is never consulted on this path —
         // all frozen there, so reuse is exact and observable via the
         // `exec.identify.cached` diagnostic below.
-        let (identification, estimand, identify_cached) =
+        if let Some(operation) = checked_operation {
+            if operation.query != *query
+                || !matches!(operation.inference, InferenceMode::Bayesian(_))
+            {
+                return Err(CausalError::Compile {
+                    message: "prepared Bayesian g-computation binding changed after prepare".into(),
+                });
+            }
+        }
+        let (identification, estimand, identify_cached) = if let Some(operation) = checked_operation
+        {
+            (operation.identification.clone(), operation.estimand.clone(), true)
+        } else {
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
                 select_claim(identification, estimator_id)
-            })?;
+            })?
+        };
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -42,7 +56,8 @@ impl super::Study {
         let (data_est, query_est, estimand_est) = project_for_ate_estimate(data, query, &estimand)?;
         let projected_cols = data_est.schema().len();
 
-        let cfg = match &self.inference {
+        let inference = checked_operation.map_or(&self.inference, |operation| &operation.inference);
+        let cfg = match inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::Unsupported {
@@ -774,7 +789,7 @@ impl super::Study {
     ///
     /// `InferenceMode::Frequentist`, or any per-graph identification/estimation
     /// infrastructure failure (envelope aggregation, missing effect column, …).
-    pub(super) fn execute_graph_posterior_bayesian(
+    pub(in crate::analysis) fn execute_graph_posterior_bayesian(
         &self,
         data: &TabularData,
         gp: &GraphPosterior,
@@ -811,6 +826,7 @@ impl super::Study {
             .iter()
             .map(|atom| (atom.key, atom.estimand.clone(), atom.identification.clone()))
             .collect();
+        let original_anchor_key = fit_atoms.first().map(|(key, _, _)| *key);
         // Interactive subsampling can demote the first structurally identified
         // atom before estimation. Keep the shared prior anchored to that
         // original first atom below, but anchor the public estimand and
@@ -838,9 +854,10 @@ impl super::Study {
         })?;
         for (i, (key, prep)) in preps.into_iter().enumerate() {
             if i == 0 {
-                let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
-                envelope_prior = resolved;
-                envelope_conflict = conflict;
+                let anchor =
+                    super::BayesianGraphPosteriorPriorAnchor::resolve(key, &cfg, &prep, ctx)?;
+                envelope_prior = anchor.prior;
+                envelope_conflict = anchor.conflict;
             }
             prepared.entry(key).or_insert(prep);
         }
@@ -859,43 +876,64 @@ impl super::Study {
                 keep.contains(key) && prepared.contains_key(key) && seen_keys.insert(*key)
             })
             .collect();
-        let fits = ctx.map_indexed(kept.len(), |i, inner| {
-            let (key, estimand, identification) = &kept[i];
-            let prep = prepared.get(key).expect("kept key is prepared");
-            let mut est = est.clone();
-            est.prior.clone_from(&envelope_prior);
-            let mut ws = BayesianGCompWorkspace::default();
-            let posterior =
-                est.fit(prep, identification.status, &mut ws, inner).map_err(CausalError::from)?;
-            Ok::<_, CausalError>((
-                *key,
-                estimand.clone(),
-                identification.clone(),
-                posterior,
-                envelope_prior.clone(),
-            ))
-        })?;
+        let Some(anchor_key) = original_anchor_key else {
+            return Err(CausalError::Compile {
+                message:
+                    "Bayesian graph-posterior envelope has no identified atom for prior anchoring"
+                        .into(),
+            });
+        };
+        let anchor = super::BayesianGraphPosteriorPriorAnchor {
+            key: anchor_key,
+            prior: envelope_prior.clone(),
+            conflict: envelope_conflict.clone(),
+        };
+        let inputs = kept
+            .iter()
+            .map(|(key, estimand, identification)| {
+                let prep = prepared.remove(key).ok_or_else(|| CausalError::Compile {
+                    message: "kept Bayesian graph-posterior key has no prepared design".into(),
+                })?;
+                Ok(super::BayesianGraphPosteriorAtomInput {
+                    key: *key,
+                    weight: identified_weight_for_key(&graphs, *key),
+                    status: identification.status,
+                    estimand: estimand.clone(),
+                    prepared: prep,
+                })
+            })
+            .collect::<Result<Vec<_>, CausalError>>()?;
+        let fitted = super::BayesianGraphPosteriorAtomFits::fit(est.clone(), anchor, inputs, ctx)?;
+        if fitted.prior_anchor.key != anchor_key {
+            return Err(CausalError::Compile {
+                message: "Bayesian graph-posterior fit changed its original prior anchor".into(),
+            });
+        }
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, estimand, identification, posterior, prior) in fits {
-            let Some(prep) = prepared.remove(&key) else {
-                continue;
+        per_graph.extend(fitted.draw_columns.iter().cloned());
+        for atom in fitted.atoms {
+            let key = atom.key;
+            let Some((_, estimand, identification)) =
+                kept.iter().find(|(found, _, _)| *found == key)
+            else {
+                return Err(CausalError::Compile {
+                    message: "Bayesian graph-posterior fit returned an unknown atom key".into(),
+                });
             };
-            per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
                 primary_identification = Some(identification.clone());
             }
-            let weight = identified_weight_for_key(&graphs, key);
             atoms.push(EnvelopeAtomFit {
                 key,
-                prep,
-                posterior,
-                status: identification.status,
-                weight,
-                estimand,
+                prep: atom.prepared,
+                posterior: atom.posterior,
+                status: atom.status,
+                weight: atom.weight,
+                estimand: atom.estimand,
                 indexer: None,
-                prior,
+                prior: atom.prior,
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -1117,33 +1155,69 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_graph_posterior_frequentist_inner(data, gp, query, physical, None, ctx)
+    }
+
+    pub(in crate::analysis) fn execute_checked_graph_posterior_frequentist(
+        &self,
+        data: &TabularData,
+        physical: &PhysicalExecutionPlan,
+        operation: &super::super::CheckedGraphPosteriorEffect,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.execute_graph_posterior_frequentist_inner(
+            data,
+            operation.posterior(),
+            operation.query(),
+            physical,
+            Some(operation),
+            ctx,
+        )
+    }
+
+    fn execute_graph_posterior_frequentist_inner(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        checked: Option<&super::super::CheckedGraphPosteriorEffect>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if !matches!(self.inference, InferenceMode::Frequentist) {
+        if checked.is_none() && !matches!(self.inference, InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {
                 message: "execute_graph_posterior_frequentist requires inference=Frequentist",
             });
         }
-        let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
-        let estimator_id = if conditional {
+        let conditional = checked.map_or_else(
+            || matches!(self.query, CausalQuery::ConditionalEffect(_)),
+            |operation| operation.target().is_conditional(),
+        );
+        let estimator_id = if let Some(operation) = checked {
+            operation.estimator()
+        } else if conditional {
             EstimatorId::ConditionalLinearAdjustment
         } else {
             EstimatorId::LinearAdjustmentAte
         };
         let estimator = estimator_id.as_str();
-        let (identified, identify_cached) =
-            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                (
-                    crate::analysis::prepared::build_graph_posterior_identification_cache(
-                        gp, query, ctx,
-                    )?,
-                    false,
-                )
-            };
+        let (identified, identify_cached) = if let Some(operation) = checked {
+            (operation.identification().clone(), true)
+        } else if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
+            (cache.clone(), true)
+        } else {
+            (
+                crate::analysis::prepared::build_graph_posterior_identification_cache(
+                    gp, query, ctx,
+                )?,
+                false,
+            )
+        };
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
-            self.latency_mode,
+            checked
+                .map_or(self.latency_mode, super::super::CheckedGraphPosteriorEffect::latency_mode),
             identified.graphs.clone(),
             ctx,
             &mut subsample_notes,
@@ -1162,10 +1236,14 @@ impl super::Study {
         let estimates = ctx.map_indexed(kept.len(), |i, inner| {
             let atom = kept[i];
             let mut case_ws = StaticEstimateWorkspaces::default();
-            let case_spec = self
-                .estimator_spec
-                .clone()
-                .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
+            let case_spec = checked.map_or_else(
+                || {
+                    self.estimator_spec
+                        .clone()
+                        .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id))
+                },
+                |operation| operation.procedure().clone(),
+            );
             let estimate = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -1179,9 +1257,13 @@ impl super::Study {
                     &atom.estimand,
                     query,
                     atom.identification.required_assumptions.clone(),
-                    self.bootstrap_replicates,
-                    self.overlap_policy,
-                    self.population_registry.as_ref(),
+                    checked.map_or(self.bootstrap_replicates, |operation| {
+                        operation.bootstrap_replicates()
+                    }),
+                    checked.map_or(self.overlap_policy, |operation| Some(operation.overlap())),
+                    checked
+                        .and_then(|operation| operation.population_registry())
+                        .or(self.population_registry.as_ref()),
                     inner,
                     &mut case_ws,
                 )
@@ -1356,11 +1438,14 @@ impl super::Study {
                         std::slice::from_ref(atom),
                         &mut refute_ws,
                         ctx,
-                        self.refute,
+                        checked.map_or(
+                            self.refute,
+                            super::super::CheckedGraphPosteriorEffect::validation,
+                        ),
                         estimator,
-                        &self.custom_validators,
+                        if checked.is_some() { &[] } else { &self.custom_validators },
                         None,
-                        self.split.as_ref(),
+                        if checked.is_some() { None } else { self.split.as_ref() },
                         None,
                     )?;
                     reports.append(&mut per_atom);
@@ -1383,11 +1468,12 @@ impl super::Study {
                     &refute_atoms,
                     &mut refute_ws,
                     ctx,
-                    self.refute,
+                    checked
+                        .map_or(self.refute, super::super::CheckedGraphPosteriorEffect::validation),
                     estimator,
-                    &self.custom_validators,
+                    if checked.is_some() { &[] } else { &self.custom_validators },
                     None,
-                    self.split.as_ref(),
+                    if checked.is_some() { None } else { self.split.as_ref() },
                     None,
                 )?
             };
@@ -2924,7 +3010,7 @@ fn compose_temporal_mediation_for_atom(
 /// causal effect when the outcome mean is nonlinear in the adjustment set or
 /// carries treatment × covariate interactions the design does not include
 /// (`tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe`).
-fn gcomp_outcome_model_assumption(
+pub(super) fn gcomp_outcome_model_assumption(
     likelihood: antecedent_prob::BayesLikelihood,
     conditional: bool,
 ) -> antecedent_core::AssumptionRecord {
@@ -2937,8 +3023,8 @@ fn gcomp_outcome_model_assumption(
         antecedent_prob::BayesLikelihood::PoissonLog => "Poisson log-link outcome regression",
     };
     let design = if conditional {
-        "linear in the treatment, the declared modifier, their product, and each adjustment \
-         column"
+        "linear in the treatment, each declared modifier, each treatment × modifier product, \
+         and each adjustment column; contrasts are evaluated on the outcome scale per draw"
     } else {
         "linear in the treatment and each adjustment column, with no treatment × covariate \
          interaction"

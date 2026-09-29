@@ -21,6 +21,28 @@ struct AdmgPosteriorResponseAtom {
 }
 
 impl super::Study {
+    pub(in crate::analysis) fn execute_checked_admg_graph_posterior_response(
+        &self,
+        data: &TabularData,
+        operation: &super::super::CheckedAdmgGraphPosteriorResponse,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut bound = self.clone();
+        bound.query = CausalQuery::Response(operation.query().clone());
+        bound.graph_posterior = Some(operation.posterior().clone());
+        bound.graph_posterior_identification_cache =
+            Some(Arc::new(operation.identification().clone()));
+        bound.inference = operation.inference().clone();
+        bound.refute = operation.validation();
+        bound.execute_admg_graph_posterior_response(
+            data,
+            operation.posterior(),
+            operation.query(),
+            operation.physical(),
+            ctx,
+        )
+    }
+
     /// Mix ADMG posterior atoms through `identify_admg_query` + `functional.effect`.
     pub(super) fn execute_admg_graph_posterior_response(
         &self,
@@ -389,8 +411,15 @@ fn estimate_admg_posterior_atom_response(
     let bayesian = matches!(study.inference, InferenceMode::Bayesian(_));
     match &query.functional {
         ResponseFunctional::InterventionResponse { .. } => {
-            let (mut response, _) =
-                estimate_general_id_response(data, query, identification, estimand, ctx)?;
+            let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
+            let (mut response, _) = estimate_general_id_response(
+                data,
+                query,
+                identification,
+                estimand,
+                replicates,
+                ctx,
+            )?;
             if bayesian {
                 let (estimate, _) = study.estimate_functional_effect(
                     data,
@@ -413,7 +442,9 @@ fn estimate_admg_posterior_atom_response(
                 tx.grid.values().map_err(|e| CausalError::Compile { message: e.to_string() })?;
             let mut means = Vec::with_capacity(levels.len());
             let mut grid = Vec::with_capacity(levels.len());
+            let mut freq_curve_bounds: Vec<(f64, f64)> = Vec::new();
             let mut support = None;
+            let replicates = if bayesian { 0 } else { study.bootstrap_replicates };
             for level in levels {
                 let level_query = admg_response_at_level(query, tx.variable, *outcome, level);
                 let (level_id, level_est) = if means.is_empty() {
@@ -442,8 +473,13 @@ fn estimate_admg_posterior_atom_response(
                         &level_query,
                         &level_id,
                         &level_est,
+                        replicates,
                         ctx,
                     )?;
+                    if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty
+                    {
+                        freq_curve_bounds.push((*lower, *upper));
+                    }
                     let (scalar, _) = response_scalar_summary(&response);
                     if support.is_none() {
                         support = Some(response.support);
@@ -464,6 +500,7 @@ fn estimate_admg_posterior_atom_response(
                 minima: Arc::from(vec![min]),
                 maxima: Arc::from(vec![max]),
             };
+            let means_len = means.len();
             Ok(CausalResponse {
                 estimand: query.functional.clone(),
                 identification_status: identification.status,
@@ -472,7 +509,23 @@ fn estimate_admg_posterior_atom_response(
                     dimension: 1,
                     mean: Arc::from(means),
                 }),
-                uncertainty: ResponseUncertainty::None,
+                uncertainty: if !freq_curve_bounds.is_empty()
+                    && freq_curve_bounds.len() == means_len
+                {
+                    ResponseUncertainty::PointwiseBand {
+                        level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                        lower: Arc::from(
+                            freq_curve_bounds.iter().map(|(lower, _)| *lower).collect::<Vec<_>>(),
+                        ),
+                        upper: Arc::from(
+                            freq_curve_bounds.iter().map(|(_, upper)| *upper).collect::<Vec<_>>(),
+                        ),
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        draws: None,
+                    }
+                } else {
+                    ResponseUncertainty::None
+                },
                 support: response_support,
                 assumptions: identification.required_assumptions.clone(),
                 provenance_id: Arc::from("estimate.response.admg_graph_posterior"),

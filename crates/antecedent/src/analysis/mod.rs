@@ -6,6 +6,20 @@
 
 mod batch;
 mod builder;
+mod checked_bayesian_class_conditional;
+mod checked_bayesian_graph_posterior;
+mod checked_bayesian_temporal_class_effect;
+mod checked_bayesian_temporal_effect;
+mod checked_class_graph_posterior_effect;
+mod checked_conditional;
+mod checked_graph_posterior;
+mod checked_propensity;
+mod checked_temporal_class_effect;
+mod checked_temporal_class_response;
+mod checked_temporal_effect;
+mod checked_temporal_graph_posterior_effect;
+mod checked_temporal_graph_posterior_response;
+mod checked_temporal_response;
 mod contract;
 mod contract_identity;
 mod exact;
@@ -13,6 +27,27 @@ mod execute;
 mod learned_trial;
 mod statistical;
 mod transport_grid;
+mod z_transport;
+mod z_transport_sensitivity_artifact;
+pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
+pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
+pub(crate) use checked_bayesian_temporal_class_effect::CheckedBayesianTemporalClassEffectOperation;
+pub(crate) use checked_bayesian_temporal_effect::CheckedBayesianTemporalEffectOperation;
+pub(crate) use checked_class_graph_posterior_effect::CheckedClassGraphPosteriorEffect;
+pub(crate) use checked_conditional::{CheckedConditionalOperation, ConditionalProcedure};
+pub(crate) use checked_graph_posterior::{
+    CheckedAdmgGraphPosteriorResponse, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
+    StaticClassGraph, StaticClassIdentification,
+};
+pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectOperation;
+pub(crate) use checked_temporal_class_response::CheckedTemporalClassResponseOperation;
+pub(crate) use checked_temporal_effect::CheckedTemporalEffectOperation;
+pub(crate) use checked_temporal_graph_posterior_effect::{
+    CheckedTemporalGraphPosteriorEffect, CheckedTemporalGraphPosteriorProof,
+};
+pub(crate) use checked_temporal_graph_posterior_response::{
+    CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
+};
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
@@ -26,11 +61,17 @@ pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,
 };
+pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_artifact};
+pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
+mod graph_posterior_target;
 mod helpers;
+mod identification_cache;
 mod latency;
 mod prepared;
+mod route_guards;
 mod stage;
 mod transport_common;
+pub(crate) use graph_posterior_target::GraphPosteriorEffectTarget;
 
 pub use antecedent_core::{
     BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
@@ -42,13 +83,33 @@ pub use batch::{
 };
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use contract::CausalContract;
+pub use execute::DagResponseOrigin;
 pub use execute::Study;
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
     LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
     STANDARD_N_DRAWS, refuse_non_report_hmc,
 };
-pub use prepared::{CachedTemporalIdentification, PreparedStudy};
+pub use prepared::{
+    CachedTemporalIdentification, CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo,
+    CheckedBayesianBasisAteInfo, CheckedBayesianClassConditionalInfo,
+    CheckedBayesianGraphPosteriorAteInfo, CheckedBayesianRobustAteInfo,
+    CheckedBayesianTemporalDagEffectInfo, CheckedCellAipwResponseInfo,
+    CheckedClassGraphPosteriorEffectInfo, CheckedConditionalEffectInfo,
+    CheckedGraphPosteriorEffectInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
+    CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
+    CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
+    CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
+    CheckedUnknownTieredAverageInfo, PreparedStudy,
+};
+pub use prepared::{
+    CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
+};
+pub use prepared::{CheckedTemporalClassResponseInfo, CheckedTemporalGraphPosteriorResponseInfo};
 pub use stage::{StageEvent, StageResultSink};
 
+pub(crate) use checked_temporal_response::{
+    CheckedTemporalResponseOperation, TemporalResponseHorizonEvidence, temporal_response_is_direct,
+};
+pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};

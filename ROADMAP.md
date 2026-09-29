@@ -1,11 +1,17 @@
 # Antecedent 2.x
 
-Last updated: 2026-09-23.
+Last updated: 2026-09-26.
 This file outlines the 2.x release cycle. Each workstream starts with a
 bounded scientific contract and ends with an executable, calibrated, portable
 capability. A workstream may span releases; X1–X11 are workstream labels, and
 the dependency checkpoints below govern their composition. The release map
 sets proposed 2.x delivery targets rather than API compatibility promises.
+After 2.1, the cycle is two releases: 2.2 and 2.3. Each has two internal
+milestones, A and B, which keep the acceptance boundaries previously planned
+as separate 2.2–2.5 releases. A milestone orders work inside its release; it
+is not a version tag. The version cut is after milestone B. A cell that fails
+its gate is still carried forward, and the licensed cells in that release
+still ship.
 Preserve the 2.0 gates. X4 binds statistical providers through
 `antecedent-learn`; do not invent a second ML stack. Transport promotion is
 coverage-led: a new theorem, graph class, evidence mode, or inferential
@@ -39,17 +45,17 @@ support and artifact gates in every release. If a proposed cell fails its gate,
 ship the other independently licensed cells and carry that cell forward with
 its refusal visible; do not silently broaden the release claim.
 
-| Release | User-visible outcome | Scoped workstreams and acceptance boundary |
+| Milestone | User-visible outcome | Scoped workstreams and acceptance boundary |
 | --- | --- | --- |
-| **2.1 — Evidence and assumptions** | Recover an effect from a named surrogate experiment; see how much one declared mechanism may change the conclusion; find a feasible next experiment after a transport failure; evaluate a first compatible nested counterfactual; inspect the proof and missing evidence for each transport outcome. | **X1:** single-source z-transportability for a bounded controllable set, including joint-regime evidence and exact/empirical execution. **X3:** one-factor sensitivity on a fixed graph, with zero-violation and tipping-point checks. **X6:** structural sufficiency and cost ranking over a finite candidate catalog, with verified derivations. **X8:** a named fixed-DAG compatible nested cell with shared exogenous draws and a typed cross-world refusal. **X9:** show the checked proof graph and missing source factors, and support typed hypothetical catalog deltas on the existing transport path. Establish the checked-in transport and counterfactual coverage matrices and publish refused cells alongside licensed ones. |
-| **2.2 — More study designs and responses** | Combine a limited catalog of experiments across sources; compare finite graph/selection scenarios; estimate one overlap-supported continuous-outcome transport effect; transport a finite two-step intervention sequence; see why a graph-specific estimator is eligible. | **X1:** separately scoped limited-experiment multi-source route, including explicit incomplete-search outcomes. **X2:** finite supplied scenarios with shared coordinates, evidence binding, structural envelopes, and unidentified/unevaluated mass; no CPDAG/PAG-native claim. **X4:** one named conditional-mean/effect functional through `antecedent-learn`, plus a graph-specific estimator menu with reasons and inferential limits. **X5:** one unrolled finite-horizon discrete sequence with time-varying confounding and history-support refusal. **X8:** next fixed-DAG nested/path-specific cell only where its cross-world contract is proven. **X9:** one bounded mixed-source distribution search with internally checked derivation and explicit incomplete-search outcome. |
-| **2.3 — Confounding and calibrated execution** | Handle one latent-confounded transport setting; execute a smoothed dose-response grid; plan studies against the new restricted catalogs; quantify a joint mechanism-deviation scenario; recover one law from a bounded incomplete-observation case. | **X2:** one bounded semi-Markovian ADMG transport theorem and executable evidence row, with obstruction cases; selection-diagram variants only if their evidence maps to that row. **X4:** one smoothed dose-response grid with its estimand, bias, numerical tolerances, and licensed whole-estimator uncertainty stated separately. **X3:** compatible jointly varying deviations and a licensed composition with sampling error. **X6:** sufficient additions across restricted catalogs and competing designs, with search-limit receipts. **X8:** a bounded ADMG counterfactual-ID cell only after its fixed-population theorem, engine, and refusal fixtures pass. **X10:** one exact binary observation-recovery cell, conditional on X9 source and proof contracts. |
-| **2.4 — Population and time uncertainty** | Carry a licensed transport claim across more graph/selection assumptions, model a source and target jointly where justified, and report uncertainty for temporal transport; evaluate a model-based binary ADMG provider. | **X2:** additional selection-diagram or enumerated class-completion rows with scenario-specific evidence and shared-data covariance. **X4:** one Bayesian transport provider with a joint source/target model and calibrated posterior decisions; pilot a binary nested-Markov likelihood on a separately licensed ADMG row. Add further sampling designs only as separate rows. **X5:** dependence-preserving inference, initial-state uncertainty, and explicit refresh/invalidation for new periods. **X8:** temporal fixed-population counterfactuals with shared unit histories; transported counterfactuals only where both underlying transport and counterfactual rows are already licensed. **X10:** sampled observation recovery only after the exact formula and whole-path uncertainty pass. |
-| **2.5 — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** a prior-bank-compatible decision model and candidate signal feed the existing `ReduceDecisionRegret` objective, with an exact or Monte Carlo error receipt and source-overlap checks; retain verified structural/cost planning when that model is unavailable. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X9/X10:** additional mixed-source and observation-recovery rows only with complete evidence and provider contracts. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. |
+| **2.1 — Evidence and assumptions** | Recover an effect from a named surrogate experiment; see how much one declared mechanism may change the conclusion; find a feasible next experiment after a transport failure; evaluate a first compatible nested counterfactual; inspect the proof and missing evidence for each transport outcome. | Every licensed route executes through a retained checked operation; each cell of `parity/support_licensed.toml` cites the builder-independent evidence for every estimator it licenses, and the release gate executes it. **X1:** single-source z-transportability for a bounded controllable set, including joint-regime evidence and exact/empirical execution. **X3:** one-factor sensitivity on a fixed graph, with zero-violation and tipping-point checks. **X6:** structural sufficiency and cost ranking over a finite candidate catalog, with verified derivations. **X8:** a named fixed-DAG compatible nested cell with shared exogenous draws and a typed cross-world refusal. **X9:** show the checked proof graph and missing source factors, and support typed hypothetical catalog deltas on the existing transport path. Establish the checked-in transport and counterfactual coverage matrices and publish refused cells alongside licensed ones. |
+| **2.2 A — More study designs and responses** | Combine a limited catalog of experiments across sources; compare finite graph/selection scenarios; estimate one overlap-supported continuous-outcome transport effect; transport a finite two-step intervention sequence; see why a graph-specific estimator is eligible. | **X1:** separately scoped limited-experiment multi-source route, including explicit incomplete-search outcomes. **X2:** finite supplied scenarios with shared coordinates, evidence binding, structural envelopes, and unidentified/unevaluated mass; no CPDAG/PAG-native claim. **X4:** one named conditional-mean/effect functional through `antecedent-learn`, plus a graph-specific estimator menu with reasons and inferential limits. **X5:** one unrolled finite-horizon discrete sequence with time-varying confounding and history-support refusal. **X8:** next fixed-DAG nested/path-specific cell only where its cross-world contract is proven. **X9:** one bounded mixed-source distribution search with internally checked derivation and explicit incomplete-search outcome. |
+| **2.2 B — Confounding and calibrated execution** | Handle one latent-confounded transport setting; execute a smoothed dose-response grid; plan studies against the new restricted catalogs; quantify a joint mechanism-deviation scenario; recover one law from a bounded incomplete-observation case. | **X2:** one bounded semi-Markovian ADMG transport theorem and executable evidence row, with obstruction cases; selection-diagram variants only if their evidence maps to that row. **X4:** one smoothed dose-response grid with its estimand, bias, numerical tolerances, and licensed whole-estimator uncertainty stated separately. **X3:** compatible jointly varying deviations and a licensed composition with sampling error. **X6:** sufficient additions across restricted catalogs and competing designs, with search-limit receipts. **X8:** a bounded ADMG counterfactual-ID cell only after its fixed-population theorem, engine, and refusal fixtures pass. **X10:** one exact binary observation-recovery cell, conditional on X9 source and proof contracts. |
+| **2.3 A — Population and time uncertainty** | Carry a licensed transport claim across more graph/selection assumptions, model a source and target jointly where justified, and report uncertainty for temporal transport; evaluate a model-based binary ADMG provider. | **X2:** additional selection-diagram or enumerated class-completion rows with scenario-specific evidence and shared-data covariance. **X4:** one Bayesian transport provider with a joint source/target model and calibrated posterior decisions; pilot a binary nested-Markov likelihood on a separately licensed ADMG row. Add further sampling designs only as separate rows. **X5:** dependence-preserving inference, initial-state uncertainty, and explicit refresh/invalidation for new periods. **X8:** temporal fixed-population counterfactuals with shared unit histories; transported counterfactuals only where both underlying transport and counterfactual rows are already licensed. **X10:** sampled observation recovery only after the exact formula and whole-path uncertainty pass. |
+| **2.3 B — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** a prior-bank-compatible decision model and candidate signal feed the existing `ReduceDecisionRegret` objective, with an exact or Monte Carlo error receipt and source-overlap checks; retain verified structural/cost planning when that model is unavailable. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X9/X10:** additional mixed-source and observation-recovery rows only with complete evidence and provider contracts. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. |
 
 **Accelerator lane (X7).** Benchmark a representative cross-fitted neural
 workload during 2.1. If end-to-end transfer and fold orchestration show a
-material gain, target one explicit, opt-in backend for 2.3, with its device,
+material gain, target one explicit, opt-in backend at milestone 2.2 B, with its device,
 wheel, lease, replay, portability, and CPU-comparison gates. If that benchmark
 or any distribution gate fails, keep the CPU path as the released provider and
 move X7 to a later 2.x release; no other release depends on it. This gives GPU
@@ -192,13 +198,15 @@ numerical/calibration cases preserving the declared structural semantics.
 **Depends on:** the existing fixed-graph transport execution path; may start on
 fixed graphs before X2.
 
-- [ ] Choose an initial bounded sensitivity model on a named mechanism/factor
+- [x] Choose an initial bounded sensitivity model on a named mechanism/factor
       scale, with units, feasible parameter domain, and a zero-violation baseline.
       State how deviations alter the target functional or identified set.
-- [ ] Permit one and then jointly varying mechanism deviations without silently
-      treating arbitrary independent factor perturbations as a coherent SCM.
-      Verify compatibility, normalization, and the claimed interpretation.
-- [ ] Compute target responses and decision-threshold tipping points over the
+- [x] Permit one mechanism deviation at a time with factorization, normalization,
+      and fixed-graph propagation checks; unsupported provider/graph families
+      refuse rather than silently combining incompatible factor perturbations.
+- [ ] Permit jointly varying mechanism deviations while verifying compatibility,
+      normalization, and the claimed joint interpretation.
+- [x] Compute target responses and decision-threshold tipping points over the
       declared sensitivity set. Separate assumption ranges, statistical intervals,
       and any proven bounds; do not call a scenario sweep a sharp bound.
 - [ ] Compose sampling uncertainty with sensitivity only under a licensed
@@ -217,6 +225,16 @@ including responses beyond sparse finite tables, with honest approximation and
 inference? **Depends on:** the existing exact/empirical transport providers,
 ADMG identification, and the 2.0 learner substrate.
 Conditional-density/regression providers bind through `antecedent-learn`.
+
+The 2.1 linear-final-stage DR-Learner exposes pointwise HC0 inference on the
+best linear projection of the CATE onto the modifiers, evaluated at prespecified
+profiles that exactly match retained covariate tuples in both arms and pass the
+propensity-overlap check; it uses cross-fitted DR scores. The projection equals
+the true CATE only under a correctly specified linear/saturated final stage.
+Forest leaf dispersion remains diagnostic only. Synthetic known-truth fixtures
+establish method behavior, not interval coverage. These CATE bounds remain
+uncalibrated until a matching licensed coordinate and coverage record are
+established after cleanup/refactoring.
 
 - [ ] Expose a graph/provider/query-specific estimator menu after
       identification. Show the graph conditions (including fixability and
@@ -543,8 +561,27 @@ cells are 51 of 323 unmeasured. Most records are on Dag and TemporalDag (468 of
 604); Admg has 12 and Pag 24. The gap is the size of the license against the
 measured designs, not a shortage of calibration runs.
 
-- [ ] Publish the 69 coordinates as a tracked list generated from the registry,
-      with the count of cells behind each, and ratchet it: the count of
+**Current 2.1 branch inventory.** The checked-in registry now contains 472
+licensed cells and the generated `parity/calibration_backlog.md` lists 170
+unmeasured cells across 90 distinct coordinates. This supersedes the 2.0
+baseline counts for current planning; new 2.1 rows add calibration obligations.
+The coordinate inventory is generated and checked without running calibration.
+Run measurements and update records only after implementation and subsequent
+cleanup/refactoring are complete, so their attestations bind the stabilized code.
+The static readiness audit currently finds runnable, ignored record-emitting
+designs for 86 of the 90 coordinates; the remaining 4 coordinates still need
+exact-truth designs or matching record emitters before the post-refactor
+calibration pass; these readiness counts do not change the 170 unmeasured cells.
+The 2.1 graphless interval licenses (complier CACE/LATE and treatment-on-treated,
+finite-class regret, cross-fitted policy value, staggered event studies, fuzzy RD
+and regression kink, sequential DR / g-formula / MSM longitudinal regimes,
+delayed-entry / fixed-known-G / simultaneous-band survival, and cluster /
+saturation / observational interference) are certified by in-repo 2,000-rep
+known-truth coverage tests under `gate_graphless_support.sh` and do not add
+geometric calibration-record obligations.
+
+- [x] Publish the current distinct coordinates as a tracked list generated from
+      the registry, with the count of cells behind each. Ratchet it: the count of
       `estimator_grid_not_measured` cells may only fall, as `max_uses` does in
       `parity/reason_codes.toml`. Report distinct coordinates beside cell counts
       wherever the 463/164 figures appear, so validation-level triplication does

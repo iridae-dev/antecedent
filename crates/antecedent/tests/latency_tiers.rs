@@ -481,6 +481,103 @@ fn configured_estimator_bootstrap_beside_a_tier_is_reported() {
     assert!(!has(&run(LatencyMode::Standard, 199)));
 }
 
+/// The sealed GLM, propensity and AIPW operations carry the tier-versus-configured
+/// replicate disagreement and publish it from the retained operation, on the
+/// one-shot click and the prepared click alike.
+#[test]
+fn configured_estimator_bootstrap_beside_a_tier_is_reported_on_every_sealed_static_route() {
+    use antecedent::EstimatorSpec;
+    use antecedent_estimate::{
+        AipwAte, GlmAdjustmentAte, OverlapPolicy, PropensityMatching, PropensityWeighting,
+    };
+
+    type ConfiguredSpec = Box<dyn Fn(u32) -> EstimatorSpec>;
+
+    let (data, dag, query) = confounded_scm(300, 5);
+    let ctx = ExecutionContext::for_tests(5);
+    let trimmed = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.02) };
+    let specs: Vec<(&str, ConfiguredSpec)> = vec![
+        (
+            "glm",
+            Box::new(|replicates| {
+                GlmAdjustmentAte::new()
+                    .with_family(antecedent_stats::GlmFamily::GaussianIdentity)
+                    .with_bootstrap_replicates(replicates)
+                    .into()
+            }),
+        ),
+        (
+            "propensity.weighting",
+            Box::new(|replicates| {
+                PropensityWeighting::new().with_bootstrap_replicates(replicates).into()
+            }),
+        ),
+        (
+            "propensity.matching",
+            Box::new(|replicates| {
+                PropensityMatching::new().with_bootstrap_replicates(replicates).into()
+            }),
+        ),
+        (
+            "aipw",
+            Box::new(|replicates| AipwAte::new().with_bootstrap_replicates(replicates).into()),
+        ),
+        (
+            "aipw.trimmed",
+            Box::new(move |replicates| {
+                AipwAte::new().with_bootstrap_replicates(replicates).with_overlap(trimmed).into()
+            }),
+        ),
+    ];
+    let has = |r: &antecedent::StudyResult| {
+        r.diagnostics.iter().any(|d| d.code.as_ref() == "latency.bootstrap_not_applied")
+    };
+    for (label, spec) in &specs {
+        let build = |mode, replicates| {
+            Study::tabular(data.clone())
+                .graph(dag.clone())
+                .query(query.clone())
+                .estimator(spec(replicates))
+                .latency_mode(mode)
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+        };
+        // Interactive maps to no bootstrap; the estimator's 12 replicates win, and
+        // the sealed operation says so on both clicks.
+        let study = build(LatencyMode::Interactive, 12);
+        let one_shot = study.run(&ctx).unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let sealed = prepared.checked_glm_adjustment().is_some()
+            || prepared.checked_propensity_info().is_some()
+            || prepared.checked_aipw_ate().is_some();
+        assert!(sealed, "{label}: the route must retain its checked operation");
+        let clicked = prepared.estimate(&data, &ctx).unwrap();
+        for result in [&one_shot, &clicked] {
+            assert!(has(result), "{label}: tier replicates set aside must be reported");
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|d| d.code.as_ref() == "latency.bootstrap_not_applied")
+                .unwrap();
+            let field = |name: &str| {
+                diagnostic.fields.iter().find(|(k, _)| k.as_ref() == name).map(|(_, v)| v.as_ref())
+            };
+            assert_eq!(field("tier_replicates"), Some("0"), "{label}");
+            assert_eq!(field("configured_replicates"), Some("12"), "{label}");
+            // Matching reports Abadie-Imbens analytic uncertainty and requests no
+            // bootstrap; the other estimators request the configured count.
+            if *label != "propensity.matching" {
+                assert_eq!(result.performance.bootstrap_replicates_requested, Some(12), "{label}");
+            }
+        }
+        // A configured count the tier would have run anyway is not a disagreement.
+        let agreeing = build(LatencyMode::Interactive, 0);
+        assert!(!has(&agreeing.run(&ctx).unwrap()), "{label}");
+        assert!(!has(&agreeing.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap()), "{label}");
+    }
+}
+
 #[test]
 fn omitted_refute_suite_is_dropped_for_a_quantile_but_an_explicit_one_is_refused() {
     let (data, dag, query) = confounded_scm(600, 7);

@@ -185,7 +185,7 @@ pub fn dag_from_wire(wire: &DagWire) -> Result<Dag, IoError> {
     Ok(dag)
 }
 
-fn endpoint_to_wire(e: Endpoint) -> EndpointWire {
+pub(crate) fn endpoint_to_wire(e: Endpoint) -> EndpointWire {
     match e {
         Endpoint::Tail => EndpointWire::Tail,
         Endpoint::Arrow => EndpointWire::Arrow,

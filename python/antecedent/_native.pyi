@@ -8,6 +8,8 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from .transport._impl import ZTransportSensitivityResult
+
 CiArg = str | Callable[..., Any] | None
 
 __version__: str
@@ -58,6 +60,9 @@ def set_review_error_class(cls: type) -> None:
 
 def set_unsupported_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for refusals."""
+
+def set_value_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for invalid input."""
 
 def set_not_identified_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for not-identified refusals."""
@@ -204,6 +209,15 @@ class AteAnalysisResult:
     mediation_joint_posterior: bool | None
     transport: TransportSection | None
     interference: InterferenceSection | None
+    randomized_effect: RandomizedEffectSection | None
+    panel_did: PanelDidSection | None
+    synthetic_control: SyntheticControlSection | None
+    synthetic_did: SyntheticDidSection | None
+    local_polynomial_ratio: LocalPolynomialRatioSection | None
+    survival: SurvivalSection | None
+    longitudinal_regime: LongitudinalRegimeSection | None
+    policy_value: PolicyValueSection | None
+    continuous_dose_response: ContinuousDoseResponseSection | None
     anomaly: list[AnomalyScores] | None
     change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
@@ -278,6 +292,22 @@ class TransportIdentificationResult:
     leaf_regimes: list[int | None]
     expr_root: int | None
     expr_wire_json: str | None
+    def reload_checked_program(self) -> CheckedTransportProgram: ...
+    def load_checked_program(self, wire_json: str) -> CheckedTransportProgram: ...
+
+class CheckedTransportProgram:
+    source_root: int
+    executable_root: int
+    def to_wire_json(self) -> str: ...
+    def evaluate_exact(
+        self,
+        catalog: object | None = None,
+        laws: object | None = None,
+        at: Mapping[str, float] | None = None,
+        *,
+        max_support_rows: int = 100_000,
+        max_operations: int = 1_000_000,
+    ) -> float: ...
 
 class TrialTransportResult:
     rule: str
@@ -318,6 +348,199 @@ class InterferenceSection:
     from_probability_method: str
     to_probability_method: str
     minimum_exposure_probability: float
+    from_exposed_units: int | None
+    to_exposed_units: int | None
+    from_exposed_clusters: int | None
+    to_exposed_clusters: int | None
+    clusters: int | None
+    maximum_exposure_probability: float | None
+    pointwise_interval: tuple[float, float, float, float, int, int, str] | None
+    interval_unavailable_reason: str | None
+    graphless_support_status: str | None
+
+class RandomizedEffectSection:
+    effect: float
+    estimand: str
+    intention_to_treat_effect: float | None
+    first_stage_effect: float | None
+    received_treatment: list[bool] | None
+    randomization_p_value: float | None
+    randomization_allocations: int | None
+    second_factor_effect: float | None
+    factorial_interaction: float | None
+    second_factor_variance: float | None
+    factorial_interaction_variance: float | None
+    multi_arm_values: list[tuple[str, float, float, int]]
+    variance_upper_bound: float
+    standard_error: float | None
+    interval_95: tuple[float, float] | None
+    second_factor_interval_95: tuple[float, float] | None
+    factorial_interaction_interval_95: tuple[float, float] | None
+    multi_arm_intervals_95: list[tuple[float, float] | None]
+    minimum_assignment_probability: float
+    assignment_design: str
+    blocks: list[str]
+    periods: list[str]
+    control_units: int
+    treatment_units: int
+    uncertainty: str
+    graphless_support_status: str | None
+    assignment_units: list[str]
+    outcome_units: list[str]
+    control_arm: str
+    treatment_arm: str
+
+class PanelDidSection:
+    effect: float
+    standard_error: float | None
+    interval_95: tuple[float, float] | None
+    treated_subjects: int
+    comparison_subjects: int
+    clusters: int
+    uncertainty: str
+    graphless_support_status: str | None
+    event_time_effects: list[tuple[int, int, int, float, int, int, float, int]]
+    event_time_intervals_95: list[tuple[float, float] | None]
+    augmented: tuple[float, float, float, bool] | None
+
+class SyntheticControlSection:
+    effect: float
+    pre_treatment_rmse: float
+    donor_weights: list[tuple[str, float]]
+    placebo_effects: list[float]
+    placebo_rank: float
+    effective_donors: float
+    n_pre_periods: int
+    n_post_periods: int
+    uncertainty: str
+    randomization_p_value: float | None
+    randomization_null_effect: float | None
+    randomization_statistics: list[tuple[str, float]]
+    unadjusted_effect: float | None
+    outcome_model_correction: float | None
+    augmentation_ridge: float | None
+
+class SyntheticDidSection:
+    effect: float
+    pre_treatment_rmse: float
+    donor_weights: list[tuple[str, float]]
+    time_weights: list[tuple[int, float]]
+    n_donors: int
+    n_pre_periods: int
+    n_post_periods: int
+    uncertainty: str
+    randomization_p_value: float | None
+    randomization_null_effect: float | None
+    randomization_statistics: list[tuple[str, float]]
+
+class LocalPolynomialRatioSection:
+    effect: float
+    reduced_form: float
+    first_stage: float
+    cutoff: float
+    bandwidth: float
+    kink: bool
+    n_left: int
+    n_right: int
+    standard_error: float
+    ci_lower: float | None
+    ci_upper: float | None
+    reduced_form_standard_error: float
+    first_stage_standard_error: float
+    uncertainty: str
+    graphless_support_status: str | None
+
+class SurvivalSection:
+    times: list[float]
+    control: list[float]
+    treated: list[float]
+    rmst_control: float | None
+    rmst_treated: float | None
+    target_cause: int | None
+    tau: float
+    minimum_event_risk_set: int | None
+    uncertainty: str
+    rmst_difference_interval: list[float] | None
+    difference_at_tau_interval: list[float] | None
+    bootstrap_replicates_requested: int | None
+    bootstrap_replicates_ok: int | None
+    assignment_counts: tuple[int, int]
+    censoring_survival_provenance: str | None
+    difference_band: (
+        tuple[list[float], list[float], list[float], list[float], int, str | None] | None
+    )
+    band_unavailable_reason: str | None
+
+class LongitudinalRegimeSection:
+    method: str
+    graphless_support_status: str | None
+    rule_id: str | None
+    rule_version: str | None
+    rule_provenance: str | None
+    value: float
+    value_standard_error: float | None
+    value_interval_95: tuple[float, float] | None
+    period_intervals_95: list[tuple[float, float]] | None
+    interval_reason: str | None
+    effective_sample_size: float
+    matched_observed_fraction: float
+    maximum_weight: float
+    minimum_action_probability: float
+    minimum_censoring_probability: float
+    uncertainty: str
+    probability_ownership: str
+    period_effects: list[float] | None
+    standard_errors: list[float] | None
+    stabilizing_numerator_probabilities: list[float] | None
+    observed_subjects: int | None
+
+class PolicyValueSection:
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    relative_value_gap: float
+    treatment_rate: float
+    total_cost: float
+    policy_standard_error: float
+    reference_standard_error: float
+    incremental_standard_error: float
+    policy_interval_95: tuple[float, float] | None
+    incremental_interval_95: tuple[float, float] | None
+    prediction_ownership: str
+    propensity_min: float
+    propensity_max: float
+    uncertainty: str
+    graphless_support_status: str | None
+    uplift_bins: list[tuple[int, float, float, int, tuple[float, float] | None]]
+    multi_action_cate: list[
+        tuple[str, str, float, int, int, int, float, tuple[float, float] | None]
+    ]
+    regret: tuple[float, tuple[float, float], list[float], list[float], int] | None
+
+class ContinuousDoseResponseSection:
+    points: list[tuple[str, float, float, int, float, float, float, float]]
+    bandwidth: float
+    density_provenance: str
+    uncertainty: str
+    fixed_policy: DosePolicyValueSection | None
+    graphless_support_status: str | None
+
+class DosePolicyValueSection:
+    policy_doses: list[tuple[str, float]]
+    reference_doses: list[tuple[str, float]]
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    policy_variance: float
+    reference_variance: float
+    incremental_variance: float
+    policy_interval_95: tuple[float, float] | None
+    reference_interval_95: tuple[float, float] | None
+    incremental_interval_95: tuple[float, float] | None
+    minimum_local_rows: int
+    minimum_effective_sample_size: float
+    maximum_normalized_weight: float
+    minimum_dose_density: float
 
 class ObservationAdjustedOutcomeResult:
     values: list[float]
@@ -746,6 +969,13 @@ class PreparedAnalysis:
     def contract(
         self,
     ) -> dict[str, str]: ...
+    def checked_conditional_effect_info(self) -> dict[str, Any] | None: ...
+    def checked_static_mediation_info(self) -> dict[str, Any] | None: ...
+    def checked_bayesian_dag_ate_info(self) -> dict[str, Any] | None: ...
+    def checked_static_dag_response_info(self) -> dict[str, Any] | None: ...
+    def checked_graph_posterior_effect_info(self) -> dict[str, Any] | None: ...
+    def checked_temporal_effect_info(self) -> dict[str, Any] | None: ...
+    def checked_temporal_response_info(self) -> dict[str, Any] | None: ...
     def estimate(
         self,
         names: list[str],
@@ -1076,6 +1306,273 @@ class PreparedAnalysis:
         to_level: tuple[float, float],
         *,
         probability_draws: int = 10_000,
+        low_probability: float = 0.0,
+        high_probability: float = 0.0,
+        realized_saturation: list[float] | None = None,
+        propensity_from: list[float] | None = None,
+        propensity_to: list[float] | None = None,
+        propensity_provenance: str = "known",
+        assume_network_exchangeability: bool = False,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_randomized_effect(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        realized_assignment: list[bool],
+        assignment_probabilities: list[float],
+        assignment_units: list[str],
+        outcome_units: list[str],
+        treatment_arms: tuple[str, str],
+        design_kind: str,
+        treated_units: int | None = None,
+        blocks: list[str] | None = None,
+        treated_per_row: list[int] | None = None,
+        *,
+        treated_clusters: int | None = None,
+        fixed_cuped: tuple[str, float] | None = None,
+        ancova_covariates: list[str] | None = None,
+        periods: list[str] | None = None,
+        received_treatment: list[bool] | None = None,
+        treatment_on_treated: bool = False,
+        exact_randomization_test: bool = False,
+        second_factor_assignment: list[bool] | None = None,
+        factorial_cell_counts: tuple[int, int, int, int] | None = None,
+        second_factor_arms: tuple[str, str] | None = None,
+        multi_arm_labels: list[str] | None = None,
+        multi_arm_assignment: list[int] | None = None,
+        multi_arm_probabilities: list[list[float]] | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_panel_did(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treated: list[bool],
+        post: list[bool],
+        subjects: list[str],
+        clusters: list[str],
+        *,
+        repeated_cross_section: bool = False,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_augmented_panel_did(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome_pre: str,
+        outcome_post: str,
+        propensity: str,
+        untreated_change_prediction: str,
+        treated: list[bool],
+        subjects: list[str],
+        clusters: list[str],
+        predictions_cross_fitted: bool,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_staggered_group_time(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        subjects: list[str],
+        clusters: list[str],
+        periods: list[int],
+        cohorts: list[int],
+        target_cohort: int,
+        target_period: int,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_staggered_event_study(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        subjects: list[str],
+        clusters: list[str],
+        periods: list[int],
+        cohorts: list[int],
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_synthetic_control(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        units: list[str],
+        periods: list[int],
+        treated_unit: str,
+        intervention_period: int,
+        *,
+        difference_in_differences: bool = False,
+        uniform_unit_randomization: bool = False,
+        sharp_null_effect: float | None = None,
+        augmentation_ridge: float | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_continuous_dose_response(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        dose: str,
+        dose_density: str,
+        baseline_groups: list[str],
+        target_doses: list[float],
+        bandwidth: float,
+        density_provenance: str,
+        *,
+        min_local_support: int = 3,
+        policy_doses: list[tuple[str, float]] | None = None,
+        reference_doses: list[tuple[str, float]] | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_local_polynomial_ratio(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treatment: str,
+        running: str,
+        cutoff: float,
+        bandwidth: float,
+        *,
+        kink: bool = False,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_survival(
+        names: list[str],
+        columns: Sequence[Any],
+        duration: str,
+        event: str,
+        treatment: str,
+        tau: float,
+        target_cause: int | None = None,
+        delayed_entry: str | None = None,
+        *,
+        independent_given: list[str] = [],
+        censoring_times: list[float] = [],
+        censoring_columns: list[str] = [],
+        censoring_probability_floor: float | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_longitudinal_regime(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        periods: int,
+        treatment_history: list[bool],
+        regime_actions: list[bool],
+        treatment_probabilities: list[float],
+        censoring_probabilities: list[float],
+        outcome_observed: list[bool],
+        subject_ids: list[str],
+        fold_ids: list[int],
+        excluded_fold_predictions: bool,
+        probabilities_known_by_design: bool,
+        minimum_probability: float,
+        *,
+        method: str = "ipw",
+        period_outcome_predictions: list[float] = [],
+        known_fixed_outcome_predictions: bool = False,
+        stabilizing_numerator_probabilities: list[float] = [],
+        q_predictions: list[float] = [],
+        observation_history: list[bool] = [],
+        prediction_fold_ids: list[int] = [],
+        rule_id: str | None = None,
+        rule_version: str | None = None,
+        rule_provenance: str | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_policy_value(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        assignment: list[bool],
+        propensity: list[float],
+        actions: list[bool],
+        reference: list[bool],
+        mu0: list[float],
+        mu1: list[float],
+        costs: list[float],
+        reference_costs: list[float],
+        evaluation_subject_ids: list[str],
+        disjoint_training_subjects: bool,
+        crossfit_fold_ownership_valid: bool,
+        *,
+        uplift_bins: list[int] = ...,
+        uplift_bin_count: int = 0,
+        uplift_training_subject_ids: list[str] = ...,
+        global_constraints_present: bool = False,
+        regret_candidates: list[list[bool]] = ...,
+        regret_selected_index: int | None = None,
+        regret_training_subject_ids: list[str] = ...,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_multi_action_policy_value(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        action_labels: list[str],
+        assignment: list[int],
+        propensities: list[float],
+        actions: list[int],
+        reference: list[int],
+        costs: list[float],
+        reference_costs: list[float],
+        available: list[bool],
+        capacities: list[int],
+        reference_capacities: list[int],
+        budget: float | None,
+        reference_budget: float | None,
+        evaluation_subject_ids: list[str],
+        *,
+        cate_groups: list[str] = ...,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -1093,6 +1590,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        reference: tuple[float, float] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_change_attribution(
@@ -2236,40 +2734,6 @@ def analyze_path_specific(
     threads: int | None = None,
     refute: bool | str | None = None,
 ) -> AteAnalysisResult: ...
-def analyze_conditional(
-    names: list[str],
-    columns: Sequence[Any],
-    edges: list[tuple[str, str]],
-    treatment: str,
-    outcome: str,
-    modifier: str,
-    *,
-    control_level: float = 0.0,
-    active_level: float = 1.0,
-    refute: bool | str | None = None,
-    validators: list[Callable[..., Any]] | None = None,
-    seed: int = 1,
-    bootstrap: int | None = 199,
-    threads: int | None = None,
-    accepted: bool = False,
-    outcome_functional: dict[str, Any] | None = None,
-) -> AteAnalysisResult: ...
-def analyze_mediation(
-    names: list[str],
-    columns: Sequence[Any],
-    edges: list[tuple[str, str]],
-    treatment: str,
-    outcome: str,
-    mediators: list[str],
-    *,
-    contrast: str = "mediated",
-    control_level: float = 0.0,
-    active_level: float = 1.0,
-    refute: bool | str | None = None,
-    seed: int = 1,
-    bootstrap: int | None = 0,
-    threads: int | None = None,
-) -> AteAnalysisResult: ...
 def identify_ate(
     names: list[str],
     edges: list[tuple[str, str]],
@@ -2306,22 +2770,6 @@ def identify_ate_admg(
     *,
     identifier: str | None = None,
 ) -> tuple[str, str, list[str]]: ...
-def analyze_temporal_mediation(
-    names: list[str],
-    columns: Sequence[Any],
-    edges: list[tuple[str, int, str, int]],
-    treatment: str,
-    mediator: str,
-    outcome: str,
-    *,
-    contrast: str = "mediated",
-    control_level: float = 0.0,
-    active_level: float = 1.0,
-    horizons: list[int] | None = None,
-    seed: int = 1,
-    bootstrap: int | None = 0,
-    threads: int | None = None,
-) -> AnalysisResult: ...
 def analyze_ate_discover(
     names: list[str],
     columns: Sequence[Any],
@@ -2880,6 +3328,192 @@ def evaluate_decision_py(
     outcomes: list[float],
     utility: Callable[..., Any],
 ) -> DecisionEvaluation: ...
+def evaluate_binary_policy(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    actions: list[bool],
+    propensity: NDArray[np.float64],
+    *,
+    reference: list[bool] | None = None,
+    costs: list[float] = ...,
+    reference_costs: list[float] | None = None,
+    available: list[bool] | None = None,
+    capacity: int | None = None,
+    budget: float | None = None,
+    reference_capacity: int | None = None,
+    reference_budget: float | None = None,
+) -> tuple[float, float, float, float, float, float]: ...
+def evaluate_binary_policy_doubly_robust(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    actions: list[bool],
+    propensity: NDArray[np.float64],
+    mu0: NDArray[np.float64],
+    mu1: NDArray[np.float64],
+    *,
+    reference: list[bool] | None = None,
+    costs: list[float] = ...,
+    reference_costs: list[float] | None = None,
+) -> tuple[float, float, float, float, float, float, float, float, float, float, float]: ...
+def evaluate_longitudinal_regime_value(
+    outcome: NDArray[np.float64],
+    treatment: NDArray[np.bool_],
+    regime: NDArray[np.bool_],
+    treatment_probability: NDArray[np.float64],
+    outcome_observed: NDArray[np.bool_],
+    censoring_survival: NDArray[np.float64],
+) -> tuple[float, float, float, float]: ...
+def evaluate_sequential_gformula(
+    period_outcome_predictions: NDArray[np.float64],
+    regime_actions: NDArray[np.bool_],
+    treatment_probability: NDArray[np.float64],
+    censoring_survival: NDArray[np.float64],
+    subject_ids: list[str],
+    fold_ids: list[int],
+    minimum_probability: float,
+) -> tuple[float, int, float, float]: ...
+def evaluate_sequential_doubly_robust(
+    outcome: NDArray[np.float64],
+    outcome_observed: NDArray[np.bool_],
+    observation_history: NDArray[np.bool_],
+    treatment: NDArray[np.bool_],
+    regime: NDArray[np.bool_],
+    q_prediction: NDArray[np.float64],
+    treatment_probability: NDArray[np.float64],
+    censoring_probability: NDArray[np.float64],
+    subject_ids: list[str],
+    fold_ids: list[int],
+    prediction_fold_ids: list[int],
+    minimum_probability: float,
+) -> tuple[float, int, float, float]: ...
+def evaluate_multi_action_policy(
+    outcome: NDArray[np.float64],
+    assigned: list[int],
+    actions: list[int],
+    probabilities: NDArray[np.float64],
+    *,
+    reference: list[int] | None = None,
+    costs: list[float] | None = None,
+    reference_costs: list[float] | None = None,
+    available: list[list[bool]] | None = None,
+    capacities: list[int] | None = None,
+    reference_capacities: list[int] | None = None,
+    budget: float | None = None,
+    reference_budget: float | None = None,
+) -> tuple[float, float, float, float, float]: ...
+def uplift_by_score(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    score_bin: list[int],
+    propensity: NDArray[np.float64],
+    bin_count: int,
+) -> list[tuple[int, float, float, int]]: ...
+
+class FactorialNativeResult:
+    cell_means: list[float]
+    cell_support: list[int]
+    factor_a_effect: float
+    factor_b_effect: float
+    interaction_effect: float
+    factor_a_variance_bound: float
+    factor_b_variance_bound: float
+    interaction_variance_bound: float
+
+def estimate_factorial_2x2(
+    outcome: NDArray[np.float64],
+    factor_a: list[bool],
+    factor_b: list[bool],
+    probability_a: NDArray[np.float64],
+    probability_b: NDArray[np.float64],
+) -> FactorialNativeResult: ...
+def difference_in_differences(
+    outcome: NDArray[np.float64], treated: list[bool], post: list[bool]
+) -> float: ...
+def estimate_complier_effect(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    received: list[bool],
+    propensity: NDArray[np.float64],
+) -> tuple[float, float, float, float, tuple[float, float] | None]: ...
+def estimate_cuped_effect(
+    outcome: NDArray[np.float64],
+    covariate: NDArray[np.float64],
+    assignment: list[bool],
+    propensity: NDArray[np.float64],
+) -> tuple[float, float, float]: ...
+def estimate_stratified_effect(
+    outcome: NDArray[np.float64], assignment: list[bool], blocks: list[str]
+) -> tuple[float, float, float, int]: ...
+def exact_randomization_test(
+    outcome: NDArray[np.float64], assignment: list[bool], propensity: NDArray[np.float64]
+) -> tuple[float, float, int]: ...
+def estimate_switchback_effect(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    sequences: list[str],
+    propensity: NDArray[np.float64],
+) -> tuple[float, float, float, int]: ...
+def estimate_ancova_effect(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    covariates: NDArray[np.float64],
+) -> tuple[float, float, list[float], int, int]: ...
+def estimate_saturation_interference(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    edges: list[tuple[int, int, float]],
+    clusters: list[int],
+    realized_saturation: list[float],
+    low_saturation: float,
+    high_saturation: float,
+    high_clusters: int,
+    exposure: str,
+    reference_neighbors: float,
+    low_neighbors: float,
+    high_neighbors: float,
+) -> tuple[
+    tuple[float, float, float, int, int, int, int, float],
+    tuple[float, float, float, int, int, int, int, float],
+    tuple[float, float, float, int, int, int, int, float],
+]: ...
+def estimate_observational_network_exposure(
+    outcome: NDArray[np.float64],
+    assignment: list[bool],
+    edges: list[tuple[int, int, float]],
+    clusters: list[int],
+    exposure: str,
+    from_level: tuple[float, float],
+    to_level: tuple[float, float],
+    propensity_from: NDArray[np.float64],
+    propensity_to: NDArray[np.float64],
+    propensity_provenance: str,
+) -> tuple[float, float, float, int, int, int, int, float, float, int]: ...
+def randomized_survival_ipcw(
+    duration: NDArray[np.float64],
+    event_observed: list[bool],
+    treated: list[bool],
+    times: list[float],
+    censoring_survival: NDArray[np.float64],
+    tau: float,
+    minimum_probability: float,
+) -> tuple[list[float], list[float], list[float], float, float, int | None, int | None, float]: ...
+def randomized_cumulative_incidence_ipcw(
+    duration: NDArray[np.float64],
+    event_cause: list[int],
+    treated: list[bool],
+    times: list[float],
+    censoring_survival: NDArray[np.float64],
+    tau: float,
+    target_cause: int,
+    minimum_probability: float,
+) -> tuple[list[float], list[float], list[float], int | None, int | None, float]: ...
+def group_time_att(
+    outcome: NDArray[np.float64],
+    subjects: list[str],
+    periods: list[int],
+    cohorts: list[int],
+    clusters: list[str],
+) -> list[tuple[int, int, float, int, int, float, int]]: ...
 def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ...
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
 
@@ -3501,6 +4135,9 @@ def identification_status_names() -> list[str]:
 class ClassicalTransportStage:
     def export(self) -> bytes: ...
     def certificate_json(self) -> str: ...
+    def proof_graph_json(
+        self, catalog: Any, *, max_steps: int = 100_000, max_depth: int = 256
+    ) -> str: ...
     @property
     def outcome(self) -> str: ...
     @property
@@ -3572,7 +4209,210 @@ class PreparedExactStage:
     def inspection_json(self) -> str: ...
     def export(self) -> bytes: ...
     def preview_transform(self, intent: str) -> dict[str, str]: ...
+    def mechanism_sensitivity(
+        self,
+        outcome_values: list[float],
+        parent_cardinalities: list[int],
+        treatment_levels: tuple[int, int],
+        max_fraction: float,
+        source_kernel_regime: int,
+        source_kernel_snapshot: str,
+        target_parent_regime: int,
+        target_parent_snapshot: str,
+        source_kernel: list[tuple[list[int], list[float]]],
+        source_parent_law: list[tuple[list[int], float]],
+        target_parent_law: list[tuple[int, list[int], float]],
+        decision_threshold: float | None = None,
+        perturbed_treatment_level: int | None = None,
+        perturbed_root_mechanism: str | None = None,
+        perturbed_conditional_mechanism: str | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
+class ZTransportStage:
+    @property
+    def outcome(self) -> str: ...
+    @property
+    def reason(self) -> str | None: ...
+    def prepare_exact(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int | None = None,
+        memory_bytes: int | None = None,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedZTransportStage: ...
+    def prepare_empirical(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int | None = None,
+        memory_bytes: int | None = None,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedZTransportStage: ...
+    def plan_evidence(
+        self,
+        catalog: Any,
+        candidates: list[Any],
+        failure_snapshot: bytes | None = None,
+        *,
+        max_evaluated: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str, list[ZTransportProposalStage]]: ...
+    def failure_snapshot(
+        self, catalog: Any, *, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+    def inspect_proof(self, catalog: Any) -> dict[str, Any]: ...
+    def not_certified_inspection(self) -> dict[str, Any] | None: ...
+    def decide(
+        self,
+        catalog: Any,
+        *,
+        max_steps: int | None = None,
+        max_depth: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> Any: ...
+
+class ZTransportProposalStage:
+    def export(self) -> bytes: ...
+    def replay(self) -> None: ...
+    def receive(
+        self,
+        catalog: Any,
+        laws: Any,
+        assignments: dict[str, float],
+        provider_snapshot: str,
+        *,
+        empirical: bool = False,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        max_support_rows: int | None = None,
+        memory_bytes: int | None = None,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedZTransportStage: ...
+
+class PreparedZTransportStage:
+    def estimate(
+        self,
+        estimator: str | None = None,
+        posterior_draws: int | None = None,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+        seed: int | None = None,
+    ) -> str: ...
+    def export(self) -> bytes: ...
+    def mechanism_sensitivity(
+        self,
+        max_fraction: float,
+        decision_threshold: float | None = None,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> ZTransportSensitivityResult: ...
+    def export_sensitivity(
+        self,
+        max_fraction: float,
+        decision_threshold: float | None = None,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    @property
+    def interval_type(self) -> str: ...
+    @property
+    def interval_method(self) -> str | None: ...
+    @property
+    def interval_reason(self) -> str: ...
+    @property
+    def seed(self) -> int: ...
+
+def identify_z_transport_stage(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    controllable: list[str],
+    experiment_assignment: dict[str, float],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ZTransportStage: ...
+def decide_two_source_z_transport_stage(
+    graph: Admg,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    sources: list[tuple[str, list[str], dict[str, float], list[str]]],
+    catalogs: list[Any],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> Any: ...
+def consume_z_transport_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_z_transport_sensitivity_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ZTransportSensitivityResult: ...
+def consume_z_transport_failure_snapshot(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> Any: ...
+def replay_z_transport_proposal(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
 def consume_exact_transport(
     bytes: bytes,
     *,
@@ -3585,6 +4425,8 @@ def consume_exact_transport(
 class PreparedStatisticalStage:
     @property
     def outcomes(self) -> list[str]: ...
+    @property
+    def bayesian_posterior(self) -> str | None: ...
     def estimate_grid(
         self, assignments: list[dict[str, float]], cancel: CancellationToken | None = None
     ) -> list[PreparedStatisticalStage]: ...
@@ -3615,6 +4457,7 @@ def prepare_statistical_transport(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
     bootstrap: int = 199,
+    posterior_draws: int = 199,
     coverage_level: float = 0.95,
     estimator: object = None,
     seed: int = 1,
@@ -3624,6 +4467,7 @@ def consume_statistical_transport(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
     seed: int = 1,
@@ -3722,3 +4566,11 @@ def prepare_learned_trial(
     cancel: CancellationToken | None = None,
 ) -> PreparedLearnedTrial: ...
 def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...
+def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
+def open_provider_result(
+    bytes: bytes,
+    *,
+    verified_spec_digest: str | None = None,
+    verified_request_digest: str | None = None,
+    verified_evidence_digest: str | None = None,
+) -> tuple[str, bytes | None]: ...

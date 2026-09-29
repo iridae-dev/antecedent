@@ -11,14 +11,20 @@ Day-1 surface::
 The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`, :func:`prepare`,
 :func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
-estimator selectors, and the two error names most callers catch. The twelve
-root-exported stage modules are:
+estimator selectors, and the two error names most callers catch. The specialized
+2.1 families — randomized and factorial experiments, held-out policy value,
+difference-in-differences and other quasi-experimental designs, survival, and
+longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
+``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
+``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegime``),
+not at the root. The eighteen root-exported stage modules are:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
-``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
-``antecedent.extensibility``, ``antecedent.gcm``,
-``antecedent.graph``, ``antecedent.priors``, ``antecedent.state``, and
-``antecedent.validation``.
+``antecedent.discovery``, ``antecedent.errors``, ``antecedent.experiment``,
+``antecedent.estimation``, ``antecedent.extensibility``, ``antecedent.factorial``,
+``antecedent.gcm``, ``antecedent.graph``, ``antecedent.policy``,
+``antecedent.priors``, ``antecedent.quasi``, ``antecedent.regimes``,
+``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
 Seventeen narrower modules are reachable but deliberately outside ``__all__``:
 ``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``handoff``,
@@ -57,11 +63,17 @@ from . import (
     discovery,
     errors,
     estimation,
+    experiment,
     extensibility,
+    factorial,
     gcm,
     graph,
+    policy,
     priors,
+    quasi,
+    regimes,
     state,
+    survival,
     validation,
 )
 
@@ -117,6 +129,7 @@ from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
 from .query import (
     AnomalyAttribution,
+    AnomalyReference,
     AverageDerivative,
     AverageEffect,
     ChangeAttribution,
@@ -127,6 +140,7 @@ from .query import (
     InterventionalDistribution,
     InterventionResponse,
     MediationEffect,
+    NestedCounterfactual,
     PathSpecificEffect,
     PointDerivative,
     PulseEffect,
@@ -152,6 +166,7 @@ __all__ = [
     "AnalysisResult",
     # Queries
     "AnomalyAttribution",
+    "AnomalyReference",
     "AverageDerivative",
     "AverageEffect",
     "ChangeAttribution",
@@ -163,6 +178,7 @@ __all__ = [
     "InterventionalDistribution",
     "InterventionResponse",
     "MediationEffect",
+    "NestedCounterfactual",
     "PathSpecificEffect",
     "PulseEffect",
     "PointDerivative",
@@ -194,12 +210,18 @@ __all__ = [
     "design",
     "discovery",
     "errors",
+    "experiment",
     "estimation",
     "extensibility",
+    "factorial",
     "gcm",
     "graph",
+    "policy",
+    "quasi",
     "priors",
+    "regimes",
     "state",
+    "survival",
     "validation",
     "__version__",
 ]
@@ -215,7 +237,7 @@ except ImportError:  # pragma: no cover - extension not built
     try:
         __version__ = _metadata.version("antecedent")
     except _metadata.PackageNotFoundError:
-        __version__ = "2.0.0"
+        __version__ = "unknown"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

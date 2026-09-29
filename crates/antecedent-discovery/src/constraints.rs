@@ -356,6 +356,23 @@ fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink {
     }
 }
 
+/// Whether the contemporaneous edge `variables[par] → variables[child]` is
+/// forbidden by the constraints. Out-of-range indices are treated as forbidden.
+pub(crate) fn forbidden_edge(
+    constraints: &DiscoveryConstraints,
+    variables: &[VariableId],
+    par: usize,
+    child: usize,
+) -> bool {
+    let Some(&src) = variables.get(par) else {
+        return true;
+    };
+    let Some(&tgt) = variables.get(child) else {
+        return true;
+    };
+    constraints.is_forbidden(contemp_link(src, tgt)) || constraints.tier_forbids(src, tgt)
+}
+
 impl DiscoveryConstraints {
     /// Whether a link is forbidden by the explicit forbidden list, tiers, or
     /// Günther multi-dataset link assumptions.

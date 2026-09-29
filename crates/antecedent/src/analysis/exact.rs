@@ -454,6 +454,102 @@ impl PreparedStudy<ExactPreparedState> {
             catalog_scope: TheoremScope::finite_catalog_search(),
         }
     }
+
+    /// Evaluate a declared one-factor mechanism sensitivity analysis against this
+    /// prepared study's checked graph, query, and catalog bindings.
+    ///
+    /// # Errors
+    /// The fixed-graph route refuses unsupported graphs, stale proofs or snapshots,
+    /// incomplete categorical strata, and invalid kernel probabilities.
+    pub fn mechanism_sensitivity(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_mechanism_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            ctx,
+        )
+    }
+
+    /// Evaluate one-factor outcome-kernel sensitivity restricted to a single
+    /// treatment-level slice while holding the other arm fixed.
+    /// # Errors
+    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,
+    /// selected treatment level, or mechanism spec is rejected.
+    pub fn mechanism_sensitivity_at_treatment_level(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        treatment_level: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_treatment_level_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            treatment_level,
+            ctx,
+        )
+    }
+
+    /// Evaluate bounded contamination of an isolated root mechanism that is a
+    /// non-treatment parent of the outcome.
+    /// # Errors
+    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,
+    /// or the selected root mechanism is rejected.
+    pub fn mechanism_sensitivity_root_mechanism(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        mechanism: antecedent_core::VariableId,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphRootMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_root_mechanism_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            mechanism,
+            ctx,
+        )
+    }
+
+    /// Evaluate bounded contamination of a checked categorical conditional
+    /// mechanism among the outcome's non-treatment parents.
+    /// # Errors
+    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,
+    /// or the selected conditional mechanism is rejected.
+    pub fn mechanism_sensitivity_conditional_mechanism(
+        &self,
+        spec: &antecedent_validate::FixedGraphMechanismSensitivitySpec,
+        mechanism: antecedent_core::VariableId,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        antecedent_validate::FixedGraphConditionalMechanismSensitivityResult,
+        antecedent_validate::FixedGraphSensitivityError,
+    > {
+        antecedent_validate::fixed_graph_conditional_mechanism_sensitivity(
+            &self.state.diagram,
+            self.state.functional.derivation().query(),
+            &self.state.functional,
+            spec,
+            mechanism,
+            ctx,
+        )
+    }
+
     fn reasoning(evaluated: bool) -> ReasoningView {
         ReasoningView::new(
             SlotAvailability::Available(IdentificationSlot::identified_singleton(
@@ -527,48 +623,7 @@ impl PreparedStudy<ExactPreparedState> {
         &self,
         intent: antecedent_core::TransformIntent,
     ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
-        let ids = &self.state.identities;
-        let inputs = [
-            (IdentityDomain::Target, &ids.target),
-            (IdentityDomain::Identification, &ids.identification),
-            (IdentityDomain::IdentificationProduct, &ids.identification_product),
-            (IdentityDomain::Observation, &ids.observation),
-            (IdentityDomain::Program, &ids.program),
-            (IdentityDomain::InferenceBinding, &ids.inference_binding),
-            (IdentityDomain::DataSnapshot, &ids.snapshot),
-            (IdentityDomain::Execution, &ids.execution),
-        ]
-        .into_iter()
-        .map(|(domain, value)| {
-            Ok(IdentityRef::new(
-                domain,
-                SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
-                    value,
-                )?),
-            ))
-        })
-        .collect::<Result<Vec<_>, IoError>>()?;
-        let report = TransformationReport::new(
-            intent,
-            inputs,
-            antecedent_core::intent_effects(intent).iter().cloned(),
-            Vec::new(),
-        );
-        Ok(
-            if matches!(
-                intent,
-                TransformIntent::DisplayPrecision
-                    | TransformIntent::FilterDisplay
-                    | TransformIntent::CompatibleDataReplace
-            ) {
-                report
-            } else {
-                report.refused_on_handle(
-                    "transport.reprepare_required: exact structural or execution contract changed",
-                )
-            },
-        )
+        preview_transform_report(&self.state.identities, intent, "exact")
     }
     /// Metadata-only replacement preview: a different evidence shape requires preparation.
     ///
@@ -632,6 +687,56 @@ impl PreparedStudy<ExactPreparedState> {
         *self = candidate;
         Ok(result)
     }
+}
+
+/// The transform-preview shared by the exact and statistical study handles: the
+/// eight retained identities become a [`TransformationReport`], refused on the
+/// handle for any intent beyond display / compatible-data replacement. `handle`
+/// names the study kind in the refusal message (`"exact"` / `"statistical"`).
+pub(crate) fn preview_transform_report(
+    ids: &ExactStudyIdentities,
+    intent: antecedent_core::TransformIntent,
+    handle: &str,
+) -> Result<antecedent_core::TransformationReport, IoError> {
+    use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
+    let inputs = [
+        (IdentityDomain::Target, &ids.target),
+        (IdentityDomain::Identification, &ids.identification),
+        (IdentityDomain::IdentificationProduct, &ids.identification_product),
+        (IdentityDomain::Observation, &ids.observation),
+        (IdentityDomain::Program, &ids.program),
+        (IdentityDomain::InferenceBinding, &ids.inference_binding),
+        (IdentityDomain::DataSnapshot, &ids.snapshot),
+        (IdentityDomain::Execution, &ids.execution),
+    ]
+    .into_iter()
+    .map(|(domain, value)| {
+        Ok(IdentityRef::new(
+            domain,
+            SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(value)?),
+        ))
+    })
+    .collect::<Result<Vec<_>, IoError>>()?;
+    let report = TransformationReport::new(
+        intent,
+        inputs,
+        antecedent_core::intent_effects(intent).iter().cloned(),
+        Vec::new(),
+    );
+    Ok(
+        if matches!(
+            intent,
+            TransformIntent::DisplayPrecision
+                | TransformIntent::FilterDisplay
+                | TransformIntent::CompatibleDataReplace
+        ) {
+            report
+        } else {
+            report.refused_on_handle(format!(
+                "transport.reprepare_required: {handle} structural or execution contract changed"
+            ))
+        },
+    )
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

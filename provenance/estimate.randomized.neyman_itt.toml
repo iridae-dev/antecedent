@@ -1,0 +1,23 @@
+feature_id = "estimate.randomized.neyman_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["difference in means under complete randomization, with a variance that drops the unobservable variance of treatment effects"] },
+]
+
+implementation_deviations = [
+ "The variance is the conservative Neyman bound: arm sampling variances only, omitting the unobservable unit-level effect variance.",
+ "The pointwise normal interval requires at least 30 assigned units, or clusters, in each arm and positive realized variance. Smaller arms keep the point and the variance bound without an interval.",
+ "Complete unit randomization, blocked complete randomization, a fixed-cell 2x2 factorial, and complete cluster randomization are separate entry points. None of them is the Bernoulli Horvitz–Thompson score.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_neyman.rs",
+ "crates/antecedent/tests/randomized_trial_route.rs",
+]

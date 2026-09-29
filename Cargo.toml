@@ -46,7 +46,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "2.0.0"
+version = "2.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -65,12 +65,12 @@ ciborium = "0.2"
 blake3 = "1"
 zstd = "0.13"
 memmap2 = "0.9"
-faer = "0.24"
+faer = { version = "0.24", default-features = false, features = ["std", "linalg", "rayon"] }
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 arrow-buffer = { version = "54", default-features = false }
 arrow-data = { version = "54", default-features = false }
-pyo3 = { version = "0.29", features = ["extension-module"] }
+pyo3 = { version = "0.29", features = ["extension-module", "multiple-pymethods"] }
 numpy = { version = "0.29", default-features = false }
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
 realfft = "3.5"
@@ -116,3 +116,13 @@ codegen-units = 1
 [profile.bench]
 lto = "thin"
 codegen-units = 1
+
+# Generated const-data and orchestration crates gain nothing from single-unit
+# codegen (no numeric hot path); parallelize their codegen. Measured release
+# builds: antecedent-io 2m01s -> 36s, antecedent 1m12s -> 17s. The numeric hot
+# crates (faer, antecedent-stats/kernels/estimate) keep codegen-units = 1.
+[profile.release.package.antecedent-io]
+codegen-units = 256
+
+[profile.release.package.antecedent]
+codegen-units = 16

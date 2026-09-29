@@ -2,15 +2,14 @@
 use crate::graphs::Admg;
 use crate::transport_exact_api::ClassicalTransportStage;
 use crate::transport_interference_api::parse_catalog;
-use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
+use antecedent_core::{ExecutionContext, RegimeId, Value};
 use antecedent_estimate::{
     EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, StatisticalTransportInput,
 };
 use antecedent_expr::{
-    Assignment, ExactDiscreteLaw, ExactEvaluationLimits, InterventionAssignment, LawTolerance,
+    ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData, InterventionAssignment,
 };
 use antecedent_identify::SidLimits;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 use std::collections::BTreeMap;
@@ -18,16 +17,12 @@ use std::sync::Arc;
 
 type StatisticalStagePayload = (Vec<Vec<f64>>, Vec<f64>, String, Vec<String>, String);
 
-fn error(e: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(e.to_string())
-}
-fn resolve(names: &[String], name: &str) -> PyResult<VariableId> {
-    let index = names
-        .iter()
-        .position(|v| v == name)
-        .ok_or_else(|| error(format!("unknown variable {name}")))?;
-    Ok(VariableId::from_raw(u32::try_from(index).map_err(error)?))
-}
+use crate::transport_common::{
+    RegimeCheck, assignment_from_pairs, error, execution_context, frame_named_artifact,
+    parse_law_table, resolve, unframe_named_artifact,
+};
+
+const STATISTICAL_PREFIX: &[u8] = b"ANTECEDENT-STATISTICAL-TRANSPORT\x01";
 
 #[pyclass(skip_from_py_object)]
 struct PreparedStatisticalStage {
@@ -42,10 +37,26 @@ struct PreparedStatisticalStage {
 
 impl PreparedStatisticalStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
-        let mut ctx = ExecutionContext::production_default(self.seed);
-        ctx.memory.hard_limit_bytes = self.memory_bytes;
-        crate::apply_cancel(&mut ctx, cancel);
-        ctx
+        execution_context(self.seed, self.memory_bytes, cancel)
+    }
+    /// Posterior summary of one execution, shared by the payload and the getter.
+    fn bayesian_posterior_json(
+        &self,
+        result: &antecedent::StatisticalStudyResult,
+    ) -> Option<serde_json::Value> {
+        result.bayesian_estimate().map(|posterior| {
+            serde_json::json!({
+                "estimator": posterior.estimator.as_ref(),
+                "interval_method": posterior.interval_method.as_ref(),
+                "draws_requested": posterior.draws_requested,
+                "draws_ok": posterior.draws_ok,
+                "draws_failed": posterior.draws_failed,
+                "probabilities": posterior.distributions.iter().map(|d| d.probabilities.to_vec()).collect::<Vec<_>>(),
+                "atom_intervals": posterior.atom_intervals.to_vec(),
+                "mean_intervals": posterior.mean_intervals.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>(),
+                "calibration_status": posterior.interval_reason.as_deref().unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+            })
+        })
     }
     fn payload(
         &self,
@@ -76,6 +87,7 @@ impl PreparedStatisticalStage {
             "mean_intervals": est.mean_intervals.as_ref().map(|rows| {
                 rows.iter().map(|(v, lo, hi)| (self.graph.names[v.as_usize()].as_str(), lo, hi)).collect::<Vec<_>>()
             }),
+            "bayesian_posterior": self.bayesian_posterior_json(result),
         });
         Ok((
             result
@@ -102,6 +114,13 @@ impl PreparedStatisticalStage {
     fn outcomes(&self) -> Vec<String> {
         self.inner.query().outcomes.iter().map(|v| self.graph.names[v.as_usize()].clone()).collect()
     }
+    #[getter]
+    fn bayesian_posterior(&self) -> Option<String> {
+        self.last
+            .as_ref()
+            .and_then(|result| self.bayesian_posterior_json(result))
+            .map(|value| value.to_string())
+    }
     #[pyo3(signature=(execution=None,cancel=None))]
     fn estimate(
         &mut self,
@@ -112,7 +131,8 @@ impl PreparedStatisticalStage {
         let ctx = self.ctx(cancel);
         let inner = self.inner.clone();
         let execution = execution.unwrap_or_else(|| inner.inspect().identities.execution);
-        self.last = None;
+        // A failed execution keeps the previous claim: nothing is cleared until
+        // the replacement exists.
         let result = crate::detach_catch(py, move || {
             inner.estimate_checked(&execution, &ctx).map_err(error)
         })?;
@@ -129,16 +149,7 @@ impl PreparedStatisticalStage {
     ) -> PyResult<Vec<Self>> {
         let requests = assignments
             .into_iter()
-            .map(|request| {
-                Ok(Assignment::from_pairs(
-                    request
-                        .into_iter()
-                        .map(|(name, value)| {
-                            Ok((resolve(&self.graph.names, &name)?, Value::f64(value)))
-                        })
-                        .collect::<PyResult<Vec<_>>>()?,
-                ))
-            })
+            .map(|request| assignment_from_pairs(&self.graph.names, request))
             .collect::<PyResult<Vec<_>>>()?;
         let inner = self.inner.clone();
         let ctx = self.ctx(cancel);
@@ -214,16 +225,31 @@ impl PreparedStatisticalStage {
             "assignment": record.assignment.iter().map(|(v,x)| (self.graph.names[v.as_usize()].as_str(), x.as_f64())).collect::<Vec<_>>()
         })).collect();
         let uncertainty = if let Some(result) = &self.last {
-            let est = result.estimate();
-            serde_json::json!({
-                "available": est.uncertainty.is_some() && est.uncertainty_reason.is_none(),
-                "reason": est.uncertainty_reason.as_deref(),
-                "summary": if est.uncertainty.is_some() && est.uncertainty_reason.is_none() {
-                    "percentile_bootstrap"
-                } else {
-                    "unavailable"
-                },
-            })
+            if result.bayesian_estimate().is_some() {
+                let available = result.reasoning().uncertainty.is_available();
+                let reason = match &result.reasoning().uncertainty {
+                    antecedent_core::SlotAvailability::Unavailable { reason } => {
+                        Some(reason.as_ref())
+                    }
+                    _ => None,
+                };
+                serde_json::json!({
+                    "available": available,
+                    "reason": reason,
+                    "summary": if available { "posterior_equal_tail" } else { "unavailable" },
+                })
+            } else {
+                let est = result.estimate();
+                serde_json::json!({
+                    "available": est.uncertainty.is_some() && est.uncertainty_reason.is_none(),
+                    "reason": est.uncertainty_reason.as_deref(),
+                    "summary": if est.uncertainty.is_some() && est.uncertainty_reason.is_none() {
+                        "percentile_bootstrap"
+                    } else {
+                        "unavailable"
+                    },
+                })
+            }
         } else {
             let licensed = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {
@@ -305,9 +331,7 @@ impl PreparedStatisticalStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| error("transport.no_execution_claim"))?;
         let artifact = self.inner.export(result).map_err(error)?;
-        let bytes = antecedent_io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?;
-        let mut framed = b"ANTECEDENT-STATISTICAL-TRANSPORT\x01".to_vec();
-        framed.extend(bytes);
+        let framed = frame_named_artifact(STATISTICAL_PREFIX, &self.graph.names, artifact)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
     fn preview_transform(
@@ -329,6 +353,10 @@ pub(crate) fn parse_provider(
         return match name.as_str() {
             "plugin" => Ok(EmpiricalTableEstimator::Plugin),
             "dirichlet" => Ok(EmpiricalTableEstimator::Dirichlet),
+            "empirical_support_bayesian_bootstrap" => {
+                Ok(EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap)
+            }
+            "state_space_dirichlet" => Ok(EmpiricalTableEstimator::StateSpaceDirichlet),
             _ => Err(error(format!("unknown statistical provider {name}"))),
         };
     }
@@ -338,6 +366,10 @@ pub(crate) fn parse_provider(
         wire.get_item("kind")?.ok_or_else(|| error("missing provider kind"))?.extract()?;
     match kind.as_str() {
         "empirical_table" => Ok(EmpiricalTableEstimator::Plugin),
+        "empirical_support_bayesian_bootstrap" => {
+            Ok(EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap)
+        }
+        "state_space_dirichlet" => Ok(EmpiricalTableEstimator::StateSpaceDirichlet),
         "learned_categorical" => {
             let spec = crate::estimator_config::get_learner(wire, "learner")?
                 .ok_or_else(|| error("missing categorical learner"))?;
@@ -348,7 +380,7 @@ pub(crate) fn parse_provider(
 }
 
 #[pyfunction]
-#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
+#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, posterior_draws=199, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_statistical_transport(
     py: Python<'_>,
@@ -362,6 +394,7 @@ fn prepare_statistical_transport(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
     bootstrap: u32,
+    posterior_draws: u32,
     coverage_level: f64,
     estimator: Option<&Bound<'_, PyAny>>,
     seed: u64,
@@ -369,19 +402,12 @@ fn prepare_statistical_transport(
     let proof = stage.identified()?;
     let catalog = parse_catalog(catalog, stage.graph())?;
     let input = parse_statistical_input(payload, &catalog, stage.graph(), max_support_rows)?;
-    let request = Assignment::from_pairs(
-        assignments
-            .into_iter()
-            .map(|(name, value)| Ok((resolve(&stage.graph().names, &name)?, Value::f64(value))))
-            .collect::<PyResult<Vec<_>>>()?,
-    );
+    let request = assignment_from_pairs(&stage.graph().names, assignments)?;
     let diagram = stage.diagram();
     let graph = stage.named_graph();
     let estimator = parse_provider(estimator)?;
     crate::detach_catch(py, move || {
-        let mut ctx = ExecutionContext::production_default(seed);
-        ctx.memory.hard_limit_bytes = memory_bytes;
-        crate::apply_cancel(&mut ctx, cancel);
+        let ctx = execution_context(seed, memory_bytes, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
             antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
@@ -398,7 +424,12 @@ fn prepare_statistical_transport(
                 .map_err(error)?
             {
                 antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
-                other => return Err(error(format!("bounded catalog search failed: {other:?}"))),
+                other => {
+                    return Err(crate::transport_common::catalog_search_refusal(
+                        &other,
+                        &graph.names,
+                    ));
+                }
             },
         };
         let inner = antecedent::StudyBuilder::statistical_transport(
@@ -410,6 +441,7 @@ fn prepare_statistical_transport(
             EmpiricalTableOptions {
                 estimator,
                 bootstrap_replicates: bootstrap,
+                posterior_draws,
                 coverage_level,
                 max_joint_cells: max_support_rows,
             },
@@ -429,12 +461,14 @@ fn prepare_statistical_transport(
 }
 
 #[pyfunction]
-#[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,memory_bytes=None,cancel=None,seed=1))]
+#[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None,seed=1))]
+#[allow(clippy::too_many_arguments)]
 fn consume_statistical_transport(
     py: Python<'_>,
     bytes: Vec<u8>,
     max_operations: usize,
     max_depth: usize,
+    max_support_rows: usize,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
     seed: u64,
@@ -443,14 +477,9 @@ fn consume_statistical_transport(
         if memory_bytes.is_some_and(|n| bytes.len() as u64 > n) {
             return Err(error("artifact memory budget"));
         }
-        let payload = bytes
-            .strip_prefix(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01")
-            .ok_or_else(|| error("invalid statistical transport artifact format"))?;
-        let (names, artifact): (Vec<String>, Vec<u8>) =
-            antecedent_io::from_cbor(payload).map_err(error)?;
-        let mut ctx = ExecutionContext::production_default(seed);
-        ctx.memory.hard_limit_bytes = memory_bytes;
-        crate::apply_cancel(&mut ctx, cancel);
+        let (names, artifact) =
+            unframe_named_artifact(STATISTICAL_PREFIX, &bytes, "statistical transport")?;
+        let ctx = execution_context(seed, memory_bytes, cancel);
         let (inner, result) =
             antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume(
                 &artifact,
@@ -462,11 +491,6 @@ fn consume_statistical_transport(
             &names,
             inner.diagram().causal_graph(),
         )?;
-        if names.len() != inner.diagram().causal_graph().node_count()
-            || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
-        {
-            return Err(error("artifact coordinate names"));
-        }
         let graph = Admg { admg: inner.diagram().causal_graph().clone(), names };
         let catalog = inner.evidence_catalog().clone();
         let seed = inner.seed();
@@ -476,7 +500,7 @@ fn consume_statistical_transport(
             catalog,
             last: Some(result),
             memory_bytes,
-            max_support_rows: max_operations,
+            max_support_rows,
             seed,
         })
     })
@@ -489,30 +513,41 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// Parse a `StatisticalTransportData` payload: supplied exact laws plus finite
+/// samples. Every sample and law must fit `max_support_rows`; a payload that is
+/// not statistical data (for example a bare tuple of exact laws) is refused
+/// rather than read as an empty sample set.
 pub(crate) fn parse_statistical_input(
     payload: &Bound<'_, PyAny>,
     catalog: &antecedent_core::EvidenceCatalog,
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<StatisticalTransportInput> {
-    let _ = max_support_rows;
     let laws = if let Ok(laws) = payload.getattr("laws") {
-        parse_optional_laws(&laws, catalog, graph)?
+        parse_optional_laws(&laws, catalog, graph, max_support_rows)?
     } else {
         Vec::new()
     };
+    let samples_obj = payload.getattr("samples").map_err(|_| {
+        crate::value_err(
+            "statistical transport needs StatisticalTransportData with a samples field",
+        )
+    })?;
     let mut samples = Vec::new();
-    let sample_iter = if let Ok(samples) = payload.getattr("samples") {
-        samples.try_iter()?
-    } else {
-        payload.try_iter()?
-    };
-    for sample in sample_iter {
+    for sample in samples_obj.try_iter()? {
         let sample = sample?;
-        if sample.hasattr("probabilities")? {
-            continue;
+        if sample.hasattr("probabilities")? || !sample.hasattr("columns")? {
+            return Err(crate::value_err(
+                "statistical transport samples must be RegimeSample values; exact laws belong in StatisticalTransportData.laws",
+            ));
         }
-        samples.push(parse_sample(&sample, catalog, graph)?);
+        let parsed = parse_sample(&sample, catalog, graph)?;
+        if parsed.columns.values().any(|column| column.len() > max_support_rows) {
+            return Err(error(format!(
+                "sample rows exceed the max_support_rows budget ({max_support_rows})"
+            )));
+        }
+        samples.push(parsed);
     }
     Ok(StatisticalTransportInput { supplied: laws, samples })
 }
@@ -521,6 +556,7 @@ fn parse_optional_laws(
     laws: &Bound<'_, PyAny>,
     catalog: &antecedent_core::EvidenceCatalog,
     graph: &Admg,
+    max_support_rows: usize,
 ) -> PyResult<Vec<ExactDiscreteLaw>> {
     let mut tables = Vec::new();
     for table in laws.try_iter()? {
@@ -528,52 +564,11 @@ fn parse_optional_laws(
         if !table.hasattr("probabilities")? {
             continue;
         }
-        let population: String = table.getattr("population")?.extract()?;
-        let label: String = table.getattr("regime")?.extract()?;
-        let regime = catalog
-            .regimes
-            .iter()
-            .find(|r| {
-                r.label.as_deref() == Some(label.as_str()) && r.population.as_ref() == population
-            })
-            .ok_or_else(|| error("exact law names an unknown population/regime"))?;
-        let axes: Vec<(String, Vec<f64>)> = table.getattr("axes")?.extract()?;
-        let axes = axes
-            .into_iter()
-            .map(|(name, values)| {
-                Ok(antecedent_expr::DiscreteAxis {
-                    variable: resolve(&graph.names, &name)?,
-                    values: values.into_iter().map(Value::f64).collect(),
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let interventions: Vec<(String, f64)> = table.getattr("interventions")?.extract()?;
-        let interventions = interventions
-            .into_iter()
-            .map(|(name, value)| {
-                Ok(InterventionAssignment {
-                    variable: resolve(&graph.names, &name)?,
-                    value: Value::f64(value),
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        tables.push(
-            ExactDiscreteLaw::try_new(
-                population,
-                regime.id,
-                interventions,
-                axes,
-                table.getattr("probabilities")?.extract::<Vec<f64>>()?,
-                table.getattr("snapshot_identity")?.extract::<String>()?,
-                LawTolerance {
-                    absolute: table.getattr("absolute_tolerance")?.extract()?,
-                    relative: table.getattr("relative_tolerance")?.extract()?,
-                },
-            )
-            .map_err(error)?,
-        );
+        tables.push(parse_law_table(&table, catalog, graph, RegimeCheck::Lenient)?);
     }
-    Ok(tables)
+    // The support budget applies to supplied laws as it does to exact data.
+    let data = ExactTransportData::try_new(tables, max_support_rows).map_err(error)?;
+    Ok(data.laws().to_vec())
 }
 
 fn parse_sample(

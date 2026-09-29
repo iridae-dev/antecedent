@@ -105,23 +105,30 @@ pub use plan::{
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use query::{
-    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
-    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
-    ContinuousDomain, CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting,
-    DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceProjection, EvidenceRegime, ExposureLevel, ExposureMapping, FactorNeed, GridSpec,
-    InterferenceFunctional, InterferenceQuery, InterventionAssignment,
-    InterventionalDistributionQuery, LicensedWeights, MAX_NONPARAMETRIC_RESPONSE_DIM,
-    MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS, MechanismChangeQuery,
-    MediationContrast, MediationQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
-    OutcomeFunctional, PathSpecificEffectQuery, PopulationRegistry, PopulationSelection,
-    PopulationSelector, PredicateExpr, QueryError, RegimeBinding, RegimeKind, ResponseFunctional,
-    ResponseQuery, SamplingDesign, ShapleyConfig, ShapleyMode, TEMPORAL_OBSERVATION_UNLICENSED,
-    TargetPopulation, TargetSampling, TemporalEffectQuery, TemporalResponseLicense,
-    TemporalResponseSpec, TheoremFamily, TheoremScope, TransportEvaluateSupport,
-    TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
-    TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport, UnitChangeQuery,
-    UnmetDependency, VariableCoordinate, VariableDomain,
+    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
+    AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
+    ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery, CounterfactualQuery,
+    DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
+    DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
+    EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
+    ExposureMapping, ExposurePropensityProvenance, FactorNeed, FixedCandidateRegretInputs,
+    FixedGroupDosePolicy, GridSpec, InterferenceFunctional, InterferenceQuery,
+    InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival,
+    LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
+    NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
+    OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
+    PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
+    RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
+    ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig, ShapleyMode,
+    SurvivalFunctional, SurvivalQuery, SyntheticControlQuery, SyntheticPanelMethod,
+    TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling, TemporalEffectQuery,
+    TemporalResponseLicense, TemporalResponseSpec, TheoremFamily, TheoremScope,
+    TransportEvaluateSupport, TransportIdentifySupport, TransportLocation, TransportOutcome,
+    TransportOutcomeKind, TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport,
+    UnitChangeQuery, UnmetDependency, VariableCoordinate, VariableDomain,
+    policy_graphless_coordinate, randomized_graphless_coordinate,
 };
 pub use reasoning::{
     AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
@@ -142,7 +149,7 @@ pub use transform::{
     LayerEffect, SemanticLayer, TransformEffect, TransformIntent, TransformationReport,
     intent_effects,
 };
-pub use value::Value;
+pub use value::{Value, same_intervention_level};
 
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

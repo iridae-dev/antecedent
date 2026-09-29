@@ -8,9 +8,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
-use antecedent_data::{
-    CategoryCode, CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix,
-};
+use antecedent_data::{CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix};
 use antecedent_stats::{
     CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, StandardizationRecord, StatsError, standardize_columns,
@@ -205,12 +203,6 @@ fn expand_contrast_columns(
     Ok(())
 }
 
-/// Map a data-layer contrast reference helper for tests / callers.
-#[must_use]
-pub fn treatment_contrast_ref(reference: CategoryCode) -> Contrast {
-    Contrast::Treatment { reference }
-}
-
 #[cfg(test)]
 #[allow(
     clippy::float_cmp,
@@ -224,6 +216,7 @@ mod tests {
     use antecedent_stats::StandardizedColumn;
 
     use super::*;
+    use antecedent_data::CategoryCode;
 
     fn two_level_domain() -> CategoryDomain {
         CategoryDomain::try_new(

@@ -182,6 +182,8 @@ pub enum GraphClass {
     TemporalCpdag,
     /// Temporal partial ancestral graph (circle marks allowed).
     TemporalPag,
+    /// Schema-bound randomized trial contract; carries no causal graph.
+    RandomizedTrial,
 }
 
 impl GraphClass {
@@ -196,6 +198,7 @@ impl GraphClass {
             Self::TemporalDag => "TemporalDag",
             Self::TemporalCpdag => "TemporalCpdag",
             Self::TemporalPag => "TemporalPag",
+            Self::RandomizedTrial => "RandomizedTrial",
         }
     }
 
@@ -219,6 +222,7 @@ enum GraphKind {
     TemporalDag(TemporalDag),
     TemporalCpdag(TemporalCpdag),
     TemporalPag(TemporalPag),
+    RandomizedTrial,
 }
 
 /// Asserted-or-accepted causal structure.
@@ -283,6 +287,16 @@ impl AcceptedGraph {
     #[must_use]
     pub fn temporal_pag(g: TemporalPag) -> Self {
         Self::from_kind(GraphKind::TemporalPag(g), None)
+    }
+
+    /// Create a schema-bound randomized-trial source with no graph structure.
+    #[must_use]
+    pub(crate) fn randomized_trial(schema: &CausalSchema) -> Self {
+        let mut value = Self::from_kind(GraphKind::RandomizedTrial, None);
+        value.schema_names = Some(Arc::from(
+            schema.variables().iter().map(|v| Arc::clone(&v.name)).collect::<Vec<_>>(),
+        ));
+        value
     }
 
     /// Accept a static CPDAG.
@@ -358,6 +372,7 @@ impl AcceptedGraph {
             GraphKind::TemporalDag(_) => GraphClass::TemporalDag,
             GraphKind::TemporalCpdag(_) => GraphClass::TemporalCpdag,
             GraphKind::TemporalPag(_) => GraphClass::TemporalPag,
+            GraphKind::RandomizedTrial => GraphClass::RandomizedTrial,
         }
     }
 
@@ -553,19 +568,57 @@ pub trait IntoAccepted: sealed::Sealed {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError>;
 }
 
+/// What an incomplete single-guard review reports: its kind, message, and hint.
+struct IncompleteReview {
+    kind: ReviewKind,
+    message: &'static str,
+    hint: &'static str,
+}
+
+/// Shared scaffolding for the single-guard review completions (`DagReview`,
+/// `PagReview`, and their temporal twins): reject an incomplete review with a
+/// structured [`CausalError::ReviewRequired`], else accept `kind`.
+///
+/// The differing pieces are passed in: the review's completeness, its pending count
+/// and already-materialised pending edges, the [`GraphKind`] to accept, the algorithm
+/// id, and the review's `kind` / message / hint strings (reproduced verbatim per
+/// review). `pending_edges` is materialised by the caller before the graph is moved
+/// into `kind`; it is only read on the incomplete path, exactly as before.
+fn accept_single_guard(
+    complete: bool,
+    pending_count: usize,
+    pending_edges: Vec<PendingEdge>,
+    kind: GraphKind,
+    algorithm: Arc<str>,
+    incomplete: &IncompleteReview,
+) -> Result<AcceptedGraph, CausalError> {
+    if !complete {
+        return Err(CausalError::review_required(
+            incomplete.kind.as_str(),
+            Some(algorithm.to_string()),
+            pending_count,
+            pending_edges,
+            incomplete.message,
+            incomplete.hint,
+        ));
+    }
+    Ok(AcceptedGraph::from_kind(kind, Some(algorithm)))
+}
+
 impl IntoAccepted for DagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
-        if !self.is_complete() {
-            return Err(CausalError::review_required(
-                ReviewKind::StaticDag.as_str(),
-                Some(self.algorithm.to_string()),
-                self.pending_edges.len(),
-                pending_directed(&self.pending_edges),
-                "static DAG discovery review incomplete: pending directed edges remain",
-                "accept pending directed edges or supply a fully oriented Dag",
-            ));
-        }
-        Ok(AcceptedGraph::from_kind(GraphKind::Dag(self.graph), Some(self.algorithm)))
+        accept_single_guard(
+            self.is_complete(),
+            self.pending_edges.len(),
+            pending_directed(&self.pending_edges),
+            GraphKind::Dag(self.graph),
+            self.algorithm,
+            &IncompleteReview {
+                kind: ReviewKind::StaticDag,
+                message: "static DAG discovery review incomplete: pending directed edges remain",
+                hint: "accept pending directed edges or supply a fully oriented Dag",
+            },
+        )
     }
 }
 
@@ -602,35 +655,37 @@ impl IntoAccepted for CpdagReview {
 
 impl IntoAccepted for PagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
-        if !self.is_complete() {
-            let edges = pending_pag_circles(&self.graph, &self.pending_circles);
-            return Err(CausalError::review_required(
-                ReviewKind::StaticPag.as_str(),
-                Some(self.algorithm.to_string()),
-                self.pending_circles.len(),
-                edges,
-                "static PAG review incomplete: circle-bearing edges remain unreviewed",
-                "resolve circle marks, or call AcceptedGraph::pag(graph) directly — \
-                 circles are safe input for generalized adjustment",
-            ));
-        }
-        Ok(AcceptedGraph::from_kind(GraphKind::Pag(self.graph), Some(self.algorithm)))
+        let edges = pending_pag_circles(&self.graph, &self.pending_circles);
+        accept_single_guard(
+            self.is_complete(),
+            self.pending_circles.len(),
+            edges,
+            GraphKind::Pag(self.graph),
+            self.algorithm,
+            &IncompleteReview {
+                kind: ReviewKind::StaticPag,
+                message: "static PAG review incomplete: circle-bearing edges remain unreviewed",
+                hint: "resolve circle marks, or call AcceptedGraph::pag(graph) directly — \
+             circles are safe input for generalized adjustment",
+            },
+        )
     }
 }
 
 impl IntoAccepted for TemporalGraphReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
-        if !self.is_complete() {
-            return Err(CausalError::review_required(
-                ReviewKind::TemporalDag.as_str(),
-                Some(self.algorithm.to_string()),
-                self.pending_edges.len(),
-                pending_directed_temporal(&self.pending_edges),
-                "temporal DAG discovery review incomplete: pending edges remain",
-                "accept pending edges or supply a fully oriented TemporalDag",
-            ));
-        }
-        Ok(AcceptedGraph::from_kind(GraphKind::TemporalDag(self.graph), Some(self.algorithm)))
+        accept_single_guard(
+            self.is_complete(),
+            self.pending_edges.len(),
+            pending_directed_temporal(&self.pending_edges),
+            GraphKind::TemporalDag(self.graph),
+            self.algorithm,
+            &IncompleteReview {
+                kind: ReviewKind::TemporalDag,
+                message: "temporal DAG discovery review incomplete: pending edges remain",
+                hint: "accept pending edges or supply a fully oriented TemporalDag",
+            },
+        )
     }
 }
 
@@ -667,19 +722,20 @@ impl IntoAccepted for TemporalCpdagReview {
 
 impl IntoAccepted for TemporalPagReview {
     fn into_accepted(self) -> Result<AcceptedGraph, CausalError> {
-        if !self.is_complete() {
-            let edges = pending_temporal_pag_circles(&self.graph, &self.pending_circles);
-            return Err(CausalError::review_required(
-                ReviewKind::TemporalPag.as_str(),
-                Some(self.algorithm.to_string()),
-                self.pending_circles.len(),
-                edges,
-                "temporal PAG review incomplete: circle-bearing edges remain unreviewed",
-                "resolve circle marks, or call AcceptedGraph::temporal_pag(graph) directly — \
-                 circles are safe input for generalized adjustment",
-            ));
-        }
-        Ok(AcceptedGraph::from_kind(GraphKind::TemporalPag(self.graph), Some(self.algorithm)))
+        let edges = pending_temporal_pag_circles(&self.graph, &self.pending_circles);
+        accept_single_guard(
+            self.is_complete(),
+            self.pending_circles.len(),
+            edges,
+            GraphKind::TemporalPag(self.graph),
+            self.algorithm,
+            &IncompleteReview {
+                kind: ReviewKind::TemporalPag,
+                message: "temporal PAG review incomplete: circle-bearing edges remain unreviewed",
+                hint: "resolve circle marks, or call AcceptedGraph::temporal_pag(graph) directly — \
+             circles are safe input for generalized adjustment",
+            },
+        )
     }
 }
 

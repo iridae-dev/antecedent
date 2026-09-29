@@ -1,0 +1,23 @@
+feature_id = "estimate.interference.observational_ipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings; Section 4: Horvitz–Thompson exposure contrasts when exposure probabilities are known"] },
+]
+
+implementation_deviations = [
+ "Assignment is not randomized by this estimator. Exposure probabilities are supplied per unit and treated as fixed; their estimation uncertainty is not in the variance.",
+ "The variance is a cluster-score sandwich of the Horvitz–Thompson contrast, not the paper's design-based joint-exposure-probability variance, and it inherits none of that paper's repeated-sampling guarantee.",
+ "Network exchangeability, partial interference, consistency, and exposure positivity are caller-declared and not checked from the network.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/interference_observational.rs",
+ "crates/antecedent/src/analysis/execute/checked_interference.rs",
+]

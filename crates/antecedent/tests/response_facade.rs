@@ -500,7 +500,7 @@ fn prepared_response_curve_reuses_identification() {
     let prepared = study.prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    assert!(fresh.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(click.estimand.adjustment_set, fresh.estimand.adjustment_set);
     let click_mean = match &click.response.as_ref().unwrap().estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
@@ -577,9 +577,11 @@ fn prepared_graph_posterior_response_reuses_identification() {
     let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
+    // A one-shot graph-posterior response executes its retained prepared plan,
+    // so the fresh result reports the identification it reused from that plan.
     assert_eq!(
         fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
-        0
+        1
     );
     assert_eq!(
         first.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),

@@ -1,4 +1,4 @@
-# Antecedent 2.0
+# Antecedent 2.1
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
@@ -17,9 +17,9 @@ flowchart TD
 
 Antecedent prevents the meaning declared at the start of an analysis from disappearing by the time a result reaches another person or system.
 
-## What’s new in Antecedent 2.0?
+## The Antecedent workflow
 
-Antecedent 2.0 builds on the existing causal workflow—discovery, graph review, identification, frequentist and Bayesian estimation, validation, interventions, temporal analysis, counterfactuals, attribution, design, state, and durable artifacts:
+Antecedent covers the full causal workflow—discovery, graph review, identification, frequentist and Bayesian estimation, validation, interventions, temporal analysis, counterfactuals, attribution, design, state, and durable artifacts:
 
 ```python
 import antecedent as ant
@@ -32,7 +32,7 @@ reused = result.study.refresh(new_data)
 loaded = ant.load(result.export())
 ```
 
-2.0 adds native prediction and transport foundations to that workflow.
+It also provides native prediction and transport foundations for that workflow.
 
 **Learner-backed estimation.** DML, DR-Learner, and honest causal-forest paths use fold-local nuisance fitting, held-out diagnostics, learner provenance, overlap checks, and explicit limits. The standard Python wheel includes the CPU-native `NeuralNet` nuisance learner. CATE predictions are not pointwise confidence intervals.
 
@@ -74,7 +74,25 @@ result = identification.estimate(ant.transport.StatisticalTransportData(...))
 # missing regime samples leave the functional unavailable
 ```
 
-Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature. What comes after 2.0 is in the [2.x roadmap](ROADMAP.md).
+## New in Antecedent 2.1
+
+2.1 keeps the same lifecycle and widens the questions it can carry. Design-family studies — randomized and factorial experiments, held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.factorial`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root.
+
+```python
+design = ant.experiment.ExperimentDesign(
+    assignment=ant.interference.BernoulliAssignment(0.5),
+    realized_assignment="assigned",   # row-aligned inputs may name a data column
+    assignment_units="account_id",
+    outcome_units="account_id",
+)
+result = ant.analyze(data, query=ant.experiment.RandomizedEffect("revenue", design))
+```
+
+On the experiment, policy, regime, and interference queries, row-aligned inputs may be named by a data column; `prepare` resolves those names and freezes the design, and `refresh` reuses that design with outcome-only data. Interval claims for these families are rows of the [graphless support matrix](docs/graphless-support-matrix.md), separate from the geometric matrix; a support license is not a coverage record.
+
+2.1 also adds restricted-experiment (z-transport) identification, a fixed-DAG nested-counterfactual natural direct effect, wider model-scoped Bayesian routes, and an external-provider contract (`antecedent.extensibility.CausalProviderSpec` with a `ProviderRegistry`).
+
+Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
 
 ## How Antecedent is built
 
@@ -102,9 +120,9 @@ algorithm exists ≠ this causal claim is licensed
 
 We believe this approach is critical when causal inference is built to exist beyond the notebook as part of composed software systems and agentic workflows.
 
-Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 463 licensed cells, 164 have no coverage measurement for their estimator and 4 report no interval (counts in the [support matrix](docs/support-matrix.md)).
+Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 472 licensed cells, 44 have no coverage measurement for their estimator and 4 report no interval (counts in the [support matrix](docs/support-matrix.md)).
 
-For the full 2.0 change summary and migration-impacting changes, read the [release notes](docs/release-notes/v2.0.0.md) and [changelog](CHANGELOG.md).
+For what 2.1.0 adds over 2.0.0, read the [release notes](docs/release-notes/v2.1.0.md) and [changelog](CHANGELOG.md).
 
 ## License
 

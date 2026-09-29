@@ -1,0 +1,1166 @@
+"""Binary treatment policies and held-out randomized evaluation."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from math import floor, isfinite
+from numbers import Integral
+from typing import Any
+
+import numpy as np
+
+from ._columns import resolved, resolved_opt
+from ._data import as_columns
+from ._native import evaluate_binary_policy as _evaluate_binary_policy
+from ._native import evaluate_binary_policy_doubly_robust as _evaluate_binary_policy_doubly_robust
+from ._native import evaluate_multi_action_policy as _evaluate_multi_action_policy
+from ._native import uplift_by_score as _uplift_by_score
+from .errors import CausalTypeError, CausalValueError
+
+
+@dataclass(frozen=True, slots=True)
+class BinaryPolicy:
+    """A binary treat/control recommendation for each evaluation row.
+
+    ``capacity`` and ``max_treatment_rate`` constrain the number of treated
+    rows. ``budget`` constrains the sum of their declared treatment costs.
+    Costs may be scalar or one per row.
+    """
+
+    actions: Sequence[bool] | str
+    capacity: int | None = None
+    budget: float | None = None
+    max_treatment_rate: float | None = None
+    costs: float | Sequence[float] = 0.0
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    _COLUMN_FIELDS = {"actions": "bool"}
+
+    def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
+            # policy against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
+        actions = tuple(self.actions)
+        if any(not isinstance(action, (bool, np.bool_)) for action in actions):
+            raise CausalValueError("policy actions must be bool values")
+        if not actions:
+            raise CausalValueError("policy actions must not be empty")
+        object.__setattr__(self, "actions", tuple(bool(action) for action in actions))
+        if self.capacity is not None and (
+            isinstance(self.capacity, bool)
+            or not isinstance(self.capacity, Integral)
+            or self.capacity < 0
+        ):
+            raise CausalValueError("capacity must be a non-negative integer")
+        if self.capacity is not None:
+            object.__setattr__(self, "capacity", int(self.capacity))
+        if self.budget is not None and (not isfinite(self.budget) or self.budget < 0.0):
+            raise CausalValueError("budget must be finite and non-negative")
+        if self.max_treatment_rate is not None and (
+            isinstance(self.max_treatment_rate, bool)
+            or not isinstance(self.max_treatment_rate, (int, float))
+            or not isfinite(self.max_treatment_rate)
+            or not 0.0 <= self.max_treatment_rate <= 1.0
+        ):
+            raise CausalValueError("max_treatment_rate must be in [0, 1]")
+
+    @classmethod
+    def top_k(
+        cls,
+        scores: Sequence[float],
+        k: int,
+        *,
+        available: Sequence[bool] | None = None,
+        budget: float | None = None,
+        costs: float | Sequence[float] = 0.0,
+    ) -> BinaryPolicy:
+        """Choose the top ``k`` score rows, breaking ties by input order."""
+        values = np.asarray(scores, dtype=np.float64)
+        if values.ndim != 1 or values.size == 0 or not np.isfinite(values).all():
+            raise CausalValueError("scores must be a non-empty finite one-dimensional sequence")
+        if isinstance(k, bool) or not isinstance(k, Integral) or not 0 <= k <= values.size:
+            raise CausalValueError("k must be an integer between zero and the number of scores")
+        can_treat = [True] * values.size if available is None else list(available)
+        if len(can_treat) != values.size or any(
+            not isinstance(value, (bool, np.bool_)) for value in can_treat
+        ):
+            raise CausalValueError("available must contain one bool per score")
+        eligible = [i for i, can in enumerate(can_treat) if can]
+        if k > len(eligible):
+            raise CausalValueError("k exceeds the number of available treatment actions")
+        ranked = sorted(eligible, key=lambda i: (-values[i], i))
+        actions = [False] * values.size
+        for index in ranked[: int(k)]:
+            actions[index] = True
+        return cls(actions, capacity=int(k), budget=budget, costs=costs)
+
+
+@dataclass(frozen=True, slots=True)
+class MultiActionPolicy:
+    """Fixed multi-action recommendations; the first label is the control action."""
+
+    action_labels: Sequence[str]
+    recommendations: Sequence[str] | str
+    costs: Sequence[float] | None = None
+    capacities: Sequence[int] | None = None
+    budget: float | None = None
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: The per-row recommended action may instead name a data column (str labels).
+    _COLUMN_FIELDS = {"recommendations": "str"}
+
+    def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
+            # policy against the data at prepare, re-running the checks below.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
+        labels = tuple(self.action_labels)
+        recommendations = tuple(self.recommendations)
+        if len(labels) < 2 or any(not isinstance(v, str) or not v.strip() for v in labels):
+            raise CausalValueError("action_labels must contain at least two non-empty labels")
+        if len(set(labels)) != len(labels):
+            raise CausalValueError("action_labels must be unique")
+        if not recommendations or any(v not in labels for v in recommendations):
+            raise CausalValueError("recommendations must name a declared action for each row")
+        object.__setattr__(self, "action_labels", labels)
+        object.__setattr__(self, "recommendations", recommendations)
+        if self.costs is not None:
+            try:
+                costs = tuple(float(v) for v in self.costs)
+            except (TypeError, ValueError) as error:
+                raise CausalValueError("costs must be numeric") from error
+            if len(costs) != len(labels) or any(not isfinite(v) or v < 0 for v in costs):
+                raise CausalValueError("costs must have one finite non-negative value per action")
+            object.__setattr__(self, "costs", costs)
+        if self.capacities is not None:
+            capacities = tuple(self.capacities)
+            if len(capacities) != len(labels) or any(
+                isinstance(v, bool) or not isinstance(v, Integral) or v < 0 for v in capacities
+            ):
+                raise CausalValueError("capacities must have one non-negative integer per action")
+            object.__setattr__(self, "capacities", tuple(int(v) for v in capacities))
+        if self.budget is not None and (
+            isinstance(self.budget, bool) or not isfinite(self.budget) or self.budget < 0
+        ):
+            raise CausalValueError("budget must be finite and non-negative")
+
+    @classmethod
+    def from_scores(
+        cls,
+        scores: Sequence[Sequence[float]],
+        action_labels: Sequence[str],
+        *,
+        available: Sequence[Sequence[bool]] | None = None,
+        costs: Sequence[float] | None = None,
+        capacities: Sequence[int] | None = None,
+        budget: float | None = None,
+    ) -> MultiActionPolicy:
+        """Choose the highest-score available action per row, ties by label order."""
+        matrix = np.asarray(scores, dtype=np.float64)
+        labels = tuple(action_labels)
+        if matrix.ndim != 2 or matrix.shape[0] == 0 or matrix.shape[1] != len(labels):
+            raise CausalValueError("scores must be a non-empty row-by-action matrix")
+        if not np.isfinite(matrix).all():
+            raise CausalValueError("scores must be finite")
+        if available is None:
+            mask = np.ones(matrix.shape, dtype=bool)
+        else:
+            raw_mask = np.asarray(available, dtype=object)
+            if raw_mask.shape != matrix.shape or any(
+                not isinstance(value, (bool, np.bool_)) for value in raw_mask.flat
+            ):
+                raise CausalValueError("available must have one bool per score and action")
+            mask = raw_mask.astype(bool)
+        if mask.shape != matrix.shape or (~mask).all(axis=1).any():
+            raise CausalValueError("each row must have at least one available action")
+        picks = [
+            labels[int(np.argmax(np.where(mask[i], matrix[i], -np.inf)))]
+            for i in range(len(matrix))
+        ]
+        return cls(labels, picks, costs, capacities, budget)
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyEvaluation:
+    """Point-only held-out value estimates for a binary treatment policy."""
+
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    relative_value_gap: float
+    treatment_rate: float
+    total_treatment_cost: float
+    uncertainty: str = "point_only"
+    evaluation_method: str = "randomized_ipw_heldout"
+
+
+@dataclass(frozen=True, slots=True)
+class DoublyRobustPolicyEvaluation:
+    """Held-out randomized policy value and supported pointwise intervals."""
+
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    relative_value_gap: float
+    treatment_rate: float
+    total_treatment_cost: float
+    policy_value_standard_error: float
+    reference_value_standard_error: float
+    incremental_value_standard_error: float
+    prediction_ownership: str
+    propensity_min: float
+    propensity_max: float
+    policy_value_interval_95: tuple[float, float] | None = None
+    incremental_value_interval_95: tuple[float, float] | None = None
+    uplift_bins: tuple[UpliftBin, ...] = ()
+    multi_action_cate: tuple[MultiActionCatePoint, ...] = ()
+    finite_class_regret: FiniteClassRegretEvaluation | None = None
+    uncertainty: str = "row_score_standard_error_independent_subjects"
+    evaluation_method: str = "doubly_robust_randomized_heldout_or_cross_fitted"
+    assumptions: tuple[str, ...] = (
+        "Known randomized treatment propensities with strict treatment overlap.",
+        "The supplied randomization propensities are correct; nuisance outcome predictions may be misspecified.",
+        "Consistency and no interference between evaluation subjects.",
+        "Policy recommendations and both outcome nuisance predictions were generated without using the corresponding evaluation subject's outcome.",
+    )
+    diagnostics: tuple[str, ...] = (
+        "row-level standard errors assume independent evaluation subjects",
+        "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
+        "nuisance predictions and randomization claims are not independently authenticated",
+    )
+    support_status: str = "unlicensed_point_utility"
+
+
+@dataclass(frozen=True, slots=True)
+class FiniteClassRegretEvaluation:
+    """Simultaneous gap to the best policy in a prespecified finite class."""
+
+    regret: float
+    interval_95: tuple[float, float]
+    candidate_values: tuple[float, ...]
+    contrast_standard_errors: tuple[float, ...]
+    selected_index: int
+    target: str = "best_in_prespecified_candidate_class_minus_selected"
+    uncertainty: str = "bonferroni_simultaneous_95_independent_held_out_subjects"
+
+
+@dataclass(frozen=True, slots=True)
+class PolicyValue:
+    """Immutable query for randomized binary policy value.
+
+    Policy constraints and action availability are checked on the evaluation
+    rows before the retained native study is prepared. Omit both ``mu0`` and
+    ``mu1`` for a fixed-policy IPW estimate. Supply both predictions with
+    disjoint training subjects or excluded-fold metadata for AIPW.
+    """
+
+    outcome: str
+    assignment: Sequence[bool] | str
+    propensity: float | Sequence[float] | str
+    policy: BinaryPolicy
+    evaluation_subject_ids: Sequence[str] | str
+    mu0: Sequence[float] | str | None = None
+    mu1: Sequence[float] | str | None = None
+    training_subject_ids: Sequence[str] | str | None = None
+    fold_ids: Sequence[int] | str | None = None
+    prediction_excluded_fold_ids: Sequence[int] | str | None = None
+    reference: BinaryPolicy | None = None
+    available: Sequence[bool] | str | None = None
+    uplift_scores: Sequence[float] | str | None = None
+    uplift_bin_count: int = 0
+    uplift_training_subject_ids: Sequence[str] | str | None = None
+    regret_candidates: Sequence[BinaryPolicy] | None = None
+    regret_training_subject_ids: Sequence[str] | str | None = None
+    _ownership: str = field(init=False, repr=False, compare=False)
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    #: ``propensity`` stays scalar when a float; a str names a per-row column.
+    _COLUMN_FIELDS = {
+        "assignment": "bool",
+        "propensity": "float",
+        "mu0": "float",
+        "mu1": "float",
+        "evaluation_subject_ids": "str",
+        "training_subject_ids": "str",
+        "fold_ids": "int",
+        "prediction_excluded_fold_ids": "int",
+        "available": "bool",
+        "uplift_scores": "float",
+        "uplift_training_subject_ids": "str",
+        "regret_training_subject_ids": "str",
+    }
+    #: Recurse into the carried policies so their column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("policy", "reference")
+
+    @classmethod
+    def top_k(
+        cls,
+        scores: Sequence[float],
+        k: int,
+        *,
+        outcome: str,
+        assignment: Sequence[bool],
+        propensity: float | Sequence[float],
+        evaluation_subject_ids: Sequence[str],
+        ranking_training_subject_ids: Sequence[str],
+        available: Sequence[bool] | None = None,
+        costs: float | Sequence[float] = 0.0,
+        budget: float | None = None,
+        uplift_bins: int | None = None,
+    ) -> PolicyValue:
+        """Freeze a held-out top-k policy and evaluate it through ``analyze``.
+
+        Score training subjects must be disjoint from evaluation subjects. The
+        retained query reports randomized value and descending-score uplift
+        bins; its row-score standard errors make no interval coverage claim.
+        """
+        selected = BinaryPolicy.top_k(
+            scores,
+            k,
+            available=available,
+            costs=costs,
+            budget=budget,
+        )
+        bin_count = min(10, len(selected.actions) // 2) if uplift_bins is None else uplift_bins
+        return cls(
+            outcome=outcome,
+            assignment=assignment,
+            propensity=propensity,
+            policy=selected,
+            evaluation_subject_ids=evaluation_subject_ids,
+            available=available,
+            uplift_scores=scores,
+            uplift_bin_count=bin_count,
+            uplift_training_subject_ids=ranking_training_subject_ids,
+        )
+
+    def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names (and any deferred nested policy)
+            # unvalidated; resolve_columns rebuilds this query against the data at
+            # prepare, re-running every check below with arrays in hand.
+            object.__setattr__(self, "_deferred_columns", True)
+            object.__setattr__(self, "_ownership", "deferred")
+            return
+        if not isinstance(self.outcome, str) or not self.outcome:
+            raise CausalValueError("outcome must be a non-empty column name")
+        if not isinstance(self.policy, BinaryPolicy):
+            raise CausalTypeError("policy must be a BinaryPolicy")
+        if self.reference is not None and not isinstance(self.reference, BinaryPolicy):
+            raise CausalTypeError("reference must be a BinaryPolicy or None")
+        if any(not isinstance(value, (bool, np.bool_)) for value in self.assignment):
+            raise CausalValueError("assignment entries must be bool values")
+        if self.available is not None and any(
+            not isinstance(value, (bool, np.bool_)) for value in self.available
+        ):
+            raise CausalValueError("available entries must be bool values")
+        if (self.mu0 is None) != (self.mu1 is None):
+            raise CausalValueError("mu0 and mu1 must be supplied together")
+        if self.mu0 is not None:
+            # The exclusive-or check above guarantees mu1 is present whenever mu0 is.
+            assert self.mu1 is not None
+            n = len(self.policy.actions)
+            if (
+                len(self.mu0) != n
+                or len(self.mu1) != n
+                or not all(isfinite(float(value)) for value in (*self.mu0, *self.mu1))
+            ):
+                raise CausalValueError(
+                    "mu0 and mu1 must have one finite prediction per evaluation row"
+                )
+        if self.mu0 is None:
+            ids = list(self.evaluation_subject_ids)
+            if (
+                len(ids) != len(self.policy.actions)
+                or any(not isinstance(value, str) or not value for value in ids)
+                or len(set(ids)) != len(ids)
+            ):
+                raise CausalValueError(
+                    "evaluation_subject_ids must be unique non-empty IDs for every row"
+                )
+            if any(
+                value is not None
+                for value in (
+                    self.training_subject_ids,
+                    self.fold_ids,
+                    self.prediction_excluded_fold_ids,
+                )
+            ):
+                raise CausalValueError("prediction ownership metadata requires mu0 and mu1")
+            ownership = "no_outcome_nuisance_predictions"
+        else:
+            ownership = _prediction_ownership(
+                resolved(self.evaluation_subject_ids),
+                len(self.policy.actions),
+                resolved_opt(self.training_subject_ids),
+                resolved_opt(self.fold_ids),
+                resolved_opt(self.prediction_excluded_fold_ids),
+            )
+        object.__setattr__(self, "assignment", tuple(bool(v) for v in self.assignment))
+        object.__setattr__(
+            self, "mu0", tuple(float(v) for v in self.mu0) if self.mu0 is not None else ()
+        )
+        object.__setattr__(
+            self, "mu1", tuple(float(v) for v in self.mu1) if self.mu1 is not None else ()
+        )
+        object.__setattr__(
+            self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids)
+        )
+        if self.regret_candidates is None:
+            if self.regret_training_subject_ids is not None:
+                raise CausalValueError("regret training IDs require a fixed candidate class")
+        else:
+            candidates = tuple(self.regret_candidates)
+            n = len(self.policy.actions)
+            training = tuple(self.regret_training_subject_ids or ())
+            if (
+                bool(self.mu0)
+                or self.uplift_scores is not None
+                or not 2 <= len(candidates) <= 16
+                or any(
+                    not isinstance(candidate, BinaryPolicy)
+                    or len(candidate.actions) != n
+                    or candidate.capacity is not None
+                    or candidate.budget is not None
+                    or candidate.max_treatment_rate is not None
+                    for candidate in candidates
+                )
+                or self.policy.capacity is not None
+                or self.policy.budget is not None
+                or self.policy.max_treatment_rate is not None
+            ):
+                raise CausalValueError(
+                    "finite-class regret requires 2–16 fixed unconstrained binary IPW candidates"
+                )
+
+            def cost(candidate: BinaryPolicy) -> tuple[float, ...]:
+                if isinstance(candidate.costs, (int, float)):
+                    return (float(candidate.costs),) * n
+                return tuple(float(value) for value in candidate.costs)
+
+            if any(cost(candidate) != cost(self.policy) for candidate in candidates):
+                raise CausalValueError(
+                    "finite-class regret candidates must use the selected policy's treatment costs"
+                )
+            if self.available is not None and any(
+                action and not self.available[i]
+                for candidate in candidates
+                for i, action in enumerate(candidate.actions)
+            ):
+                raise CausalValueError(
+                    "finite-class regret candidates must respect action availability"
+                )
+            if sum(candidate.actions == self.policy.actions for candidate in candidates) != 1:
+                raise CausalValueError(
+                    "selected policy must occur exactly once in the fixed candidate class"
+                )
+            if (
+                not training
+                or any(not isinstance(value, str) or not value for value in training)
+                or len(set(training)) != len(training)
+                or set(training) & set(self.evaluation_subject_ids)
+            ):
+                raise CausalValueError(
+                    "regret training IDs must be unique, nonempty, and disjoint from evaluation subjects"
+                )
+            object.__setattr__(self, "regret_candidates", candidates)
+            object.__setattr__(self, "regret_training_subject_ids", training)
+        if self.available is not None:
+            object.__setattr__(self, "available", tuple(self.available))
+        if self.uplift_scores is None:
+            if self.uplift_bin_count != 0 or self.uplift_training_subject_ids is not None:
+                raise CausalValueError(
+                    "uplift_bin_count and uplift_training_subject_ids require uplift_scores"
+                )
+        else:
+            scores = np.asarray(self.uplift_scores, dtype=np.float64)
+            n = len(self.policy.actions)
+            if scores.shape != (n,) or not np.isfinite(scores).all():
+                raise CausalValueError("uplift_scores must be finite and match evaluation rows")
+            if (
+                isinstance(self.uplift_bin_count, bool)
+                or not isinstance(self.uplift_bin_count, Integral)
+                or not 1 <= self.uplift_bin_count <= n // 2
+            ):
+                raise CausalValueError(
+                    "uplift_bin_count requires at least two evaluation rows in every bin"
+                )
+            training = (
+                tuple(self.uplift_training_subject_ids)
+                if self.uplift_training_subject_ids is not None
+                else ()
+            )
+            if (
+                not training
+                or any(not isinstance(value, str) or not value for value in training)
+                or len(set(training)) != len(training)
+                or set(training) & set(self.evaluation_subject_ids)
+            ):
+                raise CausalValueError(
+                    "uplift_training_subject_ids must be unique, non-empty, and disjoint from evaluation subjects"
+                )
+            object.__setattr__(self, "uplift_scores", tuple(float(v) for v in scores))
+            object.__setattr__(self, "uplift_bin_count", int(self.uplift_bin_count))
+            object.__setattr__(self, "uplift_training_subject_ids", training)
+        object.__setattr__(self, "_ownership", ownership)
+
+
+@dataclass(frozen=True, slots=True)
+class MultiActionPolicyValue:
+    """Fixed multi-action policy value on randomized evaluation subjects.
+
+    The first policy action label is control. Recommendations and action
+    probabilities are frozen with the retained study. The caller declares
+    that recommendations were selected without evaluation outcomes.
+    """
+
+    outcome: str
+    assignment: Sequence[str] | str
+    propensities: Sequence[Sequence[float]]
+    policy: MultiActionPolicy
+    evaluation_subject_ids: Sequence[str] | str
+    reference: MultiActionPolicy | None = None
+    available: Sequence[Sequence[bool]] | None = None
+    baseline_groups: Sequence[str] | str | None = None
+    _deferred_columns: bool = field(default=False, init=False, repr=False, compare=False)
+
+    #: Row-aligned inputs that may instead name a data column (see antecedent._columns).
+    #: ``assignment`` is the per-row action label; ``propensities``/``available`` are
+    #: per-action matrices, not single columns, so they stay inline.
+    _COLUMN_FIELDS = {
+        "assignment": "str",
+        "evaluation_subject_ids": "str",
+        "baseline_groups": "str",
+    }
+    #: Recurse into the carried policies so their column-name inputs resolve at prepare.
+    _COLUMN_NESTED = ("policy", "reference")
+
+    def __post_init__(self) -> None:
+        from ._columns import defer_columns
+
+        if defer_columns(self):
+            # Hold the caller's column names (and any deferred nested policy)
+            # unvalidated; resolve_columns rebuilds this query against the data at
+            # prepare, re-running every check below with arrays in hand.
+            object.__setattr__(self, "_deferred_columns", True)
+            return
+        if not isinstance(self.outcome, str) or not self.outcome.strip():
+            raise CausalValueError("outcome must be a non-empty column name")
+        if not isinstance(self.policy, MultiActionPolicy):
+            raise CausalTypeError("policy must be a MultiActionPolicy")
+        if self.reference is not None and not isinstance(self.reference, MultiActionPolicy):
+            raise CausalTypeError("reference must be a MultiActionPolicy or None")
+        labels = self.policy.action_labels
+        if self.reference is not None and self.reference.action_labels != labels:
+            raise CausalValueError("policy and reference action_labels must match")
+        n = len(self.policy.recommendations)
+        if len(self.assignment) != n or any(value not in labels for value in self.assignment):
+            raise CausalValueError("assignment must name one declared action per evaluation row")
+        ids = tuple(self.evaluation_subject_ids)
+        if (
+            len(ids) != n
+            or any(not isinstance(value, str) or not value for value in ids)
+            or len(set(ids)) != n
+        ):
+            raise CausalValueError(
+                "evaluation_subject_ids must be unique non-empty IDs for every row"
+            )
+        probabilities = np.asarray(self.propensities, dtype=np.float64)
+        if probabilities.shape != (n, len(labels)) or not np.isfinite(probabilities).all():
+            raise CausalValueError(
+                "propensities must be finite with one row and column per subject and action"
+            )
+        if (
+            (probabilities <= 0).any()
+            or (probabilities > 1).any()
+            or not np.allclose(
+                probabilities.sum(axis=1),
+                1.0,
+                rtol=0.0,
+                atol=1e-8,
+            )
+        ):
+            raise CausalValueError(
+                "each randomized action probability must be positive and rows must sum to one"
+            )
+        object.__setattr__(self, "assignment", tuple(self.assignment))
+        object.__setattr__(self, "evaluation_subject_ids", ids)
+        object.__setattr__(
+            self, "propensities", tuple(tuple(map(float, row)) for row in probabilities)
+        )
+        if self.available is not None:
+            mask = np.asarray(self.available, dtype=object)
+            if mask.shape != (n, len(labels)) or any(
+                not isinstance(value, (bool, np.bool_)) for value in mask.flat
+            ):
+                raise CausalValueError(
+                    "available must contain one bool per evaluation row and action"
+                )
+            object.__setattr__(
+                self, "available", tuple(tuple(bool(v) for v in row) for row in mask)
+            )
+        if self.baseline_groups is not None:
+            groups = tuple(self.baseline_groups)
+            if len(groups) != n or any(
+                not isinstance(group, str) or not group.strip() for group in groups
+            ):
+                raise CausalValueError(
+                    "baseline_groups must contain one non-empty pre-treatment label per row"
+                )
+            object.__setattr__(self, "baseline_groups", groups)
+
+
+@dataclass(frozen=True, slots=True)
+class MultiActionCatePoint:
+    """Randomized action effect versus control in one fixed baseline group."""
+
+    group: str
+    action: str
+    effect: float
+    evaluation_rows: int
+    observed_action_rows: int
+    observed_control_rows: int
+    standard_error: float = 0.0
+    interval_95: tuple[float, float] | None = None
+    uncertainty: str = "point_only"
+
+
+@dataclass(frozen=True, slots=True)
+class UpliftBin:
+    """Held-out randomized uplift for one fixed descending score bin."""
+
+    rank: int
+    effect: float
+    standard_error: float
+    evaluation_rows: int
+    interval_95: tuple[float, float] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalDoseResponsePoint:
+    baseline_group: str
+    target_dose: float
+    response: float
+    local_rows: int
+    effective_sample_size: float
+    minimum_dose_density: float
+    maximum_normalized_weight: float
+    local_outcome_sd: float
+
+
+@dataclass(frozen=True, slots=True)
+class FixedDosePolicyValueEstimate:
+    """Paired value of fixed group-dose rules under kernel-smoothed interventions."""
+
+    policy_doses: tuple[tuple[str, float], ...]
+    reference_doses: tuple[tuple[str, float], ...]
+    policy_value: float
+    reference_value: float
+    incremental_value: float
+    policy_variance: float
+    reference_variance: float
+    incremental_variance: float
+    policy_interval_95: tuple[float, float] | None
+    reference_interval_95: tuple[float, float] | None
+    incremental_interval_95: tuple[float, float] | None
+    minimum_local_rows: int
+    minimum_effective_sample_size: float
+    maximum_normalized_weight: float
+    minimum_dose_density: float
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalDoseResponseEstimate:
+    points: tuple[ConditionalDoseResponsePoint, ...]
+    bandwidth: float
+    density_provenance: str
+    uncertainty: str = "point_only"
+    evaluation_method: str = "stratified_triangular_kernel_inverse_density"
+    policy_value_estimated: bool = False
+    fixed_policy: FixedDosePolicyValueEstimate | None = None
+    support_status: str = "unlicensed_point_utility"
+    assumptions: tuple[str, ...] = (
+        "Conditional exchangeability of continuous dose given the supplied baseline groups.",
+        "Consistency, no interference, and correct dose density at observed doses.",
+        "Continuous-dose positivity and adequate local support around each target dose in every group.",
+    )
+    diagnostics: tuple[str, ...] = (
+        "local row count, effective sample size, density floor, and maximum normalized weight reported",
+        "local outcome SD is descriptive and is not an inferential standard error",
+        "does not estimate a learned continuous-dose policy value",
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalDoseResponse:
+    """Retained baseline-group response grid through ``prepare`` or ``analyze``.
+
+    The supplied density is used at observed doses. Group labels must be
+    measured before treatment; they and the target grid are frozen at prepare.
+    """
+
+    outcome: str
+    dose: str
+    baseline_group: str
+    dose_density: str
+    target_doses: Sequence[float]
+    bandwidth: float
+    density_provenance: str
+    min_local_support: int = 3
+    policy_doses: Mapping[str, float] | Sequence[tuple[str, float]] | None = None
+    reference_doses: Mapping[str, float] | Sequence[tuple[str, float]] | None = None
+
+    def __post_init__(self) -> None:
+        names = (self.outcome, self.dose, self.baseline_group, self.dose_density)
+        if (
+            any(not isinstance(name, str) or not name.strip() for name in names)
+            or len(set(names)) != 4
+        ):
+            raise CausalValueError("continuous-dose columns must be distinct non-empty names")
+        try:
+            targets = tuple(float(value) for value in self.target_doses)
+        except (TypeError, ValueError) as error:
+            raise CausalValueError("target_doses must be numeric") from error
+        if (not targets and self.policy_doses is None) or any(
+            not isfinite(value) for value in targets
+        ):
+            raise CausalValueError(
+                "target_doses must be finite and non-empty unless fixed policy doses are supplied"
+            )
+        object.__setattr__(self, "target_doses", targets)
+        if not isfinite(self.bandwidth) or self.bandwidth <= 0.0:
+            raise CausalValueError("bandwidth must be finite and positive")
+        if (
+            isinstance(self.min_local_support, bool)
+            or not isinstance(self.min_local_support, Integral)
+            or self.min_local_support < 2
+        ):
+            raise CausalValueError("min_local_support must be an integer of at least two")
+        object.__setattr__(self, "min_local_support", int(self.min_local_support))
+        if self.density_provenance not in ("known", "externally_estimated"):
+            raise CausalValueError("density_provenance must be known or externally_estimated")
+        if (self.policy_doses is None) != (self.reference_doses is None):
+            raise CausalValueError(
+                "fixed dose policy requires both policy_doses and reference_doses"
+            )
+        for name in ("policy_doses", "reference_doses"):
+            rule = getattr(self, name)
+            if rule is None:
+                continue
+            pairs = tuple(rule.items()) if isinstance(rule, Mapping) else tuple(rule)
+            if not pairs or any(
+                not isinstance(group, str) or not group.strip() or not isfinite(float(dose))
+                for group, dose in pairs
+            ):
+                raise CausalValueError(
+                    f"{name} must contain finite doses for non-empty baseline groups"
+                )
+            if len({group for group, _ in pairs}) != len(pairs):
+                raise CausalValueError(f"{name} must name each baseline group once")
+            object.__setattr__(
+                self, name, tuple(sorted((group, float(dose)) for group, dose in pairs))
+            )
+
+
+def uplift_by_score(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[bool],
+    propensity: float | Sequence[float],
+    scores: Sequence[float],
+    bins: int = 10,
+) -> tuple[UpliftBin, ...]:
+    """Estimate held-out randomized uplift across descending score deciles.
+
+    Scores must come from an independently fitted or cross-fitted model. The
+    function does not verify fold separation or train a CATE model.
+    """
+    if isinstance(bins, bool) or not isinstance(bins, Integral) or bins < 1:
+        raise CausalValueError("bins must be a positive integer")
+    names, columns = as_columns(evaluation_data)
+    try:
+        values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
+    except ValueError as error:
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
+    score_values = np.asarray(scores, dtype=np.float64)
+    if score_values.shape != values.shape or not np.isfinite(score_values).all():
+        raise CausalValueError("scores must be finite and match evaluation rows")
+    if len(assignment) != len(values) or any(
+        not isinstance(value, (bool, np.bool_)) for value in assignment
+    ):
+        raise CausalValueError("assignment must contain one bool per evaluation row")
+    if not 1 <= bins <= len(values):
+        raise CausalValueError("bins must be between one and the number of evaluation rows")
+    order = np.argsort(-score_values, kind="stable")
+    bin_ids = np.empty(len(values), dtype=np.uint64)
+    for rank, row in enumerate(order):
+        bin_ids[row] = min(bins - 1, rank * bins // len(values))
+    propensity_values = [float(propensity)] if np.isscalar(propensity) else list(propensity)
+    raw = _uplift_by_score(
+        values,
+        [bool(value) for value in assignment],
+        bin_ids.tolist(),
+        np.asarray(propensity_values, dtype=np.float64),
+        int(bins),
+    )
+    return tuple(
+        UpliftBin(int(rank), float(effect), float(se), int(count))
+        for rank, effect, se, count in raw
+    )
+
+
+def evaluate_policy(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[bool],
+    propensity: float | Sequence[float],
+    policy: BinaryPolicy,
+    reference: BinaryPolicy | None = None,
+    available: Sequence[bool] | None = None,
+) -> PolicyEvaluation:
+    """Evaluate precomputed recommendations on randomized evaluation rows.
+
+    Supply outcomes and assignment from data held out from policy selection.
+    Assignment propensities must be known and positive for both actions. This
+    estimates value with the Horvitz--Thompson policy score and reports no
+    interval; it does not train or select the policy.
+    """
+
+    if not isinstance(policy, BinaryPolicy):
+        raise CausalTypeError("policy must be a BinaryPolicy")
+    if reference is not None and not isinstance(reference, BinaryPolicy):
+        raise CausalTypeError("reference must be a BinaryPolicy or None")
+    if not isinstance(outcome, str) or not outcome.strip():
+        raise CausalValueError("outcome must be a non-empty variable name")
+    names, columns = as_columns(evaluation_data)
+    try:
+        values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
+    except ValueError as error:
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
+    n = len(values)
+    if len(policy.actions) != n or len(assignment) != n:
+        raise CausalValueError("policy actions and assignment must match evaluation row count")
+    reference_actions = list(resolved(reference.actions)) if reference else [False] * n
+    if len(reference_actions) != n:
+        raise CausalValueError("reference policy actions must match evaluation row count")
+    if any(not isinstance(value, (bool, np.bool_)) for value in assignment):
+        raise CausalValueError("assignment entries must be bool values")
+    if available is not None and any(
+        not isinstance(value, (bool, np.bool_)) for value in available
+    ):
+        raise CausalValueError("available entries must be bool values")
+    probability_values = (
+        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity)
+    )
+    cost_values = (
+        [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
+    )
+    capacity = policy.capacity
+    if policy.max_treatment_rate is not None:
+        rate_capacity = floor(policy.max_treatment_rate * n)
+        capacity = rate_capacity if capacity is None else min(capacity, rate_capacity)
+    reference_capacity = None if reference is None else reference.capacity
+    if reference is not None and reference.max_treatment_rate is not None:
+        rate_capacity = floor(reference.max_treatment_rate * n)
+        reference_capacity = (
+            rate_capacity if reference_capacity is None else min(reference_capacity, rate_capacity)
+        )
+    raw = _evaluate_binary_policy(
+        values,
+        [bool(value) for value in assignment],
+        list(resolved(policy.actions)),
+        np.asarray(probability_values, dtype=np.float64),
+        reference=reference_actions,
+        costs=cost_values,
+        reference_costs=(
+            None
+            if reference is None
+            else [float(reference.costs)]
+            if isinstance(reference.costs, (int, float))
+            else list(reference.costs)
+        ),
+        available=None if available is None else [bool(value) for value in available],
+        capacity=capacity,
+        budget=policy.budget,
+        reference_capacity=reference_capacity,
+        reference_budget=None if reference is None else reference.budget,
+    )
+    return PolicyEvaluation(*raw)
+
+
+def _prediction_ownership(
+    evaluation_subject_ids: Sequence[str],
+    n: int,
+    training_subject_ids: Sequence[str] | None,
+    fold_ids: Sequence[int] | None,
+    prediction_excluded_fold_ids: Sequence[int] | None,
+) -> str:
+    evaluation_ids = list(evaluation_subject_ids)
+    if len(evaluation_ids) != n or any(
+        not isinstance(value, str) or not value for value in evaluation_ids
+    ):
+        raise CausalValueError(
+            "evaluation_subject_ids must contain one non-empty ID per evaluation row"
+        )
+    if len(set(evaluation_ids)) != n:
+        raise CausalValueError(
+            "evaluation_subject_ids must be unique for row-level standard errors"
+        )
+    if training_subject_ids is not None:
+        if fold_ids is not None or prediction_excluded_fold_ids is not None:
+            raise CausalValueError("supply held-out training IDs or fold metadata, not both")
+        training_ids = list(training_subject_ids)
+        if not training_ids or any(
+            not isinstance(value, str) or not value for value in training_ids
+        ):
+            raise CausalValueError("training_subject_ids must contain non-empty IDs")
+        overlap = set(evaluation_ids).intersection(training_ids)
+        if overlap:
+            raise CausalValueError(
+                "held-out ownership failure: training and evaluation subject IDs overlap"
+            )
+        return "held_out_disjoint_subject_ids"
+    if fold_ids is None or prediction_excluded_fold_ids is None:
+        raise CausalValueError(
+            "provide disjoint training_subject_ids or fold_ids and prediction_excluded_fold_ids"
+        )
+    folds = list(fold_ids)
+    excluded = list(prediction_excluded_fold_ids)
+    if len(folds) != n or len(excluded) != n:
+        raise CausalValueError("fold ownership vectors must match evaluation rows")
+    if any(
+        isinstance(value, bool) or not isinstance(value, Integral) or value < 0
+        for value in (*folds, *excluded)
+    ):
+        raise CausalValueError("fold ownership IDs must be non-negative integers")
+    if len(set(folds)) < 2:
+        raise CausalValueError("cross-fitting requires at least two evaluation folds")
+    if folds != excluded:
+        raise CausalValueError(
+            "cross-fit ownership failure: each prediction must exclude its evaluation row's fold"
+        )
+    return "caller_declared_cross_fitted_excluded_fold_ids"
+
+
+def evaluate_policy_doubly_robust(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[bool],
+    propensity: float | Sequence[float],
+    mu0: Sequence[float],
+    mu1: Sequence[float],
+    policy: BinaryPolicy,
+    evaluation_subject_ids: Sequence[str],
+    training_subject_ids: Sequence[str] | None = None,
+    fold_ids: Sequence[int] | None = None,
+    prediction_excluded_fold_ids: Sequence[int] | None = None,
+    reference: BinaryPolicy | None = None,
+    available: Sequence[bool] | None = None,
+) -> DoublyRobustPolicyEvaluation:
+    """Evaluate a fixed binary policy using randomized AIPW scores.
+
+    Nuisance predictions must be from training subjects disjoint from evaluation
+    subjects, or caller-declared fold-specific fits that exclude each evaluated
+    fold. The metadata checks ownership shape/overlap but cannot prove which rows
+    the nuisance models actually used.
+    """
+
+    if not isinstance(policy, BinaryPolicy):
+        raise CausalTypeError("policy must be a BinaryPolicy")
+    if reference is not None and not isinstance(reference, BinaryPolicy):
+        raise CausalTypeError("reference must be a BinaryPolicy or None")
+    ownership = _prediction_ownership(
+        evaluation_subject_ids,
+        len(policy.actions),
+        training_subject_ids,
+        fold_ids,
+        prediction_excluded_fold_ids,
+    )
+    # Reuse the native HT path for the established recommendation, availability,
+    # capacity, and budget validation contract.
+    evaluate_policy(
+        evaluation_data,
+        outcome=outcome,
+        assignment=assignment,
+        propensity=propensity,
+        policy=policy,
+        reference=reference,
+        available=available,
+    )
+    names, columns = as_columns(evaluation_data)
+    try:
+        values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
+    except ValueError as error:
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
+    n = len(values)
+    mu0_values = np.asarray(mu0, dtype=np.float64)
+    mu1_values = np.asarray(mu1, dtype=np.float64)
+    if mu0_values.shape != (n,) or mu1_values.shape != (n,):
+        raise CausalValueError("mu0 and mu1 must have one finite prediction per evaluation row")
+    if not np.isfinite(mu0_values).all() or not np.isfinite(mu1_values).all():
+        raise CausalValueError("mu0 and mu1 predictions must be finite")
+    probability_values = np.asarray(
+        [float(propensity)] if isinstance(propensity, (int, float)) else list(propensity),
+        dtype=np.float64,
+    )
+    raw = _evaluate_binary_policy_doubly_robust(
+        values,
+        [bool(value) for value in assignment],
+        list(resolved(policy.actions)),
+        probability_values,
+        mu0_values,
+        mu1_values,
+        reference=list(resolved(reference.actions)) if reference is not None else None,
+        costs=(
+            [float(policy.costs)] if isinstance(policy.costs, (int, float)) else list(policy.costs)
+        ),
+        reference_costs=(
+            None
+            if reference is None
+            else [float(reference.costs)]
+            if isinstance(reference.costs, (int, float))
+            else list(reference.costs)
+        ),
+    )
+    return DoublyRobustPolicyEvaluation(
+        float(raw[0]),
+        float(raw[1]),
+        float(raw[2]),
+        float(raw[3]),
+        float(raw[4]),
+        float(raw[5]),
+        float(raw[6]),
+        float(raw[7]),
+        float(raw[8]),
+        prediction_ownership=ownership,
+        propensity_min=float(raw[9]),
+        propensity_max=float(raw[10]),
+    )
+
+
+def evaluate_multi_action_policy(
+    evaluation_data: Any,
+    *,
+    outcome: str,
+    assignment: Sequence[str],
+    propensities: Sequence[Sequence[float]],
+    policy: MultiActionPolicy,
+    reference: MultiActionPolicy | None = None,
+    available: Sequence[Sequence[bool]] | None = None,
+) -> PolicyEvaluation:
+    """Evaluate fixed multi-action recommendations on randomized held-out rows.
+
+    The result is an HT point estimate. It does not fit the score matrix,
+    estimate CATEs, enforce a train/test split, or publish an interval.
+    """
+    if not isinstance(policy, MultiActionPolicy):
+        raise CausalTypeError("policy must be a MultiActionPolicy")
+    if reference is not None and not isinstance(reference, MultiActionPolicy):
+        raise CausalTypeError("reference must be a MultiActionPolicy or None")
+    if reference is not None and tuple(reference.action_labels) != tuple(policy.action_labels):
+        raise CausalValueError("policy and reference action_labels must match")
+    if not isinstance(outcome, str) or not outcome.strip():
+        raise CausalValueError("outcome must be a non-empty variable name")
+    names, columns = as_columns(evaluation_data)
+    try:
+        values = np.asarray(columns[names.index(outcome)], dtype=np.float64)
+    except ValueError as error:
+        raise CausalValueError(
+            f"outcome column {outcome!r} is missing from evaluation_data"
+        ) from error
+    n = len(values)
+    labels = tuple(policy.action_labels)
+    if len(assignment) != n or len(policy.recommendations) != n:
+        raise CausalValueError("assignment and recommendations must match evaluation row count")
+    if any(action not in labels for action in assignment):
+        raise CausalValueError("assignment contains an undeclared action label")
+    reference_actions = [labels[0]] * n if reference is None else list(reference.recommendations)
+    if len(reference_actions) != n:
+        raise CausalValueError("reference recommendations must match evaluation row count")
+    probs = np.asarray(propensities, dtype=np.float64)
+    if probs.shape != (n, len(labels)):
+        raise CausalValueError("propensities must have one column per action and one row per unit")
+    availability = (
+        [[True] * len(labels) for _ in range(n)]
+        if available is None
+        else [list(row) for row in available]
+    )
+    if len(availability) != n or any(
+        len(row) != len(labels) or any(not isinstance(v, (bool, np.bool_)) for v in row)
+        for row in availability
+    ):
+        raise CausalValueError("available must contain one bool per evaluation row and action")
+    policy_capacities = list(policy.capacities or [n] * len(labels))
+    reference_capacities = (
+        [n] * len(labels)
+        if reference is None or reference.capacities is None
+        else list(reference.capacities)
+    )
+    encoded_assignment = [labels.index(action) for action in assignment]
+    encoded_actions = [labels.index(action) for action in policy.recommendations]
+    encoded_reference = [labels.index(action) for action in reference_actions]
+    raw = _evaluate_multi_action_policy(
+        values,
+        encoded_assignment,
+        encoded_actions,
+        probs,
+        reference=encoded_reference,
+        costs=list(policy.costs or [0.0] * len(labels)),
+        reference_costs=(
+            None if reference is None else list(reference.costs or [0.0] * len(labels))
+        ),
+        available=availability,
+        capacities=policy_capacities,
+        reference_capacities=reference_capacities,
+        budget=policy.budget,
+        reference_budget=None if reference is None else reference.budget,
+    )
+    policy_value, reference_value, incremental, treatment_rate, total_cost = map(float, raw)
+    return PolicyEvaluation(
+        policy_value,
+        reference_value,
+        incremental,
+        reference_value - policy_value,
+        treatment_rate,
+        total_cost,
+    )
+
+
+__all__ = [
+    "BinaryPolicy",
+    "MultiActionPolicy",
+    "PolicyEvaluation",
+    "DoublyRobustPolicyEvaluation",
+    "FiniteClassRegretEvaluation",
+    "MultiActionPolicyValue",
+    "UpliftBin",
+    "ConditionalDoseResponsePoint",
+    "ConditionalDoseResponseEstimate",
+    "FixedDosePolicyValueEstimate",
+    "ConditionalDoseResponse",
+    "evaluate_multi_action_policy",
+    "evaluate_policy",
+    "evaluate_policy_doubly_robust",
+    "uplift_by_score",
+]

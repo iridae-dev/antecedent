@@ -53,11 +53,34 @@ impl super::Study {
         let mut unidentified_mass = 0.0;
         let mut any_partial = false;
         let mut primary = None;
+        // A prepared handle retains one completion envelope per atom for the
+        // first requested horizon, keyed by atom position. Atoms the retained
+        // envelope marked unidentified keep their mass without re-enumeration,
+        // and evaluable atoms reuse their retained proof for that horizon.
+        let retained = self
+            .temporal_class_posterior_identification_cache
+            .as_deref()
+            .filter(|cache| cache.graphs.n_samples == gp.n_graphs);
+        let first_horizon = query.temporal.as_ref().and_then(|spec| spec.horizons.first().copied());
         let mapped = ctx.map_indexed(gp.n_graphs, |i, inner| {
             let key = u64::try_from(i).map_err(|_| CausalError::Compile {
                 message: "temporal class graph-posterior response: too many atoms".into(),
             })?;
             let weight = gp.weights[i];
+            if retained.is_some_and(|cache| {
+                cache.graphs.identified.get(i) == Some(&GraphIdentFlag::Unidentified)
+            }) {
+                return Ok((key, weight, None));
+            }
+            let retained_atom = retained
+                .and_then(|cache| cache.class_atoms.iter().find(|atom| atom.key == key))
+                .zip(first_horizon)
+                .map(|(atom, horizon)| {
+                    Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
+                        envelope: atom.envelope.clone(),
+                        by_horizon: vec![(horizon, atom.envelope.clone())],
+                    })
+                });
             let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
             let reconstructed = reconstruct_temporal_class_atom(
                 gp.atom_kind,
@@ -76,7 +99,7 @@ impl super::Study {
             atom_study.graph = graph;
             atom_study.refute = RefuteSuite::None;
             atom_study.custom_validators.clear();
-            atom_study.temporal_class_identification_cache = None;
+            atom_study.temporal_class_identification_cache = retained_atom;
             atom_study.temporal_class_posterior_identification_cache = None;
             match atom_study.execute_temporal_class_response(data, query, physical, inner) {
                 Ok(result) => Ok((key, weight, Some(Ok(result)))),
@@ -190,8 +213,35 @@ impl super::Study {
         } else if mixable {
             identification.status = IdentificationStatus::NonparametricallyIdentified;
         }
-        let uncertainty =
-            if weighted.len() == 1 { first.uncertainty.clone() } else { ResponseUncertainty::None };
+        let uncertainty = if weighted.len() == 1 {
+            first.uncertainty.clone()
+        } else if let (true, Some(ResponseValue::Scalar(value))) = (mixable, conditional.as_ref()) {
+            // Pooled scalar intervention-response: a joint circular-block bootstrap over the atoms
+            // (the value is the pulse effect), matching the temporal class effect path. Point-only
+            // when no block SE is available.
+            match temporal_class_response_pooled_block_se(
+                self, data, gp, &vars, query, &weighted, ctx,
+            )? {
+                Some(se) => {
+                    let level = match &first.uncertainty {
+                        ResponseUncertainty::Scalar { level, .. } => *level,
+                        _ => 0.95,
+                    };
+                    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+                    ResponseUncertainty::Scalar {
+                        standard_error: se,
+                        level,
+                        lower: *value - z * se,
+                        upper: *value + z * se,
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        draws: None,
+                    }
+                }
+                None => ResponseUncertainty::None,
+            }
+        } else {
+            ResponseUncertainty::None
+        };
         let mut assumptions = first.assumptions.clone();
         for (_, _, response) in weighted.iter().skip(1) {
             assumptions.extend_unique(&response.assumptions.entries);
@@ -352,7 +402,7 @@ impl super::Study {
             estimator_id,
             treatment,
             outcome,
-            identify_cached: false,
+            identify_cached: retained.is_some(),
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
@@ -445,6 +495,109 @@ fn union_identified_values(values: &[&ResponseValue]) -> Option<antecedent_core:
         });
     }
     envelope
+}
+
+/// Joint circular-block bootstrap SE for a scalar temporal `InterventionResponse` pooled over the
+/// class-posterior atoms. The scalar intervention-response value is the pulse effect at the horizon
+/// (`response_pulse_witness`), so each contributing atom is reconstructed into its pulse
+/// `TemporalAtomDesign` exactly as the envelope refuter does, and the atoms are resampled jointly on
+/// their shared time window — the same block-bootstrap the temporal class effect path uses. Returns
+/// `None` (leaving the aggregate point-only) unless a Frequentist bootstrap is requested, the
+/// functional is `InterventionResponse`, and at least two designs reconstruct. The estimator SE
+/// this reports must be calibrated before it is trusted.
+fn temporal_class_response_pooled_block_se(
+    study: &Study,
+    data: &TimeSeriesData,
+    gp: &GraphPosterior,
+    vars: &[VariableId],
+    query: &ResponseQuery,
+    weighted: &[(u64, f64, CausalResponse)],
+    ctx: &ExecutionContext,
+) -> Result<Option<f64>, CausalError> {
+    if !matches!(study.inference, InferenceMode::Frequentist) || study.bootstrap_replicates == 0 {
+        return Ok(None);
+    }
+    if !matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })
+    {
+        return Ok(None);
+    }
+    let pulse = response_pulse_witness(query)?;
+    let lag_masks = gp.lag_masks.as_ref().ok_or_else(|| CausalError::Compile {
+        message: "temporal class posterior missing per-atom lag masks".into(),
+    })?;
+    let max_lag = gp.max_lag.ok_or_else(|| CausalError::Compile {
+        message: "temporal class posterior missing max_lag".into(),
+    })?;
+    let mut designs = Vec::new();
+    let mut weights = Vec::new();
+    let mut indexers = Vec::new();
+    for (key, weight, _) in weighted {
+        let i = usize::try_from(*key).map_err(|_| CausalError::Compile {
+            message: "temporal class graph-posterior response SE: atom key overflow".into(),
+        })?;
+        let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
+        let Ok(graph) = reconstruct_temporal_class_atom(
+            gp.atom_kind,
+            gp.adjacency[i],
+            lag_masks[i],
+            mark,
+            gp.n_vars,
+            max_lag,
+            vars,
+        ) else {
+            continue;
+        };
+        let mut atom_study = study.clone();
+        atom_study.graph_posterior = None;
+        atom_study.graph = graph;
+        atom_study.query = CausalQuery::TemporalEffect(pulse.clone());
+        atom_study.temporal_class_identification_cache = None;
+        atom_study.temporal_class_posterior_identification_cache = None;
+        let Ok(bundle) =
+            atom_study.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &pulse)
+        else {
+            continue;
+        };
+        for (case, indexer) in
+            bundle.envelope.envelope.cases.iter().zip(bundle.envelope.indexers.iter())
+        {
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                continue;
+            }
+            let Ok(estimand) = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
+            else {
+                continue;
+            };
+            let Ok(design) = TemporalAtomDesign::linear(
+                data,
+                &estimand,
+                &pulse,
+                indexer,
+                study.split.as_ref(),
+                ctx,
+            ) else {
+                continue;
+            };
+            designs.push(design);
+            weights.push(*weight * case.weight.0);
+            indexers.push(indexer.clone());
+        }
+    }
+    if designs.len() < 2 {
+        return Ok(None);
+    }
+    let design_refs: Vec<&TemporalAtomDesign> = designs.iter().collect();
+    let block = shared_circular_block_mixture_se(
+        &design_refs,
+        &weights,
+        temporal_class_block_span(indexers.iter()),
+        study.bootstrap_replicates,
+        0x9E3D_7A11,
+        ctx,
+    );
+    Ok(block.se.is_finite().then_some(block.se))
 }
 
 fn reconstruct_temporal_class_atom(

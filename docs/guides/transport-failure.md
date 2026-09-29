@@ -7,11 +7,11 @@ A not-certified transport outcome is a conservative refusal, not a proof of impo
 
 | Outcome | Where to read it | Neighbor |
 | --- | --- | --- |
-| Not certified | `ident.status`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/2.0/examples/python/transport_exact.py) |
-| Theorem-scoped impossibility | `ident.status == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/2.0/examples/python/transport_meta_grid.py) |
+| Not certified | `ident.status`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_exact.py) |
+| Theorem-scoped impossibility | `ident.status == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_meta_grid.py) |
 | Missing evidence | `ident.inspect().support`, `answer.kind="unavailable"` | Full vs partial catalog in the same meta-grid example |
 | Local support / positivity | `result.support` | Fixture family `transport_support_local` |
-| Uncalibrated / unavailable interval | `result.calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/2.0/examples/rust/transport_statistical.rs) |
+| Uncalibrated / unavailable interval | `result.calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/transport_statistical.rs) |
 | Budget exhaustion | raised `transport.identification_budget` | Same query under default `SidLimits`; fixture `transport_budget_refusal` |
 
 ## Not certified
@@ -39,6 +39,19 @@ The formula can be identified while a required joint is unbound. Then
 `answer.kind == "unavailable"` and the support slot names the population.
 The meta-grid script's partial catalog is that neighbor next to the full-law
 success.
+
+For a checked classical identification, `antecedent.transport.advanced`
+exposes `inspect_proof_graph(identification, catalog)`. Its `steps` form the
+checked rule graph; each step names the factor nodes it needs. Each `factors`
+entry records the population, variables, conditioning and exact intervention
+set, followed by the supplying regime ID or a binding failure. It verifies the
+stored proof against the original diagram and query before reporting leaves.
+
+`EvidenceCatalogDelta` holds proposed regimes separately from the supplied
+catalog. `delta.preview(catalog)` makes a temporary structural preview for
+re-identification; the source catalog and its prepared analyses retain their
+original evidence status. A preview has no data snapshot, so actual results
+must enter through the ordinary prepare and refresh path.
 
 ## Local support / positivity
 

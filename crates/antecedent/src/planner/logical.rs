@@ -214,36 +214,15 @@ pub fn compile_logical_static_pag_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
-    let identifier: IdentifierId = input.identifier.parse()?;
-    let estimator: EstimatorId = input.estimator.parse()?;
-    if !matches!(identifier, IdentifierId::GeneralizedAdjustment) {
-        return Err(CausalError::Compile {
-            message: format!(
-                "PAG ATE requires identifier \"generalized.adjustment\"; got {:?}",
-                identifier.as_str()
-            ),
-        });
-    }
-    validate_static_pair(identifier, estimator)?;
-    refuse_linear_adjustment_population(estimator, input.query)?;
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_pag_ate"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from([input.query.treatment, input.query.outcome]),
-    };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::AverageEffect(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+    compile_logical_static_class_ate(
+        input.data,
+        input.query,
+        input.validation_suite,
+        input.identifier,
+        input.estimator,
+        "static_pag_ate",
+        "PAG",
+    )
 }
 
 /// Inputs for CPDAG ATE compile (class-aware MEC envelope).
@@ -273,33 +252,56 @@ pub fn compile_logical_static_cpdag_ate(
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     validate_query_vars_in_cpdag(input.cpdag, input.query.treatment, input.query.outcome)?;
-    let identifier: IdentifierId = input.identifier.parse()?;
-    let estimator: EstimatorId = input.estimator.parse()?;
-    if !matches!(identifier, IdentifierId::GeneralizedAdjustment) {
+    compile_logical_static_class_ate(
+        input.data,
+        input.query,
+        input.validation_suite,
+        input.identifier,
+        input.estimator,
+        "static_cpdag_ate",
+        "CPDAG",
+    )
+}
+
+/// Shared body of the static class-aware ATE compile (PAG / CPDAG): the query
+/// and graph-membership checks are done by the caller; `label` names the class
+/// in the identifier-refusal message.
+fn compile_logical_static_class_ate(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    validation_suite: Option<Arc<str>>,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+    plan_id: &'static str,
+    label: &str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let identifier_id: IdentifierId = identifier.parse()?;
+    let estimator_id: EstimatorId = estimator.parse()?;
+    if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
         return Err(CausalError::Compile {
             message: format!(
-                "CPDAG ATE requires identifier \"generalized.adjustment\"; got {:?}",
-                identifier.as_str()
+                "{label} ATE requires identifier \"generalized.adjustment\"; got {:?}",
+                identifier_id.as_str()
             ),
         });
     }
-    validate_static_pair(identifier, estimator)?;
-    refuse_linear_adjustment_population(estimator, input.query)?;
+    validate_static_pair(identifier_id, estimator_id)?;
+    refuse_linear_adjustment_population(estimator_id, query)?;
     let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_cpdag_ate"),
+        plan_id: Arc::from(plan_id),
         data_classification: DataClassification::Tabular,
         discovery_algorithm: None,
         graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from([input.query.treatment, input.query.outcome]),
+        identifier: Some(identifier),
+        estimator: Some(estimator),
+        validation_suite,
+        query_variables: Arc::from([query.treatment, query.outcome]),
     };
     let plan = LogicalAnalysisPlan {
         record,
-        query: CausalQuery::AverageEffect(input.query.clone()),
+        query: CausalQuery::AverageEffect(query.clone()),
         split: None,
-        row_count_hint: input.data.row_count() as u64,
+        row_count_hint: data.row_count() as u64,
     };
     plan.validate()?;
     Ok(plan)
@@ -668,26 +670,7 @@ fn validate_query_vars_in_admg(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
-    let mut has_t = false;
-    let mut has_y = false;
-    for node in admg.nodes() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == treatment {
-                has_t = true;
-            }
-            if *v == outcome {
-                has_y = true;
-            }
-        }
-    }
-    if !has_t || !has_y {
-        return Err(CausalError::Compile {
-            message: format!(
-                "query variables not in ADMG (treatment present={has_t}, outcome present={has_y})"
-            ),
-        });
-    }
-    Ok(())
+    validate_query_vars_in_static_nodes(admg.nodes(), "ADMG", treatment, outcome)
 }
 
 fn validate_query_vars_in_dag(
@@ -695,26 +678,7 @@ fn validate_query_vars_in_dag(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
-    let mut has_t = false;
-    let mut has_y = false;
-    for node in dag.nodes() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == treatment {
-                has_t = true;
-            }
-            if *v == outcome {
-                has_y = true;
-            }
-        }
-    }
-    if !has_t || !has_y {
-        return Err(CausalError::Compile {
-            message: format!(
-                "query variables not in DAG (treatment present={has_t}, outcome present={has_y})"
-            ),
-        });
-    }
-    Ok(())
+    validate_query_vars_in_static_nodes(dag.nodes(), "DAG", treatment, outcome)
 }
 
 fn validate_query_vars_in_cpdag(
@@ -722,26 +686,7 @@ fn validate_query_vars_in_cpdag(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
-    let mut has_t = false;
-    let mut has_y = false;
-    for node in cpdag.nodes() {
-        if let antecedent_graph::NodeRef::Static(v) = node {
-            if *v == treatment {
-                has_t = true;
-            }
-            if *v == outcome {
-                has_y = true;
-            }
-        }
-    }
-    if !has_t || !has_y {
-        return Err(CausalError::Compile {
-            message: format!(
-                "query variables not in CPDAG (treatment present={has_t}, outcome present={has_y})"
-            ),
-        });
-    }
-    Ok(())
+    validate_query_vars_in_static_nodes(cpdag.nodes(), "CPDAG", treatment, outcome)
 }
 
 fn validate_query_vars_in_pag(
@@ -749,9 +694,20 @@ fn validate_query_vars_in_pag(
     treatment: antecedent_core::VariableId,
     outcome: antecedent_core::VariableId,
 ) -> Result<(), CausalError> {
+    validate_query_vars_in_static_nodes(pag.nodes(), "PAG", treatment, outcome)
+}
+
+/// Membership check shared by the static graph-class validators: the query's
+/// treatment and outcome must each name a static node of the graph.
+fn validate_query_vars_in_static_nodes(
+    nodes: &[antecedent_graph::NodeRef],
+    label: &str,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+) -> Result<(), CausalError> {
     let mut has_t = false;
     let mut has_y = false;
-    for node in pag.nodes() {
+    for node in nodes {
         if let antecedent_graph::NodeRef::Static(v) = node {
             if *v == treatment {
                 has_t = true;
@@ -764,7 +720,7 @@ fn validate_query_vars_in_pag(
     if !has_t || !has_y {
         return Err(CausalError::Compile {
             message: format!(
-                "query variables not in PAG (treatment present={has_t}, outcome present={has_y})"
+                "query variables not in {label} (treatment present={has_t}, outcome present={has_y})"
             ),
         });
     }

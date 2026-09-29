@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+#[path = "checked_temporal_response.rs"]
+pub(super) mod checked_temporal_response;
 // The identification crate owns the observation-assumption id and text table;
 // the temporal path records the same assumptions from the same body.
 use antecedent_identify::response::append_observation_assumptions as append_temporal_observation_assumptions;
@@ -28,7 +30,10 @@ impl super::Study {
         let single_horizon = query.horizons.len() == 1;
         // The contrast the completions share, when the shared-design branch
         // below fires: at one horizon it is the result's scalar estimate.
+        // The Bayesian arm also keeps the composed posterior that contrast
+        // was taken from, so the reported interval is its quantile.
         let mut class_shared_contrast: Option<TemporalMediationEstimate> = None;
+        let mut class_shared_posterior: Option<antecedent_estimate::CausalPosterior> = None;
         let mut class_shared_horizons = 0usize;
         let mut class_block_cancelled = false;
         let mut diagnostics = vec![Diagnostic::new(
@@ -351,6 +356,7 @@ impl super::Study {
                             class_shared_horizons += 1;
                             if single_horizon {
                                 class_shared_contrast = Some(mediation.clone());
+                                class_shared_posterior = Some(composed.clone());
                             }
                             let summary =
                                 |index: usize| antecedent_estimate::MediationPosteriorSummary {
@@ -402,17 +408,24 @@ impl super::Study {
         }
         // One horizon whose completions all fit the same mediation design: the
         // identified set is that single contrast, so it is the result's scalar
-        // estimate under the design's own circular-block SE — the construction
-        // the `TemporalDag` route publishes, on the same stream. The identified
-        // set stays beside it; each states its own calibration.
+        // estimate. Frequentist reports the design's circular-block SE; Bayesian
+        // reports the composed posterior's quantile. The identified set stays
+        // beside it; each states its own calibration.
         let (scalar_estimate, scalar_mediation) = if let Some(contrast) = class_shared_contrast {
+            let interval = if class_shared_posterior.is_some() {
+                "its posterior quantile is the reported interval"
+            } else {
+                "its circular-block SE is the reported interval"
+            };
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal_mediation.class_shared_design_scalar",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "every completion is identified and fits the same mediation design, so the \
-                 completion identified set is one contrast; that contrast is the scalar estimate \
-                 and its circular-block SE is the reported interval, beside the identified set",
+                format!(
+                    "every completion is identified and fits the same mediation design, so the \
+                     completion identified set is one contrast; that contrast is the scalar \
+                     estimate and {interval}, beside the identified set"
+                ),
             ));
             (
                 contrast
@@ -525,6 +538,10 @@ impl super::Study {
                 }),
                 mediation_grid: Some(grid),
                 structural_response: Some(structural),
+                n_draws: class_shared_posterior
+                    .as_ref()
+                    .and_then(|posterior| u32::try_from(posterior.draws.n_draws).ok()),
+                posterior: class_shared_posterior,
                 ..Default::default()
             },
         }))
@@ -564,18 +581,36 @@ impl super::Study {
             .into())
     }
 
-    pub(super) fn execute_temporal(
+    pub(crate) fn execute_temporal(
         &self,
         data: &TimeSeriesData,
         graph: &TemporalDag,
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
+        checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
-            self.temporal_identification_cache.as_deref()
+        let (identification, estimand, indexer, identify_cached) = if let Some(operation) =
+            checked_bayesian
         {
+            let target = operation.target();
+            if !target.matches_graph(graph)
+                || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
+            {
+                return Err(CausalError::Compile {
+                    message:
+                        "checked Bayesian temporal target differs from the prepared graph or query"
+                            .into(),
+                });
+            }
+            (
+                target.identification().clone(),
+                target.estimand().clone(),
+                target.indexer().clone(),
+                true,
+            )
+        } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
             let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
                 message: format!(
                     "prepared temporal identification missing horizon {}",
@@ -723,31 +758,50 @@ impl super::Study {
         let mut dependence_se = None;
         let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                let names = antecedent_estimate::temporal_coefficient_names(
-                    data, &estimand, query, &indexer,
-                )
-                .map_err(CausalError::from)?;
-                let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                if let Some(operation) = checked_bayesian {
+                    let fit =
+                        crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
+                            operation,
+                            data,
+                            self.split.as_ref(),
+                            ctx,
+                        )?;
+                    let estimate = fit.estimate.clone();
+                    let posterior = fit.posterior.clone();
+                    bayes_fit = Some((fit.estimator, fit.prepared));
+                    (
+                        estimate,
+                        Some(posterior),
+                        "estimate.bayesian_temporal_gcomp",
+                        "estimate.bayesian.temporal.gcomp",
+                    )
+                } else {
+                    let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
+                    let names = antecedent_estimate::temporal_coefficient_names(
+                        data, &estimand, query, &indexer,
+                    )
                     .map_err(CausalError::from)?;
-                let (resolved_prior, conflict_summary) =
-                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
-                bayes.inner.prior = resolved_prior;
-                let mut ws = BayesianGCompWorkspace::default();
-                let mut posterior = bayes
-                    .fit(&bprep, identification.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
-                if let Some(summary) = conflict_summary {
-                    posterior = with_conflict_summary(posterior, summary);
+                    let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                        .map_err(CausalError::from)?;
+                    let (resolved_prior, conflict_summary) =
+                        resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+                    bayes.inner.prior = resolved_prior;
+                    let mut ws = BayesianGCompWorkspace::default();
+                    let mut posterior = bayes
+                        .fit(&bprep, identification.status, &mut ws, ctx)
+                        .map_err(CausalError::from)?;
+                    if let Some(summary) = conflict_summary {
+                        posterior = with_conflict_summary(posterior, summary);
+                    }
+                    let estimate = effect_from_posterior(&posterior)?;
+                    bayes_fit = Some((bayes, bprep));
+                    (
+                        estimate,
+                        Some(posterior),
+                        "estimate.bayesian_temporal_gcomp",
+                        "estimate.bayesian.temporal.gcomp",
+                    )
                 }
-                let estimate = effect_from_posterior(&posterior)?;
-                bayes_fit = Some((bayes, bprep));
-                (
-                    estimate,
-                    Some(posterior),
-                    "estimate.bayesian_temporal_gcomp",
-                    "estimate.bayesian.temporal.gcomp",
-                )
             }
             InferenceMode::Frequentist => {
                 // One series: lagged rows are serially dependent, so the only SE is a
@@ -1805,7 +1859,7 @@ impl super::Study {
         let attach_scalar_posterior = temporal.horizons.len() == 1;
         let mut uncertainty_complete = true;
         let mut bootstrap_cancelled = false;
-        let z = 1.959_963_984_540_054;
+        let z = antecedent_stats::NORMAL_Q975;
         for (horizon_steps, entry) in temporal.horizons.iter().copied().zip(aligned.iter()) {
             require_identified(&entry.identification)?;
             let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
@@ -2170,7 +2224,7 @@ impl super::Study {
                     Some(series)
                 };
                 let series = series_owned.as_ref().unwrap_or(data);
-                let response = match &self.inference {
+                let mut response = match &self.inference {
                     InferenceMode::Bayesian(cfg)
                         if query.observation != ObservationSpec::Complete =>
                     {
@@ -2256,6 +2310,16 @@ impl super::Study {
                             .map_err(CausalError::from)?
                     }
                 };
+                // The class response pools each completion's per-cell band into one
+                // shared draws-agnostic band (published with `draws: None`) and rejects
+                // a band that carries retained draws. A single-coordinate
+                // `InterventionResponse` band now retains its posterior draws (only the
+                // single-atom graph-posterior scalar path consumes them), so drop them
+                // here to keep the completions poolable and the class band unchanged.
+                if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty
+                {
+                    *draws = None;
+                }
                 let atom_assumptions = response.assumptions.clone();
                 let atom_index = assembly.push_atom(
                     horizon_index,
@@ -4265,7 +4329,16 @@ impl ClassResponseAssembly {
                     response_envelope.clone(),
                 ))
             },
-            uncertainty: ResponseUncertainty::None,
+            uncertainty: if incomplete {
+                ResponseUncertainty::None
+            } else {
+                shared_temporal_class_uncertainty(
+                    &self.structural_atoms,
+                    self.n_horizons,
+                    self.cells_per_horizon,
+                )
+                .unwrap_or(ResponseUncertainty::None)
+            },
             support,
             assumptions,
             provenance_id: Arc::from(provenance_id),
@@ -4292,6 +4365,84 @@ impl ClassResponseAssembly {
             unevaluable_mass,
         })
     }
+}
+
+/// The band every completion shares, laid out over the class surface, when each
+/// horizon's evaluated completions publish the same estimate and the same
+/// pointwise band. A horizon whose completions disagree, or that publishes no
+/// band, leaves the class unbanded.
+#[expect(
+    clippy::float_cmp,
+    reason = "class members must agree on the exact declared confidence level"
+)]
+fn shared_temporal_class_uncertainty(
+    atoms: &[crate::result::StructuralResponseAtom],
+    n_horizons: usize,
+    cells_per_horizon: usize,
+) -> Option<ResponseUncertainty> {
+    if n_horizons == 0 || cells_per_horizon == 0 {
+        return None;
+    }
+    let mut exemplars: Vec<Option<&CausalResponse>> = vec![None; n_horizons];
+    for atom in atoms {
+        if atom.weight <= 0.0 {
+            continue;
+        }
+        let response = atom.response.as_ref()?;
+        let horizon = usize::try_from(atom.graph_key >> 32).ok()?;
+        let slot = exemplars.get_mut(horizon)?;
+        if matches!(response.uncertainty, ResponseUncertainty::None) {
+            return None;
+        }
+        if let Some(first) = slot {
+            if response.estimate != first.estimate || response.uncertainty != first.uncertainty {
+                return None;
+            }
+        } else {
+            *slot = Some(response);
+        }
+    }
+    let exemplars = exemplars.into_iter().collect::<Option<Vec<_>>>()?;
+    let mut lower = vec![0.0; cells_per_horizon * n_horizons];
+    let mut upper = vec![0.0; cells_per_horizon * n_horizons];
+    let (mut level, mut interpretation) = (None, None);
+    for (horizon, response) in exemplars.iter().enumerate() {
+        let ResponseUncertainty::PointwiseBand {
+            level: horizon_level,
+            lower: horizon_lower,
+            upper: horizon_upper,
+            interpretation: horizon_interpretation,
+            draws: None,
+        } = &response.uncertainty
+        else {
+            return None;
+        };
+        if horizon_lower.len() != cells_per_horizon || horizon_upper.len() != cells_per_horizon {
+            return None;
+        }
+        match (level, interpretation) {
+            (None, None) => {
+                level = Some(*horizon_level);
+                interpretation = Some(*horizon_interpretation);
+            }
+            (Some(shared_level), Some(shared_interpretation))
+                if shared_level == *horizon_level
+                    && shared_interpretation == *horizon_interpretation => {}
+            _ => return None,
+        }
+        for cell in 0..cells_per_horizon {
+            let index = cell * n_horizons + horizon;
+            lower[index] = horizon_lower[cell];
+            upper[index] = horizon_upper[cell];
+        }
+    }
+    Some(ResponseUncertainty::PointwiseBand {
+        level: level?,
+        lower: Arc::from(lower),
+        upper: Arc::from(upper),
+        interpretation: interpretation?,
+        draws: None,
+    })
 }
 
 /// The completion-envelope diagnostic every class response publishes, plus the
@@ -5637,7 +5788,7 @@ const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
 /// circular-block bootstrap used; the rule length when `replicates == 0`, since
 /// the score scan only runs for a bootstrap). An estimate without them reports
 /// NaN effective rows, which warns.
-fn sequential_dependence_se_diagnostics(
+pub(super) fn sequential_dependence_se_diagnostics(
     estimate: &EffectEstimate,
     replicates: u32,
 ) -> Vec<Diagnostic> {
@@ -5674,7 +5825,7 @@ fn sequential_dependence_se_diagnostics(
 /// `dependence_aware` says whether `block_length` came from the score scan
 /// ([`antecedent_estimate::dependence_block_length`]); without replicates the
 /// scan is skipped and the length is the plain rule, which the text says.
-fn temporal_dependence_se_diagnostics(
+pub(super) fn temporal_dependence_se_diagnostics(
     family: antecedent_estimate::CircularBlockFamily,
     block_length: usize,
     rows: usize,

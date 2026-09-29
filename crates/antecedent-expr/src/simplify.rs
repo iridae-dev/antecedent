@@ -178,26 +178,79 @@ fn apply_local_rules(
     }
 }
 
-fn rewrite_sum_out(
+/// The two marginalization binders that share the [`rewrite_binder`] rewrite:
+/// discrete `SumOut` and continuous `IntegralOut`. Each variant carries the
+/// node constructor, dead-variable error, and simplification tags that differ
+/// between the two otherwise-identical rewrites.
+#[derive(Clone, Copy)]
+enum BinderKind {
+    Sum,
+    Integral,
+}
+
+impl BinderKind {
+    fn empty_tag(self) -> &'static str {
+        match self {
+            BinderKind::Sum => "simplify.empty_sum_out",
+            BinderKind::Integral => "simplify.empty_integral_out",
+        }
+    }
+
+    fn merge_tag(self) -> &'static str {
+        match self {
+            BinderKind::Sum => "simplify.merge_sum_out",
+            BinderKind::Integral => "simplify.merge_integral_out",
+        }
+    }
+
+    fn dead_error(self, variables: Vec<VariableId>) -> SimplifyError {
+        match self {
+            BinderKind::Sum => SimplifyError::DeadSumOut { variables },
+            BinderKind::Integral => SimplifyError::DeadIntegralOut { variables },
+        }
+    }
+
+    fn make_node(self, variables: VarSetId, expr: ExprId) -> ExprNode {
+        match self {
+            BinderKind::Sum => ExprNode::SumOut { variables, expr },
+            BinderKind::Integral => ExprNode::IntegralOut { variables, expr },
+        }
+    }
+
+    /// Destructure `node` when it is this binder, yielding its `(variables, expr)`.
+    fn match_inner(self, node: &ExprNode) -> Option<(VarSetId, ExprId)> {
+        match (self, node) {
+            (BinderKind::Sum, ExprNode::SumOut { variables, expr })
+            | (BinderKind::Integral, ExprNode::IntegralOut { variables, expr }) => {
+                Some((*variables, *expr))
+            }
+            _ => None,
+        }
+    }
+}
+
+fn rewrite_binder(
     arena: &mut CausalExprArena,
     id: ExprId,
     variables: VarSetId,
     expr: ExprId,
     free_memo: &mut FreeMemo,
+    kind: BinderKind,
 ) -> Result<ExprId, SimplifyError> {
     if arena.var_set(variables).is_empty() {
-        return Ok(tag_if_new(arena, expr, id, "simplify.empty_sum_out"));
+        return Ok(tag_if_new(arena, expr, id, kind.empty_tag()));
     }
     let free = free_vars(arena, expr, free_memo);
     let dead = difference(arena.var_set(variables), &free);
     if !dead.is_empty() {
         // Ill-formed estimand (see `SimplifyError` docs) — fail closed rather than
-        // silently eliminating the sum (which would leave a bare `|support(v)|` factor).
-        // Checked against the body's *free* variables, so a binder that the inner
-        // `SumOut` already consumed is dead here too and cannot be merged away.
-        return Err(SimplifyError::DeadSumOut { variables: dead });
+        // silently eliminating the binder (dropping the sum's `|support(v)|` factor
+        // or the integral's integration measure). Checked against the body's *free*
+        // variables, so a binder that the inner binder already consumed is dead here
+        // too and cannot be merged away.
+        return Err(kind.dead_error(dead));
     }
-    if let ExprNode::SumOut { variables: inner_v, expr: inner_e } = arena.node(expr).clone() {
+    if let Some((inner_v, inner_e)) = kind.match_inner(arena.node(expr)) {
         let merged: Vec<VariableId> = arena
             .var_set(variables)
             .iter()
@@ -205,10 +258,20 @@ fn rewrite_sum_out(
             .chain(arena.var_set(inner_v).iter().copied())
             .collect();
         let union = arena.intern_var_set(merged);
-        let node = ExprNode::SumOut { variables: union, expr: inner_e };
-        return Ok(intern_derived(arena, node, "simplify.merge_sum_out"));
+        let node = kind.make_node(union, inner_e);
+        return Ok(intern_derived(arena, node, kind.merge_tag()));
     }
     Ok(id)
+}
+
+fn rewrite_sum_out(
+    arena: &mut CausalExprArena,
+    id: ExprId,
+    variables: VarSetId,
+    expr: ExprId,
+    free_memo: &mut FreeMemo,
+) -> Result<ExprId, SimplifyError> {
+    rewrite_binder(arena, id, variables, expr, free_memo, BinderKind::Sum)
 }
 
 fn rewrite_integral_out(
@@ -218,30 +281,7 @@ fn rewrite_integral_out(
     expr: ExprId,
     free_memo: &mut FreeMemo,
 ) -> Result<ExprId, SimplifyError> {
-    if arena.var_set(variables).is_empty() {
-        return Ok(tag_if_new(arena, expr, id, "simplify.empty_integral_out"));
-    }
-    let free = free_vars(arena, expr, free_memo);
-    let dead = difference(arena.var_set(variables), &free);
-    if !dead.is_empty() {
-        // Ill-formed estimand (see `SimplifyError` docs) — fail closed rather than
-        // silently collapsing the integral (which would drop the integration measure).
-        // Checked against the body's *free* variables, so a binder that the inner
-        // `IntegralOut` already consumed is dead here too and cannot be merged away.
-        return Err(SimplifyError::DeadIntegralOut { variables: dead });
-    }
-    if let ExprNode::IntegralOut { variables: inner_v, expr: inner_e } = arena.node(expr).clone() {
-        let merged: Vec<VariableId> = arena
-            .var_set(variables)
-            .iter()
-            .copied()
-            .chain(arena.var_set(inner_v).iter().copied())
-            .collect();
-        let union = arena.intern_var_set(merged);
-        let node = ExprNode::IntegralOut { variables: union, expr: inner_e };
-        return Ok(intern_derived(arena, node, "simplify.merge_integral_out"));
-    }
-    Ok(id)
+    rewrite_binder(arena, id, variables, expr, free_memo, BinderKind::Integral)
 }
 
 fn rewrite_product(arena: &mut CausalExprArena, id: ExprId, list: crate::ExprListId) -> ExprId {

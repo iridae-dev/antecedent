@@ -15,9 +15,9 @@ use antecedent::{
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchemaBuilder, ConditionalEffectQuery, ExecutionContext,
-    Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec, MediationContrast,
-    MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet, TransformIntent, Value,
-    ValueType, VariableId,
+    IdentificationStatus, Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet,
+    TransformIntent, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
@@ -49,6 +49,10 @@ fn prepared_reestimate_matches_fresh_analyze() {
     let fresh = build_analysis(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
 
     let prepared = build_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
+    assert!(
+        prepared.checked_bayesian_gcomp_operation().is_none(),
+        "frequentist mean ATE must not claim the Bayesian g-computation route"
+    );
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
@@ -64,15 +68,14 @@ fn prepared_reestimate_matches_fresh_analyze() {
     assert_eq!(first.physical_plan.plan_id, fresh.physical_plan.plan_id);
     assert_eq!(second.physical_plan.plan_id, first.physical_plan.plan_id);
 
-    // Prepared clicks reuse prepare-time identification (observable, and only
-    // there): fresh runs must not carry the marker.
-    for result in [&first, &second] {
+    // One-shot linear adjustment now runs through the same prepared boundary,
+    // so all three executions reuse identification prepared before fitting.
+    for result in [&fresh, &first, &second] {
         assert!(
             result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
             "prepared estimate missing exec.identify.cached diagnostic"
         );
     }
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
 }
 
 #[test]
@@ -222,10 +225,18 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
 
     let fresh =
         build_bayesian_analysis(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
-    let prepared = build_bayesian_analysis(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let study = build_bayesian_analysis(data.clone(), dag, query.clone());
+    let prepared = study.prepare(&ctx).unwrap();
+    drop(study);
+    let checked = prepared
+        .checked_bayesian_gcomp_operation()
+        .expect("static Bayesian mean ATE retains its checked route receipt");
+    assert_eq!(checked.query(), &query);
     let first = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(checked.estimand().adjustment_set, first.estimand.adjustment_set);
 
     assert!(first.estimate.ate.is_finite());
+    assert!((first.estimate.ate - 2.0).abs() < 0.5, "ate={}", first.estimate.ate);
     // Bit-identical ATE and posterior summaries between the prepared click and
     // a fresh, un-prepared run: identification caching must not perturb the
     // downstream Bayesian fit (same prep, prior, draws, seed).
@@ -246,12 +257,13 @@ fn prepared_bayesian_reestimate_matches_fresh_analyze() {
     let fresh_sd_bits: Vec<u64> = fresh_post.summaries.sd.iter().map(|v| v.to_bits()).collect();
     assert_eq!(first_sd_bits, fresh_sd_bits);
 
-    // Only the prepared click carries the cache marker.
-    assert!(
-        first.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
-        "prepared Bayesian estimate missing exec.identify.cached diagnostic"
-    );
-    assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
+    // One-shot execution now prepares the sealed Bayesian plan before fitting.
+    for result in [&fresh, &first] {
+        assert!(
+            result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "sealed Bayesian estimate missing exec.identify.cached diagnostic"
+        );
+    }
 }
 
 #[test]
@@ -354,7 +366,10 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
     assert!(contract.identities.identification_product.is_some());
     let bytes = prepared.encode_contracted_result(&click, "prepared-pulse", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.checked_temporal_dag_effect_operation")]
+    );
     let labels: std::collections::HashMap<_, _> = executed_functional_labels(
         &consumed.contract.as_ref().expect("verified contract").target.query,
     )
@@ -576,6 +591,7 @@ fn assert_prepared_contract_consume(
     ctx: &ExecutionContext,
     artifact_id: &str,
     query_kind: &str,
+    expected_dependency: Option<&str>,
 ) {
     let inspected_id = prepared.contract().unwrap().identities.target;
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
@@ -586,7 +602,18 @@ fn assert_prepared_contract_consume(
     assert_eq!(claim.identities.program, contract.identities.program);
     let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    if let Some(dependency) = expected_dependency {
+        assert_eq!(
+            consumed.acceptance.unresolved.as_ref(),
+            &[std::sync::Arc::<str>::from(dependency)]
+        );
+    } else {
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "{query_kind} artifact unresolved: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
     let labels: std::collections::HashMap<_, _> = executed_functional_labels(
         &consumed.contract.as_ref().expect("verified contract").target.query,
     )
@@ -598,6 +625,9 @@ fn assert_prepared_contract_consume(
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
     );
     assert_eq!(consumed.body.estimate, Some(result.effect()));
+    if query_kind == "distribution" {
+        assert!(consumed.body.interventional_distribution.is_some());
+    }
 }
 
 fn assert_cached_only_on_prepared(
@@ -610,6 +640,16 @@ fn assert_cached_only_on_prepared(
             click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
             "prepared click missing exec.identify.cached diagnostic"
         );
+    }
+}
+
+fn assert_cached_on_one_shot_and_prepared(
+    one_shot: &antecedent::StudyResult,
+    prepared_clicks: &[&antecedent::StudyResult],
+) {
+    assert!(one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    for click in prepared_clicks {
+        assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     }
 }
 
@@ -634,9 +674,18 @@ fn prepared_conditional_effect_reestimate_matches_fresh() {
     assert_eq!(first.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
-    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    for result in [&fresh, &first, &second] {
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    }
     assert!((first.effect() - 3.0).abs() < 1e-8);
-    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-ce", "conditional_effect");
+    assert_prepared_contract_consume(
+        &prepared,
+        &first,
+        &ctx,
+        "prepared-ce",
+        "conditional_effect",
+        Some("dependencies.checked_conditional_effect_operation"),
+    );
 }
 
 #[test]
@@ -665,6 +714,7 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
         &ctx,
         "prepared-ce-b",
         "conditional_effect",
+        Some("dependencies.checked_bayesian_conditional_operation"),
     );
 }
 
@@ -692,12 +742,20 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
-    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
-    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-path", "path_specific");
+    assert_cached_on_one_shot_and_prepared(&fresh, &[&first, &second]);
+    assert_prepared_contract_consume(
+        &prepared,
+        &first,
+        &ctx,
+        "prepared-path",
+        "path_specific",
+        None,
+    );
 }
 
 #[test]
-fn prepared_distribution_reestimate_matches_fresh() {
+#[allow(clippy::too_many_lines, reason = "one test walks the whole checked-program lifecycle")]
+fn test_interventional_distribution_dag_explicit_frequentist_none_executes_checked_program() {
     let (data, dag, query) = distribution_fixture();
     let ctx = ExecutionContext::for_tests(1);
     let build = |data: TabularData, dag: Dag, query: InterventionalDistributionQuery| {
@@ -711,7 +769,36 @@ fn prepared_distribution_reestimate_matches_fresh() {
             .unwrap()
     };
     let fresh = build(data.clone(), dag.clone(), query.clone()).run(&ctx).unwrap();
-    let prepared = build(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let builder = Study::tabular(data.clone())
+        .graph(dag)
+        .query(CausalQuery::Distribution(query.clone()))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None);
+    let study = builder.clone().build().unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    drop(builder);
+    drop(study);
+    let contract = prepared.contract().unwrap();
+    assert_eq!(prepared.query(), &CausalQuery::Distribution(query));
+    assert_eq!(contract.query_kind.as_ref(), "InterventionalDistribution");
+    assert_eq!(contract.identifier.as_deref(), Some("general.id"));
+    assert_eq!(contract.estimator.as_deref(), Some("functional.distribution"));
+    assert_eq!(prepared.plan().logical.record.identifier.as_deref(), Some("general.id"));
+    assert_eq!(
+        prepared.plan().logical.record.estimator.as_deref(),
+        Some("functional.distribution")
+    );
+    assert!(contract.identities.identification_product.is_some());
+    match &contract.reasoning.identification {
+        antecedent_core::SlotAvailability::Available(slot) => {
+            assert_eq!(slot.status, IdentificationStatus::NonparametricallyIdentified);
+        }
+        other => panic!("prepared distribution has no identification product: {other:?}"),
+    }
+    let plan = prepared.checked_distribution_program().expect("retained distribution program");
+    assert_eq!(plan.mapping().source, plan.mapping().executable);
+    assert!(!plan.factor_requirements().is_empty());
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
 
@@ -723,9 +810,107 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert_eq!(second_dist.mean.to_bits(), fresh_dist.mean.to_bits());
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
-    assert_cached_only_on_prepared(&fresh, &[&first, &second]);
-    assert!((first_dist.mean - 0.7).abs() < 0.08);
-    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-dist", "distribution");
+    assert_cached_on_one_shot_and_prepared(&fresh, &[&first, &second]);
+    // Independent g-formula reference from the fixture counts:
+    // P(z=0)=P(z=1)=1/2, P(y=1|t=1,z=0)=16/20, and
+    // P(y=1|t=1,z=1)=21/35, so P(y=1|do(t=1))=0.7.
+    assert!((first_dist.mean - 0.7).abs() < 1e-12);
+    let true_atom = first_dist
+        .atoms
+        .iter()
+        .find(|atom| {
+            atom.outcomes.iter().any(|(variable, value)| {
+                *variable == VariableId::from_raw(1) && *value == Value::f64(1.0)
+            })
+        })
+        .expect("true outcome atom");
+    assert!((true_atom.probability - 0.7).abs() < 1e-12);
+    let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
+    assert!((refreshed.distribution.as_ref().unwrap().mean - 0.7).abs() < 1e-12);
+    let (incompatible, _, _) = confounded_scm(64, 91);
+    assert!(prepared.refresh(incompatible, &ctx).is_err());
+    assert!(
+        (prepared.estimate(&data, &ctx).unwrap().distribution.unwrap().mean - 0.7).abs() < 1e-12
+    );
+    assert_prepared_contract_consume(
+        &prepared,
+        &first,
+        &ctx,
+        "prepared-dist",
+        "distribution",
+        None,
+    );
+
+    // Independent replay retains the complete distribution and its empirical
+    // factor laws, so the consumer can verify both atom probabilities.
+    let bytes =
+        prepared.encode_contracted_result(&first, "prepared-dist-independent", &ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    assert_eq!(consumed.body.estimate, Some(0.7));
+    let labels: std::collections::HashMap<_, _> =
+        executed_functional_labels(&consumed.body.query).into_iter().collect();
+    assert_eq!(labels["query_kind"], "distribution");
+    let artifact_dist =
+        consumed.body.interventional_distribution.as_ref().expect("portable distribution atoms");
+    let atom_probability = |outcome: f64| {
+        artifact_dist
+            .atoms
+            .iter()
+            .find(|atom| {
+                atom.outcomes.iter().any(|(variable, value)| {
+                    *variable == 1 && *value == antecedent_io::ValueWire::Float64(outcome)
+                })
+            })
+            .expect("outcome atom")
+            .probability
+    };
+    assert!((atom_probability(0.0) - 0.3).abs() < 1e-12);
+    assert!((atom_probability(1.0) - 0.7).abs() < 1e-12);
+
+    // Rehash a changed, still-normalized empirical law. The writer must reject
+    // the altered law when independent replay no longer generates the atoms.
+    let mut tampered_contract = consumed.contract.clone().expect("verified contract");
+    let snapshot = tampered_contract.data_snapshot.as_mut().expect("data snapshot");
+    let laws = snapshot.distribution_factor_laws.as_mut().expect("portable factor laws");
+    let rows = &mut laws.factors[0].rows;
+    assert!(rows.len() >= 2);
+    rows[0].probability += 0.01;
+    rows[1].probability -= 0.01;
+    tampered_contract.identities.data_snapshot =
+        *antecedent_io::data_snapshot_digest(tampered_contract.data_snapshot.as_ref().unwrap())
+            .unwrap()
+            .as_bytes();
+    tampered_contract.seal = antecedent_io::contract_seal(
+        &tampered_contract.identities,
+        &tampered_contract.reasoning,
+        &tampered_contract.graph_class,
+        &tampered_contract.structure_source,
+        tampered_contract.identifier.as_deref(),
+        tampered_contract.estimator.as_deref(),
+    )
+    .unwrap();
+    let result_digest = antecedent_io::result_digest(&consumed.body).unwrap();
+    let seal = tampered_contract.seal;
+    let claim = tampered_contract.claim.as_mut().unwrap();
+    claim.claim_id = *antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+        seal,
+        claim,
+        result_digest,
+    ))
+    .unwrap()
+    .as_bytes();
+    let rejected = antecedent_io::encode_analysis_result_artifact_with_contract(
+        &consumed.body,
+        consumed.header.variable_names.clone(),
+        "prepared-dist-tampered-laws",
+        Some(&tampered_contract),
+    );
+    assert!(rejected.is_err(), "rehashed factor-law tampering must be refused");
 }
 
 /// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses
@@ -1064,13 +1249,15 @@ fn prepared_pag_ate_reuses_identification_envelope() {
     assert_eq!(bayesian_prepared.structure_source(), antecedent::StructureSource::Accepted);
     let bayesian_click = bayesian_prepared.estimate(&data, &ctx).unwrap();
     assert!((bayesian_click.estimate.ate - bayesian_fresh.estimate.ate).abs() < 1e-12);
+    // A one-shot Bayesian class effect now prepares and executes its sealed
+    // envelope, so the fresh result reports its identification as cached once.
     assert_eq!(
         bayesian_fresh
             .diagnostics
             .iter()
             .filter(|diagnostic| diagnostic.code.as_ref() == "exec.identify.cached")
             .count(),
-        0
+        1
     );
     assert_eq!(
         bayesian_click
@@ -1339,6 +1526,7 @@ fn bayesian_conditional_staged_known_truth() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "one test walks the whole identification-reuse lifecycle")]
 fn prepared_admg_distribution_reuses_identification() {
     let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
     let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
@@ -1402,7 +1590,7 @@ fn prepared_admg_distribution_reuses_identification() {
     let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
     let second = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(cached_count_dist(&fresh), 0);
+    assert_eq!(cached_count_dist(&fresh), 1);
     assert_eq!(cached_count_dist(&first), 1);
     assert_eq!(cached_count_dist(&second), 1);
     let fresh_dist = fresh.distribution.as_ref().expect("fresh ADMG distribution");
@@ -1410,6 +1598,37 @@ fn prepared_admg_distribution_reuses_identification() {
     assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
     assert_eq!(first.support_status.unwrap().as_str(), "licensed");
     assert!(fresh.refutations.is_empty());
+
+    for accepted_structure in [false, true] {
+        let builder = Study::tabular(data.clone());
+        let builder = if accepted_structure {
+            builder.graph(AcceptedGraph::from(admg.clone()))
+        } else {
+            builder.graph(admg.clone())
+        };
+        let prepared_bayesian = builder
+            .query(CausalQuery::Distribution(query.clone()))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let bayesian_result = prepared_bayesian.estimate(&data, &ctx).unwrap();
+        let posterior = bayesian_result.posterior.as_ref().expect("ADMG posterior draws");
+        assert_eq!(posterior.draws.n_draws, 32);
+        assert!(bayesian_result.distribution.as_ref().unwrap().mean.is_finite());
+        let mass: f64 = bayesian_result
+            .distribution
+            .as_ref()
+            .unwrap()
+            .atoms
+            .iter()
+            .map(|atom| atom.probability)
+            .sum();
+        assert!((mass - 1.0).abs() < 1e-9);
+    }
 
     let accepted = Study::tabular(data.clone())
         .graph(AcceptedGraph::from(admg))
@@ -1665,8 +1884,10 @@ fn claim_refuses_a_result_that_carries_no_execution_stamp() {
     let prepared = study.clone().prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
 
-    // A plain run was never executed under this (or any) prepared contract.
-    let unstamped = study.run(&ctx).unwrap();
+    // Direct low-level execute remains callable but does not carry a prepared
+    // contract stamp. One-shot run now prepares and stamps this route.
+    let low_level_plan = study.compile(&ctx).unwrap();
+    let unstamped = study.execute(&low_level_plan, &ctx).unwrap();
     match unstamped.claim(&contract, &ctx) {
         Err(antecedent::CausalError::Conflict { what, .. }) => assert_eq!(what, "result"),
         other => panic!("an unstamped result must not be sealed: {other:?}"),

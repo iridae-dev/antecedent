@@ -17,6 +17,21 @@ pub enum QueryError {
     /// Invalid randomization/interference configuration.
     #[error("invalid interference query: {0}")]
     InvalidInterference(String),
+    /// Invalid randomized experiment contract.
+    #[error("invalid randomized-effect query: {0}")]
+    InvalidRandomizedEffect(String),
+    /// Invalid held-out policy value contract.
+    #[error("invalid policy-value query: {0}")]
+    InvalidPolicyValue(String),
+    /// Invalid survival or competing-risk observation contract.
+    #[error("invalid survival query: {0}")]
+    InvalidSurvival(String),
+    /// Invalid longitudinal regime value or subject-level fold contract.
+    #[error("invalid longitudinal-regime query: {0}")]
+    InvalidLongitudinalRegime(String),
+    /// Invalid fixed-cutoff local-polynomial ratio design.
+    #[error("invalid local-polynomial ratio query: {0}")]
+    InvalidLocalPolynomialRatio(String),
     /// Treatment and outcome are the same variable.
     #[error("treatment and outcome are the same variable {id}")]
     TreatmentEqualsOutcome {
@@ -60,6 +75,9 @@ pub enum QueryError {
     /// Anomaly `max_units` must be ≥ 1.
     #[error("anomaly max_units must be >= 1")]
     NonPositiveAnomalyLimit,
+    /// Anomaly fixed reference scale must be finite and strictly positive.
+    #[error("anomaly fixed reference requires a finite center and a finite positive scale")]
+    InvalidAnomalyReference,
     /// Mediation query has no mediators.
     #[error("mediation query requires mediators")]
     EmptyMediators,

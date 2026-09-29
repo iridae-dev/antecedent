@@ -1,0 +1,27 @@
+feature_id = "identify.randomized.design"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Strategy-table id: identify.randomized.design (IdentifierId::RandomizedDesign).
+# The graph is schema only. Identification is the caller-declared assignment
+# mechanism, recorded in checked_randomized::randomized_identification.
+papers = [
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["completely randomized comparison of treatments; the translation is the classical finite-population design argument this identifier records"] },
+]
+
+implementation_deviations = [
+ "No graph search. The identifier stamps consistency, positivity, and the design's known-assignment statement; it does not derive an identifying functional from a DAG.",
+ "NoInterference is recorded for unit-randomized designs and omitted for cluster randomization and switchback, which record their own partial-interference or no-carryover statements instead.",
+ "Wald complier and one-sided treatment-on-treated queries add exclusion, monotonicity, a nonzero first stage, and, for treatment on the treated, one-sided noncompliance. Those statements are declared, not tested.",
+ "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/src/analysis/execute/checked_randomized.rs",
+ "crates/antecedent/tests/randomized_trial_route.rs",
+]

@@ -22,6 +22,7 @@ queries = [
   "InterventionalDistribution",
   "InterventionResponse",
   "MediationEffect",
+  "NestedCounterfactualEffect",
   "PathSpecificEffect",
   "PointDerivative",
   "PulseEffect",
@@ -33,6 +34,40 @@ queries = [
   "TransportQuery",
   "InterferenceQuery",
 ]
+
+# Public workflow query or utility types without geometric support cells.
+# Retained experiment routes, including SwitchbackEffect, report off_axis.
+off_axis_public_queries = [
+  "ConditionalDoseResponse",
+  "LongitudinalRegimeQuery",
+  "MultiActionPolicyValue",
+  "PolicyValue",
+  "RandomizedEffect",
+  "SurvivalOutcome",
+  "SwitchbackEffect",
+]
+
+# Types exported beside queries for constructing designs or reading results.
+public_query_companions = [
+  "ANCOVAEstimate",
+  "AnomalyReference",
+  "BinaryPolicy",
+  "ExperimentDesign",
+  "FactorialRandomization",
+  "FixedCUPED",
+  "IPCWCumulativeIncidenceEstimate",
+  "IPCWSurvivalEstimate",
+  "KnownCensoringSurvival",
+  "LongitudinalRegimeEstimate",
+  "MultiArmExperimentDesign",
+  "SurvivalEstimate",
+  "SwitchbackDesign",
+  "SwitchbackEstimate",
+]
+
+# RandomizedTrial is used by retained experiment routes and does not classify
+# geometric query cells.
+off_axis_graph_classes = ["RandomizedTrial"]
 
 graph_classes = [
   "Dag",

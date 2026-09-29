@@ -22,6 +22,8 @@ pub enum LawOrigin {
     EmpiricalPlugin,
     /// Coherent learned finite law with retained empirical counts.
     LearnedPlugin,
+    /// Draw from a declared posterior law; zero cells are posterior outcomes, not structural zeros.
+    BayesianPosterior,
 }
 
 impl LawOrigin {
@@ -32,6 +34,7 @@ impl LawOrigin {
             Self::SuppliedExact => "supplied_exact",
             Self::EmpiricalPlugin => "empirical_plugin",
             Self::LearnedPlugin => "learned_plugin",
+            Self::BayesianPosterior => "bayesian_posterior",
         }
     }
 
@@ -42,6 +45,7 @@ impl LawOrigin {
             "supplied_exact" | "" => Some(Self::SuppliedExact),
             "empirical_plugin" => Some(Self::EmpiricalPlugin),
             "learned_plugin" => Some(Self::LearnedPlugin),
+            "bayesian_posterior" => Some(Self::BayesianPosterior),
             _ => None,
         }
     }
@@ -261,18 +265,77 @@ impl ExactDiscreteLaw {
         law.origin = LawOrigin::EmpiricalPlugin;
         Ok(law)
     }
-    /// Mark a fitted law as model-based and retain its observed support.
+    /// Validated draw from an explicitly specified posterior law.
+    /// # Errors
+    /// Same validation as [`Self::try_new`].
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_bayesian_posterior(
+        population: impl Into<Arc<str>>,
+        regime: RegimeId,
+        interventions: impl Into<Arc<[InterventionAssignment]>>,
+        axes: impl Into<Arc<[DiscreteAxis]>>,
+        probabilities: impl Into<Arc<[f64]>>,
+        snapshot_identity: impl Into<Arc<str>>,
+        tolerance: LawTolerance,
+    ) -> Result<Self, ExactLawError> {
+        let mut law = Self::try_new(
+            population,
+            regime,
+            interventions,
+            axes,
+            probabilities,
+            snapshot_identity,
+            tolerance,
+        )?;
+        law.origin = LawOrigin::BayesianPosterior;
+        Ok(law)
+    }
+    /// Attach the observed cell counts that this frequency table was computed
+    /// from. Every probability must equal its count's share of the total within
+    /// the law's tolerance, so a point published from the table and an
+    /// interval resampled from the counts describe one law. A supplied exact
+    /// law becomes an empirical plug-in; any other origin is kept.
+    /// # Errors
+    /// Counts with wrong shape, no observations, overflow, or a cell whose
+    /// probability is not its count's share (`unreconciled_empirical_counts`).
+    pub fn with_empirical_counts(self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
+        let total = self.checked_count_total(&counts)?;
+        let tolerance = self.tolerance;
+        let reconciled = self.probabilities.iter().zip(&counts).all(|(p, count)| {
+            let share = *count as f64 / total;
+            (p - share).abs() <= tolerance.absolute + tolerance.relative * p.max(share)
+        });
+        if !reconciled {
+            return Err(self.error("unreconciled_empirical_counts"));
+        }
+        let origin = match self.origin {
+            LawOrigin::SuppliedExact => LawOrigin::EmpiricalPlugin,
+            other => other,
+        };
+        Ok(self.with_counts(counts, origin))
+    }
+    /// Mark a fitted law as model-based and retain its observed support. The
+    /// model's cell probabilities are not frequencies and are not reconciled
+    /// with the counts; the counts only decide which conditioners were observed.
     /// # Errors
     /// Counts with wrong shape, no observations, or overflow.
-    pub fn with_empirical_counts(mut self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
-        if counts.len() != self.probabilities.len()
-            || counts.iter().try_fold(0u64, |n, k| n.checked_add(*k)).is_none_or(|n| n == 0)
-        {
-            return Err(self.error("invalid_empirical_support"));
+    pub fn with_learned_support(self, counts: Vec<u64>) -> Result<Self, ExactLawError> {
+        self.checked_count_total(&counts)?;
+        Ok(self.with_counts(counts, LawOrigin::LearnedPlugin))
+    }
+    fn checked_count_total(&self, counts: &[u64]) -> Result<f64, ExactLawError> {
+        let total = counts.iter().try_fold(0u64, |n, k| n.checked_add(*k));
+        match total {
+            Some(total) if counts.len() == self.probabilities.len() && total > 0 => {
+                Ok(total as f64)
+            }
+            _ => Err(self.error("invalid_empirical_support")),
         }
-        self.origin = LawOrigin::LearnedPlugin;
+    }
+    fn with_counts(mut self, counts: Vec<u64>, origin: LawOrigin) -> Self {
+        self.origin = origin;
         self.empirical_counts = Some(counts.into());
-        Ok(self)
+        self
     }
     /// Observed cell counts for a model-based law; fitted mass never certifies support.
     #[must_use]
@@ -333,7 +396,7 @@ impl ExactDiscreteLaw {
     }
     fn covers(&self, spec: &FactorSpec<'_>) -> bool {
         self.population.as_ref() == spec.population
-            && spec.regime == Some(self.regime)
+            && spec.regime.is_none_or(|regime| regime == self.regime)
             && self.interventions.len() == spec.intervention.len()
             && spec.intervention.iter().all(|a| {
                 self.interventions
@@ -505,9 +568,17 @@ pub struct ExactTransportData {
     domains: Arc<BTreeMap<VariableId, Arc<[Value]>>>,
     max_support_rows: usize,
     factor_cache: Option<Arc<SharedFactorCache>>,
+    /// Whether a leaf that names no regime may select its law by intervention world.
+    world_bound_leaves: bool,
 }
 
 impl ExactTransportData {
+    /// Maximum number of support rows retained for factor evaluation.
+    #[must_use]
+    pub const fn max_support_rows(&self) -> usize {
+        self.max_support_rows
+    }
+
     /// Validate compatible domains and unambiguous population/regime/world bindings.
     ///
     /// # Errors
@@ -564,7 +635,22 @@ impl ExactTransportData {
             domains: Arc::new(domains),
             max_support_rows,
             factor_cache: None,
+            world_bound_leaves: false,
         })
+    }
+    /// Let a leaf that names no regime select its law by intervention world.
+    ///
+    /// A z-transport factor whose exchanged coordinate is bound at evaluation
+    /// (`do(x = 0, z)` with `z` the enclosing summation variable) cites one
+    /// regime per world rather than one regime for the whole family, so the
+    /// bound leaf carries no regime and the concrete world selects the law.
+    /// The selection must be unambiguous: two laws of one population for the
+    /// same world refuse with `ambiguous_exact_provider`. Every other provider
+    /// keeps requiring an explicit regime.
+    #[must_use]
+    pub const fn with_world_bound_leaves(mut self) -> Self {
+        self.world_bound_leaves = true;
+        self
     }
     /// Share a bounded factor-value cache across plans bound to this immutable provider.
     /// Replacing data creates a new cache; cached values never cross snapshots.
@@ -604,20 +690,36 @@ impl ExactTransportData {
         &self,
         spec: &FactorSpec<'_>,
     ) -> Result<&ExactDiscreteLaw, ExactLawError> {
-        self.index
-            .get(spec.population)
-            .and_then(|regimes| spec.regime.and_then(|regime| regimes.get(&regime)))
-            .and_then(|worlds| worlds.get(lookup_world_key(spec.intervention).as_ref()))
+        let missing = |kind: &'static str| ExactLawError {
+            kind,
+            population: Arc::from(spec.population),
+            regime: spec.regime,
+            variables: Arc::from(spec.variables),
+            conditioning: Arc::from([]),
+            interventions: Arc::from(spec.intervention),
+        };
+        let regimes =
+            self.index.get(spec.population).ok_or_else(|| missing("missing_exact_provider"))?;
+        let world = lookup_world_key(spec.intervention);
+        let index = match spec.regime {
+            Some(regime) => regimes.get(&regime).and_then(|worlds| worlds.get(world.as_ref())),
+            None if self.world_bound_leaves => {
+                let mut matches = regimes
+                    .iter()
+                    .filter_map(|(_, worlds)| worlds.get(world.as_ref()))
+                    .filter(|index| self.laws[**index].covers(spec));
+                let first = matches.next();
+                if matches.next().is_some() {
+                    return Err(missing("ambiguous_exact_provider"));
+                }
+                first
+            }
+            None => None,
+        };
+        index
             .map(|index| &self.laws[*index])
             .filter(|law| law.covers(spec))
-            .ok_or_else(|| ExactLawError {
-                kind: "missing_exact_provider",
-                population: Arc::from(spec.population),
-                regime: spec.regime,
-                variables: Arc::from(spec.variables),
-                conditioning: Arc::from([]),
-                interventions: Arc::from(spec.intervention),
-            })
+            .ok_or_else(|| missing("missing_exact_provider"))
     }
 
     /// Evaluate a marginal or conditional from the selected joint law.
@@ -738,6 +840,36 @@ impl DistributionProvider for ExactTransportData {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn empirical_counts_must_reconcile_with_the_table() {
+        use super::*;
+        let law = |probabilities: &[f64]| {
+            ExactDiscreteLaw::try_new(
+                "target",
+                RegimeId::from_raw(0),
+                [],
+                [DiscreteAxis {
+                    variable: VariableId::from_raw(0),
+                    values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                }],
+                probabilities.to_vec(),
+                "s",
+                LawTolerance::default(),
+            )
+            .unwrap()
+        };
+        let counted = law(&[0.3, 0.7]).with_empirical_counts(vec![3, 7]).unwrap();
+        assert_eq!(counted.origin(), LawOrigin::EmpiricalPlugin);
+        let reversed = law(&[0.3, 0.7]).with_empirical_counts(vec![7, 3]).unwrap_err();
+        assert_eq!(reversed.kind, "unreconciled_empirical_counts");
+        let model = law(&[0.3, 0.7]).with_learned_support(vec![7, 3]).unwrap();
+        assert_eq!(model.origin(), LawOrigin::LearnedPlugin);
+        assert_eq!(
+            law(&[0.3, 0.7]).with_empirical_counts(vec![0, 0]).unwrap_err().kind,
+            "invalid_empirical_support"
+        );
+    }
+
     use super::*;
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)
@@ -827,7 +959,7 @@ mod tests {
     fn positive_learned_probabilities_do_not_authorize_empty_empirical_conditioners() {
         let predicted = law("target", &[0.25, 0.25, 0.25, 0.25])
             .unwrap()
-            .with_empirical_counts(vec![0, 0, 3, 7])
+            .with_learned_support(vec![0, 0, 3, 7])
             .unwrap();
         let data = ExactTransportData::try_new([predicted], 16).unwrap();
         let outcomes = [v(1)];
@@ -895,7 +1027,7 @@ mod tests {
     fn ratio_form_positive_learned_probabilities_do_not_authorize_empty_empirical_conditioners() {
         let predicted = law("target", &[0.25, 0.25, 0.25, 0.25])
             .unwrap()
-            .with_empirical_counts(vec![0, 0, 3, 7])
+            .with_learned_support(vec![0, 0, 3, 7])
             .unwrap();
         let data = ExactTransportData::try_new([predicted], 16).unwrap();
         let mut arena = crate::CausalExprArena::new();

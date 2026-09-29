@@ -162,3 +162,72 @@ def test_randomized_interference_uses_directed_network_edges() -> None:
     )
 
     assert result.contrast.hajek == pytest.approx(-3.0)
+
+
+def test_cluster_randomization_partial_interference_reports_support_and_bound() -> None:
+    clusters = [10, 10, 20, 20]
+    query = interference.InterferenceQuery(
+        interference.ClusterRandomization(clusters, treated_clusters=1),
+        interference.NeighborFraction(),
+        interference.ExposureContrast(
+            "y",
+            interference.ExposureLevel(0.0, 0.0),
+            interference.ExposureLevel(1.0, 1.0),
+        ),
+        partial_interference=interference.PartialInterference(clusters),
+    )
+    result = interference.estimate(
+        {"y": np.array([1.0, 2.0, 3.0, 4.0])},
+        assignment=[False, False, True, True],
+        edges=[(0, 1), (1, 0), (2, 3), (3, 2)],
+        query=query,
+    )
+
+    assert result.contrast.hajek == pytest.approx(2.0)
+    assert result.from_probability_method == result.to_probability_method == "exact"
+    assert result.support.from_exposed_units == result.support.to_exposed_units == 2
+    assert result.support.from_observed_clusters == result.support.to_observed_clusters == 1
+    assert result.support.minimum_exposure_probability > 0.0
+    assert result.support.partial_interference_checked
+    assert "covariance-free Young variance bound" in result.uncertainty_semantics
+    assert "not a cluster-robust interval" in result.uncertainty_semantics
+
+
+def test_partial_interference_rejects_cross_cluster_edges_and_partition_mismatch() -> None:
+    clusters = [0, 0, 1, 1]
+    query = interference.InterferenceQuery(
+        interference.ClusterRandomization(clusters, 1),
+        interference.NeighborFraction(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
+        ),
+        partial_interference=interference.PartialInterference(clusters),
+    )
+    args = {"y": np.array([0.0, 1.0, 2.0, 3.0])}
+    assignment = [False, False, True, True]
+    with pytest.raises(ValueError, match="crosses cluster boundary"):
+        interference.estimate(args, assignment=assignment, edges=[(0, 2)], query=query)
+
+    mismatched = interference.InterferenceQuery(
+        interference.ClusterRandomization(clusters, 1),
+        interference.NeighborFraction(),
+        query.functional,
+        partial_interference=interference.PartialInterference([0, 1, 0, 1]),
+    )
+    with pytest.raises(ValueError, match="partition"):
+        interference.estimate(args, assignment=assignment, edges=[], query=mismatched)
+
+
+def test_partial_interference_requires_explicit_cluster_assignment() -> None:
+    query = interference.InterferenceQuery(
+        interference.BernoulliAssignment(0.5),
+        interference.OwnTreatment(),
+        interference.ExposureContrast(
+            "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
+        ),
+        partial_interference=interference.PartialInterference([0, 0]),
+    )
+    with pytest.raises(ValueError, match="requires ClusterRandomization"):
+        interference.estimate(
+            {"y": np.array([0.0, 1.0])}, assignment=[False, True], edges=[], query=query
+        )

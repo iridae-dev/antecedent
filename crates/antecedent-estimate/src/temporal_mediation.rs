@@ -173,13 +173,6 @@ impl TemporalMediationEstimator {
         Self::default()
     }
 
-    /// Set the linear algebra backend.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set whether [`MediationContrast::NaturalDirect`] / [`MediationContrast::NaturalIndirect`]
     /// are treated as their controlled counterparts (linear alias).
     ///

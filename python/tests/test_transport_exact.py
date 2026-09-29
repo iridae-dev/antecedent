@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 from antecedent import Admg
+from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.transport import advanced as transport
 
 
@@ -30,6 +31,76 @@ def fixture():
     return identification, catalog, transport.ExactTransportData((law,))
 
 
+def test_prepared_fixed_graph_root_mechanism_sensitivity_smoke():
+    graph = Admg.from_edges(["u", "x", "y"], [("u", "x"), ("u", "y"), ("x", "y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["x"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    catalog = transport.EvidenceCatalog(
+        regimes=[
+            transport.EvidenceRegime(
+                "trial", "source", kind="experimental", interventions=["x"], measured=["u", "y"]
+            ),
+            transport.EvidenceRegime("population", "target", measured=["u"]),
+        ],
+        bindings=[
+            transport.RegimeBinding(
+                "trial", "source-snapshot", schema_names=["u", "y"], sampling="independent"
+            ),
+            transport.RegimeBinding(
+                "population", "target-snapshot", schema_names=["u"], sampling="independent"
+            ),
+        ],
+        target_sampling="supplied_population_law",
+    )
+    source = transport.ExactDiscreteLaw(
+        "source",
+        "trial",
+        (("u", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.6, 0.15, 0.175, 0.075),
+        "source-snapshot",
+        interventions=(("x", 1.0),),
+    )
+    target = transport.ExactDiscreteLaw(
+        "target", "population", (("u", (0.0, 1.0)),), (0.75, 0.25), "target-snapshot"
+    )
+    prepared = transport.prepare_exact(
+        identified, catalog, transport.ExactTransportData((source, target)), at={"x": 1.0}
+    )
+    report = prepared.mechanism_sensitivity(
+        outcome_values=[0.0, 1.0],
+        parent_cardinalities=[2, 2],
+        treatment_levels=(0, 1),
+        max_fraction=0.2,
+        source_kernel_regime=1,
+        source_kernel_snapshot="source-snapshot",
+        target_parent_regime=0,
+        target_parent_snapshot="target-snapshot",
+        source_kernel=[
+            ([0, 0], [0.8, 0.2]),
+            ([0, 1], [0.2, 0.8]),
+            ([1, 0], [0.7, 0.3]),
+            ([1, 1], [0.3, 0.7]),
+        ],
+        source_parent_law=[([0], 0.75), ([1], 0.25)],
+        target_parent_law=[
+            (0, [0], 0.75),
+            (0, [1], 0.25),
+            (1, [0], 0.75),
+            (1, [1], 0.25),
+        ],
+        decision_threshold=0.53,
+        perturbed_conditional_mechanism="u",
+    )
+    assert report["perturbed_conditional_mechanism"] == "u"
+    assert report["baseline"] == pytest.approx(0.55)
+    assert report["assumption_range"] == pytest.approx({"minimum": 0.52, "maximum": 0.56})
+    assert report["tipping_fraction"] == pytest.approx(2 / 15)
+
+
 def test_exact_full_distribution_and_native_display_authority():
     identified, catalog, data = fixture()
     assert identified.outcome == "identified"
@@ -44,14 +115,44 @@ def test_exact_full_distribution_and_native_display_authority():
     assert result.probabilities == pytest.approx((0.3, 0.7))
 
 
+def test_evaluate_exact_executes_the_retained_program_after_builder_disposal():
+    """Exact evaluation binds the retained checked derivation, not the graph or display fields."""
+    graph_builder = Admg.from_edges(["x", "y"], [("x", "y")])
+    identified = transport.identify_classical(
+        graph_builder,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    _, catalog, data = fixture()
+    program = identified.formula
+    assert program
+    del graph_builder
+    result = transport.evaluate_exact(identified, catalog, data, at={"x": 1.0})
+    # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
+    assert result.probabilities == pytest.approx((0.3, 0.7))
+    assert result.mean("y") == pytest.approx(0.7)
+    assert result.uncertainty is None
+    plan = result.inspect()
+    assert plan.identification.available
+    assert not plan.uncertainty.available
+    # Forged display fields cannot steer execution; the native derivation is authoritative.
+    edited = replace(identified, outcomes=("unrelated",), outcome="not_certified", formula="forged")
+    del identified
+    again = transport.evaluate_exact(edited, catalog, data, at={"x": 1.0})
+    assert again.outcomes == ("y",)
+    assert again.probabilities == pytest.approx((0.3, 0.7))
+    assert again.inspect().program_id == plan.program_id
+
+
 def test_exact_invalid_law_and_budgets():
     identified, catalog, data = fixture()
     bad = transport.ExactTransportData((replace(data.laws[0], probabilities=(0.0,) * 4),))
     with pytest.raises(ValueError, match="unnormalized_law"):
         transport.evaluate_exact(identified, catalog, bad, at={"x": 1.0})
-    with pytest.raises(ValueError, match="budget"):
+    with pytest.raises(CausalResourceError, match="budget"):
         transport.evaluate_exact(identified, catalog, data, at={"x": 1.0}, max_operations=1)
-    with pytest.raises(ValueError, match="memory[ _]budget"):
+    with pytest.raises(CausalResourceError, match="memory[ _]budget"):
         transport.evaluate_exact(identified, catalog, data, at={"x": 1.0}, memory_bytes=1)
 
 
@@ -153,6 +254,48 @@ def test_recursive_frontdoor_exact_distribution_matches_latent_enumeration():
     assert result.uncertainty is None
 
 
+def test_checked_exact_transport_execution_survives_builder_disposal():
+    """The prepared exact evaluator retains its checked target and replays independently."""
+    from antecedent import Admg
+
+    graph_builder = Admg.from_edges(["x", "y"], [("x", "y")])
+    builder = transport.identify_classical(
+        graph_builder,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    identification = builder
+    catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("observational", "target", measured=["x", "y"])],
+    )
+    law = transport.ExactDiscreteLaw(
+        "target",
+        "observational",
+        (("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+        (0.4, 0.1, 0.15, 0.35),
+        "oracle-law",
+    )
+    program = identification.formula
+    assert program
+    del builder, graph_builder
+    prepared = transport.prepare_exact(
+        identification,
+        catalog,
+        transport.ExactTransportData((law,)),
+        at={"x": 1.0},
+    )
+    del identification
+    retained_plan = prepared.inspect()
+    assert retained_plan.identification.available
+    result = prepared.estimate()
+    # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
+    assert result.probabilities == pytest.approx((0.3, 0.7))
+    consumer = transport.consume_exact(prepared.export())
+    assert consumer.inspect().program_id == retained_plan.program_id
+    assert consumer.estimate().probabilities == pytest.approx((0.3, 0.7))
+
+
 def test_inspect_does_not_evaluate_or_fit(monkeypatch):
     from antecedent import prepare
 
@@ -242,11 +385,36 @@ def test_common_prepared_lifecycle_export_consume_atomic_refresh():
     prepared.replace_snapshot(updated)
     assert prepared.inspect().program_id == before.program_id
     assert prepared.inspect().execution_id != before.execution_id
-    with pytest.raises(ValueError, match="no_execution_claim"):
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
         prepared.export()
-    with pytest.raises(ValueError, match="stale_request"):
+    with pytest.raises(CausalUnsupportedError, match="stale_request"):
         prepared._native.estimate(execution=before.execution_id)
     assert prepared.refresh(data) == result
+
+
+def test_consume_exact_estimates_from_the_embedded_law_after_builder_disposal():
+    """The consumer rechecks the embedded exact-law claim with no producer alive."""
+    from antecedent import load, prepare
+
+    identified, catalog, data = fixture()
+    producer_builder = prepare(
+        data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0})
+    )
+    plan = producer_builder.inspect()
+    assert plan.identification.available
+    result = producer_builder.estimate()
+    wire = producer_builder.export()
+    del producer_builder, identified, catalog, data
+    consumed = transport.consume_exact(wire)
+    assert consumed.inspect().program_id == plan.program_id
+    assert consumed.inspect().identification.available
+    assert not consumed.inspect().uncertainty.available
+    replay = consumed.estimate()
+    # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
+    assert replay.probabilities == pytest.approx((0.3, 0.7))
+    assert replay == result
+    assert consumed.export() == wire
+    assert load(wire).probabilities == result.probabilities
 
 
 def test_changed_evidence_contract_cannot_use_stale_preparation():
@@ -282,7 +450,7 @@ def test_changed_evidence_contract_cannot_use_stale_preparation():
     assert prepared.inspect().execution_id == before.execution_id
     assert prepared.refresh(data) == result
     # The old identification does not bind under the changed contract either.
-    with pytest.raises(ValueError, match="missing_evidence"):
+    with pytest.raises(CausalUnsupportedError, match="missing_evidence"):
         prepare(world, query=transport.ExactTransportQuery(identified, experimental, {"x": 1.0}))
 
 
@@ -294,6 +462,7 @@ def test_catalog_standardization_uses_only_supplied_target_covariate_marginal():
         outcomes=["y"],
         treatments=["x"],
     )
+    del graph
     catalog = transport.EvidenceCatalog(
         regimes=[
             transport.EvidenceRegime(
@@ -426,19 +595,19 @@ def test_cancelled_exact_click_and_prepare_publish_no_claim():
     artifact = prepared.export()
     identity = prepared.inspect().data_snapshot_id
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         retained.estimate()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         prepared.replace_snapshot(data, cancel=token)
     assert prepared.inspect().data_snapshot_id == identity
     assert prepared.export() == artifact
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         transport.consume_exact(artifact, cancel=token)
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         prepared.estimate(cancel=token)
-    with pytest.raises(ValueError, match="no_execution_claim"):
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
         prepared.export()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         prepare(
             data, query=transport.ExactTransportQuery(identified, catalog, {"x": 1.0}), cancel=token
         )
@@ -467,3 +636,123 @@ def test_catalog_diagnostics_distinguish_missing_evidence_and_future_experiments
     assert not report["finite_catalog_complete"]
     assert report["future_experiments"] == ["future"]
     assert report["missing_factors"]
+
+
+def test_inspect_catalog_diagnoses_the_retained_proof_after_builder_disposal():
+    """Catalog diagnostics read the retained proof; the same proof then executes when bound."""
+    graph_builder = Admg.from_edges(["x", "y"], [("x", "y")])
+    identified = transport.identify_classical(
+        graph_builder,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    program = identified.formula
+    assert program
+    del graph_builder
+    proposed = transport.EvidenceCatalog(
+        regimes=[
+            transport.EvidenceRegime(
+                "future",
+                "source",
+                kind="experimental",
+                interventions=["x"],
+                measured=["y"],
+                evidence_kind="proposed",
+            ),
+        ]
+    )
+    report = transport.inspect_catalog(identified, proposed)
+    assert report["outcome"] == "missing_evidence"
+    assert report["exhausted"]
+    assert not report["finite_catalog_complete"]
+    assert report["future_experiments"] == ["future"]
+    assert report["missing_factors"]
+    _, catalog, data = fixture()
+    bound = transport.inspect_catalog(identified, catalog)
+    assert bound["outcome"] == "identified"
+    assert bound["missing_factors"] == []
+    assert bound["future_experiments"] == []
+    plan = transport.prepare_exact(identified, catalog, data, at={"x": 1.0})
+    del identified
+    assert plan.inspect().identification.available
+    # Independent conditional-probability calculation: .35 / (.15 + .35) = .7.
+    assert plan.estimate().probabilities == pytest.approx((0.3, 0.7))
+
+
+def test_checked_proof_graph_names_factor_binding_failure():
+    graph = Admg.from_edges(["x", "y"], [("x", "y")])
+    identified = transport.identify_classical(
+        graph, transport.SelectionDiagram("source", "target", []), outcomes=["y"], treatments=["x"]
+    )
+    catalog = transport.EvidenceCatalog(regimes=[])
+    view = transport.inspect_proof_graph(identified, catalog)
+    assert view["steps"]
+    assert view["factors"]
+    assert any(leaf["binding_failure"] for leaf in view["factors"])
+    assert all(leaf["supplied_by"] is None for leaf in view["factors"])
+
+
+def test_classical_checked_program_and_catalog_proof_survive_graph_builder_disposal():
+    """Identification owns a checked expression and a proof of its factor bindings."""
+    graph = Admg.from_edges(["x", "y"], [("x", "y")])
+    identified = transport.identify_classical(
+        graph,
+        transport.SelectionDiagram("source", "target", ["y"]),
+        outcomes=["y"],
+        treatments=["x"],
+    )
+    builder = identified
+    del graph
+    catalog = transport.EvidenceCatalog(
+        regimes=[transport.EvidenceRegime("obs", "target", measured=["x", "y"])],
+    )
+    proof = transport.inspect_proof_graph(builder, catalog)
+    assert proof["steps"]
+    assert proof["factors"]
+    assert all(leaf["supplied_by"] == 0 for leaf in proof["factors"])
+    report = transport.inspect_catalog(builder, catalog)
+    assert report["outcome"] == "identified"
+    assert report["missing_factors"] == []
+    program = builder.formula
+    assert program is not None
+
+    # The native checked derivation and executable wire are retained independently
+    # of the graph/query objects used to ask for identification.
+    data = transport.ExactTransportData(
+        (
+            transport.ExactDiscreteLaw(
+                "target",
+                "obs",
+                (("x", (0.0, 1.0)), ("y", (0.0, 1.0))),
+                (0.4, 0.1, 0.15, 0.35),
+                "proof-bound-law",
+            ),
+        )
+    )
+    prepared = transport.prepare_exact(builder, catalog, data, at={"x": 1.0})
+    del builder, identified
+    assert prepared.estimate().probabilities == pytest.approx((0.3, 0.7))
+    assert transport.consume_exact(prepared.export()).estimate().probabilities == pytest.approx(
+        (0.3, 0.7)
+    )
+
+
+def test_hypothetical_catalog_delta_does_not_change_supplied_evidence():
+    base = transport.EvidenceCatalog.empty()
+    proposal = transport.EvidenceCatalogDelta(
+        [
+            transport.EvidenceRegime(
+                "future",
+                "source",
+                kind="experimental",
+                evidence_kind="proposed",
+                interventions=["z"],
+                measured=["x", "y"],
+            )
+        ]
+    )
+    preview = proposal.preview(base)
+    assert not base.has_available_experiment("source", ["z"])
+    assert preview.has_available_experiment("source", ["z"])
+    assert proposal.proposed_regimes[0].evidence_kind == "proposed"

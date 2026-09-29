@@ -57,6 +57,7 @@ bash scripts/gate_transport.sh     # transport stage contracts; every fixture fa
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
+bash scripts/gate_checked_execution.sh   # every licensed estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
@@ -429,7 +430,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **2.0.0**).
+Workspace and Python package version are kept in sync (currently **2.1.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.

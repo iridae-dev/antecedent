@@ -22,9 +22,15 @@ use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use antecedent_expr::CausalExprArena;
+use antecedent_expr::{
+    Assignment, CausalExprArena, DistributionProvider, EvalContext, EvalError, FactorSpec,
+    FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
+};
 use antecedent_identify::lower_transport_formula;
-use antecedent_io::{expr_arena_from_wire, expr_arena_to_wire};
+use antecedent_io::{
+    ExprArenaWire, FunctionalProgramWire, expr_arena_from_wire, expr_arena_to_wire,
+    functional_program_from_wire, functional_program_to_wire,
+};
 
 use crate::graphs::Admg;
 use crate::response_api::build_functional;
@@ -70,11 +76,271 @@ struct TransportIdentificationResult {
     expr_root: Option<u32>,
     #[pyo3(get)]
     expr_wire_json: Option<String>,
+    graph_names: Vec<String>,
+    graph: Admg,
+    original_catalog: Option<antecedent_core::EvidenceCatalog>,
+    identification_arena: Option<ExprArenaWire>,
     // Deliberately NOT exposed via `#[pyo3(get)]`. `estimate_trial_transport` gates on this
     // field, so it must hold the certificate this class was actually constructed with rather
     // than a value a caller could set from Python (this pyclass has no `#[new]` and no
     // setters, so a Python caller cannot forge or mutate one either).
     identification: TransportIdentification,
+}
+
+#[pyclass(skip_from_py_object)]
+struct CheckedTransportProgram {
+    program: FunctionalProgram,
+    graph: Admg,
+    original_catalog: Option<antecedent_core::EvidenceCatalog>,
+    identification: TransportIdentification,
+}
+
+struct FuelProvider<'a> {
+    data: &'a antecedent_expr::ExactTransportData,
+    remaining: std::cell::Cell<usize>,
+}
+
+impl FuelProvider<'_> {
+    fn charge(&self, amount: usize) -> Result<(), EvalError> {
+        let remaining = self.remaining.get();
+        if amount > remaining {
+            return Err(EvalError::ProviderKind("functional evaluation operation budget exceeded"));
+        }
+        self.remaining.set(remaining - amount);
+        Ok(())
+    }
+}
+
+impl DistributionProvider for FuelProvider<'_> {
+    fn probability(
+        &self,
+        spec: &FactorSpec<'_>,
+        assignment: &Assignment,
+        ctx: &EvalContext,
+    ) -> Result<f64, EvalError> {
+        self.charge(1)?;
+        self.data.probability(spec, assignment, ctx)
+    }
+
+    fn support(
+        &self,
+        variables: &[VariableId],
+        ctx: &EvalContext,
+    ) -> Result<std::sync::Arc<[std::sync::Arc<[antecedent_core::Value]>]>, EvalError> {
+        let rows = self.data.support(variables, ctx)?;
+        self.charge(rows.len())?;
+        Ok(rows)
+    }
+
+    fn outcome(
+        &self,
+        variable: VariableId,
+        assignment: &Assignment,
+        ctx: &EvalContext,
+    ) -> Result<f64, EvalError> {
+        self.charge(1)?;
+        self.data.outcome(variable, assignment, ctx)
+    }
+
+    fn n_draws(&self) -> Option<usize> {
+        None
+    }
+}
+
+#[pymethods]
+impl CheckedTransportProgram {
+    #[getter]
+    fn source_root(&self) -> u32 {
+        self.program.mapping().source.raw()
+    }
+
+    #[getter]
+    fn executable_root(&self) -> u32 {
+        self.program.mapping().executable.raw()
+    }
+
+    fn to_wire_json(&self) -> PyResult<String> {
+        let wire = functional_program_to_wire(&self.program).map_err(py_err)?;
+        serde_json::to_string(&wire).map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
+    #[pyo3(signature=(catalog=None, laws=None, at=None, *, max_support_rows=100_000, max_operations=1_000_000))]
+    fn evaluate_exact(
+        &self,
+        catalog: Option<&Bound<'_, PyAny>>,
+        laws: Option<&Bound<'_, PyAny>>,
+        at: Option<std::collections::BTreeMap<String, f64>>,
+        max_support_rows: usize,
+        max_operations: usize,
+    ) -> PyResult<f64> {
+        verify_program_matches_identification(
+            &self.program,
+            &self.identification,
+            &self.graph.names,
+        )?;
+        if max_operations == 0 {
+            return Err(PyValueError::new_err(
+                "functional evaluation operation budget must be positive",
+            ));
+        }
+        let catalog = catalog.ok_or_else(|| {
+            PyValueError::new_err("checked functional execution requires a provider catalog")
+        })?;
+        let laws = laws.ok_or_else(|| {
+            PyValueError::new_err("checked functional execution requires provider laws")
+        })?;
+        let catalog = crate::transport_interference_api::parse_catalog(catalog, &self.graph)?;
+        let original_catalog = self.original_catalog.as_ref().ok_or_else(|| {
+            PyValueError::new_err(
+                "checked functional execution has no catalog bound during identification",
+            )
+        })?;
+        if &catalog != original_catalog {
+            return Err(PyValueError::new_err(
+                "provider catalog differs from the catalog bound during identification",
+            ));
+        }
+        let data = crate::transport_exact_api::parse_exact_data(
+            laws,
+            &catalog,
+            &self.graph,
+            max_support_rows,
+        )?;
+        let request = Assignment::from_pairs(
+            at.unwrap_or_default()
+                .into_iter()
+                .map(|(name, value)| {
+                    let variable = crate::transport_common::resolve(&self.graph.names, &name)?;
+                    Ok((variable, antecedent_core::Value::f64(value)))
+                })
+                .collect::<PyResult<Vec<_>>>()?,
+        );
+        let provider =
+            FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
+        let evaluator =
+            self.program.compile().map_err(|error| PyValueError::new_err(error.to_string()))?;
+        evaluator
+            .evaluate_with(&provider, &EvalContext::default(), &request)
+            .map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+}
+
+fn checked_program_from_identification(
+    identification: &TransportIdentificationResult,
+) -> PyResult<FunctionalProgram> {
+    let retained_arena = identification.identification_arena.as_ref().ok_or_else(|| {
+        PyValueError::new_err("identification has no lowered expression to reload")
+    })?;
+    let retained_root = identification
+        .expr_root
+        .ok_or_else(|| PyValueError::new_err("identification has no lowered expression root"))?;
+    let (proof_arena, proof_root) = lower_identified_formula(&identification.identification)?;
+    if &proof_arena != retained_arena || proof_root != retained_root {
+        return Err(PyValueError::new_err(
+            "lowered expression does not match its retained transport identification proof",
+        ));
+    }
+    checked_program_from_proof(&identification.identification, &identification.graph_names)
+}
+
+fn checked_program_from_wire(
+    identification: &TransportIdentificationResult,
+    wire_json: &str,
+) -> PyResult<FunctionalProgram> {
+    let wire: FunctionalProgramWire = serde_json::from_str(wire_json)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let expected = checked_program_from_identification(identification)?;
+    let expected_wire = functional_program_to_wire(&expected).map_err(py_err)?;
+    if wire != expected_wire {
+        return Err(PyValueError::new_err(
+            "checked functional program does not match its retained transport identification proof",
+        ));
+    }
+    functional_program_from_wire(&wire, ProgramLimits::default())
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+fn lower_identified_formula(
+    identification: &TransportIdentification,
+) -> PyResult<(ExprArenaWire, u32)> {
+    let TransportIdentification::Transportable { formula, certificate } = identification else {
+        return Err(PyValueError::new_err(
+            "checked functional program requires a positive transport identification proof",
+        ));
+    };
+    let mut arena = CausalExprArena::new();
+    let root = lower_transport_formula(&mut arena, formula);
+    antecedent_identify::bind_transport_derivation(
+        &mut arena,
+        root,
+        certificate,
+        "catalog-bound transport formula",
+    );
+    Ok((expr_arena_to_wire(&arena).map_err(py_err)?, root.raw()))
+}
+
+fn checked_program_from_proof(
+    identification: &TransportIdentification,
+    names: &[String],
+) -> PyResult<FunctionalProgram> {
+    let (arena_wire, root) = lower_identified_formula(identification)?;
+    let arena = expr_arena_from_wire(&arena_wire).map_err(py_err)?;
+    let schema = ProgramSchema::new(
+        names
+            .iter()
+            .map(|name| {
+                Ok((
+                    crate::transport_common::resolve(names, name)?,
+                    ProgramVariable { name: Arc::from(name.as_str()) },
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?,
+    );
+    FunctionalProgram::new(
+        arena,
+        schema,
+        antecedent_expr::ExprId::from_raw(root),
+        antecedent_expr::ExprId::from_raw(root),
+        ProgramLimits::default(),
+    )
+    .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+fn verify_program_matches_identification(
+    program: &FunctionalProgram,
+    identification: &TransportIdentification,
+    names: &[String],
+) -> PyResult<()> {
+    let expected = checked_program_from_proof(identification, names)?;
+    if functional_program_to_wire(program).map_err(py_err)?
+        != functional_program_to_wire(&expected).map_err(py_err)?
+    {
+        return Err(PyValueError::new_err(
+            "checked functional program no longer matches its transport identification proof",
+        ));
+    }
+    Ok(())
+}
+
+#[pymethods]
+impl TransportIdentificationResult {
+    fn reload_checked_program(&self) -> PyResult<CheckedTransportProgram> {
+        Ok(CheckedTransportProgram {
+            program: checked_program_from_identification(self)?,
+            graph: self.graph.clone(),
+            original_catalog: self.original_catalog.clone(),
+            identification: self.identification.clone(),
+        })
+    }
+
+    fn load_checked_program(&self, wire_json: &str) -> PyResult<CheckedTransportProgram> {
+        Ok(CheckedTransportProgram {
+            program: checked_program_from_wire(self, wire_json)?,
+            graph: self.graph.clone(),
+            original_catalog: self.original_catalog.clone(),
+            identification: self.identification.clone(),
+        })
+    }
 }
 
 #[pyclass(skip_from_py_object)]
@@ -179,10 +445,46 @@ pub(crate) struct InterferenceSection {
     to_probability_method: String,
     #[pyo3(get)]
     minimum_exposure_probability: f64,
+    #[pyo3(get)]
+    from_exposed_units: Option<usize>,
+    #[pyo3(get)]
+    to_exposed_units: Option<usize>,
+    #[pyo3(get)]
+    from_exposed_clusters: Option<usize>,
+    #[pyo3(get)]
+    to_exposed_clusters: Option<usize>,
+    #[pyo3(get)]
+    clusters: Option<usize>,
+    #[pyo3(get)]
+    maximum_exposure_probability: Option<f64>,
+    #[pyo3(get)]
+    pointwise_interval: Option<(f64, f64, f64, f64, usize, usize, String)>,
+    #[pyo3(get)]
+    interval_unavailable_reason: Option<String>,
+    #[pyo3(get)]
+    graphless_support_status: Option<String>,
 }
 
 impl InterferenceSection {
-    pub(crate) fn from_estimate(estimate: &antecedent::estimate::InterferenceEstimate) -> Self {
+    pub(crate) fn from_estimate(
+        estimate: &antecedent::estimate::InterferenceEstimate,
+        diagnostics: &[antecedent_core::Diagnostic],
+        inference: Option<&antecedent::result::InterferenceInference>,
+    ) -> Self {
+        let fields = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code.as_ref() == "estimate.interference.observational_ipw"
+            })
+            .map(|diagnostic| diagnostic.fields.as_ref());
+        let field = |key: &str| {
+            fields.and_then(|values| {
+                values
+                    .iter()
+                    .find(|(name, _)| name.as_ref() == key)
+                    .map(|(_, value)| value.as_ref())
+            })
+        };
         Self {
             horvitz_thompson: estimate.contrast.horvitz_thompson,
             hajek: estimate.contrast.hajek,
@@ -190,6 +492,44 @@ impl InterferenceSection {
             from_probability_method: probability_method(estimate.from_probability_method),
             to_probability_method: probability_method(estimate.to_probability_method),
             minimum_exposure_probability: estimate.minimum_exposure_probability,
+            from_exposed_units: inference
+                .map(|v| v.from_exposed_units)
+                .or_else(|| field("from_exposed_units").and_then(|v| v.parse().ok())),
+            to_exposed_units: inference
+                .map(|v| v.to_exposed_units)
+                .or_else(|| field("to_exposed_units").and_then(|v| v.parse().ok())),
+            from_exposed_clusters: inference
+                .map(|v| v.from_exposed_clusters)
+                .or_else(|| field("from_exposed_clusters").and_then(|v| v.parse().ok())),
+            to_exposed_clusters: inference
+                .map(|v| v.to_exposed_clusters)
+                .or_else(|| field("to_exposed_clusters").and_then(|v| v.parse().ok())),
+            clusters: inference
+                .and_then(|v| {
+                    v.interval
+                        .as_ref()
+                        .map(|interval| interval.first_stage_arm_clusters.iter().sum())
+                })
+                .or_else(|| field("clusters").and_then(|v| v.parse().ok())),
+            maximum_exposure_probability: field("maximum_exposure_probability")
+                .and_then(|v| v.parse().ok()),
+            pointwise_interval: inference.and_then(|v| {
+                v.interval.as_ref().map(|interval| {
+                    (
+                        interval.lower,
+                        interval.upper,
+                        interval.standard_error,
+                        interval.degrees_of_freedom,
+                        interval.first_stage_arm_clusters[0],
+                        interval.first_stage_arm_clusters[1],
+                        v.method.to_string(),
+                    )
+                })
+            }),
+            interval_unavailable_reason: inference
+                .and_then(|v| v.interval_unavailable_reason.map(str::to_string)),
+            graphless_support_status: inference
+                .and_then(|v| v.graphless_support_status.map(|status| status.as_str().to_string())),
         }
     }
 }
@@ -252,6 +592,13 @@ pub(crate) struct InterferenceArgs {
     pub(crate) treated: usize,
     pub(crate) clusters: Vec<u32>,
     pub(crate) treated_clusters: usize,
+    pub(crate) low_probability: f64,
+    pub(crate) high_probability: f64,
+    pub(crate) realized_saturation: Vec<f64>,
+    pub(crate) propensity_from: Vec<f64>,
+    pub(crate) propensity_to: Vec<f64>,
+    pub(crate) propensity_provenance: String,
+    pub(crate) assume_network_exchangeability: bool,
     pub(crate) exposure: String,
     pub(crate) from_level: (f64, f64),
     pub(crate) to_level: (f64, f64),
@@ -271,6 +618,30 @@ pub(crate) fn interference_query(
         "cluster" => AssignmentDesign::ClusterRandomization {
             clusters: args.clusters.into(),
             treated_clusters: args.treated_clusters,
+        },
+        "saturation" => AssignmentDesign::TwoStageSaturation {
+            clusters: args.clusters.into(),
+            low_probability: args.low_probability,
+            high_probability: args.high_probability,
+            high_clusters: args.treated_clusters,
+            realized_saturation: args.realized_saturation.into(),
+        },
+        "observed_exposure" => AssignmentDesign::ObservedExposure {
+            clusters: args.clusters.into(),
+            propensity_from: args.propensity_from.into(),
+            propensity_to: args.propensity_to.into(),
+            provenance: match args.propensity_provenance.as_str() {
+                "known" => antecedent_core::ExposurePropensityProvenance::Known,
+                "externally_estimated" => {
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
+                }
+                _ => {
+                    return Err(PyValueError::new_err(
+                        "propensity_provenance must be known or externally_estimated",
+                    ));
+                }
+            },
+            assume_network_exchangeability: args.assume_network_exchangeability,
         },
         _ => return Err(PyValueError::new_err("unknown assignment design")),
     };
@@ -335,18 +706,21 @@ fn identify_transport(
         &source_experiments,
         resolve,
     )?;
-    if let Some(catalog) = catalog {
-        query = query
-            .with_catalog(parse_catalog(catalog, &graph)?)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    }
+    let original_catalog = if let Some(catalog) = catalog {
+        let parsed = parse_catalog(catalog, &graph)?;
+        query =
+            query.with_catalog(parsed.clone()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Some(parsed)
+    } else {
+        None
+    };
     let selection_ids = resolve_names(&graph, &selections)?;
     let diagram = SelectionDiagram::try_new(graph.aligned_to_names(&graph.names)?, selection_ids)
         .map_err(py_err)?;
     let result = TransportIdentifier::new()
         .identify(&diagram, &query)
         .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-    transport_result(result, &graph.names)
+    transport_result(result, &graph, original_catalog)
 }
 
 pub(crate) fn parse_catalog(
@@ -555,8 +929,10 @@ fn variable_names(ids: &[VariableId], names: &[String]) -> PyResult<Vec<String>>
 
 fn transport_result(
     result: TransportIdentification,
-    names: &[String],
+    graph: &Admg,
+    original_catalog: Option<antecedent_core::EvidenceCatalog>,
 ) -> PyResult<TransportIdentificationResult> {
+    let names = &graph.names;
     let mut out = TransportIdentificationResult {
         transportable: false,
         outcome: result.outcome().kind.as_str().to_owned(),
@@ -577,6 +953,10 @@ fn transport_result(
         leaf_regimes: Vec::new(),
         expr_root: None,
         expr_wire_json: None,
+        graph_names: names.clone(),
+        graph: Admg { admg: graph.admg.clone(), names: names.clone() },
+        original_catalog,
+        identification_arena: None,
         identification: result.clone(),
     };
     match result {
@@ -633,6 +1013,7 @@ fn transport_result(
             }
             out.expr_root = Some(root.raw());
             let wire = expr_arena_to_wire(&arena).map_err(py_err)?;
+            out.identification_arena = Some(wire.clone());
             out.expr_wire_json = Some(
                 serde_json::to_string(&wire).map_err(|e| PyValueError::new_err(e.to_string()))?,
             );
@@ -773,6 +1154,13 @@ fn estimate_network_interference(
             treated,
             clusters,
             treated_clusters,
+            low_probability: 0.0,
+            high_probability: 0.0,
+            realized_saturation: Vec::new(),
+            propensity_from: Vec::new(),
+            propensity_to: Vec::new(),
+            propensity_provenance: "known".into(),
+            assume_network_exchangeability: false,
             exposure,
             from_level,
             to_level,
@@ -806,11 +1194,16 @@ fn probability_method(method: antecedent_stats::ExposureProbabilityMethod) -> St
         antecedent_stats::ExposureProbabilityMethod::MonteCarlo { draws, seed } => {
             format!("monte_carlo(draws={draws},seed={seed})")
         }
+        antecedent_stats::ExposureProbabilityMethod::SuppliedKnown => "supplied_known".into(),
+        antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated => {
+            "supplied_externally_estimated".into()
+        }
     }
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TransportIdentificationResult>()?;
+    m.add_class::<CheckedTransportProgram>()?;
     m.add_class::<TrialTransportResult>()?;
     m.add_class::<InterferenceAnalysisResult>()?;
     m.add_class::<TransportSection>()?;

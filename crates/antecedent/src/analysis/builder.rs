@@ -142,19 +142,41 @@ fn refuse_unlicensed_transport(query: &antecedent_core::TransportQuery) -> Resul
     }
 }
 
-/// Refuse an interference design outside the licensed cell (NeighborCount
-/// exposure under Bernoulli assignment).
+/// Refuse interference designs without a checked execution path.
 fn refuse_unlicensed_interference(
     query: &antecedent_core::InterferenceQuery,
 ) -> Result<(), CausalError> {
-    let licensed = matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
-        && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount);
+    let licensed =
+        (matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+            && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount))
+            || (matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+            ) && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborFraction))
+            || (matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+            ) && matches!(
+                query.exposure,
+                antecedent_core::ExposureMapping::NeighborCount
+                    | antecedent_core::ExposureMapping::NeighborFraction
+                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
+            ))
+            || (matches!(
+                query.assignment,
+                antecedent_core::AssignmentDesign::ObservedExposure { .. }
+            ) && matches!(
+                query.exposure,
+                antecedent_core::ExposureMapping::NeighborCount
+                    | antecedent_core::ExposureMapping::NeighborFraction
+                    | antecedent_core::ExposureMapping::WeightedNeighborExposure
+            ));
     if licensed {
         Ok(())
     } else {
         Err(crate::support_reason!(
             "construction_not_licensed",
-            "InterferenceQuery is licensed for NeighborCount exposure under Bernoulli assignment"
+            "InterferenceQuery supports Bernoulli/NeighborCount, cluster total effects, exact two-stage saturation, or supplied-propensity observational exposure with built-in neighbor mappings"
         ))
     }
 }
@@ -407,7 +429,10 @@ fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
         GraphClass::Admg => graph.as_admg().map(Admg::node_count),
         GraphClass::Cpdag => graph.as_cpdag().map(Cpdag::node_count),
         GraphClass::Pag => graph.as_pag().map(Pag::node_count),
-        GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => None,
+        GraphClass::TemporalDag
+        | GraphClass::TemporalCpdag
+        | GraphClass::TemporalPag
+        | GraphClass::RandomizedTrial => None,
     }
 }
 
@@ -638,6 +663,13 @@ fn refuse_estimator_inference_mismatch(
     match inference {
         InferenceMode::Frequentist => match estimator {
             EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
+            EstimatorId::BayesianBasisGcomp => bayesian!("bayesian.basis.gcomp"),
+            EstimatorId::BayesianIvJointLinear => bayesian!("iv.bayesian_joint_linear"),
+            EstimatorId::BayesianRdLocalLinear => bayesian!("rd.bayesian_local_linear"),
+            EstimatorId::BayesianRobustAte => bayesian!("bayesian.robust_ate"),
+            EstimatorId::TransportTrialBayesianBootstrap => {
+                bayesian!("transport.trial_bayesian_bootstrap")
+            }
             EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
             EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
             EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
@@ -675,6 +707,15 @@ fn refuse_estimator_inference_mismatch(
                 EstimatorId::CellAipw => frequentist!("cell.aipw"),
                 EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
                 EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
+                EstimatorId::InterferenceClusterNeyman => {
+                    frequentist!("interference.cluster_neyman")
+                }
+                EstimatorId::InterferenceSaturationExact => {
+                    frequentist!("interference.saturation_exact")
+                }
+                EstimatorId::InterferenceObservationalIpw => {
+                    frequentist!("interference.observational_ipw")
+                }
                 _ => Ok(()),
             }
         }
@@ -686,7 +727,7 @@ fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &InferenceMode) -
         CausalQuery::Response(q) => {
             q.is_temporal() && matches!(inference, InferenceMode::Frequentist)
         }
-        CausalQuery::Counterfactual(_) => false,
+        CausalQuery::Counterfactual(_) | CausalQuery::NestedCounterfactual(_) => false,
         _ => true,
     }
 }
@@ -751,21 +792,31 @@ fn refuse_unsupported_likelihood(
              Poisson likelihood fits under the isotropic prior_scale only"
         ));
     }
+    let supported_query = match query {
+        CausalQuery::AverageEffect(q) => {
+            matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+        }
+        CausalQuery::ConditionalEffect(q) => {
+            matches!(q.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+        }
+        CausalQuery::Response(q) => matches!(
+            q.functional,
+            antecedent_core::ResponseFunctional::MeanCurve { .. }
+                | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+        ),
+        _ => false,
+    };
     let licensed = matches!(data, DataInput::Tabular(_))
         && class == GraphClass::Dag
         && structure_fixed
-        && matches!(
-            query,
-            CausalQuery::AverageEffect(q)
-                if matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
-        );
+        && supported_query;
     if licensed {
         return Ok(());
     }
     Err(crate::unsupported_reason!(
         "likelihood_not_supported",
         "a Bernoulli or Poisson likelihood is fitted by Bayesian g-computation of a tabular \
-         AverageEffect mean on one Dag only; this route fits a Gaussian identity-link model or \
+         AverageEffect or ConditionalEffect mean, or a static response level, on one Dag only; this route fits a Gaussian identity-link model or \
          mixes structures, so it refuses the likelihood rather than fit a different model than \
          the one declared"
     ))
@@ -1008,10 +1059,13 @@ impl StudyBuilder {
     pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
         let q = query.into();
         if self.estimator_spec.is_none()
-            && matches!(self.estimator, Some(EstimatorId::BayesianGcomp))
+            && matches!(
+                self.estimator,
+                Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
+            )
         {
             match &q {
-                CausalQuery::AverageEffect(_) => {}
+                CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_) => {}
                 CausalQuery::TemporalEffect(_) => {
                     self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
                 }
@@ -1191,7 +1245,10 @@ impl StudyBuilder {
     /// Temporal queries keep [`EstimatorId::TemporalLinearAdjustment`].
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
-        if matches!(mode, InferenceMode::Bayesian(_)) && self.estimator_spec.is_none() {
+        if matches!(mode, InferenceMode::Bayesian(_))
+            && self.estimator_spec.is_none()
+            && !matches!(self.estimator, Some(EstimatorId::BayesianBasisGcomp))
+        {
             match &self.query {
                 None | Some(CausalQuery::AverageEffect(_)) => {
                     self.estimator = Some(EstimatorId::BayesianGcomp);
@@ -1206,7 +1263,10 @@ impl StudyBuilder {
         }
         if matches!(mode, InferenceMode::Frequentist)
             && self.estimator_spec.is_none()
-            && self.estimator == Some(EstimatorId::BayesianGcomp)
+            && matches!(
+                self.estimator,
+                Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
+            )
         {
             self.estimator = None;
         }
@@ -1327,6 +1387,23 @@ impl StudyBuilder {
                 let stub = stub_accepted_graph_for(&data, gp.n_vars, gp.atom_kind)?;
                 (stub, Some(gp))
             }
+            (None, None)
+                if matches!(
+                    self.query,
+                    Some(
+                        CausalQuery::RandomizedEffect(_)
+                            | CausalQuery::PolicyValue(_)
+                            | CausalQuery::ContinuousDoseResponse(_)
+                            | CausalQuery::PanelDid(_)
+                            | CausalQuery::SyntheticControl(_)
+                            | CausalQuery::LocalPolynomialRatio(_)
+                            | CausalQuery::Survival(_)
+                            | CausalQuery::LongitudinalRegime(_)
+                    )
+                ) =>
+            {
+                (AcceptedGraph::randomized_trial(data_schema(&data)), None)
+            }
             (None, None) => return Err(CausalError::Missing { field: "graph" }),
         };
         let mut refute = self.refute;
@@ -1386,12 +1463,162 @@ impl StudyBuilder {
         }
 
         let mut query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        if matches!(
+            query,
+            CausalQuery::RandomizedEffect(_)
+                | CausalQuery::PolicyValue(_)
+                | CausalQuery::ContinuousDoseResponse(_)
+                | CausalQuery::PanelDid(_)
+                | CausalQuery::SyntheticControl(_)
+                | CausalQuery::LocalPolynomialRatio(_)
+                | CausalQuery::Survival(_)
+                | CausalQuery::LongitudinalRegime(_)
+        ) {
+            if let CausalQuery::RandomizedEffect(randomized) = &query {
+                let expected = match &randomized.design {
+                    antecedent_core::RandomizationDesign::Bernoulli => {
+                        if randomized.received_treatment.is_some() {
+                            EstimatorId::RandomizedWaldCace
+                        } else if randomized.fixed_cuped.is_some() {
+                            EstimatorId::RandomizedFixedCupedHt
+                        } else if !randomized.ancova_covariates.is_empty() {
+                            EstimatorId::RandomizedAncova
+                        } else {
+                            EstimatorId::RandomizedHt
+                        }
+                    }
+                    antecedent_core::RandomizationDesign::Complete { .. }
+                    | antecedent_core::RandomizationDesign::Stratified { .. }
+                    | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
+                    | antecedent_core::RandomizationDesign::Cluster { .. } => {
+                        EstimatorId::RandomizedNeyman
+                    }
+                    antecedent_core::RandomizationDesign::MultiArm { .. } => {
+                        EstimatorId::RandomizedHt
+                    }
+                    antecedent_core::RandomizationDesign::Switchback { .. } => {
+                        EstimatorId::RandomizedSwitchbackHt
+                    }
+                };
+                if self.estimator.is_some_and(|id| id != expected) {
+                    return Err(CausalError::Unsupported {
+                        message: "the selected randomized estimator does not match the assignment design",
+                    });
+                }
+            }
+            if let CausalQuery::PolicyValue(policy) = &query {
+                let expected = if policy.multi_action.is_some() {
+                    EstimatorId::RandomizedMultiActionIpwPolicy
+                } else if policy.mu0.is_empty() {
+                    EstimatorId::RandomizedIpwPolicy
+                } else {
+                    EstimatorId::RandomizedDrPolicy
+                };
+                if self.estimator.is_some_and(|id| id != expected) {
+                    return Err(CausalError::Unsupported {
+                        message: "the selected policy estimator does not match its frozen inputs",
+                    });
+                }
+            }
+            if matches!(query, CausalQuery::Survival(_))
+                && self
+                    .estimator
+                    .is_some_and(|id| id != EstimatorId::RandomizedSurvivalProductLimit)
+            {
+                return Err(CausalError::Unsupported {
+                    message: "randomized survival requires the product-limit estimator",
+                });
+            }
+            if let CausalQuery::LongitudinalRegime(regime) = &query {
+                let expected = match regime.method {
+                    antecedent_core::LongitudinalRegimeMethod::Ipw => {
+                        EstimatorId::LongitudinalIpwRegime
+                    }
+                    antecedent_core::LongitudinalRegimeMethod::GFormula => {
+                        EstimatorId::LongitudinalGFormulaRegime
+                    }
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                        EstimatorId::LongitudinalSequentialDrRegime
+                    }
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                        EstimatorId::LongitudinalMarginalStructuralModel
+                    }
+                };
+                if self.estimator.is_some_and(|id| id != expected) {
+                    return Err(CausalError::Unsupported {
+                        message: "longitudinal regime estimator must match the selected method",
+                    });
+                }
+            }
+            if graph.class() != GraphClass::RandomizedTrial {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries carry their own identification contract and must not be combined with graph= or discovery=",
+                });
+            }
+            if !matches!(inference, InferenceMode::Frequentist) {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries currently support Frequentist inference only",
+                });
+            }
+            if self.identifier.is_some_and(|id| id != IdentifierId::RandomizedDesign)
+                || self.estimator.is_some_and(|id| {
+                    !matches!(
+                        id,
+                        EstimatorId::RandomizedHt
+                            | EstimatorId::RandomizedFixedCupedHt
+                            | EstimatorId::RandomizedAncova
+                            | EstimatorId::RandomizedWaldCace
+                            | EstimatorId::RandomizedSwitchbackHt
+                            | EstimatorId::RandomizedNeyman
+                            | EstimatorId::RandomizedSurvivalProductLimit
+                            | EstimatorId::LongitudinalIpwRegime
+                            | EstimatorId::LongitudinalGFormulaRegime
+                    )
+                })
+                || self.estimator_spec.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "design-based query estimators are fixed; custom estimators are not accepted",
+                });
+            }
+            if (self.refute_explicit && refute != RefuteSuite::None)
+                || !self.custom_validators.is_empty()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries have no refutation suite or custom validator route",
+                });
+            }
+            if self.bootstrap_explicit
+                && bootstrap_replicates != 0
+                && !matches!(query, CausalQuery::Survival(_))
+            {
+                return Err(CausalError::Unsupported {
+                    message: "this design-based query does not support bootstrap intervals",
+                });
+            }
+            refute = RefuteSuite::None;
+            if !matches!(query, CausalQuery::Survival(_)) || !self.bootstrap_explicit {
+                bootstrap_replicates = 0;
+            }
+            if self.split.is_some()
+                || self.tiered.is_some()
+                || self.selection_targets.is_some()
+                || self.transport_trial.is_some()
+                || self.interference.is_some()
+                || self.rd.is_some()
+                || self.population_registry.is_some()
+            {
+                return Err(CausalError::Unsupported {
+                    message: "design-based queries do not accept discovery splits, graph, transport, interference, RD, or population options",
+                });
+            }
+        }
         // A sharp RD design identifies the effect for units at its cutoff and nothing
         // else. A study that selects it while leaving the population at the default is
         // retargeted to that population here, so the contract, the calibration key and
         // the result all name the estimand that is actually identified; the
         // identification diagnostics say that the population-wide effect was not.
-        if self.estimator == Some(EstimatorId::RdSharp)
+        if matches!(self.estimator, Some(EstimatorId::RdSharp | EstimatorId::BayesianRdLocalLinear))
             || self.identifier == Some(crate::IdentifierId::RdSharp)
         {
             if let (Some(rd), CausalQuery::AverageEffect(average)) = (self.rd.as_ref(), &mut query)
@@ -1451,6 +1678,8 @@ impl StudyBuilder {
         }
         let structure = if graph_posterior.is_some() {
             crate::support::StructureSource::GraphPosterior
+        } else if graph.class() == GraphClass::RandomizedTrial {
+            crate::support::StructureSource::RandomizedTrial
         } else {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
@@ -1712,7 +1941,15 @@ impl StudyBuilder {
                                         | antecedent_core::ResponseFunctional::MeanCurve { .. }
                                 )
                     );
-                if spec.id() != expected && !cell_aipw_ok && !admg_functional_ok {
+                let basis_gcomp_ok = spec.id() == EstimatorId::BayesianBasisGcomp
+                    && bayesian
+                    && graph_class == GraphClass::Dag
+                    && matches!(
+                        &query,
+                        CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_)
+                    );
+                if spec.id() != expected && !cell_aipw_ok && !admg_functional_ok && !basis_gcomp_ok
+                {
                     return Err(crate::compile_reason!(
                         "strategy_incompatible",
                         "query and inference require estimator {}; got {}",
@@ -1801,7 +2038,7 @@ impl StudyBuilder {
         if !inspect_only {
             crate::support::refuse_undeclared_off_axis(&query)?;
         }
-        let support_status = if let Some(cell) =
+        let mut support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
             // Geometric n/a / refused still refuse the build (except inspect).
@@ -1841,6 +2078,31 @@ impl StudyBuilder {
         } else {
             None
         };
+        // The matrix's InterferenceQuery/Frequentist cell licenses only Bernoulli +
+        // NeighborCount and its Young-bound calibration. A cluster total effect has
+        // separate execution evidence but no matrix cell or interval calibration yet.
+        if matches!(&query, CausalQuery::Interference(q)
+            if matches!(q.assignment, antecedent_core::AssignmentDesign::ClusterRandomization { .. } | antecedent_core::AssignmentDesign::TwoStageSaturation { .. } | antecedent_core::AssignmentDesign::ObservedExposure { .. }))
+        {
+            support_status = None;
+        }
+
+        if !inspect_only
+            && matches!(
+                self.estimator,
+                Some(
+                    EstimatorId::BayesianIvJointLinear
+                        | EstimatorId::BayesianRdLocalLinear
+                        | EstimatorId::BayesianBasisGcomp
+                        | EstimatorId::BayesianRobustAte
+                )
+            )
+            && support_status != Some(crate::support::CellStatus::Licensed)
+        {
+            return Err(CausalError::Unsupported {
+                message: "selected Bayesian estimator is not licensed for this support cell",
+            });
+        }
 
         let (selection_diagram, transport_trial, interference) = match &query {
             CausalQuery::Transport(transport) => {

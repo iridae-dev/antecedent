@@ -8,6 +8,11 @@
 # consume the row's known_truth_fixture when the row claims known truth and build
 # every axis value of the row.
 #
+# Every licensed row's checked_execution names, per licensed estimator, the
+# executing test that drops its builder, executes the retained checked plan and
+# inspects it (scripts/test_evidence.py checked_execution_problems); the cited
+# tests run in scripts/gate_checked_execution.sh.
+#
 # Run standalone or via scripts/gate_release.sh.
 #   bash scripts/gate_support_matrix.sh --self-test   # broken evidence must fail
 set -euo pipefail
@@ -17,6 +22,8 @@ cd "$ROOT"
 if [[ "${1:-}" == "--self-test" ]]; then
   exec python3 "$ROOT/scripts/test_evidence_selftest.py"
 fi
+
+bash scripts/gate_graphless_support.sh
 
 python3 - <<'PY'
 from __future__ import annotations
@@ -87,7 +94,10 @@ lic_doc = load("parity/support_licensed.toml")
 
 queries = list(axes.get("queries") or [])
 stage_queries = list(axes.get("stage_queries") or [])
+off_axis_public_queries = list(axes.get("off_axis_public_queries") or [])
+public_query_companions = list(axes.get("public_query_companions") or [])
 graph_classes = list(axes.get("graph_classes") or [])
+off_axis_graph_classes = list(axes.get("off_axis_graph_classes") or [])
 structures = list(axes.get("structures") or [])
 inferences = list(axes.get("inferences") or [])
 validations = list(axes.get("validations") or [])
@@ -123,11 +133,46 @@ else:
 # TransportQuery stays on the support-matrix query axis (licensed trial-IPW
 # cell) but lives on `antecedent.transport.advanced`, not root `__all__`.
 root_queries = [q for q in queries if q != "TransportQuery"]
-if sorted(root_queries) != sorted(live_queries):
+# Public query class names can differ from the stable support query axis.
+# Keep those mappings explicit so adding a user-facing type does not silently
+# rename support cells or their evidence records.
+query_axis_aliases = {"NestedCounterfactual": "NestedCounterfactualEffect"}
+mapped_live_queries = [query_axis_aliases.get(q, q) for q in live_queries]
+# The root namespace is frozen (docs/api_naming.md). Geometric queries and the
+# companions that are actually re-exported there belong in the Queries block.
+# The 2.1 design families are public on their stage modules, not at the root.
+public_names = set(public)
+root_companions = [name for name in public_query_companions if name in public_names]
+expected_root_queries = root_queries + root_companions
+if sorted(expected_root_queries) != sorted(mapped_live_queries):
     fail.append(
-        "parity/support_axes.toml queries != python __all__ query names: "
-        f"axes={sorted(root_queries)} live={sorted(live_queries)}"
+        "parity/support_axes.toml root query exports != python __all__ query names: "
+        f"axes={sorted(expected_root_queries)} live={sorted(mapped_live_queries)}"
     )
+# Python spellings that are not the support-axis id.
+class_to_axis = {"LongitudinalRegime": "LongitudinalRegimeQuery"}
+stage_files = [
+    root / "python/antecedent/experiment.py",
+    root / "python/antecedent/policy.py",
+    root / "python/antecedent/survival.py",
+    root / "python/antecedent/regimes.py",
+    root / "python/antecedent/query.py",
+]
+found_public_types: set[str] = set()
+for path in stage_files:
+    for name in re.findall(r"^class ([A-Za-z][A-Za-z0-9]*)\b", path.read_text(), re.M):
+        found_public_types.add(class_to_axis.get(name, name))
+needed_public_types = set(off_axis_public_queries) | set(public_query_companions)
+missing_public_types = sorted(needed_public_types - found_public_types)
+if missing_public_types:
+    fail.append(
+        "support-axis public types missing from the stage or query modules: "
+        + ", ".join(missing_public_types)
+    )
+if set(off_axis_public_queries) & set(queries):
+    fail.append("off_axis_public_queries overlaps geometric queries")
+if set(public_query_companions) & (set(queries) | set(off_axis_public_queries)):
+    fail.append("public_query_companions overlaps query kinds")
 
 for name in ["Frequentist", "Bayesian"]:
     if name not in public:
@@ -153,7 +198,7 @@ else:
 # GraphClass must be on the axis. Classification-only extras (tier-rule
 # backgrounds) may appear in addition; they are not GraphClass variants.
 TIER_EXTRAS = {"CoDetermined", "Unknown"}
-if not set(live_graphs) <= set(graph_classes):
+if not set(live_graphs) <= set(graph_classes) | set(off_axis_graph_classes):
     fail.append(
         "parity/support_axes.toml graph_classes must contain GraphClass: "
         f"axes={sorted(graph_classes)} live={sorted(live_graphs)}"
@@ -169,6 +214,10 @@ if not TIER_EXTRAS <= set(graph_classes):
         "parity/support_axes.toml graph_classes must include "
         f"{sorted(TIER_EXTRAS)} (classification-only tier-rule axes)"
     )
+if set(off_axis_graph_classes) - set(live_graphs):
+    fail.append("off_axis_graph_classes includes names absent from GraphClass")
+if set(off_axis_graph_classes) & set(graph_classes):
+    fail.append("off_axis_graph_classes overlaps geometric graph_classes")
 
 expected_structures = {"explicit", "accepted", "graph_posterior"}
 if set(structures) != expected_structures:
@@ -183,7 +232,10 @@ if set(validations) != expected_validations:
 for seq, label in (
     (queries, "queries"),
     (stage_queries, "stage_queries"),
+    (off_axis_public_queries, "off_axis_public_queries"),
+    (public_query_companions, "public_query_companions"),
     (graph_classes, "graph_classes"),
+    (off_axis_graph_classes, "off_axis_graph_classes"),
     (structures, "structures"),
     (inferences, "inferences"),
     (validations, "validations"),
@@ -398,6 +450,14 @@ def check_evidence_test(label: str, row: dict) -> None:
         fail.append(f"{label}: {problem}")
 
 
+# Every licensed estimator on a row executes through a retained checked
+# operation: one checked_execution entry per estimator, each citing an
+# executing test that discards its builder, executes the plan, and inspects it.
+def check_checked_execution(label: str, row: dict) -> None:
+    for problem in test_evidence.checked_execution_problems(row):
+        fail.append(f"{label}: {problem}")
+
+
 for i, row in enumerate(cells, 1):
     label = f"parity/support_licensed.toml cell #{i}"
     for key in required:
@@ -470,6 +530,7 @@ for i, row in enumerate(cells, 1):
         fail.append(f"{label}: evidence_test and evidence_assertion must be set together")
     elif has_test:
         check_evidence_test(label, row)
+    check_checked_execution(label, row)
     if row.get("staged") is True and not (has_test and has_assertion):
         missing_evidence.add("|".join(str(x) for x in (q, g, s, inf, v)))
     key = (q, g, s, inf, v)
@@ -590,3 +651,4 @@ print(
 PY
 
 python3 "$ROOT/scripts/check_transport_stages.py"
+python3 "$ROOT/scripts/generate_calibration_backlog.py" --check

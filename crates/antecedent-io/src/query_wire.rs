@@ -7,20 +7,30 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
-    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
-    CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId, ExposureLevel,
-    ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
-    InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
-    MediationQuery, OrderedFloatBits, OutcomeFunctional, PathSpecificEffectQuery,
-    PopulationRegistry, PopulationSelector, PredicateExpr, SequencedIntervention, ShapleyConfig,
-    ShapleyMode, StochasticPolicy, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
-    TransportQuery, UnitChangeQuery, Value, VariableId,
+    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
+    AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
+    ConditionalEffectQuery, CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId,
+    ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention,
+    InterventionSequence, InterventionalDistributionQuery, LocalPolynomialRatioQuery,
+    MechanismChangeQuery, MechanismOverride, MediationContrast, MediationQuery, OrderedFloatBits,
+    OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
+    PopulationRegistry, PopulationSelector, PredicateExpr, RandomizationDesign,
+    RandomizedEffectQuery, SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy,
+    SyntheticControlQuery, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery,
+    UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
+
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires an fn(&T) -> bool signature"
+)]
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.
@@ -664,6 +674,19 @@ pub enum CausalQueryWire {
         /// Nested flag.
         allow_nested: bool,
     },
+    /// Fixed-contract natural direct effect.
+    NestedCounterfactual {
+        /// Treatment node.
+        treatment: u32,
+        /// Mediator node.
+        mediator: u32,
+        /// Outcome node.
+        outcome: u32,
+        /// Control level IEEE-754 bits.
+        control_bits: u64,
+        /// Active level IEEE-754 bits.
+        active_bits: u64,
+    },
     /// Anomaly attribution.
     AnomalyAttribution {
         /// Targets.
@@ -672,6 +695,10 @@ pub enum CausalQueryWire {
         unit_rows: Option<Vec<u64>>,
         /// Cap.
         max_units: u64,
+        /// Fixed IT-score reference `(center, scale)`; `None` = empirical
+        /// (default). Absent in older payloads.
+        #[serde(default)]
+        reference: Option<(f64, f64)>,
     },
     /// Change attribution.
     ChangeAttribution {
@@ -749,6 +776,481 @@ pub enum CausalQueryWire {
     Transport(TransportQueryWire),
     /// Randomized interference query.
     Interference(InterferenceQueryWire),
+    /// Graphless Bernoulli randomized ITT query.
+    RandomizedEffect(RandomizedEffectQueryWire),
+    /// Held-out doubly robust policy value.
+    PolicyValue(PolicyValueQueryWire),
+    /// Fixed conditional continuous-dose response grid.
+    ContinuousDoseResponse(ContinuousDoseResponseQueryWire),
+    /// Balanced two-period panel difference-in-differences.
+    PanelDid(PanelDidQueryWire),
+    /// Balanced-panel synthetic-control design.
+    SyntheticControl(SyntheticControlQueryWire),
+    /// Fixed-window local fuzzy discontinuity or regression kink.
+    LocalPolynomialRatio(LocalPolynomialRatioQueryWire),
+    /// Randomized survival or competing-risk query.
+    Survival(SurvivalQueryWire),
+    /// Prespecified longitudinal treatment regime value.
+    LongitudinalRegime(LongitudinalRegimeQueryWire),
+}
+
+/// Subject-owned longitudinal histories and supplied sequential probabilities.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LongitudinalRegimeQueryWire {
+    /// Endpoint outcome variable.
+    pub outcome: u32,
+    /// Point estimator. Defaults to IPW for older artifacts.
+    #[serde(default = "default_longitudinal_method")]
+    pub method: String,
+    /// Caller-supplied conditional period rewards for g-formula.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub period_outcome_predictions: Vec<f64>,
+    /// Caller declaration that g-formula predictions come from a fixed known law.
+    #[serde(default)]
+    pub known_fixed_outcome_predictions: bool,
+    /// Stabilizing treatment-one probabilities, one per period for MSM.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stabilizing_numerator_probabilities: Vec<f64>,
+    /// Subject-major conditional Q scores for sequential augmentation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub q_predictions: Vec<f64>,
+    /// Subject-major monotone observation history.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observation_history: Vec<bool>,
+    /// Fold ownership of each subject's Q trajectory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prediction_fold_ids: Vec<u32>,
+    /// Decisions per subject.
+    pub periods: usize,
+    /// Observed treatment history, subject-major.
+    pub treatment_history: Vec<bool>,
+    /// Prescribed regime actions, subject-major.
+    pub regime_actions: Vec<bool>,
+    /// Conditional treatment-one probabilities, subject-major.
+    pub treatment_probabilities: Vec<f64>,
+    /// Conditional uncensored probabilities, subject-major.
+    pub censoring_probabilities: Vec<f64>,
+    /// Whether endpoint was observed, one per subject.
+    pub outcome_observed: Vec<bool>,
+    /// Unique subject identifiers.
+    pub subject_ids: Vec<String>,
+    /// Subject-level excluded fold identifiers.
+    pub fold_ids: Vec<u32>,
+    /// Caller-declared excluded-fold prediction ownership.
+    pub excluded_fold_predictions: bool,
+    /// Probabilities fixed by a known sequential randomization mechanism.
+    pub probabilities_known_by_design: bool,
+    /// Sequential positivity floor.
+    pub minimum_probability: f64,
+    /// Caller supplied identity for a materialized history-adaptive rule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_id: Option<String>,
+    /// Stable caller-declared rule version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_version: Option<String>,
+    /// Caller-declared source or provenance of the rule implementation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule_provenance: Option<String>,
+}
+
+fn default_longitudinal_method() -> String {
+    "ipw".into()
+}
+
+/// Right-censored randomized survival query with explicit marginal observation assumption.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SurvivalQueryWire {
+    /// Observed follow-up duration column.
+    pub duration: u32,
+    /// Binary event or coded cause column.
+    pub event: u32,
+    /// Randomized treatment assignment column.
+    pub treatment: u32,
+    /// Restriction horizon.
+    pub tau: f64,
+    /// Optional delayed entry column.
+    pub delayed_entry: Option<u32>,
+    /// Target cause; absent for survival/RMST.
+    pub target_cause: Option<i64>,
+    /// Caller declaration of marginal independent censoring/entry.
+    pub independent_observation: bool,
+    /// Variables conditioning the independent censoring claim.
+    #[serde(default)]
+    pub independent_given: Vec<u32>,
+    /// Caller-supplied censoring survival time grid.
+    #[serde(default)]
+    pub censoring_times: Vec<f64>,
+    /// One row-aligned censoring survival column per grid time.
+    #[serde(default)]
+    pub censoring_columns: Vec<u32>,
+    /// Minimum accepted censoring survival, when a grid is present.
+    #[serde(default)]
+    pub censoring_probability_floor: Option<f64>,
+}
+
+/// Frozen design vectors for a retained panel `DiD` query.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PanelDidQueryWire {
+    /// Outcome column id.
+    pub outcome: u32,
+    /// Pre outcome, propensity, untreated-change prediction, and cross-fit declaration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmented: Option<(u32, u32, u32, bool)>,
+    /// True for repeated cross sections; absent in older balanced-panel artifacts.
+    #[serde(default)]
+    pub repeated_cross_section: bool,
+    /// Selected staggered cohort-period comparison, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staggered_target: Option<(i64, i64)>,
+    /// All cohort-specific event-time comparisons, including descriptive preperiods.
+    #[serde(default)]
+    pub staggered_event_study: bool,
+    /// Calendar periods for a staggered panel.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub periods: Vec<i64>,
+    /// Adoption cohorts; zero denotes never treated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cohorts: Vec<i64>,
+    /// Row-aligned treatment and period indicators.
+    pub treated: Vec<bool>,
+    /// Row-aligned pre/post indicator.
+    pub post: Vec<bool>,
+    /// Subject identity by row.
+    pub subjects: Vec<String>,
+    /// Cluster identity by row.
+    pub clusters: Vec<String>,
+}
+
+/// Row-aligned synthetic-control design frozen in query identity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SyntheticControlQueryWire {
+    /// Continuous outcome variable.
+    pub outcome: u32,
+    /// Unit labels in row order.
+    pub units: Vec<String>,
+    /// Calendar periods in row order.
+    pub periods: Vec<i64>,
+    /// Unit receiving treatment.
+    pub treated_unit: String,
+    /// First treated period.
+    pub intervention_period: i64,
+    /// Whether the panel contrast uses convex unit and pre-period weights.
+    #[serde(default)]
+    pub difference_in_differences: bool,
+    /// Uniformly randomized choice of one treated unit for exact sharp-null inference.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub uniform_unit_randomization: bool,
+    /// Prespecified constant additive effect under the uniform-unit sharp null.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sharp_null_effect: Option<f64>,
+    /// Positive donor outcome-model ridge penalty for augmented synthetic control.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub augmentation_ridge: Option<f64>,
+}
+
+/// Fixed-cutoff local ratio design, including whether the contrast is a kink.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LocalPolynomialRatioQueryWire {
+    /// Continuous outcome variable.
+    pub outcome: u32,
+    /// Observed treatment receipt or dose.
+    pub treatment: u32,
+    /// Running variable.
+    pub running: u32,
+    /// Prespecified cutoff.
+    pub cutoff: f64,
+    /// Prespecified fitting bandwidth.
+    pub bandwidth: f64,
+    /// Whether to use the slope-kink contrast.
+    pub kink: bool,
+}
+
+/// Frozen policy value inputs retained as part of query identity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyValueQueryWire {
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Assignment, propensity, policy, and reference row vectors.
+    pub assignment: Vec<bool>,
+    /// Known randomized propensity, scalar or row-aligned.
+    pub propensity: Vec<f64>,
+    /// Policy and reference recommendations.
+    pub actions: Vec<bool>,
+    /// Reference recommendations.
+    pub reference: Vec<bool>,
+    /// Frozen nuisance outcome predictions.
+    pub mu0: Vec<f64>,
+    /// Frozen treated-outcome predictions.
+    pub mu1: Vec<f64>,
+    /// Policy and reference costs.
+    pub costs: Vec<f64>,
+    /// Reference costs.
+    pub reference_costs: Vec<f64>,
+    /// Evaluation subject identity.
+    pub evaluation_subject_ids: Vec<String>,
+    /// Disjoint-training ownership declaration.
+    pub disjoint_training_subjects: bool,
+    /// Excluded-fold ownership declaration.
+    pub crossfit_fold_ownership_valid: bool,
+    /// Whether globally coupled capacity or budget selection was used.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub global_constraints_present: bool,
+    /// Multi-action randomized IPW inputs, absent for binary policies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multi_action: Option<MultiActionPolicyInputsWire>,
+    /// Frozen descending-score bin for each binary evaluation row.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uplift_bins: Vec<usize>,
+    /// Number of nonempty uplift bins; zero when no ranked view is requested.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub uplift_bin_count: usize,
+    /// Caller-declared ranking training subjects, disjoint from evaluation subjects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uplift_training_subject_ids: Vec<String>,
+    /// Prespecified fixed candidate class and disjoint selection subjects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regret: Option<FixedCandidateRegretWire>,
+}
+
+/// Portable fixed-class regret ownership and action vectors.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FixedCandidateRegretWire {
+    /// Candidate recommendations in input order.
+    pub candidates: Vec<Vec<bool>>,
+    /// Selected candidate index.
+    pub selected_index: usize,
+    /// Disjoint construction and selection subject IDs.
+    pub training_subject_ids: Vec<String>,
+}
+
+/// Frozen policy and reference group-dose maps for a continuous-dose query.
+type FixedPolicyMaps = (Vec<(String, f64)>, Vec<(String, f64)>);
+
+/// Portable caller-supplied conditional continuous-dose response design.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousDoseResponseQueryWire {
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Observed dose variable id.
+    pub dose: u32,
+    /// Supplied dose-density variable id.
+    pub dose_density: u32,
+    /// Pre-treatment group labels aligned by row.
+    pub baseline_groups: Vec<String>,
+    /// Prespecified target dose grid.
+    pub target_doses: Vec<f64>,
+    /// Triangular-kernel bandwidth.
+    pub bandwidth: f64,
+    /// Minimum local rows per group-target cell.
+    pub min_local_support: usize,
+    /// Known or externally estimated density.
+    pub density_provenance: String,
+    /// Frozen policy and reference group-dose maps, when policy value is requested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixed_policy: Option<FixedPolicyMaps>,
+}
+
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if requires an fn(&T) -> bool signature"
+)]
+fn is_zero(value: &usize) -> bool {
+    *value == 0
+}
+
+/// Portable row-major multi-action policy inputs.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MultiActionPolicyInputsWire {
+    /// Ordered action labels with control first.
+    pub action_labels: Vec<String>,
+    /// Realized action index per row.
+    pub assignment: Vec<usize>,
+    /// Policy action index per row.
+    pub actions: Vec<usize>,
+    /// Reference action index per row.
+    pub reference: Vec<usize>,
+    /// Row-major assignment probabilities.
+    pub propensities: Vec<f64>,
+    /// Row-major action availability.
+    pub available: Vec<bool>,
+    /// Per-action policy costs.
+    pub costs: Vec<f64>,
+    /// Per-action reference costs.
+    pub reference_costs: Vec<f64>,
+    /// Per-action policy capacities.
+    pub capacities: Vec<usize>,
+    /// Per-action reference capacities.
+    pub reference_capacities: Vec<usize>,
+    /// Policy budget, if constrained.
+    pub budget: Option<f64>,
+    /// Reference budget, if constrained.
+    pub reference_budget: Option<f64>,
+    /// Frozen baseline strata for conditional action effects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cate_groups: Vec<String>,
+}
+
+impl From<&antecedent_core::MultiActionPolicyInputs> for MultiActionPolicyInputsWire {
+    fn from(value: &antecedent_core::MultiActionPolicyInputs) -> Self {
+        Self {
+            action_labels: value.action_labels.iter().map(ToString::to_string).collect(),
+            assignment: value.assignment.to_vec(),
+            actions: value.actions.to_vec(),
+            reference: value.reference.to_vec(),
+            propensities: value.propensities.to_vec(),
+            available: value.available.to_vec(),
+            costs: value.costs.to_vec(),
+            reference_costs: value.reference_costs.to_vec(),
+            capacities: value.capacities.to_vec(),
+            reference_capacities: value.reference_capacities.to_vec(),
+            budget: value.budget,
+            reference_budget: value.reference_budget,
+            cate_groups: value.cate_groups.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+
+impl From<&MultiActionPolicyInputsWire> for antecedent_core::MultiActionPolicyInputs {
+    fn from(value: &MultiActionPolicyInputsWire) -> Self {
+        Self {
+            action_labels: value
+                .action_labels
+                .iter()
+                .map(|v| Arc::<str>::from(v.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
+            assignment: value.assignment.clone().into(),
+            actions: value.actions.clone().into(),
+            reference: value.reference.clone().into(),
+            propensities: value.propensities.clone().into(),
+            available: value.available.clone().into(),
+            costs: value.costs.clone().into(),
+            reference_costs: value.reference_costs.clone().into(),
+            capacities: value.capacities.clone().into(),
+            reference_capacities: value.reference_capacities.clone().into(),
+            budget: value.budget,
+            reference_budget: value.reference_budget,
+            cate_groups: value
+                .cate_groups
+                .iter()
+                .map(|group| Arc::<str>::from(group.as_str()))
+                .collect::<Vec<_>>()
+                .into(),
+        }
+    }
+}
+
+/// Randomized ITT design metadata wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RandomizedEffectQueryWire {
+    /// Assignment ITT or randomized-encouragement CACE/LATE.
+    #[serde(default)]
+    pub estimand: RandomizedEstimandWire,
+    /// Declared assignment mechanism.
+    #[serde(default)]
+    pub design: RandomizationDesignWire,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Realized assignment in row order.
+    pub realized_assignment: Vec<bool>,
+    /// Known Bernoulli probabilities in row order.
+    pub assignment_probabilities: Vec<f64>,
+    /// Assignment unit labels in row order.
+    pub assignment_units: Vec<String>,
+    /// Outcome unit labels in row order.
+    pub outcome_units: Vec<String>,
+    /// Control and treatment labels.
+    pub treatment_arms: (String, String),
+    /// Block labels in row order (stratified designs only).
+    #[serde(default)]
+    pub blocks: Vec<String>,
+    /// Declared treated count for each row's block (stratified designs only).
+    #[serde(default)]
+    pub treated_per_row: Vec<usize>,
+    /// Row-aligned switchback period labels.
+    #[serde(default)]
+    pub periods: Vec<String>,
+    /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
+    #[serde(default)]
+    pub fixed_cuped: Option<(u32, f64)>,
+    /// Pre-assignment covariates jointly fitted by ANCOVA.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ancova_covariates: Vec<u32>,
+    /// Row-aligned observed receipt for CACE/LATE.
+    #[serde(default)]
+    pub received_treatment: Option<Vec<bool>>,
+    /// Exhaustive two-sided Fisher sharp-null test for complete randomization.
+    #[serde(default)]
+    pub exact_randomization_test: bool,
+    /// Row-aligned assignment to the second factor in a 2×2 design.
+    #[serde(default)]
+    pub second_factor_assignment: Vec<bool>,
+    /// Fixed cell counts in 00, 10, 01, 11 order.
+    #[serde(default)]
+    pub factorial_cell_counts: Option<[usize; 4]>,
+    /// Labels for the second factor's two levels.
+    #[serde(default)]
+    pub second_factor_arms: Option<(String, String)>,
+    /// Ordered multi-arm labels, first being the reference action.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_labels: Vec<String>,
+    /// Observed multi-arm action indices in row order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_assignment: Vec<usize>,
+    /// Known action probabilities in declared label order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_arm_probabilities: Vec<Vec<f64>>,
+}
+
+/// Target estimand serialized with a randomized query.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RandomizedEstimandWire {
+    /// Assignment intention-to-treat contrast.
+    #[default]
+    Itt,
+    /// Wald complier effect under exclusion and monotonicity.
+    CaceLate,
+    /// Effect among treatment recipients under one-sided noncompliance.
+    TreatmentOnTreated,
+}
+
+/// Assignment mechanism serialized with a randomized ITT query.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum RandomizationDesignWire {
+    /// Independent Bernoulli assignment.
+    #[default]
+    Bernoulli,
+    /// Unit-period switching within independent sequences.
+    Switchback,
+    /// Complete randomization with a fixed treated count.
+    Complete {
+        /// Declared number assigned to treatment.
+        treated_units: usize,
+    },
+    /// Complete randomization of assignment clusters.
+    Cluster {
+        /// Declared number of treated clusters.
+        treated_clusters: usize,
+    },
+    /// Independent complete randomization within blocks.
+    Stratified,
+    /// Joint complete randomization to four fixed 2×2 cells.
+    Factorial2x2,
+    /// Independent assignment among three or more actions.
+    MultiArm,
 }
 
 impl CausalQueryWire {
@@ -773,12 +1275,21 @@ impl CausalQueryWire {
             Self::Response(inner) => Some(&mut inner.target_population),
             Self::ConditionalEffect { inner } => inner.target_population_mut(),
             Self::Counterfactual { .. }
+            | Self::NestedCounterfactual { .. }
             | Self::AnomalyAttribution { .. }
             | Self::ChangeAttribution { .. }
             | Self::MechanismChange { .. }
             | Self::UnitChange { .. }
             | Self::Transport(_)
-            | Self::Interference(_) => None,
+            | Self::Interference(_)
+            | Self::RandomizedEffect(_)
+            | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
+            | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 
@@ -799,12 +1310,21 @@ impl CausalQueryWire {
             Self::Response(inner) => Some(&inner.target_population),
             Self::ConditionalEffect { inner } => inner.target_population(),
             Self::Counterfactual { .. }
+            | Self::NestedCounterfactual { .. }
             | Self::AnomalyAttribution { .. }
             | Self::ChangeAttribution { .. }
             | Self::MechanismChange { .. }
             | Self::UnitChange { .. }
             | Self::Transport(_)
-            | Self::Interference(_) => None,
+            | Self::Interference(_)
+            | Self::RandomizedEffect(_)
+            | Self::PolicyValue(_)
+            | Self::ContinuousDoseResponse(_)
+            | Self::PanelDid(_)
+            | Self::SyntheticControl(_)
+            | Self::LocalPolynomialRatio(_)
+            | Self::Survival(_)
+            | Self::LongitudinalRegime(_) => None,
         }
     }
 }
@@ -847,6 +1367,32 @@ pub enum AssignmentDesignWire {
         clusters: Vec<u32>,
         /// Number of treated clusters.
         treated_clusters: u64,
+    },
+    /// Complete cluster allocation followed by within-cluster Bernoulli assignment.
+    TwoStageSaturation {
+        /// Cluster id per unit.
+        clusters: Vec<u32>,
+        /// Lower treatment probability.
+        low_probability: f64,
+        /// Higher treatment probability.
+        high_probability: f64,
+        /// Number of clusters assigned the higher probability.
+        high_clusters: u64,
+        /// Realized cluster probability repeated per unit.
+        realized_saturation: Vec<f64>,
+    },
+    /// Observed network exposure with supplied probabilities and declared exchangeability.
+    ObservedExposure {
+        /// Cluster id per unit.
+        clusters: Vec<u32>,
+        /// Baseline exposure probability per unit.
+        propensity_from: Vec<f64>,
+        /// Active exposure probability per unit.
+        propensity_to: Vec<f64>,
+        /// `known` or `externally_estimated`.
+        provenance: String,
+        /// Caller declaration of network exposure exchangeability.
+        assume_network_exchangeability: bool,
     },
 }
 
@@ -1154,6 +1700,13 @@ pub fn causal_query_to_wire_with_registry(
             control: Some(InterventionWire::from_domain(&q.control)?),
             allow_nested: q.allow_nested,
         },
+        CausalQuery::NestedCounterfactual(q) => CausalQueryWire::NestedCounterfactual {
+            treatment: q.treatment.raw(),
+            mediator: q.mediator.raw(),
+            outcome: q.outcome.raw(),
+            control_bits: q.control_value().to_bits(),
+            active_bits: q.active_value().to_bits(),
+        },
         CausalQuery::AnomalyAttribution(q) => CausalQueryWire::AnomalyAttribution {
             targets: vars_to_raw(&q.targets),
             unit_rows: q
@@ -1166,6 +1719,12 @@ pub fn causal_query_to_wire_with_registry(
                 })
                 .transpose()?,
             max_units: u64::try_from(q.max_units).unwrap_or(u64::MAX),
+            reference: match q.reference {
+                AnomalyReference::Empirical => None,
+                AnomalyReference::Fixed { center, scale } => {
+                    Some((center.to_f64(), scale.to_f64()))
+                }
+            },
         },
         CausalQuery::ChangeAttribution(q) => CausalQueryWire::ChangeAttribution {
             outcome: q.outcome.raw(),
@@ -1224,6 +1783,283 @@ pub fn causal_query_to_wire_with_registry(
         CausalQuery::Transport(q) => CausalQueryWire::Transport(transport_query_to_wire(q)?),
         CausalQuery::Interference(q) => {
             CausalQueryWire::Interference(interference_query_to_wire(q)?)
+        }
+        CausalQuery::RandomizedEffect(q) => {
+            CausalQueryWire::RandomizedEffect(RandomizedEffectQueryWire {
+                estimand: match q.estimand {
+                    antecedent_core::RandomizedEstimand::IntentionToTreat => {
+                        RandomizedEstimandWire::Itt
+                    }
+                    antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect => {
+                        RandomizedEstimandWire::CaceLate
+                    }
+                    antecedent_core::RandomizedEstimand::TreatmentOnTreated => {
+                        RandomizedEstimandWire::TreatmentOnTreated
+                    }
+                },
+                design: match &q.design {
+                    RandomizationDesign::Bernoulli => RandomizationDesignWire::Bernoulli,
+                    RandomizationDesign::Complete { treated_units } => {
+                        RandomizationDesignWire::Complete { treated_units: *treated_units }
+                    }
+                    RandomizationDesign::Cluster { treated_clusters } => {
+                        RandomizationDesignWire::Cluster { treated_clusters: *treated_clusters }
+                    }
+                    RandomizationDesign::Stratified { .. } => RandomizationDesignWire::Stratified,
+                    RandomizationDesign::Factorial2x2 { .. } => {
+                        RandomizationDesignWire::Factorial2x2
+                    }
+                    RandomizationDesign::MultiArm { .. } => RandomizationDesignWire::MultiArm,
+                    RandomizationDesign::Switchback { .. } => RandomizationDesignWire::Switchback,
+                },
+                outcome: q.outcome.raw(),
+                realized_assignment: q.realized_assignment.to_vec(),
+                assignment_probabilities: q.assignment_probabilities.to_vec(),
+                assignment_units: q.assignment_units.iter().map(ToString::to_string).collect(),
+                outcome_units: q.outcome_units.iter().map(ToString::to_string).collect(),
+                treatment_arms: (q.treatment_arms.0.to_string(), q.treatment_arms.1.to_string()),
+                blocks: match &q.design {
+                    RandomizationDesign::Stratified { blocks, .. } => {
+                        blocks.iter().map(ToString::to_string).collect()
+                    }
+                    _ => Vec::new(),
+                },
+                treated_per_row: match &q.design {
+                    RandomizationDesign::Stratified { treated_per_row, .. } => {
+                        treated_per_row.to_vec()
+                    }
+                    _ => Vec::new(),
+                },
+                fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
+                ancova_covariates: q.ancova_covariates.iter().map(|id| id.raw()).collect(),
+                received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
+                exact_randomization_test: q.exact_randomization_test,
+                second_factor_assignment: match &q.design {
+                    RandomizationDesign::Factorial2x2 { second_factor_assignment, .. } => {
+                        second_factor_assignment.to_vec()
+                    }
+                    _ => Vec::new(),
+                },
+                factorial_cell_counts: match &q.design {
+                    RandomizationDesign::Factorial2x2 { cell_counts, .. } => Some(*cell_counts),
+                    _ => None,
+                },
+                second_factor_arms: match &q.design {
+                    RandomizationDesign::Factorial2x2 { second_factor_arms, .. } => {
+                        Some((second_factor_arms.0.to_string(), second_factor_arms.1.to_string()))
+                    }
+                    _ => None,
+                },
+                multi_arm_labels: match &q.design {
+                    RandomizationDesign::MultiArm { arms, .. } => {
+                        arms.iter().map(ToString::to_string).collect()
+                    }
+                    _ => Vec::new(),
+                },
+                multi_arm_assignment: match &q.design {
+                    RandomizationDesign::MultiArm { assignment, .. } => assignment.to_vec(),
+                    _ => Vec::new(),
+                },
+                multi_arm_probabilities: match &q.design {
+                    RandomizationDesign::MultiArm { probabilities, .. } => probabilities.to_vec(),
+                    _ => Vec::new(),
+                },
+                periods: match &q.design {
+                    RandomizationDesign::Switchback { periods } => {
+                        periods.iter().map(ToString::to_string).collect()
+                    }
+                    _ => Vec::new(),
+                },
+            })
+        }
+        CausalQuery::PolicyValue(q) => CausalQueryWire::PolicyValue(PolicyValueQueryWire {
+            outcome: q.outcome.raw(),
+            assignment: q.assignment.to_vec(),
+            propensity: q.propensity.to_vec(),
+            actions: q.actions.to_vec(),
+            reference: q.reference.to_vec(),
+            mu0: q.mu0.to_vec(),
+            mu1: q.mu1.to_vec(),
+            costs: q.costs.to_vec(),
+            reference_costs: q.reference_costs.to_vec(),
+            evaluation_subject_ids: q
+                .evaluation_subject_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            disjoint_training_subjects: q.disjoint_training_subjects,
+            crossfit_fold_ownership_valid: q.crossfit_fold_ownership_valid,
+            global_constraints_present: q.global_constraints_present,
+            multi_action: q.multi_action.as_ref().map(Into::into),
+            uplift_bins: q.uplift_bins.to_vec(),
+            uplift_bin_count: q.uplift_bin_count,
+            uplift_training_subject_ids: q
+                .uplift_training_subject_ids
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+            regret: q.regret.as_ref().map(|regret| FixedCandidateRegretWire {
+                candidates: regret.candidates.iter().map(|candidate| candidate.to_vec()).collect(),
+                selected_index: regret.selected_index,
+                training_subject_ids: regret
+                    .training_subject_ids
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            }),
+        }),
+        CausalQuery::ContinuousDoseResponse(q) => {
+            CausalQueryWire::ContinuousDoseResponse(ContinuousDoseResponseQueryWire {
+                outcome: q.outcome.raw(),
+                dose: q.dose.raw(),
+                dose_density: q.dose_density.raw(),
+                baseline_groups: q.baseline_groups.iter().map(ToString::to_string).collect(),
+                target_doses: q.target_doses.to_vec(),
+                bandwidth: q.bandwidth,
+                min_local_support: q.min_local_support,
+                density_provenance: q.density_provenance.to_string(),
+                fixed_policy: q.fixed_policy.as_ref().map(|rule| {
+                    (
+                        rule.policy_doses
+                            .iter()
+                            .map(|(group, dose)| (group.to_string(), *dose))
+                            .collect(),
+                        rule.reference_doses
+                            .iter()
+                            .map(|(group, dose)| (group.to_string(), *dose))
+                            .collect(),
+                    )
+                }),
+            })
+        }
+        CausalQuery::PanelDid(q) => CausalQueryWire::PanelDid(PanelDidQueryWire {
+            outcome: q.outcome.raw(),
+            augmented: q.augmented.as_ref().map(|n| {
+                (
+                    n.outcome_pre.raw(),
+                    n.propensity.raw(),
+                    n.untreated_change_prediction.raw(),
+                    n.predictions_cross_fitted,
+                )
+            }),
+            repeated_cross_section: q.design
+                == antecedent_core::DidSamplingDesign::RepeatedCrossSection,
+            staggered_target: q.target,
+            staggered_event_study: q.design
+                == antecedent_core::DidSamplingDesign::StaggeredEventStudy,
+            periods: q.periods.to_vec(),
+            cohorts: q.cohorts.to_vec(),
+            treated: q.treated.to_vec(),
+            post: q.post.to_vec(),
+            subjects: q.subjects.iter().map(ToString::to_string).collect(),
+            clusters: q.clusters.iter().map(ToString::to_string).collect(),
+        }),
+        CausalQuery::SyntheticControl(q) => {
+            CausalQueryWire::SyntheticControl(SyntheticControlQueryWire {
+                outcome: q.outcome.raw(),
+                units: q.units.iter().map(ToString::to_string).collect(),
+                periods: q.periods.to_vec(),
+                treated_unit: q.treated_unit.to_string(),
+                intervention_period: q.intervention_period,
+                difference_in_differences: q.method
+                    == antecedent_core::SyntheticPanelMethod::DifferenceInDifferences,
+                uniform_unit_randomization: q.uniform_unit_randomization,
+                sharp_null_effect: q.sharp_null_effect,
+                augmentation_ridge: q.augmentation_ridge,
+            })
+        }
+        CausalQuery::LocalPolynomialRatio(q) => {
+            CausalQueryWire::LocalPolynomialRatio(LocalPolynomialRatioQueryWire {
+                outcome: q.outcome.raw(),
+                treatment: q.treatment.raw(),
+                running: q.running.raw(),
+                cutoff: q.cutoff,
+                bandwidth: q.bandwidth,
+                kink: q.kink,
+            })
+        }
+        CausalQuery::Survival(q) => CausalQueryWire::Survival(SurvivalQueryWire {
+            duration: q.duration.raw(),
+            event: q.event.raw(),
+            treatment: q.treatment.raw(),
+            tau: q.tau,
+            delayed_entry: q.delayed_entry.map(antecedent_core::VariableId::raw),
+            target_cause: match q.functional {
+                antecedent_core::SurvivalFunctional::SurvivalAndRmst => None,
+                antecedent_core::SurvivalFunctional::CumulativeIncidence { target_cause } => {
+                    Some(target_cause)
+                }
+            },
+            independent_observation: matches!(
+                &q.observation_assumption,
+                antecedent_core::ObservationAssumption::IndependentGiven(_)
+            ),
+            independent_given: match &q.observation_assumption {
+                antecedent_core::ObservationAssumption::IndependentGiven(vars) => {
+                    vars.iter().map(|id| id.raw()).collect()
+                }
+                _ => Vec::new(),
+            },
+            censoring_times: q
+                .known_censoring
+                .as_ref()
+                .map_or_else(Vec::new, |known| known.times.to_vec()),
+            censoring_columns: q
+                .known_censoring
+                .as_ref()
+                .map_or_else(Vec::new, |known| known.columns.iter().map(|id| id.raw()).collect()),
+            censoring_probability_floor: q
+                .known_censoring
+                .as_ref()
+                .map(|known| known.minimum_probability),
+        }),
+        CausalQuery::LongitudinalRegime(q) => {
+            CausalQueryWire::LongitudinalRegime(LongitudinalRegimeQueryWire {
+                outcome: q.outcome.raw(),
+                method: match q.method {
+                    antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
+                    antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
+                        "sequential_dr"
+                    }
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
+                        "marginal_structural_model"
+                    }
+                }
+                .into(),
+                period_outcome_predictions: q
+                    .period_outcome_predictions
+                    .as_ref()
+                    .map_or_else(Vec::new, |q| q.to_vec()),
+                known_fixed_outcome_predictions: q.known_fixed_outcome_predictions,
+                stabilizing_numerator_probabilities: q
+                    .stabilizing_numerator_probabilities
+                    .as_ref()
+                    .map_or_else(Vec::new, |p| p.to_vec()),
+                q_predictions: q.q_predictions.as_ref().map_or_else(Vec::new, |q| q.to_vec()),
+                observation_history: q
+                    .observation_history
+                    .as_ref()
+                    .map_or_else(Vec::new, |o| o.to_vec()),
+                prediction_fold_ids: q
+                    .prediction_fold_ids
+                    .as_ref()
+                    .map_or_else(Vec::new, |f| f.to_vec()),
+                periods: q.periods,
+                treatment_history: q.treatment_history.to_vec(),
+                regime_actions: q.regime_actions.to_vec(),
+                treatment_probabilities: q.treatment_probabilities.to_vec(),
+                censoring_probabilities: q.censoring_probabilities.to_vec(),
+                outcome_observed: q.outcome_observed.to_vec(),
+                subject_ids: q.subject_ids.iter().map(ToString::to_string).collect(),
+                fold_ids: q.fold_ids.to_vec(),
+                excluded_fold_predictions: q.excluded_fold_predictions,
+                probabilities_known_by_design: q.probabilities_known_by_design,
+                minimum_probability: q.minimum_probability,
+                rule_id: q.rule_id.as_ref().map(ToString::to_string),
+                rule_version: q.rule_version.as_ref().map(ToString::to_string),
+                rule_provenance: q.rule_provenance.as_ref().map(ToString::to_string),
+            })
         }
         _ => return Err(IoError::Convert("unsupported CausalQuery variant".into())),
     })
@@ -1288,7 +2124,24 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                 allow_nested: *allow_nested,
             })
         }
-        CausalQueryWire::AnomalyAttribution { targets, unit_rows, max_units } => {
+        CausalQueryWire::NestedCounterfactual {
+            treatment,
+            mediator,
+            outcome,
+            control_bits,
+            active_bits,
+        } => {
+            let query = antecedent_core::NestedCounterfactualQuery::with_levels(
+                antecedent_core::VariableId::from_raw(*treatment),
+                antecedent_core::VariableId::from_raw(*mediator),
+                antecedent_core::VariableId::from_raw(*outcome),
+                f64::from_bits(*control_bits),
+                f64::from_bits(*active_bits),
+            )
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::NestedCounterfactual(query)
+        }
+        CausalQueryWire::AnomalyAttribution { targets, unit_rows, max_units, reference } => {
             CausalQuery::AnomalyAttribution(AnomalyAttributionQuery {
                 targets: vars_from_raw(targets),
                 unit_rows: unit_rows
@@ -1301,6 +2154,10 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     .transpose()?
                     .map(Arc::from),
                 max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
+                reference: match reference {
+                    None => AnomalyReference::Empirical,
+                    Some((center, scale)) => AnomalyReference::fixed(*center, *scale),
+                },
             })
         }
         CausalQueryWire::ChangeAttribution {
@@ -1390,6 +2247,421 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
         CausalQueryWire::Interference(w) => {
             CausalQuery::Interference(interference_query_from_wire(w)?)
         }
+        CausalQueryWire::RandomizedEffect(w) => {
+            if !matches!(w.design, RandomizationDesignWire::MultiArm)
+                && (!w.multi_arm_labels.is_empty()
+                    || !w.multi_arm_assignment.is_empty()
+                    || !w.multi_arm_probabilities.is_empty())
+            {
+                return Err(IoError::Convert(
+                    "multi-arm metadata requires a multi-arm design".into(),
+                ));
+            }
+            if !matches!(w.design, RandomizationDesignWire::Factorial2x2)
+                && (!w.second_factor_assignment.is_empty()
+                    || w.factorial_cell_counts.is_some()
+                    || w.second_factor_arms.is_some())
+            {
+                return Err(IoError::Convert(
+                    "factorial metadata requires a factorial design".into(),
+                ));
+            }
+            let design = match &w.design {
+                RandomizationDesignWire::Bernoulli => RandomizationDesign::Bernoulli,
+                RandomizationDesignWire::Complete { treated_units } => {
+                    RandomizationDesign::Complete { treated_units: *treated_units }
+                }
+                RandomizationDesignWire::Cluster { treated_clusters } => {
+                    RandomizationDesign::Cluster { treated_clusters: *treated_clusters }
+                }
+                RandomizationDesignWire::Stratified => RandomizationDesign::Stratified {
+                    blocks: w
+                        .blocks
+                        .iter()
+                        .map(|x| Arc::<str>::from(x.as_str()))
+                        .collect::<Vec<_>>()
+                        .into(),
+                    treated_per_row: w.treated_per_row.clone().into(),
+                },
+                RandomizationDesignWire::Factorial2x2 => RandomizationDesign::Factorial2x2 {
+                    second_factor_assignment: w.second_factor_assignment.clone().into(),
+                    cell_counts: w.factorial_cell_counts.ok_or_else(|| {
+                        IoError::Convert("factorial cell counts are missing".into())
+                    })?,
+                    second_factor_arms: {
+                        let arms = w.second_factor_arms.as_ref().ok_or_else(|| {
+                            IoError::Convert("second-factor labels are missing".into())
+                        })?;
+                        (Arc::<str>::from(arms.0.as_str()), Arc::<str>::from(arms.1.as_str()))
+                    },
+                },
+                RandomizationDesignWire::MultiArm => RandomizationDesign::MultiArm {
+                    assignment: w.multi_arm_assignment.clone().into(),
+                    probabilities: w.multi_arm_probabilities.clone().into(),
+                    arms: w
+                        .multi_arm_labels
+                        .iter()
+                        .map(|arm| Arc::<str>::from(arm.as_str()))
+                        .collect::<Vec<_>>()
+                        .into(),
+                },
+                RandomizationDesignWire::Switchback => RandomizationDesign::Switchback {
+                    periods: w
+                        .periods
+                        .iter()
+                        .map(|period| Arc::<str>::from(period.as_str()))
+                        .collect::<Vec<_>>()
+                        .into(),
+                },
+            };
+            let mut query = RandomizedEffectQuery::with_design(
+                design,
+                VariableId::from_raw(w.outcome),
+                Arc::<[bool]>::from(w.realized_assignment.clone()),
+                Arc::<[f64]>::from(w.assignment_probabilities.clone()),
+                w.assignment_units.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                w.outcome_units.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                (
+                    Arc::<str>::from(w.treatment_arms.0.as_str()),
+                    Arc::<str>::from(w.treatment_arms.1.as_str()),
+                ),
+            );
+            if let Some((id, coefficient)) = w.fixed_cuped {
+                query = query.with_fixed_cuped(VariableId::from_raw(id), coefficient);
+            }
+            if !w.ancova_covariates.is_empty() {
+                query = query.with_ancova(
+                    w.ancova_covariates
+                        .iter()
+                        .copied()
+                        .map(VariableId::from_raw)
+                        .collect::<Vec<_>>(),
+                );
+            }
+            if let Some(receipt) = &w.received_treatment {
+                query = if w.estimand == RandomizedEstimandWire::TreatmentOnTreated {
+                    query.with_treatment_on_treated(receipt.clone())
+                } else {
+                    query.with_received_treatment(receipt.clone())
+                };
+            }
+            if w.exact_randomization_test {
+                query = query.with_exact_randomization_test();
+            }
+            if (w.estimand != RandomizedEstimandWire::Itt) != w.received_treatment.is_some() {
+                return Err(IoError::Convert(
+                    "receipt-adjusted estimand and treatment receipt must agree".into(),
+                ));
+            }
+            query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::RandomizedEffect(query)
+        }
+        CausalQueryWire::PolicyValue(w) => {
+            let q = PolicyValueQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                assignment: w.assignment.clone().into(),
+                propensity: w.propensity.clone().into(),
+                actions: w.actions.clone().into(),
+                reference: w.reference.clone().into(),
+                mu0: w.mu0.clone().into(),
+                mu1: w.mu1.clone().into(),
+                costs: w.costs.clone().into(),
+                reference_costs: w.reference_costs.clone().into(),
+                evaluation_subject_ids: w
+                    .evaluation_subject_ids
+                    .iter()
+                    .map(|x| Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                disjoint_training_subjects: w.disjoint_training_subjects,
+                crossfit_fold_ownership_valid: w.crossfit_fold_ownership_valid,
+                global_constraints_present: w.global_constraints_present,
+                multi_action: w.multi_action.as_ref().map(Into::into),
+                uplift_bins: w.uplift_bins.clone().into(),
+                uplift_bin_count: w.uplift_bin_count,
+                uplift_training_subject_ids: w
+                    .uplift_training_subject_ids
+                    .iter()
+                    .map(|x| Arc::<str>::from(x.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                regret: w.regret.as_ref().map(|regret| {
+                    antecedent_core::FixedCandidateRegretInputs {
+                        candidates: regret
+                            .candidates
+                            .iter()
+                            .map(|actions| Arc::<[bool]>::from(actions.clone()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        selected_index: regret.selected_index,
+                        training_subject_ids: regret
+                            .training_subject_ids
+                            .iter()
+                            .map(|id| Arc::<str>::from(id.as_str()))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
+                }),
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::PolicyValue(q)
+        }
+        CausalQueryWire::ContinuousDoseResponse(w) => {
+            let q = antecedent_core::ContinuousDoseResponseQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                dose: VariableId::from_raw(w.dose),
+                dose_density: VariableId::from_raw(w.dose_density),
+                baseline_groups: w
+                    .baseline_groups
+                    .iter()
+                    .map(|value| Arc::<str>::from(value.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                target_doses: w.target_doses.clone().into(),
+                bandwidth: w.bandwidth,
+                min_local_support: w.min_local_support,
+                density_provenance: Arc::from(w.density_provenance.as_str()),
+                fixed_policy: w.fixed_policy.as_ref().map(|(policy, reference)| {
+                    antecedent_core::FixedGroupDosePolicy {
+                        policy_doses: policy
+                            .iter()
+                            .map(|(group, dose)| (Arc::from(group.as_str()), *dose))
+                            .collect::<Vec<_>>()
+                            .into(),
+                        reference_doses: reference
+                            .iter()
+                            .map(|(group, dose)| (Arc::from(group.as_str()), *dose))
+                            .collect::<Vec<_>>()
+                            .into(),
+                    }
+                }),
+            };
+            q.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+            CausalQuery::ContinuousDoseResponse(q)
+        }
+        CausalQueryWire::PanelDid(w) => {
+            let q = if let Some((pre, propensity, prediction, cross_fitted)) = w.augmented {
+                if w.staggered_event_study
+                    || w.staggered_target.is_some()
+                    || w.repeated_cross_section
+                    || !w.periods.is_empty()
+                    || !w.cohorts.is_empty()
+                {
+                    return Err(IoError::Convert(
+                        "augmented panel DiD cannot also select another sampling design".into(),
+                    ));
+                }
+                PanelDidQuery::augmented_panel(
+                    VariableId::from_raw(w.outcome),
+                    VariableId::from_raw(pre),
+                    VariableId::from_raw(propensity),
+                    VariableId::from_raw(prediction),
+                    w.treated.clone(),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    cross_fitted,
+                )
+            } else if w.staggered_event_study {
+                if w.repeated_cross_section || w.staggered_target.is_some() {
+                    return Err(IoError::Convert("event study cannot also select a group-time target or repeated cross section".into()));
+                }
+                PanelDidQuery::staggered_event_study(
+                    VariableId::from_raw(w.outcome),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.periods.clone(),
+                    w.cohorts.clone(),
+                )
+            } else if let Some((cohort, period)) = w.staggered_target {
+                if w.repeated_cross_section {
+                    return Err(IoError::Convert(
+                        "staggered DiD cannot also be a repeated cross section".into(),
+                    ));
+                }
+                PanelDidQuery::staggered_group_time(
+                    VariableId::from_raw(w.outcome),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.periods.clone(),
+                    w.cohorts.clone(),
+                    cohort,
+                    period,
+                )
+            } else {
+                let constructor = if w.repeated_cross_section {
+                    PanelDidQuery::repeated_cross_section
+                } else {
+                    PanelDidQuery::new
+                };
+                constructor(
+                    VariableId::from_raw(w.outcome),
+                    w.treated.clone(),
+                    w.post.clone(),
+                    w.subjects.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                    w.clusters.iter().map(|x| Arc::<str>::from(x.as_str())).collect::<Vec<_>>(),
+                )
+            };
+            if (w.staggered_target.is_some() || w.staggered_event_study || w.augmented.is_some())
+                && (q.treated.as_ref() != w.treated.as_slice()
+                    || q.post.as_ref() != w.post.as_slice())
+            {
+                return Err(IoError::Convert(
+                    "staggered DiD treatment and post indicators disagree with cohort and period metadata".into(),
+                ));
+            }
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::PanelDid(q)
+        }
+        CausalQueryWire::SyntheticControl(w) => {
+            let q = SyntheticControlQuery::new(
+                VariableId::from_raw(w.outcome),
+                w.units.iter().map(|unit| Arc::<str>::from(unit.as_str())).collect::<Vec<_>>(),
+                w.periods.clone(),
+                Arc::<str>::from(w.treated_unit.as_str()),
+                w.intervention_period,
+            );
+            let q = if w.difference_in_differences { q.difference_in_differences() } else { q };
+            let q =
+                if w.uniform_unit_randomization { q.with_uniform_unit_randomization() } else { q };
+            let q = if let Some(effect) = w.sharp_null_effect {
+                q.with_sharp_null_effect(effect)
+            } else {
+                q
+            };
+            let q =
+                if let Some(ridge) = w.augmentation_ridge { q.with_augmentation(ridge) } else { q };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::SyntheticControl(q)
+        }
+        CausalQueryWire::LocalPolynomialRatio(w) => {
+            let q = LocalPolynomialRatioQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                treatment: VariableId::from_raw(w.treatment),
+                running: VariableId::from_raw(w.running),
+                cutoff: w.cutoff,
+                bandwidth: w.bandwidth,
+                kink: w.kink,
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::LocalPolynomialRatio(q)
+        }
+        CausalQueryWire::Survival(w) => {
+            if w.censoring_probability_floor.is_none()
+                && (!w.censoring_times.is_empty() || !w.censoring_columns.is_empty())
+            {
+                return Err(IoError::Convert(
+                    "censoring grid requires its positivity floor".into(),
+                ));
+            }
+            let q = antecedent_core::SurvivalQuery {
+                duration: VariableId::from_raw(w.duration),
+                event: VariableId::from_raw(w.event),
+                treatment: VariableId::from_raw(w.treatment),
+                tau: w.tau,
+                delayed_entry: w.delayed_entry.map(VariableId::from_raw),
+                known_censoring: w.censoring_probability_floor.map(|minimum_probability| {
+                    antecedent_core::KnownCensoringSurvival {
+                        times: Arc::from(w.censoring_times.clone()),
+                        columns: Arc::from(
+                            w.censoring_columns
+                                .iter()
+                                .copied()
+                                .map(VariableId::from_raw)
+                                .collect::<Vec<_>>(),
+                        ),
+                        minimum_probability,
+                    }
+                }),
+                observation_assumption: if w.independent_observation {
+                    antecedent_core::ObservationAssumption::IndependentGiven(Arc::from(
+                        w.independent_given
+                            .iter()
+                            .copied()
+                            .map(VariableId::from_raw)
+                            .collect::<Vec<_>>(),
+                    ))
+                } else {
+                    return Err(IoError::Convert(
+                        "survival requires marginal independent observation declaration".into(),
+                    ));
+                },
+                functional: w.target_cause.map_or(
+                    antecedent_core::SurvivalFunctional::SurvivalAndRmst,
+                    |target_cause| antecedent_core::SurvivalFunctional::CumulativeIncidence {
+                        target_cause,
+                    },
+                ),
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::Survival(q)
+        }
+        CausalQueryWire::LongitudinalRegime(w) => {
+            let method = match w.method.as_str() {
+                "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
+                "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+                "sequential_dr" => {
+                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+                }
+                "marginal_structural_model" => {
+                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+                }
+                _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
+            };
+            let q = antecedent_core::LongitudinalRegimeQuery {
+                outcome: VariableId::from_raw(w.outcome),
+                periods: w.periods,
+                method,
+                period_outcome_predictions: if w.period_outcome_predictions.is_empty() {
+                    None
+                } else {
+                    Some(w.period_outcome_predictions.clone().into())
+                },
+                known_fixed_outcome_predictions: w.known_fixed_outcome_predictions,
+                stabilizing_numerator_probabilities: if w
+                    .stabilizing_numerator_probabilities
+                    .is_empty()
+                {
+                    None
+                } else {
+                    Some(w.stabilizing_numerator_probabilities.clone().into())
+                },
+                q_predictions: if w.q_predictions.is_empty() {
+                    None
+                } else {
+                    Some(w.q_predictions.clone().into())
+                },
+                observation_history: if w.observation_history.is_empty() {
+                    None
+                } else {
+                    Some(w.observation_history.clone().into())
+                },
+                prediction_fold_ids: if w.prediction_fold_ids.is_empty() {
+                    None
+                } else {
+                    Some(w.prediction_fold_ids.clone().into())
+                },
+                treatment_history: w.treatment_history.clone().into(),
+                regime_actions: w.regime_actions.clone().into(),
+                treatment_probabilities: w.treatment_probabilities.clone().into(),
+                censoring_probabilities: w.censoring_probabilities.clone().into(),
+                outcome_observed: w.outcome_observed.clone().into(),
+                subject_ids: w
+                    .subject_ids
+                    .iter()
+                    .map(|s| Arc::<str>::from(s.as_str()))
+                    .collect::<Vec<_>>()
+                    .into(),
+                fold_ids: w.fold_ids.clone().into(),
+                excluded_fold_predictions: w.excluded_fold_predictions,
+                probabilities_known_by_design: w.probabilities_known_by_design,
+                minimum_probability: w.minimum_probability,
+                rule_id: w.rule_id.as_deref().map(Arc::<str>::from),
+                rule_version: w.rule_version.as_deref().map(Arc::<str>::from),
+                rule_provenance: w.rule_provenance.as_deref().map(Arc::<str>::from),
+            };
+            q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+            CausalQuery::LongitudinalRegime(q)
+        }
     })
 }
 
@@ -1454,6 +2726,38 @@ pub fn interference_query_to_wire(q: &InterferenceQuery) -> Result<InterferenceQ
                     .map_err(|_| IoError::TooLarge)?,
             }
         }
+        AssignmentDesign::TwoStageSaturation {
+            clusters,
+            low_probability,
+            high_probability,
+            high_clusters,
+            realized_saturation,
+        } => AssignmentDesignWire::TwoStageSaturation {
+            clusters: clusters.to_vec(),
+            low_probability: *low_probability,
+            high_probability: *high_probability,
+            high_clusters: u64::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
+            realized_saturation: realized_saturation.to_vec(),
+        },
+        AssignmentDesign::ObservedExposure {
+            clusters,
+            propensity_from,
+            propensity_to,
+            provenance,
+            assume_network_exchangeability,
+        } => AssignmentDesignWire::ObservedExposure {
+            clusters: clusters.to_vec(),
+            propensity_from: propensity_from.to_vec(),
+            propensity_to: propensity_to.to_vec(),
+            provenance: match provenance {
+                antecedent_core::ExposurePropensityProvenance::Known => "known",
+                antecedent_core::ExposurePropensityProvenance::ExternallyEstimated => {
+                    "externally_estimated"
+                }
+            }
+            .into(),
+            assume_network_exchangeability: *assume_network_exchangeability,
+        },
     };
     let exposure = match &q.exposure {
         ExposureMapping::OwnTreatment => ExposureMappingWire::OwnTreatment,
@@ -1499,6 +2803,42 @@ pub fn interference_query_from_wire(
                     .map_err(|_| IoError::TooLarge)?,
             }
         }
+        AssignmentDesignWire::TwoStageSaturation {
+            clusters,
+            low_probability,
+            high_probability,
+            high_clusters,
+            realized_saturation,
+        } => AssignmentDesign::TwoStageSaturation {
+            clusters: clusters.clone().into(),
+            low_probability: *low_probability,
+            high_probability: *high_probability,
+            high_clusters: usize::try_from(*high_clusters).map_err(|_| IoError::TooLarge)?,
+            realized_saturation: realized_saturation.clone().into(),
+        },
+        AssignmentDesignWire::ObservedExposure {
+            clusters,
+            propensity_from,
+            propensity_to,
+            provenance,
+            assume_network_exchangeability,
+        } => AssignmentDesign::ObservedExposure {
+            clusters: clusters.clone().into(),
+            propensity_from: propensity_from.clone().into(),
+            propensity_to: propensity_to.clone().into(),
+            provenance: match provenance.as_str() {
+                "known" => antecedent_core::ExposurePropensityProvenance::Known,
+                "externally_estimated" => {
+                    antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
+                }
+                _ => {
+                    return Err(IoError::Convert(
+                        "unknown observational propensity provenance".into(),
+                    ));
+                }
+            },
+            assume_network_exchangeability: *assume_network_exchangeability,
+        },
     };
     let exposure = match &w.exposure {
         ExposureMappingWire::OwnTreatment => ExposureMapping::OwnTreatment,
@@ -1610,6 +2950,238 @@ mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
     use antecedent_core::{ComponentId, PopulationRegistry};
+
+    #[test]
+    fn randomized_itt_design_round_trips_as_its_own_query_kind() {
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::bernoulli_itt(
+            VariableId::from_raw(0),
+            [true, false],
+            [0.5, 0.5],
+            [Arc::<str>::from("a"), Arc::<str>::from("b")],
+            [Arc::<str>::from("r0"), Arc::<str>::from("r1")],
+            ("control", "treated"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        assert!(matches!(wire, CausalQueryWire::RandomizedEffect(_)));
+        assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
+
+        let cuped = CausalQuery::RandomizedEffect(
+            RandomizedEffectQuery::bernoulli_itt(
+                VariableId::from_raw(0),
+                [true, false],
+                [0.5, 0.5],
+                [Arc::<str>::from("a"), Arc::<str>::from("b")],
+                [Arc::<str>::from("r0"), Arc::<str>::from("r1")],
+                ("control", "treated"),
+            )
+            .with_fixed_cuped(VariableId::from_raw(1), 4.0),
+        );
+        let cuped_wire = causal_query_to_wire(&cuped).unwrap();
+        assert_eq!(causal_query_from_wire(&cuped_wire).unwrap(), cuped);
+
+        let switchback = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Switchback {
+                periods: ["p0", "p1", "p0", "p1"].map(Arc::<str>::from).into(),
+            },
+            VariableId::from_raw(0),
+            [true, false, true, false],
+            [0.5; 4],
+            ["s0", "s0", "s1", "s1"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3"].map(Arc::<str>::from),
+            ("off", "on"),
+        ));
+        let switchback_wire = causal_query_to_wire(&switchback).unwrap();
+        assert_eq!(causal_query_from_wire(&switchback_wire).unwrap(), switchback);
+
+        let cace = CausalQuery::RandomizedEffect(
+            RandomizedEffectQuery::bernoulli_itt(
+                VariableId::from_raw(0),
+                [true, false, true, false],
+                [0.5; 4],
+                ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+                ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+                ("control", "encouraged"),
+            )
+            .with_received_treatment([true, false, false, false]),
+        );
+        let cace_wire = causal_query_to_wire(&cace).unwrap();
+        assert_eq!(causal_query_from_wire(&cace_wire).unwrap(), cace);
+
+        let fisher = CausalQuery::RandomizedEffect(
+            RandomizedEffectQuery::with_design(
+                RandomizationDesign::Complete { treated_units: 2 },
+                VariableId::from_raw(0),
+                [true, true, false, false],
+                [0.5; 4],
+                ["u0", "u1", "u2", "u3"].map(Arc::<str>::from),
+                ["y0", "y1", "y2", "y3"].map(Arc::<str>::from),
+                ("control", "treated"),
+            )
+            .with_exact_randomization_test(),
+        );
+        let fisher_wire = causal_query_to_wire(&fisher).unwrap();
+        assert_eq!(causal_query_from_wire(&fisher_wire).unwrap(), fisher);
+        let factorial = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Factorial2x2 {
+                second_factor_assignment: [false, false, false, false, true, true, true, true]
+                    .into(),
+                cell_counts: [2; 4],
+                second_factor_arms: (Arc::from("off"), Arc::from("on")),
+            },
+            VariableId::from_raw(0),
+            [false, false, true, true, false, false, true, true],
+            [0.5; 8],
+            (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+            ("control", "treated"),
+        ));
+        let factorial_wire = causal_query_to_wire(&factorial).unwrap();
+        assert_eq!(causal_query_from_wire(&factorial_wire).unwrap(), factorial);
+
+        let stratified = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Stratified {
+                blocks: ["north", "north", "north", "north", "south", "south", "south", "south"]
+                    .map(Arc::<str>::from)
+                    .into(),
+                treated_per_row: Arc::from([2; 8]),
+            },
+            VariableId::from_raw(0),
+            [true, false, true, false, true, false, true, false],
+            [0.5; 8],
+            (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+            ("control", "treated"),
+        ));
+        assert_eq!(
+            causal_query_from_wire(&causal_query_to_wire(&stratified).unwrap()).unwrap(),
+            stratified
+        );
+    }
+
+    #[test]
+    fn cluster_randomized_itt_round_trips_repeated_assignment_units() {
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::Cluster { treated_clusters: 2 },
+            VariableId::from_raw(0),
+            [true, true, true, false, false, false],
+            [0.5; 6],
+            ["a", "a", "b", "c", "c", "d"].map(Arc::<str>::from),
+            ["r0", "r1", "r2", "r3", "r4", "r5"].map(Arc::<str>::from),
+            ("control", "treated"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
+    }
+
+    #[test]
+    fn multi_arm_randomized_query_round_trips_with_all_probability_rows() {
+        let assignment = [0_usize, 1, 2, 0, 1, 2];
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::with_design(
+            RandomizationDesign::MultiArm {
+                assignment: assignment.into(),
+                probabilities: vec![vec![1.0 / 3.0; 3]; 6].into(),
+                arms: ["control", "low", "high"].map(Arc::<str>::from).into(),
+            },
+            VariableId::from_raw(0),
+            assignment.map(|arm| arm != 0),
+            [1.0 / 3.0; 6],
+            (0..6).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+            (0..6).map(|i| Arc::<str>::from(format!("r{i}"))).collect::<Vec<_>>(),
+            ("control", "low"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
+    }
+
+    #[test]
+    fn panel_did_design_round_trips_with_subject_and_cluster_ownership() {
+        let ids = ["a", "a", "b", "b", "c", "c", "d", "d"];
+        let query = CausalQuery::PanelDid(PanelDidQuery::new(
+            VariableId::from_raw(0),
+            [true, true, true, true, false, false, false, false],
+            [false, true, false, true, false, true, false, true],
+            ids.map(Arc::<str>::from),
+            ["x", "x", "y", "y", "z", "z", "w", "w"].map(Arc::<str>::from),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        assert!(matches!(wire, CausalQueryWire::PanelDid(_)));
+        assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
+    }
+
+    #[test]
+    fn repeated_cross_section_design_round_trips_and_differs_from_panel() {
+        let subjects = ["a", "b", "c", "d", "e", "f", "g", "h"].map(Arc::<str>::from);
+        let clusters = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"].map(Arc::<str>::from);
+        let panel = PanelDidQuery::new(
+            VariableId::from_raw(0),
+            [false, false, false, false, true, true, true, true],
+            [false, false, true, true, false, false, true, true],
+            subjects.clone(),
+            clusters.clone(),
+        );
+        let rcs = PanelDidQuery::repeated_cross_section(
+            VariableId::from_raw(0),
+            [false, false, false, false, true, true, true, true],
+            [false, false, true, true, false, false, true, true],
+            subjects,
+            clusters,
+        );
+        let wire = causal_query_to_wire(&CausalQuery::PanelDid(rcs.clone())).unwrap();
+        assert_ne!(wire, causal_query_to_wire(&CausalQuery::PanelDid(panel)).unwrap());
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), CausalQuery::PanelDid(rcs));
+    }
+
+    #[test]
+    fn staggered_group_time_design_round_trips_with_target_and_histories() {
+        let query = CausalQuery::PanelDid(PanelDidQuery::staggered_group_time(
+            VariableId::from_raw(0),
+            ["a", "a", "b", "b", "c", "c", "d", "d"].map(Arc::<str>::from),
+            ["ca", "ca", "cb", "cb", "cc", "cc", "cd", "cd"].map(Arc::<str>::from),
+            [2, 3, 2, 3, 2, 3, 2, 3],
+            [0, 0, 0, 0, 3, 3, 3, 3],
+            3,
+            3,
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&decoded).unwrap(), query);
+    }
+
+    #[test]
+    fn policy_value_query_round_trips_frozen_inputs_and_ownership() {
+        let query = CausalQuery::PolicyValue(PolicyValueQuery {
+            outcome: VariableId::from_raw(2),
+            assignment: Arc::from([false, true]),
+            propensity: Arc::from([0.5]),
+            actions: Arc::from([true, false]),
+            reference: Arc::from([false, false]),
+            mu0: Arc::from([1.0, 2.0]),
+            mu1: Arc::from([3.0, 4.0]),
+            costs: Arc::from([0.1]),
+            reference_costs: Arc::from([0.0]),
+            evaluation_subject_ids: Arc::from([Arc::<str>::from("s0"), Arc::<str>::from("s1")]),
+            disjoint_training_subjects: true,
+            crossfit_fold_ownership_valid: false,
+            global_constraints_present: false,
+            multi_action: None,
+            uplift_bins: Arc::from([]),
+            uplift_bin_count: 0,
+            uplift_training_subject_ids: Arc::from([]),
+            regret: None,
+        });
+        let wire = causal_query_to_wire(&query).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let restored: CausalQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_query_from_wire(&restored).unwrap(), query);
+    }
 
     #[test]
     fn misspelled_query_keys_are_rejected_not_defaulted() {
@@ -1959,6 +3531,10 @@ mod tests {
         assert_rt(&CausalQuery::AnomalyAttribution(
             AnomalyAttributionQuery::new([y, m], 64).with_unit_rows([0usize, 1, 2]),
         ));
+        assert_rt(&CausalQuery::AnomalyAttribution(
+            AnomalyAttributionQuery::new([y], 64)
+                .with_reference(AnomalyReference::fixed(1.5, 2.25)),
+        ));
         assert_rt(&CausalQuery::MechanismChange(MechanismChangeQuery::new(
             [t, y],
             PopulationSelector::All,
@@ -1981,6 +3557,9 @@ mod tests {
             [m],
             MediationContrast::NaturalIndirect,
         )));
+        assert_rt(&CausalQuery::NestedCounterfactual(
+            antecedent_core::NestedCounterfactualQuery::with_levels(t, m, y, -0.5, 1.5).unwrap(),
+        ));
         let conditional = ConditionalEffectQuery::try_new(
             AverageEffectQuery::binary_ate(t, y).with_effect_modifiers([z]),
         )

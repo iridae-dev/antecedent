@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from .errors import CausalUnsupportedError, CausalValueError
+
 
 @dataclass(frozen=True, slots=True)
 class TransportLifecycle:
@@ -27,15 +29,16 @@ class TransportLifecycle:
             or threads is not None
             or any(controls.get(name) is not None for name in ("on_progress", "on_stage"))
         ):
-            raise ValueError(
-                "Transport retains inference settings; only cancellation can change per execution"
+            raise CausalUnsupportedError(
+                "Transport retains inference settings; only cancellation can change per execution",
+                reason_code="option_not_applicable",
             )
         if refresh:
             raw = native.refresh(self.payload(data), cancel=controls.get("cancel"))
         elif data is None:
             raw = native.estimate(cancel=controls.get("cancel"))
         else:
-            raise ValueError(
+            raise CausalValueError(
                 "Use replace_snapshot or refresh for an explicit transport snapshot change"
             )
         return self.wrap(native, raw)
@@ -54,5 +57,6 @@ def transport_lifecycle(kind: str) -> TransportLifecycle | None:
         "exact_transport": TransportLifecycle(_exact_distribution, lambda data: data.laws),
         "statistical_transport": TransportLifecycle(_statistical_distribution, lambda data: data),
         "transport_grid": TransportLifecycle(_response_grid, lambda data: data),
+        "z_transport": TransportLifecycle(lambda _native, payload: payload, lambda data: data),
     }
     return adapters.get(kind)

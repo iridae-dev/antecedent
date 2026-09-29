@@ -1,4 +1,5 @@
 //! Native authority for retained exact and empirical response grids.
+use crate::transport_common::{error, resolve};
 use crate::{
     graphs::Admg, transport_exact_api::ClassicalTransportStage,
     transport_interference_api::parse_catalog,
@@ -7,22 +8,11 @@ use antecedent::analysis::{
     TransportGridData, TransportGridPoint, TransportGridQuery, TransportGridResult,
     TransportGridState,
 };
-use antecedent_core::{ExecutionContext, Value, VariableId};
+use antecedent_core::{ExecutionContext, Value};
 use antecedent_estimate::EmpiricalTableOptions;
 use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
-fn error(e: impl std::fmt::Display) -> PyErr {
-    pyo3::exceptions::PyValueError::new_err(e.to_string())
-}
-fn resolve(names: &[String], name: &str) -> PyResult<VariableId> {
-    Ok(VariableId::from_raw(
-        u32::try_from(
-            names.iter().position(|n| n == name).ok_or_else(|| error("unknown grid coordinate"))?,
-        )
-        .map_err(error)?,
-    ))
-}
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 struct PreparedTransportGridStage {
@@ -262,6 +252,7 @@ fn prepare_transport_grid(
     let options = statistical.then_some(EmpiricalTableOptions {
         estimator: crate::transport_statistical_api::parse_provider(estimator)?,
         bootstrap_replicates: bootstrap,
+        posterior_draws: 199,
         coverage_level,
         max_joint_cells: max_support_rows,
     });
@@ -314,7 +305,9 @@ fn prepare_transport_grid(
                 .map_err(error)?
             {
                 antecedent_identify::CatalogTransportResult::Identified(f) => *f,
-                other => return Err(error(format!("bounded catalog search: {other:?}"))),
+                other => {
+                    return Err(crate::transport_common::catalog_search_refusal(&other, &names));
+                }
             },
         };
         let inner = antecedent::StudyBuilder::transport_grid(

@@ -8,6 +8,15 @@ use crate::VariableId;
 
 use super::QueryError;
 
+/// Provenance of supplied marginal exposure probabilities in an observational network study.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExposurePropensityProvenance {
+    /// Known from the observation process.
+    Known,
+    /// Estimated outside this analysis and treated as fixed for its variance.
+    ExternallyEstimated,
+}
+
 /// Known random assignment design.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AssignmentDesign {
@@ -27,6 +36,32 @@ pub enum AssignmentDesign {
         clusters: Arc<[u32]>,
         /// Number of treated clusters.
         treated_clusters: usize,
+    },
+    /// Clusters are allocated to low/high saturation, then units receive independent Bernoulli assignment.
+    TwoStageSaturation {
+        /// Cluster label in unit-row order.
+        clusters: Arc<[u32]>,
+        /// Lower within-cluster treatment probability.
+        low_probability: f64,
+        /// Higher within-cluster treatment probability.
+        high_probability: f64,
+        /// Number of clusters allocated to the higher probability.
+        high_clusters: usize,
+        /// Realized probability for each unit, constant within a cluster.
+        realized_saturation: Arc<[f64]>,
+    },
+    /// Observed network assignment with supplied exposure probabilities.
+    ObservedExposure {
+        /// Partial-interference cluster label in unit-row order.
+        clusters: Arc<[u32]>,
+        /// Marginal probability of the requested baseline exposure for each unit.
+        propensity_from: Arc<[f64]>,
+        /// Marginal probability of the requested active exposure for each unit.
+        propensity_to: Arc<[f64]>,
+        /// Source of supplied probabilities.
+        provenance: ExposurePropensityProvenance,
+        /// Caller asserts conditional exchangeability of network exposure and potential outcomes.
+        assume_network_exchangeability: bool,
     },
 }
 
@@ -136,6 +171,44 @@ impl InterferenceQuery {
                 return Err(QueryError::InvalidInterference(
                     "cluster randomization requires clusters and at least one treated cluster"
                         .into(),
+                ));
+            }
+            AssignmentDesign::TwoStageSaturation {
+                clusters,
+                low_probability,
+                high_probability,
+                high_clusters,
+                realized_saturation,
+            } if clusters.is_empty()
+                || clusters.len() != realized_saturation.len()
+                || !low_probability.is_finite()
+                || !high_probability.is_finite()
+                || *low_probability <= 0.0
+                || *high_probability >= 1.0
+                || low_probability >= high_probability
+                || *high_clusters == 0 =>
+            {
+                return Err(QueryError::InvalidInterference(
+                    "two-stage saturation requires aligned clusters, 0 < low < high < 1, and high_clusters > 0".into(),
+                ));
+            }
+            AssignmentDesign::ObservedExposure {
+                clusters,
+                propensity_from,
+                propensity_to,
+                assume_network_exchangeability,
+                ..
+            } if clusters.is_empty()
+                || propensity_from.len() != clusters.len()
+                || propensity_to.len() != clusters.len()
+                || !assume_network_exchangeability
+                || propensity_from
+                    .iter()
+                    .chain(propensity_to.iter())
+                    .any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0) =>
+            {
+                return Err(QueryError::InvalidInterference(
+                    "observational exposure requires aligned positive propensities and an explicit network exchangeability assumption".into(),
                 ));
             }
             _ => {}

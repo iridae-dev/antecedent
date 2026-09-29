@@ -7,22 +7,22 @@
 id = "no_interval_reported"
 applies_to = ["calibration"]
 meaning = "The cell reports no interval; nothing to calibrate."
-max_uses = 4
+max_uses = 5
 # Eligibility: a licensed cell may cite this code only for these queries,
 # which report a point quantity without a sampling interval.
-queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]
+queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]
 
 [[code]]
 id = "boundary_record"
 applies_to = ["calibration"]
 meaning = "The cell lists the coverage records that measured it, but every record at the reported level is a named boundary or missed its nominal band at one of its sample-size grid points; none is a nominal pass anywhere in its measured range. Stated beside the calibration list, and only then."
-max_uses = 31
+max_uses = 36
 
 [[code]]
 id = "estimator_grid_not_measured"
 applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
-max_uses = 173
+max_uses = 175
 
 [[code]]
 id = "interval_level_not_measured"
@@ -81,7 +81,7 @@ max_uses = 1
 [[code]]
 id = "construction_not_licensed"
 applies_to = ["python_product", "runtime_refusal"]
-meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment); another design, exposure mapping, formula or inner functional on that coordinate is refused."
+meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment). Other constructions refuse on the licensed estimator; a separately identified off-axis estimator may execute without inheriting its license or calibration."
 max_uses = 0
 
 [[code]]
@@ -160,6 +160,11 @@ meaning = "The selected estimator does not implement the requested inference mod
 id = "effect_not_identified"
 applies_to = ["runtime_refusal"]
 meaning = "The question has no identified estimand under the declared structure; the refusal carries the identification status and whether the search was complete or capped."
+
+[[code]]
+id = "cross_world_not_identified"
+applies_to = ["runtime_refusal"]
+meaning = "A nested counterfactual query requires cross-world assumptions or graph semantics outside the explicitly licensed shared-exogenous contract."
 
 [[code]]
 id = "score_table_unavailable"
@@ -246,7 +251,7 @@ meaning = "A statistical provider required by a certified transport factor is ab
 id = "transport_unsupported_evaluator"
 applies_to = ["runtime_refusal"]
 meaning = "The transport formula is identified but this evaluator does not run it."
-max_uses = 3
+max_uses = 4
 
 [[code]]
 id = "transport_support_failure"

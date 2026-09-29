@@ -43,7 +43,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::analysis_wire::{IdentifiedEstimandWire, RdDesignWire};
 use crate::convert::{
-    admg_to_wire, cpdag_to_wire, dag_to_wire, pag_to_wire, schema_to_wire, vars_to_raw,
+    admg_to_wire, cpdag_to_wire, dag_to_wire, endpoint_to_wire, pag_to_wire, schema_to_wire,
+    vars_to_raw,
 };
 use crate::discovery_wire::{TemporalGraphWire, temporal_dag_to_wire};
 use crate::error::IoError;
@@ -160,6 +161,22 @@ pub fn executed_functional_labels(query: &CausalQueryWire) -> Vec<(String, Strin
             functional: None,
             temporal: horizons_label(horizons),
         }),
+        CausalQueryWire::NestedCounterfactual {
+            treatment,
+            mediator,
+            outcome,
+            control_bits,
+            active_bits,
+        } => vec![
+            ("query_kind".into(), "nested_counterfactual".into()),
+            ("estimand".into(), "natural_direct_shared_exogenous".into()),
+            ("treatment".into(), treatment.to_string()),
+            ("mediator".into(), mediator.to_string()),
+            ("outcome".into(), outcome.to_string()),
+            ("control".into(), f64::from_bits(*control_bits).to_string()),
+            ("active".into(), f64::from_bits(*active_bits).to_string()),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
         CausalQueryWire::PathSpecific(path) => contrast_labels(ContrastLabels {
             kind: "path_specific",
             treatment: path.treatment,
@@ -201,6 +218,8 @@ fn contrast_labels(contrast: ContrastLabels<'_>) -> Vec<(String, String)> {
     out
 }
 
+// allow(too_many_lines): flat per-variant label mapping; splitting would obscure the query taxonomy
+#[allow(clippy::too_many_lines)]
 fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
     match query {
         CausalQueryWire::Counterfactual { outcomes, interventions, .. } => vec![
@@ -244,6 +263,175 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
         CausalQueryWire::Interference(_) => vec![
             ("query_kind".into(), "interference".into()),
             ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::RandomizedEffect(query) => vec![
+            ("query_kind".into(), "randomized_effect".into()),
+            (
+                "randomized_estimand".into(),
+                match query.estimand {
+                    crate::RandomizedEstimandWire::Itt => "itt".into(),
+                    crate::RandomizedEstimandWire::CaceLate => "cace_late".into(),
+                    crate::RandomizedEstimandWire::TreatmentOnTreated => {
+                        "treatment_on_treated".into()
+                    }
+                },
+            ),
+            ("exact_randomization_test".into(), query.exact_randomization_test.to_string()),
+            ("outcome".into(), query.outcome.to_string()),
+            (
+                "randomization_design".into(),
+                match &query.design {
+                    crate::RandomizationDesignWire::Bernoulli => "bernoulli".into(),
+                    crate::RandomizationDesignWire::Switchback => "switchback".into(),
+                    crate::RandomizationDesignWire::Complete { .. } => "complete".into(),
+                    crate::RandomizationDesignWire::Cluster { .. } => "cluster".into(),
+                    crate::RandomizationDesignWire::Stratified => "stratified".into(),
+                    crate::RandomizationDesignWire::Factorial2x2 => "factorial_2x2".into(),
+                    crate::RandomizationDesignWire::MultiArm => "multi_arm".into(),
+                },
+            ),
+            (
+                "treatment_arms".into(),
+                format!("{}->{}", query.treatment_arms.0, query.treatment_arms.1),
+            ),
+            (
+                "precision_adjustment".into(),
+                if query.ancova_covariates.is_empty() {
+                    query.fixed_cuped.map_or_else(
+                        || "none".into(),
+                        |(id, coefficient)| format!("fixed_cuped:{id}:{coefficient}"),
+                    )
+                } else {
+                    format!("ancova:{:?}", query.ancova_covariates)
+                },
+            ),
+            ("switchback_periods".into(), query.periods.join(",")),
+            (
+                "factorial_second_assignment".into(),
+                query
+                    .second_factor_assignment
+                    .iter()
+                    .map(|value| if *value { '1' } else { '0' })
+                    .collect(),
+            ),
+            ("factorial_cell_counts".into(), format!("{:?}", query.factorial_cell_counts)),
+            ("factorial_second_arms".into(), format!("{:?}", query.second_factor_arms)),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::PanelDid(query) => vec![
+            ("query_kind".into(), "panel_did".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("augmented_nuisance".into(), format!("{:?}", query.augmented)),
+            (
+                "design".into(),
+                if query.augmented.is_some() {
+                    "augmented_panel"
+                } else if query.repeated_cross_section {
+                    "repeated_cross_section"
+                } else {
+                    "balanced_two_period_panel"
+                }
+                .into(),
+            ),
+            ("temporal_coordinates".into(), "pre_post".into()),
+        ],
+        CausalQueryWire::SyntheticControl(query) => {
+            let mut dimensions = vec![
+                (
+                    "query_kind".into(),
+                    if query.difference_in_differences {
+                        "synthetic_did"
+                    } else {
+                        "synthetic_control"
+                    }
+                    .into(),
+                ),
+                ("outcome".into(), query.outcome.to_string()),
+                ("treated_unit".into(), query.treated_unit.clone()),
+                ("intervention_period".into(), query.intervention_period.to_string()),
+                (
+                    "donor_pool_size".into(),
+                    query
+                        .units
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        .saturating_sub(1)
+                        .to_string(),
+                ),
+            ];
+            if query.uniform_unit_randomization {
+                dimensions.push(("uniform_unit_randomization".into(), "true".into()));
+            }
+            if let Some(effect) = query.sharp_null_effect {
+                dimensions.push(("sharp_null_effect".into(), effect.to_string()));
+            }
+            if let Some(ridge) = query.augmentation_ridge {
+                dimensions.push(("augmentation_ridge".into(), ridge.to_string()));
+            }
+            dimensions
+        }
+        CausalQueryWire::LocalPolynomialRatio(query) => vec![
+            ("query_kind".into(), if query.kink { "regression_kink" } else { "fuzzy_rd" }.into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("treatment".into(), query.treatment.to_string()),
+            ("running".into(), query.running.to_string()),
+            ("cutoff".into(), query.cutoff.to_string()),
+            ("bandwidth".into(), query.bandwidth.to_string()),
+        ],
+        CausalQueryWire::PolicyValue(query) => {
+            let mut dimensions = vec![
+                ("query_kind".into(), "policy_value".into()),
+                ("outcome".into(), query.outcome.to_string()),
+                (
+                    "policy_actions".into(),
+                    query
+                        .multi_action
+                        .as_ref()
+                        .map_or(query.actions.len(), |multi| multi.actions.len())
+                        .to_string(),
+                ),
+                ("temporal_coordinates".into(), "none".into()),
+            ];
+            if let Some(multi) = &query.multi_action {
+                dimensions.push(("action_count".into(), multi.action_labels.len().to_string()));
+            }
+            dimensions
+        }
+        CausalQueryWire::ContinuousDoseResponse(query) => vec![
+            ("query_kind".into(), "continuous_dose_response".into()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("dose".into(), query.dose.to_string()),
+            ("dose_density".into(), query.dose_density.to_string()),
+            ("group_count".into(), query.baseline_groups.len().to_string()),
+            ("target_doses".into(), format!("{:?}", query.target_doses)),
+            ("bandwidth".into(), query.bandwidth.to_string()),
+            ("density_provenance".into(), query.density_provenance.clone()),
+        ],
+        CausalQueryWire::Survival(query) => vec![
+            ("query_kind".into(), "survival".into()),
+            ("duration".into(), query.duration.to_string()),
+            ("event".into(), query.event.to_string()),
+            ("treatment".into(), query.treatment.to_string()),
+            ("tau".into(), query.tau.to_string()),
+            (
+                "target_cause".into(),
+                query.target_cause.map_or_else(|| "none".into(), |cause| cause.to_string()),
+            ),
+            (
+                "delayed_entry".into(),
+                query.delayed_entry.map_or_else(|| "none".into(), |entry| entry.to_string()),
+            ),
+            ("observation".into(), "independent_marginal".into()),
+            ("temporal_coordinates".into(), "event_time".into()),
+        ],
+        CausalQueryWire::LongitudinalRegime(query) => vec![
+            ("query_kind".into(), "longitudinal_regime".into()),
+            ("method".into(), query.method.clone()),
+            ("outcome".into(), query.outcome.to_string()),
+            ("periods".into(), query.periods.to_string()),
+            ("subjects".into(), query.subject_ids.len().to_string()),
+            ("temporal_coordinates".into(), "subject_history".into()),
         ],
         CausalQueryWire::AnomalyAttribution { targets, .. } => {
             named_outcomes("anomaly_attribution", targets)
@@ -466,6 +654,8 @@ pub enum GraphIdentityWire {
     TemporalDag(TemporalGraphWire),
     /// Temporal class with lagged/context nodes and marked edges.
     TemporalClass(TemporalClassIdentityWire),
+    /// No causal graph was supplied; design metadata defines the experiment.
+    RandomizedTrial,
     /// Graph-posterior atoms: every atom's structure and weight.
     GraphPosterior {
         /// Declared graph class of the posterior atoms.
@@ -583,15 +773,6 @@ pub struct IdentityMarkedEdgeWire {
     pub middle: String,
 }
 
-fn endpoint_wire(mark: antecedent_graph::Endpoint) -> EndpointWire {
-    match mark {
-        antecedent_graph::Endpoint::Tail => EndpointWire::Tail,
-        antecedent_graph::Endpoint::Arrow => EndpointWire::Arrow,
-        antecedent_graph::Endpoint::Circle => EndpointWire::Circle,
-        antecedent_graph::Endpoint::Conflict => EndpointWire::Conflict,
-    }
-}
-
 fn middle_wire(mark: antecedent_graph::MiddleMark) -> &'static str {
     match mark {
         antecedent_graph::MiddleMark::Unknown => "unknown",
@@ -606,8 +787,8 @@ fn marked_identity_edge(edge: MarkedEdge) -> IdentityMarkedEdgeWire {
     IdentityMarkedEdgeWire {
         a: edge.a.raw(),
         b: edge.b.raw(),
-        at_a: endpoint_wire(edge.at_a),
-        at_b: endpoint_wire(edge.at_b),
+        at_a: endpoint_to_wire(edge.at_a),
+        at_b: endpoint_to_wire(edge.at_b),
         middle: middle_wire(edge.middle).into(),
     }
 }
@@ -758,6 +939,11 @@ pub enum PosteriorAtomGraphWire {
     Temporal(TemporalGraphWire),
     /// Temporal class structure (lagged/context nodes and marked edges).
     TemporalClass(TemporalClassIdentityWire),
+    /// Posterior weight whose mask is not a graph of the atom class.
+    ///
+    /// Execution keeps this weight as unidentified mass. It is not rewritten
+    /// into another graph class.
+    Unrepresentable,
 }
 
 /// Durable graph-posterior atom: structure plus posterior weight.
@@ -870,8 +1056,9 @@ fn posterior_atom_graph_wire(
     }
     match posterior.atom_kind {
         GraphPosteriorAtomKind::Admg => {
-            let admg = admg_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
+            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
+                return Ok(PosteriorAtomGraphWire::Unrepresentable);
+            };
             Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
         }
         GraphPosteriorAtomKind::Cpdag => {
@@ -1219,6 +1406,51 @@ pub struct DataSnapshotIdentityWire {
     /// Interference network and assignment, when the study carries one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interference: Option<InterferenceSnapshotWire>,
+    /// Portable finite-discrete provider tables for checked distribution or scalar
+    /// functional replay. Bound to this data snapshot and absent on older artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distribution_factor_laws: Option<DistributionFactorLawsWire>,
+    /// Portable outcome-regression moments for the checked linear-Gaussian
+    /// natural direct effect. Older artifacts omit them and remain readable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nested_counterfactual_fit: Option<NestedCounterfactualFitWire>,
+    /// Portable moments for replaying checked static linear adjustment when its
+    /// fit and uncertainty contract is inside the supported replay subset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linear_fit_moments: Option<LinearFitMomentsWire>,
+}
+
+/// Sufficient statistics for replaying a checked homoskedastic OLS fit.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LinearFitMomentsWire {
+    /// Wire format.
+    pub format: u16,
+    /// Number of complete-case rows.
+    pub complete_case_rows: u64,
+    /// Number of ordered design columns.
+    pub columns: u32,
+    /// Row-major `X'X`.
+    pub gram: Vec<f64>,
+    /// `X'Y` in design order.
+    pub outcome_cross: Vec<f64>,
+    /// `Y'Y`.
+    pub outcome_square: f64,
+}
+
+/// Sufficient statistics for the ordered design `[intercept, treatment, mediator]`.
+/// These are bound to the data snapshot, rather than the causal program.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct NestedCounterfactualFitWire {
+    /// Wire format.
+    pub format: u16,
+    /// Number of complete rows used by the outcome regression.
+    pub complete_case_rows: u64,
+    /// Row-major `X'X` for the three design columns.
+    pub gram: [f64; 9],
+    /// `X'Y` in design order.
+    pub outcome_cross: [f64; 3],
 }
 
 /// Digest a data snapshot identity.
@@ -1436,6 +1668,228 @@ pub struct ProgramIdentityWire {
     pub completion_budget: Option<u64>,
     /// Licensed inferential commitments.
     pub commitments: InferentialCommitmentsWire,
+    /// Retained checked program for high-level functional-distribution and scalar
+    /// functional-effect results. Omitted by older artifacts and other estimators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functional_program: Option<crate::FunctionalProgramWire>,
+    /// Checked AIPW semantic lowering (target roles and procedure choices).
+    /// Data-dependent complete-case rows are carried separately by the contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_aipw_lowering: Option<crate::CheckedAipwLoweringWire>,
+    /// Checked semantic lowering for a prepared linear front-door program.
+    /// Older artifacts omit it and cannot be independently verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_frontdoor_lowering: Option<CheckedFrontDoorLoweringWire>,
+    /// Checked semantic lowering for prepared IV Wald and single-instrument 2SLS.
+    /// Older artifacts omit it and cannot be independently verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_iv_lowering: Option<crate::CheckedIvLoweringWire>,
+    /// Checked semantic lowering for prepared linear adjustment ATE routes.
+    /// Missing in older artifacts, which remain readable but cannot be
+    /// independently replayed as checked linear executions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_linear_adjustment_lowering: Option<CheckedLinearAdjustmentLoweringWire>,
+    /// Ordered checked member programs for an ADMG mean response curve.
+    /// Older artifacts omit the grid family and cannot independently replay it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_functional_response_grid: Option<CheckedFunctionalResponseGridWire>,
+    /// Checked linear-Gaussian shared-exogenous natural direct effect operation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_nested_counterfactual: Option<CheckedNestedCounterfactualWire>,
+}
+
+/// Fixed three-node Markovian natural direct effect procedure.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedNestedCounterfactualWire {
+    /// Wire format.
+    pub format: u16,
+    /// Semantic variable roles, never remapped to design-column indices.
+    pub treatment: u32,
+    /// Mediator variable id.
+    pub mediator: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// IEEE-754 treatment levels.
+    pub control_bits: u64,
+    /// Active treatment level, as IEEE-754 bits.
+    pub active_bits: u64,
+    /// Explicit model and cross-world procedure identity.
+    pub model: String,
+    /// Shared-exogenous nested-world procedure name.
+    pub procedure: String,
+}
+
+/// Versioned checked member programs for a finite response curve.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedFunctionalResponseGridWire {
+    /// Grid-family wire format.
+    pub format: u16,
+    /// Intervened variable id.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Members in the exact target-grid order.
+    pub members: Vec<CheckedFunctionalResponseMemberWire>,
+}
+
+/// One checked response-curve intervention and its identified functional.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedFunctionalResponseMemberWire {
+    /// Intervention level bits, preserving exact IEEE-754 identity.
+    pub grid_value_bits: u64,
+    /// Exact one-level response query used to identify this member.
+    pub query: crate::CausalQueryWire,
+    /// Member-specific identification product.
+    pub identification: IdentificationProductWire,
+    /// Checked scalar functional evaluated for this member.
+    pub program: crate::FunctionalProgramWire,
+}
+
+/// Durable target, design, estimator, and uncertainty choice for a checked
+/// linear adjustment execution.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CheckedLinearAdjustmentLoweringWire {
+    /// Wire format.
+    pub format: u16,
+    /// Source interventional target root.
+    pub functional: u32,
+    /// Executable observational adjustment root.
+    pub executable: u32,
+    /// Semantic variable roles.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Adjustment variables in design order.
+    pub adjustment: Vec<u32>,
+    /// Active intervention value bits.
+    pub active_bits: u64,
+    /// Control intervention value bits.
+    pub control_bits: u64,
+    /// Population binding.
+    pub population: crate::TargetPopulationWire,
+    /// Ordered design column roles (`intercept`, `treatment`, `covariate:<id>`).
+    pub design_columns: Vec<String>,
+    /// Fit family and parameter bits (`ols`, `ridge:<bits>`, `lasso:<bits>`, `huber:<bits>`).
+    pub fit_kind: String,
+    /// Numerical backend.
+    pub backend: String,
+    /// Selected analytic SE kind.
+    pub se_kind: String,
+    /// HAC lag, where the selected SE requires one.
+    pub se_lag: Option<u64>,
+    /// Bootstrap replicate count.
+    pub bootstrap_replicates: u32,
+    /// Resolved uncertainty method commitment.
+    pub interval_method: String,
+    /// Complete-case row count used by the prepared design.
+    pub complete_case_rows: u64,
+    /// Checked arena retaining both source and executable roots.
+    pub arena: crate::ExprArenaWire,
+}
+
+/// Factor domain for a portable finite-discrete law.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DistributionFactorDomainWire {
+    /// Observational source law.
+    Observational,
+    /// Interventional source law.
+    Interventional,
+}
+
+/// Exact identity of one provider factor table.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorKeyWire {
+    /// Factor variables in provider order.
+    pub variables: Vec<u32>,
+    /// Conditioning variables in provider order.
+    pub conditioned_on: Vec<u32>,
+    /// Concrete intervention assignments.
+    pub intervention: Vec<crate::expr_wire::InterventionAssignmentWire>,
+    /// Probability domain.
+    pub domain: DistributionFactorDomainWire,
+    /// Population identity; empty means the default study population.
+    pub population: String,
+    /// Regime identity, when evidence is regime-bound.
+    pub regime: Option<u32>,
+}
+
+/// One complete value row for a factor table, ordered as variables then conditioners.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorRowWire {
+    /// Joint assignment values in the factor key's declared variable order.
+    pub values: Vec<crate::ValueWire>,
+    /// Conditional probability mass.
+    pub probability: f64,
+}
+
+/// Complete factor table for one exact provider-factor identity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorTableWire {
+    /// Exact factor identity.
+    pub key: DistributionFactorKeyWire,
+    /// Complete joint support and probability rows.
+    pub rows: Vec<DistributionFactorRowWire>,
+}
+
+/// Versioned finite-discrete provider snapshot used for detached replay.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DistributionFactorLawsWire {
+    /// Wire format version.
+    pub format: u16,
+    /// Provider identity.
+    pub provider: String,
+    /// Source rows before complete-case filtering.
+    pub source_rows: u64,
+    /// Rows retained by the empirical provider.
+    pub complete_case_rows: u64,
+    /// Missing-row policy identifier.
+    pub missing_row_policy: String,
+    /// Complete finite domain for each semantic variable.
+    pub domains: Vec<(u32, Vec<crate::ValueWire>)>,
+    /// Exact factor requirements recorded by the checked estimator.
+    pub requirements: Vec<DistributionFactorKeyWire>,
+    /// Factor tables, including the optional free-variable weighting law.
+    pub factors: Vec<DistributionFactorTableWire>,
+}
+
+/// Durable checked lowering for the linear front-door path-product route.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CheckedFrontDoorLoweringWire {
+    /// Wire format.
+    pub format: u16,
+    /// Source root in the identification arena.
+    pub functional: u32,
+    /// Executable observational root.
+    pub executable: u32,
+    /// Treatment variable id.
+    pub treatment: u32,
+    /// Outcome variable id.
+    pub outcome: u32,
+    /// Mediator ids in selected-estimand order.
+    pub mediators: Vec<u32>,
+    /// Active intervention value bits.
+    pub active_bits: u64,
+    /// Control intervention value bits.
+    pub control_bits: u64,
+    /// Checked procedure tag.
+    pub procedure: String,
+    /// Checked-case count used by the fitted procedure.
+    pub complete_case_rows: u64,
+    /// Overlap handling tag.
+    pub overlap: String,
+    /// Uncertainty choice bound by the program commitments.
+    pub uncertainty: String,
+    /// Checked expression arena.
+    pub arena: crate::ExprArenaWire,
 }
 
 /// Digest a program identity.
@@ -2009,8 +2463,8 @@ pub fn external_compose_identity(
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
-        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint,
-        SmallRoleSet, TargetPopulation, ValueType, VariableId,
+        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec,
+        RandomizedEffectQuery, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
     };
     use antecedent_graph::{Dag, DenseNodeId};
 
@@ -2120,6 +2574,74 @@ mod tests {
             digest_wire(IdentityDomain::Target, &target_wire(&renamed, &query)).unwrap(),
             first
         );
+    }
+
+    #[test]
+    fn panel_did_target_identity_binds_timing_subject_and_cluster_vectors() {
+        let (schema, _, _) = schema_and_query();
+        let query = CausalQuery::PanelDid(antecedent_core::PanelDidQuery::new(
+            VariableId::from_raw(1),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "a", "b", "b"].map(std::sync::Arc::<str>::from),
+            ["x", "x", "y", "y"].map(std::sync::Arc::<str>::from),
+        ));
+        let first = digest_wire(IdentityDomain::Target, &target_wire(&schema, &query)).unwrap();
+        let CausalQuery::PanelDid(mut changed) = query.clone() else { unreachable!() };
+        changed.post = [false, false, false, true].into();
+        assert_ne!(
+            first,
+            digest_wire(
+                IdentityDomain::Target,
+                &target_wire(&schema, &CausalQuery::PanelDid(changed.clone()))
+            )
+            .unwrap()
+        );
+        changed.clusters = ["x", "x", "z", "z"].map(std::sync::Arc::<str>::from).into();
+        assert_ne!(
+            first,
+            digest_wire(
+                IdentityDomain::Target,
+                &target_wire(&schema, &CausalQuery::PanelDid(changed))
+            )
+            .unwrap()
+        );
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&causal_query_to_wire(&query).unwrap())
+                .into_iter()
+                .collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("panel_did"));
+        assert_eq!(labels.get("design").map(String::as_str), Some("balanced_two_period_panel"));
+    }
+
+    #[test]
+    fn repeated_cross_section_design_changes_target_identity() {
+        let (schema, _, _) = schema_and_query();
+        let panel = antecedent_core::PanelDidQuery::new(
+            VariableId::from_raw(1),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "b", "c", "d"].map(std::sync::Arc::<str>::from),
+            ["x", "y", "z", "w"].map(std::sync::Arc::<str>::from),
+        );
+        let repeated = antecedent_core::PanelDidQuery::repeated_cross_section(
+            panel.outcome,
+            panel.treated.clone(),
+            panel.post.clone(),
+            panel.subjects.clone(),
+            panel.clusters.clone(),
+        );
+        let panel_query = CausalQuery::PanelDid(panel);
+        let repeated_query = CausalQuery::PanelDid(repeated);
+        assert_ne!(
+            digest_wire(IdentityDomain::Target, &target_wire(&schema, &panel_query)).unwrap(),
+            digest_wire(IdentityDomain::Target, &target_wire(&schema, &repeated_query)).unwrap(),
+        );
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&causal_query_to_wire(&repeated_query).unwrap())
+                .into_iter()
+                .collect();
+        assert_eq!(labels.get("design").map(String::as_str), Some("repeated_cross_section"));
     }
 
     #[test]
@@ -2274,6 +2796,9 @@ mod tests {
                 },
             ],
             interference: None,
+            distribution_factor_laws: None,
+            nested_counterfactual_fit: None,
+            linear_fit_moments: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);
@@ -2431,6 +2956,49 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("set:0=1"));
         assert_eq!(labels.get("population").map(String::as_str), Some("all_observed"));
         assert_eq!(labels.get("temporal_coordinates").map(String::as_str), Some("none"));
+    }
+
+    #[test]
+    fn randomized_itt_identity_labels_have_no_fabricated_treatment() {
+        let query = CausalQuery::RandomizedEffect(RandomizedEffectQuery::bernoulli_itt(
+            VariableId::from_raw(1),
+            [true, false],
+            [0.5, 0.5],
+            ["u1", "u2"].map(std::sync::Arc::<str>::from),
+            ["y1", "y2"].map(std::sync::Arc::<str>::from),
+            ("control", "treated"),
+        ));
+        let wire = causal_query_to_wire(&query).unwrap();
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&wire).into_iter().collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("randomized_effect"));
+        assert_eq!(labels.get("outcome").map(String::as_str), Some("1"));
+        assert!(!labels.contains_key("treatment"));
+    }
+
+    #[test]
+    fn nested_counterfactual_has_distinct_functional_identity() {
+        let query = CausalQuery::NestedCounterfactual(
+            antecedent_core::NestedCounterfactualQuery::with_levels(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                VariableId::from_raw(2),
+                0.0,
+                1.0,
+            )
+            .unwrap(),
+        );
+        let wire = causal_query_to_wire(&query).unwrap();
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&wire).into_iter().collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("nested_counterfactual"));
+        assert_eq!(
+            labels.get("estimand").map(String::as_str),
+            Some("natural_direct_shared_exogenous")
+        );
+        assert_eq!(labels.get("mediator").map(String::as_str), Some("1"));
+        assert_eq!(labels.get("control").map(String::as_str), Some("0"));
+        assert_eq!(labels.get("active").map(String::as_str), Some("1"));
     }
 
     fn static_posterior(weights: [f64; 3], graphs: [u64; 3]) -> GraphPosterior {

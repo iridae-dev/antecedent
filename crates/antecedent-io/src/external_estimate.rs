@@ -123,40 +123,7 @@ fn require_identified_status(status: &str) -> Result<(), IoError> {
 fn receipt_body(
     attach: &ExternalEstimateAttach,
 ) -> Result<(AnalysisResultWire, TargetIdentityWire, Vec<String>), IoError> {
-    if !attach.value_types.is_empty() && attach.value_types.len() != attach.names.len() {
-        return Err(IoError::Convert(
-            "external estimate value types must be empty or one per schema name".into(),
-        ));
-    }
-    let mut builder = CausalSchemaBuilder::new();
-    for (position, name) in attach.names.iter().enumerate() {
-        let value_type =
-            attach.value_types.get(position).cloned().unwrap_or(ValueType::Unspecified);
-        if value_type.requires_category_domain() {
-            return Err(IoError::Convert(format!(
-                "external estimate variable `{name}` is categorical or ordinal, which needs a \
-                 category domain the receipt does not carry"
-            )));
-        }
-        let hint = if *name == attach.treatment {
-            RoleHint::TreatmentCandidate
-        } else if *name == attach.outcome {
-            RoleHint::OutcomeCandidate
-        } else {
-            RoleHint::Context
-        };
-        builder
-            .add_variable(
-                name.as_str(),
-                value_type,
-                SmallRoleSet::from_hint(hint),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .map_err(|err| IoError::Convert(err.to_string()))?;
-    }
-    let schema = builder.build().map_err(|err| IoError::Convert(err.to_string()))?;
+    let schema = receipt_schema(attach)?;
     let treatment = index_of(&attach.names, &attach.treatment)?;
     let outcome = index_of(&attach.names, &attach.outcome)?;
     let treatment_id = VariableId::from_raw(treatment);
@@ -196,6 +163,17 @@ fn receipt_body(
         identification_variables: None,
         temporal_identification: Vec::new(),
         estimate: attach.scalar_value,
+        policy_value: None,
+        continuous_dose_response: None,
+        panel_did: None,
+        synthetic_control: None,
+        synthetic_did: None,
+        local_polynomial_ratio: None,
+        randomized_effect: None,
+        survival: None,
+        longitudinal_regime: None,
+        interference_inference: None,
+        interventional_distribution: None,
         standard_error: None,
         interval_lower: None,
         interval_upper: None,
@@ -223,6 +201,45 @@ fn receipt_body(
         query: query_wire,
     };
     Ok((body, target, attach.names.clone()))
+}
+
+fn receipt_schema(
+    attach: &ExternalEstimateAttach,
+) -> Result<antecedent_core::CausalSchema, IoError> {
+    if !attach.value_types.is_empty() && attach.value_types.len() != attach.names.len() {
+        return Err(IoError::Convert(
+            "external estimate value types must be empty or one per schema name".into(),
+        ));
+    }
+    let mut builder = CausalSchemaBuilder::new();
+    for (position, name) in attach.names.iter().enumerate() {
+        let value_type =
+            attach.value_types.get(position).cloned().unwrap_or(ValueType::Unspecified);
+        if value_type.requires_category_domain() {
+            return Err(IoError::Convert(format!(
+                "external estimate variable `{name}` is categorical or ordinal, which needs a \
+                 category domain the receipt does not carry"
+            )));
+        }
+        let hint = if *name == attach.treatment {
+            RoleHint::TreatmentCandidate
+        } else if *name == attach.outcome {
+            RoleHint::OutcomeCandidate
+        } else {
+            RoleHint::Context
+        };
+        builder
+            .add_variable(
+                name.as_str(),
+                value_type,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .map_err(|err| IoError::Convert(err.to_string()))?;
+    }
+    builder.build().map_err(|err| IoError::Convert(err.to_string()))
 }
 
 /// What the receipt states about its target, and what it does not. The learner's own target is
@@ -351,6 +368,7 @@ fn receipt_contract(
         execution: None,
         score_reuse: None,
         target_weights: None,
+        checked_aipw_rows: None,
     };
     let seal = contract_seal(
         &identities,
@@ -392,6 +410,7 @@ fn receipt_contract(
         execution: None,
         score_reuse: None,
         target_weights: None,
+        checked_aipw_rows: None,
     })
 }
 

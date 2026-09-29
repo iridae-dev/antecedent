@@ -8,6 +8,8 @@ import antecedent as ant
 import numpy as np
 import pytest
 
+from _sealed_loads import assert_answer_kept
+
 
 def sample(seed=7):
     rng = np.random.default_rng(seed)
@@ -112,8 +114,8 @@ def test_response_retains_study_and_exports_own_execution():
     refreshed = result.refresh({**data, "y": data["y"] + 1.0})
     assert refreshed.answer.kind == "response"
     assert result.export() == encoded
-    assert ant.artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
     loaded = ant.load(encoded)
+    assert_answer_kept(loaded)
     assert loaded.artifact.payload["response"] is not None
     assert loaded.inspect().uncertainty.available
 
@@ -262,7 +264,7 @@ def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():
         inference=ant.Bayesian(n_draws=32, backend="conjugate"),
     )
     loaded = ant.load(result.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.artifact.payload["posterior_artifact"]
     assert any(
         c["source"] == "parameter" and c["target"] == "posterior"
@@ -286,22 +288,22 @@ def test_retarget_exports_target_weight_identity():
     )
     retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
     loaded = ant.load(retargeted.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     weights_id = loaded.inspect().target_weights_id
     assert isinstance(weights_id, str) and hex64.fullmatch(weights_id)
     assert retargeted.inspect().target_weights_id == weights_id
     assert retargeted.inspect().claim_id == loaded.inspect().claim_id
     original = ant.load(result.export())
-    assert original.acceptance.verified
+    assert_answer_kept(original)
     assert original.inspect().target_weights_id is None
     assert loaded.inspect().target_id != original.inspect().target_id
     assert loaded.inspect().identification_id == original.inspect().identification_id
     other = ant.load(result.study.retarget(np.exp(data["z"] / 2), depends_on=["z"]).export())
-    assert other.acceptance.verified
+    assert_answer_kept(other)
     assert hex64.fullmatch(other.inspect().target_weights_id)
     assert other.inspect().target_weights_id != weights_id
     uniform = ant.load(result.study.retarget(np.ones(len(data["t"])), depends_on=[]).export())
-    assert uniform.acceptance.verified
+    assert_answer_kept(uniform)
     assert uniform.inspect().target_weights_id is None
     assert uniform.inspect().target_id == original.inspect().target_id
 
@@ -403,5 +405,5 @@ def test_class_posterior_bounds_answer_survives_loading(kind):
     assert result.answer.kind == "bounds"
     assert result.answer.detail == "identified_set"
     loaded = ant.load(result.export())
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.answer == result.answer

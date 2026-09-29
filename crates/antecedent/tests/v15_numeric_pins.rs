@@ -1070,12 +1070,12 @@ fn conditional_exceedance_grid_publishes_per_arm_cdf() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let cdf = result.estimate.exceedance_cdf.expect("conditional grid F_a(c)");
+    let cdf = result.estimate.exceedance_cdf.as_ref().expect("conditional grid F_a(c)");
     assert_eq!(cdf.len(), 6);
     assert!(cdf.iter().all(|v| v.is_finite()));
-    let cov = result.estimate.joint_covariance.expect("per-arm CDF covariance");
+    let cov = result.estimate.joint_covariance.as_ref().expect("per-arm CDF covariance");
     assert_eq!(cov.dim, 6, "joint covariance must be 2K per-arm coordinates, not K contrasts");
-    let inf = result.estimate.score_inference.expect("per-arm simultaneous bands");
+    let inf = result.estimate.score_inference.as_ref().expect("per-arm simultaneous bands");
     assert_eq!(inf.raw_means.len(), 6);
     assert_eq!(inf.lower.len(), 6);
     assert_eq!(inf.upper.len(), 6);
@@ -1624,8 +1624,8 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let mixed_cdf = mixed.estimate.exceedance_cdf.expect("class-aware grid F_a(c)");
-    let primary_cdf = primary.estimate.exceedance_cdf.expect("primary-atom grid F_a(c)");
+    let mixed_cdf = mixed.estimate.exceedance_cdf.as_ref().expect("class-aware grid F_a(c)");
+    let primary_cdf = primary.estimate.exceedance_cdf.as_ref().expect("primary-atom grid F_a(c)");
     assert_eq!(mixed_cdf.len(), 6);
     assert!(mixed_cdf.iter().all(|v| v.is_finite()));
     assert!(mixed.estimate.joint_covariance.is_some());
@@ -2155,7 +2155,7 @@ fn conditional_extreme_threshold_refuses_empty_tail_band() {
     let decoded = antecedent_io::convert::from_cbor(&bytes).unwrap();
     let restored = antecedent_io::analysis_wire::effect_estimate_from_wire(&decoded).unwrap();
     assert!(restored.score_inference.as_ref().unwrap().lower[2].is_nan());
-    let inf = result.estimate.score_inference.expect("tail support on the object");
+    let inf = result.estimate.score_inference.as_ref().expect("tail support on the object");
     assert_eq!(inf.threshold_supported.len(), 4);
     assert!(!inf.threshold_supported[2] && !inf.threshold_supported[3]);
     assert!(inf.lower[2].is_nan() && inf.upper[2].is_nan());
@@ -3386,7 +3386,7 @@ fn conditional_cdf_is_invariant_to_outcome_translation() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(319))
                 .unwrap();
-            values.push(result.estimate.score_inference.unwrap().raw_means);
+            values.push(result.estimate.score_inference.as_ref().unwrap().raw_means.clone());
         }
         assert!(values[0].iter().zip(&values[1]).all(|(a, b)| (a - b).abs() < 1e-12));
         assert!(values[0].iter().any(|v| *v > 0.1 && *v < 0.9));
@@ -3408,7 +3408,7 @@ fn prepared_batch_rebinds_covariates_on_new_data() {
     let results = batch.estimate(&new_data, &ctx).unwrap();
     for result in results {
         assert!((result.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-        assert_eq!(result.estimate.score_table.unwrap().n_rows, 750);
+        assert_eq!(result.estimate.score_table.as_ref().unwrap().n_rows, 750);
     }
     let mut plan = batch.plans()[0].clone();
     let click = plan.estimate(&new_data, &ctx).unwrap();

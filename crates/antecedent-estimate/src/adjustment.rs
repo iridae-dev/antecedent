@@ -17,7 +17,11 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, Intervention, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_expr::IdentifiedEstimand;
+use antecedent_expr::{
+    CausalExprArena, DomainRef, ExprId, ExprNode, FactorRequirement, FunctionalProgram,
+    IdentifiedEstimand, OutcomeExprId, ProgramLimits, ProgramSchema, ProgramVariable,
+};
+use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
     LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
@@ -52,6 +56,101 @@ pub struct PreparedEstimationProblem {
     pub active: f64,
     /// Control treatment level.
     pub control: f64,
+}
+
+/// Receipt for a linear adjustment preparation checked against an identification result.
+///
+/// The retained arena and target make the proof context inspectable after the builder has
+/// been discarded. `problem` is the physical linear design prepared from that same query.
+#[derive(Clone, Debug)]
+pub struct CheckedLinearAdjustmentAte {
+    /// Selected causal target and its estimator roles.
+    target: IdentifiedEstimand,
+    /// Selected source functional root.
+    source_functional: ExprId,
+    /// One-arm observational adjustment functional derived from the source target.
+    /// Evaluate with treatment bound to each declared arm, then subtract control from active.
+    executable_functional: ExprId,
+    /// Checked role and population receipt for the source-to-executable lowering.
+    lowering: CheckedAdjustmentLowering,
+    /// Structurally checked owner of the source and executable roots.
+    program: FunctionalProgram,
+    /// Provider factors discovered while checking the executable root.
+    factor_requirements: Arc<[FactorRequirement]>,
+    /// Query that was checked and used to bind the source target.
+    query: AverageEffectQuery,
+    /// Assumptions attached to the selected identification claim.
+    required_assumptions: AssumptionSet,
+    /// Checked and prepared linear adjustment design.
+    problem: PreparedEstimationProblem,
+}
+
+impl CheckedLinearAdjustmentAte {
+    /// Selected causal target.
+    #[must_use]
+    pub fn target(&self) -> &IdentifiedEstimand {
+        &self.target
+    }
+    /// Checked program that owns the target and observational execution root.
+    #[must_use]
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+    /// Checked source root.
+    #[must_use]
+    pub fn source_functional(&self) -> ExprId {
+        self.source_functional
+    }
+    /// Checked executable arm root.
+    #[must_use]
+    pub fn executable_functional(&self) -> ExprId {
+        self.executable_functional
+    }
+    /// Typed source-to-executable lowering.
+    #[must_use]
+    pub fn lowering(&self) -> &CheckedAdjustmentLowering {
+        &self.lowering
+    }
+    /// Checked provider factor requirements.
+    #[must_use]
+    pub fn factor_requirements(&self) -> &[FactorRequirement] {
+        &self.factor_requirements
+    }
+    /// Selected identification assumptions.
+    #[must_use]
+    pub fn required_assumptions(&self) -> &AssumptionSet {
+        &self.required_assumptions
+    }
+    /// Prepared numerical design.
+    #[must_use]
+    pub fn problem(&self) -> &PreparedEstimationProblem {
+        &self.problem
+    }
+}
+
+/// Checked semantic correspondence for a static adjustment ATE lowering.
+///
+/// The executable root is an observational one-arm functional with treatment free as a
+/// conditioning coordinate. Consumers evaluate it twice using the retained active and
+/// control values and subtract control from active.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedAdjustmentLowering {
+    /// Source interventional target root.
+    pub source: ExprId,
+    /// Executable observational root.
+    pub executable: ExprId,
+    /// Treatment role used by both arms.
+    pub treatment: VariableId,
+    /// Outcome role.
+    pub outcome: VariableId,
+    /// Adjustment roles in semantic order.
+    pub adjustment: Arc<[VariableId]>,
+    /// Active intervention value.
+    pub active: f64,
+    /// Control intervention value.
+    pub control: f64,
+    /// Population averaging semantics implemented by this checked lowering.
+    pub population: TargetPopulation,
 }
 
 /// Estimation workspace (reusable across bootstrap replicates).
@@ -397,21 +496,6 @@ impl EffectEstimate {
         self
     }
 
-    /// Mark that a joint interaction contrast is structurally zero on this path.
-    #[must_use]
-    pub fn with_interaction_structurally_zero(mut self, zero: bool) -> Self {
-        self.interaction_structurally_zero = zero;
-        self
-    }
-
-    /// Mark that the reported per-unit effects are homogeneous by construction of
-    /// the selected mechanism families (no effect modification is representable).
-    #[must_use]
-    pub fn with_unit_effects_homogeneous(mut self, homogeneous: bool) -> Self {
-        self.unit_effects_homogeneous = homogeneous;
-        self
-    }
-
     /// Attach a per-row influence sequence for the reported scalar.
     #[must_use]
     pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
@@ -451,37 +535,6 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_block_family(mut self, family: crate::temporal_block::CircularBlockFamily) -> Self {
         self.block_family = Some(family);
-        self
-    }
-
-    /// Attach a point E-value for a named no-latent / unmeasured-confounding premise.
-    #[must_use]
-    pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
-        self.evalue = evalue;
-        self
-    }
-
-    /// Attach the pass threshold the E-value refuter judged [`Self::evalue`] against.
-    #[must_use]
-    pub fn with_evalue_threshold(mut self, threshold: Option<f64>) -> Self {
-        self.evalue_threshold = threshold;
-        self
-    }
-
-    /// Attach the declared family contrast `(value, se)` used for batch FDR.
-    #[must_use]
-    pub fn with_family_contrast(mut self, contrast: Option<(f64, f64)>) -> Self {
-        self.family_contrast = contrast;
-        if contrast.is_none() {
-            self.family_contrast_interval = None;
-        }
-        self
-    }
-
-    /// Attach the contrast-family simultaneous interval `(lower, upper, level)`.
-    #[must_use]
-    pub fn with_family_contrast_interval(mut self, interval: Option<(f64, f64, f64)>) -> Self {
-        self.family_contrast_interval = interval;
         self
     }
 
@@ -604,13 +657,6 @@ impl LinearAdjustmentAte {
         }
     }
 
-    /// Set the dense linear-algebra backend used for the OLS / ridge / Huber fits.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE
@@ -674,22 +720,21 @@ impl LinearAdjustmentAte {
         self
     }
 
-    /// Registry used to resolve named [`TargetPopulation::Predicate`] selections.
-    #[must_use]
-    pub fn with_population_registry(
-        mut self,
-        registry: antecedent_core::PopulationRegistry,
-    ) -> Self {
-        self.population_registry = Some(registry);
-        self
-    }
-
     /// Prepare design from tabular data, identified estimand, and query levels.
     ///
     /// # Errors
     ///
     /// Missing columns, unsupported query options, type errors, or overlap policy not set.
     pub fn prepare(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+    ) -> Result<PreparedEstimationProblem, EstimationError> {
+        self.prepare_unchecked(data, estimand, query)
+    }
+
+    fn prepare_unchecked(
         &self,
         data: &TabularData,
         estimand: &IdentifiedEstimand,
@@ -742,6 +787,208 @@ impl LinearAdjustmentAte {
             active,
             control,
         })
+    }
+
+    /// Prepare linear adjustment from one selected, identified average-effect claim.
+    ///
+    /// This path verifies the selected claim status, its adjustment roles, and that the
+    /// existing expression root is exactly the back-door ATE functional implied by the
+    /// query arms and selected adjustment set. It retains the source root and constructs
+    /// a separate observational executable root. This checked lowering currently supports
+    /// `AllObserved`, whose averaging law is represented by the empirical `P(Z)` factor.
+    /// It retains the original arena and both roots in the returned receipt. The legacy
+    /// [`Self::prepare`] method remains available for callers that manage this context
+    /// themselves and does not make the checked-execution guarantee.
+    ///
+    /// # Errors
+    ///
+    /// The selected claim is absent, not nonparametrically identified, incompatible with
+    /// linear adjustment, or its functional does not match its query and role structure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the checked receipt is built atomically from the validated target, query, schema, and lowering"
+    )]
+    pub fn prepare_checked(
+        &self,
+        data: &TabularData,
+        identification: &IdentificationResult,
+        estimand_index: usize,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        let target = identification
+            .estimands
+            .get(estimand_index)
+            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
+        let claim = identification.claim(estimand_index).ok_or_else(|| {
+            EstimationError::data_msg("selected estimand has no identification claim")
+        })?;
+        if claim.status != IdentificationStatus::NonparametricallyIdentified {
+            return Err(EstimationError::data_msg(format!(
+                "linear adjustment requires a nonparametrically identified claim; got {}",
+                claim.status.as_str()
+            )));
+        }
+        let query = identification.average_effect().ok_or_else(|| {
+            EstimationError::data_msg(
+                "linear adjustment requires an average-effect identification query",
+            )
+        })?;
+        require_adjustment_shaped(
+            target,
+            "LinearAdjustmentAte expects an adjustment-shaped estimand",
+        )?;
+        if !target.instruments.is_empty() || !target.mediators.is_empty() {
+            return Err(EstimationError::data_msg(
+                "adjustment estimand carries incompatible instrument or mediator roles",
+            ));
+        }
+        let mut roles = target.adjustment_set.to_vec();
+        roles.sort_unstable();
+        roles.dedup();
+        if roles.len() != target.adjustment_set.len()
+            || roles.contains(&query.treatment)
+            || roles.contains(&query.outcome)
+        {
+            return Err(EstimationError::data_msg(
+                "adjustment roles must be unique and exclude treatment and outcome",
+            ));
+        }
+        if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
+            return Err(EstimationError::unsupported(
+                "checked linear adjustment currently supports the mean outcome functional",
+            ));
+        }
+        if query.target_population != TargetPopulation::AllObserved {
+            return Err(EstimationError::unsupported(
+                "checked linear adjustment lowering currently supports AllObserved population averaging",
+            ));
+        }
+
+        let (active, control, _) = treatment_contrast(&query.active, &query.control)?;
+        let mut checked_arena = identification.arena.clone();
+        let expected = {
+            checked_arena.backdoor_ate(
+                query.treatment,
+                query.outcome,
+                &target.adjustment_set,
+                antecedent_core::Value::f64(active),
+                antecedent_core::Value::f64(control),
+            )
+        };
+        if expected != target.functional {
+            return Err(EstimationError::data_msg(
+                "selected functional does not match the query contrast, treatment arms, and adjustment roles",
+            ));
+        }
+
+        let executable = observational_adjustment_arm(
+            &mut checked_arena,
+            query.treatment,
+            query.outcome,
+            &target.adjustment_set,
+        );
+
+        let program_schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let program = FunctionalProgram::new(
+            checked_arena.clone(),
+            program_schema,
+            target.functional,
+            executable,
+            ProgramLimits::default(),
+        )
+        .map_err(|e| EstimationError::data_msg(format!("checked adjustment program: {e}")))?;
+        let factor_requirements: Arc<[FactorRequirement]> =
+            Arc::from(program.factor_requirements().to_vec());
+
+        let problem = self.prepare_unchecked(data, target, query)?;
+        Ok(CheckedLinearAdjustmentAte {
+            target: target.clone(),
+            source_functional: target.functional,
+            executable_functional: executable,
+            lowering: CheckedAdjustmentLowering {
+                source: target.functional,
+                executable,
+                treatment: query.treatment,
+                outcome: query.outcome,
+                adjustment: Arc::clone(&target.adjustment_set),
+                active,
+                control,
+                population: query.target_population.clone(),
+            },
+            program,
+            factor_requirements,
+            query: query.clone(),
+            required_assumptions: claim.required_assumptions.clone(),
+            problem,
+        })
+    }
+
+    /// Rebuild the physical design for another dataset with the same semantic schema.
+    ///
+    /// The checked program and lowering are reused unchanged. This verifies the data schema,
+    /// retained query, target roles, and source/executable correspondence before preparing
+    /// the new row and design binding.
+    #[allow(
+        clippy::float_cmp,
+        reason = "treatment arms are categorical design values and must match the retained query exactly"
+    )]
+    pub fn rebind_checked(
+        &self,
+        checked: &CheckedLinearAdjustmentAte,
+        data: &TabularData,
+    ) -> Result<CheckedLinearAdjustmentAte, EstimationError> {
+        let schema = ProgramSchema::new(
+            data.schema()
+                .variables()
+                .iter()
+                .map(|v| (v.id, ProgramVariable { name: Arc::clone(&v.name) })),
+        );
+        let mapping = checked.program.mapping();
+        if checked.program.schema() != &schema
+            || checked.target.functional != checked.source_functional
+            || mapping.source != checked.source_functional
+            || mapping.executable != checked.executable_functional
+            || checked.lowering.source != checked.source_functional
+            || checked.lowering.executable != checked.executable_functional
+            || checked.lowering.treatment != checked.query.treatment
+            || checked.lowering.outcome != checked.query.outcome
+            || checked.lowering.adjustment != checked.target.adjustment_set
+            || checked.lowering.population != checked.query.target_population
+            || checked.query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+            || checked.query.target_population != TargetPopulation::AllObserved
+        {
+            return Err(EstimationError::data_msg(
+                "checked adjustment program, query, roles, or data semantic schema no longer agree",
+            ));
+        }
+        let (active, control, _) =
+            treatment_contrast(&checked.query.active, &checked.query.control)?;
+        if active != checked.lowering.active || control != checked.lowering.control {
+            return Err(EstimationError::data_msg(
+                "checked adjustment arm bindings no longer agree with the retained query",
+            ));
+        }
+        let mut rebound = checked.clone();
+        rebound.problem = self.prepare_unchecked(data, &checked.target, &checked.query)?;
+        Ok(rebound)
+    }
+
+    /// Fit a checked preparation using the assumptions retained with its selected claim.
+    ///
+    /// # Errors
+    ///
+    /// Fit, uncertainty, or cooperative execution failure.
+    pub fn fit_checked(
+        &self,
+        checked: &CheckedLinearAdjustmentAte,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.fit(&checked.problem, workspace, ctx, checked.required_assumptions.clone())
     }
 
     /// Fit ATE with optional IID bootstrap.
@@ -1352,7 +1599,7 @@ impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
         query: &AverageEffectQuery,
         _ctx: &ExecutionContext,
     ) -> Result<PreparedEstimationProblem, EstimationError> {
-        Self::prepare(self, data, estimand, query)
+        self.prepare_unchecked(data, estimand, query)
     }
 
     fn fit(
@@ -1367,6 +1614,34 @@ impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
 
 impl crate::estimator::TabularAteEstimator for LinearAdjustmentAte {}
 
+/// Lower one arm of the checked back-door target to its observational g-formula.
+fn observational_adjustment_arm(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    outcome: VariableId,
+    adjustment: &[VariableId],
+) -> ExprId {
+    let z = arena.intern_var_set(adjustment.iter().copied());
+    let y = arena.intern_var_set([outcome]);
+    let t_and_z =
+        arena.intern_var_set(std::iter::once(treatment).chain(adjustment.iter().copied()));
+    let empty = arena.empty_var_set();
+    let empty_intervention = arena.empty_intervention_set();
+    let marginal_z =
+        arena.intern_distribution(z, empty, empty_intervention, DomainRef::Observational);
+    // Treatment remains an ordinary conditioning coordinate. The typed lowering binds it
+    // at evaluation time through Assignment; the provider receives no intervention request.
+    let outcome_given_tz =
+        arena.intern_distribution(y, t_and_z, empty_intervention, DomainRef::Observational);
+    let factors = arena.intern_list([outcome_given_tz, marginal_z]);
+    let product = arena.intern(ExprNode::Product(factors));
+    let averaged = arena.intern(ExprNode::SumOut { variables: z, expr: product });
+    arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution: averaged,
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
@@ -1379,8 +1654,9 @@ mod tests {
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
     };
-    use antecedent_expr::ExprId;
     use antecedent_expr::IdentifiedEstimand;
+    use antecedent_expr::{Assignment, DomainRef, EmpiricalTableProvider, ExprId, FactorSpec};
+    use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
 
     use super::*;
 
@@ -1455,6 +1731,192 @@ mod tests {
             ExprId::from_raw(0),
         );
         (TabularData::new(storage), estimand)
+    }
+
+    fn checked_result(
+        query: AverageEffectQuery,
+        adjustment: &[VariableId],
+    ) -> IdentificationResult {
+        let mut arena = CausalExprArena::new();
+        let active = intervention_f64(&query.active).unwrap();
+        let control = intervention_f64(&query.control).unwrap();
+        let functional = arena.backdoor_ate(
+            query.treatment,
+            query.outcome,
+            adjustment,
+            antecedent_core::Value::f64(active),
+            antecedent_core::Value::f64(control),
+        );
+        IdentificationResult::identified(
+            antecedent_core::CausalQuery::average_effect(query),
+            vec![IdentifiedEstimand::backdoor(
+                "backdoor.adjustment",
+                Arc::from(adjustment.to_vec()),
+                functional,
+            )],
+            arena,
+            DerivationTrace::default(),
+            AssumptionSet::new(),
+            IdentificationPerformanceRecord::default(),
+        )
+    }
+
+    #[test]
+    fn checked_linear_adjustment_retains_selected_target_and_assumptions() {
+        let (data, _) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identification = checked_result(query, &[VariableId::from_raw(2)]);
+        let estimator =
+            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+        assert_eq!(checked.source_functional, checked.target.functional);
+        assert_ne!(checked.executable_functional, checked.source_functional);
+        assert_eq!(checked.lowering.source, checked.source_functional);
+        assert_eq!(checked.lowering.executable, checked.executable_functional);
+        assert_eq!(checked.lowering.population, TargetPopulation::AllObserved);
+        assert!(checked.factor_requirements.iter().all(|f| f.intervention.is_empty()));
+        assert_eq!(
+            checked.program.arena().node(checked.source_functional),
+            identification.arena.node(checked.source_functional)
+        );
+        assert_eq!(checked.problem.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+        assert!(checked.required_assumptions.is_empty());
+        let rebound = estimator.rebind_checked(&checked, &data).unwrap();
+        assert_eq!(rebound.program.mapping(), checked.program.mapping());
+        assert_eq!(rebound.problem.design.nrows, checked.problem.design.nrows);
+
+        let t = [0.0, 1.0];
+        let y = [0.0, 1.0];
+        let z = [0.0, 1.0];
+        let changed_schema = TabularData::from_f64_columns([
+            ("renamed_t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        assert!(estimator.rebind_checked(&checked, &changed_schema).is_err());
+    }
+
+    #[test]
+    fn checked_observational_program_evaluates_with_arm_bindings() {
+        let (data, _) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identification = checked_result(query, &[VariableId::from_raw(2)]);
+        let estimator =
+            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let checked = estimator.prepare_checked(&data, &identification, 0).unwrap();
+
+        let t = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let z = VariableId::from_raw(2);
+        let mut provider = EmpiricalTableProvider::new();
+        provider
+            .set_domain(t, [antecedent_core::Value::f64(0.0), antecedent_core::Value::f64(1.0)]);
+        provider
+            .set_domain(y, [antecedent_core::Value::f64(0.0), antecedent_core::Value::f64(1.0)]);
+        provider
+            .set_domain(z, [antecedent_core::Value::f64(0.0), antecedent_core::Value::f64(1.0)]);
+        for (zv, probability) in [(0.0, 0.5), (1.0, 0.5)] {
+            let spec = FactorSpec {
+                variables: &[z],
+                conditioned_on: &[],
+                intervention: &[],
+                domain: DomainRef::Observational,
+                population: "",
+                regime: None,
+            };
+            provider
+                .insert_probability(
+                    &spec,
+                    &Assignment::from_pairs([(z, antecedent_core::Value::f64(zv))]),
+                    probability,
+                )
+                .unwrap();
+        }
+        for (tv, zv, py1) in [(0.0, 0.0, 0.3), (0.0, 1.0, 0.2), (1.0, 0.0, 0.8), (1.0, 1.0, 0.6)] {
+            let spec = FactorSpec {
+                variables: &[y],
+                conditioned_on: &[t, z],
+                intervention: &[],
+                domain: DomainRef::Observational,
+                population: "",
+                regime: None,
+            };
+            for (yv, probability) in [(0.0, 1.0 - py1), (1.0, py1)] {
+                provider
+                    .insert_probability(
+                        &spec,
+                        &Assignment::from_pairs([
+                            (t, antecedent_core::Value::f64(tv)),
+                            (z, antecedent_core::Value::f64(zv)),
+                            (y, antecedent_core::Value::f64(yv)),
+                        ]),
+                        probability,
+                    )
+                    .unwrap();
+            }
+        }
+        let evaluator = checked.program.compile().unwrap();
+        let context = antecedent_expr::EvalContext::default();
+        let active = evaluator
+            .evaluate_with(
+                &provider,
+                &context,
+                &Assignment::from_pairs([(t, antecedent_core::Value::f64(1.0))]),
+            )
+            .unwrap();
+        let control = evaluator
+            .evaluate_with(
+                &provider,
+                &context,
+                &Assignment::from_pairs([(t, antecedent_core::Value::f64(0.0))]),
+            )
+            .unwrap();
+        assert!((active - 0.7).abs() < 1e-12);
+        assert!((control - 0.25).abs() < 1e-12);
+        assert!((active - control - 0.45).abs() < 1e-12);
+    }
+
+    #[test]
+    fn checked_linear_adjustment_rejects_semantic_tampering() {
+        let (data, _) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut reversed = checked_result(query.clone(), &[VariableId::from_raw(2)]);
+        let mut arena = reversed.arena.clone();
+        let functional = arena.backdoor_ate(
+            query.treatment,
+            query.outcome,
+            &[VariableId::from_raw(2)],
+            antecedent_core::Value::f64(0.0),
+            antecedent_core::Value::f64(1.0),
+        );
+        reversed.arena = arena;
+        reversed.estimands[0].functional = functional;
+        let estimator =
+            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        assert!(estimator.prepare_checked(&data, &reversed, 0).is_err());
+
+        let mut changed_arms = checked_result(query.clone(), &[VariableId::from_raw(2)]);
+        let mut different_query = query.clone();
+        different_query.active = antecedent_core::Intervention::set(
+            different_query.treatment,
+            antecedent_core::Value::f64(2.0),
+        );
+        changed_arms.query = antecedent_core::CausalQuery::average_effect(different_query);
+        assert!(estimator.prepare_checked(&data, &changed_arms, 0).is_err());
+
+        let mut changed_covariate = checked_result(query, &[VariableId::from_raw(2)]);
+        changed_covariate.estimands[0].adjustment_set = Arc::from([]);
+        assert!(estimator.prepare_checked(&data, &changed_covariate, 0).is_err());
+
+        let mut changed_population =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        changed_population.target_population = TargetPopulation::Treated;
+        let changed_population = checked_result(changed_population, &[VariableId::from_raw(2)]);
+        assert!(estimator.prepare_checked(&data, &changed_population, 0).is_err());
     }
 
     #[test]

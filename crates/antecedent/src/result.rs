@@ -17,8 +17,410 @@ use antecedent_estimate::{
 use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
 use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
 use antecedent_validate::{PredictiveCheckReport, RefutationReport};
+use std::sync::Arc;
 
 use crate::gcm::IteResult;
+
+/// Typed primary result of a study.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "variants are constructed rarely and held singly; boxing would change the public result API"
+)]
+#[derive(Clone, Debug)]
+pub enum PrimaryEstimate {
+    /// Conventional scalar effect estimate.
+    Effect(EffectEstimate),
+    /// This query has a different typed answer (for example policy value).
+    NotAnEffect,
+}
+
+impl PrimaryEstimate {
+    /// Effect payload, absent for query families with a distinct answer shape.
+    #[must_use]
+    pub fn as_effect(&self) -> Option<&EffectEstimate> {
+        match self {
+            Self::Effect(effect) => Some(effect),
+            Self::NotAnEffect => None,
+        }
+    }
+
+    /// Mutable effect payload, absent for query families with a distinct answer shape.
+    pub fn as_effect_mut(&mut self) -> Option<&mut EffectEstimate> {
+        match self {
+            Self::Effect(effect) => Some(effect),
+            Self::NotAnEffect => None,
+        }
+    }
+}
+
+impl std::ops::Deref for PrimaryEstimate {
+    type Target = EffectEstimate;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Effect(effect) => effect,
+            Self::NotAnEffect => panic!("primary result is not an effect estimate"),
+        }
+    }
+}
+
+impl std::ops::DerefMut for PrimaryEstimate {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Effect(effect) => effect,
+            Self::NotAnEffect => panic!("primary result is not an effect estimate"),
+        }
+    }
+}
+
+/// Design metadata retained with a randomized ITT estimate.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RandomizedEffectEstimate {
+    /// Assignment ITT or Wald CACE/LATE contrast under the declared mechanism.
+    pub effect: f64,
+    /// Query target label.
+    pub estimand: Arc<str>,
+    /// Outcome assignment ITT when estimating CACE/LATE.
+    pub intention_to_treat_effect: Option<f64>,
+    /// Treatment-receipt first stage when estimating CACE/LATE.
+    pub first_stage_effect: Option<f64>,
+    /// Row-aligned treatment receipt when estimating CACE/LATE.
+    pub received_treatment: Option<Arc<[bool]>>,
+    /// Exact two-sided Fisher sharp-null p-value for a complete design.
+    pub randomization_p_value: Option<f64>,
+    /// Number of fixed-count assignments exhaustively enumerated.
+    pub randomization_allocations: Option<u64>,
+    /// Second-factor marginal assignment effect in a fixed 2×2 factorial design.
+    pub second_factor_effect: Option<f64>,
+    /// Difference of primary-factor effects between second-factor levels.
+    pub factorial_interaction: Option<f64>,
+    /// Conservative variance for the second-factor marginal effect.
+    pub second_factor_variance: Option<f64>,
+    /// Conservative variance for the interaction contrast.
+    pub factorial_interaction_variance: Option<f64>,
+    /// Ordered arm means, variance contributions, and observed counts for multi-arm trials.
+    #[allow(
+        clippy::type_complexity,
+        reason = "labeled arm tuple is part of this public result field's type"
+    )]
+    pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
+    /// Design variance or conservative bound as labeled by `uncertainty`;
+    /// switchback uses an independent-sequence sandwich estimate.
+    pub variance_upper_bound: f64,
+    /// Primary contrast SE when a calibrated pointwise interval is reported.
+    pub standard_error: Option<f64>,
+    /// Pointwise 95% primary contrast interval, if supported.
+    pub interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% secondary factorial main-effect interval, if supported.
+    pub second_factor_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% factorial interaction interval, if supported.
+    pub factorial_interaction_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% action-versus-reference intervals, aligned with arm labels;
+    /// the reference arm has no interval.
+    pub multi_arm_intervals_95: Arc<[Option<[f64; 2]>]>,
+    /// Smallest declared unit-level inclusion probability.
+    pub minimum_assignment_probability: f64,
+    /// Assignment design label (`bernoulli`, `complete`, or `stratified`).
+    pub assignment_design: Arc<str>,
+    /// Row-aligned block labels for stratified assignment, empty otherwise.
+    pub blocks: Arc<[Arc<str>]>,
+    /// Row-aligned period labels for switchback assignment, empty otherwise.
+    pub periods: Arc<[Arc<str>]>,
+    /// Number of analyzed control assignment units.
+    pub control_units: usize,
+    /// Number of analyzed treatment assignment units.
+    pub treatment_units: usize,
+    /// Explicit uncertainty contract for the returned variance.
+    pub uncertainty: Arc<str>,
+    /// Assignment unit labels in the analyzed row order.
+    pub assignment_units: Arc<[Arc<str>]>,
+    /// Outcome unit labels in the analyzed row order.
+    pub outcome_units: Arc<[Arc<str>]>,
+    /// Control and treatment labels.
+    pub treatment_arms: (Arc<str>, Arc<str>),
+}
+
+/// Two-period panel `DiD` point estimate with cluster-aware uncertainty.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PanelDidEstimate {
+    /// Difference in average subject-level outcome changes.
+    pub effect: f64,
+    /// Cluster score-sandwich standard error.
+    pub standard_error: f64,
+    /// Pointwise 95% interval for sufficiently supported scalar panel or repeated-cross-section `DiD`.
+    pub interval_95: Option<[f64; 2]>,
+    /// Number of treated subjects.
+    pub treated_subjects: usize,
+    /// Number of comparison subjects.
+    pub comparison_subjects: usize,
+    /// Total distinct inference clusters.
+    pub clusters: usize,
+    /// Explicit uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Cohort-specific contrasts for a retained event study; empty for scalar `DiD`.
+    pub event_time_effects: Arc<[antecedent_estimate::staggered_event_study::EventTimeEffect]>,
+    /// Pointwise post-adoption intervals aligned with event-time effects;
+    /// pre-adoption descriptive contrasts always have no interval.
+    pub event_time_intervals_95: Arc<[Option<[f64; 2]>]>,
+    /// Propensity range, effective control count, and caller cross-fit declaration.
+    pub augmented: Option<(f64, f64, f64, bool)>,
+}
+
+/// Balanced-panel synthetic-control point result and donor-support diagnostics.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyntheticControlEstimate {
+    /// Average treated-minus-synthetic post-intervention outcome.
+    pub effect: f64,
+    /// Pre-intervention root mean squared fit gap.
+    pub pre_treatment_rmse: f64,
+    /// Donor weights in stable unit-name order.
+    pub donor_weights: Arc<[(Arc<str>, f64)]>,
+    /// Leave-one-donor-out placebo effects, corresponding to donor order.
+    pub placebo_effects: Arc<[f64]>,
+    /// Descriptive placebo rank without a calibrated p-value claim.
+    pub placebo_rank: f64,
+    /// Effective donor count, the reciprocal of summed squared weights.
+    pub effective_donors: f64,
+    /// Observed pre-intervention periods.
+    pub n_pre_periods: usize,
+    /// Observed post-intervention periods.
+    pub n_post_periods: usize,
+    /// Explicit uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Exact Fisher p-value when uniform one-unit assignment was declared.
+    pub randomization_p_value: Option<f64>,
+    /// Prespecified constant additive effect tested by the Fisher p-value.
+    pub randomization_null_effect: Option<f64>,
+    /// Absolute gap for every possible treated unit under the sharp null.
+    pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
+    /// Unadjusted simplex gap when a donor outcome model corrects the point estimate.
+    pub unadjusted_effect: Option<f64>,
+    /// Donor outcome-model prediction difference subtracted from the simplex gap.
+    pub outcome_model_correction: Option<f64>,
+    /// Positive ridge penalty used for the donor outcome model.
+    pub augmentation_ridge: Option<f64>,
+}
+
+/// Conditional response grid and optional fixed kernel-smoothed dose-policy value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContinuousDoseResponseEstimate {
+    /// One response and support record for each baseline-group target cell.
+    pub points: Arc<[antecedent_estimate::continuous_dose::DoseResponsePoint]>,
+    /// Prespecified smoothing window.
+    pub bandwidth: f64,
+    /// Caller-declared source of dose densities.
+    pub density_provenance: Arc<str>,
+    /// Fixed group-to-dose policy value, when requested.
+    pub fixed_policy: Option<antecedent_estimate::continuous_dose::DosePolicyValue>,
+    /// Point-only response or the dose-policy interval method.
+    pub uncertainty: Arc<str>,
+}
+
+/// Point-only synthetic difference-in-differences result with fitted simplex weights.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SyntheticDidEstimate {
+    /// Post-treatment difference-in-differences contrast.
+    pub effect: f64,
+    /// Root mean squared treated-versus-synthetic pre-period gap.
+    pub pre_treatment_rmse: f64,
+    /// Unit weights over donor units.
+    pub donor_weights: Arc<[(Arc<str>, f64)]>,
+    /// Time weights over pre-intervention periods.
+    pub time_weights: Arc<[(i64, f64)]>,
+    /// Number of donor units.
+    pub n_donors: usize,
+    /// Number of pre-intervention periods.
+    pub n_pre_periods: usize,
+    /// Number of post-intervention periods.
+    pub n_post_periods: usize,
+    /// Explicit point-only uncertainty statement.
+    pub uncertainty: Arc<str>,
+    /// Exact sharp-null p-value under declared uniform single-unit assignment.
+    pub randomization_p_value: Option<f64>,
+    /// Prespecified constant additive effect tested by the Fisher p-value.
+    pub randomization_null_effect: Option<f64>,
+    /// Absolute synthetic-DiD contrast for every candidate treated unit.
+    pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
+}
+
+/// Local fuzzy-discontinuity or regression-kink ratio with fixed-bandwidth inference.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LocalPolynomialRatioEstimate {
+    /// Ratio of the outcome contrast to the treatment contrast.
+    pub effect: f64,
+    /// Local outcome jump or slope change.
+    pub reduced_form: f64,
+    /// Local treatment jump or slope change.
+    pub first_stage: f64,
+    /// Prespecified running-variable cutoff retained with the result.
+    pub cutoff: f64,
+    /// Prespecified triangular-kernel bandwidth retained with the result.
+    pub bandwidth: f64,
+    /// True for a slope-kink contrast; false for a level discontinuity.
+    pub kink: bool,
+    /// Observations inside the window strictly below the cutoff.
+    pub n_left: usize,
+    /// Observations inside the window on or above the cutoff.
+    pub n_right: usize,
+    /// HC0 delta-method standard error for the bias-corrected ratio.
+    pub standard_error: f64,
+    /// Pointwise normal lower endpoint when the first stage supports a finite ratio interval.
+    pub ci_lower: Option<f64>,
+    /// Pointwise normal upper endpoint when the first stage supports a finite ratio interval.
+    pub ci_upper: Option<f64>,
+    /// Descriptive HC0 standard error for the bias-corrected outcome contrast.
+    pub reduced_form_standard_error: f64,
+    /// Descriptive HC0 standard error for the bias-corrected first stage.
+    pub first_stage_standard_error: f64,
+    /// Explicit interval construction and fixed-bandwidth dependence.
+    pub uncertainty: Arc<str>,
+}
+
+/// Longitudinal regime value or additive MSM summary over subject histories.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LongitudinalRegimeEstimate {
+    /// Named method: IPW, g-formula, sequential DR, or additive MSM.
+    pub method: Arc<str>,
+    /// Exact graphless longitudinal license after observed support and interval checks.
+    pub graphless_support_status: Option<crate::support::CellStatus>,
+    /// Identity of the caller rule whose actions were frozen in the query.
+    pub rule_id: Option<Arc<str>>,
+    /// Stable caller-declared rule version.
+    pub rule_version: Option<Arc<str>>,
+    /// Caller-declared source or provenance of the rule implementation.
+    pub rule_provenance: Option<Arc<str>>,
+    /// Regime mean, or the additive MSM intercept for the MSM method.
+    pub value: f64,
+    /// Independent-subject score SE for IPW or subject-clustered intercept SE for MSM.
+    pub value_standard_error: Option<f64>,
+    /// Pointwise 95% interval for the IPW regime value or MSM intercept when
+    /// independent-subject support passes the corresponding calibrated floor.
+    pub value_interval_95: Option<[f64; 2]>,
+    /// Pointwise 95% intervals for additive MSM period coefficients.
+    pub period_intervals_95: Option<Arc<[[f64; 2]]>>,
+    /// Specific reason the regime value has no interval, when applicable.
+    pub interval_reason: Option<Arc<str>>,
+    /// Effective sample size: matching weighted histories for IPW, subject count for g-formula.
+    pub effective_sample_size: f64,
+    /// Fraction of enrolled subjects with observed matching histories for IPW; one for g-formula predictions.
+    pub matched_observed_fraction: f64,
+    /// Largest cumulative inverse-probability weight for IPW; one for g-formula.
+    pub maximum_weight: f64,
+    /// Minimum prescribed action probability across decisions.
+    pub minimum_action_probability: f64,
+    /// Minimum uncensored probability across decisions.
+    pub minimum_censoring_probability: f64,
+    /// Explicit uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Provenance of supplied sequential probabilities.
+    pub probability_ownership: Arc<str>,
+    /// Additive MSM period coefficients, absent for regime-value methods.
+    pub period_effects: Option<Arc<[f64]>>,
+    /// Pointwise subject-clustered CR1 standard errors for MSM coefficients.
+    pub standard_errors: Option<Arc<[f64]>>,
+    /// Stabilizing numerator probabilities used by the MSM.
+    pub stabilizing_numerator_probabilities: Option<Arc<[f64]>>,
+    /// Number of observed terminal outcomes entering the MSM.
+    pub observed_subjects: Option<usize>,
+}
+
+/// Doubly robust held-out policy value and paired row-score uncertainty.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PolicyValueEstimate {
+    /// Net policy value per evaluation subject.
+    pub policy_value: f64,
+    /// Net reference value per evaluation subject.
+    pub reference_value: f64,
+    /// Paired incremental net value.
+    pub incremental_value: f64,
+    /// Relative value gap, reference minus policy.
+    pub relative_value_gap: f64,
+    /// Fraction of evaluation rows assigned treatment by the policy.
+    pub treatment_rate: f64,
+    /// Sum of policy costs over evaluation rows.
+    pub total_cost: f64,
+    /// Row-score standard errors; assume independent subjects.
+    pub policy_standard_error: f64,
+    /// Reference-value row-score standard error.
+    pub reference_standard_error: f64,
+    /// Paired incremental-value row-score standard error.
+    pub incremental_standard_error: f64,
+    /// Calibrated pointwise 95% intervals when independent held-out evaluation
+    /// and empirical assignment support requirements are met.
+    pub policy_interval_95: Option<[f64; 2]>,
+    /// Paired policy-minus-reference pointwise 95% interval when supported.
+    pub incremental_interval_95: Option<[f64; 2]>,
+    /// Prediction ownership declaration retained with the result.
+    pub prediction_ownership: Arc<str>,
+    /// Minimum known randomized propensity.
+    pub propensity_min: f64,
+    /// Maximum known randomized propensity.
+    pub propensity_max: f64,
+    /// Method-specific row-score uncertainty semantics.
+    pub uncertainty: Arc<str>,
+    /// Held-out uplift across descending frozen score bins, when requested.
+    pub uplift_bins: Vec<antecedent_estimate::policy_value::UpliftBinScore>,
+    /// Point-only action effects versus control within fixed baseline strata.
+    pub multi_action_cate: Vec<antecedent_estimate::policy_value::MultiActionCatePoint>,
+    /// Simultaneous regret bound relative to the prespecified candidate class.
+    pub regret: Option<antecedent_estimate::policy_value::FixedCandidateRegret>,
+}
+
+/// Full-grid 95% difference band from randomized subject resampling.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurvivalDifferenceBand {
+    /// Observed event-time grid, including zero and the horizon.
+    pub times: Arc<[f64]>,
+    /// Treatment-minus-control curve on the shared grid.
+    pub difference: Arc<[f64]>,
+    /// Simultaneous lower endpoints.
+    pub lower: Arc<[f64]>,
+    /// Simultaneous upper endpoints.
+    pub upper: Arc<[f64]>,
+    /// Bootstrap replicates satisfying the original estimator support contract.
+    pub replicates_ok: u32,
+    /// Exact graphless simultaneous-band license, when the published band and
+    /// arm support match a licensed band row. Absent for off-axis bands.
+    pub support_status: Option<crate::support::CellStatus>,
+}
+
+/// Randomized survival or competing-risk result on a shared time grid.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurvivalEstimate {
+    /// Event-time grid including zero and the restriction horizon.
+    pub times: Arc<[f64]>,
+    /// Control-arm survival or target-cause cumulative incidence.
+    pub control: Arc<[f64]>,
+    /// Treated-arm survival or target-cause cumulative incidence.
+    pub treated: Arc<[f64]>,
+    /// Control restricted mean survival time for a survival query.
+    pub rmst_control: Option<f64>,
+    /// Treated restricted mean survival time for a survival query.
+    pub rmst_treated: Option<f64>,
+    /// Target cause for cumulative incidence; absent for survival/RMST.
+    pub target_cause: Option<i64>,
+    /// Restriction horizon.
+    pub tau: f64,
+    /// Smallest event risk set seen in either arm.
+    pub minimum_event_risk_set: Option<usize>,
+    /// Explicit uncertainty statement for the scalar contrasts.
+    pub uncertainty: Arc<str>,
+    /// Pointwise 95% subject-bootstrap RMST difference interval, when requested.
+    pub rmst_difference_interval: Option<[f64; 2]>,
+    /// Pointwise 95% subject-bootstrap difference at the restriction horizon.
+    pub difference_at_tau_interval: Option<[f64; 2]>,
+    /// Requested arm-stratified subject-bootstrap draws.
+    pub bootstrap_replicates_requested: Option<u32>,
+    /// Draws satisfying the estimator's original support contract.
+    pub bootstrap_replicates_ok: Option<u32>,
+    /// Realized control and treated subject counts for an exact graphless license.
+    pub assignment_counts: [usize; 2],
+    /// Caller-supplied fixed censoring function, when the IPCW route was used.
+    pub censoring_survival_provenance: Option<Arc<str>>,
+    /// Simultaneous full-grid difference band; separate from scalar intervals.
+    pub difference_band: Option<SurvivalDifferenceBand>,
+    /// Why an explicit bootstrap request did not produce a full-grid band.
+    pub band_unavailable_reason: Option<Arc<str>>,
+}
 
 /// Identification certificate retained from the actual execution, including class atoms.
 #[derive(Clone, Debug)]
@@ -196,6 +598,44 @@ pub struct StructuralResponseMixture {
     pub truncated_atoms: usize,
 }
 
+/// One 95% pointwise interval for a declared interference exposure contrast.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InterferencePointwiseInterval {
+    /// Lower endpoint.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Independent-cluster Neyman standard error.
+    pub standard_error: f64,
+    /// Welch--Satterthwaite degrees of freedom.
+    pub degrees_of_freedom: f64,
+    /// Control/treated clusters or low/high saturation clusters.
+    pub first_stage_arm_clusters: [usize; 2],
+}
+
+/// Observed support and uncertainty status for a retained interference query.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InterferenceInference {
+    /// Construction identifier.
+    pub method: &'static str,
+    /// Exact graphless interference license after observed cluster support and
+    /// a published pointwise interval pass; `None` when the interval is withheld
+    /// or the design/exposure support does not match a licensed row.
+    pub graphless_support_status: Option<crate::support::CellStatus>,
+    /// Pointwise interval, when its support conditions pass.
+    pub interval: Option<InterferencePointwiseInterval>,
+    /// Reason a point estimate has no interval.
+    pub interval_unavailable_reason: Option<&'static str>,
+    /// Units observed at the baseline exposure.
+    pub from_exposed_units: usize,
+    /// Units observed at the active exposure.
+    pub to_exposed_units: usize,
+    /// Clusters observed at the baseline exposure.
+    pub from_exposed_clusters: usize,
+    /// Clusters observed at the active exposure.
+    pub to_exposed_clusters: usize,
+}
+
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -218,7 +658,7 @@ pub struct StudyResult {
     /// probability — the bounded per-atom intervals are
     /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
     /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
-    pub estimate: EffectEstimate,
+    pub estimate: PrimaryEstimate,
     /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
     pub response: Option<CausalResponse>,
     /// Structural atom/mass result for class-aware or graph-posterior responses.
@@ -247,6 +687,26 @@ pub struct StudyResult {
     pub transport: Option<TransportEffectEstimate>,
     /// Design-based interference estimate when the query was interference.
     pub interference: Option<InterferenceEstimate>,
+    /// Independent-cluster pointwise inference and observed exposure support.
+    pub interference_inference: Option<InterferenceInference>,
+    /// Design-based intention-to-treat result for a randomized experiment query.
+    pub randomized_effect: Option<RandomizedEffectEstimate>,
+    /// Balanced two-period panel difference-in-differences result.
+    pub panel_did: Option<PanelDidEstimate>,
+    /// Synthetic-control point result with donor and placebo diagnostics.
+    pub synthetic_control: Option<SyntheticControlEstimate>,
+    /// Synthetic `DiD` point result and both fitted weight vectors.
+    pub synthetic_did: Option<SyntheticDidEstimate>,
+    /// Fixed-bandwidth fuzzy RD or regression-kink point result.
+    pub local_polynomial_ratio: Option<LocalPolynomialRatioEstimate>,
+    /// Held-out doubly robust policy evaluation; never an ATE.
+    pub policy_value: Option<PolicyValueEstimate>,
+    /// Conditional continuous-dose response grid; not a policy value.
+    pub continuous_dose_response: Option<ContinuousDoseResponseEstimate>,
+    /// Randomized right-censored survival or competing-risk curve.
+    pub survival: Option<SurvivalEstimate>,
+    /// Prespecified longitudinal regime value.
+    pub longitudinal_regime: Option<LongitudinalRegimeEstimate>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Prior/posterior predictive check reports (Bayesian path; may be empty).
@@ -268,7 +728,7 @@ pub struct StudyResult {
     /// Performance record.
     pub performance: ExecutionPerformanceRecord,
     /// Treatment variable.
-    pub treatment: VariableId,
+    pub treatment: Option<VariableId>,
     /// Outcome variable.
     pub outcome: VariableId,
     /// Candidate-selection screen recorded for a prepared batch family.
@@ -309,6 +769,14 @@ pub struct ExecutedContract {
 /// Posterior summaries report the equal-tailed `q025` / `q975` interval at the
 /// same level.
 pub const REPORTED_SE_INTERVAL_LEVEL: f64 = 0.95;
+
+/// Support diagnostic marking a function-valued response whose interval is a
+/// normal interval from the plug-in bootstrap SE (the general-ID
+/// `functional.effect` route resamples the whole front-door plug-in each
+/// replicate). Its values are `[requested replicates, successful replicates]`.
+/// A response carrying it reports [`IntervalMethod::BootstrapSe`] rather than the
+/// analytic-SE default; every other response band stays analytic.
+pub(crate) const RESPONSE_BOOTSTRAP_SE: &str = "response.bootstrap_se";
 
 /// Fewest successful replicates that earn a nominal 0.95 percentile band or a
 /// normal interval from a bootstrap SE.
@@ -603,6 +1071,25 @@ impl StudyResult {
         self.posterior.as_ref().and_then(|posterior| draws_u32(posterior.draws.n_draws))
     }
 
+    /// A frequentist response band formed as a normal interval from the plug-in
+    /// bootstrap SE (support diagnostic [`RESPONSE_BOOTSTRAP_SE`]): the general-ID
+    /// `functional.effect` route has no exposed influence function, so its
+    /// interval is the 199-replicate front-door resample, not an analytic SE.
+    fn bootstrap_response_band(
+        &self,
+        response: &CausalResponse,
+        level: f64,
+    ) -> Option<IntervalBinding> {
+        let values = support_values(response, RESPONSE_BOOTSTRAP_SE)?;
+        let mut binding = IntervalBinding::new(
+            antecedent_core::IntervalMethod::BootstrapSe,
+            level,
+            self.se_dependence(None),
+        );
+        binding.replicates_ok = values.get(1).and_then(|n| count_u32(*n));
+        Some(binding)
+    }
+
     /// Construction of the primary interval this execution reported.
     ///
     /// `bayesian` is the program's inference family: a Bayesian response's
@@ -627,12 +1114,26 @@ impl StudyResult {
     ///    retained). A requested bootstrap that reported no positive-finite SE
     ///    is not a bootstrap interval; an IV result that withheld Wald/bootstrap
     ///    uncertainty is [`IntervalMethod::None`](antecedent_core::IntervalMethod::None).
-    /// 5. When no finite scalar interval exists, a reported identified-set
-    ///    interval is the primary interval; otherwise nothing was reported.
+    /// 5. When no finite scalar interval exists, a withheld unknown-orientation
+    ///    effect reports its scenario max-t band as a simultaneous interval.
+    /// 6. Otherwise a reported identified-set interval is the primary interval,
+    ///    or nothing was reported.
+    // interval-selection precedence is a single ordered decision; splitting it would obscure the ranking
+    #[allow(clippy::too_many_lines)]
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
-        let base = self.base_dependence();
+        let panel_interval = self.panel_did.as_ref().is_some_and(|did| did.interval_95.is_some());
+        let randomized_cluster_interval = self.randomized_effect.as_ref().is_some_and(|fit| {
+            fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster"
+        });
+        let base = if panel_interval || randomized_cluster_interval {
+            "cluster"
+        } else if self.panel_did.is_some() {
+            "iid"
+        } else {
+            self.base_dependence()
+        };
         if let Some(response) = &self.response {
             // A Bayesian response publishes credible bands; the draws behind a
             // band are in the referenced posterior artifact, not on the result.
@@ -645,11 +1146,12 @@ impl StudyResult {
                 U::Scalar { level, .. } | U::PointwiseBand { level, .. } if posterior => {
                     IntervalBinding::new(M::PosteriorQuantile, *level, base)
                 }
-                U::Scalar { level, .. } | U::PointwiseBand { level, .. } => {
-                    temporal_response_band(response, *level).unwrap_or_else(|| {
+                U::Scalar { level, .. } | U::PointwiseBand { level, .. } => self
+                    .bootstrap_response_band(response, *level)
+                    .or_else(|| temporal_response_band(response, *level))
+                    .unwrap_or_else(|| {
                         IntervalBinding::new(M::AnalyticSe, *level, self.se_dependence(None))
-                    })
-                }
+                    }),
                 U::SimultaneousBand { level, replicates, .. } => {
                     let mut binding = IntervalBinding::new(M::SimultaneousBand, *level, base);
                     binding.replicates_ok = Some(*replicates);
@@ -686,7 +1188,9 @@ impl StudyResult {
             binding.posterior_draws = self.posterior_draw_count();
             return binding;
         }
-        let estimate = &self.estimate;
+        let Some(estimate) = self.estimate.as_effect() else {
+            return IntervalBinding::none(base);
+        };
         if estimate.ate.is_finite() {
             let published = PublishedScalarUncertainty::select(estimate);
             match published.method {
@@ -704,7 +1208,11 @@ impl StudyResult {
                     let mut binding = IntervalBinding::new(
                         M::AnalyticSe,
                         published.level,
-                        self.se_dependence(estimate.se_kind),
+                        if panel_interval || randomized_cluster_interval {
+                            "cluster"
+                        } else {
+                            self.se_dependence(estimate.se_kind)
+                        },
                     );
                     binding.se_kind = estimate.se_kind;
                     return binding;
@@ -716,6 +1224,20 @@ impl StudyResult {
                     return IntervalBinding::none(base);
                 }
                 _ => {}
+            }
+        }
+        let Some(effect_estimate) = self.estimate.as_effect() else {
+            return IntervalBinding::none(base);
+        };
+        if !effect_estimate.ate.is_finite() {
+            if let Some(bands) = effect_estimate.scenario_intervals.as_deref() {
+                if !bands.is_empty() {
+                    return IntervalBinding::new(
+                        M::SimultaneousBand,
+                        REPORTED_SE_INTERVAL_LEVEL,
+                        base,
+                    );
+                }
             }
         }
         self.identified_set_interval_binding().unwrap_or_else(|| IntervalBinding::none(base))
@@ -843,7 +1365,7 @@ impl StudyResult {
         if let Some(cf) = &self.counterfactual {
             return cf.mean_ite;
         }
-        self.estimate.ate
+        self.estimate.as_effect().map_or(f64::NAN, |estimate| estimate.ate)
     }
 
     /// Borrow the logical plan record (semantics).
@@ -861,8 +1383,12 @@ impl StudyResult {
     /// Build a durable analysis-trace wire payload (assumptions + derivation).
     #[must_use]
     pub fn analysis_trace_wire(&self) -> AnalysisTraceWire {
+        let assumptions = self
+            .estimate
+            .as_effect()
+            .map_or(&self.identification.required_assumptions, |estimate| &estimate.assumptions);
         AnalysisTraceWire {
-            assumptions: assumptions_to_wire(&self.estimate.assumptions),
+            assumptions: assumptions_to_wire(assumptions),
             derivation: self
                 .identification
                 .derivation

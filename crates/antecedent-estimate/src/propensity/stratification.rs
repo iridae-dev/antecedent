@@ -59,13 +59,6 @@ impl PropensityStratification {
         }
     }
 
-    /// Set the dense linear-algebra backend used for the logistic IRLS fit.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
     ///
     /// Defaults to 200. Set to `0` to skip bootstrapping and report only the analytic SE.
@@ -94,13 +87,6 @@ impl PropensityStratification {
     #[must_use]
     pub const fn with_n_strata(mut self, n_strata: u32) -> Self {
         self.n_strata = n_strata;
-        self
-    }
-
-    /// Set bindings for named predicates / custom target distributions.
-    #[must_use]
-    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
-        self.population_registry = Some(registry);
         self
     }
 

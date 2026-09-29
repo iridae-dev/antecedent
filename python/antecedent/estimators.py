@@ -44,7 +44,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal, get_args
+from typing import Any, Final, Literal
 
 from ._defaults import OMITTED
 from .errors import CausalValueError
@@ -62,8 +62,6 @@ SeKind = Literal[
     "newey_west",
     "panel_cluster_hac",
 ]
-RdSeKind = Literal["hc1", "homoskedastic", "hc0", "hc2", "hc3"]
-"""Analytic SE kinds :class:`SharpRd` accepts (``hc1`` is the default)."""
 FitKind = Literal["ols", "ridge", "lasso", "huber"]
 GlmFamilyName = Literal[
     "binomial_logit",
@@ -745,80 +743,6 @@ class Iv2Sls:
 
 
 @dataclass(frozen=True, slots=True)
-class SharpRd:
-    """``rd.sharp`` — sharp regression discontinuity: the effect at the cutoff.
-
-    The estimand is the average effect for units at the cutoff,
-    ``lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]``. It is not the population
-    average effect and not the average over the bandwidth window. The result's
-    target population is ``local_at_cutoff`` (running variable and cutoff), and
-    the ``identify.rd.local_estimand`` diagnostic states that the population-wide
-    effect is not identified by the design.
-
-    The design is checked where it can be. The graph must make the running
-    variable the treatment's only parent, and the treatment column must equal
-    ``1{running_variable >= cutoff}`` on every complete row; a violation (for
-    example imperfect compliance) is refused with ``rd_assignment_not_sharp``
-    rather than reported as a treatment effect. Continuity of the potential
-    outcomes at the cutoff and no manipulation of the running variable are
-    recorded as assumptions and are not tested.
-
-    Unlike every other config in this module, there is no meaningful
-    all-defaults instance: ``rd.sharp`` cannot run without a running variable,
-    a cutoff, and a bandwidth, so ``SharpRd()`` raises immediately rather than
-    producing an empty ``_wire()``. This retires the three loose
-    ``running_variable``/``cutoff``/``bandwidth`` kwargs on ``analyze()`` in
-    favor of one typed, validated config.
-
-    ``se`` selects the analytic SE of the jump coefficient: ``None`` keeps the
-    ``hc1`` residual sandwich default; ``hc0``/``hc2``/``hc3`` are the other
-    heteroskedasticity-robust variants and ``homoskedastic`` opts into the
-    classical constant-variance formula. Cluster-, multiway-, and lag-based
-    kinds do not apply to the single local-linear fit and are rejected.
-    """
-
-    running_variable: str | None = None
-    cutoff: float | None = None
-    bandwidth: float | None = None
-    se: RdSeKind | None = None
-
-    def __post_init__(self) -> None:
-        missing = [
-            name
-            for name, value in (
-                ("running_variable", self.running_variable),
-                ("cutoff", self.cutoff),
-                ("bandwidth", self.bandwidth),
-            )
-            if value is None
-        ]
-        if missing:
-            raise ValueError(
-                "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and "
-                f"bandwidth; missing: {', '.join(missing)}"
-            )
-        assert self.bandwidth is not None  # narrowed by the check above
-        if self.bandwidth <= 0:
-            raise ValueError(f"SharpRd bandwidth must be positive, got {self.bandwidth!r}")
-        if self.se is not None and self.se not in get_args(RdSeKind):
-            raise ValueError(
-                f"SharpRd se must be one of {', '.join(get_args(RdSeKind))}; got {self.se!r}"
-            )
-
-    @property
-    def estimator_id(self) -> str:
-        return str(Estimator.RD_SHARP)
-
-    def _wire(self) -> dict[str, Any]:
-        return {
-            "running_variable": self.running_variable,
-            "cutoff": self.cutoff,
-            "bandwidth": self.bandwidth,
-            **({"se_kind": self.se} if self.se is not None else {}),
-        }
-
-
-@dataclass(frozen=True, slots=True)
 class DML:
     """``dml`` — cross-fitted DML / AIPW."""
 
@@ -947,8 +871,6 @@ __all__ = [
     "PropensityMatching",
     "PropensityStratification",
     "PropensityWeighting",
-    "RdSeKind",
     "SeKind",
-    "SharpRd",
     "UNSET",
 ]

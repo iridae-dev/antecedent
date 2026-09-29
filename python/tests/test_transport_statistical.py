@@ -2,6 +2,7 @@
 
 import pytest
 from antecedent import Admg, load, prepare
+from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
 from antecedent.transport import advanced as transport
 
 
@@ -85,6 +86,116 @@ def test_statistical_prepare_estimate_and_inspect_license():
     assert loaded.uncertainty["available"]
 
 
+def test_prepare_statistical_retains_checked_plan_after_builder_disposal():
+    """The prepared statistical study keeps its checked plan, refreshes atomically and
+    invalidates its execution identity when the snapshot changes."""
+    from dataclasses import replace
+
+    identified, catalog, data = fixture()
+    query_builder = transport.StatisticalTransportQuery(
+        identified, catalog, {"x": 1.0}, bootstrap=40, seed=7
+    )
+    plan = prepare(data, query=query_builder)
+    del query_builder, identified
+    before = plan.inspect()
+    assert before.identification.available
+    assert before.uncertainty.available
+    result = plan.estimate()
+    # Independent arithmetic: 80 of 100 trial rows have y = 1.
+    assert result.mean("y") == pytest.approx(0.8)
+    assert result.uncertainty["row"]["method"] == "percentile_bootstrap"
+    assert result.uncertainty["row"]["interval_scope"] == "pointwise"
+    assert plan.inspect().execution_id == result.inspect().execution_id
+    # A sample outside the declared domain is rejected atomically; the execution stands.
+    invalid = replace(data.samples[0], interventions=(("x", 2.0),))
+    with pytest.raises(ValueError, match="declared finite domain"):
+        plan.refresh(transport.StatisticalTransportData(samples=(invalid,)))
+    assert plan.inspect().execution_id == result.inspect().execution_id
+    # A different snapshot invalidates the execution claim until it is re-run.
+    larger = replace(data.samples[0], columns={"y": data.samples[0].columns["y"] * 2})
+    plan.replace_snapshot(transport.StatisticalTransportData(samples=(larger,)))
+    assert plan.inspect().program_id == before.program_id
+    assert plan.inspect().identification_id == before.identification_id
+    assert plan.inspect().data_snapshot_id != before.data_snapshot_id
+    assert plan.inspect().execution_id != result.inspect().execution_id
+    with pytest.raises(CausalUnsupportedError, match="no_execution_claim"):
+        plan.export()
+    again = plan.refresh(data)
+    assert again.probabilities == pytest.approx(result.probabilities)
+    assert again.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    assert plan.inspect().execution_id == result.inspect().execution_id
+
+
+def test_empirical_table_execution_survives_identification_builder_disposal():
+    """The empirical joint table is evaluated from retained checked transport semantics."""
+    identified, catalog, _ = fixture()
+    builder = identified
+    program = builder.formula
+    assert program
+    del builder
+    sample = transport.RegimeSample(
+        "source",
+        "trial",
+        "v1",
+        {"y": [0.0] * 20 + [1.0] * 80},
+        interventions=(("x", 1.0),),
+    )
+    data = transport.StatisticalTransportData(samples=(sample,))
+    prepared = transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, bootstrap=0)
+    plan = prepared.inspect()
+    assert plan.identification.available
+    result = prepared.estimate()
+    assert result.mean("y") == pytest.approx(0.8)
+    consumer = transport.consume_statistical(result.export())
+    assert consumer.inspect().program_id == plan.program_id
+    assert consumer.inspect().identification.available
+    # Raw empirical rows are an explicit dependency for a new estimate.
+    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
+        consumer.estimate()
+    replay = consumer.refresh(data)
+    assert replay.probabilities == pytest.approx(result.probabilities)
+    assert replay.mean("y") == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize(
+    "provider, estimator_id",
+    [
+        ("empirical_support_bayesian_bootstrap", "transport.empirical_support_bayesian_bootstrap"),
+        ("state_space_dirichlet", "transport.state_space_dirichlet"),
+    ],
+)
+def test_bayesian_statistical_providers_keep_posterior_unlicensed(provider, estimator_id):
+    identified, catalog, data = fixture()
+    study = transport.prepare_statistical(
+        identified,
+        catalog,
+        data,
+        at={"x": 1.0},
+        estimator=provider,
+        seed=23,
+    )
+
+    assert study.inspect().uncertainty.available
+    result = study.estimate()
+    posterior = result.uncertainty["bayesian_posterior"]
+    assert posterior["estimator"] == estimator_id
+    assert posterior["interval_method"] == "posterior_equal_tail"
+    assert posterior["draws_requested"] == posterior["draws_ok"] == 199
+    assert posterior["draws_failed"] == 0
+    assert posterior["calibration_status"] == "estimator_grid_not_measured"
+    assert posterior["mean_intervals"]
+    assert result.uncertainty["available"] is False
+    assert study.inspect().uncertainty.available
+
+    # The portable transport artifact retains the posterior summaries and provider identity.
+    consumed = transport.consume_statistical(result.export())
+    refreshed = consumed.refresh(data)
+    replayed = refreshed.uncertainty["bayesian_posterior"]
+    assert replayed["estimator"] == estimator_id
+    assert replayed["draws_requested"] == replayed["draws_ok"] == 199
+    assert replayed["calibration_status"] == "estimator_grid_not_measured"
+
+
 def test_unknown_dependence_keeps_identification_and_withholds_interval():
     identified, catalog, data = fixture()
     catalog = transport.EvidenceCatalog(
@@ -145,6 +256,39 @@ def test_statistical_native_authority_identity_and_load_round_trip():
     assert load(changed.export()).uncertainty == result.uncertainty
 
 
+def test_consume_statistical_rechecks_the_point_and_refreshes_after_builder_disposal():
+    """The consumer rechecks the embedded plug-in point and replays only from raw samples."""
+    from dataclasses import replace
+
+    identified, catalog, data = fixture()
+    producer_builder = transport.prepare_statistical(
+        identified, catalog, data, at={"x": 1.0}, bootstrap=29, seed=41
+    )
+    plan = producer_builder.inspect()
+    assert plan.identification.available
+    result = producer_builder.estimate()
+    # Forged display fields are not the claim: the embedded native point is.
+    forged = replace(result, probabilities=(1.0, 0.0), uncertainty={"available": False})
+    wire = forged.export()
+    assert wire == result.export()
+    del producer_builder, identified
+    consumed = transport.consume_statistical(wire)
+    assert consumed.inspect().program_id == plan.program_id
+    assert consumed.inspect().identification.available
+    assert consumed.inspect().execution_id == result.inspect().execution_id
+    # Raw samples are an explicit dependency for re-estimation; nothing is fitted or fetched on load.
+    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
+        consumed.estimate()
+    replay = consumed.refresh(data)
+    # Independent arithmetic: 80 of 100 trial rows have y = 1.
+    assert replay.mean("y") == pytest.approx(0.8)
+    assert replay.probabilities == pytest.approx(result.probabilities)
+    assert replay.uncertainty == result.uncertainty
+    assert replay.uncertainty["row"]["calibration_status"] == "not_bound_to_this_execution"
+    assert load(wire).probabilities == result.probabilities
+    assert load(wire).uncertainty == result.uncertainty
+
+
 def test_statistical_cancel_and_memory_limits_preserve_atomic_refresh():
     from antecedent.state import CancellationToken
 
@@ -154,13 +298,13 @@ def test_statistical_cancel_and_memory_limits_preserve_atomic_refresh():
     before = study.export()
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         study.refresh(data, cancel=token)
     assert study.export() == before
-    with pytest.raises(ValueError, match="cancel"):
+    with pytest.raises(CausalCancelledError, match="cancel"):
         study.replace_snapshot(data, cancel=token)
     assert study.export() == before
-    with pytest.raises(ValueError, match="memory"):
+    with pytest.raises(CausalResourceError, match="memory"):
         transport.prepare_statistical(identified, catalog, data, at={"x": 1.0}, memory_bytes=1024)
 
 
@@ -289,6 +433,39 @@ def test_sample_intervention_must_belong_to_declared_domain(value):
         )
 
 
+def test_bayesian_grid_reuses_one_draw_sequence():
+    from dataclasses import replace
+
+    identified, catalog, data = fixture()
+    zero = replace(
+        data.samples[0], columns={"y": [0.0] * 40 + [1.0] * 10}, interventions=(("x", 0.0),)
+    )
+    both = transport.StatisticalTransportData((zero, data.samples[0]))
+    points = transport.evaluate_statistical_grid(
+        identified,
+        catalog,
+        both,
+        at=[{"x": 0.0}, {"x": 1.0}],
+        estimator="state_space_dirichlet",
+        bootstrap=0,
+        seed=17,
+    )
+    alone = transport.prepare_statistical(
+        identified,
+        catalog,
+        both,
+        at={"x": 0.0},
+        estimator="state_space_dirichlet",
+        bootstrap=0,
+        seed=17,
+    ).estimate()
+    shared = points[0].uncertainty["bayesian_posterior"]
+    separate = alone.uncertainty["bayesian_posterior"]
+    assert shared["probabilities"] == separate["probabilities"]
+    assert shared["calibration_status"] == "estimator_grid_not_measured"
+    assert points[1].uncertainty["bayesian_posterior"]["draws_ok"] == shared["draws_ok"]
+
+
 def test_transport_query_defaults_are_read_from_the_native_table():
     import dataclasses
 
@@ -298,3 +475,37 @@ def test_transport_query_defaults_are_read_from_the_native_table():
     fields = {f.name: f.default for f in dataclasses.fields(StatisticalTransportQuery)}
     assert fields["bootstrap"] == OMITTED["transport_bootstrap"] == 199
     assert fields["coverage_level"] == OMITTED["transport_coverage_level"] == 0.95
+
+
+def test_iid_bootstrap_interval_executes_from_retained_plan_after_builder_disposal():
+    """The outer IID bootstrap replays the retained checked derivation on every replicate."""
+    identified, catalog, data = fixture()
+    builder = identified
+    program = builder.formula
+    assert program
+    del builder
+    prepared = transport.prepare_statistical(
+        identified, catalog, data, at={"x": 1.0}, bootstrap=40, seed=7
+    )
+    plan = prepared.inspect()
+    assert plan.identification.available
+    assert plan.uncertainty.available
+    result = prepared.estimate()
+    assert result.mean("y") == pytest.approx(0.8)
+    assert result.uncertainty["available"]
+    row = result.uncertainty["row"]
+    assert row["method"] == "percentile_bootstrap"
+    assert row["interval_scope"] == "pointwise"
+    assert row["replicates_ok"] == 40
+    assert row["replicates_failed"] == 0
+    consumer = transport.consume_statistical(result.export())
+    assert consumer.inspect().program_id == plan.program_id
+    with pytest.raises(CausalUnsupportedError, match="transport.samples_not_embedded"):
+        consumer.estimate()
+    replay = consumer.refresh(data)
+    assert replay.mean("y") == pytest.approx(0.8)
+    assert replay.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    assert replay.uncertainty["row"]["replicates_ok"] == 40
+    again = prepared.refresh(data)
+    assert again.uncertainty["replicate_ids"] == result.uncertainty["replicate_ids"]
+    assert again.probabilities == pytest.approx(result.probabilities)

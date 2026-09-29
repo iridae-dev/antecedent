@@ -36,6 +36,7 @@ from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
 from _repo_text import read_text
+from _sealed_loads import assert_answer_kept
 
 ROOT = Path(__file__).resolve().parents[2]
 TRANSPORT_PIN = json.loads(
@@ -122,7 +123,9 @@ def _golden(data, graph, query, new_data):
     return result, study, updated, report, loaded
 
 
-def _assert_lifecycle(result, study, updated, report, loaded, *, fresh, coordinate, key):
+def _assert_lifecycle(
+    result, study, updated, report, loaded, *, fresh, coordinate, key, dependency
+):
     assert isinstance(study, PreparedAnalysis)
     assert result.answer.kind == "point"
 
@@ -146,8 +149,13 @@ def _assert_lifecycle(result, study, updated, report, loaded, *, fresh, coordina
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
-    # export -> load verifies and round-trips the same answer and identities.
-    assert loaded.acceptance.verified
+    # export -> load recognizes the artifact and round-trips its identities, but an
+    # independent consumer cannot replay the sealed checked operation without the
+    # retained proof, so it keeps the recorded answer and names that dependency
+    # instead of reporting a verified program.
+    assert_answer_kept(loaded)
+    assert not loaded.acceptance.verified
+    assert dependency in loaded.acceptance.unresolved
     assert loaded.artifact.payload_kind == "analysis_result"
     assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
@@ -177,6 +185,7 @@ def test_route_transport_tabular_explicit():
         loaded,
         fresh=fresh,
         coordinate="TransportQuery:Admg:explicit:Frequentist:none",
+        dependency="dependencies.checked_transport_trial_operation",
         key={
             "query": "TransportQuery",
             "graph_class": "Admg",
@@ -214,6 +223,7 @@ def test_route_interference_tabular_explicit():
         loaded,
         fresh=fresh,
         coordinate="InterferenceQuery:Dag:explicit:Frequentist:none",
+        dependency="dependencies.checked_interference_operation",
         key={
             "query": "InterferenceQuery",
             "graph_class": "Dag",
@@ -235,6 +245,46 @@ def test_route_interference_tabular_explicit():
         np.sqrt(contrast.contrast.conservative_variance)
     )
     assert updated.interference.contrast == fresh.interference.contrast
+
+
+def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_edges():
+    clusters = [0, 0, 1, 1, 2, 2, 3, 3]
+    assignment = [False] * 4 + [True] * 4
+    edges = [(i, i + 1) for i in range(0, 8, 2)] + [(i + 1, i) for i in range(0, 8, 2)]
+    contrast = interference.ExposureContrast(
+        "y", interference.ExposureLevel(0.0, 0.0), interference.ExposureLevel(1.0, 1.0)
+    )
+    query = ant.InterferenceQuery(
+        interference.ClusterRandomization(clusters, treated_clusters=2),
+        interference.NeighborFraction(),
+        contrast,
+        network=edges,
+        realized_assignment=assignment,
+        partial_interference=interference.PartialInterference(clusters),
+    )
+    data = {"y": [1.0] * 4 + [3.0] * 4}
+    result = ant.analyze(data, graph=[], query=query)
+    assert result.estimate.ate == pytest.approx(2.0)
+    assert result.interference.contrast.hajek == pytest.approx(2.0)
+    assert result.estimate.se_analytic == pytest.approx(0.0)
+    assert result.answer.kind == "point"
+    assert result.evidence_status == "off_axis"
+    assert result.inspect().to_dict()["calibration"]["status"] == "unavailable"
+    assert "partial_interference" in " ".join(result.assumptions or [])
+    assert result.study.refresh({"y": [2.0] * 4 + [5.0] * 4}).estimate.ate == pytest.approx(3.0)
+    loaded = ant.load(result.export())
+    assert loaded.artifact.payload["estimate"] == pytest.approx(2.0)
+
+    crossed = ant.InterferenceQuery(
+        query.assignment,
+        query.exposure,
+        contrast,
+        network=[*edges, (0, 2)],
+        realized_assignment=assignment,
+        partial_interference=query.partial_interference,
+    )
+    with pytest.raises(ValueError, match="crosses cluster boundary"):
+        ant.analyze(data, graph=[], query=crossed)
 
 
 def test_transport_analyze_reproduces_the_conformance_pin():
@@ -415,14 +465,15 @@ def test_constructions_outside_the_licensed_cells_refuse():
     assert raised.value.reason_code == "construction_not_licensed"
 
 
-def test_unlicensed_axes_refuse_on_analyze():
-    with pytest.raises(CausalUnsupportedError):
-        ant.analyze(
-            _transport_data(200, 7),
-            graph=_transport_graph(),
-            query=_transport_query(),
-            inference=ant.Bayesian(n_draws=32),
-        )
+def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
+    bayesian = ant.analyze(
+        _transport_data(200, 7),
+        graph=_transport_graph(),
+        query=_transport_query(),
+        inference=ant.Bayesian(n_draws=32),
+    )
+    assert bayesian.evidence_status == "licensed"
+    assert bayesian.posterior is not None
     assignment, data = _interference_design()
     with pytest.raises(CausalUnsupportedError):
         ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")
@@ -490,4 +541,10 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
     assert restored_catalog["target_sampling"] == "representative_sample"
     assert restored_catalog["regimes"][0]["interventions"] == [0]
-    assert loaded.as_point() == result.as_point()
+    # The sealed transport trial operation is not replayable from bytes alone,
+    # but the recorded answer is kept.
+    assert_answer_kept(loaded)
+    assert not loaded.acceptance.verified
+    assert "dependencies.checked_transport_trial_operation" in loaded.acceptance.unresolved
+    assert loaded.answer == result.answer
+    assert result.as_point() == pytest.approx(result.estimate.ate)

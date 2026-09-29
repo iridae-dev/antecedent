@@ -40,16 +40,18 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{
-    AssumptionSet, CausalRng, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
-    IdentificationStatus, Intervention, InterventionalDistributionQuery, StreamDomain,
-    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, Value,
-    VariableId,
+    AssumptionSet, CausalRng, CausalSchema, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    ExecutionContext, IdentificationStatus, Intervention, InterventionalDistributionQuery,
+    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
+    Value, VariableId,
 };
 use antecedent_data::{DataError, DiscreteColumn, TableView, TabularData};
+use antecedent_expr::provider::EmpiricalProviderSnapshot;
 use antecedent_expr::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, DomainRef,
-    EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode, FactorSpec,
-    IdentifiedEstimand, InterventionAssignment,
+    EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode,
+    FactorRequirement, FactorSpec, FunctionalProgram, IdentifiedEstimand, InterventionAssignment,
+    ProgramEvaluator, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_prob::{
     InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
@@ -347,6 +349,8 @@ impl FunctionalDistributionWorkspace {
 /// Prepared discrete functional-distribution problem.
 #[derive(Clone, Debug)]
 pub struct PreparedFunctionalDistribution {
+    /// Full semantic schema frozen with the prepared program, including types and order.
+    semantic_schema: CausalSchema,
     /// Identified estimand (`GeneralId` / IDC).
     pub estimand: IdentifiedEstimand,
     /// Expression arena owning the functional. Shared (never mutated after
@@ -355,6 +359,10 @@ pub struct PreparedFunctionalDistribution {
     pub arena: Arc<CausalExprArena>,
     /// Compiled evaluator for the functional root.
     pub compiled: CompiledEvaluator,
+    /// Checked owner used by execution; the legacy public arena/evaluator fields
+    /// above are retained for low-level API compatibility only.
+    program: FunctionalProgram,
+    program_evaluator: ProgramEvaluator,
     /// Empirical CPT provider built from data.
     pub provider: EmpiricalTableProvider,
     /// Outcome variables (query order).
@@ -374,6 +382,114 @@ pub struct PreparedFunctionalDistribution {
     /// Interventional signatures used to rebuild the empirical provider.
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    /// Input row count for the currently bound provider snapshot.
+    source_rows: usize,
+}
+
+/// Provenance attached to a complete empirical factor-law snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmpiricalProviderProvenance {
+    /// Stable provider family name.
+    pub provider: &'static str,
+    /// Input rows before joint complete-case filtering.
+    pub source_rows: usize,
+    /// Rows shared by every factor in the provider.
+    pub complete_case_rows: usize,
+    /// Declared missing-row policy.
+    pub missing_row_policy: &'static str,
+}
+
+/// All empirical laws required to evaluate a prepared discrete functional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmpiricalDistributionFactorSnapshot {
+    /// Checked expression requirements plus the explicit free-variable weighting law.
+    pub requirements: Arc<[FactorRequirement]>,
+    /// Complete factor tables and referenced domains.
+    pub provider: EmpiricalProviderSnapshot,
+    /// Provider and row-selection provenance.
+    pub provenance: EmpiricalProviderProvenance,
+}
+
+impl PreparedFunctionalDistribution {
+    /// Checked expression owner used for every numerical evaluation.
+    #[must_use]
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+
+    /// Export every provider law needed for independent expression replay.
+    pub fn factor_snapshot(&self) -> Result<EmpiricalDistributionFactorSnapshot, EstimationError> {
+        let mut requirements = self.program.factor_requirements().to_vec();
+        if !self.free_variables.is_empty() {
+            requirements.push(FactorRequirement {
+                variables: Arc::clone(&self.free_variables),
+                conditioned_on: Arc::from([]),
+                intervention: Arc::from([]),
+                domain: DomainRef::Observational,
+                population: Arc::from(""),
+                regime: None,
+            });
+        }
+        let provider = self
+            .provider
+            .snapshot_factors(&requirements)
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        Ok(EmpiricalDistributionFactorSnapshot {
+            requirements: Arc::from(requirements),
+            provider,
+            provenance: EmpiricalProviderProvenance {
+                provider: "empirical_table",
+                source_rows: self.source_rows,
+                complete_case_rows: self.bootstrap_columns.n(),
+                missing_row_policy: "joint_complete_case",
+            },
+        })
+    }
+
+    /// Bind a compatible snapshot to the same target, evaluator, and procedure.
+    /// The causal program is retained rather than reconstructed from the query.
+    pub fn rebind_checked(&self, data: &TabularData) -> Result<Self, EstimationError> {
+        if data.schema() != &self.semantic_schema {
+            return Err(EstimationError::data_msg(
+                "functional distribution refresh changed semantic schema",
+            ));
+        }
+        let mut vars_needed = HashSet::new();
+        vars_needed.extend(self.outcomes.iter().copied());
+        vars_needed.extend(self.interventions.iter().map(|a| a.variable));
+        vars_needed.extend(self.conditioning.iter().map(|a| a.variable));
+        vars_needed.extend(self.free_variables.iter().copied());
+        for (vars, conditioning) in &self.bootstrap_factors {
+            vars_needed.extend(vars.iter().copied());
+            vars_needed.extend(conditioning.iter().copied());
+        }
+        let (provider, columns) = build_empirical_provider(
+            data,
+            &vars_needed,
+            &self.bootstrap_factors,
+            &self.bootstrap_signatures,
+        )?;
+        let mut rebound = self.clone();
+        rebound.provider = provider;
+        rebound.bootstrap_columns = columns;
+        rebound.source_rows = data.row_count();
+        Ok(rebound)
+    }
+}
+
+fn functional_program(
+    data: &TabularData,
+    arena: &CausalExprArena,
+    root: ExprId,
+) -> Result<FunctionalProgram, EstimationError> {
+    let schema = ProgramSchema::new(
+        data.schema()
+            .variables()
+            .iter()
+            .map(|variable| (variable.id, ProgramVariable { name: Arc::clone(&variable.name) })),
+    );
+    FunctionalProgram::new(arena.clone(), schema, root, root, ProgramLimits::default())
+        .map_err(|error| EstimationError::stats_msg(error.to_string()))
 }
 
 /// Plug-in estimator for identified interventional distributions (discrete).
@@ -530,12 +646,17 @@ impl FunctionalDistribution {
 
         let (provider, columns) =
             build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
-        let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
+        let program = functional_program(data, arena, estimand.functional)?;
+        let program_evaluator = program.compile().map_err(eval_err)?;
+        let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
 
         Ok(PreparedFunctionalDistribution {
+            semantic_schema: data.schema().clone(),
             estimand: estimand.clone(),
             arena: Arc::new(arena.clone()),
             compiled,
+            program,
+            program_evaluator,
             provider,
             outcomes: Arc::clone(&query.outcomes),
             interventions: Arc::from(interventions),
@@ -545,6 +666,7 @@ impl FunctionalDistribution {
             bootstrap_columns: columns,
             bootstrap_factors: factor_specs,
             bootstrap_signatures: signatures,
+            source_rows: data.row_count(),
         })
     }
 
@@ -719,8 +841,7 @@ impl FunctionalDistribution {
                             for (y, val) in outcome_pairs {
                                 workspace.assignment.set(*y, val.clone());
                             }
-                            prepared.compiled.evaluate_with(
-                                &prepared.arena,
+                            prepared.program_evaluator.evaluate_with(
                                 provider,
                                 &EvalContext::default(),
                                 &workspace.assignment,
@@ -875,6 +996,10 @@ pub struct PreparedFunctionalEffect {
     pub arena: Arc<CausalExprArena>,
     /// Compiled evaluator.
     pub compiled: CompiledEvaluator,
+    /// Checked owner used by execution; the legacy public arena/evaluator fields
+    /// above are retained for low-level API compatibility only.
+    program: FunctionalProgram,
+    program_evaluator: ProgramEvaluator,
     /// Empirical CPT provider.
     pub provider: EmpiricalTableProvider,
     /// Assumptions from identification.
@@ -885,9 +1010,47 @@ pub struct PreparedFunctionalEffect {
     bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
     bootstrap_signatures:
         Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    /// Input row count for the currently bound empirical law.
+    source_rows: usize,
 }
 
 impl PreparedFunctionalEffect {
+    /// Checked expression owner used for every numerical evaluation.
+    #[must_use]
+    pub fn program(&self) -> &FunctionalProgram {
+        &self.program
+    }
+
+    /// Export every empirical law needed to independently evaluate this
+    /// checked scalar functional, including its free-variable weighting law.
+    pub fn factor_snapshot(&self) -> Result<EmpiricalDistributionFactorSnapshot, EstimationError> {
+        let mut requirements = self.program.factor_requirements().to_vec();
+        if !self.free_variables.is_empty() {
+            requirements.push(FactorRequirement {
+                variables: Arc::clone(&self.free_variables),
+                conditioned_on: Arc::from([]),
+                intervention: Arc::from([]),
+                domain: DomainRef::Observational,
+                population: Arc::from(""),
+                regime: None,
+            });
+        }
+        let provider = self
+            .provider
+            .snapshot_factors(&requirements)
+            .map_err(|error| EstimationError::data_msg(error.to_string()))?;
+        Ok(EmpiricalDistributionFactorSnapshot {
+            requirements: Arc::from(requirements),
+            provider,
+            provenance: EmpiricalProviderProvenance {
+                provider: "empirical_table",
+                source_rows: self.source_rows,
+                complete_case_rows: self.bootstrap_columns.n(),
+                missing_row_policy: "joint_complete_case",
+            },
+        })
+    }
+
     /// Value of the scalar functional on `provider`'s row law, with the functional's free
     /// variables resolved as the module docs describe.
     ///
@@ -897,7 +1060,7 @@ impl PreparedFunctionalEffect {
     pub fn evaluate(&self, provider: &EmpiricalTableProvider) -> Result<f64, EvalError> {
         let ctx = EvalContext::default();
         average_over_free_variables(provider, &self.free_variables, &Assignment::new(), |env| {
-            self.compiled.evaluate_with(&self.arena, provider, &ctx, env).map(|v| vec![v])
+            self.program_evaluator.evaluate_with(provider, &ctx, env).map(|v| vec![v])
         })
         .map(|values| values[0])
     }
@@ -987,17 +1150,22 @@ impl FunctionalEffect {
         vars_needed.extend(extra_vars.iter().copied());
         let (provider, columns) =
             build_empirical_provider(data, &vars_needed, &factor_specs, &signatures)?;
-        let compiled = arena.compile(estimand.functional).map_err(eval_err)?;
+        let program = functional_program(data, arena, estimand.functional)?;
+        let program_evaluator = program.compile().map_err(eval_err)?;
+        let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
         Ok(PreparedFunctionalEffect {
             estimand: estimand.clone(),
             arena: Arc::new(arena.clone()),
             compiled,
+            program,
+            program_evaluator,
             provider,
             assumptions,
             free_variables: Arc::from(free_variables),
             bootstrap_columns: columns,
             bootstrap_factors: factor_specs,
             bootstrap_signatures: signatures,
+            source_rows: data.row_count(),
         })
     }
 
@@ -1941,6 +2109,18 @@ mod tests {
                 id_res.required_assumptions.clone(),
             )
             .unwrap();
+        let factor_snapshot = prepared.factor_snapshot().unwrap();
+        assert_eq!(factor_snapshot.provenance.provider, "empirical_table");
+        assert_eq!(factor_snapshot.provenance.source_rows, data.row_count());
+        assert_eq!(factor_snapshot.provenance.complete_case_rows, data.row_count());
+        assert_eq!(factor_snapshot.provenance.missing_row_policy, "joint_complete_case");
+        let covered_requirements: HashSet<usize> = factor_snapshot
+            .provider
+            .factors
+            .iter()
+            .flat_map(|factor| factor.requirement_indices.iter().copied())
+            .collect();
+        assert_eq!(covered_requirements.len(), factor_snapshot.requirements.len());
         let mut ews = FunctionalDistributionWorkspace::default();
         let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(0)).unwrap();
         let tolerance = fixture["acceptance"]["atol"].as_f64().unwrap();
@@ -1954,6 +2134,15 @@ mod tests {
         let mass: f64 = out.atoms.iter().map(|a| a.probability).sum();
         let expected_mass = fixture["case"]["atom_probability_sum"].as_f64().unwrap();
         assert!((mass - expected_mass).abs() <= tolerance, "mass={mass}");
+
+        // Compatibility fields are no longer execution authority. A caller
+        // replacing the old public arena cannot pair it with the retained
+        // checked evaluator used by the prepared route.
+        let mut decoy = prepared.clone();
+        decoy.arena = Arc::new(CausalExprArena::new());
+        let decoy_out =
+            est.estimate(&decoy, &[], &mut ews, &ExecutionContext::for_tests(0)).unwrap();
+        assert!((decoy_out.mean - out.mean).abs() <= tolerance);
     }
 
     #[test]
@@ -2406,6 +2595,16 @@ mod tests {
                 &[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
             )
             .unwrap();
+        let snapshot = prepared.factor_snapshot().unwrap();
+        assert_eq!(snapshot.provenance.source_rows, data.row_count());
+        assert_eq!(snapshot.provenance.complete_case_rows, data.row_count());
+        let covered: HashSet<_> = snapshot
+            .provider
+            .factors
+            .iter()
+            .flat_map(|factor| factor.requirement_indices.iter().copied())
+            .collect();
+        assert_eq!(covered.len(), snapshot.requirements.len());
         let out = est
             .estimate(
                 &prepared,

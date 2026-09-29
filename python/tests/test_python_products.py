@@ -53,6 +53,7 @@ from antecedent.inference import Frequentist
 from antecedent.intervention import Set
 
 from _repo_text import read_text
+from _sealed_loads import assert_answer_kept
 
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCTS = tomllib.loads(read_text(ROOT / "parity" / "python_products.toml"))
@@ -314,11 +315,11 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
         kwargs["query"] = AverageEffect("t", "y", target_population=CustomDistribution(3))
         kwargs["estimator"] = "propensity.weighting"
     if options == "rd":
-        from antecedent.estimators import SharpRd
+        from antecedent.quasi import SharpRegressionDiscontinuity
 
-        # The sharp design as a graph: the running variable is the treatment's only cause.
-        kwargs["graph"] = [("r", "t"), ("t", "y"), ("r", "y")]
-        kwargs["estimator"] = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5)
+        # Sharp RD is a graphless query that synthesizes its own design.
+        kwargs.pop("graph", None)
+        kwargs["query"] = SharpRegressionDiscontinuity("y", "t", "r", 0.0, 1.5)
     return kwargs
 
 
@@ -354,7 +355,7 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     encoded = result.export()
     loaded = ant.load(encoded)
     assert loaded.artifact.payload_kind == "analysis_result"
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
 
     again = study.estimate()
     assert _same(_point(result), _point(again)), (

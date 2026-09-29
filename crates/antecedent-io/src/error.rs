@@ -69,6 +69,45 @@ pub enum IoError {
         /// Section id.
         section: String,
     },
+    /// A refusal carrying a registered runtime reason code
+    /// (`parity/reason_codes.toml`), rendered `reason=<code>: <message>` like
+    /// every other boundary. An estimation refusal crossing an artifact or
+    /// prepared-study boundary keeps its code here instead of flattening to a
+    /// conversion message.
+    #[error("{}{code}: {message}", antecedent_core::reason_code::PREFIX)]
+    Refused {
+        /// Registered reason code.
+        code: &'static str,
+        /// What was refused.
+        message: String,
+    },
+    /// A z-transport artifact failed one of its typed consumer checks.
+    #[error("z-transport artifact: {0}")]
+    ZTransport(#[from] crate::z_transport_artifact::ZTransportArtifactError),
+}
+
+impl From<antecedent_identify::IdentificationError> for IoError {
+    fn from(error: antecedent_identify::IdentificationError) -> Self {
+        match error {
+            antecedent_identify::IdentificationError::Cancelled
+            | antecedent_identify::IdentificationError::Budget { .. } => Self::Refused {
+                code: antecedent_core::reason_code!("transport_budget_cancel"),
+                message: error.to_string(),
+            },
+            other => Self::Convert(other.to_string()),
+        }
+    }
+}
+
+impl From<antecedent_estimate::EstimationError> for IoError {
+    fn from(error: antecedent_estimate::EstimationError) -> Self {
+        match error {
+            antecedent_estimate::EstimationError::Refused { code, message } => {
+                Self::Refused { code, message }
+            }
+            other => Self::Convert(other.to_string()),
+        }
+    }
 }
 
 /// Wrap any displayable failure as [`IoError::Convert`].

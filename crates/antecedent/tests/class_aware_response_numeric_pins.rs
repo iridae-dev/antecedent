@@ -312,7 +312,9 @@ fn class_aware_intervention_pins_against_ate_envelope() {
                 assert_envelope_diagnostic(result, section, class);
                 assert!((response_values(result)[0] - do1).abs() < tol, "{class} do(1)");
             }
-            assert_eq!(cached_count(&fresh), 0);
+            // A one-shot class response executes its retained prepared plan, so the
+            // fresh result reports the identification it reused from that plan.
+            assert_eq!(cached_count(&fresh), 1);
             assert_eq!(cached_count(&click), 1);
             assert_eq!(cached_count(&refreshed), 1);
 
@@ -414,7 +416,9 @@ fn class_aware_curve_pins_against_ate_on_continuous_t() {
                     values[1] - values[0]
                 );
             }
-            assert_eq!(cached_count(&fresh), 0);
+            // A one-shot class response executes its retained prepared plan, so the
+            // fresh result reports the identification it reused from that plan.
+            assert_eq!(cached_count(&fresh), 1);
             assert_eq!(cached_count(&click), 1);
             assert_eq!(cached_count(&refreshed), 1);
         }
@@ -498,7 +502,9 @@ fn class_aware_bayesian_intervention_pins_against_ate_envelope() {
             assert_eq!(identify_computations(&sink), 1);
             let prepared: PreparedStudy = high.prepare(&ctx).unwrap();
             let click = prepared.estimate(&data, &ctx).unwrap();
-            assert_eq!(cached_count(&fresh), 0);
+            // A one-shot class response executes its retained prepared plan, so the
+            // fresh result reports the identification it reused from that plan.
+            assert_eq!(cached_count(&fresh), 1);
             assert_eq!(cached_count(&click), 1);
             assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("response.bayesian"));
             for result in [&fresh, &click] {
@@ -555,7 +561,9 @@ fn class_aware_bayesian_curve_pins_against_ate_envelope() {
         let prepared: PreparedStudy = study.prepare(&ctx).unwrap();
         let click = prepared.estimate(&data, &ctx).unwrap();
         assert_eq!(identify_computations(&sink), 2, "the click must reuse the envelope");
-        assert_eq!(cached_count(&fresh), 0);
+        // A one-shot class response executes its retained prepared plan, so the
+        // fresh result reports the identification it reused from that plan.
+        assert_eq!(cached_count(&fresh), 1);
         assert_eq!(cached_count(&click), 1);
         assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("response.bayesian"));
         for result in [&fresh, &click] {

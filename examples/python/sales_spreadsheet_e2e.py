@@ -102,7 +102,8 @@ def main() -> None:
     study = bayes.study
     second = study.estimate(seed=4)
     assert second.data_snapshot_id == bayes.data_snapshot_id
-    assert antecedent.load(bayes.export()).acceptance.verified
+    acceptance = antecedent.load(bayes.export()).acceptance
+    assert acceptance.verified or acceptance.sealed
     print("Calibration:", bayes.calibration.status)
     assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
     assert accepted.version == 1

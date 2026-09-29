@@ -7,8 +7,9 @@ pub use antecedent_core::{
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
     DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping, GridSpec,
     InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
-    MechanismChangeQuery, MediationContrast, MediationQuery, OutcomeFunctional,
-    PathSpecificEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
-    TransportQuery, UnitChangeQuery,
+    LocalPolynomialRatioQuery, LongitudinalRegimeQuery, MechanismChangeQuery, MediationContrast,
+    MediationQuery, OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, RandomizationDesign,
+    RandomizedEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SyntheticControlQuery, SyntheticPanelMethod,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransportQuery, UnitChangeQuery,
 };

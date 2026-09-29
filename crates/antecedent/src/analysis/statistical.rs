@@ -11,13 +11,16 @@ use antecedent_core::{
     UncertaintyComponent, UncertaintySlot, UncertaintySource, VariableId,
 };
 use antecedent_estimate::{
-    EmpiricalTableOptions, StatisticalTransportEstimate, StatisticalTransportInput,
-    TransportUncertaintyRow, assemble_point_laws,
+    EmpiricalTableOptions, INTERVAL_NUMERICAL_FAILURE, ReplicatePolicy,
+    StatisticalTransportEstimate, StatisticalTransportInput, TransportUncertaintyRow,
+    assemble_point_laws,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{BoundTransportFunctional, ClassicalTransportQuery, SidLimits};
-use antecedent_io::transport_grid_wire::{SampleSummary, StatisticalOptionsWire};
+use antecedent_io::transport_grid_wire::{
+    BayesianTransportPosteriorWire, SampleSummary, StatisticalOptionsWire,
+};
 use antecedent_io::{
     IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
@@ -27,14 +30,103 @@ use std::sync::Arc;
 
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
-use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
+use super::transport_common::{
+    GraphFields, digest, err, estimate_err, rebind_snapshots, rebuild_checked_proof,
+};
+
+/// The facade's licensing floor for a nominal-0.95 pointwise percentile edge.
+const PERCENTILE_FLOOR: ReplicatePolicy =
+    ReplicatePolicy::percentile_floor(PERCENTILE_95_MIN_REPLICATES);
+
+fn is_bayesian_provider(estimator: antecedent_estimate::EmpiricalTableEstimator) -> bool {
+    matches!(
+        estimator,
+        antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap
+            | antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet
+    )
+}
+
+fn bayesian_provider(
+    estimator: antecedent_estimate::EmpiricalTableEstimator,
+) -> Option<antecedent_estimate::BayesianTransportLawProvider> {
+    match estimator {
+        antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap => {
+            Some(antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport)
+        }
+        antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet => {
+            Some(antecedent_estimate::BayesianTransportLawProvider::DeclaredStateSpaceDirichlet)
+        }
+        _ => None,
+    }
+}
+
+fn apply_posterior_draw_floor(
+    estimate: &mut antecedent_estimate::BayesianStatisticalTransportEstimate,
+) {
+    if estimate.interval_reason.as_deref()
+        != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+    {
+        return;
+    }
+    if let Err(reason) =
+        PERCENTILE_FLOOR.decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
+    {
+        estimate.atom_intervals = Arc::from([]);
+        estimate.mean_intervals = Arc::from([]);
+        estimate.interval_reason = Some(Arc::from(reason));
+    }
+}
+
+fn bayesian_uncertainty_slot(
+    requested: u32,
+    dependence: Option<&str>,
+    posterior: Option<&antecedent_estimate::BayesianStatisticalTransportEstimate>,
+) -> SlotAvailability<UncertaintySlot> {
+    if let Some(posterior) = posterior {
+        return match posterior.interval_reason.as_deref() {
+            Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED) => {
+                SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+                    UncertaintySource::Sampling,
+                    antecedent_estimate::POSTERIOR_EQUAL_TAIL,
+                    false,
+                )]))
+            }
+            Some(reason) => SlotAvailability::unavailable(reason),
+            None => SlotAvailability::unavailable("uncertainty_unavailable"),
+        };
+    }
+    if let Some(reason) = dependence {
+        return SlotAvailability::unavailable(reason);
+    }
+    if requested < PERCENTILE_95_MIN_REPLICATES {
+        SlotAvailability::unavailable("insufficient_bootstrap_replicates")
+    } else {
+        SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            antecedent_estimate::POSTERIOR_EQUAL_TAIL,
+            false,
+        )]))
+    }
+}
+
+fn point_options(options: EmpiricalTableOptions) -> EmpiricalTableOptions {
+    if is_bayesian_provider(options.estimator) {
+        EmpiricalTableOptions {
+            estimator: antecedent_estimate::EmpiricalTableEstimator::Plugin,
+            bootstrap_replicates: 0,
+            ..options
+        }
+    } else {
+        options
+    }
+}
 
 /// Native retained statistical-transport state.
 #[derive(Clone, Debug)]
 pub struct StatisticalPreparedState {
     diagram: SelectionDiagram,
     functional: BoundTransportFunctional,
-    input: StatisticalTransportInput,
+    input: Arc<StatisticalTransportInput>,
     data: ExactTransportData,
     request: Assignment,
     limits: ExactEvaluationLimits,
@@ -51,6 +143,7 @@ pub struct StatisticalPreparedState {
 #[derive(Clone, Debug)]
 pub struct StatisticalStudyResult {
     estimate: StatisticalTransportEstimate,
+    bayesian_estimate: Option<antecedent_estimate::BayesianStatisticalTransportEstimate>,
     identities: ExactStudyIdentities,
     reasoning: ReasoningView,
 }
@@ -65,6 +158,13 @@ impl StatisticalStudyResult {
     #[must_use]
     pub const fn estimate(&self) -> &StatisticalTransportEstimate {
         &self.estimate
+    }
+    /// Optional Bayesian posterior law summaries for Bayesian transport providers.
+    #[must_use]
+    pub const fn bayesian_estimate(
+        &self,
+    ) -> Option<&antecedent_estimate::BayesianStatisticalTransportEstimate> {
+        self.bayesian_estimate.as_ref()
     }
     /// Paired difference of means, preserving shared-sample covariance.
     /// # Errors
@@ -129,14 +229,22 @@ impl StatisticalStudyResult {
             .checked_sub(contrast.replicates_ok)
             .ok_or_else(|| err("invalid replicate accounting"))?;
         contrast.coverage_target = Some(row.coverage_target);
-        if draws.len() < PERCENTILE_95_MIN_REPLICATES as usize
-            || f64::from(contrast.replicates_failed) / f64::from(row.replicates_requested) > 0.5
-        {
-            contrast.reason = Some("bootstrap_failure_fraction");
-        } else {
-            contrast.interval =
-                Some(antecedent_estimate::percentile_interval(&draws, row.coverage_target));
-            contrast.reason = None;
+        let paired = ReplicatePolicy {
+            min_requested: 0,
+            min_ok: PERCENTILE_95_MIN_REPLICATES,
+            ..ReplicatePolicy::BOOTSTRAP
+        };
+        match paired
+            .decide(row.replicates_requested, contrast.replicates_ok, contrast.replicates_failed)
+            .and_then(|()| {
+                antecedent_estimate::percentile_interval(&draws, row.coverage_target)
+                    .ok_or(INTERVAL_NUMERICAL_FAILURE)
+            }) {
+            Ok(interval) => {
+                contrast.interval = Some(interval);
+                contrast.reason = None;
+            }
+            Err(reason) => contrast.reason = Some(reason),
         }
         Ok(contrast)
     }
@@ -204,8 +312,9 @@ pub struct StatisticalBindingView {
     pub origin: &'static str,
 }
 
-// Canonicalize only new multi-source/grid provider collections; historical scalar
-// statistical-v2 identities retain their original ordering.
+/// Sort samples and supplied laws into their canonical order so the same
+/// evidence supplied in a different order yields the same replicates and the
+/// same snapshot identity.
 pub(super) fn canonicalize_input(input: &mut StatisticalTransportInput) -> Result<(), IoError> {
     input.samples.sort_by_key(|s| {
         (
@@ -264,17 +373,17 @@ impl PreparedStudy<StatisticalPreparedState> {
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
         let mut input = input;
-        if !functional.derivation().sources().is_empty() {
-            canonicalize_input(&mut input)?;
-        }
+        canonicalize_input(&mut input)?;
         antecedent_estimate::statistical_transport::check_statistical_resources(
             &input,
             &functional,
             &options,
             ctx,
         )
-        .map_err(err)?;
-        let data = assemble_point_laws(&input, &functional, &options, ctx).map_err(err)?;
+        .map_err(estimate_err)?;
+        let point_options = point_options(options);
+        let data =
+            assemble_point_laws(&input, &functional, &point_options, ctx).map_err(estimate_err)?;
         let samples =
             input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
         Self::build_fitted(
@@ -295,7 +404,39 @@ impl PreparedStudy<StatisticalPreparedState> {
         ctx: &ExecutionContext,
         loaded_only: bool,
     ) -> Result<Self, IoError> {
-        antecedent_estimate::empirical_table::validate_options(&options).map_err(err)?;
+        antecedent_estimate::empirical_table::validate_options(&options).map_err(estimate_err)?;
+        let invariants = StudyInvariants::compute(&functional, &data, &samples)?;
+        Self::from_invariants(
+            &invariants,
+            diagram,
+            functional,
+            Arc::new(input),
+            data,
+            samples,
+            request,
+            limits,
+            options,
+            ctx,
+            loaded_only,
+        )
+    }
+
+    /// Build one request's prepared state from the identity layers that do not
+    /// depend on the request.
+    #[allow(clippy::too_many_arguments)]
+    fn from_invariants(
+        invariants: &StudyInvariants,
+        diagram: SelectionDiagram,
+        functional: BoundTransportFunctional,
+        input: Arc<StatisticalTransportInput>,
+        data: ExactTransportData,
+        samples: Vec<SampleSummary>,
+        request: Assignment,
+        limits: ExactEvaluationLimits,
+        options: EmpiricalTableOptions,
+        ctx: &ExecutionContext,
+        loaded_only: bool,
+    ) -> Result<Self, IoError> {
         // Coverage, assignments, binding snapshots and allocation limits are checked at preparation.
         antecedent_estimate::prepare_exact_transport(
             &functional,
@@ -304,12 +445,8 @@ impl PreparedStudy<StatisticalPreparedState> {
             limits,
             ctx,
         )
-        .map_err(err)?;
-        let proof = TransportProofWire::from_checked(functional.derivation())?;
-        let catalog = functional.catalog().canonicalized().map_err(err)?;
-        let mut contract = EvidenceCatalogWire::from_catalog(&catalog);
-        contract.bindings.clear();
-        let shape = statistical_shape(&data)?;
+        .map_err(|error| estimate_err(antecedent_estimate::refuse_eval(&error)))?;
+        let proof = &invariants.proof;
         let target = digest(
             IdentityDomain::Target,
             &(
@@ -319,79 +456,52 @@ impl PreparedStudy<StatisticalPreparedState> {
                 statistical_assignments(&request),
             ),
         )?;
-        let observation = digest(IdentityDomain::Observation, &(&contract, &shape))?;
-        let dependence: Vec<_> = catalog
-            .bindings
-            .iter()
-            .map(|b| {
-                (
-                    b.regime.raw(),
-                    b.sampling.as_str(),
-                    b.dependence.as_str(),
-                    b.weights.as_ref().map(|v| v.snapshot_identity.as_ref()),
-                )
-            })
-            .collect();
+        // The interval method and the draw count are inferential commitments:
+        // two Bayesian studies with different draw counts are different bindings.
+        let interval_method = if is_bayesian_provider(options.estimator) {
+            antecedent_estimate::POSTERIOR_EQUAL_TAIL
+        } else {
+            antecedent_estimate::PERCENTILE_BOOTSTRAP
+        };
         let inference_binding = digest(
             IdentityDomain::InferenceBinding,
             &(
+                "statistical_inference_binding_v2",
                 options.estimator.identity(),
                 options.bootstrap_replicates,
+                options.posterior_draws,
                 options.coverage_level.to_bits(),
                 options.max_joint_cells,
-                "percentile_bootstrap",
+                interval_method,
                 "pointwise",
-                &dependence,
+                &invariants.dependence,
                 ctx.rng.master_seed(),
                 limits.operations,
                 limits.depth,
             ),
         )?;
-        let aliases: Vec<_> = catalog
-            .bindings
-            .iter()
-            .filter_map(|b| b.dataset_identity.as_ref().map(|id| (b.regime.raw(), id.as_ref())))
-            .collect();
-        let inference_binding = if aliases.is_empty() {
+        let inference_binding = if invariants.aliases.is_empty() {
             inference_binding
         } else {
             digest(
                 IdentityDomain::InferenceBinding,
-                &(&inference_binding, "shared_dataset_aliases_v1", aliases),
+                &(&inference_binding, "shared_dataset_aliases_v1", &invariants.aliases),
             )?
         };
-        let identification = digest(
-            IdentityDomain::Identification,
-            &(
-                &proof.proof.graph_signature,
-                &proof.proof.outcomes,
-                &proof.proof.treatments,
-                &proof.proof.source,
-                &proof.proof.target,
-                &proof.proof.evidence_setting,
-                &observation,
-            ),
-        )?;
-        let identification = if proof.proof.sources.is_empty() {
-            identification
-        } else {
-            digest(IdentityDomain::Identification, &(&identification, &proof.proof.sources))?
-        };
-        let identification_product = digest(IdentityDomain::IdentificationProduct, &proof)?;
         let program = digest(
             IdentityDomain::Program,
             &(
-                &identification,
-                &identification_product,
+                &invariants.identification,
+                &invariants.identification_product,
                 &target,
-                antecedent_io::expr_wire::expr_arena_to_wire(functional.arena())?,
+                &invariants.arena,
                 functional.root().raw(),
             ),
         )?;
-        let snapshot =
-            digest(IdentityDomain::DataSnapshot, &(statistical_law_wires(&data)?, &samples))?;
-        let execution =
-            digest(IdentityDomain::Execution, &(&program, &snapshot, &inference_binding))?;
+        let execution = digest(
+            IdentityDomain::Execution,
+            &(&program, &invariants.snapshot, &inference_binding),
+        )?;
         Ok(Self {
             state: StatisticalPreparedState {
                 diagram,
@@ -403,15 +513,15 @@ impl PreparedStudy<StatisticalPreparedState> {
                 options,
                 identities: ExactStudyIdentities {
                     target,
-                    observation,
+                    observation: invariants.observation.clone(),
                     inference_binding,
-                    identification,
-                    identification_product,
+                    identification: invariants.identification.clone(),
+                    identification_product: invariants.identification_product.clone(),
                     program,
-                    snapshot,
+                    snapshot: invariants.snapshot.clone(),
                     execution,
                 },
-                shape,
+                shape: invariants.shape.clone(),
                 seed: ctx.rng.master_seed(),
                 samples,
                 loaded_only,
@@ -471,6 +581,9 @@ impl PreparedStudy<StatisticalPreparedState> {
     /// The estimator's own license rule: an earned percentile floor plus iid,
     /// unweighted, independent-study dependence for every estimated regime.
     fn licensed_interval(&self) -> bool {
+        if is_bayesian_provider(self.state.options.estimator) {
+            return false;
+        }
         self.state.options.bootstrap_replicates >= PERCENTILE_95_MIN_REPLICATES
             && !self.state.input.samples.is_empty()
             && antecedent_estimate::licensed_iid_dependence(
@@ -518,12 +631,14 @@ impl PreparedStudy<StatisticalPreparedState> {
             formula: self.state.functional.arena().pretty(self.state.functional.root()),
             factors: statistical_requirements(&self.state.functional),
             bindings: statistical_bindings(&self.state.input, &self.state.data),
-            reasoning: self.reasoning(false, None),
+            reasoning: self.reasoning(false, None, None),
             theorem_scope: if matches!(
                 self.state.options.estimator,
                 antecedent_estimate::EmpiricalTableEstimator::Learned(_)
             ) {
                 "checked_transport; learned_categorical_plugin; uncalibrated"
+            } else if is_bayesian_provider(self.state.options.estimator) {
+                "checked_transport; finite_discrete_bayesian_posterior; estimator_grid_not_measured"
             } else if self.state.functional.derivation().sources().is_empty() {
                 TheoremScope::statistical_table_inspect_label()
             } else {
@@ -538,41 +653,53 @@ impl PreparedStudy<StatisticalPreparedState> {
         &self,
         evaluated: bool,
         estimate: Option<&StatisticalTransportEstimate>,
+        posterior: Option<&antecedent_estimate::BayesianStatisticalTransportEstimate>,
     ) -> ReasoningView {
-        let uncertainty = match estimate {
-            Some(est) if est.uncertainty.is_some() && est.uncertainty_reason.is_none() => {
-                SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
-                    UncertaintySource::Sampling,
-                    "percentile_bootstrap",
-                    false,
-                )]))
-            }
-            Some(est) => SlotAvailability::unavailable(
-                est.uncertainty_reason.as_deref().unwrap_or("uncertainty_unavailable"),
-            ),
-            None if self.licensed_interval() => {
-                SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
-                    UncertaintySource::Sampling,
-                    "percentile_bootstrap",
-                    false,
-                )]))
-            }
-            None if self.state.input.samples.is_empty() => {
-                SlotAvailability::unavailable("exact_supplied_law_no_sampling_uncertainty")
-            }
-            None if self.state.options.bootstrap_replicates == 0 => {
-                SlotAvailability::unavailable("bootstrap_not_requested")
-            }
-            None if self.state.options.bootstrap_replicates < PERCENTILE_95_MIN_REPLICATES => {
-                SlotAvailability::unavailable("insufficient_bootstrap_replicates")
-            }
-            None => SlotAvailability::unavailable(
+        let uncertainty = if is_bayesian_provider(self.state.options.estimator) {
+            bayesian_uncertainty_slot(
+                self.state.options.posterior_draws,
                 antecedent_estimate::dependence_refusal(
                     self.state.functional.catalog(),
                     &self.state.input.samples,
-                )
-                .unwrap_or("transport.unsupported_dependence"),
-            ),
+                ),
+                posterior,
+            )
+        } else {
+            match estimate {
+                Some(est) if est.uncertainty.is_some() && est.uncertainty_reason.is_none() => {
+                    SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+                        UncertaintySource::Sampling,
+                        "percentile_bootstrap",
+                        false,
+                    )]))
+                }
+                Some(est) => SlotAvailability::unavailable(
+                    est.uncertainty_reason.as_deref().unwrap_or("uncertainty_unavailable"),
+                ),
+                None if self.licensed_interval() => {
+                    SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
+                        UncertaintySource::Sampling,
+                        "percentile_bootstrap",
+                        false,
+                    )]))
+                }
+                None if self.state.input.samples.is_empty() => {
+                    SlotAvailability::unavailable("exact_supplied_law_no_sampling_uncertainty")
+                }
+                None if self.state.options.bootstrap_replicates == 0 => {
+                    SlotAvailability::unavailable("bootstrap_not_requested")
+                }
+                None if self.state.options.bootstrap_replicates < PERCENTILE_95_MIN_REPLICATES => {
+                    SlotAvailability::unavailable("insufficient_bootstrap_replicates")
+                }
+                None => SlotAvailability::unavailable(
+                    antecedent_estimate::dependence_refusal(
+                        self.state.functional.catalog(),
+                        &self.state.input.samples,
+                    )
+                    .unwrap_or("transport.unsupported_dependence"),
+                ),
+            }
         };
         ReasoningView::new(
             SlotAvailability::Available(IdentificationSlot::identified_singleton(
@@ -580,16 +707,16 @@ impl PreparedStudy<StatisticalPreparedState> {
             )),
             SlotAvailability::Available(SupportSlot::new(
                 "stage_contract",
-                Some(Arc::from(
-                    if matches!(
-                        self.state.options.estimator,
-                        antecedent_estimate::EmpiricalTableEstimator::Learned(_)
-                    ) {
-                        "transport.learned_categorical"
-                    } else {
-                        "transport.empirical_table"
-                    },
-                )),
+                Some(Arc::from(if is_bayesian_provider(self.state.options.estimator) {
+                    self.state.options.estimator.as_str()
+                } else if matches!(
+                    self.state.options.estimator,
+                    antecedent_estimate::EmpiricalTableEstimator::Learned(_)
+                ) {
+                    "transport.learned_categorical"
+                } else {
+                    "transport.empirical_table"
+                })),
                 if evaluated {
                     SlotAvailability::Available(Arc::from("empirical_factor_support_checked"))
                 } else {
@@ -603,7 +730,14 @@ impl PreparedStudy<StatisticalPreparedState> {
                 AssumptionSource::UserDeclared,
                 ObligationKind::Uncheckable,
                 AssumptionStatus::Untestable,
-                if matches!(
+                if is_bayesian_provider(self.state.options.estimator) {
+                    match self.state.options.estimator {
+                        antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap =>
+                            "Declared finite joint; Rubin Exp(1) row weights define a posterior on observed support only. The equal-tail interval is pointwise and its coverage reason is estimator_grid_not_measured.",
+                        _ =>
+                            "Declared full categorical state space; each cell has a symmetric Dirichlet(1) prior. The equal-tail interval is pointwise and its coverage reason is estimator_grid_not_measured.",
+                    }
+                } else if matches!(
                     self.state.options.estimator,
                     antecedent_estimate::EmpiricalTableEstimator::Learned(_)
                 ) {
@@ -630,6 +764,35 @@ impl PreparedStudy<StatisticalPreparedState> {
         self.estimate_retained(ctx)
     }
 
+    fn bayesian_estimates(
+        &self,
+        ctx: &ExecutionContext,
+        requests: &[Assignment],
+    ) -> Result<Option<Vec<antecedent_estimate::BayesianStatisticalTransportEstimate>>, IoError>
+    {
+        let Some(provider) = bayesian_provider(self.state.options.estimator) else {
+            return Ok(None);
+        };
+        let mut estimates = antecedent_estimate::evaluate_bayesian_statistical_transport_grid(
+            &self.state.functional,
+            &self.state.input,
+            requests,
+            self.state.limits,
+            antecedent_estimate::statistical_transport::BayesianStatisticalTransportOptions {
+                provider,
+                draws: self.state.options.posterior_draws,
+                coverage_level: self.state.options.coverage_level,
+                max_joint_cells: self.state.options.max_joint_cells,
+            },
+            ctx,
+        )
+        .map_err(estimate_err)?;
+        for estimate in &mut estimates {
+            apply_posterior_draw_floor(estimate);
+        }
+        Ok(Some(estimates))
+    }
+
     /// Estimate using retained providers.
     ///
     /// # Errors
@@ -653,20 +816,11 @@ impl PreparedStudy<StatisticalPreparedState> {
         }
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
-        let estimate = if self.state.grid.is_empty() {
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
-                &self.state.functional,
-                &self.state.input,
-                &[self.state.request.clone()],
-                self.state.limits,
-                &self.state.options,
-                &frozen_ctx,
-                &self.state.data,
-            )
-            .map_err(err)?.remove(0)
+        let point_options = point_options(self.state.options);
+        let requests = if self.state.grid.is_empty() {
+            vec![self.state.request.clone()]
         } else {
-            let requests: Vec<_> = self
-                .state
+            self.state
                 .grid
                 .iter()
                 .map(|request| {
@@ -674,30 +828,35 @@ impl PreparedStudy<StatisticalPreparedState> {
                         request.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())),
                     )
                 })
-                .collect();
-            let index = self
-                .state
+                .collect()
+        };
+        let index = if self.state.grid.is_empty() {
+            0
+        } else {
+            self.state
                 .grid
                 .iter()
                 .position(|request| *request == statistical_assignments(&self.state.request))
-                .ok_or_else(|| err("retained target missing from grid"))?;
-            antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
-                &self.state.functional,
-                &self.state.input,
-                &requests,
-                self.state.limits,
-                &self.state.options,
-                &frozen_ctx,
-                &self.state.data,
-            )
-            .map_err(err)?
-            .remove(index)
+                .ok_or_else(|| err("retained target missing from grid"))?
         };
-        let mut estimate = estimate;
+        let mut estimate = antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
+            &self.state.functional,
+            &self.state.input,
+            &requests,
+            self.state.limits,
+            &point_options,
+            &frozen_ctx,
+            &self.state.data,
+        )
+        .map_err(estimate_err)?
+        .remove(index);
         Self::withhold_unearned_percentile(&mut estimate, &self.state.options);
+        let bayesian_estimate =
+            self.bayesian_estimates(&frozen_ctx, &requests)?.map(|mut rows| rows.remove(index));
         Ok(StatisticalStudyResult {
-            reasoning: self.reasoning(true, Some(&estimate)),
+            reasoning: self.reasoning(true, Some(&estimate), bayesian_estimate.as_ref()),
             estimate,
+            bayesian_estimate,
             identities: self.state.identities.clone(),
         })
     }
@@ -738,13 +897,14 @@ impl PreparedStudy<StatisticalPreparedState> {
         }
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(self.state.seed);
+        let point_options = point_options(self.state.options);
         let estimates = match evaluated {
             Some(distributions) => antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_evaluated_point_laws(
                 &self.state.functional,
                 &self.state.input,
                 requests,
                 self.state.limits,
-                &self.state.options,
+                &point_options,
                 &frozen_ctx,
                 &self.state.data,
                 distributions,
@@ -754,20 +914,29 @@ impl PreparedStudy<StatisticalPreparedState> {
                 &self.state.input,
                 requests,
                 self.state.limits,
-                &self.state.options,
+                &point_options,
                 &frozen_ctx,
                 &self.state.data,
             ),
         }
-        .map_err(err)?;
+        .map_err(estimate_err)?;
+        let posteriors = self.bayesian_estimates(&frozen_ctx, requests)?;
+        let invariants = StudyInvariants::compute(
+            &self.state.functional,
+            &self.state.data,
+            &self.state.samples,
+        )?;
+        let grid: Vec<_> = requests.iter().map(statistical_assignments).collect();
         requests
             .iter()
             .zip(estimates)
-            .map(|(request, mut estimate)| {
-                let prepared = Self::build_fitted(
+            .enumerate()
+            .map(|(index, (request, mut estimate))| {
+                let prepared = Self::from_invariants(
+                    &invariants,
                     self.state.diagram.clone(),
                     self.state.functional.clone(),
-                    self.state.input.clone(),
+                    Arc::clone(&self.state.input),
                     self.state.data.clone(),
                     self.state.samples.clone(),
                     request.clone(),
@@ -776,12 +945,18 @@ impl PreparedStudy<StatisticalPreparedState> {
                     &frozen_ctx,
                     false,
                 )?
-                .with_grid(requests.iter().map(statistical_assignments).collect())?;
+                .with_grid(grid.clone())?;
                 Self::withhold_unearned_percentile(&mut estimate, &prepared.state.options);
+                let bayesian_estimate = posteriors.as_ref().map(|rows| rows[index].clone());
                 let result = StatisticalStudyResult {
-                    reasoning: prepared.reasoning(true, Some(&estimate)),
+                    reasoning: prepared.reasoning(
+                        true,
+                        Some(&estimate),
+                        bayesian_estimate.as_ref(),
+                    ),
                     identities: prepared.state.identities.clone(),
                     estimate,
+                    bayesian_estimate,
                 };
                 Ok((prepared, result))
             })
@@ -796,48 +971,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         &self,
         intent: antecedent_core::TransformIntent,
     ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
-        let ids = &self.state.identities;
-        let inputs = [
-            (IdentityDomain::Target, &ids.target),
-            (IdentityDomain::Identification, &ids.identification),
-            (IdentityDomain::IdentificationProduct, &ids.identification_product),
-            (IdentityDomain::Observation, &ids.observation),
-            (IdentityDomain::Program, &ids.program),
-            (IdentityDomain::InferenceBinding, &ids.inference_binding),
-            (IdentityDomain::DataSnapshot, &ids.snapshot),
-            (IdentityDomain::Execution, &ids.execution),
-        ]
-        .into_iter()
-        .map(|(domain, value)| {
-            Ok(IdentityRef::new(
-                domain,
-                SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
-                    value,
-                )?),
-            ))
-        })
-        .collect::<Result<Vec<_>, IoError>>()?;
-        let report = TransformationReport::new(
-            intent,
-            inputs,
-            antecedent_core::intent_effects(intent).iter().cloned(),
-            Vec::new(),
-        );
-        Ok(
-            if matches!(
-                intent,
-                TransformIntent::DisplayPrecision
-                    | TransformIntent::FilterDisplay
-                    | TransformIntent::CompatibleDataReplace
-            ) {
-                report
-            } else {
-                report.refused_on_handle(
-                    "transport.reprepare_required: statistical structural or execution contract changed",
-                )
-            },
-        )
+        super::exact::preview_transform_report(&self.state.identities, intent, "statistical")
     }
 
     /// Whether a replacement keeps the observation shape.
@@ -892,8 +1026,13 @@ impl PreparedStudy<StatisticalPreparedState> {
         if !self.preview_snapshot(&input)? {
             return Err(err("transport.reprepare_required"));
         }
-        let data = assemble_point_laws(&input, &self.state.functional, &self.state.options, ctx)
-            .map_err(err)?;
+        let data = assemble_point_laws(
+            &input,
+            &self.state.functional,
+            &point_options(self.state.options),
+            ctx,
+        )
+        .map_err(estimate_err)?;
         let catalog = rebind_snapshots(self.state.functional.catalog(), |regime| {
             data.laws()
                 .iter()
@@ -987,6 +1126,27 @@ impl PreparedStudy<StatisticalPreparedState> {
                 .collect(),
             probabilities: result.distribution().probabilities.to_vec(),
             uncertainty: result.estimate.uncertainty.as_ref().map(UncertaintyRowWire::from_row),
+            bayesian_posterior: result.bayesian_estimate.as_ref().map(|posterior| {
+                BayesianTransportPosteriorWire {
+                    estimator: posterior.estimator.to_string(),
+                    interval_method: posterior.interval_method.to_string(),
+                    draws_requested: posterior.draws_requested,
+                    draws_ok: posterior.draws_ok,
+                    draws_failed: posterior.draws_failed,
+                    interval_reason: posterior.interval_reason.as_ref().map(ToString::to_string),
+                    probabilities: posterior
+                        .distributions
+                        .iter()
+                        .map(|distribution| distribution.probabilities.to_vec())
+                        .collect(),
+                    atom_intervals: posterior.atom_intervals.to_vec(),
+                    mean_intervals: posterior
+                        .mean_intervals
+                        .iter()
+                        .map(|(variable, lower, upper)| (variable.raw(), *lower, *upper))
+                        .collect(),
+                }
+            }),
             atom_intervals: result.estimate.atom_intervals.as_ref().map(|rows| rows.to_vec()),
             mean_intervals: result
                 .estimate
@@ -1085,56 +1245,118 @@ impl PreparedStudy<StatisticalPreparedState> {
         if atoms != wire.atoms || point.probabilities.as_ref() != wire.probabilities.as_slice() {
             return Err(err("transport artifact execution claim mismatch"));
         }
-        let estimate = validate_uncertainty(&wire, point, &prepared)?;
-        let reasoning = prepared.reasoning(true, Some(&estimate));
+        let estimate = validate_uncertainty(&wire, point.clone(), &prepared)?;
+        let bayesian_estimate = validate_bayesian_posterior(
+            wire.bayesian_posterior.as_ref(),
+            &point,
+            wire.options.estimator.as_str(),
+            wire.options.posterior_draws,
+            wire.options.coverage_level,
+        )?;
+        let reasoning = prepared.reasoning(true, Some(&estimate), bayesian_estimate.as_ref());
         if super::contract::reasoning_section(&reasoning) != wire.reasoning {
             return Err(err("transport artifact reasoning mismatch"));
         }
-        let result = StatisticalStudyResult { reasoning, estimate, identities: wire.identities };
+        let result = StatisticalStudyResult {
+            reasoning,
+            estimate,
+            identities: wire.identities,
+            bayesian_estimate,
+        };
         Ok((prepared, result))
     }
 }
 
-fn statistical_requirements(functional: &BoundTransportFunctional) -> Vec<ExactFactorRequirement> {
-    use antecedent_expr::ExprNode;
-    let arena = functional.arena();
-    let mut pending = vec![functional.root()];
-    let mut seen = std::collections::BTreeSet::new();
-    let mut out = Vec::new();
-    while let Some(id) = pending.pop() {
-        if !seen.insert(id.raw()) {
-            continue;
-        }
-        match arena.node(id) {
-            ExprNode::Distribution {
-                variables,
-                conditioned_on,
-                intervention,
-                population,
-                regime,
-                ..
-            } => out.push(ExactFactorRequirement {
-                expression: id,
-                binding: antecedent_expr::LeafBinding {
-                    population: Arc::from(arena.population(*population)),
-                    regime: *regime,
-                },
-                variables: arena.var_set(*variables).to_vec(),
-                conditioned_on: arena.var_set(*conditioned_on).to_vec(),
-                interventions: arena.intervention_set(*intervention),
-            }),
-            ExprNode::Kernel { body, .. } => pending.push(*body),
-            ExprNode::Product(list) => pending.extend(arena.list(*list)),
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-                pending.push(*expr)
-            }
-            ExprNode::Ratio { numerator, denominator } => {
-                pending.extend([*numerator, *denominator]);
-            }
-            ExprNode::Expectation { distribution, .. } => pending.push(*distribution),
-            ExprNode::Contrast { left, right, .. } => pending.extend([*left, *right]),
-        }
+/// The identity layers of a statistical study that do not depend on the
+/// evaluation request: computed once per study and shared by every grid point.
+struct StudyInvariants {
+    proof: TransportProofWire,
+    shape: String,
+    observation: String,
+    dependence: Vec<(u32, &'static str, &'static str, Option<String>)>,
+    aliases: Vec<(u32, String)>,
+    identification: String,
+    identification_product: String,
+    arena: antecedent_io::ExprArenaWire,
+    snapshot: String,
+}
+
+impl StudyInvariants {
+    fn compute(
+        functional: &BoundTransportFunctional,
+        data: &ExactTransportData,
+        samples: &[SampleSummary],
+    ) -> Result<Self, IoError> {
+        let proof = TransportProofWire::from_checked(functional.derivation())?;
+        let catalog = functional.catalog().canonicalized().map_err(err)?;
+        let mut contract = EvidenceCatalogWire::from_catalog(&catalog);
+        contract.bindings.clear();
+        let shape = statistical_shape(data)?;
+        let observation = digest(IdentityDomain::Observation, &(&contract, &shape))?;
+        let dependence: Vec<_> = catalog
+            .bindings
+            .iter()
+            .map(|b| {
+                (
+                    b.regime.raw(),
+                    b.sampling.as_str(),
+                    b.dependence.as_str(),
+                    b.weights.as_ref().map(|v| v.snapshot_identity.to_string()),
+                )
+            })
+            .collect();
+        let aliases: Vec<_> = catalog
+            .bindings
+            .iter()
+            .filter_map(|b| b.dataset_identity.as_ref().map(|id| (b.regime.raw(), id.to_string())))
+            .collect();
+        let identification = digest(
+            IdentityDomain::Identification,
+            &(
+                &proof.proof.graph_signature,
+                &proof.proof.outcomes,
+                &proof.proof.treatments,
+                &proof.proof.source,
+                &proof.proof.target,
+                &proof.proof.evidence_setting,
+                &observation,
+            ),
+        )?;
+        let identification = if proof.proof.sources.is_empty() {
+            identification
+        } else {
+            digest(IdentityDomain::Identification, &(&identification, &proof.proof.sources))?
+        };
+        let identification_product = digest(IdentityDomain::IdentificationProduct, &proof)?;
+        let arena = antecedent_io::expr_wire::expr_arena_to_wire(functional.arena())?;
+        let snapshot =
+            digest(IdentityDomain::DataSnapshot, &(statistical_law_wires(data)?, samples))?;
+        Ok(Self {
+            proof,
+            shape,
+            observation,
+            dependence,
+            aliases,
+            identification,
+            identification_product,
+            arena,
+            snapshot,
+        })
     }
+}
+
+fn statistical_requirements(functional: &BoundTransportFunctional) -> Vec<ExactFactorRequirement> {
+    let mut out = functional
+        .leaf_factors()
+        .into_iter()
+        .map(|(expression, leaf)| ExactFactorRequirement {
+            expression,
+            binding: leaf.binding,
+            variables: leaf.variables.to_vec(),
+            conditioned_on: leaf.conditioned_on.to_vec(),
+            interventions: leaf.intervention.iter().map(|a| a.variable).collect(),
+        })
+        .collect::<Vec<_>>();
     out.sort_by_key(|factor| factor.expression.raw());
     out
 }
@@ -1282,6 +1504,8 @@ struct StatisticalExecutionWire {
     atoms: Vec<Vec<ValueWire>>,
     probabilities: Vec<f64>,
     uncertainty: Option<UncertaintyRowWire>,
+    #[serde(default)]
+    bayesian_posterior: Option<BayesianTransportPosteriorWire>,
     atom_intervals: Option<Vec<(f64, f64)>>,
     mean_intervals: Option<Vec<(u32, f64, f64)>>,
     replicate_ids: Option<Vec<u32>>,
@@ -1384,7 +1608,9 @@ fn validate_uncertainty(
     let Some(row) = &wire.uncertainty else {
         let expected = if wire.samples.is_empty() {
             "exact_supplied_law_no_sampling_uncertainty"
-        } else if wire.options.bootstrap_replicates == 0 {
+        } else if is_bayesian_provider(wire.options.to_options()?.estimator)
+            || wire.options.bootstrap_replicates == 0
+        {
             "bootstrap_not_requested"
         } else {
             "transport.unsupported_dependence"
@@ -1456,13 +1682,15 @@ fn validate_uncertainty(
     // replicates ran clean, but fewer than the nominal-0.95 percentile requires).
     // `withhold_unearned_percentile` never overwrites an existing failure-fraction
     // reason, so the two are mutually exclusive and must be told apart here too.
-    let bootstrap_failed = row.replicates_ok < 2
-        || f64::from(row.replicates_failed) / f64::from(row.replicates_requested) > 0.5;
-    let unlicensed = !bootstrap_failed
-        && (row.replicates_ok < PERCENTILE_95_MIN_REPLICATES
-            || row.replicates_requested < PERCENTILE_95_MIN_REPLICATES);
-    if bootstrap_failed {
-        if wire.uncertainty_reason.as_deref() != Some("bootstrap_failure_fraction")
+    let bootstrap_failed = ReplicatePolicy::BOOTSTRAP
+        .decide(row.replicates_requested, row.replicates_ok, row.replicates_failed)
+        .err();
+    let unlicensed = bootstrap_failed.is_none()
+        && PERCENTILE_FLOOR
+            .decide(row.replicates_requested, row.replicates_ok, row.replicates_failed)
+            .is_err();
+    if let Some(reason) = bootstrap_failed {
+        if wire.uncertainty_reason.as_deref() != Some(reason)
             || wire.atom_intervals.is_some()
             || wire.mean_intervals.is_some()
         {
@@ -1476,37 +1704,199 @@ fn validate_uncertainty(
             return Err(bad());
         }
     } else {
-        let atoms: Vec<_> = (0..width)
+        let atoms = (0..width)
             .map(|i| {
                 percentile_interval(
                     &rows.iter().map(|r| r[i]).collect::<Vec<_>>(),
                     row.coverage_target,
                 )
             })
-            .collect();
-        let intervals: Vec<_> = means
+            .collect::<Option<Vec<_>>>();
+        let intervals = means
             .iter()
             .map(|(v, reps)| {
-                let (lo, hi) = percentile_interval(reps, row.coverage_target);
-                (v.raw(), lo, hi)
+                percentile_interval(reps, row.coverage_target).map(|(lo, hi)| (v.raw(), lo, hi))
             })
-            .collect();
-        if wire.uncertainty_reason.is_some()
-            || wire.atom_intervals.as_ref() != Some(&atoms)
-            || wire.mean_intervals.as_ref() != Some(&intervals)
-        {
-            return Err(bad());
+            .collect::<Option<Vec<_>>>();
+        match (atoms, intervals) {
+            (Some(atoms), Some(intervals)) => {
+                if wire.uncertainty_reason.is_some()
+                    || wire.atom_intervals.as_ref() != Some(&atoms)
+                    || wire.mean_intervals.as_ref() != Some(&intervals)
+                {
+                    return Err(bad());
+                }
+                estimate.atom_intervals = Some(atoms.into());
+                estimate.mean_intervals = Some(
+                    intervals
+                        .into_iter()
+                        .map(|(v, lo, hi)| (VariableId::from_raw(v), lo, hi))
+                        .collect(),
+                );
+            }
+            _ => {
+                if wire.uncertainty_reason.as_deref() != Some(INTERVAL_NUMERICAL_FAILURE)
+                    || wire.atom_intervals.is_some()
+                    || wire.mean_intervals.is_some()
+                {
+                    return Err(bad());
+                }
+            }
         }
-        estimate.atom_intervals = Some(atoms.into());
-        estimate.mean_intervals = Some(
-            intervals.into_iter().map(|(v, lo, hi)| (VariableId::from_raw(v), lo, hi)).collect(),
-        );
     }
     estimate.uncertainty = Some(row.to_row());
     estimate.atom_replicates = Some(rows.iter().map(|row| Arc::from(row.clone())).collect());
     estimate.mean_replicates = Some(means.into_iter().map(|(v, row)| (v, row.into())).collect());
     estimate.replicate_ids = Some(ids.clone().into());
     Ok(estimate)
+}
+
+fn validate_bayesian_posterior(
+    wire: Option<&BayesianTransportPosteriorWire>,
+    point: &antecedent_expr::ExactDistribution,
+    estimator: &str,
+    requested: u32,
+    coverage: f64,
+) -> Result<Option<antecedent_estimate::BayesianStatisticalTransportEstimate>, IoError> {
+    let expected = matches!(
+        estimator,
+        antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP
+            | antecedent_estimate::STATE_SPACE_DIRICHLET
+    );
+    let Some(wire) = wire else {
+        return if expected {
+            Err(err("Bayesian transport artifact lacks posterior draws"))
+        } else {
+            Ok(None)
+        };
+    };
+    if !expected
+        || wire.estimator != estimator
+        || wire.interval_method != antecedent_estimate::POSTERIOR_EQUAL_TAIL
+        || wire.draws_requested != requested
+        || wire.probabilities.len() != wire.draws_ok as usize
+        || wire.probabilities.len().checked_mul(point.atoms.len()).is_none_or(|n| n > 10_000_000)
+    {
+        return Err(err("Bayesian transport artifact draw metadata mismatch"));
+    }
+    let reason = wire.interval_reason.as_deref();
+    let dependence =
+        matches!(reason, Some("transport.unsupported_dependence" | "no_estimated_regime"));
+    let withheld = dependence
+        || matches!(
+            reason,
+            Some(
+                "bootstrap_failure_fraction"
+                    | "insufficient_bootstrap_replicates"
+                    | INTERVAL_NUMERICAL_FAILURE
+            )
+        );
+    if reason == Some("insufficient_bootstrap_replicates")
+        && PERCENTILE_FLOOR.decide(wire.draws_requested, wire.draws_ok, wire.draws_failed).is_ok()
+    {
+        return Err(err("Bayesian transport artifact withholds an earned posterior interval"));
+    }
+    if dependence {
+        if wire.draws_ok != 0 || wire.draws_failed != 0 || !wire.probabilities.is_empty() {
+            return Err(err("Bayesian transport artifact draw metadata mismatch"));
+        }
+    } else if wire.draws_ok.checked_add(wire.draws_failed) != Some(wire.draws_requested) {
+        return Err(err("Bayesian transport artifact draw metadata mismatch"));
+    }
+    if withheld && (!wire.atom_intervals.is_empty() || !wire.mean_intervals.is_empty()) {
+        return Err(err("Bayesian transport artifact posterior summary mismatch"));
+    }
+    let mut distributions = Vec::with_capacity(wire.probabilities.len());
+    for probabilities in &wire.probabilities {
+        let mass: f64 = probabilities.iter().sum();
+        if probabilities.len() != point.atoms.len()
+            || probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
+            || !mass.is_finite()
+            || (mass - 1.0).abs() > 1e-10
+        {
+            return Err(err("Bayesian transport artifact has invalid draw law"));
+        }
+        distributions.push(antecedent_expr::ExactDistribution {
+            outcomes: point.outcomes.clone(),
+            atoms: point.atoms.clone(),
+            probabilities: probabilities.clone().into(),
+            support: point.support.clone(),
+        });
+    }
+    if withheld {
+        return Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
+            estimator: Arc::from(wire.estimator.as_str()),
+            interval_method: Arc::from(wire.interval_method.as_str()),
+            distributions: distributions.into(),
+            atom_intervals: Arc::from([]),
+            mean_intervals: Arc::from([]),
+            interval_reason: reason.map(Arc::from),
+            draws_requested: wire.draws_requested,
+            draws_ok: wire.draws_ok,
+            draws_failed: wire.draws_failed,
+        }));
+    }
+    // A published posterior interval must have earned the facade's draw floor;
+    // the producer withholds it below the floor, and so does the consumer.
+    if reason != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+        || PERCENTILE_FLOOR.decide(wire.draws_requested, wire.draws_ok, wire.draws_failed).is_err()
+    {
+        return Err(err("Bayesian transport artifact draw metadata mismatch"));
+    }
+    let mut atom_intervals = Vec::with_capacity(point.atoms.len());
+    for atom in 0..point.atoms.len() {
+        let mut values =
+            distributions.iter().map(|draw| draw.probabilities[atom]).collect::<Vec<_>>();
+        values.sort_by(f64::total_cmp);
+        atom_intervals.push(antecedent_stats::equal_tail_interval_sorted(
+            &values,
+            coverage,
+            antecedent_stats::QuantileRule::Interpolated,
+        ));
+    }
+    let mut mean_intervals = Vec::with_capacity(point.outcomes.len());
+    for outcome in point.outcomes.iter().copied() {
+        let mut values = distributions
+            .iter()
+            .map(|draw| draw.mean(outcome).map_err(err))
+            .collect::<Result<Vec<_>, _>>()?;
+        values.sort_by(f64::total_cmp);
+        let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+            &values,
+            coverage,
+            antecedent_stats::QuantileRule::Interpolated,
+        );
+        mean_intervals.push((outcome, lower, upper));
+    }
+    if !same_intervals(&atom_intervals, &wire.atom_intervals)
+        || mean_intervals.len() != wire.mean_intervals.len()
+        || mean_intervals.iter().zip(&wire.mean_intervals).any(|((v, lo, hi), (wv, wlo, whi))| {
+            v.raw() != *wv || lo.to_bits() != wlo.to_bits() || hi.to_bits() != whi.to_bits()
+        })
+    {
+        return Err(err("Bayesian transport artifact posterior summary mismatch"));
+    }
+    Ok(Some(antecedent_estimate::BayesianStatisticalTransportEstimate {
+        estimator: Arc::from(wire.estimator.as_str()),
+        interval_method: Arc::from(wire.interval_method.as_str()),
+        distributions: distributions.into(),
+        atom_intervals: atom_intervals.into(),
+        mean_intervals: mean_intervals.into(),
+        draws_requested: wire.draws_requested,
+        draws_ok: wire.draws_ok,
+        draws_failed: wire.draws_failed,
+        interval_reason: Some(Arc::from(
+            reason.unwrap_or(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+        )),
+    }))
+}
+
+fn same_intervals(left: &[(f64, f64)], right: &[(f64, f64)]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(a, b)| a.0.to_bits() == b.0.to_bits() && a.1.to_bits() == b.1.to_bits())
 }
 
 #[cfg(test)]
@@ -1569,6 +1959,20 @@ mod tests {
         counts: [usize; 4],
         bootstrap_replicates: u32,
         dependence: DependenceGroup,
+    ) -> PreparedStudy<StatisticalPreparedState> {
+        prepared_with_options(
+            snapshot,
+            counts,
+            dependence,
+            EmpiricalTableOptions { bootstrap_replicates, ..EmpiricalTableOptions::default() },
+        )
+    }
+
+    fn prepared_with_options(
+        snapshot: &str,
+        counts: [usize; 4],
+        dependence: DependenceGroup,
+        options: EmpiricalTableOptions,
     ) -> PreparedStudy<StatisticalPreparedState> {
         let mut graph = Admg::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1641,7 +2045,7 @@ mod tests {
             },
             Assignment::from_pairs([(v(0), Value::Int64(1))]),
             ExactEvaluationLimits::default(),
-            EmpiricalTableOptions { bootstrap_replicates, ..EmpiricalTableOptions::default() },
+            options,
             &ctx,
         )
         .unwrap()
@@ -1674,6 +2078,141 @@ mod tests {
         let earned = prepared_with_replicates("one", [20, 5, 10, 15], PERCENTILE_95_MIN_REPLICATES);
         assert!(earned.licensed_interval());
         assert!(earned.inspect().reasoning.uncertainty.is_available());
+    }
+
+    #[test]
+    fn bayesian_transport_posterior_survives_export_and_independent_consume() {
+        let study = prepared_with_options(
+            "bayesian",
+            [20, 5, 10, 15],
+            DependenceGroup::IndependentStudies,
+            EmpiricalTableOptions {
+                estimator: antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet,
+                posterior_draws: 16,
+                ..EmpiricalTableOptions::default()
+            },
+        );
+        let ctx = ExecutionContext::for_tests(7);
+        let result = study.estimate_retained(&ctx).unwrap();
+        let posterior = result.bayesian_estimate().expect("Bayesian posterior attached");
+        assert_eq!(posterior.draws_requested, 16);
+        assert_eq!(posterior.draws_ok, 16);
+        assert_eq!(posterior.estimator.as_ref(), antecedent_estimate::STATE_SPACE_DIRICHLET);
+        assert!(!result.reasoning().uncertainty.is_available());
+        assert!(matches!(
+            &result.reasoning().uncertainty,
+            SlotAvailability::Unavailable { reason } if reason.as_ref() == "insufficient_bootstrap_replicates"
+        ));
+
+        let artifact = study.export(&result).unwrap();
+        let (_consumed, replayed) = PreparedStudy::<StatisticalPreparedState>::consume(
+            &artifact,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(
+            replayed.bayesian_estimate().unwrap().distributions.len(),
+            posterior.distributions.len()
+        );
+        assert_eq!(replayed.bayesian_estimate().unwrap().mean_intervals, posterior.mean_intervals);
+    }
+
+    #[test]
+    fn bayesian_transport_providers_match_independent_dirichlet_moments() {
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../conformance/estimate/bayesian_structural_transport/expected.json"
+        ))
+        .unwrap();
+        let counts: [usize; 4] = oracle["counts_x0y0_x0y1_x1y0_x1y1"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| usize::try_from(value.as_u64().unwrap()).unwrap())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        let draws = u32::try_from(oracle["draws"].as_u64().unwrap()).unwrap();
+        let tolerance = oracle["monte_carlo_tolerance"].as_f64().unwrap();
+        let ctx = ExecutionContext::for_tests(251);
+        for (estimator, expected_key) in [
+            (
+                antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap,
+                "empirical_support_p_y1_given_do_x1",
+            ),
+            (
+                antecedent_estimate::EmpiricalTableEstimator::StateSpaceDirichlet,
+                "state_space_p_y1_given_do_x1",
+            ),
+        ] {
+            let study = prepared_with_options(
+                "dirichlet-oracle",
+                counts,
+                DependenceGroup::IndependentStudies,
+                EmpiricalTableOptions {
+                    estimator,
+                    posterior_draws: draws,
+                    ..EmpiricalTableOptions::default()
+                },
+            );
+            let result = study.estimate_retained(&ctx).unwrap();
+            let posterior = result.bayesian_estimate().unwrap();
+            assert_eq!(posterior.draws_ok, draws);
+            assert_eq!(posterior.draws_failed, 0);
+            let mean = posterior
+                .distributions
+                .iter()
+                .map(|distribution| distribution.mean(v(1)).unwrap())
+                .sum::<f64>()
+                / f64::from(draws);
+            let expected = oracle[expected_key].as_f64().unwrap();
+            assert!((mean - expected).abs() < tolerance, "{estimator:?}: {mean} != {expected}");
+            let artifact = study.export(&result).unwrap();
+            let (_, consumed) = PreparedStudy::<StatisticalPreparedState>::consume(
+                &artifact,
+                ExactEvaluationLimits::default(),
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(consumed.bayesian_estimate().unwrap().draws_ok, posterior.draws_ok,);
+            assert_eq!(
+                consumed.bayesian_estimate().unwrap().mean_intervals,
+                posterior.mean_intervals,
+            );
+        }
+    }
+
+    #[test]
+    fn bayesian_draws_that_miss_the_conditioner_withhold_the_interval() {
+        let study = prepared_with_options(
+            "empty-arm",
+            [20, 5, 0, 0],
+            DependenceGroup::IndependentStudies,
+            EmpiricalTableOptions {
+                estimator:
+                    antecedent_estimate::EmpiricalTableEstimator::EmpiricalSupportBayesianBootstrap,
+                posterior_draws: 8,
+                ..EmpiricalTableOptions::default()
+            },
+        );
+        let ctx = ExecutionContext::for_tests(3);
+        let withheld = antecedent_estimate::evaluate_bayesian_statistical_transport(
+            &study.state.functional,
+            &study.state.input,
+            &study.state.request,
+            study.state.limits,
+            antecedent_estimate::statistical_transport::BayesianStatisticalTransportOptions {
+                provider: antecedent_estimate::BayesianTransportLawProvider::EmpiricalSupport,
+                draws: 8,
+                coverage_level: 0.95,
+                max_joint_cells: study.state.options.max_joint_cells,
+            },
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(withheld.draws_failed, 8);
+        assert!(withheld.mean_intervals.is_empty());
+        assert_eq!(withheld.interval_reason.as_deref(), Some("bootstrap_failure_fraction"));
     }
 
     #[test]
@@ -1773,6 +2312,9 @@ mod tests {
         variants.push(wire);
         let mut wire = original.clone();
         wire.options.estimator = "unknown".into();
+        variants.push(wire);
+        let mut wire = original.clone();
+        wire.options.posterior_draws += 1;
         variants.push(wire);
         for wire in variants {
             assert!(
@@ -2009,8 +2551,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(
-            err.to_string().contains("transport_missing_provider")
-                || err.to_string().contains("neither a supplied law")
+            matches!(&err, IoError::Refused { code, .. } if *code == "transport_missing_provider"),
+            "{err:?}"
         );
     }
 }

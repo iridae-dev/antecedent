@@ -20,6 +20,10 @@ pub enum ExposureProbabilityMethod {
         /// Seed used for the deterministic assignment stream.
         seed: u64,
     },
+    /// Caller-supplied probabilities known from the observation process.
+    SuppliedKnown,
+    /// Caller-supplied probabilities estimated externally; their fitting uncertainty is omitted.
+    SuppliedExternallyEstimated,
 }
 
 /// Exposure probabilities for one requested level, in unit order.
@@ -151,6 +155,14 @@ pub fn exposure_probabilities(
     monte_carlo_draws: u32,
     seed: u64,
 ) -> Result<ExposureProbabilities, StatsError> {
+    if matches!(
+        design,
+        AssignmentDesign::TwoStageSaturation { .. } | AssignmentDesign::ObservedExposure { .. }
+    ) {
+        return Err(StatsError::Backend(
+            "two-stage saturation uses the exact saturation estimator, not generic assignment enumeration".into(),
+        ));
+    }
     let n = incoming.len();
     validate_design(design, n)?;
     let support_dim = match design {
@@ -335,6 +347,12 @@ fn validate_design(design: &AssignmentDesign, n: usize) -> Result<(), StatsError
                 Ok(())
             }
         }
+        AssignmentDesign::TwoStageSaturation { .. } => {
+            Err(StatsError::Backend("use the exact two-stage saturation estimator".into()))
+        }
+        AssignmentDesign::ObservedExposure { .. } => {
+            Err(StatsError::Backend("use the supplied-propensity observational estimator".into()))
+        }
         _ => Ok(()),
     }
 }
@@ -383,6 +401,14 @@ fn enumerate_assignments(
                 }
             }
         }
+        AssignmentDesign::TwoStageSaturation { .. } => {
+            return Err(StatsError::Backend("use the exact two-stage saturation estimator".into()));
+        }
+        AssignmentDesign::ObservedExposure { .. } => {
+            return Err(StatsError::Backend(
+                "use the supplied-propensity observational estimator".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -423,7 +449,9 @@ impl AssignmentSampler {
         let key_capacity = match design {
             AssignmentDesign::CompleteRandomization { .. } => n,
             AssignmentDesign::ClusterRandomization { .. } => cluster_ids.len(),
-            AssignmentDesign::Bernoulli { .. } => 0,
+            AssignmentDesign::Bernoulli { .. }
+            | AssignmentDesign::TwoStageSaturation { .. }
+            | AssignmentDesign::ObservedExposure { .. } => 0,
         };
         let chosen = vec![false; cluster_ids.len()];
         Self { cluster_ids, unit_cluster_pos, keys: Vec::with_capacity(key_capacity), chosen }
@@ -465,6 +493,12 @@ impl AssignmentSampler {
                 for (slot, &pos) in out.iter_mut().zip(&self.unit_cluster_pos) {
                     *slot = self.chosen[pos];
                 }
+            }
+            AssignmentDesign::TwoStageSaturation { .. } => {
+                unreachable!("two-stage saturation is refused before generic sampling")
+            }
+            AssignmentDesign::ObservedExposure { .. } => {
+                unreachable!("observational exposure is refused before generic sampling")
             }
         }
     }
@@ -582,6 +616,10 @@ mod tests {
                     let chosen =
                         keys.iter().take(*treated_clusters).map(|x| x.1).collect::<Vec<_>>();
                     clusters.iter().map(|id| chosen.contains(id)).collect()
+                }
+                AssignmentDesign::TwoStageSaturation { .. }
+                | AssignmentDesign::ObservedExposure { .. } => {
+                    unreachable!("reference sampler covers only the three MC-sampled designs")
                 }
             }
         }

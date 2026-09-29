@@ -100,11 +100,11 @@ The updated estimate should be one unit larger. The original result stays unchan
 ```python
 encoded = result.export()
 loaded = ant.load(encoded)
-print("Accepted:", loaded.acceptance.verified)
+print("Acceptance:", loaded.acceptance.status)
 print(loaded.answer)
 ```
 
-The loaded result should be accepted and have the same answer. Acceptance checks the saved result's contract, not whether its causal assumptions are true. Loading restores the report, not the dataset or a live study for new estimates.
+The loaded result keeps the same answer. `acceptance.status` is `verified` when the consumer replayed a verified program from the bytes alone, or `sealed` when the route ran through a sealed checked operation: loading then recognizes the artifact, verifies its contract and identities, keeps the recorded answer, and names the operation it cannot replay in `acceptance.unresolved`. `acceptance.verified` stays reserved for fully replayable programs. Acceptance checks the saved result's contract, not whether its causal assumptions are true. Loading restores the report, not the dataset or a live study for new estimates.
 
 ## When an analysis is refused
 

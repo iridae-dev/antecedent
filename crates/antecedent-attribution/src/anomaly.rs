@@ -39,7 +39,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AnomalyAttributionQuery, ComponentId, ExecutionContext, ShapleyConfig, StreamDomain, VariableId,
+    AnomalyAttributionQuery, AnomalyReference, ComponentId, ExecutionContext, ShapleyConfig,
+    StreamDomain, VariableId,
 };
 use antecedent_counterfactual::{AbductionMissingPolicy, CounterfactualEngine};
 use antecedent_data::{TableView, TabularData};
@@ -99,6 +100,22 @@ impl OutlierTail {
             if mean_abs > 0.0 { mean_abs } else { 1.0 }
         };
         Self { center, scale }
+    }
+
+    /// A fixed reference at `(center, scale)`, bypassing the sample median/MAD.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite `center`, or a non-finite or non-positive `scale`: the tail
+    /// transform divides by `scale`, so a zero/negative/NaN reference is not a
+    /// valid location–scale.
+    fn fixed(center: f64, scale: f64) -> Result<Self, AttributionError> {
+        if !center.is_finite() || !scale.is_finite() || scale <= 0.0 {
+            return Err(AttributionError::invalid_input(
+                "anomaly fixed reference requires a finite center and a finite positive scale",
+            ));
+        }
+        Ok(Self { center, scale })
     }
 
     /// `−log P(|Z| ≥ |z|)` for the standardized deviation `z = (y − center) / scale`.
@@ -252,8 +269,16 @@ pub fn score_anomalies_with(
         }
 
         let y_all = data.float64_values(target)?;
-        // Reference distribution for the IT score: the target's own observed marginal.
-        let tail = OutlierTail::from_reference(&y_all);
+        // Reference distribution for the IT score. `Empirical` estimates the robust
+        // median / 1.4826·MAD from the target's observed marginal; `Fixed` injects a
+        // known `(center, scale)` so the mean anomaly score is a fixed functional of
+        // the target's law rather than of the realized sample's median/MAD.
+        let tail = match query.reference {
+            AnomalyReference::Empirical => OutlierTail::from_reference(&y_all),
+            AnomalyReference::Fixed { center, scale } => {
+                OutlierTail::fixed(center.to_f64(), scale.to_f64())?
+            }
+        };
 
         let per_row = ctx.map_indexed(rows.len(), |ui, worker| {
             let row = rows[ui];

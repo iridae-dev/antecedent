@@ -88,13 +88,6 @@ impl DistanceMatching {
         }
     }
 
-    /// Set the dense linear-algebra backend used for the diagnostic logistic fit.
-    #[must_use]
-    pub const fn with_backend(mut self, backend: FaerBackend) -> Self {
-        self.backend = backend;
-        self
-    }
-
     /// Record a bootstrap-replicate count without licensing a bootstrap SE.
     ///
     /// The nonparametric bootstrap is invalid for nearest-neighbor matching CIs
@@ -143,13 +136,6 @@ impl DistanceMatching {
     #[must_use]
     pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.cluster_ids = Some(cluster_ids);
-        self
-    }
-
-    /// Set bindings for named predicates / custom target distributions.
-    #[must_use]
-    pub fn with_population_registry(mut self, registry: PopulationRegistry) -> Self {
-        self.population_registry = Some(registry);
         self
     }
 

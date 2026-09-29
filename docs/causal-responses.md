@@ -186,7 +186,8 @@ study = result.study
 report = result.inspect().to_dict()
 response_bytes = result.export()
 loaded = antecedent.load(response_bytes)
-assert loaded.acceptance.verified
+assert loaded.acceptance.verified or loaded.acceptance.sealed
+assert loaded.answer == result.answer
 repeated = study.estimate()
 ```
 
@@ -525,15 +526,20 @@ sampling coverage of every published derivative interval is gated in
 - `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
   positive, and the fitted response at that point must be positive.
   Like `PointDerivative`, it requires an explicit bandwidth. The Frequentist
-  result withholds its interval (`response.derivative_interval_withheld`): a
-  delta-method interval would need the full level/slope covariance, and a
-  partial one would understate uncertainty.
+  result publishes a Fieller confidence interval from the full joint covariance
+  of the bias-corrected local level and slope; its reported standard error is
+  the corresponding delta-method approximation. A finite scalar interval is
+  unavailable when the level is not statistically separated from zero, which
+  is reported as `response.derivative_interval_unbounded`. The interval
+  conditions on the caller bandwidth and fitted nuisances; its nominal 90% coverage was measured
+  on the curved additive, Gaussian-treatment calibration design at sample sizes
+  500, 1000, and 1500 for explicit and accepted DAGs.
 - `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
   (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
   Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
-  `|a|` times the bias-corrected slope interval; `log_scale="outcome"` and
-  every transformed second derivative withhold the interval, as for
-  elasticity.
+  `|a|` times the bias-corrected slope interval. `log_scale="outcome"` and
+  transformed second derivatives publish joint-covariance delta-method
+  intervals, whose coverage is not yet calibrated for those scales.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
   a shared complete-case row set. The target surface is an unpenalized cubic
@@ -558,9 +564,7 @@ which every draw refits its nuisances:
   (local-cubic slope; local-quartic level and curvature).
   The reported value is the posterior mean of the local-quadratic coordinate;
   the credible interval and `standard_error` come from the bias-corrected
-  draws. Scale transforms are applied per draw, so elasticity and log-outcome
-  semi-elasticity intervals are published here even though the Frequentist
-  result withholds them. Held fixed across draws: the caller bandwidth, fold
+  draws. Scale transforms are applied per draw. Held fixed across draws: the caller bandwidth, fold
   assignment, spline knots, and penalty.
 - `ResponseJacobian` and `DirectionalDerivative` refit the unpenalized
   additive regression spline per draw with fixed knots and publish pointwise

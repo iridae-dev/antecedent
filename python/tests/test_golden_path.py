@@ -28,6 +28,8 @@ import numpy as np
 import pytest
 from antecedent.transport.advanced import SelectionDiagram, TransportQuery
 
+from _sealed_loads import assert_answer_kept
+
 
 def _static(seed: int, n: int = 1200) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
@@ -242,7 +244,7 @@ def test_golden_path(case: Case) -> None:
         assert set(report) == set(loaded_report)
 
         # Live and loaded answers agree.
-        assert loaded.acceptance.verified
+        assert_answer_kept(loaded)
         assert result.answer.kind == case.kind
         assert loaded.answer == result.answer
         assert report["answer"] == loaded_report["answer"]
@@ -336,7 +338,7 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
     for answer in (result.answer, updated.answer):
         assert answer.kind == "point"
         assert answer.value == pytest.approx(0.8, abs=0.08)
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
     assert loaded.answer == result.answer
 
     identification = report["identification"]["payload"]

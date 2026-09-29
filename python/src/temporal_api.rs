@@ -2054,68 +2054,6 @@ pub(crate) fn apply_temporal_inference_transfer(
     }
 }
 
-/// Anomaly scores for listed outcomes.
-
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, treatment, mediator, outcome, *,
-    contrast="mediated", control_level=0.0, active_level=1.0,
-    horizons=None,
-    seed=1, bootstrap=0, threads=None
-))]
-fn analyze_temporal_mediation(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, u32, String, u32)>,
-    treatment: String,
-    mediator: String,
-    outcome: String,
-    contrast: &str,
-    control_level: f64,
-    active_level: f64,
-    horizons: Option<Vec<u32>>,
-    seed: u64,
-    bootstrap: u32,
-    threads: Option<u32>,
-) -> PyResult<AnalysisResult> {
-    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
-    let contrast = contrast.to_string();
-    detach_catch(py, move || {
-        let series = series_from_tabular(tabular)?;
-        let t_id = schema_var_id(series.schema(), &treatment)?;
-        let m_id = schema_var_id(series.schema(), &mediator)?;
-        let y_id = schema_var_id(series.schema(), &outcome)?;
-        let contrast = match contrast.to_ascii_lowercase().as_str() {
-            "total" => MediationContrast::Total,
-            "direct" => MediationContrast::Direct,
-            "mediated" | "indirect" => MediationContrast::Mediated,
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown mediation contrast {other:?}; use total|direct|mediated"
-                )));
-            }
-        };
-        let mut q = MediationQuery::binary(t_id, y_id, [m_id], contrast);
-        q.control = Intervention::set(t_id, Value::f64(control_level));
-        q.active = Intervention::set(t_id, Value::f64(active_level));
-        if let Some(hs) = horizons {
-            q = q.with_horizons(hs).map_err(py_msg)?;
-        }
-        let g = temporal_dag_from_schema_edges(series.schema(), &edges)?;
-        let analysis = Study::series(series)
-            .graph(g)
-            .query(antecedent_core::CausalQuery::Mediation(q))
-            .refute(RefuteSuite::None)
-            .bootstrap_replicates(bootstrap)
-            .build()
-            .map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        analysis_result_from_run(&names, result)
-    })
-}
-
 /// Pulse/Sustained effect from a supplied DBN graph posterior.
 #[pyfunction]
 #[pyo3(signature = (
@@ -2319,6 +2257,5 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(analyze_temporal_graph_posterior_mediation, m)?)?;
     m.add_function(wrap_pyfunction!(mediation_effects_summary, m)?)?;
     m.add_function(wrap_pyfunction!(predict_conditional_summary, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_temporal_mediation, m)?)?;
     Ok(())
 }

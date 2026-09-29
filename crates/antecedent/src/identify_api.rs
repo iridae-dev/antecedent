@@ -324,12 +324,16 @@ fn identify_with_source(
             audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
             Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
         }
+        GraphClass::RandomizedTrial => Err(CausalError::Unsupported {
+            message: "randomized trial queries are identified by the dedicated experiment route",
+        }),
     }
 }
 
 fn static_identify_query(query: &CausalQuery) -> CausalQuery {
     match query {
         CausalQuery::ConditionalEffect(q) => CausalQuery::AverageEffect(q.inner.clone()),
+        CausalQuery::NestedCounterfactual(q) => CausalQuery::Mediation(q.as_mediation_query()),
         other => other.clone(),
     }
 }
@@ -397,6 +401,7 @@ fn dag_default_strategy(query: &CausalQuery) -> IdentifierId {
         CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_) => {
             IdentifierId::PathSpecificNatural
         }
+        CausalQuery::NestedCounterfactual(_) => IdentifierId::PathSpecificNatural,
         CausalQuery::Distribution(_) => IdentifierId::GeneralId,
         _ => default_strategy(GraphClass::Dag),
     }
@@ -414,6 +419,7 @@ fn default_strategy(class: GraphClass) -> IdentifierId {
         | GraphClass::Pag
         | GraphClass::TemporalCpdag
         | GraphClass::TemporalPag => DEFAULT_PAG_IDENTIFIER_ID,
+        GraphClass::RandomizedTrial => IdentifierId::RandomizedDesign,
     }
 }
 

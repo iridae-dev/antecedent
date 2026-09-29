@@ -3,7 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_kernels::F64MatrixView;
 use antecedent_stats::CompiledDesign;
 
 use crate::error::LearnError;
@@ -253,54 +252,6 @@ impl<'a> DesignView<'a> {
             )?),
             rows: None,
         })
-    }
-
-    /// View a row-major dense buffer.
-    ///
-    /// # Errors
-    ///
-    /// Shape errors from [`DenseDesign::new`].
-    pub fn from_row_major(values: &'a [f64], rows: usize, cols: usize) -> Result<Self, LearnError> {
-        Ok(Self {
-            storage: DesignStorage::Dense(DenseDesign::new(values, rows, cols, Layout::RowMajor)?),
-            rows: None,
-        })
-    }
-
-    /// View a CSR sparse design.
-    ///
-    /// # Errors
-    ///
-    /// Shape errors from [`SparseDesignView::new`].
-    pub fn from_csr(
-        values: &'a [f64],
-        col_indices: &'a [u32],
-        row_ptrs: &'a [u32],
-        rows: usize,
-        cols: usize,
-    ) -> Result<Self, LearnError> {
-        Ok(Self {
-            storage: DesignStorage::SparseCsr(SparseDesignView::new(
-                values,
-                col_indices,
-                row_ptrs,
-                rows,
-                cols,
-            )?),
-            rows: None,
-        })
-    }
-
-    /// View a kernel matrix if it is packed column-major.
-    ///
-    /// # Errors
-    ///
-    /// Non-contiguous or non-column-major kernel views.
-    pub fn from_f64_matrix_view(view: F64MatrixView<'a>) -> Result<Self, LearnError> {
-        let values = view.as_column_major_slice().ok_or(LearnError::Unsupported {
-            message: "F64MatrixView is not packed column-major",
-        })?;
-        Self::from_column_major(values, view.nrows(), view.ncols())
     }
 
     /// View a compiled causal design's matrix without copying. Ignores causal

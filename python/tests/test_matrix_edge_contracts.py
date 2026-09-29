@@ -4,6 +4,8 @@ import antecedent as ant
 import numpy as np
 import pytest
 
+from _sealed_loads import assert_answer_kept
+
 
 def data():
     rng = np.random.default_rng(19019)
@@ -80,7 +82,7 @@ def test_bayesian_response_band_has_portable_uncertainty_source(query):
             "target": "posterior_pointwise_band",
             "omitted": False,
         } in uncertainty.payload["components"]
-    assert loaded.acceptance.verified
+    assert_answer_kept(loaded)
 
 
 @pytest.mark.parametrize(
@@ -96,6 +98,13 @@ def test_bayesian_response_band_has_portable_uncertainty_source(query):
 def test_static_dag_families_preserve_cpdag_compatibility(query, accepted):
     values = data()
     values["m"] = values["t"] + np.sin(np.arange(len(values["t"])))
+    if isinstance(query, (ant.InterventionalDistribution, ant.PathSpecificEffect)):
+        # Both functional-distribution and path-specific estimators require a
+        # finite discrete law. Keep this graph-class compatibility fixture
+        # inside those estimator contracts.
+        values = {
+            name: (column > np.median(column)).astype(float) for name, column in values.items()
+        }
     for complete in (True, False):
         graph = ant.Cpdag.from_directed_undirected(
             ["t", "y", "m"],

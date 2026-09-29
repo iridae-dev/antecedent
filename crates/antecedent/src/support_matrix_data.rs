@@ -33,7 +33,7 @@ pub struct LicensedCell {
     pub validation: &'static str,
     /// Compiler-plan estimator from `parity/licensed_routes.toml`, when present.
     pub route_estimator: Option<&'static str>,
-    /// Union of the route estimator and calibration-token estimators for this cell.
+    /// Union of route, explicitly licensed, and calibration-token estimators.
     pub estimators: &'static [&'static str],
 }
 
@@ -47,7 +47,7 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Temporal contrast queries require a temporal graph class.",
     },
     NaRule {
-        queries: Some(&["AnomalyAttribution", "AverageDerivative", "AverageEffect", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseJacobian", "SemiElasticity"]),
+        queries: Some(&["AnomalyAttribution", "AverageDerivative", "AverageEffect", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "NestedCounterfactualEffect", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseJacobian", "SemiElasticity"]),
         graph_classes: Some(&["TemporalDag", "TemporalCpdag", "TemporalPag"]),
         structures: None,
         inferences: None,
@@ -103,7 +103,7 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Derivative-native validation is not implemented; ATE refuters do not apply.",
     },
     NaRule {
-        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "InterventionResponse", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
+        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "InterventionResponse", "MediationEffect", "NestedCounterfactualEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
         graph_classes: Some(&["Unknown"]),
         structures: None,
         inferences: None,
@@ -111,7 +111,7 @@ pub static NA_RULES: &[NaRule] = &[
         reason: "Unknown-tier cells license the two-scenario AverageEffect envelope only.",
     },
     NaRule {
-        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
+        queries: Some(&["AnomalyAttribution", "AverageDerivative", "ChangeAttribution", "ConditionalEffect", "Counterfactual", "DirectionalDerivative", "Elasticity", "InterventionalDistribution", "NestedCounterfactualEffect", "MediationEffect", "PathSpecificEffect", "PointDerivative", "ResponseCurve", "ResponseJacobian", "SemiElasticity", "TransportQuery", "InterferenceQuery"]),
         graph_classes: Some(&["CoDetermined"]),
         structures: None,
         inferences: None,
@@ -213,14 +213,6 @@ pub static CLOSED_RULES: &[NaRule] = &[
         queries: Some(&["AnomalyAttribution", "ChangeAttribution"]),
         graph_classes: Some(&["Dag"]),
         structures: None,
-        inferences: Some(&["Bayesian"]),
-        validations: None,
-        reason: "Attribution has no Bayesian draw path; the licensed cells are Frequentist.",
-    },
-    NaRule {
-        queries: Some(&["AnomalyAttribution", "ChangeAttribution"]),
-        graph_classes: Some(&["Dag"]),
-        structures: None,
         inferences: None,
         validations: Some(&["cheap", "full"]),
         reason: "Attribution has no native refuter suite; ATE refuters do not apply.",
@@ -253,14 +245,6 @@ pub static CLOSED_RULES: &[NaRule] = &[
         queries: Some(&["TransportQuery"]),
         graph_classes: Some(&["Admg"]),
         structures: None,
-        inferences: Some(&["Bayesian"]),
-        validations: None,
-        reason: "TransportQuery has no Bayesian trial-to-target estimator.",
-    },
-    NaRule {
-        queries: Some(&["TransportQuery"]),
-        graph_classes: Some(&["Admg"]),
-        structures: None,
         inferences: None,
         validations: Some(&["cheap", "full"]),
         reason: "TransportQuery has no native refuter suite; ATE refuters do not apply.",
@@ -288,14 +272,6 @@ pub static CLOSED_RULES: &[NaRule] = &[
         inferences: Some(&["Bayesian"]),
         validations: None,
         reason: "InterferenceQuery graph-posterior mixtures are not staged.",
-    },
-    NaRule {
-        queries: Some(&["InterferenceQuery"]),
-        graph_classes: Some(&["Dag"]),
-        structures: None,
-        inferences: Some(&["Bayesian"]),
-        validations: None,
-        reason: "InterferenceQuery is design-based Frequentist; there is no Bayesian randomization estimator.",
     },
     NaRule {
         queries: Some(&["InterferenceQuery"]),
@@ -394,6 +370,38 @@ pub static CLOSED_RULES: &[NaRule] = &[
         reason: "Graph-posterior mediation mixtures are not staged; the licensed MediationEffect cells are Frequentist or Bayesian explicit or accepted Dag.",
     },
     NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Admg", "Cpdag", "Pag"]),
+        structures: None,
+        inferences: None,
+        validations: None,
+        reason: "NestedCounterfactualEffect requires the supplied fixed static Dag.",
+    },
+    NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["accepted", "graph_posterior"]),
+        inferences: None,
+        validations: None,
+        reason: "NestedCounterfactualEffect requires an explicitly supplied Dag; accepted and graph-posterior structures are not licensed.",
+    },
+    NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["explicit"]),
+        inferences: Some(&["Bayesian"]),
+        validations: None,
+        reason: "NestedCounterfactualEffect is licensed only for the compatible Frequentist linear-Gaussian SCM; Bayesian SCM inference is not licensed.",
+    },
+    NaRule {
+        queries: Some(&["NestedCounterfactualEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["explicit"]),
+        inferences: Some(&["Frequentist"]),
+        validations: Some(&["cheap", "full"]),
+        reason: "NestedCounterfactualEffect has no compatible cheap/full cross-world refuter suite.",
+    },
+    NaRule {
         queries: Some(&["Counterfactual"]),
         graph_classes: Some(&["Dag"]),
         structures: Some(&["graph_posterior"]),
@@ -416,14 +424,6 @@ pub static CLOSED_RULES: &[NaRule] = &[
         inferences: None,
         validations: Some(&["cheap", "full"]),
         reason: "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state.",
-    },
-    NaRule {
-        queries: Some(&["InterventionResponse"]),
-        graph_classes: Some(&["Cpdag", "Pag"]),
-        structures: Some(&["graph_posterior"]),
-        inferences: Some(&["Bayesian"]),
-        validations: Some(&["cheap", "full"]),
-        reason: "Bayesian graph-posterior InterventionResponse on Cpdag/Pag is licensed at validation none. cheap/full attach the Frequentist plugin-level suite; there is no Bayesian class-IR refuter path on a static Cpdag/Pag posterior.",
     }
 ];
 
@@ -432,6 +432,15 @@ pub static ALLOWED_RULES: &[AllowedRule] = &[
 ];
 
 pub static LICENSED: &[LicensedCell] = &[
+    LicensedCell {
+        query: "NestedCounterfactualEffect",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Frequentist",
+        validation: "none",
+        route_estimator: Some("mediation.linear"),
+        estimators: &["mediation.linear"],
+    },
     LicensedCell {
         query: "ResponseCurve",
         graph_class: "Dag",
@@ -1195,7 +1204,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Bayesian",
         validation: "none",
         route_estimator: Some("bayesian.gcomp"),
-        estimators: &["bayesian.gcomp"],
+        estimators: &["bayesian.gcomp", "iv.bayesian_joint_linear", "rd.bayesian_local_linear", "bayesian.basis.gcomp", "bayesian.robust_ate"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -1736,6 +1745,15 @@ pub static LICENSED: &[LicensedCell] = &[
         validation: "none",
         route_estimator: Some("linear.adjustment.ate"),
         estimators: &["linear.adjustment.ate"],
+    },
+    LicensedCell {
+        query: "InterferenceQuery",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+        route_estimator: Some("interference.bayesian_gaussian"),
+        estimators: &["interference.bayesian_gaussian"],
     },
     LicensedCell {
         query: "AverageEffect",
@@ -2680,7 +2698,7 @@ pub static LICENSED: &[LicensedCell] = &[
         inference: "Bayesian",
         validation: "none",
         route_estimator: Some("conditional.bayesian"),
-        estimators: &["conditional.bayesian"],
+        estimators: &["conditional.bayesian", "bayesian.basis.gcomp"],
     },
     LicensedCell {
         query: "ConditionalEffect",
@@ -4366,6 +4384,24 @@ pub static LICENSED: &[LicensedCell] = &[
         estimators: &["gcm.fit"],
     },
     LicensedCell {
+        query: "AnomalyAttribution",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+        route_estimator: Some("gcm.fit.bayesian"),
+        estimators: &["gcm.fit.bayesian"],
+    },
+    LicensedCell {
+        query: "ChangeAttribution",
+        graph_class: "Dag",
+        structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+        route_estimator: Some("gcm.attribution.bayesian"),
+        estimators: &["gcm.attribution.bayesian"],
+    },
+    LicensedCell {
         query: "TransportQuery",
         graph_class: "Admg",
         structure: "explicit",
@@ -4373,6 +4409,15 @@ pub static LICENSED: &[LicensedCell] = &[
         validation: "none",
         route_estimator: Some("transport.trial_ipw"),
         estimators: &["transport.trial_ipw"],
+    },
+    LicensedCell {
+        query: "TransportQuery",
+        graph_class: "Admg",
+        structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+        route_estimator: Some("transport.trial_bayesian_bootstrap"),
+        estimators: &["transport.trial_bayesian_bootstrap"],
     },
     LicensedCell {
         query: "InterferenceQuery",
@@ -4492,6 +4537,24 @@ pub static LICENSED: &[LicensedCell] = &[
         estimators: &["response.bayesian"],
     },
     LicensedCell {
+        query: "InterventionResponse",
+        graph_class: "Cpdag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "cheap",
+        route_estimator: Some("response.bayesian"),
+        estimators: &["response.bayesian"],
+    },
+    LicensedCell {
+        query: "InterventionResponse",
+        graph_class: "Cpdag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "full",
+        route_estimator: Some("response.bayesian"),
+        estimators: &["response.bayesian"],
+    },
+    LicensedCell {
         query: "ConditionalEffect",
         graph_class: "Pag",
         structure: "graph_posterior",
@@ -4596,6 +4659,24 @@ pub static LICENSED: &[LicensedCell] = &[
         structure: "graph_posterior",
         inference: "Bayesian",
         validation: "none",
+        route_estimator: Some("response.bayesian"),
+        estimators: &["response.bayesian"],
+    },
+    LicensedCell {
+        query: "InterventionResponse",
+        graph_class: "Pag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "cheap",
+        route_estimator: Some("response.bayesian"),
+        estimators: &["response.bayesian"],
+    },
+    LicensedCell {
+        query: "InterventionResponse",
+        graph_class: "Pag",
+        structure: "graph_posterior",
+        inference: "Bayesian",
+        validation: "full",
         route_estimator: Some("response.bayesian"),
         estimators: &["response.bayesian"],
     }

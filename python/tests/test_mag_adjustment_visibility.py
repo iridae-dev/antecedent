@@ -47,6 +47,7 @@ def test_visible_mag_known_linear_effect(mixed, accepted, bayesian, kind):
     )
     assert result.certificate is not None
     assert len(result.certificate["cases"]) == (3 if mixed else 1)
+    assert result.certificate["identified_weight"] == (3.0 if mixed else 1.0)
     assert result.certificate["unidentified_weight"] == 0.0
     assert result.certificate["graph_class"] == "Pag"
     columns = ant.handoff.econml(result).columns(data)

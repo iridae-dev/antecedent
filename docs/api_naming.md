@@ -18,30 +18,61 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 56 names as of 2.0**.
+The root namespace (`import antecedent`) is **frozen at 64 names as of 2.1** (the specialized 2.1 families live on their stage modules, not at the root).
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
 them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
-and the design query `InterferenceQuery`. The licensed trial-IPW cell is
+and the design query `InterferenceQuery`. 2.1 adds `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
+modules, plus point-only randomized experiment, factorial, held-out policy,
+DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesign` and
+`SwitchbackEffect` describe unit-period assignments with known marginal
+probabilities. Their native ITT estimator allows arbitrary dependence within
+each sequence and uses an independent-sequence cluster sandwich standard
+error; it requires at least two sequences and both arms observed across the
+full schedule, and assumes no carryover from earlier assignments.
+`SwitchbackEffect` also uses retained `analyze`, preserving sequence and
+period identity. Its supported sequence-level Student interval has an exact
+graphless license; sparse schedules remain point-only.
+`experiment.ComplierEffect` adds the retained Bernoulli encouragement
+CACE/LATE query with observed receipt, a positive first stage, and no interval;
+its result is also off the support-matrix axis.
+`FactorialRandomization` carries fixed four-cell 2×2 assignment through the
+retained `RandomizedEffect` analysis. The result reports both marginal main
+effects and their interaction with separate conservative cellwise variances;
+it remains off the support-matrix axis and reports no interval.
+`MultiArmExperimentDesign` carries three or more actions and their known
+row-level assignment probabilities through retained `RandomizedEffect`
+analysis. The result reports all action contrasts to the reference arm with
+covariance-free variance bounds, observed arm support, and no interval or
+support-matrix license.
+`estimate_ancova_effect` complements
+one-covariate CUPED with multiple pre-treatment covariates for independent
+Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
+coefficients, support counts, and an HC0 standard error without an interval.
+The same native fit is available through retained `prepare` / `analyze` via
+`RandomizedEffect(..., ancova_covariates=("x1", "x2"))`; its query and
+artifact retain the covariate identities and report point-only HC0 uncertainty.
+The licensed trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the 2.0 compiler is
 `antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](python-workflow.md) for lifetime and report semantics.
 The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
-`AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
+`AnalysisResult`); the ten typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
 `ConditionalEffect`, `MediationEffect`, `Counterfactual`,
-`TemporalMediationEffect`) plus the eight response-family queries
+`NestedCounterfactual`, `TemporalMediationEffect`) plus the eight
+response-family queries
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
 `InterventionResponse`) plus the two attribution queries
-(`AnomalyAttribution`, `ChangeAttribution`) plus the design query
-(`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+(`AnomalyAttribution` with its `AnomalyReference`, `ChangeAttribution`) plus the
+design query (`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
-error names most callers catch (`CausalError`, `ReviewRequired`); the twelve stage
+error names most callers catch (`CausalError`, `ReviewRequired`); the eighteen stage
 modules themselves; and `__version__`.
 
 **The rule for where a name lives**: if it's part of the day-1 workflow — run an
@@ -50,12 +81,14 @@ more specialized lives in the stage module that owns it, and you reach it by wal
 the module path rather than importing it flat:
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
-``antecedent.discovery``, ``antecedent.errors``, ``antecedent.estimation``,
-``antecedent.extensibility``, ``antecedent.gcm``, ``antecedent.graph``,
-``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
+``antecedent.discovery``, ``antecedent.errors``, ``antecedent.experiment``,
+``antecedent.estimation``, ``antecedent.extensibility``, ``antecedent.factorial``,
+``antecedent.gcm``, ``antecedent.graph``, ``antecedent.policy``,
+``antecedent.priors``, ``antecedent.quasi``, ``antecedent.state``, ``antecedent.survival``, and
+``antecedent.validation``.
 
-Each of those twelve modules has an explicit, separately frozen `__all__`
-surface. The 56-name count is only the package-root contract; it does not add
+Each of those seventeen modules has an explicit, separately frozen `__all__`
+surface. The 64-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
 **17** further modules are reachable as ``antecedent.<name>`` (nothing stops
@@ -72,10 +105,12 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other twelve are left off because they're a narrower surface than the twelve stage
+The other thirteen are left off because they're a narrower surface than the stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
+- ``antecedent.regimes`` — point-only evaluation of caller-specified
+  longitudinal treatment regimes, outside the licensed support matrix.
 - ``antecedent.artifacts`` — durable format-0.5 artifact encode/decode, an advanced
   serialization surface, not part of the day-1 workflow.
 - ``antecedent.counterfactual`` — GCM counterfactual helpers (`fit_gcm`,
@@ -87,6 +122,12 @@ directly:
   the adapter refuses front-door, IV, general ID, partial ID, and
   graph-posterior results rather than inventing a set. Temporal results export
   certified offsets and trim boundaries.
+- ``antecedent.extensibility.ProviderQuery`` — execute a previously registered
+  Python provider through ``analyze(data, query=ProviderQuery(...))``. Its
+  family-shaped output remains externally attested and is not translated into
+  a native point or interval claim. ``providers.load_entry_point(name)``
+  explicitly loads a separately installed ``antecedent.providers`` factory;
+  package import does not scan or execute plugins.
 - ``antecedent.learners`` — typed nuisance learners shared by estimators and
   transport providers.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
@@ -144,14 +185,15 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
 | Structural transport (1.10 trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the 2.0 compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
+| Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and off the support-matrix axis |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
 | Anomaly / change attribution | `CausalQuery::AnomalyAttribution` / `ChangeAttribution` | `AnomalyAttribution` / `ChangeAttribution` on `analyze(data, graph=Dag or edges, query=...)`; identification `gcm.parametric`, estimator `gcm.fit` |
-| Identifier strategy | `IdentifierId::BackdoorAdjustment` | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"` |
-| Estimator strategy | `EstimatorId::LinearAdjustmentAte` | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"` |
+| Identifier strategy | `IdentifierId::BackdoorAdjustment` (16 wire ids) | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"`; the enum mirrors every `IdentifierId` wire id one-for-one (`tests/test_enum_parity.py` fails on drift) |
+| Estimator strategy | `EstimatorId::LinearAdjustmentAte` (63 wire ids) | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"`; the enum mirrors every `EstimatorId` wire id one-for-one, so `Estimator(result.estimate.estimator_id)` always resolves (`tests/test_enum_parity.py` fails on drift) |
 | Per-estimator tuning | `EstimatorSpec::LinearAdjustmentAte { .. }` (builder setters) | `analyze(..., estimator_config={...})` — one table-driven dict kwarg; see `python/src/estimator_config.rs` for the estimator-id → valid-keys table |
 | Discovery algorithm | `discover_pc` / `discover_ges` / … (still free functions) | `antecedent.discovery.PC(...).run(...)` / `.accept(...)` (config dataclass, not a free `discover_*` function) |
 | Accepted-graph session | `DiscoveryArtifact` / re-run identify+estimate | `AcceptedGraph.from_discovery(...)` / `.from_graph(...)`; `.review({edge: mark})`; `.pending`; `len()` / `iter()` / `in` |

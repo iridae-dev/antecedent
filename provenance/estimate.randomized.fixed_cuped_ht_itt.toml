@@ -1,0 +1,24 @@
+feature_id = "estimate.randomized.fixed_cuped_ht_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data", doi = "10.1145/2433396.2433413", sections = ["CUPED: subtract a fixed multiple of a pre-experiment covariate from the outcome before estimating the average treatment effect"] },
+]
+
+implementation_deviations = [
+ "The coefficient is supplied by the caller and is not estimated from this experiment. The same-sample theta estimator from the paper is not implemented.",
+ "The adjusted outcome is then passed through the independent-row Horvitz–Thompson score. The variance is that score sandwich, not a separate CUPED variance formula.",
+ "The covariate must be pre-assignment. The interval uses the same support floor as the unadjusted Bernoulli Horvitz–Thompson interval.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_scores.rs",
+ "crates/antecedent/tests/randomized_precision_intervals.rs",
+ "crates/antecedent/tests/randomized_trial_route.rs",
+]

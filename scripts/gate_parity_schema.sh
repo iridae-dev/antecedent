@@ -476,7 +476,7 @@ else:
 
     def _collects(tests):
         return subprocess.run(
-            ["uv", "run", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
+            ["uv", "run", "--no-sync", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
             cwd=root / "python",
             capture_output=True,
             text=True,
@@ -531,6 +531,15 @@ def _resolves(spec: str) -> bool:
         return False
     text = path.read_text(errors="ignore")
     if re.search(rf"fn\s+{re.escape(fn)}\s*[(<]", text):
+        return True
+    # The collector stamps `dgp` from the suite's `RecordKey`, which is a label
+    # the suite writes, not necessarily the `fn` that builds the table. Two
+    # 2.1 suites do that: `v110_calibration_distribution_admg` labels
+    # `frontdoor_data` while the function is `data`, and
+    # `v110_calibration_design_bayesian` labels `transport_data_frozen_target`
+    # while the function is `transport_frozen_data`. Renaming those functions
+    # would drift the suite facet after the 2.1 replay waivers.
+    if re.search(r'dgp:\s*"' + re.escape(fn) + r'"', text):
         return True
     # A suite that imports its data-generating function from a shared test module
     # (`use common::static_dgp::{path_data, ..}`) names it through that import: it

@@ -1,0 +1,23 @@
+feature_id = "estimate.longitudinal.sequential_dr_regime"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["sequential doubly robust score for a longitudinal regime, augmenting inverse-probability weights with conditional outcome predictions"] },
+]
+
+implementation_deviations = [
+ "Both the sequential probabilities and the Q predictions are caller-supplied. Subject-excluded fold ownership is a caller declaration; training of Q is not verified.",
+ "The pointwise normal interval is conditional on that declared Q law. It is licensed only for the two- and three-period support rows, not for longer histories.",
+ "The g-formula route and the marginal structural model do not share this variance.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/longitudinal_regime.rs",
+ "crates/antecedent/tests/longitudinal_regime_route.rs",
+]

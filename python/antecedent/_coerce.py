@@ -156,7 +156,19 @@ def coerce_query(value: Any) -> Any:
     Every query dataclass in :mod:`antecedent.query` carries a ``kind``
     discriminator; anything without one is not a supported query type.
     """
+    from .experiment import ComplierEffect, RandomizedEffect, SwitchbackEffect, TreatmentOnTreated
     from .interference import InterferenceQuery
+    from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
+    from .quasi import (
+        AugmentedPanelDiD,
+        FuzzyRegressionDiscontinuity,
+        PanelDifferenceInDifferences,
+        RegressionKink,
+        SharpRegressionDiscontinuity,
+        StaggeredAdoption,
+        SyntheticControl,
+        SyntheticDifferenceInDifferences,
+    )
     from .query import (
         AnomalyAttribution,
         AverageDerivative,
@@ -169,6 +181,7 @@ def coerce_query(value: Any) -> Any:
         InterventionalDistribution,
         InterventionResponse,
         MediationEffect,
+        NestedCounterfactual,
         PathSpecificEffect,
         PointDerivative,
         PulseEffect,
@@ -178,6 +191,8 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
+    from .regimes import LongitudinalRegime
+    from .survival import CompetingRisksOutcome, SurvivalOutcome
     from .transport import Transport
     from .transport.advanced import TransportQuery
 
@@ -189,6 +204,7 @@ def coerce_query(value: Any) -> Any:
         Counterfactual,
         InterventionalDistribution,
         MediationEffect,
+        NestedCounterfactual,
         PathSpecificEffect,
         PulseEffect,
         SustainedEffect,
@@ -204,6 +220,24 @@ def coerce_query(value: Any) -> Any:
         TransportQuery,
         Transport,
         InterferenceQuery,
+        PolicyValue,
+        ConditionalDoseResponse,
+        MultiActionPolicyValue,
+        RandomizedEffect,
+        ComplierEffect,
+        TreatmentOnTreated,
+        SwitchbackEffect,
+        PanelDifferenceInDifferences,
+        AugmentedPanelDiD,
+        StaggeredAdoption,
+        SyntheticControl,
+        SyntheticDifferenceInDifferences,
+        FuzzyRegressionDiscontinuity,
+        RegressionKink,
+        SharpRegressionDiscontinuity,
+        LongitudinalRegime,
+        SurvivalOutcome,
+        CompetingRisksOutcome,
     )
     if isinstance(value, valid):
         return value

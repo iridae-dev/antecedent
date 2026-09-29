@@ -57,9 +57,8 @@ pub(super) use crate::accepted::{AcceptedGraph, GraphClass};
 pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
-    anomaly_attribution_with, attribute_distribution_change, attribute_unit_change,
-    counterfactual_ite, fit_gcm, fit_gcm_counterfactual, map_mechanism_fit,
-    mechanism_change_detection,
+    anomaly_attribution_query_with, attribute_distribution_change, attribute_unit_change,
+    counterfactual_ite, fit_gcm, map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
@@ -96,10 +95,11 @@ pub(super) use crate::strategy_table::{
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
-    AssembleArgs, assemble_result, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
-    overlap_diagnostic, project_for_ate_estimate, projection_diagnostic, provenance_pair,
-    push_conflict_diagnostics, refute_outcomes, run_plugin_level_refuters, run_refuters,
-    validator_not_applicable_diagnostic, validator_not_applicable_diagnostics,
+    AssembleArgs, assemble_result, credible_scalar_uncertainty, effect_from_posterior,
+    evaluate_bayesian_prior_sensitivity, overlap_diagnostic, project_for_ate_estimate,
+    projection_diagnostic, provenance_pair, push_conflict_diagnostics, refute_outcomes,
+    run_plugin_level_refuters, run_refuters, validator_not_applicable_diagnostic,
+    validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -273,10 +273,67 @@ impl std::fmt::Debug for Study {
 mod admg_posterior;
 mod admg_posterior_response;
 mod attribution_path;
+mod checked_attribution;
+pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
+pub(crate) use checked_attribution::CheckedAttributionOperation;
+mod bayesian_basis_path;
+mod checked_bayesian_basis_ate;
+mod checked_bayesian_basis_cate;
+mod checked_bayesian_robust_ate;
+pub(crate) use checked_bayesian_basis_ate::CheckedBayesianBasisAteExecution;
+pub(crate) use checked_bayesian_basis_cate::CheckedBayesianBasisCateExecution;
+pub(crate) use checked_bayesian_robust_ate::CheckedBayesianRobustAteExecution;
+mod checked_bayesian_dag_ate;
+pub(crate) use checked_bayesian_dag_ate::CheckedBayesianDagAteExecution;
+mod bayesian_graph_posterior_atoms;
+mod checked_bayesian_dag_conditional;
+#[allow(unused_imports)]
+pub(crate) use bayesian_graph_posterior_atoms::{
+    BayesianGraphPosteriorAtomFit, BayesianGraphPosteriorAtomFits, BayesianGraphPosteriorAtomInput,
+    BayesianGraphPosteriorPriorAnchor,
+};
+mod checked_cell_aipw_response;
+pub(crate) use checked_bayesian_dag_conditional::CheckedBayesianConditionalOperation;
 mod bayesian_path;
+mod bayesian_robust_ate_path;
+mod bayesian_specialist_path;
+mod checked_bayesian_static_mediation;
+mod checked_continuous_dose;
+mod checked_interference;
+mod checked_local_polynomial_ratio;
+mod checked_longitudinal_regime;
+mod checked_panel_did;
+mod checked_randomized;
+mod checked_static_mediation;
+mod checked_survival;
+mod checked_synthetic_control;
+mod checked_temporal_class_effect;
+mod checked_temporal_effect;
+mod checked_temporal_mediation;
+pub(crate) use checked_bayesian_static_mediation::CheckedBayesianStaticMediationOperation;
+pub(crate) use checked_cell_aipw_response::CheckedCellAipwResponseOperation;
+pub use checked_cell_aipw_response::DagResponseOrigin;
+pub(crate) use checked_continuous_dose::CheckedContinuousDoseOperation;
+pub(crate) use checked_interference::CheckedInterferenceOperation;
+pub(crate) use checked_local_polynomial_ratio::{
+    CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification,
+};
+pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
+pub(crate) use checked_panel_did::CheckedPanelDidOperation;
+pub(crate) use checked_panel_did::panel_did_identification;
+pub(crate) use checked_randomized::{
+    CheckedPolicyValueOperation, CheckedRandomizedOperation, randomized_identification,
+};
+pub(crate) use checked_static_mediation::CheckedStaticMediationOperation;
+pub(crate) use checked_survival::{CheckedSurvivalOperation, survival_identification};
+pub(crate) use checked_synthetic_control::{
+    CheckedSyntheticControlOperation, synthetic_control_identification,
+};
+pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod class_envelope_se;
 mod class_posterior;
 mod class_posterior_response;
+pub(crate) use checked_temporal_effect::CheckedTemporalEffectExecution;
 mod compile;
 pub(super) use compile::compile_logical_admg_response;
 mod dbn_mediation_frequentist;
@@ -285,6 +342,21 @@ mod identified_set_diagnostics;
 mod pag_path;
 mod panel_path;
 mod response_path;
+pub(crate) use checked_temporal_class_effect::CheckedTemporalClassEffectExecution;
+pub(crate) use response_path::{
+    CheckedDerivativeResponseOperation, CheckedStaticDagResponseOperation,
+};
+pub(crate) use temporal_path::checked_temporal_response::CheckedTemporalResponseExecution;
+mod checked_bayesian_specialist;
+mod checked_bayesian_temporal_class_effect;
+mod checked_graph_posterior_effect;
+mod checked_graph_posterior_response;
+mod checked_static_class_response;
+mod checked_temporal_class_mediation;
+mod checked_temporal_class_response;
+mod checked_temporal_graph_posterior_effect;
+mod checked_temporal_graph_posterior_response;
+mod checked_transport_trial;
 mod sequential_validation;
 mod static_path;
 mod temporal_class_mediation_posterior;
@@ -294,6 +366,10 @@ mod temporal_path;
 mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;
+pub(crate) use checked_cell_aipw_response::CellAipwStructure;
+pub(crate) use checked_graph_posterior_response::CheckedGraphPosteriorResponse;
+pub(crate) use checked_static_class_response::CheckedStaticClassResponse;
+pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
 include!("execute_helpers.rs");
 
 pub(super) use class_envelope_se::{
@@ -316,6 +392,10 @@ pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
 pub(crate) use static_path::DistributionGraph;
 pub(crate) use transport_interference_path::live_transport_identification;
 
+pub use checked_bayesian_specialist::CheckedBayesianSpecialistInfo;
+pub(crate) use checked_bayesian_specialist::CheckedBayesianSpecialistOperation;
+pub use checked_transport_trial::CheckedTransportTrialInfo;
+pub(crate) use checked_transport_trial::CheckedTransportTrialOperation;
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
 };
@@ -1180,7 +1260,9 @@ mod identify_only_tests {
                     .all(|d| d.code.as_ref() != "estimate.graph_posterior.joint_if_se"),
                 "joint-IF SE is only published under SameEstimandWeightedMean"
             );
-            assert_eq!(cached_count(&fresh), 0);
+            // The one-shot facade now prepares the sealed graph-posterior plan,
+            // so its per-atom identification is reused during execution.
+            assert_eq!(cached_count(&fresh), 1);
             assert_eq!(cached_count(&click), 1);
             assert_eq!(cached_count(&refreshed), 1);
             assert_eq!(click.refutations.len(), fresh.refutations.len());

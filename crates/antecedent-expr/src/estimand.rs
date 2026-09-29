@@ -35,6 +35,10 @@ pub enum EstimandMethod {
     GeneralId,
     /// Path-restricted natural effect (Avin–Shpitser–Pearl).
     PathSpecificNatural,
+    /// Intention-to-treat effect identified directly by randomized assignment.
+    RandomizedItt,
+    /// Fixed policy value identified by known randomized action probabilities.
+    RandomizedPolicyValue,
 }
 
 impl EstimandMethod {
@@ -53,6 +57,8 @@ impl EstimandMethod {
             Self::TemporalMediationMediated => "temporal_mediation.mediated",
             Self::GeneralId => "general.id",
             Self::PathSpecificNatural => "path_specific.natural",
+            Self::RandomizedItt => "randomized.itt",
+            Self::RandomizedPolicyValue => "randomized.policy_value",
         }
     }
 
@@ -96,6 +102,8 @@ impl FromStr for EstimandMethod {
             "temporal_mediation.mediated" => Self::TemporalMediationMediated,
             "general.id" => Self::GeneralId,
             "path_specific.natural" => Self::PathSpecificNatural,
+            "randomized.itt" => Self::RandomizedItt,
+            "randomized.policy_value" => Self::RandomizedPolicyValue,
             other => return Err(format!("unknown estimand method `{other}`")),
         })
     }

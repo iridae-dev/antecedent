@@ -45,7 +45,7 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
+use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     CausalQuery, CausalResponse, DerivativeScale, DerivativeWeighting, ExecutionContext,
     ResponseFunctional as F, ResponseIdentification, ResponseQuery, ResponseUncertainty,
@@ -111,6 +111,26 @@ fn point_data(n: usize, seed: u64) -> TabularData {
         x.push(xi);
         a.push(ai);
         y.push(mu(ai) + xi + z());
+    }
+    TabularData::from_f64_columns([("a", a.as_slice()), ("x", x.as_slice()), ("y", y.as_slice())])
+        .unwrap()
+}
+
+/// Same in-assumption law, shifted so the positive response level at `AT` is
+/// 0.25. This stresses the denominator of elasticity without changing the
+/// additive outcome or Gaussian conditional treatment assumptions.
+fn weak_elasticity_level_data(n: usize, seed: u64) -> TabularData {
+    let mut z = gaussian(seed);
+    let mut a = Vec::with_capacity(n);
+    let mut x = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    let intercept = 0.25 - 2.0 * AT.sin();
+    for _ in 0..n {
+        let xi = z();
+        let ai = 0.5 * xi + z();
+        x.push(xi);
+        a.push(ai);
+        y.push(intercept + 2.0 * ai.sin() + xi + z());
     }
     TabularData::from_f64_columns([("a", a.as_slice()), ("x", x.as_slice()), ("y", y.as_slice())])
         .unwrap()
@@ -273,9 +293,16 @@ fn scalar_value(response: &CausalResponse) -> f64 {
 }
 
 fn scalar_interval(response: &CausalResponse) -> Option<(f64, f64)> {
+    scalar_interval_at(response, LEVEL)
+}
+
+fn scalar_interval_at(response: &CausalResponse, expected_level: f64) -> Option<(f64, f64)> {
     match response.uncertainty {
         ResponseUncertainty::Scalar { lower, upper, level, .. } => {
-            assert!((level - LEVEL).abs() < 1e-12, "interval level {level} != {LEVEL}");
+            assert!(
+                (level - expected_level).abs() < 1e-12,
+                "interval level {level} != {expected_level}"
+            );
             Some((lower, upper))
         }
         _ => None,
@@ -613,6 +640,183 @@ fn elasticity_bayesian_nominal_90_coverage() {
     .assert();
 }
 
+// --- Frequentist elasticity on a DAG (Fieller analytic interval) ---------------
+
+/// Run one Frequentist elasticity replicate on [`point_data`], on either the
+/// explicit DAG or its accepted wrapper. Fixed caller bandwidth, no bootstrap,
+/// so the runtime keys the Fieller interval under `analytic_se`.
+fn run_elasticity_frequentist(
+    data: &TabularData,
+    accepted: bool,
+    seed: u64,
+    level: f64,
+) -> Result<(Study, StudyResult), String> {
+    let dag = point_graph();
+    let base = Study::tabular(data.clone());
+    let builder = if accepted { base.graph(AcceptedGraph::from(dag)) } else { base.graph(dag) }
+        .query(CausalQuery::Response(ResponseQuery::new(point_query(DerivativeScale::LogLog))))
+        .response_options(ContinuousResponseOptions {
+            bandwidth: Some(BANDWIDTH),
+            confidence_level: level,
+            ..Default::default()
+        })
+        .refute(RefuteSuite::None)
+        .inference(InferenceMode::Frequentist)
+        .bootstrap_replicates(0);
+    let study = builder.build().map_err(|e| e.to_string())?;
+    let ctx = ExecutionContext::for_tests(seed);
+    let result = study.run(&ctx).map_err(|e| e.to_string())?;
+    if result.response.is_none() {
+        return Err("no response".to_owned());
+    }
+    Ok((study, result))
+}
+
+/// Score the Frequentist elasticity Fieller interval over `n_sim()`
+/// replicates of [`point_data`], for the explicit or accepted DAG.
+///
+/// The estimand is the true elasticity of the structural mean at `AT`:
+/// `m(a) = E[Y | do(A = a)] = 5 + 2 sin a` (E[X] = 0), so
+/// `η(AT) = AT · m'(AT) / m(AT) = AT · 2 cos AT / (5 + 2 sin AT)`.
+fn elasticity_frequentist_coverage(
+    test: &'static str,
+    accepted: bool,
+    level: f64,
+) -> CoverageTally {
+    let key = RecordKey { test, dgp: "point_data", interval: "analytic_se" };
+    let mut tally = CoverageTally::for_record(key, level);
+    // η(AT) = AT·m'(AT)/m(AT), derived from the DGP above.
+    let truth = AT * mu_prime(AT) / mu(AT);
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = replicate_seed(0x0D1E, rep);
+        let data = point_data(SampleGrid::HEAVY.n(N_POINT), seed);
+        run_elasticity_frequentist(&data, accepted, seed, level)
+    });
+    for (rep, scored) in runs.iter().enumerate() {
+        match scored {
+            Ok((study, result)) => {
+                let response = result.response.as_ref().expect("response");
+                let interval = scalar_interval_at(response, level);
+                if rep == 0 {
+                    // The interval must be a published Confidence scalar, and its
+                    // construction the Kennedy-DR point-derivative under analytic_se.
+                    assert!(
+                        scalar_interval_at(response, level).is_some(),
+                        "{test}: interval must publish"
+                    );
+                    let contract = study.inspect().expect("inspect");
+                    let methods: Vec<_> =
+                        common::calibration_bind::constructions(&contract, result)
+                            .into_iter()
+                            .map(|(c, _)| c.interval_method)
+                            .collect();
+                    assert!(
+                        methods.iter().any(|m| m == "analytic_se"),
+                        "{test}: expected an analytic_se construction, got {methods:?}"
+                    );
+                }
+                if interval.is_some() {
+                    bind(&mut tally, study, result);
+                } else {
+                    assert!(
+                        response.support.warnings.iter().any(|warning| {
+                            warning.code.as_ref() == "response.derivative_interval_unbounded"
+                        }),
+                        "{test}: missing interval must identify an unbounded Fieller set"
+                    );
+                }
+                // An unbounded set cannot be serialized as a finite scalar
+                // interval; count that replicate as a miss, never discard it.
+                tally.record(interval, truth);
+            }
+            Err(error) => {
+                eprintln!("{test}: replicate {rep} refused: {error}");
+                tally.skip();
+            }
+        }
+    }
+    tally
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn elasticity_dag_frequentist_nominal_90_coverage() {
+    elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_90_coverage", false, LEVEL)
+        .assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn elasticity_dag_accepted_frequentist_nominal_90_coverage() {
+    elasticity_frequentist_coverage(
+        "elasticity_dag_accepted_frequentist_nominal_90_coverage",
+        true,
+        LEVEL,
+    )
+    .assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn elasticity_dag_frequentist_nominal_95_coverage() {
+    elasticity_frequentist_coverage("elasticity_dag_frequentist_nominal_95_coverage", false, 0.95)
+        .assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn elasticity_dag_accepted_frequentist_nominal_95_coverage() {
+    elasticity_frequentist_coverage(
+        "elasticity_dag_accepted_frequentist_nominal_95_coverage",
+        true,
+        0.95,
+    )
+    .assert();
+}
+
+#[test]
+#[ignore = "probe: weak positive denominator is not a finite-interval license"]
+fn elasticity_weak_positive_level_fieller_probe() {
+    let truth = AT * mu_prime(AT) / 0.25;
+    let mut tally = CoverageTally::new("elasticity_weak_positive_level_fieller_probe", 0.95);
+    let mut unbounded = 0;
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = replicate_seed(0xA11E, rep);
+        run_elasticity_frequentist(&weak_elasticity_level_data(500, seed), false, seed, 0.95)
+    });
+    let mut nonpositive_fit = 0;
+    for run in runs {
+        let (_, result) = match run {
+            Ok(value) => value,
+            Err(error) => {
+                assert!(error.contains("positive fitted response"), "unexpected refusal: {error}");
+                nonpositive_fit += 1;
+                tally.skip();
+                continue;
+            }
+        };
+        let response = result.response.as_ref().expect("response");
+        let interval = scalar_interval_at(response, 0.95);
+        if interval.is_none() {
+            unbounded += 1;
+            assert!(response.support.warnings.iter().any(|warning| {
+                warning.code.as_ref() == "response.derivative_interval_unbounded"
+            }));
+        }
+        // A missing finite interval counts as a miss in this probe. A Fieller
+        // confidence set can still contain the truth when it is unbounded.
+        tally.record(interval, truth);
+    }
+    eprintln!(
+        "weak-denominator Fieller: {unbounded}/{} unbounded, {nonpositive_fit} nonpositive fitted responses; finite-interval coverage including misses={:.3} ({}/{})",
+        n_sim(),
+        tally.rate(),
+        tally.covered(),
+        tally.attempts()
+    );
+    assert!(unbounded > 0, "the probe must exercise the unbounded-set path");
+}
+
 // --- Multivariate GAM plug-in (Bayesian publishes a pointwise band) ----------
 
 /// Per-coordinate tallies of the Bayesian band, each backing a record of
@@ -773,20 +977,36 @@ fn directional_derivative_bayesian_nominal_90_coverage() {
     assert_all_nominal(&tallies);
 }
 
-// --- Withheld intervals stay withheld (not a coverage run) -------------------
+// --- Point-derivative transforms now publish a delta-method interval ----------
+//
+// Every scalar point-derivative scale (elasticity, semi-elasticities, and the
+// transformed second derivative) publishes a Frequentist interval: the direct
+// coordinate SE for the identity / log-treatment order-1 cases, and the full
+// delta method on the joint local-coordinate covariance Σ_θ for the nonlinear
+// transforms. Only the multivariate GAM plug-in (Jacobian / directional) still
+// withholds the Frequentist interval; it needs a coefficient covariance the
+// additive-GAM plug-in does not yet expose (see the calibration-readiness audit).
 
 #[test]
-fn frequentist_withheld_derivative_intervals_stay_withheld() {
+fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
     let data = point_data(400, 7);
     let graph = point_graph();
-    let withheld = |response: &CausalResponse| {
-        matches!(response.uncertainty, ResponseUncertainty::None)
-            && response
-                .support
-                .warnings
-                .iter()
-                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+    let delta_note = |response: &CausalResponse| {
+        response
+            .support
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "response.derivative_interval_delta_method")
     };
+    let no_withheld = |response: &CausalResponse| {
+        !response
+            .support
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "response.derivative_interval_withheld")
+    };
+    // Each transform publishes a Confidence scalar. Elasticity uses Fieller
+    // bounds; the remaining transforms use a delta-method interval.
     for (label, functional) in [
         ("elasticity", point_query(DerivativeScale::LogLog)),
         ("semi_elasticity_log_outcome", point_query(DerivativeScale::LogOutcome)),
@@ -803,8 +1023,32 @@ fn frequentist_withheld_derivative_intervals_stay_withheld() {
     ] {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
         assert!(scalar_value(&response).is_finite(), "{label}: point value must publish");
-        assert!(withheld(&response), "{label}: Frequentist interval must stay withheld");
+        let (lower, upper) =
+            scalar_interval(&response).unwrap_or_else(|| panic!("{label}: interval must publish"));
+        assert!(lower <= upper, "{label}: interval must be ordered");
+        assert!(
+            matches!(
+                response.uncertainty,
+                ResponseUncertainty::Scalar {
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    ..
+                }
+            ),
+            "{label}: interval must be a confidence scalar"
+        );
+        let note = if label == "elasticity" {
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_fieller")
+        } else {
+            delta_note(&response)
+        };
+        assert!(note, "{label}: must disclose the interval construction");
+        assert!(no_withheld(&response), "{label}: must not withhold");
     }
+    // The identity / log-treatment order-1 cases keep their direct-SE interval.
     for (label, functional) in [
         ("semi_elasticity_log_treatment", point_query(DerivativeScale::LogTreatment)),
         ("point_derivative", point_query(DerivativeScale::Identity)),
@@ -812,6 +1056,7 @@ fn frequentist_withheld_derivative_intervals_stay_withheld() {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
         assert!(scalar_interval(&response).is_some(), "{label}: interval is published");
     }
+    // The multivariate GAM plug-in still withholds the Frequentist interval.
     let gam = gam_data(300, 7);
     for (label, functional) in
         [("jacobian", jacobian_query()), ("directional", directional_query())]
@@ -819,7 +1064,7 @@ fn frequentist_withheld_derivative_intervals_stay_withheld() {
         let response = run(&gam, &gam_graph(), functional, None, None, 7).unwrap();
         assert!(
             matches!(response.uncertainty, ResponseUncertainty::None),
-            "{label}: Frequentist GAM plug-in publishes no interval"
+            "{label}: Frequentist GAM plug-in still publishes no interval"
         );
     }
 }

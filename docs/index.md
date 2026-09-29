@@ -6,10 +6,10 @@ answer means—its assumptions, identification status, empirical support,
 uncertainty, provenance, and limits—when the analysis is estimated, reused,
 combined, saved, transported, or consumed by other software.
 
-> **Antecedent 2.0 is the stable release.** Install it with
+> **Antecedent 2.1.0.** Install it with
 > `python -m pip install --upgrade antecedent` (Python 3.11+), then begin with
 > the [Python quickstart](python-workflow.md). Read the
-> [2.0.0 release notes](release-notes/v2.0.0.md) when upgrading from an earlier
+> [2.1.0 release notes](release-notes/v2.1.0.md) when upgrading from an earlier
 > release.
 
 Most causal failures in software are semantic failures at boundaries. Read
@@ -33,11 +33,14 @@ number.
 Start an ordinary analysis with the [Python workflow](python-workflow.md) or
 [Rust quickstart](rust-quickstart.md). The same model extends to discovery and
 structural uncertainty, response and temporal questions, Bayesian inference,
-validation, counterfactuals, learner-backed estimation, and transport across
-populations. Those are different causal programs, not disconnected products.
+validation, counterfactuals, learner-backed estimation, transport across
+populations, and the 2.1 design-family studies — randomized and factorial
+experiments, held-out policy value, quasi-experimental designs, survival, and
+longitudinal regimes. Those are different causal programs, not disconnected
+products.
 
 For exact public boundaries, consult the [support matrix](support-matrix.md).
 An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
-Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [2.0 release notes](release-notes/v2.0.0.md).
+Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [2.1.0 release notes](release-notes/v2.1.0.md).

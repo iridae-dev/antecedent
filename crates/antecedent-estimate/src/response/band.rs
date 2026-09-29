@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ResponseUncertainty};
+use antecedent_core::{CausalRng, IntervalInterpretation, ResponseUncertainty};
 use antecedent_stats::normal_ppf;
 
 use crate::EstimationError;
@@ -76,5 +76,74 @@ pub(super) fn simultaneous_multiplier_band(
         upper: Arc::from(upper),
         replicates,
         interpretation: antecedent_core::IntervalInterpretation::Confidence,
+    })
+}
+
+/// A fixed-grid credible band from coherent joint posterior response draws.
+///
+/// `columns[g][draw]` must refer to the same posterior draw at every grid point.
+/// The maximum standardized deviation is calculated once per draw, retaining
+/// the posterior dependence between the coordinates of the response curve.
+pub(super) fn simultaneous_posterior_band(
+    mean: &[f64],
+    columns: &[Vec<f64>],
+    pointwise_lower: &[f64],
+    pointwise_upper: &[f64],
+    standard_deviations: &[f64],
+    level: f64,
+) -> Result<ResponseUncertainty, EstimationError> {
+    let grid_len = mean.len();
+    let n_draws = columns.first().map_or(0, Vec::len);
+    if grid_len == 0
+        || columns.len() != grid_len
+        || pointwise_lower.len() != grid_len
+        || pointwise_upper.len() != grid_len
+        || standard_deviations.len() != grid_len
+        || n_draws < 100
+        || !level.is_finite()
+        || !(0.0..1.0).contains(&level)
+        || columns.iter().any(|column| column.len() != n_draws)
+        || mean.iter().any(|x| !x.is_finite())
+        || standard_deviations.iter().any(|sd| !sd.is_finite() || *sd <= f64::EPSILON)
+    {
+        return Err(EstimationError::unsupported(
+            "simultaneous Bayesian bands require at least 100 coherent finite posterior draws and non-degenerate grid uncertainty",
+        ));
+    }
+    let mut maxima = Vec::with_capacity(n_draws);
+    for draw in 0..n_draws {
+        let mut maximum = 0.0_f64;
+        for grid in 0..grid_len {
+            let value = columns[grid][draw];
+            if !value.is_finite() {
+                return Err(EstimationError::unsupported(
+                    "simultaneous Bayesian band contains a non-finite posterior draw",
+                ));
+            }
+            maximum = maximum.max((value - mean[grid]).abs() / standard_deviations[grid]);
+        }
+        maxima.push(maximum);
+    }
+    maxima.sort_by(f64::total_cmp);
+    // Finite-draw marginal quantiles can extend beyond the empirical maximum's
+    // requested quantile. Containing them keeps the joint statement coherent
+    // with the pointwise intervals published for the same draws.
+    let mut critical = monte_carlo_critical(&maxima, level);
+    for grid in 0..grid_len {
+        critical = critical.max((mean[grid] - pointwise_lower[grid]) / standard_deviations[grid]);
+        critical = critical.max((pointwise_upper[grid] - mean[grid]) / standard_deviations[grid]);
+    }
+    let lower: Vec<f64> =
+        mean.iter().zip(standard_deviations).map(|(m, sd)| m - critical * sd).collect();
+    let upper: Vec<f64> =
+        mean.iter().zip(standard_deviations).map(|(m, sd)| m + critical * sd).collect();
+    Ok(ResponseUncertainty::SimultaneousBand {
+        level,
+        lower: Arc::from(lower),
+        upper: Arc::from(upper),
+        replicates: u32::try_from(n_draws).map_err(|_| {
+            EstimationError::unsupported("posterior draw count exceeds simultaneous band capacity")
+        })?,
+        interpretation: IntervalInterpretation::Credible,
     })
 }

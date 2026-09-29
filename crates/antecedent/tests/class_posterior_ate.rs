@@ -874,53 +874,72 @@ fn class_posterior_graph_posterior_intervention_response_cheap_and_full_run() {
         interventions: Arc::from([Intervention::set(t, Value::f64(0.5))]),
     });
     for (label, gp) in [
-        ("Cpdag", cpdag_posterior(&[1.0], &[two_completion_cpdag()])),
-        ("Pag", pag_posterior(&[1.0], &[pag_from_dag_edges(&[(2, 0), (0, 1)])])),
+        ("Cpdag", cpdag_posterior(&[0.8, 0.2], &[two_completion_cpdag(), reverse_causal_cpdag()])),
+        (
+            "Pag",
+            pag_posterior(
+                &[0.8, 0.2],
+                &[pag_from_dag_edges(&[(2, 0), (0, 1)]), pag_from_dag_edges(&[(1, 0)])],
+            ),
+        ),
     ] {
-        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-            let result = Study::tabular(data.clone())
-                .graph_posterior(gp.clone())
-                .query(CausalQuery::Response(level.clone()))
-                .refute(suite)
-                .inference(InferenceMode::Frequentist)
-                .bootstrap_replicates(0)
-                .build()
-                .unwrap()
-                .run(&ExecutionContext::for_tests(1))
-                .unwrap();
-            assert!(result.structural_response.is_some(), "{label} {suite:?}: class IR mixture");
-            assert!(
-                !result.refutations.is_empty(),
-                "{label} {suite:?} must run plugin-level refuters"
-            );
-            assert!(
-                result
-                    .diagnostics
-                    .iter()
-                    .any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
-                "{label} {suite:?}: not a contrast-shaped ATE suite"
-            );
-            assert!(
-                result.refutations.iter().any(|r| r.refuter.contains("overlap")),
-                "{label} {suite:?}: overlap on the intervention level"
-            );
-            if suite == RefuteSuite::Full {
-                let stability_report = result.refutations.iter().any(|r| {
-                    r.refuter.contains("bootstrap")
-                        || r.refuter.contains("data_subset")
-                        || r.refuter.contains("graph")
-                });
-                let stability_requested = result.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == "refute.validator.not_applicable"
-                        && d.fields.iter().any(|(k, v)| {
-                            k.as_ref() == "validator"
-                                && matches!(v.as_ref(), "bootstrap" | "data_subset" | "graph")
-                        })
-                });
+        for inference in [
+            InferenceMode::Frequentist,
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)),
+        ] {
+            for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+                let result = Study::tabular(data.clone())
+                    .graph_posterior(gp.clone())
+                    .query(CausalQuery::Response(level.clone()))
+                    .refute(suite)
+                    .inference(inference.clone())
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap()
+                    .run(&ExecutionContext::for_tests(1))
+                    .unwrap();
                 assert!(
-                    stability_report || stability_requested,
-                    "{label} {suite:?}: full must request sampling-stability"
+                    result.structural_response.is_some(),
+                    "{label} {inference:?} {suite:?}: class IR mixture"
                 );
+                let structural = result.structural_response.as_ref().unwrap();
+                assert!(
+                    (structural.unidentified_mass - 0.2).abs() < 1e-12,
+                    "{label} {inference:?} {suite:?}: unidentified graph mass remains visible"
+                );
+                assert!(
+                    !result.refutations.is_empty(),
+                    "{label} {inference:?} {suite:?} must run plugin-level refuters"
+                );
+                assert!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
+                    "{label} {inference:?} {suite:?}: not a contrast-shaped ATE suite"
+                );
+                assert!(
+                    result.refutations.iter().any(|r| r.refuter.contains("overlap")),
+                    "{label} {inference:?} {suite:?}: overlap on the intervention level"
+                );
+                if suite == RefuteSuite::Full {
+                    let stability_report = result.refutations.iter().any(|r| {
+                        r.refuter.contains("bootstrap")
+                            || r.refuter.contains("data_subset")
+                            || r.refuter.contains("graph")
+                    });
+                    let stability_requested = result.diagnostics.iter().any(|d| {
+                        d.code.as_ref() == "refute.validator.not_applicable"
+                            && d.fields.iter().any(|(k, v)| {
+                                k.as_ref() == "validator"
+                                    && matches!(v.as_ref(), "bootstrap" | "data_subset" | "graph")
+                            })
+                    });
+                    assert!(
+                        stability_report || stability_requested,
+                        "{label} {inference:?} {suite:?}: full must request sampling-stability"
+                    );
+                }
             }
         }
     }

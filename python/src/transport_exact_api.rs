@@ -1,16 +1,12 @@
 //! Native authority for classical identification and exact-law stage evaluation.
 use crate::graphs::Admg;
 use crate::transport_interference_api::parse_catalog;
-use antecedent_core::{ExecutionContext, Value, VariableId};
-use antecedent_expr::{
-    Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
-    LawTolerance,
-};
+use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
+use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_classical_transport,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::sync::Arc;
 
@@ -40,16 +36,7 @@ impl ClassicalTransportStage {
         self.diagram.clone()
     }
 }
-fn error(e: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(e.to_string())
-}
-fn resolve(names: &[String], name: &str) -> PyResult<VariableId> {
-    let index = names
-        .iter()
-        .position(|v| v == name)
-        .ok_or_else(|| error(format!("unknown variable {name}")))?;
-    Ok(VariableId::from_raw(u32::try_from(index).map_err(error)?))
-}
+use crate::transport_common::{RegimeCheck, error, parse_laws, resolve};
 #[pymethods]
 impl ClassicalTransportStage {
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
@@ -60,6 +47,69 @@ impl ClassicalTransportStage {
     }
     fn certificate_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.certificate).map_err(error)
+    }
+    #[pyo3(signature=(catalog,*,max_steps=100_000,max_depth=256))]
+    fn proof_graph_json(
+        &self,
+        catalog: &Bound<'_, PyAny>,
+        max_steps: usize,
+        max_depth: usize,
+    ) -> PyResult<String> {
+        let antecedent_io::transport_certificate::CertificateOutcome::Identified(proof) =
+            &self.certificate.outcome
+        else {
+            return Err(error("proof graph requires an identified theorem result"));
+        };
+        let catalog = parse_catalog(catalog, &self.graph)?;
+        let query = ClassicalTransportQuery {
+            outcomes: self.certificate.outcomes.iter().copied().map(VariableId::from_raw).collect(),
+            treatments: self
+                .certificate
+                .treatments
+                .iter()
+                .copied()
+                .map(VariableId::from_raw)
+                .collect(),
+            source: Arc::from(self.certificate.source.as_str()),
+            target: Arc::from(self.certificate.target.as_str()),
+        };
+        let view = proof
+            .inspect(
+                &self.diagram,
+                &query,
+                &catalog,
+                SidLimits { steps: max_steps, depth: max_depth },
+                &ExecutionContext::production_default(0),
+            )
+            .map_err(error)?;
+        let steps = view
+            .steps
+            .iter()
+            .map(|step| {
+                serde_json::json!({
+                    "index": step.index,
+                    "rule": step.rule,
+                    "children": step.children,
+                    "factor_nodes": step.factor_nodes,
+                })
+            })
+            .collect::<Vec<_>>();
+        let factors = view.factors.iter().map(|factor| serde_json::json!({
+            "expression_node": factor.expression_node,
+            "population": factor.population,
+            "variables": factor.variables.iter().map(|v| &self.graph.names[v.raw() as usize]).collect::<Vec<_>>(),
+            "conditioned_on": factor.conditioned_on.iter().map(|v| &self.graph.names[v.raw() as usize]).collect::<Vec<_>>(),
+            "interventions": factor.interventions.iter().map(|v| &self.graph.names[v.raw() as usize]).collect::<Vec<_>>(),
+            "supplied_by": factor.supplied_by.map(RegimeId::raw),
+            "snapshot_identity": factor.snapshot_identity,
+            "binding_failure": factor.binding_failure,
+        })).collect::<Vec<_>>();
+        Ok(serde_json::json!({
+            "root_expression_node":view.root_expression_node,
+            "steps":steps,
+            "factors":factors,
+        })
+        .to_string())
     }
     #[getter]
     fn outcome(&self) -> &'static str {
@@ -221,17 +271,11 @@ impl ClassicalTransportStage {
                     .map_err(error)?
                 {
                     antecedent_identify::CatalogTransportResult::Identified(bound) => *bound,
-                    antecedent_identify::CatalogTransportResult::MissingEvidence {
-                        searched,
-                        obligations,
-                    }
-                    | antecedent_identify::CatalogTransportResult::NotCertified {
-                        searched,
-                        obligations,
-                    } => {
-                        return Err(error(format!(
-                            "bounded catalog search {searched:?}: {obligations:?}"
-                        )));
+                    other => {
+                        return Err(crate::transport_common::catalog_search_refusal(
+                            &other,
+                            &graph.names,
+                        ));
                     }
                 },
             };
@@ -454,62 +498,7 @@ pub(crate) fn parse_exact_data(
     graph: &Admg,
     max_support_rows: usize,
 ) -> PyResult<ExactTransportData> {
-    let mut tables = Vec::new();
-    for table in laws.try_iter()? {
-        let table = table?;
-        let population: String = table.getattr("population")?.extract()?;
-        let label: String = table.getattr("regime")?.extract()?;
-        let regime = catalog
-            .regimes
-            .iter()
-            .find(|r| {
-                r.label.as_deref() == Some(label.as_str()) && r.population.as_ref() == population
-            })
-            .ok_or_else(|| error("exact law names an unknown population/regime"))?;
-        let axes: Vec<(String, Vec<f64>)> = table.getattr("axes")?.extract()?;
-        let axes = axes
-            .into_iter()
-            .map(|(name, values)| {
-                Ok(DiscreteAxis {
-                    variable: resolve(&graph.names, &name)?,
-                    values: values.into_iter().map(Value::f64).collect(),
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let interventions: Vec<(String, f64)> = table.getattr("interventions")?.extract()?;
-        let interventions = interventions
-            .into_iter()
-            .map(|(name, value)| {
-                Ok(antecedent_expr::InterventionAssignment {
-                    variable: resolve(&graph.names, &name)?,
-                    value: Value::f64(value),
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        if interventions.len() != regime.interventions.len()
-            || !interventions.iter().all(|a| regime.interventions.contains(&a.variable))
-            || axes.iter().any(|a| !regime.measured.contains(&a.variable))
-        {
-            return Err(error("exact law disagrees with its evidence regime"));
-        }
-        let probabilities: Vec<f64> = table.getattr("probabilities")?.extract()?;
-        let snapshot: String = table.getattr("snapshot_identity")?.extract()?;
-        let absolute: f64 = table.getattr("absolute_tolerance")?.extract()?;
-        let relative: f64 = table.getattr("relative_tolerance")?.extract()?;
-        tables.push(
-            ExactDiscreteLaw::try_new(
-                population,
-                regime.id,
-                interventions,
-                axes,
-                probabilities,
-                snapshot,
-                LawTolerance { absolute, relative },
-            )
-            .map_err(error)?,
-        );
-    }
-    ExactTransportData::try_new(tables, max_support_rows).map_err(error)
+    parse_laws(laws, catalog, graph, max_support_rows, RegimeCheck::Strict)
 }
 
 #[pyclass(skip_from_py_object)]
@@ -527,6 +516,173 @@ impl PreparedExactStage {
         ctx.memory.hard_limit_bytes = self.memory_bytes;
         crate::apply_cancel(&mut ctx, cancel);
         ctx
+    }
+
+    fn run_mechanism_sensitivity(
+        &self,
+        py: Python<'_>,
+        outcome_values: Vec<f64>,
+        parent_cardinalities: Vec<usize>,
+        treatment_levels: [usize; 2],
+        perturbed_treatment_level: Option<usize>,
+        max_fraction: f64,
+        source_kernel_regime: u32,
+        source_kernel_snapshot: String,
+        target_parent_regime: u32,
+        target_parent_snapshot: String,
+        source_kernel: Vec<(Vec<usize>, Vec<f64>)>,
+        source_parent_law: Vec<(Vec<usize>, f64)>,
+        target_parent_law: Vec<(usize, Vec<usize>, f64)>,
+        decision_threshold: Option<f64>,
+        perturbed_root_mechanism: Option<String>,
+        perturbed_conditional_mechanism: Option<String>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        let spec = antecedent_validate::FixedGraphMechanismSensitivitySpec {
+            outcome_values,
+            parent_cardinalities,
+            treatment_levels,
+            max_fraction,
+            decision_threshold,
+            source_kernel_regime: RegimeId::from_raw(source_kernel_regime),
+            source_kernel_snapshot,
+            target_parent_regime: RegimeId::from_raw(target_parent_regime),
+            target_parent_snapshot,
+            source_kernel: source_kernel
+                .into_iter()
+                .map(|(parent_levels, outcome_probabilities)| {
+                    antecedent_validate::SourceOutcomeKernelRow {
+                        parent_levels,
+                        outcome_probabilities,
+                    }
+                })
+                .collect(),
+            source_parent_law: source_parent_law
+                .into_iter()
+                .map(|(parent_levels, probability)| antecedent_validate::SourceParentLawRow {
+                    parent_levels,
+                    probability,
+                })
+                .collect(),
+            target_parent_law: target_parent_law
+                .into_iter()
+                .map(|(treatment_level, parent_levels, probability)| {
+                    antecedent_validate::TargetParentLawRow {
+                        treatment_level,
+                        parent_levels,
+                        probability,
+                    }
+                })
+                .collect(),
+        };
+        let ctx = self.ctx(cancel);
+        let inner = self.inner.clone();
+        if let Some(mechanism_name) = perturbed_conditional_mechanism {
+            if perturbed_treatment_level.is_some() || perturbed_root_mechanism.is_some() {
+                return Err(error("choose one sensitivity mechanism family"));
+            }
+            let mechanism_index = self
+                .graph
+                .names
+                .iter()
+                .position(|name| name == &mechanism_name)
+                .ok_or_else(|| error("unknown conditional mechanism"))?;
+            let mechanism = VariableId::from_raw(
+                u32::try_from(mechanism_index)
+                    .map_err(|_| error("unknown conditional mechanism"))?,
+            );
+            let result = crate::detach_catch(py, move || {
+                inner
+                    .mechanism_sensitivity_conditional_mechanism(&spec, mechanism, &ctx)
+                    .map_err(error)
+            })?;
+            return serde_json::to_string(&serde_json::json!({
+                "estimand": result.estimand,
+                "outcome": self.graph.names[result.outcome.as_usize()],
+                "perturbed_conditional_mechanism": mechanism_name,
+                "source_population": result.source_population,
+                "target_population": result.target_population,
+                "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
+                "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
+                "assumptions": result.assumptions,
+                "baseline": result.baseline,
+                "assumption_range": {"minimum": result.minimum, "maximum": result.maximum},
+                "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
+                "decision_threshold": decision_threshold,
+                "tipping_fraction": result.tipping_fraction,
+                "fraction_domain": result.fraction_domain,
+                "optimization_receipt": {
+                    "minimizing_mechanism_level_by_parent_stratum": result.minimizing_mechanism_level_by_parent_stratum,
+                    "maximizing_mechanism_level_by_parent_stratum": result.maximizing_mechanism_level_by_parent_stratum
+                }
+            })).map_err(error);
+        }
+        if let Some(mechanism_name) = perturbed_root_mechanism {
+            if perturbed_treatment_level.is_some() {
+                return Err(error("choose one sensitivity mechanism family"));
+            }
+            let mechanism_index = self
+                .graph
+                .names
+                .iter()
+                .position(|name| name == &mechanism_name)
+                .ok_or_else(|| error("unknown root mechanism"))?;
+            let mechanism = VariableId::from_raw(
+                u32::try_from(mechanism_index).map_err(|_| error("unknown root mechanism"))?,
+            );
+            let result = crate::detach_catch(py, move || {
+                inner.mechanism_sensitivity_root_mechanism(&spec, mechanism, &ctx).map_err(error)
+            })?;
+            return serde_json::to_string(&serde_json::json!({
+                "estimand": result.estimand,
+                "outcome": self.graph.names[result.outcome.as_usize()],
+                "perturbed_root_mechanism": mechanism_name,
+                "source_population": result.source_population,
+                "target_population": result.target_population,
+                "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
+                "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
+                "assumptions": result.assumptions,
+                "baseline": result.baseline,
+                "assumption_range": {"minimum": result.minimum, "maximum": result.maximum},
+                "interval_interpretation": "assumption range; not a sampling interval or sharp causal bound",
+                "decision_threshold": decision_threshold,
+                "tipping_fraction": result.tipping_fraction,
+                "fraction_domain": result.fraction_domain,
+                "optimization_receipt": {
+                    "minimizing_mechanism_level": result.minimizing_mechanism_level,
+                    "maximizing_mechanism_level": result.maximizing_mechanism_level
+                }
+            })).map_err(error);
+        }
+        let result = crate::detach_catch(py, move || {
+            if let Some(level) = perturbed_treatment_level {
+                inner.mechanism_sensitivity_at_treatment_level(&spec, level, &ctx).map_err(error)
+            } else {
+                inner.mechanism_sensitivity(&spec, &ctx).map_err(error)
+            }
+        })?;
+        serde_json::to_string(&serde_json::json!({
+            "estimand": result.estimand,
+            "outcome": self.graph.names[result.outcome.as_usize()],
+            "parents": result.parents.iter().map(|parent| self.graph.names[parent.as_usize()].as_str()).collect::<Vec<_>>(),
+            "source_population": result.source_population,
+            "target_population": result.target_population,
+            "source_kernel_binding": {"regime": result.source_kernel_binding.0.raw(), "snapshot": result.source_kernel_binding.1},
+            "target_parent_binding": {"regime": result.target_parent_binding.0.raw(), "snapshot": result.target_parent_binding.1},
+            "assumptions": result.assumptions,
+            "baseline": result.response.baseline,
+            "assumption_range": {"minimum": result.response.minimum, "maximum": result.response.maximum},
+            "interval_interpretation": result.response.interval_interpretation,
+            "decision_threshold": decision_threshold,
+            "perturbed_treatment_level": perturbed_treatment_level,
+            "tipping_fraction": result.response.tipping_fraction,
+            "optimization_receipt": {
+                "minimizing_outcome_by_stratum": result.response.receipt.minimizing_outcome_by_stratum,
+                "maximizing_outcome_by_stratum": result.response.receipt.maximizing_outcome_by_stratum,
+                "fraction_domain": result.response.receipt.fraction_domain,
+                "method": result.response.receipt.method
+            }
+        })).map_err(error)
     }
     fn payload(&self, result: &antecedent::ExactStudyResult) -> PyResult<ExactStagePayload> {
         Ok((
@@ -548,6 +704,48 @@ impl PreparedExactStage {
 }
 #[pymethods]
 impl PreparedExactStage {
+    #[pyo3(signature=(outcome_values, parent_cardinalities, treatment_levels, max_fraction, source_kernel_regime, source_kernel_snapshot, target_parent_regime, target_parent_snapshot, source_kernel, source_parent_law, target_parent_law, decision_threshold=None, perturbed_treatment_level=None, perturbed_root_mechanism=None, perturbed_conditional_mechanism=None, cancel=None))]
+    fn mechanism_sensitivity(
+        &self,
+        py: Python<'_>,
+        outcome_values: Vec<f64>,
+        parent_cardinalities: Vec<usize>,
+        treatment_levels: [usize; 2],
+        max_fraction: f64,
+        source_kernel_regime: u32,
+        source_kernel_snapshot: String,
+        target_parent_regime: u32,
+        target_parent_snapshot: String,
+        source_kernel: Vec<(Vec<usize>, Vec<f64>)>,
+        source_parent_law: Vec<(Vec<usize>, f64)>,
+        target_parent_law: Vec<(usize, Vec<usize>, f64)>,
+        decision_threshold: Option<f64>,
+        perturbed_treatment_level: Option<usize>,
+        perturbed_root_mechanism: Option<String>,
+        perturbed_conditional_mechanism: Option<String>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        self.run_mechanism_sensitivity(
+            py,
+            outcome_values,
+            parent_cardinalities,
+            treatment_levels,
+            perturbed_treatment_level,
+            max_fraction,
+            source_kernel_regime,
+            source_kernel_snapshot,
+            target_parent_regime,
+            target_parent_snapshot,
+            source_kernel,
+            source_parent_law,
+            target_parent_law,
+            decision_threshold,
+            perturbed_root_mechanism,
+            perturbed_conditional_mechanism,
+            cancel,
+        )
+    }
+
     #[getter]
     fn outcomes(&self) -> Vec<String> {
         self.inner.query().outcomes.iter().map(|v| self.graph.names[v.as_usize()].clone()).collect()
@@ -636,7 +834,7 @@ impl PreparedExactStage {
             "assumptions":{"available":true,"summary":"declared_selection_diagram_and_exact_laws","payload":{"empirically_verified":false,"source":self.inner.query().source.as_ref(),"target":self.inner.query().target.as_ref(),"selection_targets":self.inner.diagram().selection_targets().iter().map(|v|self.graph.names[v.as_usize()].as_str()).collect::<Vec<_>>()}},
             "target_id":view.identities.target,"observation_id":view.identities.observation,"inference_binding_id":view.identities.inference_binding,"program_id":view.identities.program,"identification_id":view.identities.identification,
             "identification_product_id":view.identities.identification_product,"data_snapshot_id":view.identities.snapshot,"execution_id":view.identities.execution,
-            "supported_operations":["estimate","replace_snapshot","refresh","export"],
+            "supported_operations":["estimate","mechanism_sensitivity","replace_snapshot","refresh","export"],
             "formula":view.formula
         }).to_string()
     }
