@@ -26,11 +26,12 @@ pub use meta::{
     identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
 };
 pub use mz_transport::{
-    MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
+    BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
     MzSearchInspection, MzStageRecord, MzTransportDecision, MzTransportDerivation,
     MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
-    decide_mz_transport, validate_mz_transport_query, verify_mz_transport_obstruction,
+    bind_mz_transport_catalog, decide_mz_transport, validate_mz_transport_query,
+    verify_mz_transport_obstruction,
 };
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,

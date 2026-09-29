@@ -217,11 +217,13 @@ pub use serial_dependence::{
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use statistical_transport::{
-    BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, NominalZTransportInterval,
-    PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL, StatisticalTransportEstimate,
-    TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
-    evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
-    evaluate_statistical_transport, nominal_z_transport_interval, percentile_interval,
+    BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, MzTransportIntervals,
+    NominalZTransportInterval, PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL,
+    StatisticalTransportEstimate, TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
+    bayesian_z_transport_interval, evaluate_bayesian_statistical_transport,
+    evaluate_bayesian_statistical_transport_grid, evaluate_statistical_transport,
+    mz_sampling_dependence, mz_transport_bootstrap_interval, nominal_z_transport_interval,
+    percentile_interval,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
@@ -264,10 +266,11 @@ pub use temporal_sequential_tuples::{
 };
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
-    TransportResponseGridEstimate, evaluate_exact_transport, evaluate_exact_z_transport,
-    is_support_failure, prepare_exact_transport, prepare_exact_z_transport, refuse_budget,
-    refuse_cancelled, refuse_eval, transport_augmented_response_grid, transport_outcome_kind,
-    trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
+    TransportResponseGridEstimate, evaluate_exact_mz_transport, evaluate_exact_transport,
+    evaluate_exact_z_transport, is_support_failure, prepare_exact_transport,
+    prepare_exact_z_transport, refuse_budget, refuse_cancelled, refuse_eval,
+    transport_augmented_response_grid, transport_outcome_kind, trial_to_target_bayesian_bootstrap,
+    trial_to_target_effect, trial_to_target_ipw_se,
 };
 pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 

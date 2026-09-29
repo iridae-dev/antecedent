@@ -704,6 +704,119 @@ fn bind(
     }
 }
 
+/// A checked mz derivation whose every factor leaf is bound to the catalog
+/// regime that supplies it. Every route (target-only, single-source, combined)
+/// has the same shape, so one provider evaluates them all.
+#[derive(Clone, Debug)]
+pub struct BoundMzTransportFunctional {
+    derivation: MzTransportDerivation,
+    arena: CausalExprArena,
+    root: ExprId,
+    catalog: EvidenceCatalog,
+    cited: Arc<[RegimeId]>,
+}
+
+impl BoundMzTransportFunctional {
+    /// Checked symbolic derivation.
+    #[must_use]
+    pub const fn derivation(&self) -> &MzTransportDerivation {
+        &self.derivation
+    }
+    /// Regime-bound formula arena.
+    #[must_use]
+    pub const fn arena(&self) -> &CausalExprArena {
+        &self.arena
+    }
+    /// Regime-bound formula root.
+    #[must_use]
+    pub const fn root(&self) -> ExprId {
+        self.root
+    }
+    /// Frozen catalog the leaves are bound to.
+    #[must_use]
+    pub const fn catalog(&self) -> &EvidenceCatalog {
+        &self.catalog
+    }
+    /// Every catalog regime a leaf cites, sorted and without repeats.
+    #[must_use]
+    pub fn cited_regimes(&self) -> &[RegimeId] {
+        &self.cited
+    }
+    /// The source (or target) population of each cited regime.
+    #[must_use]
+    pub fn cited_populations(&self) -> Vec<(RegimeId, Arc<str>)> {
+        self.cited
+            .iter()
+            .filter_map(|id| {
+                self.catalog
+                    .regimes
+                    .iter()
+                    .find(|r| r.id == *id)
+                    .map(|r| (*id, Arc::clone(&r.population)))
+            })
+            .collect()
+    }
+}
+
+/// Bind a checked derivation to a catalog. Each leaf binds only to a regime of
+/// its own population, so a factor is always evaluated from the source whose
+/// premises certified it.
+///
+/// # Errors
+///
+/// [`IdentificationError::MissingEvidence`] when a cited regime is absent; an
+/// invalid catalog; or a derivation checked against another graph.
+pub fn bind_mz_transport_catalog(
+    graph: &antecedent_graph::Admg,
+    derivation: &MzTransportDerivation,
+    catalog: &EvidenceCatalog,
+) -> Result<BoundMzTransportFunctional, IdentificationError> {
+    let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
+        .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
+    if super::graph_signature(&shared) != derivation.graph_signature {
+        return Err(IdentificationError::invalid_derivation("mz_transport.proof_input_mismatch"));
+    }
+    catalog.validate().map_err(|error| {
+        IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
+    })?;
+    let query = &derivation.query;
+    let (arena, root, cited) = if let Some(single) = &derivation.single {
+        let MzTransportRoute::SingleSource { population } = &derivation.route else {
+            return Err(IdentificationError::invalid_derivation("mz_transport.route_mismatch"));
+        };
+        let source =
+            query.sources.iter().find(|s| s.population == *population).ok_or_else(|| {
+                IdentificationError::invalid_derivation("mz_transport.route_mismatch")
+            })?;
+        let diagram =
+            SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
+                .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
+        let bound =
+            bind_z_transport_catalog(&diagram, &query.source_query(source), single, catalog)?;
+        (bound.arena().clone(), bound.root(), Arc::from(bound.cited_regimes()))
+    } else {
+        let mut arena = derivation.arena.clone();
+        let mut memo = std::collections::HashMap::new();
+        let mut cited = Vec::new();
+        let root = bind_recursive_expression(
+            derivation.root,
+            &mut arena,
+            catalog,
+            &query.treatments,
+            &mut memo,
+            &mut cited,
+        )?;
+        (arena, root, cited_regimes(cited))
+    };
+    Ok(BoundMzTransportFunctional {
+        derivation: derivation.clone(),
+        arena,
+        root,
+        catalog: catalog.clone(),
+        cited,
+    })
+}
+
 /// A terminal reached with no active experiment is forced on every search
 /// path; only then does a failure of every source mean the search failed.
 fn forced_terminal(terminal: &TrzTerminalFailure) -> bool {

@@ -47,13 +47,13 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
-    BoundTransportFunctional, BoundZTransportFunctional, CatalogTransportResult,
-    CheckedTransportDerivation, ClassicalTransportDerivation, ClassicalTransportQuery,
-    ClassicalTransportResult, ComponentFactorization, MZ_TRANSPORT_DEFAULT_LIMITS,
-    MZ_TRANSPORT_MAX_CANDIDATE_REGIMES, MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE,
-    MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES, MetaSource, MetaTransportQuery,
-    MzSearchInspection, MzStageRecord, MzTransportDecision, MzTransportDerivation,
-    MzTransportObstruction, MzTransportQuery, MzTransportRoute, SidLimits,
+    BoundMzTransportFunctional, BoundTransportFunctional, BoundZTransportFunctional,
+    CatalogTransportResult, CheckedTransportDerivation, ClassicalTransportDerivation,
+    ClassicalTransportQuery, ClassicalTransportResult, ComponentFactorization,
+    MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
+    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
+    MetaSource, MetaTransportQuery, MzSearchInspection, MzStageRecord, MzTransportDecision,
+    MzTransportDerivation, MzTransportObstruction, MzTransportQuery, MzTransportRoute, SidLimits,
     TwoSourceZTransportComponent, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
     ValidatedMzTransportQuery, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES,
     Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
@@ -61,13 +61,14 @@ pub use sid::{
     ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportNotCertifiedInspection,
     ZTransportNotCertifiedKind, ZTransportObstruction, ZTransportObstructionRecord,
     ZTransportOutcome, ZTransportProofInspection, ZTransportQuery, ZTransportResult,
-    ZTransportSourceSpec, ZTransportTerminalRecord, bind_z_transport_catalog, decide_mz_transport,
-    decide_two_source_z_transport, decide_z_transport_inspecting, decide_z_transport_with_catalog,
-    identify_catalog_transport, identify_classical_transport, identify_meta_catalog,
-    identify_meta_transport, identify_z_transport, identify_z_transport_reporting,
-    validate_mz_transport_query, validate_z_experiment_family, validate_z_transport_query,
-    verify_classical_transport, verify_meta_s_hedge, verify_meta_transport,
-    verify_mz_transport_obstruction, verify_z_transport_derivation, verify_z_transport_obstruction,
+    ZTransportSourceSpec, ZTransportTerminalRecord, bind_mz_transport_catalog,
+    bind_z_transport_catalog, decide_mz_transport, decide_two_source_z_transport,
+    decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_catalog_transport,
+    identify_classical_transport, identify_meta_catalog, identify_meta_transport,
+    identify_z_transport, identify_z_transport_reporting, validate_mz_transport_query,
+    validate_z_experiment_family, validate_z_transport_query, verify_classical_transport,
+    verify_meta_s_hedge, verify_meta_transport, verify_mz_transport_obstruction,
+    verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 mod transport_lower;
 

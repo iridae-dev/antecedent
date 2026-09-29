@@ -930,7 +930,7 @@ struct CitedTables<'a> {
 
 impl<'a> CitedTables<'a> {
     fn new(
-        functional: &antecedent_identify::BoundZTransportFunctional,
+        functional: &dyn crate::transport::BoundZFormula,
         data: &'a antecedent_expr::ExactTransportData,
     ) -> Result<Self, EstimationError> {
         let laws = data.laws();
@@ -1038,16 +1038,193 @@ pub fn nominal_z_transport_interval(
         limits,
         &spec,
         ctx,
-        |counts, rng, probabilities, resampled| {
-            if !resample_cited_counts(counts, rng, &mut indexes, resampled) {
-                return false;
-            }
-            let total = resampled.iter().sum::<u64>() as f64;
-            probabilities.clear();
-            probabilities.extend(resampled.iter().map(|count| *count as f64 / total));
-            true
-        },
+        |counts, rng, out, resampled| bootstrap_draw(counts, rng, &mut indexes, out, resampled),
     )
+}
+
+/// One iid row-bootstrap draw of a cited count table, as counts and frequencies.
+fn bootstrap_draw(
+    counts: &[u64],
+    rng: &mut antecedent_core::CausalRng,
+    indexes: &mut Vec<u32>,
+    probabilities: &mut Vec<f64>,
+    resampled: &mut [u64],
+) -> bool {
+    if !resample_cited_counts(counts, rng, indexes, resampled) {
+        return false;
+    }
+    let total = resampled.iter().sum::<u64>() as f64;
+    probabilities.clear();
+    probabilities.extend(resampled.iter().map(|count| *count as f64 / total));
+    true
+}
+
+/// Joint percentile-bootstrap intervals for a multi-source mz functional.
+///
+/// Every replicate draws all cited tables once under one replicate id and
+/// evaluates every request on that draw, so each contrast is a within-replicate
+/// difference. Independent studies are resampled independently; tables that
+/// declare the same forwarded dataset are resampled as one. The intervals are
+/// nominal and pointwise and carry [`Z_TRANSPORT_INTERVAL_NOT_MEASURED`]: this
+/// route publishes no calibrated claim until its coverage records exist.
+#[derive(Clone, Debug)]
+pub struct MzTransportIntervals {
+    /// `percentile_bootstrap`.
+    pub method: Arc<str>,
+    /// Always [`Z_TRANSPORT_INTERVAL_NOT_MEASURED`].
+    pub reason: Arc<str>,
+    /// Nominal equal-tail level.
+    pub coverage_target: f64,
+    /// Per request, in request order.
+    pub requests: Arc<[MzRequestInterval]>,
+    /// `(k, outcome, lower, upper)` for the mean of request `k` minus request 0.
+    pub contrasts: Arc<[(usize, VariableId, f64, f64)]>,
+    /// Requested replicates.
+    pub replicates_requested: u32,
+    /// Replicates where every request evaluated.
+    pub replicates_ok: u32,
+    /// Replicates where a draw or any request failed.
+    pub replicates_failed: u32,
+}
+
+/// Pointwise intervals of one request of a joint mz bootstrap.
+#[derive(Clone, Debug)]
+pub struct MzRequestInterval {
+    /// Atom intervals in distribution order.
+    pub atom_intervals: Arc<[(f64, f64)]>,
+    /// `(outcome, lower, upper)` per outcome mean.
+    pub mean_intervals: Arc<[(VariableId, f64, f64)]>,
+}
+
+/// Whether the declared sampling of the studies a multi-source formula cites
+/// licenses a joint bootstrap, or the reason the interval is withheld.
+///
+/// Every cited regime needs an independent-design binding without weights.
+/// Each pair of cited regimes must be declared independent studies, or the same
+/// forwarded dataset (resampled as one table). Linked units and shared data
+/// without a forwarded dataset identity cannot be resampled jointly and are
+/// refused; anything undeclared is `sampling_dependence_unknown`.
+///
+/// # Errors
+/// The stable reason the interval is withheld; the point is unaffected.
+pub fn mz_sampling_dependence(
+    functional: &antecedent_identify::BoundMzTransportFunctional,
+) -> Result<(), &'static str> {
+    use antecedent_core::{SamplingDesign, SharedData};
+    let catalog = functional.catalog();
+    let cited = functional.cited_regimes();
+    for regime in cited {
+        let Some(binding) = catalog.bindings.iter().find(|b| b.regime == *regime) else {
+            return Err("sampling_dependence_unknown");
+        };
+        if binding.sampling != SamplingDesign::Independent || binding.weights.is_some() {
+            return Err("transport.unsupported_dependence");
+        }
+    }
+    for (i, a) in cited.iter().enumerate() {
+        for b in &cited[i + 1..] {
+            match catalog.shared_data(*a, *b) {
+                SharedData::IndependentStudies => {}
+                SharedData::SameDataset => {
+                    let dataset = |id| {
+                        catalog
+                            .bindings
+                            .iter()
+                            .find(|bd| bd.regime == id)
+                            .and_then(|bd| bd.dataset_identity.clone())
+                    };
+                    if dataset(*a).is_none() || dataset(*a) != dataset(*b) {
+                        return Err("transport.unsupported_dependence");
+                    }
+                }
+                SharedData::LinkedUnits => return Err("transport.unsupported_dependence"),
+                SharedData::Unknown => return Err("sampling_dependence_unknown"),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Joint percentile bootstrap of a multi-source mz functional over `requests`.
+///
+/// Exact laws, undeclared or unsupported dependence, and a bootstrap that fails
+/// too often withhold the interval with a stable reason; the point estimate is
+/// never withheld by this function.
+///
+/// # Errors
+/// Empty requests, invalid interval settings, a provider/catalog disagreement,
+/// or cancellation.
+pub fn mz_transport_bootstrap_interval(
+    functional: &antecedent_identify::BoundMzTransportFunctional,
+    data: &antecedent_expr::ExactTransportData,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    replicates: u32,
+    coverage_level: f64,
+    ctx: &ExecutionContext,
+) -> Result<Result<MzTransportIntervals, &'static str>, EstimationError> {
+    if requests.is_empty() {
+        return Err(EstimationError::data_msg(
+            "mz-transport interval requires at least one request",
+        ));
+    }
+    let spec = ZDrawSpec {
+        method: PERCENTILE_BOOTSTRAP,
+        stream: TransportStream::Bootstrap,
+        stage: "mz-transport bootstrap",
+        replicates,
+        coverage_level,
+        keep_counts: true,
+    };
+    validate_draw_spec(&spec)?;
+    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
+        return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
+    }
+    if let Err(reason) = mz_sampling_dependence(functional) {
+        return Ok(Err(reason));
+    }
+    let mut indexes = Vec::new();
+    let drawn =
+        z_draws(functional, data, requests, limits, &spec, ctx, |counts, rng, out, resampled| {
+            bootstrap_draw(counts, rng, &mut indexes, out, resampled)
+        })?;
+    let ok = drawn.columns[0].ok;
+    if let Err(reason) = ReplicatePolicy::BOOTSTRAP.decide(replicates, ok, drawn.failed) {
+        return Ok(Err(reason));
+    }
+    let mut per_request = Vec::with_capacity(requests.len());
+    for column in &drawn.columns {
+        match column.intervals(coverage_level) {
+            Ok(intervals) => per_request.push(MzRequestInterval {
+                atom_intervals: intervals.atoms,
+                mean_intervals: intervals.means,
+            }),
+            Err(reason) => return Ok(Err(reason)),
+        }
+    }
+    let base = &drawn.columns[0];
+    let mut contrasts = Vec::new();
+    for (k, column) in drawn.columns.iter().enumerate().skip(1) {
+        for ((outcome, base_means), means) in
+            base.outcomes.iter().zip(&base.means).zip(&column.means)
+        {
+            let differences = means.iter().zip(base_means).map(|(m, b)| m - b).collect::<Vec<_>>();
+            let Some((lower, upper)) = percentile_interval(&differences, coverage_level) else {
+                return Ok(Err(INTERVAL_NUMERICAL_FAILURE));
+            };
+            contrasts.push((k, *outcome, lower, upper));
+        }
+    }
+    Ok(Ok(MzTransportIntervals {
+        method: Arc::from(PERCENTILE_BOOTSTRAP),
+        reason: Arc::from(Z_TRANSPORT_INTERVAL_NOT_MEASURED),
+        coverage_target: coverage_level,
+        requests: per_request.into(),
+        contrasts: contrasts.into(),
+        replicates_requested: replicates,
+        replicates_ok: ok,
+        replicates_failed: drawn.failed,
+    }))
 }
 
 /// Equal-tail posterior interval for an empirical z-transport functional.
@@ -1111,17 +1288,33 @@ struct ZDrawSpec {
 /// checked formula against the rebuilt laws without revalidating providers,
 /// and records the replicate. Each dataset reads its own RNG stream.
 fn z_interval_over_draws(
-    functional: &antecedent_identify::BoundZTransportFunctional,
+    functional: &dyn crate::transport::BoundZFormula,
     data: &antecedent_expr::ExactTransportData,
     request: &Assignment,
     limits: ExactEvaluationLimits,
     spec: &ZDrawSpec,
     ctx: &ExecutionContext,
-    mut draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
+    draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
 ) -> Result<Result<NominalZTransportInterval, &'static str>, EstimationError> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
     }
+    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
+    if !licensed_iid_regimes(functional.catalog(), regimes) {
+        validate_draw_spec(spec)?;
+        return Ok(Err("transport.unsupported_dependence"));
+    }
+    let drawn = z_draws(functional, data, std::slice::from_ref(request), limits, spec, ctx, draw)?;
+    Ok(finish_z_interval(
+        spec.method,
+        &drawn.columns[0],
+        spec.replicates,
+        drawn.failed,
+        spec.coverage_level,
+    ))
+}
+
+fn validate_draw_spec(spec: &ZDrawSpec) -> Result<(), EstimationError> {
     if spec.replicates < 2
         || !spec.coverage_level.is_finite()
         || !(0.0..1.0).contains(&spec.coverage_level)
@@ -1130,62 +1323,83 @@ fn z_interval_over_draws(
             "z-transport interval requires at least two replicates and coverage strictly between zero and one",
         ));
     }
-    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
-    if !licensed_iid_regimes(functional.catalog(), regimes) {
-        return Ok(Err("transport.unsupported_dependence"));
-    }
+    Ok(())
+}
+
+/// Replicate columns of every request, drawn jointly.
+struct ZDraws {
+    /// One column set per request; replicate `r` of every set is the same draw.
+    columns: Vec<ReplicateColumns>,
+    /// Draws where any request failed; such a draw is recorded for none.
+    failed: u32,
+}
+
+/// Draw the cited tables `spec.replicates` times and evaluate every request on
+/// each draw. A replicate counts only when every request evaluates, so the
+/// columns stay aligned by replicate id and contrasts are within-replicate.
+fn z_draws(
+    functional: &dyn crate::transport::BoundZFormula,
+    data: &antecedent_expr::ExactTransportData,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    spec: &ZDrawSpec,
+    ctx: &ExecutionContext,
+    mut draw: impl FnMut(&[u64], &mut antecedent_core::CausalRng, &mut Vec<f64>, &mut Vec<u64>) -> bool,
+) -> Result<ZDraws, EstimationError> {
+    validate_draw_spec(spec)?;
     crate::transport::validate_exact_laws(functional.catalog(), data)
         .map_err(|error| refuse_eval(&error))?;
     let tables = CitedTables::new(functional, data)?;
-    let outcomes = functional.derivation().query().outcomes.clone();
-    let mut columns = ReplicateColumns::new(&outcomes);
+    let outcomes = functional.outcomes().clone();
+    let mut columns = requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect::<Vec<_>>();
     let mut failed = 0u32;
     let mut resampled: Vec<Vec<u64>> = tables.counts.iter().map(|c| vec![0; c.len()]).collect();
     let mut probabilities: Vec<Vec<f64>> =
         tables.counts.iter().map(|c| vec![0.0; c.len()]).collect();
-    for replicate in 0..spec.replicates {
+    'replicates: for replicate in 0..spec.replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
-        let mut draw_failed = false;
         for (dataset, counts) in tables.counts.iter().enumerate() {
             let mut rng =
                 ctx.rng.stream_for(StreamDomain::Transport, spec.stream.index(dataset, replicate)?);
             if !draw(counts, &mut rng, &mut probabilities[dataset], &mut resampled[dataset]) {
-                draw_failed = true;
-                break;
+                failed += 1;
+                continue 'replicates;
             }
-        }
-        if draw_failed {
-            failed += 1;
-            continue;
         }
         let laws = tables.rebuild(&probabilities, spec.keep_counts.then_some(&resampled))?;
         let drawn = antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows())
             .map_err(|error| EstimationError::data_msg(error.to_string()))?;
-        if !evaluate_z_draw(functional, drawn, request, limits, ctx, &mut columns)? {
-            failed += 1;
+        let mut evaluated = Vec::with_capacity(requests.len());
+        for request in requests {
+            let Some(distribution) =
+                evaluate_z_draw(functional, drawn.clone(), request, limits, ctx)?
+            else {
+                failed += 1;
+                continue 'replicates;
+            };
+            evaluated.push(distribution);
+        }
+        for (column, distribution) in columns.iter_mut().zip(&evaluated) {
+            column.record(distribution)?;
         }
     }
-    Ok(finish_z_interval(spec.method, &columns, spec.replicates, failed, spec.coverage_level))
+    Ok(ZDraws { columns, failed })
 }
 
-/// Evaluate one resampled or drawn law set; `false` is a counted support failure.
+/// Evaluate one resampled or drawn law set; `None` is a counted support failure.
 fn evaluate_z_draw(
-    functional: &antecedent_identify::BoundZTransportFunctional,
+    functional: &dyn crate::transport::BoundZFormula,
     draw: antecedent_expr::ExactTransportData,
     request: &Assignment,
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
-    columns: &mut ReplicateColumns,
-) -> Result<bool, EstimationError> {
+) -> Result<Option<ExactDistribution>, EstimationError> {
     let evaluated =
         crate::transport::compile_exact_z_transport(functional, draw, request.clone(), limits, ctx)
             .and_then(|plan| plan.evaluate(ctx));
     match evaluated {
-        Ok(distribution) => {
-            columns.record(&distribution)?;
-            Ok(true)
-        }
-        Err(error) if is_support_failure(&error) => Ok(false),
+        Ok(distribution) => Ok(Some(distribution)),
+        Err(error) if is_support_failure(&error) => Ok(None),
         Err(error) => Err(refuse_eval(&error)),
     }
 }
