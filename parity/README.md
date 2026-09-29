@@ -28,8 +28,8 @@ and [docs/development.md](../docs/development.md).
   generated into a separate Rust lookup and
   [graphless support page](../docs/graphless-support-matrix.md); absent keys
   default to refusal and cannot inherit a geometric cell. Run
-  `bash scripts/gate_graphless_support.sh` to check generated output and execute
-  the cited calibration and retained-route evidence.
+  `bash scripts/gate_graphless_support.sh` to check generated output and that
+  each cited calibration and retained-route test is still in its harness.
 
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 

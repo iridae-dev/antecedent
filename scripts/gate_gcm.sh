@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GCM gate: inventory honesty + fixtures + benches.
+# GCM gate: inventory honesty. Rust fixtures run in the Rust job.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -21,9 +21,9 @@ EVIDENCE = {
     # Additive shift do(X := X + delta): overlay accumulation is the primary
     # implementation. Harness: crates/antecedent-model/src/overlay.rs
     # (`overlay::tests::shift_overlay_accumulates_and_is_independent_of_hard_set`,
-    # via `cargo test -p antecedent-model --lib` below) plus
+    # via `cargo test -p antecedent-model --lib` in the Rust job) plus
     # crates/antecedent/tests/gcm.rs::gcm_shift_intervention_differs_from_hard_set
-    # (via `cargo test -p antecedent --test gcm` below), which shows shift and hard
+    # (via `cargo test -p antecedent --test gcm` in the Rust job), which shows shift and hard
     # set are observably different on a linear-Gaussian fixture.
     "gcm.do_sampling.shift": "crates/antecedent-model/src/overlay.rs",
     "gcm.model.falsification": "crates/antecedent-model/src/evaluate.rs",
@@ -51,18 +51,6 @@ problems += pr.require_done("parity/bayesian.toml", ("bayes.model.pcm_scm_regist
 pr.finish("GCM", problems, "GCM inventory evidence map OK")
 PY
 
-echo "== cargo test antecedent-model / counterfactual / attribution / facade GCM =="
-bash scripts/counted_cargo.sh test -p antecedent-model --lib
-bash scripts/counted_cargo.sh test -p antecedent-model --test scm_oracle
-bash scripts/counted_cargo.sh test -p antecedent-model --features gaussian-process --lib \
-  gaussian_process_matches_exact_logdet_oracle
-bash scripts/counted_cargo.sh test -p antecedent-counterfactual --lib
-bash scripts/counted_cargo.sh test -p antecedent-attribution --lib
-bash scripts/counted_cargo.sh test -p antecedent --test gcm
-bash scripts/counted_cargo.sh test -p antecedent --lib
-
-echo "== criterion smoke (overlay + CF batch) =="
-cargo bench -p antecedent-model --bench sample_overlay -- --test
-cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
-
+# Rust suites, including the gaussian-process feature, and the Criterion smoke
+# run in the Rust job and gate_release.sh.
 echo "GCM gate PASSED"

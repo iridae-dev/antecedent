@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PAG / LPCMCI gate: inventory honesty + fixtures + benches.
+# PAG / LPCMCI gate: inventory honesty + Python smoke. Rust fixtures run in the Rust job.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -57,19 +57,7 @@ problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
 pr.finish("PAG", problems, "PAG inventory evidence map OK")
 PY
 
-echo "== cargo test graph / discovery LPCMCI / identify / facade pag =="
-bash scripts/counted_cargo.sh test -p antecedent-graph --lib
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test static_discovery_oracle
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test lpcmci_oracle_matrix
-bash scripts/counted_cargo.sh test -p antecedent-identify --lib
-bash scripts/counted_cargo.sh test -p antecedent --test pag
-bash scripts/counted_cargo.sh test -p antecedent --lib refuses_dag_only
-
-echo "== criterion smoke (m-sep + PAG orientation) =="
-cargo bench -p antecedent-graph --bench mseparation -- --test
-cargo bench -p antecedent-discovery --bench pag_orientation -- --test
-
+# Rust suites and the Criterion smoke run in the Rust job and gate_release.sh.
 echo "== Python conditioning-set provenance facade smoke =="
 python_smoke tests/test_discovery_provenance.py
 

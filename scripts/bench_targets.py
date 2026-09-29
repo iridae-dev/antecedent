@@ -3,9 +3,10 @@
 
     python3 scripts/bench_targets.py            # one `<package> <bench>` per line
 
-The release gate smoke-runs each with `cargo bench -p <package> --bench <bench> --
---test`, so a bench added to a manifest is executed without anyone remembering to
-list it here or in a script.
+The release gate smoke-runs every target in one `cargo bench --workspace` invocation
+(`--exclude` only for members with no benches) on main and on any pull request
+that touches `benches/` or a `[[bench]]` entry. This script is that member list:
+a bench added under an excluded package fails the gate until the exclude is lifted.
 """
 
 from __future__ import annotations

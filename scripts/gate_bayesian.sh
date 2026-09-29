@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bayesian gate: inventory honesty + fixtures + benches.
+# Bayesian gate: inventory honesty + Python smoke. Rust fixtures run in the Rust job.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -86,43 +86,7 @@ problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
 pr.finish("Bayesian", problems, "Bayesian inventory evidence map OK")
 PY
 
-echo "== cargo test antecedent-prob / estimate bayesian / io posterior / bayesian conformance =="
-bash scripts/counted_cargo.sh test -p antecedent-prob --lib
-bash scripts/counted_cargo.sh test -p antecedent-prob --test prior_support_oracle
-bash scripts/counted_cargo.sh test -p antecedent-prob --test mcmc_arviz_oracle
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib graph_posterior::
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib exact_enumeration::
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib structure_mcmc::
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib order_mcmc::
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib ci_screened_posterior::
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib dbn_posterior::
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test graph_mcmc_oracle
-bash scripts/counted_cargo.sh test -p antecedent-estimate --lib bayesian
-bash scripts/counted_cargo.sh test -p antecedent-estimate --lib envelope
-bash scripts/counted_cargo.sh test -p antecedent-estimate --test bayesian_robust_ate_calibration
-bash scripts/counted_cargo.sh test -p antecedent-learn --test bayesian_basis
-bash scripts/counted_cargo.sh test -p antecedent-validate --lib bayesian_checks
-bash scripts/counted_cargo.sh test -p antecedent-io --lib posterior
-bash scripts/counted_cargo.sh test -p antecedent-io --lib prior_bank
-bash scripts/counted_cargo.sh test -p antecedent-data --lib resample
-bash scripts/counted_cargo.sh test -p antecedent --test prepared_analysis
-bash scripts/counted_cargo.sh test -p antecedent --test bayesian
-bash scripts/counted_cargo.sh test -p antecedent --test bayesian_iv_rd_staged
-bash scripts/counted_cargo.sh test -p antecedent --test bayesian_robust_ate
-bash scripts/counted_cargo.sh test -p antecedent --test bayesian_trial_transport
-bash scripts/counted_cargo.sh test -p antecedent --test staged_bayesian_basis_gcomp
-bash scripts/counted_cargo.sh test -p antecedent --test staged_attribution_transport_interference
-bash scripts/counted_cargo.sh test -p antecedent --test class_posterior_ate
-bash scripts/counted_cargo.sh test -p antecedent --lib bayesian_transport_providers_match_independent_dirichlet_moments
-bash scripts/counted_cargo.sh test -p antecedent --test temporal_prior_transfer
-bash scripts/counted_cargo.sh test -p antecedent --test manufacturing_temporal
-
-echo "== criterion smoke (reuse gates) =="
-cargo bench -p antecedent-prob --bench laplace_glm -- --test
-cargo bench -p antecedent-prob --bench hmc -- --test
-cargo bench -p antecedent-prob --bench mcmc_stats -- --test
-cargo bench -p antecedent-estimate --bench posterior_functional -- --test
-
+# Rust suites and the Criterion smoke run in the Rust job and gate_release.sh.
 echo "== Python panel Bayesian facade smoke =="
 python_smoke tests/test_panel_bayesian.py tests/test_temporal_bayesian_pulse.py tests/test_prior_bank.py tests/test_temporal_prior_transfer.py tests/test_bayesian_estimator_lifecycle.py tests/test_bayesian_likelihood.py tests/test_attribution_lifecycle.py tests/test_transport_interference_lifecycle.py tests/test_transport_statistical.py
 

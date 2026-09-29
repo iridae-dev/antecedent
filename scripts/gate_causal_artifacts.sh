@@ -5,8 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 source scripts/python_smoke.sh
 
-bash scripts/counted_cargo.sh test -p antecedent-io causal_artifact --no-fail-fast
-
+# The Rust job already runs the antecedent-io artifact tests.
 python_smoke tests/test_causal_artifacts.py
 
 echo "gate_causal_artifacts: ok"

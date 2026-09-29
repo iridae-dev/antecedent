@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Design / incremental-state gate: inventory honesty + fixtures + benches.
+# Design / incremental-state gate: inventory honesty. Rust fixtures run in the Rust job.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -49,16 +49,5 @@ problems += pr.exit_artifact_problems(EXIT_ARTIFACTS)
 pr.finish("Design state", problems, "Design state inventory evidence map OK")
 PY
 
-echo "== cargo test design / state / facade design_state =="
-bash scripts/counted_cargo.sh test -p antecedent-design --lib
-bash scripts/counted_cargo.sh test -p antecedent-design --test design_oracle
-bash scripts/counted_cargo.sh test -p antecedent-state --lib
-bash scripts/counted_cargo.sh test -p antecedent-state --test particle_filter_oracle
-bash scripts/counted_cargo.sh test -p antecedent-state --test rolling_mechanism_oracle
-bash scripts/counted_cargo.sh test -p antecedent --test design_state
-
-echo "== criterion smoke (design + state) =="
-cargo bench -p antecedent-design --bench design_rank -- --test
-cargo bench -p antecedent-state --bench state_append -- --test
-
+# Rust suites and the Criterion smoke run in the Rust job and gate_release.sh.
 echo "Design state gate PASSED"

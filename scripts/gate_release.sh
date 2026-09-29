@@ -82,9 +82,10 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_attribution.sh
   bash scripts/gate_design_state.sh
   bash scripts/gate_upstream_names.sh
-  bash scripts/gate_response_calibration.sh
+  # gate_response_calibration.sh and gate_estimate_reuse.sh only re-run tests
+  # from `cargo test --workspace`. The calibration script stays on the
+  # measurement surface; this job does not invoke it.
   bash scripts/gate_causal_artifacts.sh
-  bash scripts/gate_estimate_reuse.sh
   bash scripts/gate_composition.sh
   bash scripts/gate_transport.sh
 fi
@@ -274,16 +275,32 @@ if ! git diff --exit-code -- docs/release-notes/ \
   exit 1
 fi
 
-echo "== cargo test release surfaces =="
-bash scripts/counted_cargo.sh test -p antecedent-io --lib
-bash scripts/counted_cargo.sh test -p antecedent --test graph_interchange
-bash scripts/counted_cargo.sh test -p antecedent --test artifact_migrate
-
-echo "== criterion smoke (every bench target of the workspace) =="
-# From `cargo metadata`, so a bench added to a manifest cannot be left unexecuted.
-while read -r package bench; do
-  cargo bench -p "$package" --bench "$bench" -- --test
-done < <(python3 scripts/bench_targets.py)
+# One cargo invocation, so a bench added to a manifest cannot ship unexecuted.
+# Pull requests skip it unless they touch a bench file or a [[bench]] entry;
+# main and a local release run always smoke. The extension module and the
+# optional Burn provider have no bench targets.
+run_criterion_smoke=1
+if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
+  base="${PR_BASE_SHA:-}"
+  if [[ -z "$base" ]]; then
+    echo "pull request base SHA is missing; running the criterion smoke" >&2
+  elif git diff --name-only "$base" HEAD | grep -Eq '(^|/)benches/' \
+    || git diff -U0 "$base" HEAD -- '*Cargo.toml' | grep -Eq '^[+-]\[\[bench\]\]'; then
+    echo "== criterion smoke (bench files changed) =="
+  else
+    echo "== criterion smoke skipped (no bench file or [[bench]] change; main runs it) =="
+    run_criterion_smoke=0
+  fi
+else
+  echo "== criterion smoke (every bench target of the workspace) =="
+fi
+if [[ "$run_criterion_smoke" -eq 1 ]]; then
+  if python3 scripts/bench_targets.py | awk '{print $1}' | grep -Eq '^(antecedent-py|antecedent-learn-burn)$'; then
+    echo "criterion smoke excludes a package that now has a bench target" >&2
+    exit 1
+  fi
+  cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn -- --test
+fi
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

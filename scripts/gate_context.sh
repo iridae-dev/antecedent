@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Context / regime / effects gate: inventory honesty + fixtures + benches.
+# Context / regime / effects gate: inventory honesty + Python smoke. Rust fixtures run in the Rust job.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -52,20 +52,7 @@ problems += pr.require_done("parity/estimate.toml", ("estimate.conditional",), "
 pr.finish("Context", problems, "Context inventory evidence map OK")
 PY
 
-echo "== cargo test data / discovery / estimate / identify / facade context =="
-bash scripts/counted_cargo.sh test -p antecedent-data --lib
-bash scripts/counted_cargo.sh test -p antecedent-discovery --lib
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test jpcmci_plus_oracle_matrix
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test rpcmci_fixed_regime_oracle
-bash scripts/counted_cargo.sh test -p antecedent-estimate --lib
-bash scripts/counted_cargo.sh test -p antecedent-identify --lib temporal_mediation::
-bash scripts/counted_cargo.sh test -p antecedent-validate --lib functional::
-bash scripts/counted_cargo.sh test -p antecedent --test context_effects
-
-echo "== criterion smoke (regime + mediation) =="
-cargo bench -p antecedent-discovery --bench rpcmci -- --test
-cargo bench -p antecedent-estimate --bench temporal_mediation -- --test
-
+# Rust suites and the Criterion smoke run in the Rust job and gate_release.sh.
 echo "== Python EventFrame / panel pooled discovery facade smoke =="
 python_smoke tests/test_eventframe_discovery.py tests/test_panel_pooled_discovery.py
 

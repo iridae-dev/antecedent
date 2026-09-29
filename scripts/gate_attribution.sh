@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Attribution gate: inventory honesty + fixtures + benches.
+# Attribution gate: inventory honesty. Rust fixtures run in the Rust job.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -62,11 +62,5 @@ problems += pr.require_done("parity/gcm.toml", (
 pr.finish("Attribution", problems, "Attribution inventory evidence map OK")
 PY
 
-echo "== cargo test attribution / facade attribution =="
-bash scripts/counted_cargo.sh test -p antecedent-attribution --lib
-bash scripts/counted_cargo.sh test -p antecedent --test attribution
-
-echo "== criterion smoke (shapley) =="
-cargo bench -p antecedent-attribution --bench shapley -- --test
-
+# Rust suites and the Criterion smoke run in the Rust job and gate_release.sh.
 echo "Attribution gate PASSED"

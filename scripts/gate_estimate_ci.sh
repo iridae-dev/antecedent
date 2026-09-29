@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Estimate/CI parity gate: inventory honesty + conformance + calibration.
+# Estimate/CI parity gate: inventory honesty + Python smoke. Rust fixtures run in the Rust job.
 # black-box / Exact pins diverge.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -60,18 +60,7 @@ problems = pr.evidence_map_problems(EVIDENCE, ["parity/estimate.toml", "parity/d
 pr.finish("parity inventory", problems, f"parity inventory evidence map: ok ({len(EVIDENCE)} estimate/CI rows)")
 PY
 
-echo "== conformance / calibration =="
-bash scripts/counted_cargo.sh test -p antecedent --test estimate_conformance --test estimate_linear_gaussian_ate
-bash scripts/counted_cargo.sh test -p antecedent-validate --test refuters
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test discovery_pcmci_lag1 --test discovery_pcmci_plus_lag0 --test discovery_masked_mci_lag1 --test discovery_vector_vars_pcmci --test discovery_notears_chain
-bash scripts/counted_cargo.sh test -p antecedent-stats --lib ci::calibration
-bash scripts/counted_cargo.sh test -p antecedent-stats --test foundations_oracle
-bash scripts/counted_cargo.sh test -p antecedent-stats --test uncertainty_routing_contract
-bash scripts/counted_cargo.sh test -p antecedent-stats --test advanced_ci_oracle
-bash scripts/counted_cargo.sh test -p antecedent-stats --test bayesian_ci_oracle
-bash scripts/counted_cargo.sh test -p antecedent-discovery --test multiplicity_oracle
-bash scripts/gate_estimate_reuse.sh
-
+# The Rust CI job already runs these suites (`cargo test --workspace`).
 echo "== Python max_cond_size (PCMCI family) facade smoke =="
 python_smoke tests/test_discovery_provenance.py
 
