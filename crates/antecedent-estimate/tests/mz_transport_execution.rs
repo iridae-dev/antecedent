@@ -15,8 +15,8 @@ use std::sync::Arc;
 
 use antecedent_core::{DependenceGroup, EvidenceCatalog, ExecutionContext, Value};
 use antecedent_estimate::{
-    Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_exact_mz_transport, mz_sampling_dependence,
-    mz_transport_bootstrap_interval,
+    Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_exact_mz_transport, mz_interval_withheld_reason,
+    mz_sampling_dependence, mz_transport_bootstrap_interval, mz_transport_bootstrap_law_draws,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_identify::{
@@ -24,7 +24,8 @@ use antecedent_identify::{
     ZTransportSourceSpec, bind_mz_transport_catalog, decide_mz_transport,
 };
 use common::mz_fixture::{
-    X, Y, empirical, evidence, graph, query, source_b_scm, sources, target_scm, with_studies,
+    B_TRIAL_REGIME, SHARED_REGIME, SharedTable, X, Y, empirical, evidence, graph, query,
+    source_b_scm, sources, target_scm, with_conflicting_a_trial, with_shared_b_trial, with_studies,
 };
 use common::z_scm::{risk_of, vid};
 
@@ -232,4 +233,145 @@ fn undeclared_or_unsupported_dependence_withholds_the_interval_not_the_point() {
     let mut forwarded = forwarded;
     forwarded.bindings = forwarded_bindings.into();
     assert_eq!(mz_sampling_dependence(&bound(sources(), &forwarded)), Ok(()));
+}
+
+/// `(point risk, published interval or withheld reason)` of the internal joint
+/// bootstrap over `do(X=0)` and `do(X=1)`.
+fn joint_bootstrap(
+    catalog: &EvidenceCatalog,
+    data: &antecedent_expr::ExactTransportData,
+) -> (f64, Result<antecedent_estimate::MzTransportIntervals, &'static str>) {
+    let functional = bound(sources(), catalog);
+    let ctx = ExecutionContext::for_tests(17);
+    let limits = ExactEvaluationLimits::default();
+    let point = evaluate_exact_mz_transport(&functional, data.clone(), request(true), limits, &ctx)
+        .unwrap();
+    let run = mz_transport_bootstrap_interval(
+        &functional,
+        data,
+        &[request(false), request(true)],
+        limits,
+        49,
+        0.95,
+        &ctx,
+    )
+    .unwrap();
+    (risk_of(&point), run)
+}
+
+#[test]
+fn identical_shared_dataset_tables_are_resampled_as_one() {
+    let (catalog, exact) = evidence();
+    let (catalog, data) =
+        with_shared_b_trial(&catalog, &empirical(&exact, 40_000.0), SharedTable::Identical);
+    let (point, run) = joint_bootstrap(&catalog, &data);
+    assert!((point - truth(1)).abs() < 1e-2);
+    let intervals = run.expect("one table under two regimes is resampled jointly");
+    assert_eq!(intervals.replicates_ok + intervals.replicates_failed, 49);
+    let functional = bound(sources(), &catalog);
+    assert_eq!(mz_interval_withheld_reason(&functional, &data).unwrap(), None);
+    // Both regimes read the same resampled table in every replicate.
+    let draws =
+        mz_transport_bootstrap_law_draws(&functional, &data, 25, &ExecutionContext::for_tests(3))
+            .unwrap()
+            .unwrap();
+    let counts = |drawn: &antecedent_expr::ExactTransportData, regime: u32| {
+        drawn
+            .laws()
+            .iter()
+            .find(|law| law.regime().raw() == regime)
+            .and_then(|law| law.empirical_counts().map(<[u64]>::to_vec))
+            .unwrap()
+    };
+    let mut moved = false;
+    for drawn in draws.iter().flatten() {
+        assert_eq!(counts(drawn, B_TRIAL_REGIME), counts(drawn, SHARED_REGIME));
+        moved |= counts(drawn, B_TRIAL_REGIME)
+            != data
+                .laws()
+                .iter()
+                .find(|l| l.regime().raw() == B_TRIAL_REGIME)
+                .unwrap()
+                .empirical_counts()
+                .unwrap();
+    }
+    assert!(moved, "the shared table is resampled, not frozen");
+}
+
+#[test]
+fn a_recorded_margin_of_a_shared_joint_is_projected_within_every_replicate() {
+    let (catalog, exact) = evidence();
+    let (catalog, data) =
+        with_shared_b_trial(&catalog, &empirical(&exact, 40_000.0), SharedTable::Margin);
+    let (point, run) = joint_bootstrap(&catalog, &data);
+    assert!((point - truth(1)).abs() < 1e-2);
+    let intervals = run.expect("a recorded margin is projected from the resampled joint");
+    let p1 = point;
+    let means = &intervals.requests[1].mean_intervals;
+    assert!(means[0].1 <= p1 && p1 <= means[0].2);
+    let functional = bound(sources(), &catalog);
+    assert_eq!(mz_interval_withheld_reason(&functional, &data).unwrap(), None);
+    let draws =
+        mz_transport_bootstrap_law_draws(&functional, &data, 25, &ExecutionContext::for_tests(4))
+            .unwrap()
+            .unwrap();
+    assert!(draws.iter().flatten().count() == 25);
+    for drawn in draws.iter().flatten() {
+        let law =
+            |regime: u32| drawn.laws().iter().find(|law| law.regime().raw() == regime).unwrap();
+        let joint = law(B_TRIAL_REGIME).empirical_counts().unwrap();
+        let margin = law(SHARED_REGIME).empirical_counts().unwrap();
+        // The margin is exactly the (X, Z2) margin of this replicate's joint.
+        let expected = joint.chunks(2).map(|pair| pair.iter().sum()).collect::<Vec<u64>>();
+        assert_eq!(margin, expected.as_slice());
+        assert_eq!(joint.iter().sum::<u64>(), margin.iter().sum::<u64>());
+    }
+    // A margin whose counts are not the joint's margin is not that projection.
+    let mut laws = data.laws().to_vec();
+    let last = laws.pop().unwrap();
+    let mut counts = last.empirical_counts().unwrap().to_vec();
+    counts[0] += 1;
+    counts[1] -= 1;
+    #[expect(clippy::cast_precision_loss, reason = "fixture counts fit f64 exactly")]
+    let total = counts.iter().sum::<u64>() as f64;
+    #[expect(clippy::cast_precision_loss, reason = "fixture counts fit f64 exactly")]
+    let probabilities = counts.iter().map(|c| *c as f64 / total).collect::<Vec<_>>();
+    laws.push(
+        antecedent_expr::ExactDiscreteLaw::try_empirical(
+            last.population(),
+            last.regime(),
+            last.interventions().to_vec(),
+            last.axes().to_vec(),
+            probabilities,
+            last.snapshot_identity(),
+            last.tolerance(),
+        )
+        .unwrap()
+        .with_empirical_counts(counts)
+        .unwrap(),
+    );
+    let tampered =
+        antecedent_expr::ExactTransportData::try_new(laws, data.max_support_rows()).unwrap();
+    assert_eq!(
+        mz_interval_withheld_reason(&functional, &tampered).unwrap(),
+        Some("transport.unsupported_dependence")
+    );
+}
+
+#[test]
+fn unrelatable_tables_of_one_dataset_withhold_the_interval_not_the_point() {
+    let (catalog, exact) = evidence();
+    let catalog = with_conflicting_a_trial(&catalog);
+    let data = empirical(&exact, 40_000.0);
+    let functional = bound(sources(), &catalog);
+    // The catalog declares one dataset for both arms, so dependence is known ...
+    assert_eq!(mz_sampling_dependence(&functional), Ok(()));
+    // ... but the two arms' different tables cannot be one resampled table.
+    let (point, run) = joint_bootstrap(&catalog, &data);
+    assert!((point - truth(1)).abs() < 1e-2);
+    assert_eq!(run.unwrap_err(), "transport.unsupported_dependence");
+    assert_eq!(
+        mz_interval_withheld_reason(&functional, &data).unwrap(),
+        Some("transport.unsupported_dependence")
+    );
 }

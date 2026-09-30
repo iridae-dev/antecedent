@@ -1,10 +1,17 @@
 //! Prepared execution of a multi-source limited-experiment (`TR^mz`) formula.
 //!
-//! Preparation freezes one checked, catalog-bound derivation and compiles its
-//! evaluation plan. Estimation evaluates that plan and never searches again.
-//! Refresh replaces laws only for the snapshots the frozen catalog binds, so the
-//! proof is unchanged; evidence under another snapshot, regime or catalog needs
-//! a new decision and a new preparation.
+//! Preparation freezes one checked, catalog-bound derivation and compiles one
+//! evaluation plan per request. Estimation evaluates those plans and never
+//! searches again; request 0 is the baseline of every point contrast. Refresh
+//! replaces laws only for the snapshots the frozen catalog binds, so the proof
+//! is unchanged; evidence under another snapshot, regime or catalog needs a new
+//! decision and a new preparation.
+//!
+//! The multi-source interval route is registered closed (`cell_not_licensed`)
+//! until its coverage records are measured: an estimate on counted laws returns
+//! the point and withholds the interval with that reason, never a nominal one.
+//! The internal joint bootstrap the calibration harness measures is
+//! [`antecedent_estimate::mz_transport_bootstrap_interval`].
 use super::StudyBuilder;
 use super::transport_common::{err, estimate_err};
 use antecedent_core::{ExecutionContext, SearchLimits, TheoremScope};
@@ -14,39 +21,55 @@ use antecedent_expr::{
 use antecedent_identify::BoundMzTransportFunctional;
 use antecedent_io::IoError;
 use antecedent_io::mz_transport_artifact::{
-    MZ_NOMINAL_INTERVAL, MZ_WITHHELD, MzTransportArtifactWire, MzTransportConsumeLimits,
-    MzUncertaintyWire,
+    MzContrastWire, MzTransportArtifactInput, MzTransportArtifactWire, MzTransportConsumeLimits,
+    MzUncertaintyWire, mz_point_contrasts, refuse_unlicensed_interval,
 };
 
-/// A prepared mz formula: frozen proof, bound catalog, laws and compiled plan.
+/// A prepared mz formula: frozen proof, bound catalog, laws and compiled plans.
 #[derive(Clone, Debug)]
 pub struct PreparedMzTransport {
     graph: antecedent_graph::Admg,
     functional: BoundMzTransportFunctional,
     search: SearchLimits,
     data: ExactTransportData,
-    request: Assignment,
+    requests: Vec<Assignment>,
     limits: ExactEvaluationLimits,
-    plan: ExactEvaluationPlan,
+    /// One compiled plan per request, in request order.
+    plans: Vec<ExactEvaluationPlan>,
     /// Every retained law carries empirical counts; a refresh keeps that contract.
     empirical: bool,
 }
 
-/// One executed request: the point and its interval bookkeeping.
+/// One execution: the point of every request, the point contrasts against
+/// request 0, and the interval bookkeeping.
 #[derive(Clone, Debug)]
 pub struct MzTransportResult {
-    distribution: ExactDistribution,
+    distributions: Vec<ExactDistribution>,
+    contrasts: Vec<MzContrastWire>,
     uncertainty: MzUncertaintyWire,
 }
 
 impl MzTransportResult {
-    /// The point distribution.
+    /// The point distribution of request 0.
     #[must_use]
-    pub const fn distribution(&self) -> &ExactDistribution {
-        &self.distribution
+    pub fn distribution(&self) -> &ExactDistribution {
+        &self.distributions[0]
     }
 
-    /// Interval status, reason, replicate accounting and pointwise mean intervals.
+    /// The point distribution of every request, in request order.
+    #[must_use]
+    pub fn distributions(&self) -> &[ExactDistribution] {
+        &self.distributions
+    }
+
+    /// Point contrasts of every outcome mean, each request against request 0.
+    #[must_use]
+    pub fn contrasts(&self) -> &[MzContrastWire] {
+        &self.contrasts
+    }
+
+    /// Interval status and reason. Counted laws report `withheld` with
+    /// `cell_not_licensed` while the interval route is closed.
     #[must_use]
     pub const fn uncertainty(&self) -> &MzUncertaintyWire {
         &self.uncertainty
@@ -56,71 +79,104 @@ impl MzTransportResult {
     ///
     /// # Errors
     /// The premises do not encode or the bookkeeping does not check.
-    pub fn export(&self, prepared: &PreparedMzTransport) -> Result<Vec<u8>, IoError> {
+    pub fn export(
+        &self,
+        prepared: &PreparedMzTransport,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, IoError> {
+        self.export_named(prepared, &[], ctx)
+    }
+
+    /// [`Self::export`], binding the name of every graph coordinate into the
+    /// artifact's verified identity, so a consumer can refuse relabelled names.
+    ///
+    /// # Errors
+    /// As [`Self::export`], or names that do not cover the graph.
+    pub fn export_named(
+        &self,
+        prepared: &PreparedMzTransport,
+        variable_names: &[String],
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, IoError> {
         MzTransportArtifactWire::checked(
-            &prepared.graph,
-            &prepared.functional,
-            prepared.search,
-            &prepared.data,
-            &prepared.request,
-            prepared.limits,
-            &self.distribution,
-            self.uncertainty.clone(),
+            MzTransportArtifactInput {
+                graph: &prepared.graph,
+                functional: &prepared.functional,
+                search: prepared.search,
+                data: &prepared.data,
+                requests: &prepared.requests,
+                limits: prepared.limits,
+                variable_names,
+                results: &self.distributions,
+                uncertainty: self.uncertainty.clone(),
+            },
+            ctx,
         )?
         .export()
     }
 }
 
-/// Independently consume an mz artifact: re-decide, re-bind, recompute the point
-/// and recheck the interval bookkeeping, without fetching data or providers.
+/// Independently consume an mz artifact: re-decide, re-bind, recompute every
+/// point and contrast and recheck the bookkeeping, without fetching data or
+/// providers. An artifact that carries an interval is refused with
+/// `cell_not_licensed` while the interval route is closed.
 ///
 /// # Errors
-/// Any reconstruction or replay failure.
+/// Any reconstruction or replay failure, or a carried interval.
 pub fn consume_mz_transport_artifact(
     bytes: &[u8],
     limits: MzTransportConsumeLimits,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportResult, IoError> {
     let consumed = MzTransportArtifactWire::consume_with_limits(bytes, limits, ctx)?;
+    refuse_unlicensed_interval(&consumed.wire.uncertainty)?;
     Ok(MzTransportResult {
-        distribution: consumed.distribution,
+        distributions: consumed.distributions,
+        contrasts: consumed.contrasts,
         uncertainty: consumed.wire.uncertainty,
     })
 }
 
 impl StudyBuilder {
-    /// Prepare exact-law evaluation of a checked mz functional. `search` records
-    /// the limits it was decided under, so a consumer can refuse larger ones.
+    /// Prepare exact-law evaluation of a checked mz functional for `requests`
+    /// (request 0 is the contrast baseline). `search` records the limits it was
+    /// decided under, so a consumer can refuse larger ones.
     ///
     /// # Errors
-    /// The functional was not decided on `graph`, or the laws, request or
-    /// resources do not compile.
+    /// No request, a functional that was not decided on `graph`, or laws,
+    /// requests or resources that do not compile.
     pub fn mz_transport(
         graph: antecedent_graph::Admg,
         functional: BoundMzTransportFunctional,
         search: SearchLimits,
         data: ExactTransportData,
-        request: Assignment,
+        requests: Vec<Assignment>,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedMzTransport, IoError> {
+        if requests.is_empty() {
+            return Err(err("prepare at least one target request"));
+        }
         let rebound = antecedent_identify::bind_mz_transport_catalog(
             &graph,
             functional.derivation(),
             functional.catalog(),
         )?;
         if rebound.root() != functional.root() || rebound.arena() != functional.arena() {
-            return Err(err("mz_transport.functional_graph_mismatch"));
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message: "mz_transport.functional_graph_mismatch: the functional was not decided on this graph".into(),
+            });
         }
-        let plan = compile(&functional, &data, &request, limits, ctx)?;
+        let plans = compile(&functional, &data, &requests, limits, ctx)?;
         Ok(PreparedMzTransport {
             graph,
             functional,
             search,
             data,
-            request,
+            requests,
             limits,
-            plan,
+            plans,
             empirical: false,
         })
     }
@@ -134,13 +190,13 @@ impl StudyBuilder {
         functional: BoundMzTransportFunctional,
         search: SearchLimits,
         data: ExactTransportData,
-        request: Assignment,
+        requests: Vec<Assignment>,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedMzTransport, IoError> {
         require_counts(&data)?;
         let mut prepared =
-            Self::mz_transport(graph, functional, search, data, request, limits, ctx)?;
+            Self::mz_transport(graph, functional, search, data, requests, limits, ctx)?;
         prepared.empirical = true;
         Ok(prepared)
     }
@@ -149,23 +205,31 @@ impl StudyBuilder {
 fn compile(
     functional: &BoundMzTransportFunctional,
     data: &ExactTransportData,
-    request: &Assignment,
+    requests: &[Assignment],
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
-) -> Result<ExactEvaluationPlan, IoError> {
-    antecedent_estimate::prepare_exact_mz_transport(
-        functional,
-        data.clone(),
-        request.clone(),
-        limits,
-        ctx,
-    )
-    .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
+) -> Result<Vec<ExactEvaluationPlan>, IoError> {
+    requests
+        .iter()
+        .map(|request| {
+            antecedent_estimate::prepare_exact_mz_transport(
+                functional,
+                data.clone(),
+                request.clone(),
+                limits,
+                ctx,
+            )
+            .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
+        })
+        .collect()
 }
 
 fn require_counts(data: &ExactTransportData) -> Result<(), IoError> {
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
-        return Err(err("mz_transport.empirical_counts_required"));
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("transport_missing_provider"),
+            message: "mz_transport.empirical_counts_required: every law of an empirical preparation carries counts".into(),
+        });
     }
     Ok(())
 }
@@ -177,61 +241,38 @@ impl PreparedMzTransport {
         TheoremScope::mz_transportability()
     }
 
-    /// Evaluate the retained plan. Exact laws are point-only; empirical tables
-    /// attach a nominal joint bootstrap, or the stated reason it is withheld.
+    /// Evaluate every retained plan and the point contrasts. Exact laws are
+    /// point-only. Counted laws return the point with the interval withheld as
+    /// `cell_not_licensed` (the interval route is closed until its coverage
+    /// records exist), together with the declared-sampling reason the internal
+    /// joint bootstrap would also withhold for; no interval is ever attached.
     ///
     /// # Errors
     /// Cancellation or an evaluation refusal.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<MzTransportResult, IoError> {
         antecedent_estimate::refuse_cancelled(ctx, "mz-transport estimate")
             .map_err(estimate_err)?;
-        let distribution = self
-            .plan
-            .evaluate(ctx)
-            .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))?;
-        if !self.empirical {
-            return Ok(MzTransportResult {
-                distribution,
-                uncertainty: MzUncertaintyWire::point_only(),
-            });
-        }
-        let options = antecedent_estimate::EmpiricalTableOptions::default();
-        let interval = antecedent_estimate::mz_transport_bootstrap_interval(
-            &self.functional,
-            &self.data,
-            std::slice::from_ref(&self.request),
-            self.limits,
-            options.bootstrap_replicates,
-            options.coverage_level,
-            ctx,
-        )
-        .map_err(estimate_err)?;
-        let uncertainty = match interval {
-            Ok(interval) => MzUncertaintyWire {
-                status: MZ_NOMINAL_INTERVAL.into(),
-                reason: interval.reason.to_string(),
-                method: Some(interval.method.to_string()),
-                coverage_target: Some(interval.coverage_target),
-                replicates_requested: interval.replicates_requested,
-                replicates_ok: interval.replicates_ok,
-                replicates_failed: interval.replicates_failed,
-                mean_intervals: interval.requests[0]
-                    .mean_intervals
-                    .iter()
-                    .map(|(v, lo, hi)| (v.raw(), *lo, *hi))
-                    .collect(),
-            },
-            Err(reason) => MzUncertaintyWire {
-                status: MZ_WITHHELD.into(),
-                reason: reason.into(),
-                ..MzUncertaintyWire::point_only()
-            },
+        let distributions = self
+            .plans
+            .iter()
+            .map(|plan| {
+                plan.evaluate(ctx).map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let contrasts = mz_point_contrasts(&distributions)?;
+        let uncertainty = if self.data.laws().iter().any(|law| law.empirical_counts().is_none()) {
+            MzUncertaintyWire::point_only()
+        } else {
+            let dependence =
+                antecedent_estimate::mz_interval_withheld_reason(&self.functional, &self.data)
+                    .map_err(estimate_err)?;
+            MzUncertaintyWire::not_licensed(dependence)
         };
-        Ok(MzTransportResult { distribution, uncertainty })
+        Ok(MzTransportResult { distributions, contrasts, uncertainty })
     }
 
     /// Replace the laws for the snapshots the frozen catalog binds and recompile.
-    /// The proof, bindings and request are unchanged; laws under any other
+    /// The proof, bindings and requests are unchanged; laws under any other
     /// snapshot or regime are refused, which forces a new preparation.
     ///
     /// # Errors
@@ -246,8 +287,8 @@ impl PreparedMzTransport {
         if self.empirical {
             require_counts(&data)?;
         }
-        let plan = compile(&self.functional, &data, &self.request, self.limits, ctx)?;
-        Ok(Self { data, plan, ..self.clone() })
+        let plans = compile(&self.functional, &data, &self.requests, self.limits, ctx)?;
+        Ok(Self { data, plans, ..self.clone() })
     }
 
     /// The frozen, catalog-bound functional.
@@ -260,5 +301,17 @@ impl PreparedMzTransport {
     #[must_use]
     pub const fn data(&self) -> &ExactTransportData {
         &self.data
+    }
+
+    /// Retained requests; request 0 is the contrast baseline.
+    #[must_use]
+    pub fn requests(&self) -> &[Assignment] {
+        &self.requests
+    }
+
+    /// The compiled evaluation plan of every request, in request order.
+    #[must_use]
+    pub fn plans(&self) -> &[ExactEvaluationPlan] {
+        &self.plans
     }
 }

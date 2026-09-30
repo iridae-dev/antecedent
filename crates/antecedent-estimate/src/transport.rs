@@ -793,7 +793,8 @@ fn require_treatment_request(
 }
 
 /// Check every supplied law against the evidence regime it claims to realize:
-/// the regime must be satisfiable, joint and unconditioned, the law's
+/// the regime must supply a measured population law (available, not a model
+/// artifact, not a selected sample), be joint and unconditioned, the law's
 /// interventions and axes must be the regime's, every catalog binding of the
 /// regime must name the law's snapshot, and every declared coordinate domain
 /// must agree with the law's axis values. Shared by the classical and z routes.
@@ -812,7 +813,7 @@ pub(crate) fn validate_exact_laws(
             .iter()
             .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
             .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
-        if !regime.evidence_kind.can_satisfy_factor()
+        if !regime.supplies_population_law()
             || !matches!(regime.distribution, DistributionAvailability::Joint)
             || !regime.conditioned_on.is_empty()
             || law.interventions().len() != regime.interventions.len()
@@ -1564,5 +1565,30 @@ mod tests {
         assert!((result.overlap.selection.probability_max - 0.6).abs() < 1e-12);
         assert!((result.overlap.treatment.probability_min - 0.5).abs() < 1e-12);
         assert!((result.overlap.treatment.probability_max - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_model_artifact_or_selected_sample_regime_never_validates_a_supplied_law() {
+        let (functional, data) = checked_z_fixture(false);
+        validate_exact_laws(functional.catalog(), &data).unwrap();
+        let edits: [fn(&mut antecedent_core::EvidenceRegime); 2] = [
+            |r| r.origin = antecedent_core::LawOrigin::ModelArtifact { artifact: Arc::from("m") },
+            |r| {
+                r.selection = antecedent_core::SamplingSelection::SelectedOn {
+                    variables: Arc::from([VariableId::from_raw(0)]),
+                };
+            },
+        ];
+        for edit in edits {
+            let mut catalog = functional.catalog().clone();
+            let mut regimes = catalog.regimes.to_vec();
+            regimes.iter_mut().for_each(edit);
+            catalog.regimes = regimes.into();
+            assert!(matches!(
+                validate_exact_laws(&catalog, &data),
+                Err(antecedent_expr::EvalError::ProviderKind(message))
+                    if message.contains("disagrees with its evidence regime")
+            ));
+        }
     }
 }

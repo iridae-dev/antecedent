@@ -122,7 +122,15 @@ def identify_multi_source_z_transport(
     and each source's premises, the missing factor, the explored stages, or the
     limits receipt. Only ``proven_non_transportable`` is an impossibility claim.
     An identified stage offers ``prepare_exact`` and ``prepare_empirical``; the
-    decision is never repeated at estimation.
+    decision is never repeated at estimation. Either takes one assignment mapping
+    or a sequence of them: every request is evaluated from the same frozen proof
+    and each request's outcome means are contrasted with request 0 (points
+    always). Counted laws return the point with the interval withheld as
+    ``cell_not_licensed``: the multi-source interval route stays closed until its
+    coverage records are measured, so ``interval["available"]`` is ``False``.
+    Preparing a decision that did not identify raises its typed reason
+    (``transport_missing_evidence``, ``transport_budget_cancel``,
+    ``transport_proven_non_transportable`` or ``transport_not_certified``).
     """
     if not isinstance(graph, Admg):
         raise CausalTypeError("identify_multi_source_z_transport requires graph=Admg(...)")
@@ -170,8 +178,12 @@ def consume_multi_source_z_transport_artifact(
 
     The consumer re-runs the bounded decision on the stored graph, query and
     catalog under its own search limits, re-binds every factor to its source,
-    recomputes the point and rechecks the interval bookkeeping. Nothing the
-    artifact recorded raises the consumer's limits.
+    recomputes every point and contrast bit for bit and rechecks the interval
+    bookkeeping. The search and evaluation limits, requests and variable names
+    are bound by the premises digest and the snapshot ids by the data-identity
+    digest; relabelled names or any other edit is refused. An artifact that
+    carries an interval is refused with ``cell_not_licensed`` while the interval
+    route is closed. Nothing the artifact recorded raises the consumer's limits.
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

@@ -793,9 +793,9 @@ fn catalog_axes_bounded(
         .iter()
         .find(|r| r.id == sample.regime && r.population.as_ref() == sample.population.as_ref())
         .ok_or_else(|| EstimationError::data_msg("empirical sample names an unknown regime"))?;
-    if !regime.evidence_kind.can_satisfy_factor() {
+    if !regime.supplies_population_law() {
         return Err(EstimationError::data_msg(
-            "proposed or manipulable regimes cannot be estimated",
+            "proposed, manipulable, model-artifact or selected-sample regimes cannot be estimated",
         ));
     }
     let environment = catalog
@@ -1291,5 +1291,23 @@ mod tests {
         let axes = catalog_axes(&catalog, &sample(1, 0, 0, 0)).unwrap();
         assert_eq!(axes.len(), 2);
         assert_eq!(axes[0].values.len(), 2);
+
+        // A model artifact or a selected-sample regime is not a population law,
+        // so no sample of it is estimated.
+        let edits: [fn(&mut EvidenceRegime); 2] = [
+            |r| r.origin = antecedent_core::LawOrigin::ModelArtifact { artifact: Arc::from("m") },
+            |r| {
+                r.selection =
+                    antecedent_core::SamplingSelection::SelectedOn { variables: Arc::from([v(1)]) };
+            },
+        ];
+        for edit in edits {
+            let mut refused = catalog.clone();
+            let mut regimes = refused.regimes.to_vec();
+            regimes.iter_mut().for_each(edit);
+            refused.regimes = regimes.into();
+            let error = catalog_axes(&refused, &sample(1, 0, 0, 0)).unwrap_err();
+            assert!(error.to_string().contains("model-artifact or selected-sample"), "{error}");
+        }
     }
 }

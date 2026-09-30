@@ -4401,7 +4401,7 @@ class MultiSourceZTransportStage:
     def prepare_exact(
         self,
         laws: Any,
-        assignments: dict[str, float],
+        assignments: dict[str, float] | Sequence[dict[str, float]],
         *,
         max_operations: int = 10_000_000,
         max_depth: int = 256,
@@ -4411,7 +4411,7 @@ class MultiSourceZTransportStage:
     def prepare_empirical(
         self,
         laws: Any,
-        assignments: dict[str, float],
+        assignments: dict[str, float] | Sequence[dict[str, float]],
         *,
         max_operations: int = 10_000_000,
         max_depth: int = 256,
@@ -4435,6 +4435,7 @@ class PreparedMultiSourceZTransportStage:
         cancel: CancellationToken | None = None,
     ) -> None: ...
     def export(self) -> bytes: ...
+    def plan(self) -> dict[str, Any]: ...
     @property
     def cited_sources(self) -> list[str]: ...
     @property

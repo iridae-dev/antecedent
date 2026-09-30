@@ -170,3 +170,105 @@ pub fn with_studies(catalog: &EvidenceCatalog) -> EvidenceCatalog {
     out.regimes = regimes.into();
     out
 }
+
+/// How a second table of source `b`'s `do(Z1 = 0)` trial relates to its joint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SharedTable {
+    /// A second regime publishing the identical joint table.
+    Identical,
+    /// A second regime publishing the `(X, Z2)` margin of the joint.
+    Margin,
+}
+
+/// Regime id of the second table [`with_shared_b_trial`] adds.
+pub const SHARED_REGIME: u32 = 4;
+/// Regime id of source `b`'s `do(Z1 = 0)` joint.
+pub const B_TRIAL_REGIME: u32 = 3;
+
+/// Declared studies plus a second table of `b`'s `do(Z1 = 0)` trial that names
+/// the same forwarded dataset (`b-trial`) and study as the joint: either the
+/// identical table or its recorded `(X, Z2)` margin, with counts that are exactly
+/// that margin of the joint's counts.
+pub fn with_shared_b_trial(
+    catalog: &EvidenceCatalog,
+    data: &ExactTransportData,
+    table: SharedTable,
+) -> (EvidenceCatalog, ExactTransportData) {
+    use antecedent_core::{DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeId};
+    let mut out = with_studies(catalog);
+    let joint_id = RegimeId::from_raw(B_TRIAL_REGIME);
+    let shared_id = RegimeId::from_raw(SHARED_REGIME);
+    let joint = out.regimes.iter().find(|r| r.id == joint_id).unwrap().clone();
+    let measured: Vec<_> = match table {
+        SharedTable::Identical => joint.measured.to_vec(),
+        SharedTable::Margin => vec![vid(X), vid(Z2)],
+    };
+    let mut shared = EvidenceRegime::try_new(
+        shared_id,
+        joint.kind,
+        EvidenceKind::Available,
+        joint.interventions.to_vec(),
+        joint.intervention_values.to_vec(),
+        measured,
+        joint.population.as_ref(),
+        DistributionAvailability::Joint,
+    )
+    .unwrap();
+    shared.study.clone_from(&joint.study);
+    let mut regimes = out.regimes.to_vec();
+    regimes.push(shared);
+    out.regimes = regimes.into();
+    let mut bindings = out.bindings.to_vec();
+    let mut shared_binding = bindings.iter().find(|b| b.regime == joint_id).unwrap().clone();
+    shared_binding.regime = shared_id;
+    shared_binding.snapshot_identity = Arc::from("b-3-second");
+    bindings.push(shared_binding);
+    for binding in &mut bindings {
+        if binding.regime == joint_id || binding.regime == shared_id {
+            binding.dataset_identity = Some(Arc::from("b-trial"));
+        }
+    }
+    out.bindings = bindings.into();
+    let law = data.laws().iter().find(|law| law.regime() == joint_id).unwrap();
+    let joint_counts = law.empirical_counts().unwrap();
+    // Joint axes are (X, Z2, Y), last fastest: the (X, Z2) margin sums Y out.
+    let (axes, counts) = match table {
+        SharedTable::Identical => (law.axes().to_vec(), joint_counts.to_vec()),
+        SharedTable::Margin => (
+            law.axes()[..2].to_vec(),
+            joint_counts.chunks(2).map(|pair| pair.iter().sum()).collect::<Vec<u64>>(),
+        ),
+    };
+    #[expect(clippy::cast_precision_loss, reason = "fixture counts fit f64 exactly")]
+    let total = counts.iter().sum::<u64>() as f64;
+    #[expect(clippy::cast_precision_loss, reason = "fixture counts fit f64 exactly")]
+    let probabilities = counts.iter().map(|c| *c as f64 / total).collect::<Vec<_>>();
+    let shared_law = ExactDiscreteLaw::try_empirical(
+        law.population(),
+        shared_id,
+        law.interventions().to_vec(),
+        axes,
+        probabilities,
+        "b-3-second",
+        law.tolerance(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap();
+    let mut laws = data.laws().to_vec();
+    laws.push(shared_law);
+    (out, ExactTransportData::try_new(laws, data.max_support_rows()).unwrap())
+}
+
+/// Declared studies, with `a`'s two `do(Z2)` arms naming one forwarded dataset
+/// (`a-trial`): two different tables that are neither identical nor a margin of
+/// one another, so they cannot be resampled jointly.
+pub fn with_conflicting_a_trial(catalog: &EvidenceCatalog) -> EvidenceCatalog {
+    let mut out = with_studies(catalog);
+    let mut bindings = out.bindings.to_vec();
+    for binding in &mut bindings[1..3] {
+        binding.dataset_identity = Some(Arc::from("a-trial"));
+    }
+    out.bindings = bindings.into();
+    out
+}

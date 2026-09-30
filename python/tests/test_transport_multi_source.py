@@ -14,6 +14,7 @@ import json
 import pytest
 from antecedent import Admg
 from antecedent.errors import (
+    CausalResourceError,
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
@@ -117,9 +118,17 @@ REGIMES = [
 ]
 
 
-def catalog(*, studies=False, omit=(), snapshot_suffix=""):
+def catalog(*, studies=False, omit=(), snapshot_suffix="", regime_fields=None):
+    """``studies`` is ``True`` (one study per regime), ``False``, or a mapping
+    from regime id to study; ``regime_fields`` adds EvidenceRegime fields per id."""
     coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in NAMES)
     kept = [r for r in REGIMES if r[0] not in omit]
+
+    def study(rid):
+        if isinstance(studies, dict):
+            return studies.get(rid)
+        return f"study-{rid}" if studies else None
+
     regimes = tuple(
         transport.EvidenceRegime(
             rid,
@@ -128,7 +137,8 @@ def catalog(*, studies=False, omit=(), snapshot_suffix=""):
             interventions=list(do),
             intervention_values={k: float(v) for k, v in do.items()},
             measured=[n for n in NAMES if n not in do],
-            study=f"study-{rid}" if studies else None,
+            study=study(rid),
+            **(regime_fields or {}).get(rid, {}),
         )
         for rid, population, do in kept
     )
@@ -224,7 +234,7 @@ def test_each_source_alone_is_a_checked_obstruction():
         decision = stage.decision()
         assert decision["reason"] == "transport_proven_non_transportable"
         assert decision["c0"] == c0
-        with pytest.raises(Exception, match="transport_not_certified"):
+        with pytest.raises(CausalUnsupportedError, match="transport_proven_non_transportable"):
             stage.prepare_exact(laws(), {"x": 1.0})
 
 
@@ -236,6 +246,8 @@ def test_an_unsupplied_regime_is_missing_evidence_not_an_obstruction():
     decision = stage.decision()
     assert decision["reason"] == "transport_missing_evidence"
     assert decision["formula_certified"] is True
+    with pytest.raises(CausalUnsupportedError, match="transport_missing_evidence"):
+        stage.prepare_exact(laws(omit=("b_z1_0",)), {"x": 1.0})
 
 
 def test_an_exhausted_search_returns_a_receipt():
@@ -245,7 +257,9 @@ def test_an_exhausted_search_returns_a_receipt():
     assert stage.outcome == "exhausted"
     receipt = stage.decision()["limits_receipt"]
     assert receipt["stop"] == "search.operations"
-    assert "multi_source" in receipt["unevaluated"]
+    assert "stage:multi_source" in receipt["unevaluated"]
+    with pytest.raises(Exception, match="transport_budget_cancel"):
+        stage.prepare_exact(laws(), {"x": 1.0})
 
 
 def test_exported_result_is_recomputed_by_an_independent_consumer():
@@ -260,25 +274,33 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
         transport.consume_multi_source_z_transport_artifact(artifact[:-3] + b"\x00\x00\x00")
 
 
-def test_empirical_interval_requires_declared_independence():
+def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
+    """Counted laws return the point; the interval route is closed until its
+    coverage records exist, so no interval is ever attached (live or consumed)."""
     with_studies = identified_stage(catalog(studies=True)).prepare_empirical(
         laws(sample_size=40_000), {"x": 1.0}, seed=3
     )
     result = json.loads(with_studies.estimate())
-    interval = result["interval"]
-    assert interval["status"] == "nominal_interval"
-    assert interval["reason"] == "estimator_grid_not_measured"
     assert risk(result) == pytest.approx(truth(1), abs=1e-2)
+    interval = result["interval"]
+    assert interval["available"] is False
+    assert interval["status"] == "withheld"
+    assert interval["reason"] == "cell_not_licensed"
+    assert interval["dependence_reason"] is None
+    assert interval["mean_intervals"] == [] and interval["contrast_intervals"] == []
+    assert interval["seed"] is None and interval["replicates_requested"] == 0
     consumed = json.loads(
         transport.consume_multi_source_z_transport_artifact(with_studies.export())
     )
-    assert consumed["interval"]["status"] == "nominal_interval"
+    assert consumed["interval"] == interval
+    assert consumed["probabilities"] == result["probabilities"]
     # Without study identities the two arms of source a are not known to be
-    # independent: the interval is withheld, the point is not.
+    # independent: that reason is reported beside the closed-route reason.
     undeclared = identified_stage().prepare_empirical(laws(sample_size=40_000), {"x": 1.0})
     withheld = json.loads(undeclared.estimate())
-    assert withheld["interval"]["status"] == "withheld"
-    assert withheld["interval"]["reason"] == "sampling_dependence_unknown"
+    assert withheld["interval"]["available"] is False
+    assert withheld["interval"]["reason"] == "cell_not_licensed"
+    assert withheld["interval"]["dependence_reason"] == "sampling_dependence_unknown"
     assert risk(withheld) == pytest.approx(risk(result))
 
 
@@ -304,3 +326,225 @@ def test_query_contract_is_validated_before_search():
         transport.identify_multi_source_z_transport(
             graph=graph(), query=query(source_a(), source_b()), catalog={}
         )
+
+
+REQUESTS = [{"x": 0.0}, {"x": 1.0}]
+
+
+def test_multi_source_identification_executes_its_plan_after_query_disposal():
+    """The decision is taken once; the stage keeps its proof after the query is gone."""
+    builder = transport.identify_multi_source_z_transport(
+        graph=graph(), query=query(source_a(), source_b()), catalog=catalog()
+    )
+    assert builder.outcome == "identified"
+    program = builder.decision()
+    prepared = builder.prepare_exact(laws(), {"x": 1.0})
+    del builder
+    assert program["route"] == "combined" and program["rules"]
+    result = json.loads(prepared.estimate())
+    assert risk(result) == pytest.approx(truth(1), abs=1e-12)
+    assert prepared.cited_sources == program["sources"]
+
+
+def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
+    builder = identified_stage()
+    retained_plan = builder.prepare_exact(laws(), REQUESTS)
+    del builder
+    plan = retained_plan.plan()
+    assert plan["compiled_plans"] == 2 and plan["requests"] == REQUESTS
+    assert set(plan["cited_regimes"]) == {"a_z2_0", "a_z2_1", "b_z1_0"} and plan["rules"]
+    result = json.loads(retained_plan.estimate())
+    assert result["interval"]["status"] == "point_only"
+    assert result["interval"]["available"] is False
+    assert [risk(r) for r in result["requests"]] == pytest.approx([truth(0), truth(1)], abs=1e-12)
+    assert retained_plan.cited_sources == ["a", "b"]
+
+
+def test_prepare_empirical_compiles_a_counted_plan_after_builder_disposal():
+    builder = identified_stage(catalog(studies=True))
+    with pytest.raises(Exception, match="empirical_counts_required"):
+        builder.prepare_empirical(laws(), {"x": 1.0})
+    retained_plan = builder.prepare_empirical(laws(sample_size=40_000), REQUESTS, seed=5)
+    del builder
+    plan = retained_plan.plan()
+    assert plan["compiled_plans"] == 2
+    result = json.loads(retained_plan.estimate())
+    assert [risk(r) for r in result["requests"]] == pytest.approx([truth(0), truth(1)], abs=1e-2)
+    assert result["interval"]["reason"] == "cell_not_licensed"
+    assert retained_plan.seed == 5
+
+
+def test_estimate_executes_every_request_and_contrast_from_the_retained_plan():
+    builder = identified_stage()
+    prepared = builder.prepare_exact(laws(), REQUESTS)
+    del builder
+    result = json.loads(prepared.estimate())
+    # Request 0 stays at the top level; every request is listed with its means.
+    assert result["probabilities"] == result["requests"][0]["probabilities"]
+    assert [r["assignment"] for r in result["requests"]] == REQUESTS
+    means = [r["means"]["y"] for r in result["requests"]]
+    assert means == pytest.approx([truth(0), truth(1)], abs=1e-12)
+    (contrast,) = result["contrasts"]
+    assert (contrast["request"], contrast["baseline"], contrast["outcome"]) == (1, 0, "y")
+    assert contrast["estimate"] == pytest.approx(truth(1) - truth(0), abs=1e-12)
+    # The retained plan re-executes to the same numbers.
+    plan = prepared.plan()
+    assert plan["compiled_plans"] == len(result["requests"])
+    again = json.loads(prepared.estimate())
+    assert again["contrasts"] == result["contrasts"]
+
+
+def test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan():
+    builder = identified_stage()
+    prepared = builder.prepare_empirical(laws(sample_size=40_000), REQUESTS)
+    del builder
+    before = json.loads(prepared.estimate())
+    plan = prepared.plan()
+    prepared.refresh(laws(sample_size=5_000))
+    # The proof and requests of the plan are unchanged; only the laws moved.
+    assert prepared.plan() == plan
+    after = json.loads(prepared.estimate())
+    assert len(after["requests"]) == 2 and len(after["contrasts"]) == 1
+    assert after["contrasts"][0]["estimate"] != before["contrasts"][0]["estimate"]
+    assert after["contrasts"][0]["estimate"] == pytest.approx(truth(1) - truth(0), abs=5e-2)
+    # Refresh clears the last claim: nothing is exported until the plan runs again.
+    prepared.refresh(laws(sample_size=5_000))
+    with pytest.raises(Exception, match="not_executed"):
+        prepared.export()
+
+
+def _swap_first(data, a, b):
+    i, j = data.index(a), data.index(b)
+    out = bytearray(data)
+    out[i : i + len(a)], out[j : j + len(b)] = b, a
+    return bytes(out)
+
+
+def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
+    builder = identified_stage()
+    prepared = builder.prepare_exact(laws(), REQUESTS)
+    del builder
+    json.loads(prepared.estimate())
+    plan = prepared.plan()
+    artifact = prepared.export()
+    consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+    assert consumed["proof"]["rules"] == plan["rules"]
+    # Relabelling coordinates in the frame (z1 <-> z2, same byte length) is refused:
+    # the names are bound into the artifact's verified identity.
+    relabelled = _swap_first(artifact, b"bz1", b"bz2")
+    assert relabelled != artifact
+    with pytest.raises(CausalSerializationError, match="variable names do not match"):
+        transport.consume_multi_source_z_transport_artifact(relabelled)
+
+    # Renaming every snapshot consistently is caught by the data-identity digest.
+    # The framed payload is a CBOR byte array: each ASCII byte is `0x18 <byte>`.
+    def framed(text):
+        return b"".join(b"\x18" + bytes([c]) for c in text.encode())
+
+    renamed = artifact.replace(framed("snap-obs"), framed("snap-obz"))
+    assert renamed != artifact
+    with pytest.raises(CausalSerializationError, match="data identity digest mismatch"):
+        transport.consume_multi_source_z_transport_artifact(renamed)
+    # A consumer with smaller limits than the producer refuses.
+    with pytest.raises(CausalResourceError):
+        transport.consume_multi_source_z_transport_artifact(artifact, max_search_operations=10)
+
+
+def test_consumer_recomputes_points_and_contrasts_after_builder_disposal():
+    builder = identified_stage()
+    prepared = builder.prepare_exact(laws(), REQUESTS)
+    del builder
+    live = json.loads(prepared.estimate())
+    plan = prepared.plan()
+    artifact = prepared.export()
+    del prepared
+    consumed = json.loads(transport.consume_multi_source_z_transport_artifact(artifact))
+    assert consumed["proof"]["rules"] == plan["rules"]
+    assert consumed["requests"] == live["requests"]
+    assert consumed["contrasts"] == live["contrasts"]
+    assert consumed["interval"] == live["interval"]
+    assert consumed["cited_sources"] == ["a", "b"]
+    assert consumed["premises_digest"] and consumed["data_digest"]
+
+
+def test_a_fabricated_cross_source_joint_is_refused():
+    """R-443 Figure 1(e,f): one c-factor would need do(z1, z2) jointly, split across
+    two sources. The search never fabricates that joint."""
+    names = ["z1", "x", "z2", "y"]
+    split_graph = Admg.from_edges(
+        names,
+        [("z1", "x"), ("z2", "x"), ("x", "y")],
+        [("z1", "x"), ("z1", "y"), ("z2", "x"), ("z2", "y")],
+    )
+    split = transport.MultiSourceZTransportQuery(
+        target="target",
+        outcomes=["y"],
+        treatments=["x"],
+        sources=[
+            transport.ZTransportSource(
+                "a", controllable=["z2"], selections=["z1"], experiment_assignment={"z2": 0.0}
+            ),
+            transport.ZTransportSource(
+                "b", controllable=["z1"], selections=["z2"], experiment_assignment={"z1": 0.0}
+            ),
+        ],
+    )
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    evidence = transport.EvidenceCatalog(
+        environments=tuple(transport.Environment(p, coordinates) for p in ("target", "a", "b")),
+        regimes=(
+            transport.EvidenceRegime("obs", "target", measured=names),
+            transport.EvidenceRegime(
+                "a_z2",
+                "a",
+                kind="experimental",
+                interventions=["z2"],
+                measured=["z1", "x", "y"],
+            ),
+            transport.EvidenceRegime(
+                "b_z1",
+                "b",
+                kind="experimental",
+                interventions=["z1"],
+                measured=["x", "z2", "y"],
+            ),
+        ),
+        bindings=tuple(
+            transport.RegimeBinding(rid, f"snap-{rid}", sampling="independent")
+            for rid in ("obs", "a_z2", "b_z1")
+        ),
+    )
+    stage = transport.identify_multi_source_z_transport(
+        graph=split_graph, query=split, catalog=evidence
+    )
+    assert stage.outcome == "not_certified"
+    decision = stage.decision()
+    assert decision["reason"] == "transport_not_certified"
+    assert {"stage": "multi_source", "outcome": "not_certified"} in decision["stages"]
+    with pytest.raises(CausalUnsupportedError, match="transport_not_certified"):
+        stage.prepare_exact((), {"x": 1.0})
+
+
+def test_model_artifact_and_selected_sample_regimes_never_satisfy_a_factor():
+    for fields in ({"model_artifact": "simulator-v1"}, {"selected_on": ["z2"]}):
+        stage = transport.identify_multi_source_z_transport(
+            graph=graph(),
+            query=query(source_a(), source_b()),
+            catalog=catalog(regime_fields={"b_z1_0": fields}),
+        )
+        assert stage.outcome != "identified", (fields, stage.decision())
+        with pytest.raises(CausalUnsupportedError):
+            stage.prepare_exact(laws(), {"x": 1.0})
+
+
+def test_distinct_studies_are_the_declared_independence_the_interval_reports():
+    counted = laws(sample_size=40_000)
+    # One study per regime: independence is declared, nothing else withholds.
+    distinct = identified_stage(catalog(studies=True)).prepare_empirical(counted, {"x": 1.0})
+    assert json.loads(distinct.estimate())["interval"]["dependence_reason"] is None
+    # Both arms of source a in one study (no shared dataset declared): unknown.
+    shared = {"obs": "s-obs", "a_z2_0": "trial-a", "a_z2_1": "trial-a", "b_z1_0": "s-b"}
+    same_study = identified_stage(catalog(studies=shared)).prepare_empirical(counted, {"x": 1.0})
+    interval = json.loads(same_study.estimate())["interval"]
+    assert interval["dependence_reason"] == "sampling_dependence_unknown"
+    assert interval["reason"] == "cell_not_licensed"

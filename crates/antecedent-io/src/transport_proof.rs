@@ -132,7 +132,7 @@ fn collect_distribution_factor(
         .iter()
         .filter(|regime| {
             regime.population.as_ref() == name
-                && regime.evidence_kind.can_satisfy_factor()
+                && regime.supplies_population_law()
                 && regime.intervention_values.is_empty()
                 && regime.conditioned_on.is_empty()
                 && matches!(regime.distribution, DistributionAvailability::Joint)
@@ -160,6 +160,9 @@ fn collect_distribution_factor(
             None => "matching population and intervention regime absent",
             Some(candidate) if !candidate.evidence_kind.can_satisfy_factor() => {
                 "matching regime is only manipulable or proposed"
+            }
+            Some(candidate) if !candidate.supplies_population_law() => {
+                "matching regime is a model artifact or a selected-sample law, not a population law"
             }
             Some(candidate) if !candidate.intervention_values.is_empty() => {
                 "matching regime is limited to concrete intervention values"
@@ -407,5 +410,30 @@ mod tests {
                 .is_some_and(|reason| reason.contains("separate marginals"))
         }));
         assert!(empty.regimes.is_empty());
+
+        // A model artifact or a law selected on a variable is not a population
+        // law: it never binds a factor, whatever its evidence kind.
+        for edit in [
+            (|r: &mut EvidenceRegime| {
+                r.origin = antecedent_core::LawOrigin::ModelArtifact { artifact: Arc::from("m") };
+            }) as fn(&mut EvidenceRegime),
+            |r: &mut EvidenceRegime| {
+                r.selection = antecedent_core::SamplingSelection::SelectedOn {
+                    variables: Arc::from([VariableId::from_raw(1)]),
+                };
+            },
+        ] {
+            let mut regimes = catalog.regimes.to_vec();
+            regimes.iter_mut().for_each(edit);
+            let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
+            let refused = wire.inspect(&diagram, &query, &catalog, limits, &ctx).unwrap();
+            assert!(refused.factors.iter().all(|factor| factor.supplied_by.is_none()));
+            assert!(refused.factors.iter().all(|factor| {
+                factor
+                    .binding_failure
+                    .as_deref()
+                    .is_some_and(|reason| reason.contains("not a population law"))
+            }));
+        }
     }
 }

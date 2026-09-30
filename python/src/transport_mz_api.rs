@@ -6,13 +6,15 @@ use crate::transport_common::{
 use crate::transport_z_api::{intervention_assignments, to_py_json};
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
 use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits, Value, VariableId};
+use antecedent_expr::Assignment;
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_identify::{
     MzTransportDecision, MzTransportQuery, MzTransportRoute, ZTransportSourceSpec,
     bind_mz_transport_catalog, decide_mz_transport,
 };
 use antecedent_io::mz_transport_artifact::{
-    MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
+    MzContrastWire, MzTransportArtifactWire, MzTransportConsumeLimits, MzUncertaintyWire,
+    refuse_unlicensed_interval,
 };
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -115,23 +117,29 @@ fn decision_json(
     }
 }
 
-fn uncertainty_json(
-    uncertainty: &MzUncertaintyWire,
-    names: &[String],
-    seed: u64,
-) -> serde_json::Value {
+/// Interval bookkeeping in variable names. `seed` is the stored seed of an
+/// estimator run (`None` when no interval run is recorded); while the interval
+/// route is closed, counted laws report `withheld` / `cell_not_licensed` and
+/// `available` is always false.
+fn uncertainty_json(uncertainty: &MzUncertaintyWire, names: &[String]) -> serde_json::Value {
     serde_json::json!({
-        "available": !uncertainty.mean_intervals.is_empty(),
+        "available": uncertainty.available(),
         "status": uncertainty.status,
         "reason": uncertainty.reason,
+        "dependence_reason": uncertainty.dependence_reason,
         "method": uncertainty.method,
         "coverage_target": uncertainty.coverage_target,
-        "seed": seed,
+        "seed": uncertainty.seed,
         "replicates_requested": uncertainty.replicates_requested,
         "replicates_ok": uncertainty.replicates_ok,
         "replicates_failed": uncertainty.replicates_failed,
-        "mean_intervals": uncertainty.mean_intervals.iter().map(|(v, lo, hi)| serde_json::json!({
-            "outcome": names[*v as usize], "lower": lo, "upper": hi,
+        "mean_intervals": uncertainty.mean_intervals.iter().map(|request| {
+            request.iter().map(|(v, lo, hi)| serde_json::json!({
+                "outcome": names[*v as usize], "lower": lo, "upper": hi,
+            })).collect::<Vec<_>>()
+        }).collect::<Vec<_>>(),
+        "contrast_intervals": uncertainty.contrast_intervals.iter().map(|(k, v, lo, hi)| serde_json::json!({
+            "request": k, "outcome": names[*v as usize], "lower": lo, "upper": hi,
         })).collect::<Vec<_>>(),
     })
 }
@@ -145,6 +153,89 @@ fn point_json(
         "atoms": distribution.atoms.iter().map(|row| row.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
         "probabilities": distribution.probabilities.as_ref(),
     })
+}
+
+/// Request 0's point at the top level (the contrast baseline), every request's
+/// point and outcome means under `requests`, and the point contrasts.
+fn points_json(
+    requests: &[Assignment],
+    distributions: &[antecedent_expr::ExactDistribution],
+    contrasts: &[MzContrastWire],
+    names: &[String],
+) -> serde_json::Value {
+    let mut payload = point_json(&distributions[0], names);
+    payload["requests"] = requests
+        .iter()
+        .zip(distributions)
+        .map(|(request, distribution)| {
+            let mut entry = point_json(distribution, names);
+            entry["assignment"] = request
+                .entries()
+                .iter()
+                .map(|(v, x)| (names[v.as_usize()].clone(), serde_json::json!(x.as_f64())))
+                .collect::<serde_json::Map<_, _>>()
+                .into();
+            entry["means"] = distribution
+                .outcomes
+                .iter()
+                .map(|v| {
+                    (names[v.as_usize()].clone(), serde_json::json!(distribution.mean(*v).ok()))
+                })
+                .collect::<serde_json::Map<_, _>>()
+                .into();
+            entry
+        })
+        .collect::<Vec<_>>()
+        .into();
+    payload["contrasts"] = contrasts
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "request": c.request, "baseline": 0, "outcome": names[c.outcome as usize], "estimate": c.estimate,
+            })
+        })
+        .collect::<Vec<_>>()
+        .into();
+    payload
+}
+
+/// One request mapping, or a sequence of them (request 0 is the contrast baseline).
+fn parse_requests(names: &[String], assignments: &Bound<'_, PyAny>) -> PyResult<Vec<Assignment>> {
+    if let Ok(single) = assignments.extract::<BTreeMap<String, f64>>() {
+        return Ok(vec![assignment_from_pairs(names, single)?]);
+    }
+    let many = assignments.extract::<Vec<BTreeMap<String, f64>>>().map_err(|_| {
+        crate::value_err(
+            "assignments must be a mapping of variable names to levels, or a sequence of them",
+        )
+    })?;
+    if many.is_empty() {
+        return Err(crate::value_err("assignments must name at least one request"));
+    }
+    many.into_iter().map(|pairs| assignment_from_pairs(names, pairs)).collect()
+}
+
+/// The typed refusal of preparing a decision that did not identify: the
+/// decision's own frozen (reason code, `mz_transport.*` detail) pair.
+fn not_identified(decision: &MzTransportDecision) -> PyErr {
+    let code =
+        decision.reason_code().unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+    let detail = decision.detail_code().unwrap_or_default();
+    crate::refusal(
+        code,
+        format!("{detail}: only an identified decision can be prepared; see decision()"),
+    )
+}
+
+/// A decision error: a declared bound the query exceeds is `route_not_supported`
+/// naming the bound; anything else keeps its identification mapping.
+fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
+    match e {
+        antecedent_identify::IdentificationError::UnsupportedInput { code } => {
+            crate::refusal(antecedent_core::reason_code!("route_not_supported"), code)
+        }
+        other => error(other),
+    }
 }
 
 /// A bounded multi-source decision against one catalog of target and source evidence.
@@ -165,7 +256,7 @@ impl MultiSourceZTransportStage {
         &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
-        assignments: BTreeMap<String, f64>,
+        assignments: &Bound<'_, PyAny>,
         empirical: bool,
         max_operations: usize,
         max_depth: usize,
@@ -173,10 +264,7 @@ impl MultiSourceZTransportStage {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedMultiSourceZTransportStage> {
         let MzTransportDecision::Identified { derivation, .. } = &self.decision else {
-            return Err(crate::refusal(
-                antecedent_core::reason_code!("transport_not_certified"),
-                "mz_transport.not_identified: only an identified decision can be prepared",
-            ));
+            return Err(not_identified(&self.decision));
         };
         let data = parse_laws(
             laws,
@@ -185,7 +273,7 @@ impl MultiSourceZTransportStage {
             self.max_support_rows,
             RegimeCheck::Strict,
         )?;
-        let request = assignment_from_pairs(&self.graph.names, assignments)?;
+        let requests = parse_requests(&self.graph.names, assignments)?;
         let (shared, catalog, derivation, search, memory_bytes) = (
             self.shared.clone(),
             self.catalog.clone(),
@@ -203,7 +291,7 @@ impl MultiSourceZTransportStage {
             } else {
                 antecedent::StudyBuilder::mz_transport
             };
-            build(shared, functional, search, data, request, limits, &ctx).map_err(error)
+            build(shared, functional, search, data, requests, limits, &ctx).map_err(error)
         })?;
         Ok(PreparedMultiSourceZTransportStage {
             inner,
@@ -240,14 +328,15 @@ impl MultiSourceZTransportStage {
         )
     }
 
-    /// Prepare exact-law evaluation of the identified formula.
+    /// Prepare exact-law evaluation of the identified formula for one request
+    /// mapping, or a sequence of them (request 0 is the contrast baseline).
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_exact(
         &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
-        assignments: BTreeMap<String, f64>,
+        assignments: &Bound<'_, PyAny>,
         max_operations: usize,
         max_depth: usize,
         seed: u64,
@@ -263,7 +352,7 @@ impl MultiSourceZTransportStage {
         &self,
         py: Python<'_>,
         laws: &Bound<'_, PyAny>,
-        assignments: BTreeMap<String, f64>,
+        assignments: &Bound<'_, PyAny>,
         max_operations: usize,
         max_depth: usize,
         seed: u64,
@@ -287,8 +376,10 @@ struct PreparedMultiSourceZTransportStage {
 
 #[pymethods]
 impl PreparedMultiSourceZTransportStage {
-    /// Evaluate the frozen formula. Exact laws are point-only; empirical tables
-    /// attach a nominal joint bootstrap or the reason it is withheld.
+    /// Evaluate the frozen formula for every prepared request, with point
+    /// contrasts against request 0. Exact laws are point-only; counted laws
+    /// return the point with the interval withheld as `cell_not_licensed`
+    /// (the interval route is closed until its coverage records exist).
     #[pyo3(signature=(*, memory_bytes=None, cancel=None, seed=None))]
     fn estimate(
         &mut self,
@@ -304,11 +395,12 @@ impl PreparedMultiSourceZTransportStage {
         let inner = self.inner.clone();
         let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
         let names = &self.graph.names;
-        let mut payload = point_json(result.distribution(), names);
+        let mut payload =
+            points_json(self.inner.requests(), result.distributions(), result.contrasts(), names);
         payload["status"] = "available".into();
         payload["scope"] = SCOPE.into();
         payload["seed"] = self.seed.into();
-        payload["interval"] = uncertainty_json(result.uncertainty(), names, self.seed);
+        payload["interval"] = uncertainty_json(result.uncertainty(), names);
         self.last = Some(result);
         Ok(payload.to_string())
     }
@@ -345,9 +437,42 @@ impl PreparedMultiSourceZTransportStage {
                 "transport.no_execution_claim: estimate before exporting an mz-transport artifact",
             )
         })?;
-        let raw = result.export(&self.inner).map_err(error)?;
+        let ctx = execution_context(self.seed, self.memory_bytes, None);
+        let raw = result.export_named(&self.inner, &self.graph.names, &ctx).map_err(error)?;
         let framed = frame_named_artifact(MZ_TRANSPORT_PREFIX, &self.graph.names, raw)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
+    }
+
+    /// The retained, compiled plan: the frozen proof's rules and cited
+    /// regimes, and one compiled evaluation plan per request.
+    fn plan(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let names = &self.graph.names;
+        let functional = self.inner.functional();
+        let requests = self
+            .inner
+            .requests()
+            .iter()
+            .map(|request| {
+                request
+                    .entries()
+                    .iter()
+                    .map(|(v, x)| (names[v.as_usize()].clone(), serde_json::json!(x.as_f64())))
+                    .collect::<serde_json::Map<_, _>>()
+            })
+            .collect::<Vec<_>>();
+        to_py_json(
+            py,
+            &serde_json::json!({
+                "rules": functional.derivation().rules(),
+                "cited_regimes": functional
+                    .cited_regimes()
+                    .iter()
+                    .map(|id| regime_label(&self.catalog, *id))
+                    .collect::<Vec<_>>(),
+                "requests": requests,
+                "compiled_plans": self.inner.plans().len(),
+            }),
+        )
     }
 
     /// Sources the prepared formula cites, in canonical order.
@@ -422,7 +547,8 @@ fn identify_multi_source_z_transport_stage(
     let (decision_graph, decision_catalog) = (shared.clone(), catalog.clone());
     let decision = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        decide_mz_transport(&decision_graph, &query, &decision_catalog, search, &ctx).map_err(error)
+        decide_mz_transport(&decision_graph, &query, &decision_catalog, search, &ctx)
+            .map_err(decision_error)
     })?;
     Ok(MultiSourceZTransportStage {
         decision,
@@ -461,6 +587,7 @@ fn consume_multi_source_z_transport_artifact(
         max_support_rows: max_support_rows.unwrap_or(defaults.max_support_rows),
         max_laws: max_laws.unwrap_or(defaults.max_laws),
         max_law_cells: max_law_cells.unwrap_or(defaults.max_law_cells),
+        ..defaults
     };
     crate::detach_catch(py, move || {
         let ctx: ExecutionContext = execution_context(0, memory_bytes, cancel);
@@ -468,7 +595,11 @@ fn consume_multi_source_z_transport_artifact(
             MzTransportArtifactWire::consume_with_limits(&bytes, limits, &ctx).map_err(error)?;
         let graph = antecedent_io::admg_from_wire(&consumed.wire.graph).map_err(error)?;
         crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
-        let mut payload = point_json(&consumed.distribution, &names);
+        // The frame's names must be the mapping the verified identity binds.
+        consumed.wire.check_variable_names(&names).map_err(error)?;
+        refuse_unlicensed_interval(&consumed.wire.uncertainty).map_err(error)?;
+        let mut payload =
+            points_json(&consumed.requests, &consumed.distributions, &consumed.contrasts, &names);
         payload["status"] = "available".into();
         payload["scope"] = SCOPE.into();
         payload["proof"] =
@@ -483,9 +614,10 @@ fn consume_multi_source_z_transport_artifact(
             .into_iter()
             .collect::<Vec<_>>()
             .into();
-        // Bookkeeping was rechecked against the licensing decision; the seeded
-        // bootstrap itself is not re-run.
-        payload["interval"] = uncertainty_json(&consumed.wire.uncertainty, &names, 0);
+        payload["data_digest"] = consumed.wire.data_digest.clone().into();
+        // Bookkeeping was re-derived from the laws and catalog; the stored seed
+        // (none while the interval route is closed) is reported as stored.
+        payload["interval"] = uncertainty_json(&consumed.wire.uncertainty, &names);
         Ok(payload.to_string())
     })
 }

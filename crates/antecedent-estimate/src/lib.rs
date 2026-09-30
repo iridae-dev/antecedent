@@ -218,13 +218,13 @@ pub use serial_dependence::{
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use statistical_transport::{
-    BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, MzTransportIntervals,
-    NominalZTransportInterval, PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL,
+    BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, MzRequestInterval,
+    MzTransportIntervals, NominalZTransportInterval, PERCENTILE_BOOTSTRAP, POSTERIOR_EQUAL_TAIL,
     StatisticalTransportEstimate, TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED,
     bayesian_z_transport_interval, evaluate_bayesian_statistical_transport,
     evaluate_bayesian_statistical_transport_grid, evaluate_statistical_transport,
-    mz_sampling_dependence, mz_transport_bootstrap_interval, nominal_z_transport_interval,
-    percentile_interval,
+    mz_interval_withheld_reason, mz_sampling_dependence, mz_transport_bootstrap_interval,
+    mz_transport_bootstrap_law_draws, nominal_z_transport_interval, percentile_interval,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,

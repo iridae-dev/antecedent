@@ -723,6 +723,17 @@ run_v20 source_target_imbalance_standardize_nominal_coverage
 run_v20 recursive_frontdoor_nominal_coverage
 run_v20 weak_overlap_near_empty_conditioner_boundary
 
+echo "== 2.2 multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
+run_mz() {
+  local filter="$1"
+  echo "== antecedent: mz_transport_calibration ${filter} =="
+  check "mz_transport_calibration: ${filter}" \
+    cargo test --release -p antecedent --test mz_transport_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_mz multi_source_mz_independent_studies
+run_mz multi_source_mz_shared_units
+
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh
 

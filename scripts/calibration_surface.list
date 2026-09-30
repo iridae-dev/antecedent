@@ -98,6 +98,7 @@ key estimator.transport estimator transport.*
 estimator.transport_empirical crates/antecedent-estimate/src/empirical_table.rs
 estimator.transport_empirical crates/antecedent-estimate/src/statistical_transport.rs
 key estimator.transport_empirical estimator transport.empirical_table_plugin
+key estimator.transport_empirical estimator transport.mz_joint_bootstrap
 
 # ---- identification paths --------------------------------------------------
 identity.backdoor crates/antecedent-identify/src/backdoor.rs
@@ -284,6 +285,11 @@ suite.v110_calibration_temporal_class crates/antecedent/tests/v110_calibration_t
 suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
 suite.v20_transport_statistical_calibration crates/antecedent/tests/v20_transport_statistical_calibration.rs
 suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
+suite.mz_transport_calibration crates/antecedent/tests/mz_transport_calibration.rs
+# The R-443 Figure 1(c,d) structural models and law builders its designs draw from.
+suite.mz_transport_calibration crates/antecedent-estimate/tests/common/mz_fixture.rs
+suite.mz_transport_calibration crates/antecedent-estimate/tests/common/z_scm.rs
+suite.mz_transport_calibration crates/antecedent-estimate/tests/common/mod.rs
 
 # Learner adapters and their dependency choices can move nuisance predictions.
 core crates/antecedent-learn/
