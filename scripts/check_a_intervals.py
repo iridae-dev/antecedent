@@ -353,7 +353,7 @@ def self_test() -> int:
     try:
         needed = set(REGISTRY_FILES) - {"parity/coverage_records.toml"}
         promotion = tomllib.loads((real_root / "parity/promotion_2_2.toml").read_text())
-        for record in promotion["record"]:
+        for record in (r for r in promotion["record"] if r.get("milestone") == "A"):
             if record.get("milestone") != "A":
                 continue
             needed |= set(INTERVAL_SURFACES.get(workstream(record), []))
@@ -407,7 +407,7 @@ def self_test() -> int:
             else:
                 print(f"self-test ok: '{label}' fails")
 
-        x1 = next(r for r in promotion["record"] if workstream(r) == "X1")
+        x1 = next(r for r in promotion["record"] if workstream(r) == "X1" and r.get("milestone") == "A")
         x1_records = list(x1["coverage_records"])
         x1_route = next(r for r in x1["routes"] if r["stage"] == "uncertainty")
         promo = "parity/promotion_2_2.toml"
@@ -469,7 +469,7 @@ def self_test() -> int:
             run(edit_file(promo, f'refusal_assertion = "{x1_route["refusal_assertion"]}"', 'refusal_assertion = "no_such_test"')),
             fail_with="does not exist",
         )
-        x5 = next(r for r in promotion["record"] if workstream(r) == "X5")
+        x5 = next(r for r in promotion["record"] if workstream(r) == "X5" and r.get("milestone") == "A")
         x5_heads = [
             f'{{ name = "{r["name"]}", stage = "uncertainty", status = "closed"'
             for r in x5["routes"]
