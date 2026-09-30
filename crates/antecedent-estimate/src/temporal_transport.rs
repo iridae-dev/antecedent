@@ -267,6 +267,7 @@ fn conditioning_has_mass(
 /// `unreached` when served but the target law gives the history no mass, else
 /// supported.
 #[must_use]
+#[doc(hidden)]
 pub fn history_support(
     decision: &TemporalSequenceDecision,
     data: &ExactTransportData,

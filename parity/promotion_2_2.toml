@@ -21,8 +21,16 @@
 #     runtime-refusal test (`refusal_test` + `refusal_assertion`) that observes its
 #     reason_code; the record's refusal details equal the `"<ns>.<detail>"` literals
 #     in non-test source (crates/*/src, python/src, python/antecedent); every public
-#     symbol of the record's `surface` files is a route-name component or a value
-#     type listed in `surface_values`;
+#     symbol of the record's `surface*` files is a route-name component, an entry in
+#     a route's `covers = ["symbol", "Type.method", ...]` (extra public symbols that
+#     route accounts for, so route names stay meaningful identifiers; every entry must
+#     be a real public symbol of a scanned surface file, and a warning is printed when
+#     it appears in no cited evidence test closure nor the route's own entry-point
+#     file), a value type listed in `surface_values` (which also covers that type's
+#     non-executing methods: Rust inherent methods and the #[pymethods] getters of a
+#     #[pyclass]; methods named run/execute/evaluate/decide/identify/prepare/estimate/
+#     consume/fit, plus refresh/export on pyclasses, are never covered this way and
+#     need a route or `surface_internal`), or a `surface_internal` item;
 #   - a `promoted` record cites executed positive, negative, artifact (and, for a
 #     search, budget) fixtures, plus coverage records for any calibrated interval;
 #   - no 2.2 record publishes a nominal-only interval: `estimator_grid_not_measured`
@@ -68,7 +76,21 @@ coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstr
 search = true
 search_impl = ["crates/antecedent-identify/src/sid/mz_transport.rs", "crates/antecedent-identify/src/sid.rs"]
 surface = ["python/antecedent/transport/_multi_source.py"]
-surface_values = ["ZTransportSource", "MultiSourceZTransportQuery"]
+surface_rust = ["crates/antecedent-identify/src/sid/mz_transport.rs", "crates/antecedent-io/src/mz_transport_artifact.rs", "crates/antecedent/src/analysis/mz_transport.rs"]
+surface_pyo3 = ["python/src/transport_mz_api.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["MultiSourceZTransportQuery", "ZTransportSource", "consume_multi_source_z_transport_artifact", "identify_multi_source_z_transport"]
+surface_values = ["ZTransportSource", "MultiSourceZTransportQuery", "MzTransportQuery", "ValidatedMzTransportQuery", "MzTransportRoute", "MzTransportDerivation", "MzSearchRecord", "MzTransportDerivationRecord", "MzTransportObstruction", "MzStageRecord", "MzSearchInspection", "MzTransportDecision", "BoundMzTransportFunctional", "MzTransportArtifactError", "MzTransportConsumeLimits", "MzSourceWire", "MzTransportQueryWire", "MzTransportPointWire", "MzContrastWire", "MzUncertaintyWire", "MzTransportArtifactWire", "ConsumedMzTransport", "MzTransportArtifactInput", "MzTransportResult", "PreparedMzTransport", "MultiSourceZTransportStage", "PreparedMultiSourceZTransportStage"]
+surface_internal = [
+  { name = "mz_transport_refusal", why = "Pure (reason code, mz_transport detail) mapping of an IdentificationError; not an executing route. Must stay pub: antecedent-io, the antecedent facade, python/src/transport_mz_api.rs and integration tests map refusals through it." },
+  { name = "validate_mz_transport_query", why = "Precondition check run inside decide_mz_transport, which is the routed entry; it decides nothing itself. Must stay pub: the antecedent-identify integration test mz_transport_search.rs asserts its invalid_query and invalid_catalog refusals from outside the crate." },
+  { name = "mz_identification_error", why = "Error conversion IdentificationError -> IoError so mz refusals keep their reason code and detail; not an executing route. Must stay pub: the antecedent facade (analysis/mz_transport.rs) converts with it." },
+  { name = "mz_point_contrasts", why = "Pure arithmetic deriving request-k-minus-request-0 mean contrasts from exact distributions, shared by artifact construction and facade estimate; not a route. Must stay pub: the antecedent facade calls it." },
+  { name = "refuse_unlicensed_interval", why = "Guard refusing an interval-bearing artifact with cell_not_licensed / mz_transport.interval_withheld; the closed uncertainty route stays refused through it. Must stay pub: the antecedent facade and python/src/transport_mz_api.rs apply it after consuming." },
+  { name = "consume", why = "Default-limits convenience over the routed MzTransportArtifactWire.consume_with_limits (same checks, MzTransportConsumeLimits::default()). Must stay pub: antecedent integration tests call it from outside the crate." },
+  { name = "consume_with_interval", why = "Calibration-internal (feature calibration-internal, tests only): consumes an artifact that carries a recomputed bootstrap interval. No public route yields or accepts an interval; the public consumers refuse it. Must stay pub because the feature is enabled through facade dev-dependencies." },
+  { name = "identify_multi_source_z_transport_stage", why = "Native pyfunction backing the routed Python identify_multi_source_z_transport (antecedent.transport.advanced), reached only through that wrapper; the Python route owns its evidence." },
+]
 bounds = { max_observed = 12, max_sources = 4, max_controllable_per_source = 4, max_candidate_regimes = 64, max_search_states = 4096, max_depth = 24, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "SearchBudget memory cap, never absent: min(ExecutionContext.memory.hard_limit_bytes, 512 MiB default), live-state bytes cumulative across the stages of one decision" }
 refusals = [
   { code = "transport_not_certified", detail = "mz_transport.search_incomplete", when = "The combined search finished within budget without a formula or a checked obstruction." },
@@ -90,6 +112,11 @@ routes = [
   { name = "antecedent_estimate.evaluate_exact_mz_transport", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.PreparedMzTransport.estimate_refresh", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.consume_mz_transport_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent_identify.bind_mz_transport_catalog", stage = "prepare", status = "licensed", claim = "none" },
+  { name = "antecedent_identify.verify_mz_transport_obstruction", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent_io.MzTransportArtifactWire.consume_with_limits", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.StudyBuilder.mz_transport", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.StudyBuilder.mz_transport_empirical", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.identify_multi_source_z_transport", stage = "identify", status = "licensed", claim = "none" },
   { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_exact", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_empirical", stage = "prepare", status = "licensed", claim = "point_only" },
@@ -150,7 +177,16 @@ coverage_records = []
 search = true
 search_impl = ["crates/antecedent-identify/src/sid/scenarios.rs", "crates/antecedent-identify/src/sid.rs"]
 surface = ["python/antecedent/transport/_scenarios.py"]
-surface_values = ["TransportScenario", "TransportScenarioSet"]
+surface_rust = ["crates/antecedent-identify/src/sid/scenarios.rs", "crates/antecedent-estimate/src/transport_scenarios.rs", "crates/antecedent-io/src/transport_scenario_artifact.rs", "crates/antecedent/src/analysis/transport_scenarios.rs"]
+surface_pyo3 = ["python/src/transport_scenario_api.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["TransportScenario", "TransportScenarioSet", "consume_transport_scenarios_artifact", "prepare_transport_scenarios"]
+surface_values = ["TransportScenario", "TransportScenarioSet", "ScenarioSetRefusal", "ScenarioCoordinate", "ScenarioOutcome", "ScenarioDecision", "ScenarioDecisionLimits", "ScenarioSetDecision", "MeanEnvelope", "StructuralEnvelope", "WeightedScenarioReport", "PreparedScenarioSet", "ScenarioResult", "StatusMass", "ScenarioSetReport", "TransportScenarioArtifactError", "TransportScenarioConsumeLimits", "ScenarioCoordinateWire", "ScenarioWire", "ScenarioQueryWire", "ScenarioResultWire", "MeanEnvelopeWire", "EnvelopeWire", "WeightedWire", "ScenarioReceiptWire", "ScenarioReportWire", "TransportScenarioArtifactWire", "PreparedTransportScenarios"]
+surface_internal = [
+  { name = "mass_sum", why = "Order-independent Neumaier mass sum shared by the identify decision and the antecedent-estimate report so both compute bit-identical totals; a pure arithmetic helper that executes nothing, hidden so the routed decide and prepare entries are the public surface." },
+  { name = "unaccounted_after", why = "Unaccounted-mass rule (one minus identified mass, tolerance-clamped) shared by the identify decision and the antecedent-estimate weighted report; pure arithmetic, hidden so the routed entries stay the public surface." },
+  { name = "scenario_refusal", why = "Maps a ScenarioSetRefusal to the reason-coded IoError; shared by the facade builder and the pyo3 binding as a map_err adapter. Constructs an error only, reached publicly through the routed prepare and consume routes." },
+]
 bounds = { max_scenarios = 64, max_observed = 12, shared_budget = "one SearchBudget over every scenario entry, catalog search, pretreatment separation test, s-hedge witness construction and verification, and verification replay; memory is cumulative across the set (a decided scenario keeps holding its engine's peak live state); the receipt's explored (fully decided) and unevaluated (being decided and later) lists are disjoint", cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
 refusals = [
   { code = "scenario_aggregate_not_licensed", detail = "scenarios.shared_data_aggregate", when = "An inferential statement across scenarios sharing data is requested (2.3A)." },
@@ -170,6 +206,23 @@ routes = [
   { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.estimate.structural_envelope", stage = "evaluate", status = "licensed" },
   { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.estimate.weighted_report", stage = "evaluate", status = "licensed" },
   { name = "antecedent.transport.advanced.consume_transport_scenarios_artifact", stage = "consume", status = "licensed" },
+  { name = "antecedent_identify.decide_transport_scenarios", stage = "prepare", status = "licensed" },
+  { name = "antecedent_estimate.prepare_transport_scenarios", stage = "prepare", status = "licensed" },
+  { name = "antecedent_estimate.prepare_empirical_transport_scenarios", stage = "prepare", status = "licensed" },
+  { name = "antecedent_estimate.PreparedScenarioSet.evaluate", stage = "evaluate", status = "licensed" },
+  { name = "antecedent_io.TransportScenarioArtifactWire.consume_with_limits", stage = "consume", status = "licensed" },
+  { name = "antecedent.StudyBuilder.transport_scenarios", stage = "prepare", status = "licensed" },
+  { name = "antecedent.StudyBuilder.transport_scenarios_empirical", stage = "prepare", status = "licensed" },
+  { name = "antecedent.PreparedTransportScenarios.estimate", stage = "evaluate", status = "licensed" },
+  { name = "antecedent.PreparedTransportScenarios.refresh", stage = "prepare", status = "licensed" },
+  { name = "antecedent.PreparedTransportScenarios.export", stage = "representation", status = "licensed" },
+  { name = "antecedent.consume_transport_scenarios_artifact", stage = "consume", status = "licensed" },
+  { name = "antecedent._native.prepare_transport_scenarios_stage", stage = "prepare", status = "licensed" },
+  { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.refresh", stage = "prepare", status = "licensed" },
+  { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.export", stage = "representation", status = "licensed" },
+  { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.plan_summary", stage = "representation", status = "licensed" },
+  { name = "antecedent.PreparedTransportScenarios.aggregate_interval", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transport_scenarios.rs", refusal_assertion = "inference_across_scenarios_is_refused" },
+  { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.aggregate_interval", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true, refusal_test = "python/tests/test_transport_scenarios.py", refusal_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
   { name = "transport.scenarios.aggregate_inference", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transport_scenarios.rs", refusal_assertion = "inference_across_scenarios_is_refused" },
   { name = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "python/tests/test_transport_scenarios.py", refusal_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
 ]
@@ -235,7 +288,21 @@ compatibility = "learned_trial wire v1 artifacts and the prepare_trial route sta
 coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_independent_samples_continuous_mean_contrast"]
 search = false
 surface = ["python/antecedent/transport/_learned_continuous.py"]
-surface_values = ["EstimatorMenu", "EstimatorMenuEntry", "LearnedContinuousEstimate", "LearnedContinuousOptions"]
+surface_values = ["EstimatorMenu", "EstimatorMenuEntry", "LearnedContinuousEstimate", "LearnedContinuousOptions", "LearnedContinuousResult", "LearnedContinuousUncertainty", "FoldProvenance", "MenuContext", "MenuRefusal", "CertificateRecord", "LearnedContinuousArtifactError", "LearnedContinuousConsumeLimits", "LearnedContinuousArtifactWire", "LearnedContinuousArtifactInput", "ConsumedLearnedContinuous", "PreparedLearnedContinuous", "PreparedLearnedContinuousNative"]
+surface_rust = ["crates/antecedent-estimate/src/estimator_menu.rs", "crates/antecedent-estimate/src/learned_continuous.rs", "crates/antecedent-io/src/learned_continuous_artifact.rs", "crates/antecedent/src/analysis/learned_continuous.rs"]
+surface_pyo3 = ["python/src/learned_continuous_api.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["EstimatorMenu", "EstimatorMenuEntry", "LearnedContinuousEstimate", "LearnedContinuousOptions", "PreparedLearnedContinuous", "consume_learned_continuous", "estimator_menu", "prepare_learned_continuous"]
+surface_internal = [
+  { name = "transport_estimator_menu_with", why = "Provider- and options-aware form of the menu builder used by the facade's PreparedLearnedContinuous::estimator_menu and by the lifecycle test; the routed public entry is transport_estimator_menu." },
+  { name = "validate_learned_continuous", why = "Request validation shared by the facade builder, refresh and the independent consumer in antecedent-io; executes no fit and is reached publicly only through the routed StudyBuilder and consume routes." },
+  { name = "check_membership_overlap", why = "Membership-overlap re-check shared with the antecedent-io consumer; reached publicly only through the routed consume route." },
+  { name = "parse_learned_continuous_sampling", why = "Sampling-design name parser shared by the pyo3 binding and lifecycle tests; a pure parse behind the routed prepare surface." },
+  { name = "parse_learned_continuous_target", why = "Target name parser shared by the pyo3 binding and lifecycle tests; a pure parse behind the routed prepare surface." },
+  { name = "refuse_learned_continuous_interval", why = "Builds the cell_not_licensed refusal returned by the closed interval route (PreparedLearnedContinuous.interval); constructs an error only." },
+  { name = "learned_continuous_estimator_menu", why = "Native pyfunction backing the routed Python estimator_menu (antecedent.transport.advanced), reached only through that wrapper; the Python route owns its evidence." },
+  { name = "learned_continuous_interval_internal", why = "Joint outer bootstrap behind the closed interval route; compiled only under the calibration-internal feature for the coverage harness and thread-budget test, and no public route reaches it." },
+]
 bounds = { max_bootstrap = 2000, min_bootstrap = 199, max_folds = 20, max_rows_consumed = 1000000, max_features_consumed = 256, cancellation = true }
 refusals = [
   { code = "transport_support_failure", detail = "learned_transport.membership_overlap", when = "An out-of-fold source-membership probability falls below the declared minimum on any row (a trial row carries an unbounded odds weight; a target row lies where no trial unit resembles it), so the contrast would extrapolate." },
@@ -257,6 +324,11 @@ routes = [
   { name = "antecedent.transport.advanced.PreparedLearnedContinuous.refresh", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.PreparedLearnedContinuous.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.consume_learned_continuous", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.StudyBuilder.learned_continuous_menu", stage = "representation", status = "licensed", claim = "none" },
+  { name = "antecedent_io.LearnedContinuousArtifactWire.consume", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.estimate_learned_continuous", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
+  { name = "antecedent.transport.advanced.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_learned_continuous_transport.py", refusal_assertion = "test_the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
   { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
 ]
 fixtures = [
@@ -301,8 +373,18 @@ compatibility = "No change to temporal response artifacts (ADR 0021) or static t
 coverage_records = []
 search = true
 search_impl = ["crates/antecedent-identify/src/sid/temporal_sequence.rs", "crates/antecedent-identify/src/sid.rs"]
-surface = ["python/antecedent/transport/_temporal.py", "crates/antecedent/src/analysis/temporal_transport.rs"]
-surface_values = ["TemporalSequenceSpec"]
+surface = ["python/antecedent/transport/_temporal.py"]
+surface_rust = ["crates/antecedent-identify/src/sid/temporal_sequence.rs", "crates/antecedent-estimate/src/temporal_transport.rs", "crates/antecedent-io/src/temporal_transport_artifact.rs", "crates/antecedent/src/analysis/temporal_transport.rs"]
+surface_pyo3 = ["python/src/temporal_transport_api.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["TemporalSequenceSpec", "consume_temporal_transport_artifact", "prepare_temporal_transport_sequence"]
+surface_values = ["TemporalSequenceSpec", "TemporalRefusal", "TemporalSequenceError", "TemporalSlots", "TemplateRoles", "UnrolledSequence", "MechanismAssumption", "SliceInvariance", "SliceEvidence", "HistoryLattice", "TemporalOutcome", "TemporalDecisionLimits", "TemporalSequenceDecision", "HistorySupportRow", "HistorySupportReport", "TemporalSequenceReport", "PreparedTemporalSequence", "PreparedTemporalTransport", "TemporalTransportArtifactError", "TemporalTransportConsumeLimits", "TemporalSlotsWire", "HistoryRowWire", "InvarianceWire", "SliceEvidenceWire", "TemporalReportWire", "TemporalSequenceArtifactWire"]
+surface_internal = [
+  { name = "history_support", why = "The per-history support report is computed inside prepare_temporal_sequence and published on the report; the free function is public only so integration tests can probe a decision against arbitrary laws." },
+  { name = "temporal_refusal", why = "Error adapter (TemporalRefusal to IoError) shared by the facade and the Python layer; it decides and executes nothing." },
+  { name = "temporal_decision_error", why = "Error adapter (TemporalSequenceError to IoError) shared by the facade; it decides and executes nothing." },
+  { name = "temporal_sequence_identity", why = "Premises-digest helper used by the consumer and by tamper tests; the public consume route recomputes and checks it." },
+]
 bounds = { horizon = 2, max_actions = 8, max_observed = 12, max_history_states = 4096, cancellation = true, contract = "antecedent_core::SearchBudget", shared_budget = "one SearchBudget over the identification search, the s-hedge check, every verification replay and the growth of the history lattice, charged per state with the live bytes retained", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
 refusals = [
   { code = "transport_support_failure", detail = "temporal_transport.history_outside_support", when = "A complete history has no certified support: the supplied laws do not serve every leaf the identified proof cites at that history and the requested sequence (population, regime, the leaf's intervention coordinates at the history's values, its axes, and positive conditioning mass), whether or not the target reaches the history because the exact evaluator enumerates the whole lattice; or the target never takes the first action at a reached initial state." },
@@ -318,6 +400,7 @@ refusals = [
 ]
 routes = [
   { name = "antecedent_identify.decide_temporal_transport_sequence", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent_identify.unroll_two_slice", stage = "identify", status = "licensed", claim = "none" },
   { name = "antecedent_estimate.prepare_temporal_sequence", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.PreparedTemporalSequence.evaluate", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.StudyBuilder.temporal_transport_sequence", stage = "prepare", status = "licensed", claim = "point_only" },
@@ -325,11 +408,15 @@ routes = [
   { name = "antecedent.PreparedTemporalTransport.refresh", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.PreparedTemporalTransport.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent.consume_temporal_transport_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io.TemporalSequenceArtifactWire.consume_with_limits", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent._native.prepare_temporal_transport_stage", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.PreparedTemporalTransportStage.plan", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent.transport.advanced.prepare_temporal_transport_sequence", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.PreparedTemporalTransportStage.estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.PreparedTemporalTransportStage.refresh", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.PreparedTemporalTransportStage.export", stage = "representation", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.consume_temporal_transport_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.PreparedTemporalTransportStage.interval", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", permanent_in_release = true, refusal_test = "python/tests/test_transport_temporal.py", refusal_assertion = "test_an_interval_request_refuses_with_estimator_inference_mismatch" },
   { name = "transport.temporal.uncertainty", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", permanent_in_release = true, refusal_test = "crates/antecedent/tests/temporal_transport.rs", refusal_assertion = "an_interval_request_refuses_with_estimator_inference_mismatch" },
 ]
 fixtures = [
@@ -400,7 +487,14 @@ coverage_records = []
 search = false
 bounds = { cancellation = true, max_variables = 8, max_worlds = 8, max_rows = 100000 }
 surface = ["python/antecedent/cross_world.py"]
-surface_values = ["CrossWorldEffect", "EdgeIntervention"]
+surface_rust = ["crates/antecedent-core/src/query/cross_world.rs", "crates/antecedent-identify/src/cross_world.rs", "crates/antecedent-counterfactual/src/cross_world.rs", "crates/antecedent-io/src/cross_world_artifact.rs", "crates/antecedent/src/cross_world.rs"]
+surface_pyo3 = ["python/src/cross_world_api.rs"]
+surface_values = ["CrossWorldEffect", "EdgeIntervention", "CrossWorldRefusal", "CounterfactualNode", "CrossWorldWitness", "CrossWorldOptions", "CrossWorldEvaluation", "CrossWorldArtifactError", "CrossWorldWorldWire", "CrossWorldQueryWire", "CrossWorldArtifactWire", "WorldId", "EdgeRoute", "WorldSpec", "ExogenousCoupling", "WorldObservation", "CrossWorldQuery"]
+surface_internal = [
+  { name = "check_cross_world_edges", why = "The explicit node-count and sorted-edge-list form of the identify route's check_cross_world; the artifact consumer replays a stored witness through it without rebuilding a Dag. Same contract and refusals, hidden so the graph-taking check is the one public entry." },
+  { name = "cross_world_data_digest", why = "Digest helper the facade seals and consumes artifacts with (the data identity the for_data consumer compares); no execution, hidden so the consume route is the public entry." },
+  { name = "cross_world_identity", why = "Premises-digest helper shared by the artifact sealer and the facade consumer; no execution, hidden so the consume route is the public entry." },
+]
 refusals = [
   { code = "route_not_supported", detail = "cross_world.query_outside_contract", when = "A well-formed query shape the two-world contract does not implement: another number of worlds, a coupling other than one shared exogenous term, a baseline that reads another world, another treatment per world, or a contrast that is not the one outcome in world 1 minus world 0. Not a nonidentification claim." },
   { code = "cross_world_not_identified", detail = "cross_world.recanting_witness", when = "A non-treatment variable is needed in both worlds by one contrast term while taking a different value in each (Avin, Shpitser & Pearl 2005); its cross-world joint law is not identified." },
@@ -409,12 +503,12 @@ refusals = [
   { code = "invalid_argument", detail = "cross_world.invalid_query", when = "Unknown variables (in Python too), equal treatment and outcome, routed edges that are not graph edges, a table whose width disagrees with the graph, non-float64 or non-finite data, or ill-posed abduction (a mechanism that cannot be inverted on the data, or exogenous terms that are posterior or prior draws rather than exact inversions). Not a consistency test: consistency holds by construction of abduction." },
 ]
 routes = [
-  { name = "antecedent_identify.check_cross_world", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent_identify.check_cross_world", stage = "identify", status = "licensed", claim = "none", covers = ["check"] },
   { name = "antecedent_counterfactual.evaluate_cross_world", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.cross_world.evaluate_cross_world_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.cross_world.consume_cross_world_artifact", stage = "consume", status = "licensed", claim = "point_only" },
-  { name = "antecedent.python.cross_world.path_specific_effect", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.python.cross_world.consume_cross_world_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.cross_world.evaluate_cross_world_effect", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["CrossWorldEffect.export_artifact"] },
+  { name = "antecedent.cross_world.consume_cross_world_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["consume_cross_world_artifact_for_data"] },
+  { name = "antecedent.python.cross_world.path_specific_effect", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["evaluate_cross_world_edge_contrast"] },
+  { name = "antecedent.python.cross_world.consume_cross_world_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["consume_cross_world_edge_contrast_artifact"] },
   { name = "antecedent.cross_world.uncertainty", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", permanent_in_release = true, refusal_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", refusal_assertion = "structures_and_inference_outside_the_cell_are_refused" },
   { name = "antecedent.cross_world.structure_outside_contract", stage = "identify", status = "closed", reason_code = "cell_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", refusal_assertion = "structures_and_inference_outside_the_cell_are_refused" },
   { name = "antecedent.cross_world.recanting_witness_edge_sets", stage = "identify", status = "closed", reason_code = "cross_world_not_identified", permanent_in_release = true, refusal_test = "crates/antecedent/tests/cross_world_edge_contrast.rs", refusal_assertion = "nonidentified_cross_world_queries_refuse_with_cross_world_not_identified" },
@@ -483,8 +577,19 @@ compatibility = "Existing catalog wire and the sID/z/mz artifacts are unchanged;
 coverage_records = []
 search = true
 search_impl = ["crates/antecedent-identify/src/sid/mixed_source.rs"]
-surface = ["crates/antecedent/src/analysis/mixed_source.rs", "python/antecedent/transport/_mixed_source.py"]
-surface_values = ["MixedSourceResult", "MixedSourceQuery"]
+surface = ["python/antecedent/transport/_mixed_source.py"]
+surface_rust = ["crates/antecedent-identify/src/sid/mixed_source.rs", "crates/antecedent-estimate/src/mixed_source.rs", "crates/antecedent-io/src/mixed_source_artifact.rs", "crates/antecedent/src/analysis/mixed_source.rs"]
+surface_pyo3 = ["python/src/transport_mixed_api.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["MixedSourceQuery", "consume_mixed_source_artifact", "identify_mixed_source_transport"]
+surface_values = ["MixedSourceResult", "MixedSourceQuery", "PreparedMixedSource", "BoundMixedSourceFunctional", "MixedExclusion", "MixedInput", "MixedMissingEvidence", "MixedMissingLeaf", "MixedQuantity", "MixedRule", "MixedSearchInspection", "MixedSearchSummary", "MixedSourceDecision", "MixedSourceDerivation", "MixedSourceDerivationRecord", "MixedSourceLeaf", "MixedStageRecord", "MixedStep", "MixedStepRecord", "ValidatedMixedSourceQuery", "MixedSourceArtifactError", "MixedSourceConsumeLimits", "MixedSourceQueryWire", "MixedSourcePointWire", "MixedSourceArtifactWire", "ConsumedMixedSource", "MixedSourceArtifactInput", "MixedSourceStage", "PreparedMixedSourceStage"]
+surface_internal = [
+  { name = "mixed_source_rule_names", why = "Frozen-rule-set introspection consumed only by the x9.rule_set.invariance test; re-exported by sid.rs so it cannot be narrowed to pub(crate) from this cell." },
+  { name = "render_quantity", why = "Pure display helper (quantity to text) used by the pyo3 proof JSON and the search's own frontier text; not an execution entry point. Re-exported by sid.rs, so it stays pub but hidden." },
+  { name = "render_frontier", why = "Pure display helper for a stopped search's frontier text, used only inside antecedent-identify; re-exported by sid.rs, so it stays pub but hidden." },
+  { name = "consume", why = "Default-limits convenience over MixedSourceArtifactWire::consume_with_limits (the routed consumer); no caller outside the io crate." },
+  { name = "identify_mixed_source_transport_stage", why = "Native entry wrapped by the public Python function identify_mixed_source_transport (routed); the wrapper owns the documented surface." },
+]
 bounds = { max_observed = 10, max_distributions = 16, max_search_states = 20000, max_depth = 16, max_move = 2, max_intervention_set = 3, max_sources = 4, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
 refusals = [
   { code = "transport_not_certified", detail = "mixed_search.not_certified", when = "The frozen rule set reached its fixpoint within budget without the target; never a non-identification theorem." },
@@ -499,6 +604,12 @@ refusals = [
 routes = [
   { name = "antecedent_identify.decide_mixed_source", stage = "identify", status = "licensed", claim = "none" },
   { name = "antecedent_estimate.evaluate_exact_mixed_source", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_identify.validate_mixed_source_query", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent_identify.bind_mixed_source_catalog", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent_identify.verify_mixed_source_derivation", stage = "consume", status = "licensed", claim = "none" },
+  { name = "antecedent_estimate.prepare_exact_mixed_source", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.StudyBuilder.mixed_source", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent_io.MixedSourceArtifactWire.consume_with_limits", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent.PreparedMixedSource.estimate_refresh", stage = "evaluate", status = "licensed", claim = "point_only" },
   { name = "antecedent.consume_mixed_source_artifact", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.identify_mixed_source_transport", stage = "identify", status = "licensed", claim = "none" },

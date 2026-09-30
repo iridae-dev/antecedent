@@ -220,6 +220,7 @@ pub fn transport_estimator_menu(
 /// The menu computed from the certificate, the query and the request facts in `context`.
 #[must_use]
 #[allow(clippy::too_many_lines, reason = "one literal entry per named estimator")]
+#[doc(hidden)]
 pub fn transport_estimator_menu_with(
     id: &TransportIdentification,
     query: &TransportQuery,

@@ -189,6 +189,7 @@ impl MixedRule {
 
 /// Names of the frozen rule set, in application order.
 #[must_use]
+#[doc(hidden)]
 pub fn mixed_source_rule_names() -> Vec<&'static str> {
     MixedRule::ALL.iter().map(|rule| rule.as_str()).collect()
 }
@@ -738,6 +739,7 @@ fn name_of(names: &[String], variable: VariableId) -> String {
 
 /// `P(y1, y2 | do(x), z)` in names.
 #[must_use]
+#[doc(hidden)]
 pub fn render_quantity(quantity: &MixedQuantity, names: &[String]) -> String {
     let join = |vs: &[VariableId]| vs.iter().map(|v| name_of(names, *v)).collect::<Vec<_>>();
     let mut bar = Vec::new();
@@ -2361,6 +2363,7 @@ pub fn bind_mixed_source_catalog(
 
 /// Write a quantity list for a stopped search, one rendered quantity per line.
 #[must_use]
+#[doc(hidden)]
 pub fn render_frontier(frontier: &[MixedQuantity], names: &[String]) -> String {
     let mut out = String::new();
     for quantity in frontier {

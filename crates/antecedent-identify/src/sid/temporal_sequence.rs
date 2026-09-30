@@ -223,7 +223,7 @@ impl TemporalSlots {
 
 /// The finite levels of a declared domain, or `None` for an unbounded one.
 #[must_use]
-pub fn domain_levels(domain: &VariableDomain) -> Option<Vec<Value>> {
+fn domain_levels(domain: &VariableDomain) -> Option<Vec<Value>> {
     match domain {
         VariableDomain::Binary => Some(vec![Value::f64(0.0), Value::f64(1.0)]),
         VariableDomain::Categorical { cardinality } if *cardinality > 0 => {

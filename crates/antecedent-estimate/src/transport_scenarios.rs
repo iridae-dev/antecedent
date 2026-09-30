@@ -96,7 +96,7 @@ fn check_outcomes(points: &[(Arc<str>, &ExactDistribution)]) -> Result<(), Estim
 ///
 /// # Errors
 /// Distributions over different outcomes, or a non-numeric outcome.
-pub fn structural_envelope(
+pub(crate) fn structural_envelope(
     points: &[(Arc<str>, &ExactDistribution)],
 ) -> Result<Option<StructuralEnvelope>, EstimationError> {
     let Some((_, first)) = points.first() else { return Ok(None) };
@@ -147,7 +147,7 @@ pub fn structural_envelope(
 ///
 /// # Errors
 /// Invalid masses, distributions over different outcomes, or a non-numeric outcome.
-pub fn weighted_scenario_report(
+pub(crate) fn weighted_scenario_report(
     points: &[(Arc<str>, f64, &ExactDistribution)],
     outcomes: &[(VariableId, Option<(f64, f64)>)],
     unaccounted_mass: f64,

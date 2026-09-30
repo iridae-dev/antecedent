@@ -331,6 +331,7 @@ impl MultiSourceZTransportStage {
     /// `identified`, `proven_non_transportable`, `missing_evidence`,
     /// `not_certified` or `exhausted`.
     #[getter]
+    #[doc(hidden)]
     fn outcome(&self) -> &'static str {
         match &self.decision {
             MzTransportDecision::Identified { .. } => "identified",
@@ -342,6 +343,7 @@ impl MultiSourceZTransportStage {
     }
 
     /// The decision in variable names and catalog regime ids.
+    #[doc(hidden)]
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         to_py_json(py, &decision_json(&self.decision, &self.catalog, &self.graph.names))
     }
@@ -463,6 +465,7 @@ impl PreparedMultiSourceZTransportStage {
 
     /// The retained, compiled plan: the frozen proof's rules and cited
     /// regimes, and one compiled evaluation plan per request.
+    #[doc(hidden)]
     fn plan(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let names = &self.graph.names;
         let functional = self.inner.functional();
@@ -495,6 +498,7 @@ impl PreparedMultiSourceZTransportStage {
 
     /// Sources the prepared formula cites, in canonical order.
     #[getter]
+    #[doc(hidden)]
     fn cited_sources(&self) -> Vec<String> {
         let mut sources = self
             .inner
@@ -509,6 +513,7 @@ impl PreparedMultiSourceZTransportStage {
     }
 
     #[getter]
+    #[doc(hidden)]
     fn seed(&self) -> u64 {
         self.seed
     }
@@ -522,6 +527,7 @@ impl PreparedMultiSourceZTransportStage {
 #[pyfunction]
 #[pyo3(signature=(graph, target, outcomes, treatments, sources, catalog, *, max_operations=4096, max_depth=24, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
+#[doc(hidden)]
 fn identify_multi_source_z_transport_stage(
     py: Python<'_>,
     graph: PyRef<'_, Admg>,

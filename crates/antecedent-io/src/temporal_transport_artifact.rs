@@ -77,6 +77,7 @@ pub enum TemporalTransportArtifactError {
 /// A refused sequence, window or bound as a reason-coded refusal.
 #[must_use]
 #[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+#[doc(hidden)]
 pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
     IoError::Refused {
         code: refusal.code,
@@ -86,6 +87,7 @@ pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
 
 /// A decision failure as an IO error: a refusal keeps its code.
 #[must_use]
+#[doc(hidden)]
 pub fn temporal_decision_error(error: TemporalSequenceError) -> IoError {
     match error {
         TemporalSequenceError::Refused(refusal) => temporal_refusal(refusal),
@@ -362,6 +364,7 @@ fn data_digest(
 ///
 /// # Errors
 /// Encoding failure.
+#[doc(hidden)]
 pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result<String, IoError> {
     let mut graph = wire.graph.clone();
     graph.directed.sort_unstable();

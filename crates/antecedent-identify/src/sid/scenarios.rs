@@ -38,6 +38,7 @@ pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 /// with Neumaier compensation, so any renaming or reordering of scenarios gives
 /// the same bits. Every declared-mass total of a scenario set uses this sum.
 #[must_use]
+#[doc(hidden)]
 pub fn mass_sum(values: impl IntoIterator<Item = f64>) -> f64 {
     let mut values = values.into_iter().collect::<Vec<_>>();
     values.sort_by(f64::total_cmp);
@@ -55,6 +56,7 @@ pub fn mass_sum(values: impl IntoIterator<Item = f64>) -> f64 {
 /// when it is within [`SCENARIO_WEIGHT_TOLERANCE`] of one (the tolerance
 /// `try_new` accepts weights under), never negative.
 #[must_use]
+#[doc(hidden)]
 pub fn unaccounted_after(identified: f64) -> f64 {
     let rest = 1.0 - identified;
     if rest <= SCENARIO_WEIGHT_TOLERANCE { 0.0 } else { rest }

@@ -74,6 +74,7 @@ pub enum TransportScenarioArtifactError {
 
 /// A refused scenario set, schema or law as a reason-coded refusal.
 #[must_use]
+#[doc(hidden)]
 #[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
 pub fn scenario_refusal(refusal: ScenarioSetRefusal) -> IoError {
     IoError::Refused {
@@ -302,7 +303,7 @@ pub struct ScenarioReportWire {
 impl ScenarioReportWire {
     /// Encode a report together with the decision's proof records.
     #[must_use]
-    pub fn from_report(prepared: &PreparedScenarioSet, report: &ScenarioSetReport) -> Self {
+    pub(crate) fn from_report(prepared: &PreparedScenarioSet, report: &ScenarioSetReport) -> Self {
         let proofs = prepared
             .decision()
             .decisions
@@ -429,7 +430,9 @@ pub struct TransportScenarioArtifactWire {
 ///
 /// # Errors
 /// Encoding failure.
-pub fn scenario_data_identity(wire: &TransportScenarioArtifactWire) -> Result<String, IoError> {
+pub(crate) fn scenario_data_identity(
+    wire: &TransportScenarioArtifactWire,
+) -> Result<String, IoError> {
     Ok(crate::identity::digest_wire(
         IdentityDomain::TransportCertificate,
         &("transport_scenarios_data_v1", &wire.provider, &wire.catalog, &wire.laws, &wire.samples),
@@ -446,7 +449,9 @@ pub fn scenario_data_identity(wire: &TransportScenarioArtifactWire) -> Result<St
 ///
 /// # Errors
 /// Encoding failure.
-pub fn scenario_set_identity(wire: &TransportScenarioArtifactWire) -> Result<String, IoError> {
+pub(crate) fn scenario_set_identity(
+    wire: &TransportScenarioArtifactWire,
+) -> Result<String, IoError> {
     let mut scenarios = wire.scenarios.clone();
     for scenario in &mut scenarios {
         scenario.graph.directed.sort_unstable();

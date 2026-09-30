@@ -288,6 +288,7 @@ struct MixedSourceStage {
 impl MixedSourceStage {
     /// `identified`, `named_route`, `missing_evidence`, `not_certified` or `exhausted`.
     #[getter]
+    #[doc(hidden)]
     fn outcome(&self) -> &'static str {
         match &self.decision {
             MixedSourceDecision::Identified { .. } => "identified",
@@ -299,6 +300,7 @@ impl MixedSourceStage {
     }
 
     /// The decision in variable names and catalog regime labels.
+    #[doc(hidden)]
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         to_py_json(
             py,
@@ -457,6 +459,7 @@ impl PreparedMixedSourceStage {
 
     /// The retained, compiled plan: the frozen proof, its source-named leaves and
     /// one compiled evaluation plan per request.
+    #[doc(hidden)]
     fn plan(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let names = &self.graph.names;
         let functional = self.inner.functional();
@@ -480,6 +483,7 @@ impl PreparedMixedSourceStage {
 
     /// Studies the prepared formula cites, in canonical order.
     #[getter]
+    #[doc(hidden)]
     fn cited_studies(&self) -> Vec<String> {
         let mut studies = self
             .inner
@@ -494,6 +498,7 @@ impl PreparedMixedSourceStage {
     }
 
     #[getter]
+    #[doc(hidden)]
     fn seed(&self) -> u64 {
         self.seed
     }
@@ -506,6 +511,7 @@ impl PreparedMixedSourceStage {
 /// taken once here; every preparation made from the stage reuses it and never
 /// searches again.
 #[pyfunction]
+#[doc(hidden)]
 #[pyo3(signature=(graph, target, outcomes, treatments, sources, catalog, *, max_operations=20_000, max_depth=16, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn identify_mixed_source_transport_stage(

@@ -128,6 +128,7 @@ impl MzTransportArtifactError {
 /// `reason=<code>: <detail>: ...` refusal when the route owns it, else the
 /// generic conversion.
 #[must_use]
+#[doc(hidden)]
 pub fn mz_identification_error(error: IdentificationError) -> IoError {
     match antecedent_identify::mz_transport_refusal(&error) {
         Some((code, detail)) => {
@@ -316,6 +317,7 @@ pub struct MzContrastWire {
 ///
 /// # Errors
 /// An outcome without a finite numeric mean.
+#[doc(hidden)]
 pub fn mz_point_contrasts(
     distributions: &[ExactDistribution],
 ) -> Result<Vec<MzContrastWire>, IoError> {
@@ -406,6 +408,7 @@ impl MzUncertaintyWire {
     /// no public route yields an interval while the route is closed.
     #[cfg(any(test, feature = "calibration-internal"))]
     #[must_use]
+    #[doc(hidden)]
     pub fn from_bootstrap(
         run: &Result<antecedent_estimate::MzTransportIntervals, &'static str>,
         replicates: u32,
@@ -666,6 +669,7 @@ impl MzTransportArtifactWire {
     /// # Errors
     /// As [`Self::checked`], except a carried interval that recomputes.
     #[cfg(any(test, feature = "calibration-internal"))]
+    #[doc(hidden)]
     pub fn checked_with_interval(
         input: MzTransportArtifactInput<'_>,
         ctx: &ExecutionContext,
@@ -870,6 +874,7 @@ impl MzTransportArtifactWire {
     /// # Errors
     /// As [`Self::consume_with_limits`], except a carried interval that recomputes.
     #[cfg(any(test, feature = "calibration-internal"))]
+    #[doc(hidden)]
     pub fn consume_with_interval(
         bytes: &[u8],
         limits: MzTransportConsumeLimits,
@@ -967,6 +972,7 @@ impl MzTransportArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_with_limits`].
+    #[doc(hidden)]
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<ConsumedMzTransport, IoError> {
         Self::consume_with_limits(bytes, MzTransportConsumeLimits::default(), ctx)
     }
@@ -980,6 +986,7 @@ impl MzTransportArtifactWire {
 /// # Errors
 /// [`IoError::Refused`] with `cell_not_licensed` and detail
 /// [`MZ_INTERVAL_NOT_LICENSED_DETAIL`].
+#[doc(hidden)]
 pub fn refuse_unlicensed_interval(uncertainty: &MzUncertaintyWire) -> Result<(), IoError> {
     if uncertainty.seed.is_some() || uncertainty.available() {
         return Err(IoError::Refused {

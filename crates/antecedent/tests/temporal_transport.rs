@@ -473,3 +473,67 @@ fn a_template_route_and_a_three_level_alphabet_round_trip_through_the_artifact()
     let consumed = consume(&prepared.export(&report).unwrap()).unwrap();
     assert_eq!(consumed.mean.to_bits(), report.mean.to_bits());
 }
+
+#[test]
+fn the_io_wire_replays_bytes_under_its_own_limits_and_the_stored_report() {
+    let (_, report, bytes) = exported(0.0, 1.0);
+    let defaults = TemporalTransportConsumeLimits::default();
+    // Bytes to a verified (wire, report) pair through the io type, no facade.
+    let (wire, replayed) =
+        TemporalSequenceArtifactWire::consume_with_limits(&bytes, defaults, &ctx()).unwrap();
+    assert_eq!(replayed.mean.to_bits(), report.mean.to_bits());
+    assert_eq!(wire.report.mean.to_bits(), report.mean.to_bits());
+    assert_eq!(wire.premises_digest, temporal_sequence_identity(&wire).unwrap());
+    let typed_err = |limits: TemporalTransportConsumeLimits| {
+        match TemporalSequenceArtifactWire::consume_with_limits(&bytes, limits, &ctx()) {
+            Err(IoError::TemporalTransport(error)) => error,
+            other => panic!("expected a typed refusal, got {:?}", other.map(|_| ())),
+        }
+    };
+    let exceeded = TemporalTransportArtifactError::LimitsExceeded;
+    // Each consumer bound refuses on its own, whatever the artifact records.
+    assert_eq!(
+        typed_err(TemporalTransportConsumeLimits {
+            budget: SearchLimits { depth: 0, ..defaults.budget },
+            ..defaults
+        }),
+        exceeded("search budget")
+    );
+    assert_eq!(
+        typed_err(TemporalTransportConsumeLimits {
+            evaluation: ExactEvaluationLimits { operations: 1, ..defaults.evaluation },
+            ..defaults
+        }),
+        exceeded("evaluation limits")
+    );
+    assert_eq!(
+        typed_err(TemporalTransportConsumeLimits { max_support_rows: 1, ..defaults }),
+        exceeded("support rows")
+    );
+    assert_eq!(
+        typed_err(TemporalTransportConsumeLimits { max_laws: 0, ..defaults }),
+        exceeded("law count")
+    );
+    // The data digest binds snapshot identities, not numbers: an edited law with the
+    // premises untouched is caught by the replay against the stored report.
+    let edited = mutated(
+        &bytes,
+        |w| w.laws.iter_mut().find(|l| l.population == "target").unwrap().probabilities.reverse(),
+        false,
+    );
+    match TemporalSequenceArtifactWire::consume_with_limits(&edited, defaults, &ctx()) {
+        Err(IoError::TemporalTransport(error)) => {
+            assert_eq!(error, TemporalTransportArtifactError::ReportMismatch);
+        }
+        other => panic!("expected ReportMismatch, got {:?}", other.map(|_| ())),
+    }
+    // Undecodable bytes fail at decode, not as a typed artifact refusal.
+    assert!(!matches!(
+        TemporalSequenceArtifactWire::consume_with_limits(
+            &bytes[..bytes.len() / 2],
+            defaults,
+            &ctx()
+        ),
+        Err(IoError::TemporalTransport(_))
+    ));
+}

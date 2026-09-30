@@ -424,6 +424,19 @@ def test_prepare_compiles_a_checked_plan_after_builder_disposal():
     )
 
 
+def test_plan_is_a_read_only_summary_of_the_retained_plan_after_builder_disposal():
+    builder = spec()
+    retained_plan = prepare((1.0, 0.0), the_spec=builder)
+    del builder
+    first = retained_plan.plan()
+    assert retained_plan.plan() == first
+    plan = json.loads(first)
+    assert plan["sequence"] == [1.0, 0.0] and plan["histories"] == {"initial": 4, "complete": 8}
+    # Reading the plan executes nothing: the estimate still runs from the same retained plan.
+    assert json.loads(retained_plan.estimate())["horizon"] == 2
+    assert retained_plan.plan() == first
+
+
 def test_estimate_executes_the_retained_plan_after_builder_disposal():
     retained_plan = _retained_plan()
     plan = json.loads(retained_plan.plan())

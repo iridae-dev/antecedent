@@ -620,6 +620,7 @@ impl MixedSourceArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_with_limits`].
+    #[doc(hidden)]
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<ConsumedMixedSource, IoError> {
         Self::consume_with_limits(bytes, MixedSourceConsumeLimits::default(), ctx)
     }

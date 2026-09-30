@@ -126,6 +126,14 @@ pub struct CounterfactualNode {
     pub reads: Vec<(u32, u8)>,
 }
 
+impl CounterfactualNode {
+    /// The variable this node names, for callers holding [`VariableId`]s.
+    #[must_use]
+    pub fn variable_id(&self) -> VariableId {
+        VariableId::from_raw(self.variable)
+    }
+}
+
 /// The machine-checkable derivation of a cross-world estimand.
 ///
 /// The struct is `#[non_exhaustive]` and rejects unknown fields on the wire: a
@@ -197,6 +205,7 @@ pub fn check_cross_world(
 /// # Errors
 /// A [`CrossWorldRefusal`] naming the failed condition.
 #[allow(clippy::too_many_lines, reason = "one linear list of contract conditions")]
+#[doc(hidden)]
 pub fn check_cross_world_edges(
     node_count: usize,
     edges: &[(u32, u32)],
@@ -369,12 +378,6 @@ fn is_acyclic(n: usize, edges: &[(u32, u32)]) -> bool {
 /// Longest directed path ending at `v`; a topological sort key.
 fn depth(v: u32, edges: &[(u32, u32)]) -> usize {
     edges.iter().filter(|e| e.1 == v).map(|e| 1 + depth(e.0, edges)).max().unwrap_or(0)
-}
-
-/// The variable a witness node names, for callers holding [`VariableId`]s.
-#[must_use]
-pub fn node_variable(node: &CounterfactualNode) -> VariableId {
-    VariableId::from_raw(node.variable)
 }
 
 #[cfg(test)]

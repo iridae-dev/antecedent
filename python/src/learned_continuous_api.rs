@@ -90,6 +90,7 @@ fn estimate_json(result: &antecedent::LearnedContinuousResult, names: &[String])
 }
 
 #[pyclass(skip_from_py_object)]
+#[doc(hidden)]
 #[derive(Clone)]
 struct PreparedLearnedContinuousNative {
     inner: antecedent::PreparedLearnedContinuous,
@@ -158,6 +159,7 @@ impl PreparedLearnedContinuousNative {
         serde_json::to_string(&self.inner.estimator_menu()).map_err(serialization_error)
     }
 
+    #[doc(hidden)]
     fn last_result(&self) -> PyResult<String> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
@@ -212,6 +214,7 @@ fn prepare_learned_continuous(
 
 /// The estimator menu for a graph, query and optional learners: inspection only.
 #[pyfunction]
+#[doc(hidden)]
 #[pyo3(signature=(graph, selections, source, target, treatment, outcome, learners=None))]
 fn learned_continuous_estimator_menu(
     graph: &crate::graphs::Admg,

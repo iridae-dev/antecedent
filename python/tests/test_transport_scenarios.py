@@ -375,6 +375,43 @@ def test_consume_rechecks_the_report_from_retained_plans_after_builder_disposal(
     assert consumed["weighted"] == live["weighted"]
 
 
+def test_refresh_recompiles_retained_plans_after_builder_disposal():
+    prepared = _prepared_without_builder()
+    before = json.loads(prepared.estimate())
+    prepared.refresh(laws(source=(0.1, 0.3, 0.3, 0.3)))
+    plan = dict(prepared.plan_summary())
+    assert plan["direct"] == "compiled"
+    after = json.loads(prepared.estimate())
+    assert [s["status"] for s in after["scenarios"]] == [s["status"] for s in before["scenarios"]]
+    assert mean(by_name(after)["direct"]) == pytest.approx(0.6)
+
+
+def test_native_stage_decides_each_scenario_once_and_retains_the_plans_after_builder_disposal():
+    prepared = _prepared_without_builder()
+    assert type(prepared).__name__ == "PreparedTransportScenariosStage"
+    plan = dict(prepared.plan_summary())
+    assert set(plan) == {"direct", "outcome_shift", "standardize"}
+    assert json.loads(prepared.estimate())["scenarios"]
+
+
+def test_plan_summary_inspects_each_frozen_plan_after_builder_disposal():
+    prepared = _prepared_without_builder()
+    plan = prepared.plan_summary()
+    assert dict(plan)["outcome_shift"] == "not_identified:structurally_unidentified"
+    prepared.estimate()
+    assert prepared.plan_summary() == plan
+
+
+def test_export_frames_the_last_report_after_builder_disposal():
+    prepared = _prepared_without_builder()
+    plan = prepared.plan_summary()
+    assert plan
+    with pytest.raises(Exception, match="estimate before exporting"):
+        prepared.export()
+    prepared.estimate()
+    assert isinstance(prepared.export(), bytes)
+
+
 def _schema_refusal(excinfo):
     assert excinfo.value.reason_code == "schema_mismatch"
     assert "scenarios.coordinate_mismatch" in str(excinfo.value)

@@ -88,6 +88,7 @@ const INVALID_OBSTRUCTION: &str = "mz_transport.invalid_obstruction";
 /// does not check, `transport_missing_evidence` for an unbound cited regime and
 /// `transport_budget_cancel` for a stop. `None` for an error the route does not own.
 #[must_use]
+#[doc(hidden)]
 pub fn mz_transport_refusal(error: &IdentificationError) -> Option<(&'static str, &'static str)> {
     use antecedent_core::reason_code;
     match error {
@@ -221,6 +222,7 @@ pub struct ValidatedMzTransportQuery {
 /// `mz_transport.invalid_query` for a malformed query; and
 /// [`IdentificationError::InvalidCatalog`] `mz_transport.invalid_catalog` for a
 /// catalog that contradicts the declarations. The message names the violation.
+#[doc(hidden)]
 pub fn validate_mz_transport_query(
     graph: &antecedent_graph::Admg,
     query: &MzTransportQuery,

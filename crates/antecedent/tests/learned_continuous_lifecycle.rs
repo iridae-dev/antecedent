@@ -806,3 +806,163 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     );
     assert!(!uncertainty.available() && result.estimate().estimate.is_finite());
 }
+
+#[test]
+fn the_estimator_layer_returns_the_point_with_recorded_diagnostics_and_refuses_directly() {
+    let (diagram, query, _) = graph();
+    let id = antecedent_identify::TransportIdentifier::new().identify(&diagram, &query).unwrap();
+    for design in DESIGNS {
+        let input = draw(design, Scenario::Good, 1000, 600, 21);
+        let ctx = ExecutionContext::for_tests(21);
+        let direct =
+            antecedent_estimate::estimate_learned_continuous(&id, &input, &options(), &ctx)
+                .unwrap();
+        assert!((direct.estimate - Scenario::Good.truth()).abs() < 0.3, "{design:?}");
+        // Recorded evidence is per row, per fold and per fitted nuisance.
+        let rows = input.source.len();
+        assert_eq!(
+            (direct.membership.len(), direct.mu0.len(), direct.mu1.len()),
+            (rows, rows, rows)
+        );
+        assert_eq!(direct.folds.count, 3);
+        assert_eq!(
+            direct.folds.assignment,
+            antecedent_estimate::learned_trial::trial_fold_assignment(&input, 3)
+        );
+        assert_eq!(direct.provenance.len(), 9);
+        assert!(direct.membership.iter().all(|p| *p > 0.0 && *p < 1.0));
+        assert!(direct.diagnostics.membership_logloss.is_finite());
+        assert_eq!(direct.uncertainty.status, "point_only");
+        // A requested interval is reported as withheld and never attached.
+        let with_bootstrap = LearnedContinuousOptions { bootstrap: 300, ..options() };
+        let withheld =
+            antecedent_estimate::estimate_learned_continuous(&id, &input, &with_bootstrap, &ctx)
+                .unwrap();
+        assert!(!withheld.uncertainty.available());
+        assert_ne!(withheld.uncertainty.status, "point_only");
+        assert_eq!(withheld.estimate.to_bits(), direct.estimate.to_bits());
+        // The seeded estimator layer and the prepared facade agree bit for bit.
+        let prepared = prepare(design, Scenario::Good, (1000, 600), options(), 21).unwrap();
+        let facade = prepared.estimate(&ctx).unwrap();
+        assert_eq!(facade.estimate().estimate.to_bits(), direct.estimate.to_bits());
+    }
+    // The layer validates and refuses on its own, without the facade.
+    let input = draw(Design::IndependentSamples, Scenario::WeakOverlap, 1000, 600, 3);
+    let error = antecedent_estimate::estimate_learned_continuous(
+        &id,
+        &input,
+        &options(),
+        &ExecutionContext::for_tests(3),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&error, EstimationError::Refused { code: "transport_support_failure", message } if message.starts_with("learned_transport.membership_overlap")),
+        "{error:?}"
+    );
+    let input = draw(Design::NestedCohort, Scenario::Good, 400, 300, 1);
+    let too_many = LearnedContinuousOptions { folds: 21, ..options() };
+    let error = antecedent_estimate::estimate_learned_continuous(
+        &id,
+        &input,
+        &too_many,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&error, EstimationError::Refused { code: "route_not_supported", message } if message.starts_with("learned_transport.bounds_exceeded")),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn the_free_menu_function_follows_its_learner_argument_without_the_builder() {
+    let (diagram, query, _) = graph();
+    let id = antecedent_identify::TransportIdentifier::new().identify(&diagram, &query).unwrap();
+    let defaulted = antecedent_estimate::transport_estimator_menu(&id, &query, None);
+    let learned = &defaulted.entries[0];
+    assert_eq!(learned.estimator, "learned_trial_aipw");
+    assert!(learned.eligible && learned.refusal.is_none());
+    assert!(learned.nuisance_tasks.iter().all(|t| t.contains("default: none requested")));
+    // The same certificate under explicit learners lists them and drops the default marker.
+    let learners = Some((
+        LearnerSpec::Linear(LinearSpec::default()),
+        LearnerSpec::Logistic(antecedent_estimate::LogisticSpec::default()),
+    ));
+    let explicit = antecedent_estimate::transport_estimator_menu(&id, &query, learners);
+    let named = &explicit.entries[0];
+    assert!(named.nuisance_tasks.iter().any(|t| t.contains("learner linear")));
+    assert!(named.nuisance_tasks.iter().any(|t| t.contains("learner logistic")));
+    assert!(named.nuisance_tasks.iter().all(|t| !t.contains("default")));
+    assert_ne!(learned.nuisance_tasks, named.nuisance_tasks);
+    // The free function is a pure function of its inputs: it fits nothing and repeats.
+    assert_eq!(
+        serde_json::to_string(&explicit).unwrap(),
+        serde_json::to_string(&antecedent_estimate::transport_estimator_menu(
+            &id, &query, learners
+        ))
+        .unwrap()
+    );
+    // Entry set and manual selection do not depend on the learners.
+    let names = |m: &antecedent_estimate::EstimatorMenu| {
+        m.entries.iter().map(|e| e.estimator.clone()).collect::<Vec<_>>()
+    };
+    assert_eq!(names(&defaulted), names(&explicit));
+    assert_eq!(explicit.selection, "manual");
+    // The builder constructor is a thin wrapper over the free function: same menu.
+    let via_builder = StudyBuilder::learned_continuous_menu(&diagram, &query, learners).unwrap();
+    assert_eq!(
+        serde_json::to_string(&via_builder).unwrap(),
+        serde_json::to_string(&explicit).unwrap()
+    );
+}
+
+#[test]
+fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
+    let (bytes, original) = exported(Design::IndependentSamples);
+    let limits = LearnedContinuousConsumeLimits::default();
+    // Bytes to verified replay through the io type, no facade.
+    let consumed = LearnedContinuousArtifactWire::consume(&bytes, limits).unwrap();
+    assert_eq!(consumed.wire.result, original.result);
+    assert_eq!(consumed.wire.identity().unwrap(), original.identity().unwrap());
+    let (diagram, query, _) = graph();
+    let id = antecedent_identify::TransportIdentifier::new().identify(&diagram, &query).unwrap();
+    assert_eq!(consumed.identification, id);
+    let coded = |bytes: &[u8], limits| match LearnedContinuousArtifactWire::consume(bytes, limits) {
+        Err(IoError::LearnedContinuous(kind)) => kind,
+        Err(other) => panic!("expected a typed refusal, got {other}"),
+        Ok(_) => panic!("expected a refusal"),
+    };
+    // The consumer's own bounds bind, whatever the artifact stores.
+    let rows = original.input.source.len();
+    assert_eq!(
+        coded(&bytes, LearnedContinuousConsumeLimits { max_rows: rows - 1, ..limits }),
+        Refusal::LimitsExceeded("row count")
+    );
+    assert_eq!(
+        coded(&bytes, LearnedContinuousConsumeLimits { max_features: 0, ..limits }),
+        Refusal::LimitsExceeded("feature count")
+    );
+    assert!(
+        LearnedContinuousArtifactWire::consume(
+            &bytes,
+            LearnedContinuousConsumeLimits { max_rows: rows, ..limits }
+        )
+        .is_ok()
+    );
+    // A foreign feature marker is refused before any replay.
+    let foreign = mutate(&original, |w| w.required_features = vec!["other_v9".into()], false);
+    assert!(matches!(coded(&foreign, limits), Refusal::UnsupportedSemantics(_)));
+    // A future version fails at decode, and undecodable bytes are not a typed artifact refusal.
+    let future = mutate(&original, |w| w.version += 1, false);
+    assert!(matches!(
+        LearnedContinuousArtifactWire::consume(&future, limits),
+        Err(IoError::UnsupportedVersion { .. })
+    ));
+    assert!(!matches!(
+        LearnedContinuousArtifactWire::consume(&bytes[..bytes.len() / 2], limits),
+        Err(IoError::LearnedContinuous(_))
+    ));
+    // Replayed evidence is checked at this layer: an unbound point edit fails the digest.
+    let point = mutate(&original, |w| w.result.estimate += 1e-9, false);
+    assert_eq!(coded(&point, limits), Refusal::EvidenceMismatch);
+}

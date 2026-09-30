@@ -223,6 +223,7 @@ fn support_refusal(detail: &str, message: &str) -> EstimationError {
 /// The refusal of the closed interval route: the point is retained, the interval is
 /// withheld until this cell's coverage records are measured.
 #[must_use]
+#[doc(hidden)]
 pub fn refuse_learned_continuous_interval() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cell_not_licensed"),
@@ -237,6 +238,7 @@ pub fn refuse_learned_continuous_interval() -> EstimationError {
 /// # Errors
 /// `sampling_dependence_unknown` (`learned_transport.non_iid_design`) for clustered,
 /// linked or undeclared sampling.
+#[doc(hidden)]
 pub fn parse_learned_continuous_sampling(name: &str) -> Result<TrialSampling, EstimationError> {
     match name {
         "nested_cohort" => Ok(TrialSampling::NestedCohort),
@@ -257,6 +259,7 @@ pub fn parse_learned_continuous_sampling(name: &str) -> Result<TrialSampling, Es
 /// # Errors
 /// `route_not_supported` (`learned_transport.cate_requested`) for any target but
 /// [`LEARNED_CONTINUOUS_TARGET`].
+#[doc(hidden)]
 pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError> {
     if name == LEARNED_CONTINUOUS_TARGET {
         return Ok(());
@@ -277,6 +280,7 @@ pub fn parse_learned_continuous_target(name: &str) -> Result<(), EstimationError
 /// Declared bounds above the frozen caps (`learned_transport.bounds_exceeded`),
 /// randomization probabilities outside the declared bound
 /// (`learned_transport.treatment_overlap`), or any [`validate_trial_aipw`] failure.
+#[doc(hidden)]
 pub fn validate_learned_continuous(
     id: &TransportIdentification,
     input: &TrialAipwInput,
@@ -323,6 +327,7 @@ pub fn validate_learned_continuous(
 ///
 /// # Errors
 /// `transport_support_failure` (`learned_transport.membership_overlap`).
+#[doc(hidden)]
 pub fn check_membership_overlap(
     membership: &[f64],
     options: &LearnedContinuousOptions,
@@ -382,6 +387,7 @@ pub fn estimate_learned_continuous(
 /// As [`estimate_learned_continuous`]; and `estimator_inference_mismatch`
 /// (`learned_transport.bootstrap_below_floor`) below the replicate floor.
 #[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
 pub fn learned_continuous_interval_internal(
     id: &TransportIdentification,
     input: &TrialAipwInput,
