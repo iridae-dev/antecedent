@@ -332,21 +332,8 @@ impl NestedCounterfactualOperation {
         ctx: &ExecutionContext,
     ) -> Result<f64, CausalError> {
         let compiled = CompiledCausalModel::compile(self.graph.clone()).map_err(map_model)?;
-        let store = match self.outcome_mechanism {
-            NestedOutcomeMechanism::LinearGaussian => {
-                MechanismRegistry::standard()
-                    .assign_and_fit(
-                        &compiled,
-                        data,
-                        SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
-                    )
-                    .map_err(map_model)?
-                    .0
-            }
-            NestedOutcomeMechanism::NonSeparableBasis => {
-                fit_non_separable_nested_outcome(&compiled, data, self.query.outcome)?
-            }
-        };
+        let store =
+            fit_nested_mechanisms(&compiled, data, self.outcome_mechanism, self.query.outcome)?;
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
         let exo = engine
             .abduct(data, AbductionMissingPolicy::Error, ctx)
@@ -378,6 +365,31 @@ impl NestedCounterfactualOperation {
         )
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         Ok(active - control)
+    }
+}
+
+/// Fit every mechanism of the nested route's model under `mechanism`.
+///
+/// Shared by the natural-direct-effect operation and the cross-world edge
+/// contrast, so both read the same fitted structural model.
+pub(crate) fn fit_nested_mechanisms(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    mechanism: NestedOutcomeMechanism,
+    outcome: VariableId,
+) -> Result<CompiledMechanismStore, CausalError> {
+    match mechanism {
+        NestedOutcomeMechanism::LinearGaussian => Ok(MechanismRegistry::standard()
+            .assign_and_fit(
+                compiled,
+                data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+            )
+            .map_err(map_model)?
+            .0),
+        NestedOutcomeMechanism::NonSeparableBasis => {
+            fit_non_separable_nested_outcome(compiled, data, outcome)
+        }
     }
 }
 
