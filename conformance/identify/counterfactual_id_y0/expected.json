@@ -1,0 +1,10139 @@
+{
+ "schema_version": 1,
+ "oracle": {
+  "kind": "frozen_external_oracle",
+  "executed_here": true,
+  "note": "Every case's oracle output below was produced by running the pinned released y0 package on the documented graph and event in a temporary environment that was deleted after import: this version of y0, with these inputs, produced this output. y0's id_star returns a functional of interventional distributions (identification from all experiments); the harness also ran y0's identify_outcomes (ID from the observational law) on every interventional term it returned. The parity test parses each verbatim output, classifies it (conflict, zero, or an expression whose every term ID identifies) and compares it with Antecedent's decision on the same graph; disagreements are recorded with their reason, never bent.",
+  "source": "https://pypi.org/project/y0/0.2.11/",
+  "generation": {
+   "script": "<tmp>/b5/y0_harness.py (deleted after the artifact import)",
+   "script_sha256": {
+    "y0_harness.py": "271a09c7b66faae2ce831f3abb2a1dc373d10db8c9bb5bb09bc59939008c87a0"
+   },
+   "baseline_pin": [
+    "parity/baselines/y0.toml"
+   ],
+   "env": "uv venv <tmp>/y0env --python 3.11 && VIRTUAL_ENV=<tmp>/y0env uv pip install y0 && <tmp>/y0env/bin/python y0_harness.py",
+   "generator_retained": false,
+   "reproducible_from_repo": false,
+   "script_note": "The harness was deleted after the import, per convention. Its sha256 is provenance only; the parity test reads the recorded verbatim output rather than re-running the oracle."
+  },
+  "reference": [
+   {
+    "project": "y0",
+    "available": true,
+    "version": "0.2.11",
+    "license": "BSD-3-Clause",
+    "runtime": "CPython 3.11.5; networkx 3.6.1, numpy 2.4.6, pandas 3.0.6, scipy 1.17.1, statsmodels 0.15.0",
+    "command": "python y0_harness.py (id_star on {Y @ -X: -Y, X: +X}; identify_outcomes on every interventional term)",
+    "note": "black-box execution of y0.algorithm.identify.id_star.id_star and y0.algorithm.identify.identify_outcomes only; source and tests are not copied. Values use y0's star notation: -V is the unstarred level v, +V the starred level v'; the event {Y @ -X: -Y, X: +X} is P(Y_x = y, X = x')."
+   }
+  ],
+  "graph_set": "5 named fixtures; every 3-node ADMG under the order V0 < V1 < V2 (8 directed x 8 bidirected edge sets) with each forward (treatment, outcome) pair; 60 seeded (Python random 2208) 4-node ADMGs with the treatment reaching the outcome."
+ },
+ "disagreement_note": "y0 0.2.11 returns Zero() for these 20 graphs; Antecedent refuses each with a checked conflicting-subscript obstruction (cross_world_not_identified). Zero is wrong: the parity test builds a latent structural model on each graph whose event P(Y_x = y, X = x') has positive probability, and for the instrument graph an explicit two-model witness (tests/counterfactual_id_search.rs) shows the ETT is not identified. The zero is consistent with y0 representing every value by one of two symbols (-V and +V), so a summation variable left free is given the unstarred value and later merged with a starred observation of the same variable as an inconsistency; the cause is inferred from the source, not verified. The other 237 cases agree: 171 identified by both (y0's expression, every interventional term identified by identify_outcomes) and 66 refused by both (ConflictUnidentifiable).",
+ "disagreements": {
+  "four.r0": "y0_zero_on_a_positive_probability_event",
+  "four.r17": "y0_zero_on_a_positive_probability_event",
+  "four.r18": "y0_zero_on_a_positive_probability_event",
+  "four.r19": "y0_zero_on_a_positive_probability_event",
+  "four.r23": "y0_zero_on_a_positive_probability_event",
+  "four.r25": "y0_zero_on_a_positive_probability_event",
+  "four.r28": "y0_zero_on_a_positive_probability_event",
+  "four.r32": "y0_zero_on_a_positive_probability_event",
+  "four.r38": "y0_zero_on_a_positive_probability_event",
+  "four.r51": "y0_zero_on_a_positive_probability_event",
+  "four.r53": "y0_zero_on_a_positive_probability_event",
+  "four.r8": "y0_zero_on_a_positive_probability_event",
+  "instrument": "y0_zero_on_a_positive_probability_event",
+  "three.d5.b1.x0.y2": "y0_zero_on_a_positive_probability_event",
+  "three.d5.b4.x1.y2": "y0_zero_on_a_positive_probability_event",
+  "three.d6.b2.x0.y2": "y0_zero_on_a_positive_probability_event",
+  "three.d6.b4.x1.y2": "y0_zero_on_a_positive_probability_event",
+  "three.d7.b1.x0.y2": "y0_zero_on_a_positive_probability_event",
+  "three.d7.b2.x0.y2": "y0_zero_on_a_positive_probability_event",
+  "three.d7.b4.x1.y2": "y0_zero_on_a_positive_probability_event"
+ },
+ "cases": [
+  {
+   "id": "frontdoor",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P[V1](V0, V2) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V1](P[V1](V0, V2) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "bow_arc",
+   "nodes": 2,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "instrument",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "markovian_mediation",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "mediator_confounded",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b0.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b0.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b0.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P(V2)",
+   "y0_id_star_repr": "P(V1) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b1.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b1.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b1.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P(V2)",
+   "y0_id_star_repr": "P(V1) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b2.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b2.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b2.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P(V2)",
+   "y0_id_star_repr": "P(V1) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b3.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b3.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b3.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P(V2)",
+   "y0_id_star_repr": "P(V1) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b4.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b4.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b4.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1, V2)",
+   "y0_id_star_repr": "P(V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b5.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b5.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b5.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1, V2)",
+   "y0_id_star_repr": "P(V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b6.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b6.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b6.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1, V2)",
+   "y0_id_star_repr": "P(V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b7.x0.y1",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b7.x0.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d0.b7.x1.y2",
+   "nodes": 3,
+   "directed": [],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1, V2)",
+   "y0_id_star_repr": "P(V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P(V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P(V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d1.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P(V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P(V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V2) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V2) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d1.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0, V2) * P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d1.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V2)",
+   "y0_id_star_repr": "P(V0) * P(V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d1.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V2)",
+   "y0_id_star_repr": "P(V0, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d1.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P(V1) * P[V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P(V1) * P[V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d2.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V2) * P(V1))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V2) * P(V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d2.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d2.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d2.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d2.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V2) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V2) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d3.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d3.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P(V1) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P(V1) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P[V1](V2)",
+   "y0_id_star_repr": "P(V1) * P[V1](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0, V1) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0, V1) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P[V1](V2)",
+   "y0_id_star_repr": "P(V1) * P[V1](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P[V1](V0, V2) * P(V1))",
+   "y0_id_star_repr": "Sum[V1](P[V1](V0, V2) * P(V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P[V1](V2)",
+   "y0_id_star_repr": "P(V1) * P[V1](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "P(V1) * P[V1](V2)",
+   "y0_id_star_repr": "P(V1) * P[V1](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P(V1, V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P(V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d4.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d4.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d4.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0, V1, V2)",
+   "y0_id_star_repr": "P(V0, V1, V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d4.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d5.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d5.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P[V1](V0, V2) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V1](P[V1](V0, V2) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P[V1](V0, V2) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V0](P[V1](V0, V2) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d5.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d5.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d5.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d5.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d5.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d5.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d6.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0, V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0, V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d6.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P[V1](V0, V2) * P(V1))",
+   "y0_id_star_repr": "Sum[V0](P[V1](V0, V2) * P(V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d6.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d6.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d6.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d6.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d6.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P(V1)",
+   "y0_id_star_repr": "P(V0) * P(V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d6.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d6.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0, V1)",
+   "y0_id_star_repr": "P(V0, V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "three.d6.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d6.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d7.b0.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b0.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b0.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b1.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b1.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d7.b1.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b2.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b2.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d7.b2.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P[V1](V0, V2) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V0](P[V1](V0, V2) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b3.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b3.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b3.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d7.b4.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b4.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P[V0](V1, V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b4.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "three.d7.b5.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b5.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b5.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d7.b6.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "three.d7.b6.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b6.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "three.d7.b7.x0.y1",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b7.x0.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "three.d7.b7.x1.y2",
+   "nodes": 3,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "four.r0",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r1",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0](P[V2](V0, V3) * P[V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P[V2](V0, V3) * P[V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V0",
+      "V3"
+     ],
+     "identify_outcomes": "P(V0) * P(V3 | V0, V2)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r2",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Sum[V0, V2](P(V0) * P[V0](V1, V2) * P[V2,V1,V0](V3))",
+   "y0_id_star_repr": "Sum[V0, V2](P(V0) * P[V0](V1, V2) * P[V2,V1,V0](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r3",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r4",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 3,
+   "event": "{V3 @ -V0: -V3, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r5",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r6",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r7",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0](P(V0, V2) * P[V2,V0](V3))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V2) * P[V2,V0](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r8",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r9",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 3,
+   "event": "{V3 @ -V0: -V3, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P(V1) * P[V1,V0](V3))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P(V1) * P[V1,V0](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r10",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r11",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r12",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r13",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "four.r14",
+   "nodes": 4,
+   "directed": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V1](P(V1) * P[V1](V2) * P[V2](V3))",
+   "y0_id_star_repr": "Sum[V1](P(V1) * P[V1](V2) * P[V2](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    },
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r15",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "four.r16",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V2, +V2)])"
+  },
+  {
+   "id": "four.r17",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 3,
+   "event": "{V3 @ -V0: -V3, V0: +V0}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r18",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r19",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r20",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "four.r21",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 3,
+   "event": "{V3 @ -V0: -V3, V0: +V0}",
+   "y0_id_star": "Sum[V1, V2](P(V0) * P[V2,V0](V1, V3) * P(V2))",
+   "y0_id_star_repr": "Sum[V1, V2](P(V0) * P[V2,V0](V1, V3) * P(V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V2"
+     ],
+     "outcomes": [
+      "V1",
+      "V3"
+     ],
+     "identify_outcomes": "P(V1 | V0, V2) * P(V3 | V0, V1, V2)"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "four.r22",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "Sum[V1](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V1](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r23",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r24",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r25",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r26",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P(V0, V1, V2) * P[V2,V1](V3))",
+   "y0_id_star_repr": "Sum[V0, V1](P(V0, V1, V2) * P[V2,V1](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r27",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P[V2](V0, V1, V3) * P(V2))",
+   "y0_id_star_repr": "Sum[V0, V1](P[V2](V0, V1, V3) * P(V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V3"
+     ],
+     "identify_outcomes": "P(V0) * P(V1 | V0, V2) * P(V3 | V0, V1, V2)"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    }
+   ]
+  },
+  {
+   "id": "four.r28",
+   "nodes": 4,
+   "directed": [
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r29",
+   "nodes": 4,
+   "directed": [
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V1](P(V1) * P(V2) * P[V2,V1](V3))",
+   "y0_id_star_repr": "Sum[V1](P(V1) * P(V2) * P[V2,V1](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r30",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r31",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P(V0, V1) * P[V0](V2) * P[V2,V1](V3))",
+   "y0_id_star_repr": "Sum[V0, V1](P(V0, V1) * P[V0](V2) * P[V2,V1](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    },
+    {
+     "treatments": [
+      "V1",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r32",
+   "nodes": 4,
+   "directed": [
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r33",
+   "nodes": 4,
+   "directed": [
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "P(V2) * P[V2](V3)",
+   "y0_id_star_repr": "P(V2) * P[V2](V3)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r34",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r35",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0, V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r36",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P[V2](V0, V3) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0, V1](P[V2](V0, V3) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V0",
+      "V3"
+     ],
+     "identify_outcomes": "P(V0) * P(V3 | V0, V1, V2)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r37",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P[V2](V0, V3) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0, V1](P[V2](V0, V3) * P[V0](V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V0",
+      "V3"
+     ],
+     "identify_outcomes": "P(V0) * P(V3 | V0, V1, V2)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r38",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r39",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V3))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r40",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V0, +V0)])"
+  },
+  {
+   "id": "four.r41",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0](P(V0) * P(V2) * P[V2,V0](V3))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P(V2) * P[V2,V0](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r42",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P(V0) * P[V2,V0](V1, V3) * P[V0](V2))",
+   "y0_id_star_repr": "Sum[V0, V1](P(V0) * P[V2,V0](V1, V3) * P[V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V2"
+     ],
+     "outcomes": [
+      "V1",
+      "V3"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V3 | V0, V1, V2)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r43",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r44",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Sum[V0](P[V1](V0, V3) * P[V0](V1))",
+   "y0_id_star_repr": "Sum[V0](P[V1](V0, V3) * P[V0](V1))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V3"
+     ],
+     "identify_outcomes": "P(V0) * P(V3 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r45",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P[V1](V0, V2) * P[V2,V0](V1, V3))",
+   "y0_id_star_repr": "Sum[V0, V1](P[V1](V0, V2) * P[V2,V0](V1, V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V0",
+      "V2"
+     ],
+     "identify_outcomes": "P(V0) * P(V2 | V0, V1)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V2"
+     ],
+     "outcomes": [
+      "V1",
+      "V3"
+     ],
+     "identify_outcomes": "P(V1 | V0) * P(V3 | V0, V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r46",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 2,
+   "event": "{V2 @ -V0: -V2, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V2)",
+   "y0_id_star_repr": "P(V0) * P[V0](V2)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r47",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "P(V2) * P[V2](V3)",
+   "y0_id_star_repr": "P(V2) * P[V2](V3)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r48",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V1, +V1)])"
+  },
+  {
+   "id": "four.r49",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ]
+   ],
+   "bidirected": [
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 2,
+   "event": "{V2 @ -V1: -V2, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P(V1) * P[V1,V0](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r50",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r51",
+   "nodes": 4,
+   "directed": [
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r52",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P(V0) * P(V1) * P[V1](V2) * P[V2,V0](V3))",
+   "y0_id_star_repr": "Sum[V0, V1](P(V0) * P(V1) * P[V1](V2) * P[V2,V0](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V1)"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r53",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Zero()",
+   "y0_id_star_repr": "Zero()",
+   "y0_status": "zero"
+  },
+  {
+   "id": "four.r54",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r55",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 0,
+   "outcome": 1,
+   "event": "{V1 @ -V0: -V1, V0: +V0}",
+   "y0_id_star": "P(V0) * P[V0](V1)",
+   "y0_id_star_repr": "P(V0) * P[V0](V1)",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    }
+   ]
+  },
+  {
+   "id": "four.r56",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     2
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 1,
+   "outcome": 3,
+   "event": "{V3 @ -V1: -V3, V1: +V1}",
+   "y0_id_star": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V3))",
+   "y0_id_star_repr": "Sum[V0](P(V0) * P[V0](V1) * P[V1](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0"
+     ],
+     "outcomes": [
+      "V1"
+     ],
+     "identify_outcomes": "P(V1 | V0)"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1)"
+    }
+   ]
+  },
+  {
+   "id": "four.r57",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P(V0, V1) * P(V2) * P[V2,V1,V0](V3))",
+   "y0_id_star_repr": "Sum[V0, V1](P(V0, V1) * P(V2) * P[V2,V1,V0](V3))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [],
+     "outcomes": [
+      "V0",
+      "V1"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "observational"
+    },
+    {
+     "treatments": [
+      "V0",
+      "V1",
+      "V2"
+     ],
+     "outcomes": [
+      "V3"
+     ],
+     "identify_outcomes": "P(V3 | V0, V1, V2)"
+    }
+   ]
+  },
+  {
+   "id": "four.r58",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_status": "conflict",
+   "y0_id_star": "ConflictUnidentifiable(conflicts=[(-V2, +V2)])"
+  },
+  {
+   "id": "four.r59",
+   "nodes": 4,
+   "directed": [
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     3
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     1,
+     3
+    ],
+    [
+     2,
+     3
+    ]
+   ],
+   "bidirected": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "treatment": 2,
+   "outcome": 3,
+   "event": "{V3 @ -V2: -V3, V2: +V2}",
+   "y0_id_star": "Sum[V0, V1](P[V2](V0, V1, V3) * P[V1](V2))",
+   "y0_id_star_repr": "Sum[V0, V1](P[V2](V0, V1, V3) * P[V1](V2))",
+   "y0_status": "expression",
+   "y0_terms": [
+    {
+     "treatments": [
+      "V2"
+     ],
+     "outcomes": [
+      "V0",
+      "V1",
+      "V3"
+     ],
+     "identify_outcomes": "P(V0) * P(V1 | V0) * P(V3 | V0, V1, V2)"
+    },
+    {
+     "treatments": [
+      "V1"
+     ],
+     "outcomes": [
+      "V2"
+     ],
+     "identify_outcomes": "P(V2 | V0, V1)"
+    }
+   ]
+  }
+ ]
+}
