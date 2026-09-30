@@ -9,13 +9,14 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
-    SearchLimits, SearchStop, Value, VariableId,
+    ExecutionContext, InterventionAssignment, MemoryBudget, RegimeBinding, RegimeId, RegimeKind,
+    SamplingDesign, SearchLimits, SearchReceipt, SearchStop, Value, VariableId,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
-    MZ_TRANSPORT_DEFAULT_LIMITS, MzTransportDecision, MzTransportQuery, MzTransportRoute,
-    SidLimits, ZTransportSourceSpec, decide_mz_transport, verify_mz_transport_obstruction,
+    IdentificationError, MZ_TRANSPORT_DEFAULT_LIMITS, MzTransportDecision, MzTransportQuery,
+    MzTransportRoute, SidLimits, ZTransportSourceSpec, decide_mz_transport,
+    verify_mz_transport_obstruction,
 };
 
 const Z1: u32 = 0;
@@ -274,6 +275,7 @@ fn splitting_the_joint_experiment_across_sources_is_never_identified() {
     let MzTransportDecision::NotCertified(inspection) = decide_1ef(&split, &evidence) else {
         panic!("a split joint must stay unresolved, not identified");
     };
+    assert_eq!(inspection.detail, "mz_transport.fabricated_joint");
     let stages =
         inspection.stages.iter().map(|s| (s.stage.as_str(), s.outcome)).collect::<Vec<_>>();
     assert_eq!(
@@ -318,6 +320,40 @@ fn the_target_alone_is_tried_before_any_source_experiment() {
     assert_eq!(&*cited, [RegimeId::from_raw(0)]);
 }
 
+/// Decide under `limits` and `ctx`, requiring a limits receipt.
+fn exhausted(
+    graph: &Admg,
+    query: &MzTransportQuery,
+    limits: SearchLimits,
+    ctx: &ExecutionContext,
+) -> SearchReceipt {
+    match decide_mz_transport(graph, query, &complementary_catalog(), limits, ctx).unwrap() {
+        MzTransportDecision::Exhausted(receipt) => receipt,
+        other => panic!("expected a limits receipt, never a verdict; got {other:?}"),
+    }
+}
+
+/// Operations one unbounded decision charges, read from the receipt of a
+/// decision stopped one operation short of it.
+fn operations_needed(graph: &Admg, query: &MzTransportQuery) -> usize {
+    let ctx = ExecutionContext::for_tests(1);
+    (1..=MZ_TRANSPORT_DEFAULT_LIMITS.operations)
+        .find(|&operations| {
+            !matches!(
+                decide_mz_transport(
+                    graph,
+                    query,
+                    &complementary_catalog(),
+                    SearchLimits { operations, depth: MZ_TRANSPORT_DEFAULT_LIMITS.depth },
+                    &ctx,
+                )
+                .unwrap(),
+                MzTransportDecision::Exhausted(_)
+            )
+        })
+        .unwrap()
+}
+
 #[test]
 fn exhausted_search_returns_a_receipt_never_a_verdict() {
     let q = query(vec![source_a(), source_b()]);
@@ -333,8 +369,10 @@ fn exhausted_search_returns_a_receipt_never_a_verdict() {
     let ctx = ExecutionContext::for_tests(1);
     let steps = run(SearchLimits { operations: 3, depth: 24 }, &ctx);
     assert_eq!(steps.stop, SearchStop::Operations);
-    assert!(steps.operations_consumed.is_some() && !steps.explored.is_empty());
-    assert!(steps.unevaluated.contains(&"multi_source".to_owned()));
+    // One SearchBudget for the whole decision: the receipt reports its totals.
+    assert_eq!((steps.operations_limit, steps.operations_consumed), (3, Some(3)));
+    assert!(steps.explored.iter().all(|r| r.starts_with("stage:") || r.starts_with("rule:")));
+    assert!(steps.unevaluated.contains(&"stage:multi_source".to_owned()));
     // A zero limit stops before the search is entered, with no fabricated accounting.
     let zero = run(SearchLimits { operations: 0, depth: 24 }, &ctx);
     assert_eq!((zero.stop, zero.operations_consumed), (SearchStop::Operations, None));
@@ -342,4 +380,223 @@ fn exhausted_search_returns_a_receipt_never_a_verdict() {
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
     assert_eq!(run(MZ_TRANSPORT_DEFAULT_LIMITS, &cancelled).stop, SearchStop::Cancelled);
+}
+
+#[test]
+fn depth_exhaustion_is_a_receipt_with_search_budget_depth_semantics() {
+    let q = query(vec![source_a(), source_b()]);
+    let receipt = exhausted(
+        &figure_1_graph(),
+        &q,
+        SearchLimits { operations: 4096, depth: 1 },
+        &ExecutionContext::for_tests(1),
+    );
+    assert_eq!(receipt.stop, SearchStop::Depth);
+    // SearchBudget stops only past the limit: depth 1 is charged, depth 2 is not.
+    assert_eq!((receipt.depth_limit, receipt.depth_reached), (1, Some(2)));
+    assert!(receipt.operations_consumed.is_some_and(|n| n >= 2));
+}
+
+#[test]
+fn memory_exhaustion_is_a_receipt_and_is_checked_on_every_charge() {
+    let q = query(vec![source_a(), source_b()]);
+    // One live engine step on the four-node graph is estimated at 1536 bytes.
+    for (limit, consumed) in [(1024, None), (3 * 1536, Some(3))] {
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        let receipt = exhausted(&figure_1_graph(), &q, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
+        assert_eq!(receipt.stop, SearchStop::Memory);
+        assert_eq!(receipt.memory_limit_bytes, Some(limit));
+        assert_eq!(receipt.operations_consumed, consumed);
+    }
+}
+
+#[test]
+fn one_budget_is_shared_by_every_stage() {
+    // The obstruction of `a` alone runs every stage: target, both sources, the
+    // combined search and its replay. Measure what each stage costs by the
+    // smallest limit under which it finishes.
+    let (graph, q) = (figure_1_graph(), query(vec![source_a(), unhelpful()]));
+    let ctx = ExecutionContext::for_tests(1);
+    let total = operations_needed(&graph, &q);
+    let mut finished_at = vec![0];
+    for operations in 1..total {
+        let receipt = exhausted(&graph, &q, SearchLimits { operations, depth: 24 }, &ctx);
+        let stages = receipt.explored.iter().filter(|r| r.starts_with("stage:")).count();
+        if stages >= finished_at.len() {
+            finished_at.push(operations);
+        }
+    }
+    finished_at.push(total);
+    let largest_stage = finished_at.windows(2).map(|w| w[1] - w[0]).max().unwrap();
+    assert!(finished_at.len() >= 4 && largest_stage < total, "{finished_at:?}");
+    // A limit every stage fits inside on its own still exhausts the decision,
+    // and the receipt reports the operations charged across all stages.
+    let limits = SearchLimits { operations: largest_stage, depth: 24 };
+    let receipt = exhausted(&graph, &q, limits, &ctx);
+    assert_eq!(receipt.stop, SearchStop::Operations);
+    assert_eq!(receipt.operations_consumed, Some(largest_stage));
+    assert!(!receipt.unevaluated.is_empty());
+}
+
+#[test]
+fn limits_above_the_declared_maxima_refuse_as_bounds_exceeded() {
+    let q = query(vec![source_a(), source_b()]);
+    let exceeded = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+    for limits in [
+        SearchLimits { operations: MZ_TRANSPORT_DEFAULT_LIMITS.operations + 1, depth: 24 },
+        SearchLimits { operations: 4096, depth: MZ_TRANSPORT_DEFAULT_LIMITS.depth + 1 },
+    ] {
+        let refused = decide_mz_transport(
+            &figure_1_graph(),
+            &q,
+            &complementary_catalog(),
+            limits,
+            &ExecutionContext::for_tests(1),
+        );
+        assert_eq!(refused.unwrap_err(), exceeded);
+    }
+}
+
+#[test]
+fn graph_and_controllable_bounds_refuse_as_bounds_exceeded() {
+    let exceeded = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+    let ctx = ExecutionContext::for_tests(1);
+    // Thirteen observed variables.
+    let mut large = Admg::with_variables(13);
+    for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {
+        large.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let q = query(vec![source_a(), source_b()]);
+    let refused =
+        decide_mz_transport(&large, &q, &catalog(vec![]), MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
+    assert_eq!(refused.unwrap_err(), exceeded);
+    // Five controllables in one source.
+    let mut wide = Admg::with_variables(6);
+    for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {
+        wide.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let q = query(vec![source("a", &[0, 2, 3, 4, 5], &[]), source_b()]);
+    let refused =
+        decide_mz_transport(&wide, &q, &catalog(vec![]), MZ_TRANSPORT_DEFAULT_LIMITS, &ctx);
+    assert_eq!(refused.unwrap_err(), exceeded);
+}
+
+/// The observable content of a decision, which must not depend on source order.
+fn outcome_signature(decision: &MzTransportDecision) -> String {
+    match decision {
+        MzTransportDecision::Identified { derivation, cited } => {
+            format!("identified {:?} {:?} {cited:?}", derivation.route(), derivation.rules())
+        }
+        MzTransportDecision::ProvenNonTransportable(obstruction) => format!(
+            "obstruction {:?} {:?} {:?}",
+            obstruction.query(),
+            obstruction.c0(),
+            obstruction.sources()
+        ),
+        MzTransportDecision::MissingEvidence { derivation, detail } => format!(
+            "missing {detail} {:?}",
+            derivation.as_ref().map(|d| (
+                d.route().clone(),
+                d.rules().to_vec(),
+                d.stages().to_vec()
+            ))
+        ),
+        MzTransportDecision::NotCertified(inspection) => format!("not_certified {inspection:?}"),
+        MzTransportDecision::Exhausted(receipt) => format!("exhausted {receipt:?}"),
+    }
+}
+
+#[test]
+fn every_outcome_is_invariant_to_source_declaration_order() {
+    let partial = catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])]);
+    let split_evidence =
+        catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2]), regime(2, "b", &[Z1])]);
+    let split = [
+        assigned(source("a", &[Z2], &[Z1]), &[(Z2, 0.0)]),
+        assigned(source("b", &[Z1], &[Z2]), &[(Z1, 0.0)]),
+    ];
+    let cases: Vec<(Admg, [ZTransportSourceSpec; 2], EvidenceCatalog, SearchLimits, &str)> = vec![
+        (
+            figure_1_graph(),
+            [source_a(), unhelpful()],
+            complementary_catalog(),
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            "transport_proven_non_transportable",
+        ),
+        (
+            figure_1_graph(),
+            [source_a(), source_b()],
+            partial,
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            "transport_missing_evidence",
+        ),
+        (
+            figure_1ef_graph(),
+            split,
+            split_evidence,
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            "transport_not_certified",
+        ),
+        (
+            figure_1_graph(),
+            [source_a(), source_b()],
+            complementary_catalog(),
+            SearchLimits {
+                operations: operations_needed(
+                    &figure_1_graph(),
+                    &query(vec![source_a(), source_b()]),
+                ) - 1,
+                depth: 24,
+            },
+            "transport_budget_cancel",
+        ),
+    ];
+    let ctx = ExecutionContext::for_tests(1);
+    for (graph, [first, second], evidence, limits, reason) in cases {
+        let decide = |sources: Vec<ZTransportSourceSpec>| {
+            decide_mz_transport(&graph, &query(sources), &evidence, limits, &ctx).unwrap()
+        };
+        let forward = decide(vec![first.clone(), second.clone()]);
+        let reverse = decide(vec![second, first]);
+        assert_eq!(forward.reason_code(), Some(reason), "{forward:?}");
+        assert_eq!(outcome_signature(&forward), outcome_signature(&reverse));
+    }
+}
+
+#[test]
+fn a_budget_stop_in_the_combined_search_names_untried_source_branches() {
+    // `a` and its twin `c` can both exchange Q[Y] at the same line-10 state;
+    // a stop inside `a`'s branch leaves `c`'s untried, named by population.
+    let q = query(vec![source_a(), source_b(), source("c", &[Z2], &[Z1, Z2])]);
+    let total = operations_needed(&figure_1_graph(), &q);
+    let ctx = ExecutionContext::for_tests(1);
+    let mut named = Vec::new();
+    for operations in 1..total {
+        let receipt =
+            exhausted(&figure_1_graph(), &q, SearchLimits { operations, depth: 24 }, &ctx);
+        named.extend(receipt.unevaluated.into_iter().filter(|r| r.starts_with("multi:line10:")));
+    }
+    assert!(!named.is_empty(), "no stop left a line-10 source branch untried");
+    assert!(named.iter().all(|r| r.starts_with("multi:line10:source=c@")), "{named:?}");
+}
+
+#[test]
+fn outcomes_carry_the_frozen_detail_codes() {
+    let identified = decide(&query(vec![source_a(), source_b()]), &complementary_catalog());
+    assert_eq!((identified.reason_code(), identified.detail_code()), (None, None));
+    let obstruction = decide(&query(vec![source_a(), unhelpful()]), &complementary_catalog());
+    assert_eq!(obstruction.detail_code(), Some("mz_transport.checked_obstruction"));
+    let partial = catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])]);
+    let missing = decide(&query(vec![source_a(), source_b()]), &partial);
+    assert_eq!(missing.detail_code(), Some("mz_transport.missing_joint_regime"));
+    let stopped = decide_mz_transport(
+        &figure_1_graph(),
+        &query(vec![source_a(), source_b()]),
+        &complementary_catalog(),
+        SearchLimits { operations: 1, depth: 24 },
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    assert_eq!(stopped.detail_code(), Some("mz_transport.budget"));
 }

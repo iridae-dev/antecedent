@@ -17,11 +17,14 @@
 //! structurally over the declared controllable sets, never because a catalog
 //! lacks a regime. When several sources certify the same factor, the paper
 //! returns a weighted combination; for exact laws each is a valid formula, so
-//! this contract selects one in canonical source order and keeps the others as
-//! alternatives, which makes the result invariant to source declaration order.
+//! this contract returns the first certifying source in canonical source order
+//! and does not retain the others, which makes the result invariant to source
+//! declaration order.
 //!
-//! This module fixes the query, its bounds, and input validation. Identification
-//! and execution are separate stages built on it.
+//! Every stage of one decision charges a single [`SearchBudget`], so the
+//! declared limits bound the whole decision, not each stage. The limits are
+//! maxima as well as defaults, and each contract bound refuses by the one
+//! detail `mz_transport.bounds_exceeded`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -30,19 +33,18 @@ use std::sync::Arc;
 
 use antecedent_core::{
     EvidenceCatalog, ExecutionContext, RegimeId, RegimeKind, SearchBudget, SearchLimits,
-    SearchReceipt, SearchStop, VariableId,
+    SearchReceipt, VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::SelectionDiagram;
 
 use super::z_transport::{
     TrzCall, TrzDomain, TrzTerminalFailure, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_OBSERVED,
-    ZTransportBudgetKind, ZTransportDecision, ZTransportDerivation, ZTransportLimitsReceipt,
-    ZTransportMissingEvidence, ZTransportOutcome, ZTransportQuery, ZTransportSourceSpec,
-    bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
-    decide_z_transport_inspecting, search_trz_call, validate_z_transport_query,
+    ZTransportDecision, ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence,
+    ZTransportQuery, ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog,
+    cited_regimes, decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
 };
-use super::{IdentificationError, SidLimits};
+use super::{IdentificationError, SharedSearch, SidLimits, SidMeter};
 
 /// Observed variables in the shared graph.
 pub const MZ_TRANSPORT_MAX_OBSERVED: usize = Z_TRANSPORT_MAX_OBSERVED;
@@ -52,9 +54,32 @@ pub const MZ_TRANSPORT_MAX_SOURCES: usize = 4;
 pub const MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE: usize = Z_TRANSPORT_MAX_CONTROLLABLE;
 /// Available source regimes the search may consider as candidate evidence.
 pub const MZ_TRANSPORT_MAX_CANDIDATE_REGIMES: usize = 64;
-/// Default search limits: states charged and recursion depth. Memory and
-/// cancellation come from the execution context on every charge.
+/// Search limits for one whole decision: states charged across every stage, and
+/// recursion depth. They are the defaults and also the maxima; larger limits
+/// refuse. Memory and cancellation come from the execution context on every charge.
 pub const MZ_TRANSPORT_DEFAULT_LIMITS: SearchLimits = SearchLimits { operations: 4096, depth: 24 };
+
+/// A request outside a declared bound: source count, observed variables,
+/// controllables per source, candidate regimes, or search limits.
+const BOUNDS_EXCEEDED: &str = "mz_transport.bounds_exceeded";
+/// The bounded search ended without a formula or a checked obstruction.
+const SEARCH_INCOMPLETE: &str = "mz_transport.search_incomplete";
+/// Completing a factor needs a joint over two sources' interventions.
+const FABRICATED_JOINT: &str = "mz_transport.fabricated_joint";
+/// A certified formula cites a joint regime (or level) the catalog lacks.
+const MISSING_JOINT_REGIME: &str = "mz_transport.missing_joint_regime";
+/// A checked structural obstruction for the declared controllable sets.
+const CHECKED_OBSTRUCTION: &str = "mz_transport.checked_obstruction";
+/// A limit or cancellation stopped the search.
+const BUDGET: &str = "mz_transport.budget";
+/// A derivation or its record does not check.
+const INVALID_DERIVATION: &str = "mz_transport.invalid_derivation";
+/// An obstruction does not check.
+const INVALID_OBSTRUCTION: &str = "mz_transport.invalid_obstruction";
+
+const fn bounds_exceeded() -> IdentificationError {
+    IdentificationError::UnsupportedInput { code: BOUNDS_EXCEEDED }
+}
 
 /// One target interventional query answered from several limited-experiment sources.
 ///
@@ -137,50 +162,69 @@ pub struct ValidatedMzTransportQuery {
 
 /// Validate a multi-source query against the shared graph and supplied catalog.
 ///
-/// Each source must pass the single-source z-transport contract on its own
-/// selection diagram. Across sources: two to four distinct populations, none the
-/// target; every available source experiment intervenes only on a subset of that
-/// source's declared controllable set; the target supplies no experiments; and
-/// at most [`MZ_TRANSPORT_MAX_CANDIDATE_REGIMES`] available source regimes.
+/// Bounds: two to [`MZ_TRANSPORT_MAX_SOURCES`] sources (one source is the
+/// single-source z route), at most [`MZ_TRANSPORT_MAX_OBSERVED`] observed
+/// variables, one to [`MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE`] controllables
+/// per source, and at most [`MZ_TRANSPORT_MAX_CANDIDATE_REGIMES`] available
+/// source regimes. Each source must otherwise pass the single-source
+/// z-transport contract on its own selection diagram; populations are distinct
+/// and none is the target; every available source experiment intervenes only
+/// on a subset of that source's declared controllable set; and the target
+/// supplies no experiments.
 ///
 /// # Errors
 ///
-/// [`IdentificationError::UnsupportedInput`] with an `mz_transport.*` code for an
-/// exceeded bound; [`IdentificationError::InvalidInput`] for a malformed query or
-/// a catalog that contradicts its declarations.
+/// [`IdentificationError::UnsupportedInput`] `mz_transport.bounds_exceeded` for
+/// any exceeded bound; [`IdentificationError::InvalidInput`]
+/// `mz_transport.invalid_query` for a malformed query; and
+/// [`IdentificationError::InvalidCatalog`] `mz_transport.invalid_catalog` for a
+/// catalog that contradicts the declarations. The message names the violation.
 pub fn validate_mz_transport_query(
     graph: &antecedent_graph::Admg,
     query: &MzTransportQuery,
     catalog: &EvidenceCatalog,
 ) -> Result<ValidatedMzTransportQuery, IdentificationError> {
     let query = query.canonical();
-    if query.sources.len() < 2 {
-        return Err(IdentificationError::invalid_input(
-            "mz_transport.single_source_uses_z_transport",
-        ));
+    if !(2..=MZ_TRANSPORT_MAX_SOURCES).contains(&query.sources.len())
+        || graph.node_count() > MZ_TRANSPORT_MAX_OBSERVED
+        || query.sources.iter().any(|s| {
+            s.controllable.is_empty()
+                || s.controllable.len() > MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE
+        })
+    {
+        return Err(bounds_exceeded());
     }
-    if query.sources.len() > MZ_TRANSPORT_MAX_SOURCES {
-        return Err(IdentificationError::UnsupportedInput { code: "mz_transport.source_count" });
-    }
+    let invalid_query = |detail: &dyn std::fmt::Display| {
+        IdentificationError::invalid_input(format!("mz_transport.invalid_query: {detail}"))
+    };
     let populations = query.sources.iter().map(|s| s.population.as_ref()).collect::<BTreeSet<_>>();
     if populations.len() != query.sources.len() || populations.contains(query.target.as_ref()) {
-        return Err(IdentificationError::invalid_input("mz_transport.population_collision"));
+        return Err(invalid_query(&"source populations must be distinct and not the target"));
     }
     let mut diagrams = Vec::with_capacity(query.sources.len());
     for source in query.sources.iter() {
         let diagram =
             SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
-                .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
-        validate_z_transport_query(&diagram, &query.source_query(source))?;
+                .map_err(|error| invalid_query(&error))?;
+        validate_z_transport_query(&diagram, &query.source_query(source)).map_err(|error| {
+            match error {
+                IdentificationError::UnsupportedInput { .. } => bounds_exceeded(),
+                other => invalid_query(&format_args!("source {}: {other}", source.population)),
+            }
+        })?;
         diagrams.push(diagram);
     }
+    let invalid_catalog = |detail: String| {
+        IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {detail}"))
+    };
     let mut candidate_regimes = 0usize;
     for regime in catalog.regimes.iter().filter(|r| r.supplies_population_law()) {
         if regime.population == query.target {
             if regime.kind == RegimeKind::Experimental {
-                return Err(IdentificationError::invalid_input(
-                    "mz_transport.target_experiments_unsupported",
-                ));
+                return Err(invalid_catalog(format!(
+                    "target regime {} is experimental; the target supplies observational evidence only",
+                    regime.id.raw()
+                )));
             }
             continue;
         }
@@ -188,16 +232,16 @@ pub fn validate_mz_transport_query(
             continue;
         };
         if regime.interventions.iter().any(|v| !source.controllable.contains(v)) {
-            return Err(IdentificationError::invalid_input(
-                "mz_transport.regime_outside_controllable",
-            ));
+            return Err(invalid_catalog(format!(
+                "regime {} of source {} intervenes outside its declared controllable set",
+                regime.id.raw(),
+                source.population
+            )));
         }
         candidate_regimes += 1;
     }
     if candidate_regimes > MZ_TRANSPORT_MAX_CANDIDATE_REGIMES {
-        return Err(IdentificationError::UnsupportedInput {
-            code: "mz_transport.candidate_regime_count",
-        });
+        return Err(bounds_exceeded());
     }
     Ok(ValidatedMzTransportQuery { query, diagrams, candidate_regimes })
 }
@@ -337,14 +381,10 @@ impl MzTransportDerivation {
         let MzTransportDecision::Identified { derivation, .. } =
             decide_mz_transport(graph, query, catalog, limits, ctx)?
         else {
-            return Err(IdentificationError::invalid_derivation(
-                "mz_transport.proof_not_reproduced",
-            ));
+            return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
         };
         if derivation.to_record() != *record || derivation.arena != *arena {
-            return Err(IdentificationError::invalid_derivation(
-                "mz_transport.proof_record_mismatch",
-            ));
+            return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
         }
         Ok(*derivation)
     }
@@ -396,6 +436,10 @@ pub struct MzStageRecord {
 /// What a search that stopped short of a formula or an obstruction explored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MzSearchInspection {
+    /// `mz_transport.fabricated_joint` when the combined search reached a
+    /// line-11 state another source could exchange only jointly with the
+    /// active source's experiment; otherwise `mz_transport.search_incomplete`.
+    pub detail: &'static str,
     /// Every evaluated stage, in order.
     pub stages: Vec<MzStageRecord>,
     /// Rules the combined search applied, in order.
@@ -434,23 +478,56 @@ pub enum MzTransportDecision {
     Exhausted(SearchReceipt),
 }
 
+impl MzTransportDecision {
+    /// Top-level reason code of a non-identified outcome; `None` when identified.
+    #[must_use]
+    pub const fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Identified { .. } => None,
+            Self::ProvenNonTransportable(_) => Some("transport_proven_non_transportable"),
+            Self::MissingEvidence { .. } => Some("transport_missing_evidence"),
+            Self::NotCertified(_) => Some("transport_not_certified"),
+            Self::Exhausted(_) => Some("transport_budget_cancel"),
+        }
+    }
+
+    /// Stable `mz_transport.*` detail of a non-identified outcome; `None` when
+    /// identified. Specifics stay in the variant's structured fields.
+    #[must_use]
+    pub const fn detail_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Identified { .. } => None,
+            Self::ProvenNonTransportable(_) => Some(CHECKED_OBSTRUCTION),
+            Self::MissingEvidence { .. } => Some(MISSING_JOINT_REGIME),
+            Self::NotCertified(inspection) => Some(inspection.detail),
+            Self::Exhausted(_) => Some(BUDGET),
+        }
+    }
+}
+
 const STAGE_TARGET: &str = "target_only";
 const STAGE_MULTI: &str = "multi_source";
+/// Receipt region of the obstruction replay that follows the combined search.
+const STAGE_OBSTRUCTION_CHECK: &str = "stage:obstruction_check";
 
 /// Decide a bounded multi-source limited-experiment query.
 ///
 /// Stages run in a fixed order, each only when the earlier ones do not
 /// identify: the target alone; each source's own z route, in canonical source
-/// order; then the combined `TR^mz` search. The limits apply to each stage.
-/// A formula that does not bind is kept as missing evidence and the next
-/// stage still runs; a forced line-11 state of the combined search is certified
-/// as an obstruction; anything else is not certified.
+/// order; then the combined `TR^mz` search and, when it reaches a forced
+/// line-11 state, the replay that certifies it as an obstruction. One
+/// [`SearchBudget`] under `limits` is charged by every engine step of every
+/// stage, with the engine's live-state bytes, so the limits bound the whole
+/// decision. A formula that does not bind is kept as missing evidence and the
+/// next stage still runs; anything else is not certified. A stop anywhere is
+/// [`MzTransportDecision::Exhausted`], never a verdict.
 ///
 /// # Errors
 ///
-/// Invalid or out-of-bound input ([`validate_mz_transport_query`]), an invalid
-/// catalog, or a derivation that fails its own check.
-#[allow(clippy::too_many_lines)] // One linear pass over the stages and their outcomes.
+/// Limits above [`MZ_TRANSPORT_DEFAULT_LIMITS`] or a query outside its bounds
+/// (`mz_transport.bounds_exceeded`), invalid input
+/// ([`validate_mz_transport_query`]), an invalid catalog, or a derivation that
+/// fails its own check.
 pub fn decide_mz_transport(
     graph: &antecedent_graph::Admg,
     query: &MzTransportQuery,
@@ -458,42 +535,78 @@ pub fn decide_mz_transport(
     limits: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportDecision, IdentificationError> {
+    if limits.operations > MZ_TRANSPORT_DEFAULT_LIMITS.operations
+        || limits.depth > MZ_TRANSPORT_DEFAULT_LIMITS.depth
+    {
+        return Err(bounds_exceeded());
+    }
     let validated = validate_mz_transport_query(graph, query, catalog)?;
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
     })?;
-    let query = validated.query;
-    let stage_names = std::iter::once(STAGE_TARGET.to_owned())
+    match SearchBudget::new(limits, ctx) {
+        Ok(budget) => {
+            decide_charged(graph, validated, catalog, &mut SharedSearch::new(budget), ctx)
+        }
+        Err(receipt) => Ok(MzTransportDecision::Exhausted(SearchReceipt {
+            unevaluated: stage_names(&validated.query)
+                .iter()
+                .map(|s| format!("stage:{s}"))
+                .collect(),
+            ..receipt
+        })),
+    }
+}
+
+/// Stage names in evaluation order.
+fn stage_names(query: &MzTransportQuery) -> Vec<String> {
+    std::iter::once(STAGE_TARGET.to_owned())
         .chain(query.sources.iter().map(|s| format!("source:{}", s.population)))
         .chain(std::iter::once(STAGE_MULTI.to_owned()))
-        .collect::<Vec<_>>();
-    if let Err(receipt) = SearchBudget::new(limits, ctx) {
-        return Ok(MzTransportDecision::Exhausted(SearchReceipt {
-            unevaluated: stage_names,
-            ..receipt
-        }));
-    }
-    let sid_limits = SidLimits { steps: limits.operations, depth: limits.depth };
+        .collect()
+}
+
+/// Every stage of a validated decision, charged to `search`.
+#[allow(clippy::too_many_lines)] // One linear pass over the stages and their outcomes.
+fn decide_charged(
+    graph: &antecedent_graph::Admg,
+    validated: ValidatedMzTransportQuery,
+    catalog: &EvidenceCatalog,
+    search: &mut SharedSearch<'_>,
+    ctx: &ExecutionContext,
+) -> Result<MzTransportDecision, IdentificationError> {
+    let query = validated.query;
+    let stage_names = stage_names(&query);
     let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
     let signature = super::graph_signature(&shared);
     let mut stages = Vec::new();
     let mut missing: Option<(Option<Box<MzTransportDerivation>>, String)> = None;
-    let exhausted = |stages: &[MzStageRecord], receipt: ZTransportLimitsReceipt| {
-        let done = stages.len();
-        MzTransportDecision::Exhausted(search_receipt(
-            receipt,
-            limits,
-            ctx,
-            stages.iter().map(|s| s.stage.clone()).collect(),
-            stage_names[done..].to_vec(),
-        ))
+    // Explored regions are `stage:<name>` for each finished stage, then
+    // `rule:<rule>` for the rules of the stopped one; unevaluated regions are
+    // the stopped and later stages, then every untried line-10 source branch.
+    let exhausted = |search: &SharedSearch<'_>,
+                     stages: &[MzStageRecord],
+                     error: &IdentificationError,
+                     stopped: Option<ZTransportLimitsReceipt>,
+                     after: &[&str]| {
+        let explored = stages
+            .iter()
+            .map(|s| format!("stage:{}", s.stage))
+            .chain(stopped.into_iter().flat_map(|r| r.explored_rules).map(|r| format!("rule:{r}")))
+            .collect();
+        let unevaluated = stage_names[stages.len().min(stage_names.len())..]
+            .iter()
+            .map(|s| format!("stage:{s}"))
+            .chain(after.iter().map(|s| (*s).to_owned()))
+            .collect();
+        MzTransportDecision::Exhausted(search.receipt(search.stop_of(error), explored, unevaluated))
     };
 
     // Stage 1: the target alone, before any source experiment is consumed.
     let target_call = recursion_call(&query, &validated.diagrams, false);
-    let mut receipt = None;
-    match search_trz_call(&shared, &target_call, sid_limits, ctx, &mut receipt) {
+    let mut stopped = None;
+    match search_trz_call(&shared, &target_call, search.meter(), ctx, &mut stopped) {
         Ok(result) => {
             if let Some((arena, root, trace)) = result.identified {
                 let derivation = recursive_derivation(
@@ -525,10 +638,7 @@ pub fn decide_mz_transport(
             }
         }
         Err(error) if error.is_budget_or_cancel() => {
-            return Ok(exhausted(
-                &stages,
-                receipt.unwrap_or_else(|| pre_search_receipt(&error, sid_limits)),
-            ));
+            return Ok(exhausted(search, &stages, &error, stopped, &[]));
         }
         Err(error) => return Err(error),
     }
@@ -537,9 +647,23 @@ pub fn decide_mz_transport(
     for (source, diagram) in query.sources.iter().zip(&validated.diagrams) {
         let stage = format!("source:{}", source.population);
         let single = query.source_query(source);
-        match decide_z_transport_inspecting(diagram, &single, catalog, sid_limits, ctx)? {
-            ZTransportOutcome::Exhausted(receipt) => return Ok(exhausted(&stages, receipt)),
-            ZTransportOutcome::Decided(ZTransportDecision::Identified(z)) => {
+        let mut stopped = None;
+        let decided = match decide_z_transport_reporting(
+            diagram,
+            &single,
+            catalog,
+            search.meter(),
+            ctx,
+            &mut stopped,
+        ) {
+            Ok(decided) => decided,
+            Err(error) if error.is_budget_or_cancel() => {
+                return Ok(exhausted(search, &stages, &error, stopped, &[]));
+            }
+            Err(error) => return Err(error),
+        };
+        match decided {
+            ZTransportDecision::Identified(z) => {
                 let bound = bind_z_transport_catalog(diagram, &single, &z, catalog)?;
                 let derivation = MzTransportDerivation {
                     query: query.clone(),
@@ -553,16 +677,17 @@ pub fn decide_mz_transport(
                     single: Some(z),
                     stages: stages.clone(),
                 };
+                check_leaves(&derivation)?;
                 return Ok(MzTransportDecision::Identified {
                     derivation: Box::new(derivation),
                     cited: Arc::from(bound.cited_regimes()),
                 });
             }
-            ZTransportOutcome::Decided(ZTransportDecision::MissingEvidence { missing: gap }) => {
+            ZTransportDecision::MissingEvidence { missing: gap } => {
                 stages.push(MzStageRecord { stage, outcome: "missing_evidence" });
                 let detail = match gap {
                     ZTransportMissingEvidence::UnassignedControllable { variable } => format!(
-                        "mz_transport.unassigned_controllable: {} {}",
+                        "{MISSING_JOINT_REGIME}: source {} names no experiment level for controllable {}",
                         source.population,
                         variable.raw()
                     ),
@@ -572,10 +697,10 @@ pub fn decide_mz_transport(
             }
             // A single-source obstruction does not bind the combined search:
             // other sources may supply the factors this one cannot.
-            ZTransportOutcome::Decided(ZTransportDecision::ProvenNonTransportable(_)) => {
+            ZTransportDecision::ProvenNonTransportable(_) => {
                 stages.push(MzStageRecord { stage, outcome: "obstruction" });
             }
-            ZTransportOutcome::Decided(ZTransportDecision::NotCertified { .. }) => {
+            ZTransportDecision::NotCertified { .. } => {
                 stages.push(MzStageRecord { stage, outcome: "not_certified" });
             }
         }
@@ -583,14 +708,11 @@ pub fn decide_mz_transport(
 
     // Stage 3: the combined search, where line 10 may exchange into any source.
     let call = recursion_call(&query, &validated.diagrams, true);
-    let mut receipt = None;
-    let result = match search_trz_call(&shared, &call, sid_limits, ctx, &mut receipt) {
+    let mut stopped = None;
+    let result = match search_trz_call(&shared, &call, search.meter(), ctx, &mut stopped) {
         Ok(result) => result,
         Err(error) if error.is_budget_or_cancel() => {
-            return Ok(exhausted(
-                &stages,
-                receipt.unwrap_or_else(|| pre_search_receipt(&error, sid_limits)),
-            ));
+            return Ok(exhausted(search, &stages, &error, stopped, &[]));
         }
         Err(error) => return Err(error),
     };
@@ -613,12 +735,21 @@ pub fn decide_mz_transport(
         return Ok(MzTransportDecision::MissingEvidence { derivation, detail });
     }
     if let Some(terminal) = result.terminal_failure.filter(forced_terminal) {
+        // Only a replayed line-11 terminal with no active experiment certifies;
+        // a stop during the replay is exhaustion, never a verdict.
+        stages.push(MzStageRecord { stage: STAGE_MULTI.into(), outcome: "obstruction" });
         let obstruction = MzTransportObstruction { query, graph_signature: signature, terminal };
-        verify_mz_transport_obstruction(graph, &obstruction, sid_limits, ctx)?;
-        return Ok(MzTransportDecision::ProvenNonTransportable(Box::new(obstruction)));
+        return match verify_mz_obstruction_metered(graph, &obstruction, search.meter(), ctx) {
+            Ok(()) => Ok(MzTransportDecision::ProvenNonTransportable(Box::new(obstruction))),
+            Err(error) if error.is_budget_or_cancel() => {
+                Ok(exhausted(search, &stages, &error, None, &[STAGE_OBSTRUCTION_CHECK]))
+            }
+            Err(error) => Err(error),
+        };
     }
     stages.push(MzStageRecord { stage: STAGE_MULTI.into(), outcome: "not_certified" });
     Ok(MzTransportDecision::NotCertified(MzSearchInspection {
+        detail: if result.cross_source_joint { FABRICATED_JOINT } else { SEARCH_INCOMPLETE },
         stages,
         explored_rules: result.explored_rules,
         steps_explored: result.steps_explored,
@@ -680,32 +811,36 @@ fn recursive_derivation(
 }
 
 /// Every distribution leaf is either the target's observational law or an
-/// interventional law of one declared source, intervening only on that source's
-/// declared controllables plus coordinates the formula holds fixed.
+/// interventional law of one declared source whose every intervened coordinate
+/// is one of that source's own declared controllables. A coordinate the formula
+/// holds fixed is such a controllable at its declared level, so no other
+/// coordinate is allowed. A target-only formula cites no source.
+///
+/// A source leaf intervening outside its own controllables would be a joint
+/// over another source's interventions: it refuses as
+/// `mz_transport.fabricated_joint`. Every other failure is
+/// `mz_transport.invalid_derivation`.
 fn check_leaves(derivation: &MzTransportDerivation) -> Result<(), IdentificationError> {
-    let bad = |reason: &'static str| IdentificationError::invalid_derivation(reason);
+    let invalid = || IdentificationError::invalid_derivation(INVALID_DERIVATION);
     let query = &derivation.query;
+    let target_only = matches!(derivation.route, MzTransportRoute::TargetOnly);
     for (population, intervened, observational) in leaves(&derivation.arena, derivation.root) {
         if population == query.target.as_ref() {
             if !observational {
-                return Err(bad("mz_transport.target_leaf_not_observational"));
+                return Err(invalid());
             }
             continue;
         }
         let Some(source) = query.sources.iter().find(|s| s.population.as_ref() == population)
         else {
-            return Err(bad("mz_transport.leaf_population_undeclared"));
+            return Err(invalid());
         };
-        if observational || !intervened.iter().any(|v| source.controllable.contains(v)) {
-            return Err(bad("mz_transport.source_leaf_without_exchange"));
+        if target_only || observational || intervened.is_empty() {
+            return Err(invalid());
         }
-    }
-    if matches!(derivation.route, MzTransportRoute::TargetOnly)
-        && leaves(&derivation.arena, derivation.root)
-            .iter()
-            .any(|(p, _, _)| *p != query.target.as_ref())
-    {
-        return Err(bad("mz_transport.target_route_cites_source"));
+        if intervened.iter().any(|v| !source.controllable.contains(v)) {
+            return Err(IdentificationError::invalid_derivation(FABRICATED_JOINT));
+        }
     }
     Ok(())
 }
@@ -757,9 +892,7 @@ fn leaf_sources(
         .map(|s| Arc::clone(&s.population))
         .collect::<Vec<_>>();
     if populations.is_empty() {
-        return Err(IdentificationError::InvariantViolated {
-            message: "mz_transport.combined_formula_cites_no_source",
-        });
+        return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
     }
     Ok(populations)
 }
@@ -858,7 +991,7 @@ pub fn bind_mz_transport_catalog(
     let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
     if super::graph_signature(&shared) != derivation.graph_signature {
-        return Err(IdentificationError::invalid_derivation("mz_transport.proof_input_mismatch"));
+        return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
     }
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
@@ -866,12 +999,13 @@ pub fn bind_mz_transport_catalog(
     let query = &derivation.query;
     let (arena, root, cited) = if let Some(single) = &derivation.single {
         let MzTransportRoute::SingleSource { population } = &derivation.route else {
-            return Err(IdentificationError::invalid_derivation("mz_transport.route_mismatch"));
+            return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
         };
-        let source =
-            query.sources.iter().find(|s| s.population == *population).ok_or_else(|| {
-                IdentificationError::invalid_derivation("mz_transport.route_mismatch")
-            })?;
+        let source = query
+            .sources
+            .iter()
+            .find(|s| s.population == *population)
+            .ok_or_else(|| IdentificationError::invalid_derivation(INVALID_DERIVATION))?;
         let diagram =
             SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
                 .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
@@ -914,14 +1048,25 @@ fn forced_terminal(terminal: &TrzTerminalFailure) -> bool {
 /// the independent separation checker, not the search's own.
 ///
 /// # Errors
-/// The graph, query or terminal differ, or a source could exchange at `C0`.
+/// `mz_transport.invalid_obstruction` when the graph, query or terminal differ,
+/// or a source could exchange at `C0`; a budget or cancellation of the replay.
 pub fn verify_mz_transport_obstruction(
     graph: &antecedent_graph::Admg,
     obstruction: &MzTransportObstruction,
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
-    let bad = || IdentificationError::invalid_derivation("mz_transport.invalid_obstruction");
+    verify_mz_obstruction_metered(graph, obstruction, SidMeter::Limits(limits), ctx)
+}
+
+/// [`verify_mz_transport_obstruction`] with its replay charged to `meter`.
+fn verify_mz_obstruction_metered(
+    graph: &antecedent_graph::Admg,
+    obstruction: &MzTransportObstruction,
+    meter: SidMeter<'_>,
+    ctx: &ExecutionContext,
+) -> Result<(), IdentificationError> {
+    let bad = || IdentificationError::invalid_derivation(INVALID_OBSTRUCTION);
     let query = &obstruction.query;
     let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
@@ -982,55 +1127,11 @@ pub fn verify_mz_transport_obstruction(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
     let replay =
-        search_trz_call(&shared, &recursion_call(query, &diagrams, true), limits, ctx, &mut None)?;
+        search_trz_call(&shared, &recursion_call(query, &diagrams, true), meter, ctx, &mut None)?;
     if replay.identified.is_some() || replay.terminal_failure.as_ref() != Some(terminal) {
-        return Err(IdentificationError::invalid_derivation(
-            "mz_transport.obstruction_replay_mismatch",
-        ));
+        return Err(bad());
     }
     Ok(())
-}
-
-fn pre_search_receipt(error: &IdentificationError, limits: SidLimits) -> ZTransportLimitsReceipt {
-    ZTransportLimitsReceipt {
-        budget: match error {
-            IdentificationError::Cancelled => ZTransportBudgetKind::Cancelled,
-            IdentificationError::Budget { budget: super::IdentificationBudget::Memory } => {
-                ZTransportBudgetKind::Memory
-            }
-            _ => ZTransportBudgetKind::Steps,
-        },
-        steps_limit: limits.steps,
-        depth_limit: limits.depth,
-        steps_consumed: None,
-        depth_reached: None,
-        explored_rules: Vec::new(),
-    }
-}
-
-/// The shared bounded-search receipt of a stopped stage.
-fn search_receipt(
-    receipt: ZTransportLimitsReceipt,
-    limits: SearchLimits,
-    ctx: &ExecutionContext,
-    completed_stages: Vec<String>,
-    unevaluated: Vec<String>,
-) -> SearchReceipt {
-    SearchReceipt {
-        stop: match receipt.budget {
-            ZTransportBudgetKind::Steps => SearchStop::Operations,
-            ZTransportBudgetKind::Depth => SearchStop::Depth,
-            ZTransportBudgetKind::Memory => SearchStop::Memory,
-            ZTransportBudgetKind::Cancelled => SearchStop::Cancelled,
-        },
-        operations_limit: limits.operations,
-        depth_limit: limits.depth,
-        memory_limit_bytes: ctx.memory.hard_limit_bytes,
-        operations_consumed: receipt.steps_consumed,
-        depth_reached: receipt.depth_reached,
-        explored: completed_stages.into_iter().chain(receipt.explored_rules).collect(),
-        unevaluated,
-    }
 }
 
 #[cfg(test)]
@@ -1112,42 +1213,48 @@ mod tests {
         assert_eq!(forward.diagrams.len(), 2);
     }
 
+    const EXCEEDED: IdentificationError =
+        IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+
+    fn invalid_query(result: Result<ValidatedMzTransportQuery, IdentificationError>) -> bool {
+        matches!(result, Err(IdentificationError::InvalidInput { message }) if message.starts_with("mz_transport.invalid_query: "))
+    }
+
     #[test]
     fn source_count_and_population_bounds_refuse_by_code() {
         let evidence = catalog(vec![]);
         let one =
             validate_mz_transport_query(&graph(), &query(vec![source("a", &[2], &[])]), &evidence);
-        assert!(
-            matches!(one, Err(IdentificationError::InvalidInput { message }) if message == "mz_transport.single_source_uses_z_transport")
-        );
+        assert_eq!(one.unwrap_err(), EXCEEDED);
         let five = (0..5).map(|i| source(&format!("s{i}"), &[2], &[])).collect();
-        assert!(matches!(
-            validate_mz_transport_query(&graph(), &query(five), &evidence),
-            Err(IdentificationError::UnsupportedInput { code: "mz_transport.source_count" })
-        ));
-        let duplicate = query(vec![source("a", &[2], &[]), source("a", &[0], &[])]);
-        assert!(
-            matches!(validate_mz_transport_query(&graph(), &duplicate, &evidence), Err(IdentificationError::InvalidInput { message }) if message == "mz_transport.population_collision")
+        assert_eq!(
+            validate_mz_transport_query(&graph(), &query(five), &evidence).unwrap_err(),
+            EXCEEDED
         );
+        let duplicate = query(vec![source("a", &[2], &[]), source("a", &[0], &[])]);
+        assert!(invalid_query(validate_mz_transport_query(&graph(), &duplicate, &evidence)));
         let as_target = query(vec![source("a", &[2], &[]), source("target", &[0], &[])]);
-        assert!(validate_mz_transport_query(&graph(), &as_target, &evidence).is_err());
-        // Each source still passes the single-source contract.
+        assert!(invalid_query(validate_mz_transport_query(&graph(), &as_target, &evidence)));
+        // Every source declares one to four controllables.
         let no_controllable = query(vec![source("a", &[], &[]), source("b", &[0], &[])]);
-        assert!(validate_mz_transport_query(&graph(), &no_controllable, &evidence).is_err());
+        assert_eq!(
+            validate_mz_transport_query(&graph(), &no_controllable, &evidence).unwrap_err(),
+            EXCEEDED
+        );
+        // Each source still passes the single-source contract, reported as mz.
+        let overlap = query(vec![source("a", &[2, 2], &[]), source("b", &[0], &[])]);
+        assert!(invalid_query(validate_mz_transport_query(&graph(), &overlap, &evidence)));
     }
 
     #[test]
     fn supplied_regimes_must_respect_declared_availability() {
         let sources = query(vec![source("a", &[2], &[0]), source("b", &[0], &[2])]);
         // Source a declared only {Z2} controllable but supplies do(Z1).
+        let invalid_catalog = |evidence: &EvidenceCatalog| matches!(validate_mz_transport_query(&graph(), &sources, evidence), Err(IdentificationError::InvalidCatalog { message }) if message.starts_with("mz_transport.invalid_catalog: "));
         let outside = catalog(vec![experiment(1, "a", &[0])]);
-        assert!(
-            matches!(validate_mz_transport_query(&graph(), &sources, &outside), Err(IdentificationError::InvalidInput { message }) if message == "mz_transport.regime_outside_controllable")
-        );
+        assert!(invalid_catalog(&outside));
         let target_experiment = catalog(vec![experiment(1, "target", &[1])]);
-        assert!(
-            matches!(validate_mz_transport_query(&graph(), &sources, &target_experiment), Err(IdentificationError::InvalidInput { message }) if message == "mz_transport.target_experiments_unsupported")
-        );
+        assert!(invalid_catalog(&target_experiment));
         // A proposed regime is not supplied evidence and is not counted.
         let mut proposed = experiment(1, "a", &[0]);
         proposed.evidence_kind = EvidenceKind::Proposed;
@@ -1169,12 +1276,96 @@ mod tests {
                 regime
             })
             .collect();
-        assert!(matches!(
-            validate_mz_transport_query(&graph(), &sources, &catalog(regimes)),
-            Err(IdentificationError::UnsupportedInput {
-                code: "mz_transport.candidate_regime_count"
-            })
-        ));
+        assert_eq!(
+            validate_mz_transport_query(&graph(), &sources, &catalog(regimes)).unwrap_err(),
+            EXCEEDED
+        );
+    }
+
+    /// A derivation citing one leaf of `population` intervening on `on`.
+    fn one_leaf(population: &str, on: &[u32], route: MzTransportRoute) -> MzTransportDerivation {
+        let mut arena = CausalExprArena::new();
+        let variables = arena.intern_var_set([v(3)]);
+        let conditioned_on = arena.empty_var_set();
+        let intervention = arena.intern_intervention_assignments(
+            on.iter().map(|i| antecedent_expr::InterventionAssignment::symbolic(v(*i))),
+        );
+        let population = arena.intern_population(Arc::from(population));
+        let root = arena.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain: if on.is_empty() {
+                DomainRef::Observational
+            } else {
+                DomainRef::Interventional
+            },
+            population,
+            regime: None,
+        });
+        MzTransportDerivation {
+            query: query(vec![source("a", &[2], &[0]), source("b", &[0], &[2])]).canonical(),
+            graph_signature: String::new(),
+            route,
+            arena,
+            root,
+            rules: Vec::new(),
+            single: None,
+            stages: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_source_leaf_intervenes_only_on_its_own_controllables() {
+        let combined = || MzTransportRoute::Combined { populations: Arc::from([Arc::from("a")]) };
+        check_leaves(&one_leaf("a", &[2], combined())).unwrap();
+        check_leaves(&one_leaf("target", &[], MzTransportRoute::TargetOnly)).unwrap();
+        // do(Z1) is b's experiment: a leaf of a under do(Z1, Z2) would be a
+        // joint over both sources' interventions.
+        for on in [&[0][..], &[0, 2][..]] {
+            assert_eq!(
+                check_leaves(&one_leaf("a", on, combined())).unwrap_err(),
+                IdentificationError::invalid_derivation("mz_transport.fabricated_joint")
+            );
+        }
+        let invalid = IdentificationError::invalid_derivation("mz_transport.invalid_derivation");
+        for derivation in [
+            one_leaf("a", &[], combined()),
+            one_leaf("target", &[1], combined()),
+            one_leaf("elsewhere", &[2], combined()),
+            one_leaf("a", &[2], MzTransportRoute::TargetOnly),
+        ] {
+            assert_eq!(check_leaves(&derivation).unwrap_err(), invalid);
+        }
+    }
+
+    #[test]
+    fn cancellation_in_the_middle_of_a_decision_is_a_receipt() {
+        // Figure 1(c,d) with source a alone and an unhelpful source runs every
+        // stage; cancel once the shared budget has charged a few operations.
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(0, 1), (1, 2), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        for (a, b) in [(0, 1), (0, 2), (0, 3)] {
+            g.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let q = query(vec![source("a", &[2], &[0, 2]), source("unhelpful", &[1], &[0, 1, 2, 3])]);
+        let evidence = catalog(vec![]);
+        for after in [1, 4, 12] {
+            let ctx = ExecutionContext::for_tests(1);
+            let validated = validate_mz_transport_query(&g, &q, &evidence).unwrap();
+            let budget = SearchBudget::new(MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
+            let mut search = SharedSearch::new(budget);
+            search.cancel_after = Some((after, ctx.cancellation.clone()));
+            let decision = decide_charged(&g, validated, &evidence, &mut search, &ctx).unwrap();
+            let MzTransportDecision::Exhausted(receipt) = decision else {
+                panic!("cancellation after {after} operations must not be a verdict: {decision:?}");
+            };
+            assert_eq!(receipt.stop, antecedent_core::SearchStop::Cancelled);
+            assert_eq!(receipt.operations_consumed, Some(after));
+            assert!(!receipt.unevaluated.is_empty());
+        }
     }
 
     #[test]

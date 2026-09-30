@@ -854,7 +854,8 @@ pub fn decide_z_transport_with_catalog(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportDecision, IdentificationError> {
-    decide_z_transport_reporting(diagram, query, catalog, limits, ctx, &mut None)
+    let meter = super::SidMeter::Limits(limits);
+    decide_z_transport_reporting(diagram, query, catalog, meter, ctx, &mut None)
 }
 
 /// Decide a bounded single-source z-transport query, and on a budget or
@@ -875,7 +876,8 @@ pub fn decide_z_transport_inspecting(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportOutcome, IdentificationError> {
     let mut receipt = None;
-    match decide_z_transport_reporting(diagram, query, catalog, limits, ctx, &mut receipt) {
+    let meter = super::SidMeter::Limits(limits);
+    match decide_z_transport_reporting(diagram, query, catalog, meter, ctx, &mut receipt) {
         Ok(decision) => Ok(ZTransportOutcome::Decided(decision)),
         Err(error) if error.is_budget_or_cancel() => {
             let receipt = receipt.unwrap_or_else(|| ZTransportLimitsReceipt {
@@ -892,18 +894,20 @@ pub fn decide_z_transport_inspecting(
     }
 }
 
-fn decide_z_transport_reporting(
+/// Decide a single-source query charging `meter`: its own limits for the
+/// public entry points, or the shared budget of an enclosing mz decision.
+pub(super) fn decide_z_transport_reporting(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
     catalog: &EvidenceCatalog,
-    limits: super::SidLimits,
+    mut meter: super::SidMeter<'_>,
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<ZTransportDecision, IdentificationError> {
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("z_transport.invalid_catalog: {error}"))
     })?;
-    match derive_z_transport(diagram, query, limits, ctx, receipt)? {
+    match derive_z_transport(diagram, query, meter.reborrow(), ctx, receipt)? {
         ZDerivation::Formula(derivation) => {
             match bind_z_transport_catalog(diagram, derivation.query(), &derivation, catalog) {
                 Ok(_) => Ok(ZTransportDecision::Identified(Box::new(derivation))),
@@ -921,7 +925,7 @@ fn decide_z_transport_reporting(
             missing: ZTransportMissingEvidence::UnassignedControllable { variable },
         }),
         ZDerivation::Line11 { terminal, .. } => {
-            certify_line11_obstruction(diagram, query, terminal, limits, ctx)
+            certify_line11_obstruction(diagram, query, terminal, meter, ctx)
         }
         ZDerivation::NotCertified { reason, inspection } => {
             Ok(ZTransportDecision::NotCertified { reason, inspection })
@@ -1414,7 +1418,7 @@ fn certify_line11_obstruction(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
     terminal: TrzTerminalFailure,
-    limits: super::SidLimits,
+    meter: super::SidMeter<'_>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportDecision, IdentificationError> {
     let obstruction = ZTransportObstruction {
@@ -1429,7 +1433,7 @@ fn certify_line11_obstruction(
             .collect(),
         terminal,
     };
-    verify_z_transport_obstruction(diagram, query, &obstruction, limits, ctx)?;
+    verify_z_obstruction_metered(diagram, query, &obstruction, meter, ctx)?;
     Ok(ZTransportDecision::ProvenNonTransportable(Box::new(obstruction)))
 }
 
@@ -1476,14 +1480,19 @@ impl ZTransportObstruction {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, IdentificationError> {
         let ZDerivation::Line11 { terminal, .. } =
-            derive_z_transport(diagram, query, limits, ctx, &mut None)?
+            derive_z_transport(diagram, query, super::SidMeter::Limits(limits), ctx, &mut None)?
         else {
             return Err(IdentificationError::invalid_derivation(
                 "z_transport.obstruction_not_reproduced",
             ));
         };
-        let ZTransportDecision::ProvenNonTransportable(checked) =
-            certify_line11_obstruction(diagram, query, terminal, limits, ctx)?
+        let ZTransportDecision::ProvenNonTransportable(checked) = certify_line11_obstruction(
+            diagram,
+            query,
+            terminal,
+            super::SidMeter::Limits(limits),
+            ctx,
+        )?
         else {
             return Err(IdentificationError::invalid_derivation(
                 "z_transport.obstruction_not_reproduced",
@@ -1510,6 +1519,17 @@ pub fn verify_z_transport_obstruction(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(), IdentificationError> {
+    verify_z_obstruction_metered(diagram, query, obstruction, super::SidMeter::Limits(limits), ctx)
+}
+
+/// [`verify_z_transport_obstruction`] with its replay charged to `meter`.
+fn verify_z_obstruction_metered(
+    diagram: &SelectionDiagram,
+    query: &ZTransportQuery,
+    obstruction: &ZTransportObstruction,
+    meter: super::SidMeter<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(), IdentificationError> {
     validate_z_transport_query(diagram, query)?;
     if obstruction.query != *query || obstruction.graph_signature != super::graph_signature(diagram)
     {
@@ -1530,7 +1550,7 @@ pub fn verify_z_transport_obstruction(
             "z_transport.obstruction_assignment_mismatch",
         ));
     }
-    let replay = z_search(diagram, query, limits, ctx, &mut None)?;
+    let replay = z_search(diagram, query, meter, ctx, &mut None)?;
     if replay.identified.is_some()
         || replay.terminal_failure.as_ref() != Some(&obstruction.terminal)
     {
@@ -1651,7 +1671,7 @@ pub fn identify_z_transport_reporting(
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<ZTransportResult, IdentificationError> {
-    Ok(match derive_z_transport(diagram, query, limits, ctx, receipt)? {
+    Ok(match derive_z_transport(diagram, query, super::SidMeter::Limits(limits), ctx, receipt)? {
         ZDerivation::Formula(derivation) => ZTransportResult::Identified(Box::new(derivation)),
         ZDerivation::Unassigned { inspection, .. } => ZTransportResult::NotCertified {
             reason: "z_transport.experiment_assignment_required",
@@ -1677,11 +1697,12 @@ enum ZDerivation {
 fn derive_z_transport(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
-    limits: super::SidLimits,
+    meter: super::SidMeter<'_>,
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<ZDerivation, IdentificationError> {
     validate_z_transport_query(diagram, query)?;
+    let limits = meter.limits();
     if limits.steps == 0 || limits.depth == 0 {
         *receipt = Some(ZTransportLimitsReceipt {
             budget: if limits.depth == 0 {
@@ -1726,7 +1747,7 @@ fn derive_z_transport(
     if let Some(derivation) = registered_surrogate_derivation(diagram, query, limits, ctx)? {
         return Ok(ZDerivation::Formula(derivation));
     }
-    let searched = z_search(diagram, query, limits, ctx, receipt)?;
+    let searched = z_search(diagram, query, meter, ctx, receipt)?;
     let explored_rules = searched.explored_rules.clone();
     let steps_explored = searched.steps_explored;
     let depth_reached = searched.depth_reached;
@@ -1910,7 +1931,8 @@ pub fn verify_z_transport_derivation(
                 return Err(input_mismatch());
             }
             let Some((expected, root, trace)) =
-                z_search(diagram, query, limits, ctx, &mut None)?.identified
+                z_search(diagram, query, super::SidMeter::Limits(limits), ctx, &mut None)?
+                    .identified
             else {
                 return Err(IdentificationError::invalid_derivation(
                     "z_transport.proof_rule_mismatch",
@@ -1980,11 +2002,11 @@ pub fn verify_z_transport_derivation(
 fn z_search(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
-    limits: super::SidLimits,
+    meter: super::SidMeter<'_>,
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<TrzSearchResult, IdentificationError> {
-    search_trz_detailed(diagram, query, limits, ctx, receipt).map_err(|error| match error {
+    search_trz_detailed(diagram, query, meter, ctx, receipt).map_err(|error| match error {
         IdentificationError::Budget { budget: IdentificationBudget::Steps } => {
             IdentificationError::budget(IdentificationBudget::ZTransport)
         }
@@ -2654,7 +2676,8 @@ fn search_trz(
     limits: super::SidLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Option<(CausalExprArena, ExprId, Vec<String>)>, IdentificationError> {
-    Ok(search_trz_detailed(diagram, query, limits, ctx, &mut None)?.identified)
+    Ok(search_trz_detailed(diagram, query, super::SidMeter::Limits(limits), ctx, &mut None)?
+        .identified)
 }
 
 /// One source a `TRz` line-10 exchange may consult.
@@ -2731,27 +2754,32 @@ pub(super) struct TrzSearchResult {
     pub(super) steps_explored: usize,
     /// Deepest recursion level the search reached.
     pub(super) depth_reached: usize,
+    /// A multi-source line-11 state needed a joint over two sources'
+    /// interventions, which the search refused to fabricate.
+    pub(super) cross_source_joint: bool,
 }
 
 fn search_trz_detailed(
     diagram: &SelectionDiagram,
     query: &ZTransportQuery,
-    limits: super::SidLimits,
+    meter: super::SidMeter<'_>,
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<TrzSearchResult, IdentificationError> {
-    search_trz_call(diagram, &TrzCall::single(diagram, query), limits, ctx, receipt)
+    search_trz_call(diagram, &TrzCall::single(diagram, query), meter, ctx, receipt)
 }
 
-/// Run the recursive search for `call` on the shared causal graph of `diagram`.
-/// Selection targets are read per source from `call`, never from `diagram`.
+/// Run the recursive search for `call` on the shared causal graph of `diagram`,
+/// charging `meter`. Selection targets are read per source from `call`, never
+/// from `diagram`.
 pub(super) fn search_trz_call(
     diagram: &SelectionDiagram,
     call: &TrzCall<'_>,
-    limits: super::SidLimits,
+    meter: super::SidMeter<'_>,
     ctx: &antecedent_core::ExecutionContext,
     receipt: &mut Option<ZTransportLimitsReceipt>,
 ) -> Result<TrzSearchResult, IdentificationError> {
+    let limits = meter.limits();
     let classical = super::ClassicalTransportQuery {
         outcomes: Arc::clone(call.outcomes),
         treatments: Arc::clone(call.treatments),
@@ -2761,7 +2789,7 @@ pub(super) fn search_trz_call(
     // A budget or cancellation observed at engine construction stops the search
     // before any recursive accounting is taken, so the receipt reports the
     // limits in force with no consumed counts rather than fabricating them.
-    let mut engine = match super::Engine::new(diagram, &classical, limits, ctx) {
+    let mut engine = match super::Engine::new_metered(diagram, &classical, meter, ctx) {
         Ok(engine) => engine,
         Err(error) if error.is_budget_or_cancel() => {
             *receipt = Some(ZTransportLimitsReceipt {
@@ -2806,6 +2834,7 @@ pub(super) fn search_trz_call(
             let steps_explored = engine.steps;
             let depth_reached = engine.max_depth;
             Ok(TrzSearchResult {
+                cross_source_joint: engine.cross_source_joint,
                 identified: result.map(|root| (engine.arena, root, trace.clone())),
                 terminal_failure,
                 unassigned,
@@ -3043,6 +3072,21 @@ fn search_trz_state(
     if !eligibility.iter().any(|(_, _, activated, separated)| activated.any() && *separated) {
         // `TRz` rule 11: rule 10 cannot exchange an active experiment.
         let single = call.domains.len() == 1;
+        if let (false, Some(current)) = (single, active) {
+            // Another source could exchange here, but only jointly with the
+            // active source's experiment: the joint `TR^mz` never fabricates.
+            for (index, domain) in call.domains.iter().enumerate() {
+                if index == current || engine.cross_source_joint {
+                    continue;
+                }
+                let mut activated = false;
+                for variable in domain.controllable.iter().copied() {
+                    activated |= state.x.contains(engine.prepared.var_to_dense(variable)?);
+                }
+                engine.cross_source_joint = activated
+                    && engine.admissible_selections(state, &[], domain.selection_targets)?;
+            }
+        }
         let replace = terminal_failure.as_ref().is_none_or(|recorded| {
             // With several sources, prefer a terminal reached with no active
             // experiment: only that state is forced on every search path.
@@ -3097,25 +3141,38 @@ fn search_trz_state(
         }
         return Ok(None);
     }
-    for (index, controllable, activated, separated) in eligibility {
-        if !activated.any() || !separated {
-            continue;
-        }
-        if let Some(result) = exchange_trz_source(
+    let eligible = eligibility
+        .into_iter()
+        .filter(|(_, _, activated, separated)| activated.any() && *separated)
+        .collect::<Vec<_>>();
+    for (position, (index, controllable, activated, _)) in eligible.iter().enumerate() {
+        match exchange_trz_source(
             engine,
             state,
             call,
-            index,
+            *index,
             controllable,
-            &activated,
+            activated,
             active_interventions,
             irrelevant,
             depth,
             trace,
             terminal_failure,
             unassigned,
-        )? {
-            return Ok(Some(result));
+        ) {
+            Ok(Some(result)) => return Ok(Some(result)),
+            Ok(None) => {}
+            Err(error) => {
+                // A stop leaves the later line-10 source branches untried;
+                // name them by population so the record is order-invariant.
+                if call.domains.len() > 1 && error.is_budget_or_cancel() {
+                    for (later, ..) in &eligible[position + 1..] {
+                        let population = call.domains[*later].population;
+                        engine.defer(|| format!("multi:line10:source={population}@{depth}"));
+                    }
+                }
+                return Err(error);
+            }
         }
     }
     Ok(None)
@@ -3314,22 +3371,31 @@ fn source_c_factor(
         source: Arc::clone(source),
         target: Arc::clone(target),
     };
-    let limits = super::SidLimits {
-        steps: engine.limits.steps.saturating_sub(engine.steps).max(1),
-        depth: engine.limits.depth.saturating_sub(depth).max(1),
+    // The nested engine charges the enclosing search's budget: the shared one
+    // at its true depth, or the steps and depth this engine has left.
+    let ctx = engine.ctx;
+    let (sub_steps, solved) = {
+        let (meter, depth_offset, base_bytes) = engine.nested_meter(depth);
+        let mut sub = super::Engine::new_metered(&diagram, &classical, meter, ctx)?;
+        sub.depth_offset = depth_offset;
+        sub.base_bytes = base_bytes;
+        let initial = sub.initial_source_kernel(source, cumulative)?;
+        let solved = sub.solve(initial, false, 0).map(|root| {
+            root.map(|root_step| {
+                let rules = format!("ztr.line10.c_factor:{:?}", sub.reachable_rules(root_step));
+                (rules, sub.proof[root_step].output, std::mem::take(&mut sub.arena))
+            })
+        });
+        (sub.steps, solved)
     };
-    let mut sub = super::Engine::new(&diagram, &classical, limits, engine.ctx)?;
-    let initial = sub.initial_source_kernel(source, cumulative)?;
-    let solved = sub.solve(initial, false, 0);
-    engine.steps = engine.steps.saturating_add(sub.steps);
-    let Some(root_step) = solved? else {
+    engine.steps = engine.steps.saturating_add(sub_steps);
+    let Some((rules, output, arena)) = solved? else {
         trace.push("ztr.line10.c_factor_not_identified".into());
         return Ok(None);
     };
-    trace.push(format!("ztr.line10.c_factor:{:?}", sub.reachable_rules(root_step)));
-    let output = sub.proof[root_step].output;
+    trace.push(rules);
     let mut memo = std::collections::HashMap::new();
-    Ok(Some(transplant(&sub.arena, output, &mut engine.arena, &mut memo)?))
+    Ok(Some(transplant(&arena, output, &mut engine.arena, &mut memo)?))
 }
 
 /// Copy the expression `id` of `from` into `into`, re-interning every table.

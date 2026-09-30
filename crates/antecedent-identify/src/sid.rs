@@ -9,11 +9,14 @@ use crate::selection_separation::{
     MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
 };
 use crate::{IdentificationBudget, IdentificationError, PreparedAdmg};
-use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_core::{
+    ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
+};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{
     Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
 };
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -342,7 +345,21 @@ pub fn identify_classical_transport(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<ClassicalTransportResult, IdentificationError> {
-    let mut engine = Engine::new(diagram, query, limits, ctx)?;
+    identify_classical_transport_metered(diagram, query, SidMeter::Limits(limits), ctx)
+}
+
+/// [`identify_classical_transport`] charging `meter`: its own [`SidLimits`], or
+/// a shared budget that the search and its verification replay both charge.
+///
+/// # Errors
+/// As [`identify_classical_transport`]; under a shared budget, its stop.
+pub(crate) fn identify_classical_transport_metered(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    meter: SidMeter<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ClassicalTransportResult, IdentificationError> {
+    let mut engine = Engine::new_metered(diagram, query, meter, ctx)?;
     let state = engine.initial()?;
     let mut result = engine.solve(state.clone(), false, 0)?;
     if result.is_none() {
@@ -366,7 +383,7 @@ impl Engine<'_> {
     /// with the engine's arena, exported for the sources the search declared.
     /// Every identifier builds its positive result through this one path.
     pub(crate) fn solved_derivation(
-        &self,
+        &mut self,
         root_step: usize,
         sources: Vec<MetaSource>,
     ) -> Result<ClassicalTransportDerivation, IdentificationError> {
@@ -381,8 +398,30 @@ impl Engine<'_> {
             root_step,
             sources,
         };
-        verify_classical_transport(self.diagram, self.query, &derivation, self.limits, self.ctx)?;
+        self.verify(&derivation)?;
         Ok(derivation)
+    }
+
+    /// Replay `derivation`'s checker against this engine's meter: its own
+    /// limits (unchanged legacy accounting), or the shared budget, charged at
+    /// this engine's depth on top of its live bytes.
+    pub(crate) fn verify(
+        &mut self,
+        derivation: &ClassicalTransportDerivation,
+    ) -> Result<(), IdentificationError> {
+        let (diagram, query, ctx, limits) = (self.diagram, self.query, self.ctx, self.limits);
+        let (offset, bytes) = (self.depth_offset, self.live_bytes());
+        match self.shared.as_deref_mut() {
+            Some(shared) => verify_charged(
+                diagram,
+                query,
+                derivation,
+                SidMeter::Shared(shared),
+                (offset, bytes),
+                ctx,
+            ),
+            None => verify_classical_transport(diagram, query, derivation, limits, ctx),
+        }
     }
 }
 
@@ -455,11 +494,23 @@ struct Engine<'a> {
     proof: Vec<ProofStep>,
     memo: HashMap<(State, bool), Option<usize>>,
     limits: SidLimits,
+    /// The shared 2.2 budget this engine charges, when it runs under one;
+    /// `None` keeps the engine's own [`SidLimits`] accounting.
+    shared: Option<&'a mut (dyn SearchCharge + 'a)>,
+    /// Depth of this engine's root within the enclosing search, so a nested
+    /// engine charges the shared budget at its true depth.
+    depth_offset: usize,
+    /// Live-state bytes of the enclosing engines a nested engine runs inside.
+    base_bytes: u64,
     ctx: &'a ExecutionContext,
     steps: usize,
     /// Deepest recursion level `charge` has observed, for a limits receipt when
     /// a bounded search stops. It is the engine's own accounting, never a claim.
     max_depth: usize,
+    /// Set when a multi-source line-11 state had another source able to
+    /// exchange: completing the factor would need a joint over two sources'
+    /// interventions, which the search refuses to fabricate.
+    cross_source_joint: bool,
     obstruction: Option<State>,
     source_catalog: Option<&'a antecedent_core::EvidenceCatalog>,
     sources: Vec<MetaSource>,
@@ -471,6 +522,21 @@ impl<'a> Engine<'a> {
         limits: SidLimits,
         ctx: &'a ExecutionContext,
     ) -> Result<Self, IdentificationError> {
+        Self::new_metered(diagram, query, SidMeter::Limits(limits), ctx)
+    }
+    /// An engine charging `meter`: its own [`SidLimits`], or a shared budget
+    /// that every engine of one decision charges.
+    fn new_metered<'m: 'a>(
+        diagram: &'a SelectionDiagram,
+        query: &'a ClassicalTransportQuery,
+        meter: SidMeter<'m>,
+        ctx: &'a ExecutionContext,
+    ) -> Result<Self, IdentificationError> {
+        let limits = meter.limits();
+        let shared = match meter {
+            SidMeter::Limits(_) => None,
+            SidMeter::Shared(shared) => Some(shared as &'a mut (dyn SearchCharge + 'a)),
+        };
         check_sid_memory(diagram, 1, ctx)?;
         let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
         if query.outcomes.is_empty()
@@ -512,9 +578,13 @@ impl<'a> Engine<'a> {
             proof: Vec::new(),
             memo: HashMap::new(),
             limits,
+            shared,
+            depth_offset: 0,
+            base_bytes: 0,
             ctx,
             steps: 0,
             max_depth: 0,
+            cross_source_joint: false,
             obstruction: None,
             source_catalog: None,
             sources: Vec::new(),
@@ -523,6 +593,13 @@ impl<'a> Engine<'a> {
     fn charge(&mut self, depth: usize) -> Result<(), IdentificationError> {
         self.steps = self.steps.saturating_add(1);
         self.max_depth = self.max_depth.max(depth);
+        // Under a shared budget the operation, depth, memory and cancellation
+        // bounds are the budget's, with its `depth > limit` semantics, and the
+        // bytes are this engine's live state on top of its enclosing engines'.
+        let (bytes, at) = (self.live_bytes(), self.depth_offset.saturating_add(depth));
+        if let Some(shared) = self.shared.as_deref_mut() {
+            return shared.charge(at, bytes).map_err(stop_error);
+        }
         if self.ctx.cancellation.is_cancelled() {
             return Err(IdentificationError::Cancelled);
         }
@@ -531,6 +608,30 @@ impl<'a> Engine<'a> {
         }
         check_sid_memory(self.diagram, self.steps, self.ctx)?;
         Ok(())
+    }
+    /// Estimated live bytes of this engine and the engines it runs inside.
+    fn live_bytes(&self) -> u64 {
+        let own = u64::try_from(sid_memory_bytes(self.diagram, self.steps)).unwrap_or(u64::MAX);
+        self.base_bytes.saturating_add(own)
+    }
+    /// Record a region a stop left unevaluated with the shared budget, if any.
+    fn defer(&mut self, region: impl FnOnce() -> String) {
+        if let Some(shared) = self.shared.as_deref_mut() {
+            shared.defer(region());
+        }
+    }
+    /// The meter a nested engine rooted at `depth` of this one charges: the
+    /// same shared budget, or limits reduced by what this engine consumed.
+    fn nested_meter(&mut self, depth: usize) -> (SidMeter<'_>, usize, u64) {
+        let (offset, bytes) = (self.depth_offset.saturating_add(depth), self.live_bytes());
+        let meter = match self.shared.as_deref_mut() {
+            Some(shared) => SidMeter::Shared(shared),
+            None => SidMeter::Limits(SidLimits {
+                steps: self.limits.steps.saturating_sub(self.steps).max(1),
+                depth: self.limits.depth.saturating_sub(depth).max(1),
+            }),
+        };
+        (meter, offset, bytes)
     }
     fn set(&self, variables: &[VariableId]) -> Result<BitSet, IdentificationError> {
         let mut set = BitSet::with_len(self.diagram.causal_graph().node_count());
@@ -1010,7 +1111,6 @@ fn intersection(a: &BitSet, b: &BitSet) -> BitSet {
 ///
 /// # Errors
 /// A changed query, graph premise, child state, expression, or exceeded budget.
-#[allow(clippy::too_many_lines)] // One auditable premise dispatch for the seven pinned rules.
 pub fn verify_classical_transport(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -1018,6 +1118,21 @@ pub fn verify_classical_transport(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
+    verify_charged(diagram, query, derivation, SidMeter::Limits(limits), (0, 0), ctx)
+}
+
+/// [`verify_classical_transport`] charging `meter`, with the checker rooted at
+/// `(depth offset, live bytes)` of the search it verifies for.
+#[allow(clippy::too_many_lines)] // One auditable premise dispatch for the seven pinned rules.
+fn verify_charged(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    derivation: &ClassicalTransportDerivation,
+    meter: SidMeter<'_>,
+    (depth_offset, base_bytes): (usize, u64),
+    ctx: &ExecutionContext,
+) -> Result<(), IdentificationError> {
+    let limits = meter.limits();
     let bad = || IdentificationError::invalid_derivation("transport.invalid_derivation");
     let mut recorded_selections = derivation.selection_targets.to_vec();
     recorded_selections.sort_unstable();
@@ -1041,7 +1156,9 @@ pub fn verify_classical_transport(
             return Err(bad());
         }
     }
-    let mut checker = Engine::new(diagram, query, limits, ctx)?;
+    let mut checker = Engine::new_metered(diagram, query, meter, ctx)?;
+    checker.depth_offset = depth_offset;
+    checker.base_bytes = base_bytes;
     checker.sources.clone_from(&derivation.sources);
     checker.arena = derivation.arena.clone();
     let initial = checker.initial()?;
@@ -2044,7 +2161,6 @@ fn standardization_derivation(
 ///
 /// # Errors
 /// Invalid input, exhausted shared search budget, or cancellation. Never a negative theorem claim.
-#[allow(clippy::too_many_lines)] // one linear pipeline: source pass, then enlargement, then catalog search
 pub fn identify_catalog_transport(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -2052,8 +2168,29 @@ pub fn identify_catalog_transport(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_catalog_transport_metered(diagram, query, catalog, SidMeter::Limits(limits), ctx)
+}
+
+/// [`identify_catalog_transport`] charging `meter`: its own [`SidLimits`], or a
+/// shared budget that the recursive searches and every verification replay
+/// charge. The pretreatment-standardization subset search keeps its own count
+/// of `meter.limits().operations` separation tests (its exhaustion is an
+/// obligation); under a shared budget each of those tests is also charged to
+/// it, and each derivation it finds is verified under `meter`.
+///
+/// # Errors
+/// As [`identify_catalog_transport`]; under a shared budget, its stop.
+#[allow(clippy::too_many_lines)] // one linear pipeline: source pass, then enlargement, then catalog search
+pub(crate) fn identify_catalog_transport_metered(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    meter: SidMeter<'_>,
+    ctx: &ExecutionContext,
+) -> Result<CatalogTransportResult, IdentificationError> {
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
-    let mut engine = Engine::new(diagram, query, limits, ctx)?;
+    let limits = meter.limits();
+    let mut engine = Engine::new_metered(diagram, query, meter, ctx)?;
     let state = engine.initial()?;
     let mut obligations = Vec::<Arc<str>>::new();
     let mut had_derivation = false;
@@ -2090,55 +2227,66 @@ pub fn identify_catalog_transport(
             let selection =
                 MutilatedSelection::build(diagram.causal_graph(), &state.v, &state.x, &targets)?;
             let mut found = None;
+            // A shared budget is charged by every separation test (`tick`) and by
+            // the engine while it standardizes and verifies a subset (`visit`);
+            // the two closures hand it back and forth through one cell.
+            let (tick_depth, tick_bytes) =
+                (engine.depth_offset.saturating_add(1), engine.live_bytes());
+            let shared = RefCell::new(engine.shared.take());
             let end = for_each_admissible_subset(
                 &selection,
                 &state.y.to_dense_ids(),
                 &x_nodes,
                 &candidates,
                 limits.steps,
-                || {
-                    if ctx.cancellation.is_cancelled() {
-                        Err(IdentificationError::Cancelled)
-                    } else {
-                        Ok(())
-                    }
+                || match shared.borrow_mut().as_deref_mut() {
+                    Some(budget) => budget.charge(tick_depth, tick_bytes).map_err(stop_error),
+                    None if ctx.cancellation.is_cancelled() => Err(IdentificationError::Cancelled),
+                    None => Ok(()),
                 },
                 |subset| {
-                    let over = subset
-                        .iter()
-                        .map(|z| engine.prepared.dense_to_var(*z))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    // The subset passed the separation test that produced it,
-                    // and its two leaves are probed against the catalog before
-                    // anything is interned or cloned.
-                    if !standardization_binds(
-                        catalog,
-                        query,
-                        &state_outcomes,
-                        &state_treatments,
-                        &over,
-                    ) {
-                        return Ok(false);
-                    }
-                    let Some(output) = engine.standardized(&state, &over, true)? else {
-                        return Ok(false);
-                    };
-                    had_derivation = true;
-                    let derivation = standardization_derivation(
-                        diagram,
-                        query,
-                        engine.arena.clone(),
-                        &state,
-                        output,
-                        over,
-                    );
-                    let mut bound = derivation.bind_catalog_validated(catalog)?;
-                    verify_classical_transport(diagram, query, &derivation, limits, ctx)?;
-                    bound.searched = searched_stages(2);
-                    found = Some(bound);
-                    Ok(true)
+                    engine.shared = shared.borrow_mut().take();
+                    let visited = (|| {
+                        let over = subset
+                            .iter()
+                            .map(|z| engine.prepared.dense_to_var(*z))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        // The subset passed the separation test that produced it,
+                        // and its two leaves are probed against the catalog before
+                        // anything is interned or cloned.
+                        if !standardization_binds(
+                            catalog,
+                            query,
+                            &state_outcomes,
+                            &state_treatments,
+                            &over,
+                        ) {
+                            return Ok(false);
+                        }
+                        let Some(output) = engine.standardized(&state, &over, true)? else {
+                            return Ok(false);
+                        };
+                        had_derivation = true;
+                        let derivation = standardization_derivation(
+                            diagram,
+                            query,
+                            engine.arena.clone(),
+                            &state,
+                            output,
+                            over,
+                        );
+                        let mut bound = derivation.bind_catalog_validated(catalog)?;
+                        engine.verify(&derivation)?;
+                        bound.searched = searched_stages(2);
+                        found = Some(bound);
+                        Ok(true)
+                    })();
+                    *shared.borrow_mut() = engine.shared.take();
+                    visited
                 },
-            )?;
+            );
+            engine.shared = shared.into_inner();
+            let end = end?;
             if let Some(bound) = found {
                 return Ok(CatalogTransportResult::Identified(Box::new(bound)));
             }
@@ -2218,11 +2366,143 @@ fn check_sid_memory(
     steps: usize,
     ctx: &ExecutionContext,
 ) -> Result<(), IdentificationError> {
+    refuse_over_budget(sid_memory_bytes(diagram, steps), ctx, IdentificationBudget::Memory)
+}
+
+/// Live-state estimate of an engine that has charged `steps` subproblems.
+fn sid_memory_bytes(diagram: &SelectionDiagram, steps: usize) -> usize {
     // Carried chain-rule kernels have quadratic coordinate storage; a linear
     // node-count charge would substantially understate recursive factorization.
     let n = diagram.causal_graph().node_count();
-    let bytes = n.saturating_mul(n).saturating_mul(64).saturating_add(512).saturating_mul(steps);
-    refuse_over_budget(bytes, ctx, IdentificationBudget::Memory)
+    n.saturating_mul(n).saturating_mul(64).saturating_add(512).saturating_mul(steps)
+}
+
+/// A shared bounded-search budget that engines charge instead of their own
+/// [`SidLimits`]. It is a trait object so nested engines, whose graphs live
+/// shorter than the budget's context, can reborrow the one budget.
+pub(crate) trait SearchCharge {
+    /// Charge one operation at `depth` whose live state needs `bytes`.
+    fn charge(&mut self, depth: usize, bytes: u64) -> Result<(), SearchStop>;
+    /// Limits in force.
+    fn limits(&self) -> SearchLimits;
+    /// Record a region a stop left unevaluated.
+    fn defer(&mut self, region: String);
+}
+
+/// One [`SearchBudget`] charged by every search stage of a decision, with the
+/// bound that stopped it and the regions the stop left unevaluated.
+///
+/// A decision creates one, runs each stage's engines on
+/// [`SidMeter::Shared`] reborrows of it, and on a budget or cancellation error
+/// builds its receipt with [`Self::receipt`]. The receipt then reports the
+/// operations and depth consumed across all stages.
+pub(crate) struct SharedSearch<'c> {
+    budget: SearchBudget<'c>,
+    stop: Option<SearchStop>,
+    unevaluated: Vec<String>,
+    /// Test hook: cancel the token once this many operations were charged,
+    /// so a test observes cancellation in the middle of a decision.
+    #[cfg(test)]
+    pub(crate) cancel_after: Option<(usize, antecedent_core::CancellationToken)>,
+}
+
+impl<'c> SharedSearch<'c> {
+    /// Share `budget` across every stage of one decision.
+    pub(crate) const fn new(budget: SearchBudget<'c>) -> Self {
+        Self {
+            budget,
+            stop: None,
+            unevaluated: Vec::new(),
+            #[cfg(test)]
+            cancel_after: None,
+        }
+    }
+    /// A meter charging this budget.
+    pub(crate) fn meter(&mut self) -> SidMeter<'_> {
+        SidMeter::Shared(self)
+    }
+    /// The bound that stopped the search: the first stop the budget reported,
+    /// else the one `error` names (a check made outside a charge).
+    pub(crate) fn stop_of(&self, error: &IdentificationError) -> SearchStop {
+        self.stop.unwrap_or(match error {
+            IdentificationError::Cancelled => SearchStop::Cancelled,
+            IdentificationError::Budget {
+                budget: IdentificationBudget::Memory | IdentificationBudget::BindingMemory,
+            } => SearchStop::Memory,
+            _ => SearchStop::Operations,
+        })
+    }
+    /// The receipt of a stop: `explored` regions, then `unevaluated` ones
+    /// followed by every region the engines deferred.
+    pub(crate) fn receipt(
+        &self,
+        stop: SearchStop,
+        explored: Vec<String>,
+        mut unevaluated: Vec<String>,
+    ) -> SearchReceipt {
+        unevaluated.extend(self.unevaluated.iter().cloned());
+        self.budget.receipt(stop, explored, unevaluated)
+    }
+}
+
+impl SearchCharge for SharedSearch<'_> {
+    fn charge(&mut self, depth: usize, bytes: u64) -> Result<(), SearchStop> {
+        #[cfg(test)]
+        if let Some((after, token)) = &self.cancel_after {
+            if self.budget.operations() >= *after {
+                token.cancel();
+            }
+        }
+        self.budget.charge(depth, bytes).inspect_err(|stop| {
+            self.stop.get_or_insert(*stop);
+        })
+    }
+    fn limits(&self) -> SearchLimits {
+        self.budget.limits()
+    }
+    fn defer(&mut self, region: String) {
+        self.unevaluated.push(region);
+    }
+}
+
+/// What an engine charges: its own [`SidLimits`] (every legacy caller, with
+/// unchanged semantics and errors), or a shared [`SearchCharge`] budget.
+pub(crate) enum SidMeter<'m> {
+    /// The engine's own step and depth limits; `depth >= limit` stops.
+    Limits(SidLimits),
+    /// A budget shared across engines; `depth > limit` stops.
+    Shared(&'m mut (dyn SearchCharge + 'm)),
+}
+
+impl SidMeter<'_> {
+    /// A shorter-lived meter charging the same limits or budget.
+    pub(crate) fn reborrow(&mut self) -> SidMeter<'_> {
+        match self {
+            Self::Limits(limits) => SidMeter::Limits(*limits),
+            Self::Shared(shared) => SidMeter::Shared(&mut **shared),
+        }
+    }
+    /// Limits in force, as step and depth limits.
+    pub(crate) fn limits(&self) -> SidLimits {
+        match self {
+            Self::Limits(limits) => *limits,
+            Self::Shared(shared) => {
+                let limits = shared.limits();
+                SidLimits { steps: limits.operations, depth: limits.depth }
+            }
+        }
+    }
+}
+
+/// The identification error a shared-budget stop surfaces as.
+const fn stop_error(stop: SearchStop) -> IdentificationError {
+    match stop {
+        SearchStop::Cancelled => IdentificationError::Cancelled,
+        SearchStop::Memory => IdentificationError::budget(IdentificationBudget::Memory),
+        SearchStop::Operations | SearchStop::Depth => {
+            IdentificationError::budget(IdentificationBudget::Steps)
+        }
+    }
 }
 
 /// The one memory-budget check of the transport identifiers: cancellation
@@ -2261,6 +2541,49 @@ mod tests {
             source: Arc::from("source"),
             target: Arc::from("target"),
         }
+    }
+    #[test]
+    fn a_shared_budget_is_charged_by_every_pretreatment_subset_test() {
+        use antecedent_core::{
+            DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeId,
+            RegimeKind, SearchBudget,
+        };
+        // X, Y and 17 pretreatment parents of Y, the first selected: no standardizer
+        // binds, so the subset search runs to its cap. Under its own limits that is an
+        // obligation; under a shared budget every separation test is charged to it.
+        let n = 19u32;
+        let mut graph = Admg::with_variables(n);
+        graph.insert_directed(d(0), d(1)).unwrap();
+        for z in 2..n {
+            graph.insert_directed(d(z), d(1)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, [v(2)]).unwrap();
+        let query = ClassicalTransportQuery { outcomes: Arc::from([v(1)]), ..query() };
+        let regime = EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [v(0)],
+            [],
+            [v(1)],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let catalog = EvidenceCatalog::try_new([], [regime], [], None).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let limits = SidLimits { steps: 2_000, depth: 256 };
+        let own = identify_catalog_transport(&diagram, &query, &catalog, limits, &ctx).unwrap();
+        assert!(matches!(own, CatalogTransportResult::MissingEvidence { .. }), "{own:?}");
+
+        let budget =
+            SearchBudget::new(SearchLimits { operations: 2_000, depth: 256 }, &ctx).unwrap();
+        let mut search = SharedSearch::new(budget);
+        let error =
+            identify_catalog_transport_metered(&diagram, &query, &catalog, search.meter(), &ctx)
+                .expect_err("the subset tests exhaust the shared budget");
+        assert!(error.is_budget_or_cancel(), "{error:?}");
+        assert_eq!(search.stop_of(&error), SearchStop::Operations);
     }
     #[test]
     fn target_frontdoor_uses_recursive_multinode_district() {
