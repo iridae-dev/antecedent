@@ -2362,6 +2362,9 @@ def self_test() -> int:
         if est == "transport.empirical_table_plugin":
             if set(got) != {"estimator.transport", "estimator.transport_empirical"}:
                 split.append((est, got))
+        elif est == "transport.learned_trial_aipw":
+            if set(got) != {"estimator.transport", "estimator.transport_learned"}:
+                split.append((est, got))
         elif len(got) != 1:
             split.append((est, got))
     expect(

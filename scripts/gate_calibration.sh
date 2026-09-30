@@ -56,6 +56,11 @@ grid_group() {
   case "$1" in
     "antecedent-estimate: bayesian_"*) return 1 ;;
     antecedent-estimate:*|v19_*|v110_*|v20_*) return 0 ;;
+    # 2.2 coverage records: X1 (both mz suites) and the two X4 coverage records. The X4
+    # weak-overlap and misspecified-nuisance tests print measurements, emit no record,
+    # and run once at the base point.
+    mz_transport_calibration:*) return 0 ;;
+    learned_continuous_calibration:*_mean_contrast) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -733,6 +738,19 @@ run_mz() {
 }
 run_mz multi_source_mz_independent_studies
 run_mz multi_source_mz_shared_units
+
+echo "== 2.2 learned continuous-outcome trial transport joint bootstrap (antecedent) =="
+run_lc() {
+  local filter="$1"
+  echo "== antecedent: learned_continuous_calibration ${filter} =="
+  check "learned_continuous_calibration: ${filter}" \
+    cargo test --release -p antecedent --test learned_continuous_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_lc learned_trial_aipw_nested_cohort_continuous_mean_contrast
+run_lc learned_trial_aipw_independent_samples_continuous_mean_contrast
+run_lc learned_trial_aipw_weak_overlap_boundary
+run_lc learned_trial_aipw_misspecified_nuisance_cases
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

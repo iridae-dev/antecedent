@@ -152,7 +152,11 @@ def is_grid(label: str) -> bool:
     """Is `label` measured over the sample-size grid (the gate's `grid_group`)?"""
     if label.startswith("antecedent-estimate: bayesian_"):
         return False
-    return label.startswith(("antecedent-estimate:", "v19_", "v110_", "v20_"))
+    if label.startswith("learned_continuous_calibration:"):
+        return label.endswith("_mean_contrast")  # the two X4 coverage records only
+    return label.startswith(
+        ("antecedent-estimate:", "v19_", "v110_", "v20_", "mz_transport_calibration:")
+    )
 
 
 @dataclass

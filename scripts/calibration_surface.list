@@ -100,6 +100,12 @@ estimator.transport_empirical crates/antecedent-estimate/src/statistical_transpo
 key estimator.transport_empirical estimator transport.empirical_table_plugin
 key estimator.transport_empirical estimator transport.mz_joint_bootstrap
 
+# Learned continuous-outcome trial transport (2.2A X4): the cross-fitted augmented inverse-odds
+# score, its overlap gate and the whole-estimator joint outer bootstrap.
+estimator.transport_learned crates/antecedent-estimate/src/learned_trial.rs
+estimator.transport_learned crates/antecedent-estimate/src/learned_continuous.rs
+key estimator.transport_learned estimator transport.learned_trial_aipw
+
 # ---- identification paths --------------------------------------------------
 identity.backdoor crates/antecedent-identify/src/backdoor.rs
 identity.backdoor crates/antecedent-identify/src/generalized.rs
@@ -223,6 +229,9 @@ allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttributionR
 # a plan for any other query never constructs them.
 allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution CheckedAttributionOperation CheckedCounterfactualOperation CheckedCounterfactualPlan CounterfactualProcedure NestedCounterfactualOperation compile gcm nested_counterfactual unit_change
 allow mechanism crates/antecedent/src/support.rs ChangeAttribution
+# Cross-world (nested counterfactual) facade evaluation: drives the counterfactual engine over
+# a compiled model; it is not itself a mechanism-fit path, so it is allowed by name here.
+allow mechanism crates/antecedent/src/cross_world.rs CompiledCausalModel CounterfactualEngine CounterfactualError NestedCounterfactualOperation NestedOutcomeMechanism NoiseInferenceKind antecedent_counterfactual antecedent_model cross_world evaluate_cross_world fit_nested_mechanisms gcm
 # `From` conversions of the facet crates' error types.
 allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualError ModelError antecedent_attribution antecedent_counterfactual antecedent_model
 # `pub mod gcm;`.
@@ -290,6 +299,9 @@ suite.mz_transport_calibration crates/antecedent/tests/mz_transport_calibration.
 suite.mz_transport_calibration crates/antecedent-estimate/tests/common/mz_fixture.rs
 suite.mz_transport_calibration crates/antecedent-estimate/tests/common/z_scm.rs
 suite.mz_transport_calibration crates/antecedent-estimate/tests/common/mod.rs
+suite.learned_continuous_calibration crates/antecedent/tests/learned_continuous_calibration.rs
+# The known-truth data-generating processes its designs draw from.
+suite.learned_continuous_calibration crates/antecedent/tests/learned_continuous_dgp/mod.rs
 
 # Learner adapters and their dependency choices can move nuisance predictions.
 core crates/antecedent-learn/

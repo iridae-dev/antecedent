@@ -93,6 +93,11 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_causal_artifacts.sh
   bash scripts/gate_composition.sh
   bash scripts/gate_transport.sh
+  # 2.2 A exit gate: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
+  # check. PENDING_CALIBRATION (story 3 / X1 coverage records unmeasured) exits 0 here; the
+  # release-candidate cut can add --require-calibrated.
+  echo "== 2.2 A exit gate =="
+  bash scripts/gate_a_exit.sh
 fi
 
 python3 - <<'PY'

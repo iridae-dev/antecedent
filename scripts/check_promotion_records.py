@@ -7,42 +7,187 @@ evidence where its search or interval claims require them); an in_progress
 record may license a non-uncertainty point_only/none route once those same
 fixture roles cite executed evidence. Once a record is in_progress, its closed
 routes cite executed runtime-refusal tests, its refusal details equal the
-namespaced detail literals in non-test source, its declared public surface is
-covered by its routes, and its search is metered by the shared SearchBudget.
-Every route has a row in its owning registry that agrees with the record.
+namespaced detail literals in non-test source (raw, byte, f-string and continued
+literals included; dynamically built details are refused), each (code, detail)
+pair is emitted by live code that names the code, its declared public surface is
+covered by its routes, and its search is metered by the shared SearchBudget
+inside a loop. Every cited test must assert something, and one test backs one
+fixture role. Every route has a row in its owning registry that agrees with the
+record.
 
     python3 scripts/check_promotion_records.py [registry.toml] [--emit-evidence out.toml]
+    python3 scripts/check_promotion_records.py --list-rules
+    python3 scripts/check_promotion_records.py [registry.toml] --suggest
 
 --emit-evidence writes every fixture and closed-route refusal that cites a test as
 a [[fixture_evidence]] row, so scripts/gate_promotion.sh can execute it with
-run_evidence_rows.py.
+run_evidence_rows.py. --list-rules prints every rule id; each error message ends
+with its `[rule-id]`, and scripts/promotion_selftest.py requires a self-test case
+tagged with every id. --suggest lists, per record, the public Rust/pyo3/export
+symbols found in its likely source files that no route, surface_values or
+surface_internal entry covers (the fields a record would need to declare).
 
-Environment overrides (gate self-tests only):
+Optional record fields (in addition to the frozen ones):
+  surface           python/rust facade files; top-level public names need a route
+  surface_rust      rust files: every `pub fn/struct/enum/trait`, including methods of
+                    inherent impls of public types, needs a route component,
+                    surface_values (types) or surface_internal
+  surface_pyo3      rust files: every #[pyfunction]/#[pyclass]/#[pymethods] fn likewise
+  surface_exports   python files whose `__all__` names listed in owned_exports are
+                    covered likewise; owned_exports = names this workstream owns
+  surface_internal  [{ name = "...", reason = "..." }]: exempt Rust/pyo3 items that
+                    must be #[doc(hidden)] (or an underscore pyo3 name)
+  shared_evidence   true on a fixture: it may share its test with another role
+                    (every fixture citing that test must set it)
+
+Environment overrides (gate self-tests and analysis only):
   PROMOTION_TRANSPORT_STAGES   owning registry for transport_stages routes
   PROMOTION_SUPPORT_LICENSED   owning registry for licensed support_licensed routes
   PROMOTION_SUPPORT_CLOSED     owning registry for closed support_licensed routes
   PROMOTION_EXTRA_SOURCES      os.pathsep-separated extra files scanned as non-test
                                source for refusal-detail literals
+  PROMOTION_DISABLE_RULES      comma-separated rule ids to switch off (mutation check)
+  PROMOTION_SYNTHETIC_EVIDENCE 1: evidence files outside the repo are resolved
+                               statically (self-test synthetic tests)
+  PROMOTION_EVIDENCE_CACHE     directory caching cargo/pytest listing results
+  PROMOTION_STATIC_ONLY        1: resolve evidence statically, without cargo or pytest
 """
 
-import ast
+import hashlib
+import json
 import os
 import re
 import sys
 from pathlib import Path
 
 import tomllib
+from promotion_source import (
+    Symbol,
+    assertion_problems,
+    assertion_texts,
+    charge_in_loop,
+    closure_code,
+    crate_src,
+    nontest_rust,
+    pyo3_symbols,
+    python_literals,
+    python_symbols,
+    rust_literals,
+    rust_pub_symbols,
+)
 from test_evidence import (
-    _is_cfg_test,
-    closure,
     resolve_python_test,
     resolve_rust_test,
     rust_items,
-    target_modules,
+    static_python_test,
+    static_rust_test,
 )
 
 root = Path(__file__).resolve().parents[1]
+
+# Every rule the checker can report, with what it enforces. `fail("<id>", ...)` is
+# the only way to report, each message ends with `[<id>]`, and
+# scripts/promotion_selftest.py needs a case tagged with every id (and, under
+# --mutation-check, proves the case stops failing when the rule is switched off).
+RULES = {
+    # registry and frozen fields
+    "registry_header": "registry is version 1, release 2.2",
+    "frozen_field": "every frozen field is present and non-empty",
+    "duplicate_record": "record ids are unique",
+    "unknown_status": "status is frozen, in_progress, promoted or carried_forward",
+    "claim_invalid": "inference_claim is a 2.2 claim (never nominal)",
+    "coverage_required": "a calibrated claim allocates coverage record ids",
+    "coverage_unexpected": "coverage ids are allocated only for a calibrated claim",
+    "coverage_unknown": "a promoted record's coverage ids exist in the coverage registry",
+    # bounds and search
+    "bounds_cancellation": "bounds.cancellation is true",
+    "bounds_limit": "a bounded search declares operation/depth/memory limits",
+    "bounds_contract": "a bounded search runs under antecedent_core::SearchBudget",
+    "search_flag": "search is declared true or false",
+    "search_impl_shape": "search_impl is a list of paths",
+    "search_impl_missing": "an implemented search declares search_impl",
+    "search_impl_file": "each search_impl file is a Rust source file",
+    "search_impl_names_budget": "each search_impl file names SearchBudget in non-test source",
+    "search_impl_charge": "search_impl files call .charge( in non-test source",
+    "search_charge_loop": "a .charge( on the budget sits in a looping or recursive fn",
+    # refusals
+    "refusal_code": "a refusal code is a registered runtime_refusal code",
+    "refusal_when": "a refusal states its condition",
+    "refusal_detail_shape": "a refusal detail is <namespace>.<snake_case>",
+    "refusal_detail_duplicate": "refusal details are unique in a record",
+    "refusal_namespace": "a record's refusal details share one namespace",
+    "refusal_detail_missing": "a declared detail is a literal in non-test source",
+    "refusal_detail_undeclared": "a namespaced literal in non-test source is declared",
+    "refusal_dynamic": "no non-test source builds a namespaced detail dynamically",
+    "refusal_pair_code": "the code of a (code, detail) pair is named where the detail is emitted",
+    "refusal_dead_const": "a detail held in a const is used by live code",
+    # fixtures and evidence
+    "fixture_duplicate": "fixture ids are unique",
+    "fixture_id_format": "fixture id is <workstream>.<name>.<role>",
+    "fixture_intent": "a fixture states its intent",
+    "evidence_pair": "evidence_test and evidence_assertion come together",
+    "evidence_unresolved": "a cited test resolves to a collected, non-ignored test",
+    "evidence_no_assertion": "a cited test body or helper contains an assertion",
+    "evidence_should_panic": "a cited test is not #[should_panic]",
+    "evidence_shared": "one test backs one fixture role unless every fixture sets shared_evidence",
+    "budget_symbol": "a budget fixture exercises SearchBudget/SearchReceipt/SearchStop",
+    "budget_asserts": "a budget fixture asserts on SearchStop or receipt fields",
+    "promoted_evidence": "a promoted record cites evidence for every fixture",
+    "fixture_roles": "required fixture roles are present",
+    # routes
+    "route_name": "route names are present and unique",
+    "route_stage": "route stage is valid",
+    "route_registry": "owning registry is known",
+    "route_claim": "a route claim is a 2.2 claim",
+    "route_status": "route status is closed or licensed",
+    "closed_reason": "a closed route has a registered runtime reason_code",
+    "closed_refusal_pair": "refusal_test and refusal_assertion come together",
+    "closed_refusal_unresolved": "a route's refusal test resolves",
+    "closed_refusal_reason_named": "a route's refusal test names its reason_code",
+    "closed_refusal_required": "a closed route of implemented work cites a refusal test",
+    "licensed_permanent": "a licensed route is not permanent_in_release",
+    "licensed_uncertainty": "an uncertainty route is not licensed before promotion",
+    "licensed_claim": "an early licensed route claims point_only or none",
+    "licensed_unevidenced": "an early licensed route needs executed fixture evidence",
+    "licensed_status": "a route is licensed only in_progress or promoted",
+    "promoted_closed_route": "a promoted record leaves no non-permanent route closed",
+    "nominal_route": "no licensed route carries estimator_grid_not_measured",
+    "nominal_row": "no owning-registry row carries estimator_grid_not_measured",
+    # owning registries
+    "stages_missing": "a transport route has a transport_stages row",
+    "stages_stage": "the row's stage equals the record's",
+    "stages_licensed_only_there": "not licensed in transport_stages while closed in the record",
+    "stages_licensed_only_here": "not licensed in the record while unlicensed in transport_stages",
+    "stages_reason": "a closed row's reason_code equals the record's",
+    "support_query_contrast": "a support route names its query and contrast",
+    "support_licensed_only_there": "not licensed in support_licensed while closed in the record",
+    "support_licensed_no_cell": "a licensed support route has a support_licensed cell",
+    "support_licensed_still_closed": "a licensed support route is no longer closed",
+    "support_no_closed_row": "a closed support route has a support_closed row",
+    "support_closed_record": "the closed row names the record",
+    "support_closed_reason": "the closed row's reason_code equals the record's",
+    # public surface
+    "surface_shape": "surface fields are lists of paths / names",
+    "surface_file": "a surface file is a Python or Rust source file",
+    "surface_symbol": "every public symbol of a surface is routed, a value or internal",
+    "surface_values_shape": "surface_values is a list of names",
+    "surface_values_orphan": "surface_values needs a declared surface",
+    "surface_value_stale": "a surface_values entry is a public symbol",
+    "surface_value_kind": "a surface_values entry is a class/struct/enum",
+    "surface_internal_shape": "surface_internal entries carry a name and a reason",
+    "surface_internal_stale": "a surface_internal entry names a Rust/pyo3 item",
+    "surface_internal_visible": "a surface_internal item is #[doc(hidden)]",
+    "surface_owned_orphan": "surface_exports and owned_exports come together",
+    "surface_export_stale": "an owned export is in the exports file's __all__",
+}
+
 args = sys.argv[1:]
+if "--list-rules" in args:
+    print("\n".join(RULES))
+    sys.exit(0)
+suggest = "--suggest" in args
+if suggest:
+    args.remove("--suggest")
 emit_path = None
 if "--emit-evidence" in args:
     at = args.index("--emit-evidence")
@@ -50,6 +195,11 @@ if "--emit-evidence" in args:
     del args[at : at + 2]
 registry_path = Path(args[0]) if args else root / "parity/promotion_2_2.toml"
 registry = tomllib.loads(registry_path.read_text())
+
+DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
+STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
+SYNTHETIC = os.environ.get("PROMOTION_SYNTHETIC_EVIDENCE") == "1"
+CACHE_DIR = os.environ.get("PROMOTION_EVIDENCE_CACHE")
 
 FROZEN = (
     "id", "workstream", "milestone", "work_package", "status", "consumer_question",
@@ -74,6 +224,16 @@ SEARCH_LIMITS = ("operation_limit", "depth_limit", "memory_limit")
 SEARCH_CONTRACT = "antecedent_core::SearchBudget"
 # Symbols whose appearance in a budget fixture shows it exercises that contract.
 SEARCH_SYMBOLS = ("SearchBudget", "SearchReceipt", "SearchStop")
+# What an assertion in a budget fixture must observe: the stop or a receipt field.
+BUDGET_OBSERVED = re.compile(
+    r"SearchStop|SearchReceipt|operations_consumed|operations_limit|depth_limit|memory_limit|\bstop\b"
+)
+# Constructors/variants that carry a reason code without spelling it, so a pair
+# emitted through them still names its code where the detail is emitted.
+CODE_ALIASES = {
+    "invalid_argument": ("invalid_input", "InvalidInput"),
+    "route_not_supported": ("unsupported_input", "UnsupportedInput"),
+}
 # Non-test source scanned for refusal-detail literals.
 SOURCE_GLOBS = ("crates/*/src/**/*.rs", "python/src/**/*.rs", "python/antecedent/**/*.py")
 
@@ -100,16 +260,18 @@ coverage_ids = {
 }
 
 errors: list[str] = []
+
+
+def fail(rule: str, message: str) -> None:
+    """Report one violation of `rule`; the message ends with `[rule]`."""
+    if rule not in RULES:
+        raise SystemExit(f"check_promotion_records: unknown rule id {rule!r}")
+    if rule not in DISABLED:
+        errors.append(f"{message} [{rule}]")
+
+
 if registry.get("version") != 1 or registry.get("release") != "2.2":
-    errors.append("promotion registry requires version 1 and release 2.2")
-
-
-def resolve(path: str, assertion: str) -> list[str]:
-    if path.endswith(".rs"):
-        return resolve_rust_test(root / path, assertion)[1]
-    if path.endswith(".py"):
-        return resolve_python_test(root / path, assertion)
-    return [f"{path}: evidence must be a collected Rust or Python test"]
+    fail("registry_header", "promotion registry requires version 1 and release 2.2")
 
 
 def rel(path: Path) -> str:
@@ -117,6 +279,58 @@ def rel(path: Path) -> str:
         return str(path.resolve().relative_to(root.resolve()))
     except ValueError:
         return str(path)
+
+
+def outside_repo(path: str) -> bool:
+    p = Path(path)
+    return p.is_absolute() and not str(p.resolve()).startswith(str(root.resolve()) + os.sep)
+
+
+def _synthetic_problems(path: str, assertion: str) -> list[str]:
+    """Static resolution of a self-test evidence file that lives outside the repo
+    (no cargo target, no pytest project): the test exists, is a test, not ignored."""
+    p = Path(path)
+    if p.suffix == ".py":
+        return static_python_test(p, assertion)
+    if p.suffix == ".rs":
+        fns = [it for it in rust_items(p)[1] if it.kind == "fn" and it.name == assertion]
+        if not fns:
+            return [f"no fn {assertion} in {path}"]
+        attrs = [re.sub(r"\s+", "", a) for a in fns[0].attrs]
+        problems = [] if "#[test]" in attrs else [f"fn {assertion} has no #[test] attribute"]
+        return problems + ([f"fn {assertion} is #[ignore]d"] if any(a.startswith("#[ignore") for a in attrs) else [])
+    return [f"{path}: evidence must be a collected Rust or Python test"]
+
+
+def _static_problems(path: str, assertion: str) -> list[str]:
+    if path.endswith(".rs"):
+        return static_rust_test(root / path, assertion).problems
+    if path.endswith(".py"):
+        return static_python_test(root / path, assertion)
+    return [f"{path}: evidence must be a collected Rust or Python test"]
+
+
+def resolve(path: str, assertion: str) -> list[str]:
+    if SYNTHETIC and outside_repo(path):
+        return _synthetic_problems(path, assertion)
+    if STATIC_ONLY:
+        return _static_problems(path, assertion)
+    cached = None
+    if CACHE_DIR:
+        cached = Path(CACHE_DIR) / hashlib.sha1(f"{path}::{assertion}".encode()).hexdigest()
+        if cached.is_file():
+            return json.loads(cached.read_text())
+    if path.endswith(".rs"):
+        problems = resolve_rust_test(root / path, assertion)[1]
+    elif path.endswith(".py"):
+        problems = resolve_python_test(root / path, assertion)
+    else:
+        problems = [f"{path}: evidence must be a collected Rust or Python test"]
+    if cached is not None:
+        tmp = cached.with_suffix(f".{os.getpid()}")
+        tmp.write_text(json.dumps(problems))
+        tmp.replace(cached)
+    return problems
 
 
 def carries(value, needle: str) -> bool:
@@ -130,154 +344,87 @@ def carries(value, needle: str) -> bool:
     return False
 
 
-# ------------------------------------------------------------- non-test source
-
-
-_crate_modules: dict[Path, dict[Path, bool]] = {}
-
-
-def _crate_src(path: Path) -> Path | None:
-    for parent in path.parents:
-        if parent.name == "src":
-            return parent
-    return None
-
-
-def _compiled_test_only(path: Path) -> bool | None:
-    """True if every target compiling `path` does so only under cfg(test); None if
-    no target of its crate compiles it."""
-    src = _crate_src(path)
-    if src is None:
-        return None
-    if src not in _crate_modules:
-        merged: dict[Path, bool] = {}
-        roots = [src / "lib.rs", src / "main.rs", *sorted((src / "bin").glob("*.rs"))]
-        for top in roots:
-            if top.is_file():
-                for mod, test_only in target_modules(top.resolve()).items():
-                    merged[mod] = merged.get(mod, True) and test_only
-        _crate_modules[src] = merged
-    return _crate_modules[src].get(path.resolve())
-
-
-_nontest_cache: dict[Path, str] = {}
-
-
-def nontest_rust(path: Path, *, in_crate: bool = True) -> str:
-    """Comment-free source of `path` with #[cfg(test)] modules/functions and
-    #[test] functions blanked; empty when the file is compiled only for tests or
-    not compiled at all. String literals are kept."""
-    key = path.resolve()
-    if key in _nontest_cache:
-        return _nontest_cache[key]
-    text = ""
-    if in_crate:
-        test_only = _compiled_test_only(path)
-        compiled = test_only is False
-    else:
-        compiled = True
-    if compiled:
-        masked, items = rust_items(key)
-        if not re.search(r"#!\[cfg\(\s*test\s*\)\]", masked.code):
-            code = list(masked.code)
-            for item in items:
-                if item.kind not in ("fn", "mod"):
-                    continue
-                if _is_cfg_test(item.attrs) or any(re.sub(r"\s+", "", a) == "#[test]" for a in item.attrs):
-                    for k in range(item.start, item.body[1]):
-                        if code[k] != "\n":
-                            code[k] = " "
-            text = "".join(code)
-    _nontest_cache[key] = text
-    return text
-
-
-_RUST_STR = re.compile(r'(?<![\w#])"((?:\\.|[^"\\])*)"')
-
-
-def rust_literals(path: Path, *, in_crate: bool = True) -> list[tuple[int, str]]:
-    code = nontest_rust(path, in_crate=in_crate)
-    return [(code.count("\n", 0, m.start()) + 1, m.group(1)) for m in _RUST_STR.finditer(code)]
-
-
-def python_literals(path: Path) -> list[tuple[int, str]]:
-    try:
-        tree = ast.parse(path.read_text(errors="ignore"))
-    except SyntaxError:
-        return []
-    return [
-        (node.lineno, node.value)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-    ]
-
-
-def detail_literals(namespaces: set[str]) -> dict[str, dict[str, list[str]]]:
-    """namespace -> detail -> ["file:line", ...] for every quoted literal in
-    non-test source that is exactly `<ns>.<snake>` or starts `<ns>.<snake>:`
-    (the "detail: message" convention)."""
-    found: dict[str, dict[str, list[str]]] = {ns: {} for ns in namespaces}
-    if not namespaces:
-        return found
-    shape = re.compile(r"^(" + "|".join(map(re.escape, sorted(namespaces))) + r")\.([a-z0-9_]+)(?::|$)")
-    raw_hint = re.compile("|".join(re.escape(ns + ".") for ns in sorted(namespaces)))
-    files = [(p, True) for pattern in SOURCE_GLOBS for p in sorted(root.glob(pattern))]
-    files += [(p, False) for p in extra_sources]
-    for path, in_crate in files:
-        if not path.is_file() or not raw_hint.search(path.read_text(errors="ignore")):
-            continue
-        if path.suffix == ".py":
-            literals = python_literals(path)
-        else:
-            literals = rust_literals(path, in_crate=in_crate)
-        for line, value in literals:
-            m = shape.match(value)
-            if m:
-                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append(f"{rel(path)}:{line}")
-    return found
-
-
-def surface_symbols(path: Path) -> dict[str, str]:
-    """Public top-level names mapped to their kind ("type" for a class/struct/enum,
-    "function", or "other"): `__all__` if the Python file defines it, else defs and
-    classes without a leading underscore; top-level pub fn/struct/enum/trait for a
-    Rust facade."""
-    if path.suffix == ".py":
-        tree = ast.parse(path.read_text(errors="ignore"))
-        kinds = {
-            node.name: "type" if isinstance(node, ast.ClassDef) else "function"
-            for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        }
-        for node in tree.body:
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
-            if any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets) and isinstance(
-                node.value, (ast.List, ast.Tuple)
-            ):
-                return {
-                    e.value: kinds.get(e.value, "other")
-                    for e in node.value.elts
-                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
-                }
-        return {name: kind for name, kind in kinds.items() if not name.startswith("_")}
-    code = nontest_rust(path, in_crate=_crate_src(path) is not None)
-    return {
-        name: "function" if item == "fn" else "type" if item in ("struct", "enum") else "other"
-        for item, name in re.findall(r"^pub\s+(fn|struct|enum|trait)\s+([A-Za-z_]\w*)", code, re.M)
-    }
-
-
 def camel(snake: str) -> str:
     return "".join(part.title() for part in snake.split("_"))
 
 
-# ------------------------------------------------------------------- records
+# ---------------------------------------------------------------- source corpus
 
+_files: list[tuple[Path, bool]] | None = None
+_raw: dict[Path, str] = {}
+
+
+def source_files() -> list[tuple[Path, bool]]:
+    global _files
+    if _files is None:
+        _files = [(p, True) for pattern in SOURCE_GLOBS for p in sorted(root.glob(pattern))]
+        _files += [(p, False) for p in extra_sources]
+    return _files
+
+
+def raw(path: Path) -> str:
+    if path not in _raw:
+        _raw[path] = path.read_text(errors="ignore") if path.is_file() else ""
+    return _raw[path]
+
+
+def code_of(path: Path, in_crate: bool) -> str:
+    """Non-test text of a source file (whole text for Python)."""
+    return raw(path) if path.suffix == ".py" else nontest_rust(path, in_crate=in_crate)
+
+
+def scan_details(namespaces: set[str]):
+    """(found, dynamic): namespace -> detail -> [(path, in_crate, Lit)] for every
+    literal in non-test source that is exactly `<ns>.<snake>` or starts
+    `<ns>.<snake>:`, and namespace -> ["file:line"] for every literal that builds
+    a detail dynamically (`<ns>.` followed by a format placeholder or ending
+    there)."""
+    found: dict[str, dict[str, list]] = {ns: {} for ns in namespaces}
+    dynamic: dict[str, list[str]] = {ns: [] for ns in namespaces}
+    if not namespaces:
+        return found, dynamic
+    alt = "|".join(map(re.escape, sorted(namespaces)))
+    shape = re.compile(r"^(" + alt + r")\.([a-z0-9_]+)(?::|$)")
+    dyn = re.compile(r"(?<![\w.])(" + alt + r")\.(?:\{|%|$)")
+    hint = re.compile("|".join(re.escape(ns + ".") for ns in sorted(namespaces)))
+    for path, in_crate in source_files():
+        if not path.is_file() or not hint.search(raw(path)):
+            continue
+        lits = python_literals(path) if path.suffix == ".py" else rust_literals(path, in_crate=in_crate)
+        for lit in lits:
+            m = shape.match(lit.value)
+            if m:
+                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append((path, in_crate, lit))
+            for d in dyn.finditer(lit.value):
+                dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
+    return found, dynamic
+
+
+_refs: dict[str, dict[Path, int]] = {}
+
+
+def const_refs(name: str) -> dict[Path, int]:
+    """File -> occurrences of the identifier `name` in non-test source."""
+    if name not in _refs:
+        pattern = re.compile(rf"(?<![\w]){re.escape(name)}(?![\w])")
+        refs = {}
+        for path, in_crate in source_files():
+            if path.is_file() and name in raw(path):
+                n = len(pattern.findall(code_of(path, in_crate)))
+                if n:
+                    refs[path] = n
+        _refs[name] = refs
+    return _refs[name]
+
+
+# ------------------------------------------------------------------- records
 
 seen_records: set[str] = set()
 seen_fixtures: set[str] = set()
 seen_routes: set[str] = set()
 evidence_rows: list[tuple[str, str, str]] = []
+# (path, assertion) -> [(record, fixture id, role, shared_evidence)]
+test_backers: dict[tuple[str, str], list[tuple[str, str, str, bool]]] = {}
 records = registry.get("record", [])
 namespaces_in_use = {
     refusal.get("detail", "").split(".")[0]
@@ -286,144 +433,245 @@ namespaces_in_use = {
     for refusal in rec.get("refusals") or []
     if "." in refusal.get("detail", "")
 }
-code_details = detail_literals(namespaces_in_use)
+code_details, dynamic_details = scan_details(namespaces_in_use)
+
+
+def check_evidence_body(who: str, path: str, assertion: str) -> bool:
+    """A cited test must assert something and not pass on any panic. True if it does."""
+    ok = True
+    for rule, message in assertion_problems(root / path, assertion):
+        fail(rule, f"{who}: {message}")
+        ok = False
+    return ok
+
+
+def str_list(rid: str, key: str, value) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, str) and v for v in value):
+        fail("surface_shape", f"{rid}: {key} must be a list of non-empty strings")
+        return []
+    return value
+
 
 for rec in records:
     rid = rec.get("id", "?")
     if rid in seen_records:
-        errors.append(f"{rid}: duplicate record id")
+        fail("duplicate_record", f"{rid}: duplicate record id")
     seen_records.add(rid)
     for key in FROZEN:
         value = rec.get(key)
         if value is None or (isinstance(value, (str, list)) and not value):
-            errors.append(f"{rid}: missing frozen field {key}")
+            fail("frozen_field", f"{rid}: missing frozen field {key}")
     status = rec.get("status")
     if status not in STATUSES:
-        errors.append(f"{rid}: unknown status {status!r}")
+        fail("unknown_status", f"{rid}: unknown status {status!r}")
     promoted = status == "promoted"
     implemented = status in IMPLEMENTED
     claim = rec.get("inference_claim")
     if claim not in CLAIMS:
-        errors.append(f"{rid}: inference_claim {claim!r} is not a 2.2 claim ({', '.join(sorted(CLAIMS))})")
+        fail("claim_invalid", f"{rid}: inference_claim {claim!r} is not a 2.2 claim ({', '.join(sorted(CLAIMS))})")
     cov = rec.get("coverage_records") or []
     if claim == "calibrated" and not cov:
-        errors.append(f"{rid}: a calibrated interval must allocate its coverage record ids")
+        fail("coverage_required", f"{rid}: a calibrated interval must allocate its coverage record ids")
     if claim != "calibrated" and cov:
-        errors.append(f"{rid}: coverage records allocated for a {claim} claim")
+        fail("coverage_unexpected", f"{rid}: coverage records allocated for a {claim} claim")
     if promoted:
-        errors.extend(f"{rid}: unknown coverage record {cid}" for cid in cov if cid not in coverage_ids)
+        for cid in cov:
+            if cid not in coverage_ids:
+                fail("coverage_unknown", f"{rid}: unknown coverage record {cid}")
 
     # Bounded computation is mandatory on every new search.
     bounds = rec.get("bounds") or {}
     if bounds.get("cancellation") is not True:
-        errors.append(f"{rid}: bounds.cancellation must be true")
+        fail("bounds_cancellation", f"{rid}: bounds.cancellation must be true")
     if rec.get("search") is True:
         for key in SEARCH_LIMITS:
             if not bounds.get(key):
-                errors.append(f"{rid}: a bounded search must declare bounds.{key}")
+                fail("bounds_limit", f"{rid}: a bounded search must declare bounds.{key}")
         if bounds.get("contract") != SEARCH_CONTRACT:
-            errors.append(f"{rid}: a bounded search must run under {SEARCH_CONTRACT}")
+            fail("bounds_contract", f"{rid}: a bounded search must run under {SEARCH_CONTRACT}")
     elif rec.get("search") is not False:
-        errors.append(f"{rid}: search must be declared true or false")
+        fail("search_flag", f"{rid}: search must be declared true or false")
 
     # The search is metered by the shared contract in code, not only pre-flighted:
-    # every declared implementation file names SearchBudget and together they charge it.
+    # every declared implementation file names SearchBudget and together they
+    # charge it inside a loop or recursion.
     search_impl = rec.get("search_impl")
     if search_impl is not None and (
         not isinstance(search_impl, list) or not all(isinstance(p, str) and p for p in search_impl)
     ):
-        errors.append(f"{rid}: search_impl must be a list of source paths")
+        fail("search_impl_shape", f"{rid}: search_impl must be a list of source paths")
         search_impl = []
     if rec.get("search") is True and implemented and not search_impl:
-        errors.append(
+        fail(
+            "search_impl_missing",
             f"{rid}: a search at status {status} must declare search_impl = [<.rs files>] whose non-test "
-            f"source builds a SearchBudget and calls .charge( on it"
+            f"source builds a SearchBudget and calls .charge( on it",
         )
     charged = False
+    looped: list[str] = []
     for src in search_impl or []:
         path = root / src
         if not path.is_file() or path.suffix != ".rs":
-            errors.append(f"{rid}: search_impl {src} is not a Rust source file")
+            fail("search_impl_file", f"{rid}: search_impl {src} is not a Rust source file")
             continue
-        code = nontest_rust(path, in_crate=_crate_src(path) is not None)
+        in_crate = crate_src(path) is not None
+        code = nontest_rust(path, in_crate=in_crate)
         if "SearchBudget" not in code:
-            errors.append(
+            fail(
+                "search_impl_names_budget",
                 f"{rid}: search_impl {src} non-test source never names SearchBudget; "
-                f"every declared implementation file runs under {SEARCH_CONTRACT}"
+                f"every declared implementation file runs under {SEARCH_CONTRACT}",
             )
         charged = charged or ".charge(" in code
+        if "SearchBudget" in code or "SharedSearch" in code:
+            looped += [f"{src}::{name}" for name in charge_in_loop(path, in_crate=in_crate)]
     if search_impl and not charged:
-        errors.append(
+        fail(
+            "search_impl_charge",
             f"{rid}: search_impl files lack .charge(; the search must charge {SEARCH_CONTRACT} "
-            f"per step, not only pre-flight it"
+            f"per step, not only pre-flight it",
+        )
+    elif search_impl and charged and not looped:
+        fail(
+            "search_charge_loop",
+            f"{rid}: no search_impl fn charges a SearchBudget/SharedSearch inside a loop or recursion "
+            f"(.charge( in a fn that loops, recurses, or is called from one); a single charge is a "
+            f"pre-flight, not a metered search",
         )
 
     # A registered top-level code plus a unique, namespaced detail code: callers
     # switch on the pair, so neither may be prose or collide inside a record.
     details: set[str] = set()
+    detail_code: dict[str, str] = {}
     for refusal in rec.get("refusals") or []:
         code, detail = refusal.get("code"), refusal.get("detail", "")
         if code not in runtime_codes:
-            errors.append(f"{rid}: refusal code {code!r} is not a registered runtime_refusal code")
+            fail("refusal_code", f"{rid}: refusal code {code!r} is not a registered runtime_refusal code")
         if not refusal.get("when"):
-            errors.append(f"{rid}: refusal {code!r} needs its condition")
+            fail("refusal_when", f"{rid}: refusal {code!r} needs its condition")
         parts = detail.split(".")
         if len(parts) != 2 or not all(part.replace("_", "").isalnum() and part.islower() for part in parts):
-            errors.append(f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>")
+            fail("refusal_detail_shape", f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>")
         if detail in details:
-            errors.append(f"{rid}: duplicate refusal detail {detail}")
+            fail("refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}")
         details.add(detail)
+        detail_code.setdefault(detail, code)
     namespaces = {d.split(".")[0] for d in details}
     if len(namespaces) > 1:
-        errors.append(f"{rid}: refusal details must share one namespace")
+        fail("refusal_namespace", f"{rid}: refusal details must share one namespace")
 
     # Refusal boundary == code: once implemented, each declared detail is a
-    # literal in non-test source and each namespaced literal there is declared.
+    # literal in non-test source, each namespaced literal there is declared, none
+    # is built dynamically, and each (code, detail) pair is emitted by live code
+    # that names the code.
     if implemented and len(namespaces) == 1:
         ns = next(iter(namespaces))
         in_code = code_details.get(ns, {})
         for detail in sorted(details - set(in_code)):
-            errors.append(
+            fail(
+                "refusal_detail_missing",
                 f"{rid}: refusal detail {detail} is not emitted by non-test source "
-                f"(no \"{detail}\" or \"{detail}: ...\" literal in {', '.join(SOURCE_GLOBS)})"
+                f"(no \"{detail}\" or \"{detail}: ...\" literal in {', '.join(SOURCE_GLOBS)})",
             )
         for detail in sorted(set(in_code) - details):
-            errors.append(
+            places = ", ".join(f"{rel(p)}:{lit.line}" for p, _, lit in in_code[detail])
+            fail(
+                "refusal_detail_undeclared",
                 f"{rid}: non-test source emits undeclared refusal detail {detail} "
-                f"at {', '.join(in_code[detail])}; add it to the record's refusals or remove it"
+                f"at {places}; add it to the record's refusals or remove it",
             )
+        for place in dynamic_details.get(ns, []):
+            fail(
+                "refusal_dynamic",
+                f"{rid}: dynamic refusal detail at {place} builds \"{ns}.\" from a placeholder; "
+                f"a dynamic detail cannot be checked, use a literal",
+            )
+        for detail in sorted(details & set(in_code)):
+            code = detail_code[detail]
+            uses = in_code[detail]
+            files: dict[Path, bool] = {}
+            live, dead = False, []
+            for path, in_crate, lit in uses:
+                files[path] = in_crate
+                if lit.const is None:
+                    live = True
+                    continue
+                refs = const_refs(lit.const)
+                if sum(refs.values()) >= 2:  # the definition plus at least one use
+                    live = True
+                    files.update({p: c for p, c in source_files() if p in refs})
+                else:
+                    dead.append(lit.const)
+            if not live:
+                fail(
+                    "refusal_dead_const",
+                    f"{rid}: refusal detail {detail} exists only as const {', '.join(sorted(set(dead)))} "
+                    f"that no non-test code uses; emit it or delete it",
+                )
+                continue
+            spellings = (str(code), camel(str(code)), *CODE_ALIASES.get(str(code), ()))
+            named = re.compile(r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])")
+            if not any(named.search(code_of(p, c)) for p, c in files.items()):
+                fail(
+                    "refusal_pair_code",
+                    f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "
+                    f"(or uses the const holding it) names {code} or {camel(str(code))}; "
+                    f"checked {', '.join(sorted(rel(p) for p in files))}",
+                )
 
     # Fixtures first: a route's license depends on which roles cite executed evidence.
     workstream = str(rec.get("workstream", "")).lower()
     roles: set[str] = set()
     evidenced: set[str] = set()
+    budget_evidenced = budget_asserting = False
     for fixture in rec.get("fixtures") or []:
         fid, role = fixture.get("id", ""), fixture.get("role")
         if fid in seen_fixtures:
-            errors.append(f"{rid}: duplicate fixture id {fid}")
+            fail("fixture_duplicate", f"{rid}: duplicate fixture id {fid}")
         seen_fixtures.add(fid)
         if not fid.startswith(f"{workstream}.") or not fid.endswith(f".{role}"):
-            errors.append(f"{rid}: fixture {fid} must be <workstream>.<name>.<role>")
+            fail("fixture_id_format", f"{rid}: fixture {fid} must be <workstream>.<name>.<role>")
         if not fixture.get("intent"):
-            errors.append(f"{rid}: fixture {fid} needs an intent")
+            fail("fixture_intent", f"{rid}: fixture {fid} needs an intent")
         roles.add(role)
         path, assertion = fixture.get("evidence_test", ""), fixture.get("evidence_assertion", "")
         if bool(path) != bool(assertion):
-            errors.append(f"{rid}: fixture {fid} needs both evidence_test and evidence_assertion")
+            fail("evidence_pair", f"{rid}: fixture {fid} needs both evidence_test and evidence_assertion")
         elif path:
             problems = resolve(path, assertion)
-            errors.extend(f"{rid}: {fid}: {p}" for p in problems)
+            for p in problems:
+                fail("evidence_unresolved", f"{rid}: {fid}: {p}")
             evidence_rows.append((fid, path, assertion))
+            test_backers.setdefault((path, assertion), []).append(
+                (rid, fid, str(role), fixture.get("shared_evidence") is True)
+            )
             ok = not problems
+            # Assertions are read from the source, so a test cargo cannot list here
+            # (or a whole-repo static read) is still checked for proving something.
+            found = (root / path).is_file() or outside_repo(path)
+            if found and not check_evidence_body(f"{rid}: {fid}", path, assertion):
+                ok = False
             if role == "budget" and rec.get("search") is True and ok:
-                body = closure(root / path, assertion)
+                body = closure_code(root / path, assertion)
                 if not any(symbol in body for symbol in SEARCH_SYMBOLS):
-                    errors.append(f"{rid}: budget fixture {fid} does not exercise {SEARCH_CONTRACT}")
+                    fail("budget_symbol", f"{rid}: budget fixture {fid} does not exercise {SEARCH_CONTRACT}")
                     ok = False
+                else:
+                    budget_evidenced = True
+                    if any(BUDGET_OBSERVED.search(t) for t in assertion_texts(root / path, assertion)):
+                        budget_asserting = True
             if ok:
                 evidenced.add(role)
         elif promoted:
-            errors.append(f"{rid}: promoted record lacks executed evidence for fixture {fid}")
+            fail("promoted_evidence", f"{rid}: promoted record lacks executed evidence for fixture {fid}")
+    if rec.get("search") is True and implemented and budget_evidenced and not budget_asserting:
+        fail(
+            "budget_asserts",
+            f"{rid}: no budget fixture asserts on SearchStop or a SearchReceipt field "
+            f"(operations_consumed/operations_limit/depth_limit/memory_limit); naming the type is not observing the stop",
+        )
     required = {"positive", "negative", "artifact"}
     if rec.get("search") is True:
         required.add("budget")
@@ -431,7 +679,7 @@ for rec in records:
         required.add("calibration")
     missing = sorted(required - roles)
     if missing:
-        errors.append(f"{rid}: missing fixture roles {', '.join(missing)}")
+        fail("fixture_roles", f"{rid}: missing fixture roles {', '.join(missing)}")
     # Roles an in_progress record must evidence before licensing any route.
     early_roles = {"positive", "negative", "artifact"} | ({"budget"} if rec.get("search") is True else set())
     unevidenced = sorted(early_roles - evidenced)
@@ -440,178 +688,359 @@ for rec in records:
     for route in rec.get("routes") or []:
         name = route.get("name")
         if not name or name in seen_routes:
-            errors.append(f"{rid}: duplicate or missing route name {name!r}")
+            fail("route_name", f"{rid}: duplicate or missing route name {name!r}")
         seen_routes.add(name)
         route_names.append(name or "")
         stage = route.get("stage")
         if stage not in STAGES:
-            errors.append(f"{rid}: {name}: invalid stage {stage!r}")
+            fail("route_stage", f"{rid}: {name}: invalid stage {stage!r}")
         owner = route.get("registry", "transport_stages")
         if owner not in REGISTRIES:
-            errors.append(f"{rid}: {name}: unknown owning registry {owner!r}")
+            fail("route_registry", f"{rid}: {name}: unknown owning registry {owner!r}")
         permanent = route.get("permanent_in_release") is True
         route_claim = route.get("claim")
         if route_claim is not None and route_claim not in CLAIMS:
-            errors.append(f"{rid}: {name}: claim {route_claim!r} is not a 2.2 claim")
+            fail("route_claim", f"{rid}: {name}: claim {route_claim!r} is not a 2.2 claim")
         route_status = route.get("status")
         licensed = route_status == "licensed"
         if route_status == "closed":
             reason = route.get("reason_code")
             if reason not in runtime_codes:
-                errors.append(f"{rid}: {name}: closed route needs a registered runtime reason_code")
+                fail("closed_reason", f"{rid}: {name}: closed route needs a registered runtime reason_code")
             # A closed route of implemented work must be shown to refuse at runtime.
             rpath, rassert = route.get("refusal_test", ""), route.get("refusal_assertion", "")
             if bool(rpath) != bool(rassert):
-                errors.append(f"{rid}: {name}: closed route needs both refusal_test and refusal_assertion")
+                fail("closed_refusal_pair", f"{rid}: {name}: closed route needs both refusal_test and refusal_assertion")
             elif rpath:
                 problems = resolve(rpath, rassert)
-                errors.extend(f"{rid}: {name}: refusal evidence: {p}" for p in problems)
+                for p in problems:
+                    fail("closed_refusal_unresolved", f"{rid}: {name}: refusal evidence: {p}")
                 evidence_rows.append((f"{name}.refusal", rpath, rassert))
+                if (root / rpath).is_file() or outside_repo(rpath):
+                    check_evidence_body(f"{rid}: {name}: refusal evidence", rpath, rassert)
                 if not problems and reason:
-                    body = closure(root / rpath, rassert)
+                    body = closure_code(root / rpath, rassert)
                     if reason not in body and camel(reason) not in body:
-                        errors.append(
+                        fail(
+                            "closed_refusal_reason_named",
                             f"{rid}: {name}: refusal test {rpath}::{rassert} never names the "
-                            f"route's reason_code {reason} (or {camel(reason)})"
+                            f"route's reason_code {reason} (or {camel(reason)})",
                         )
             elif implemented:
-                errors.append(
+                fail(
+                    "closed_refusal_required",
                     f"{rid}: {name}: closed route of a record at status {status} needs refusal_test + "
-                    f"refusal_assertion citing a test that calls it and observes {reason}"
+                    f"refusal_assertion citing a test that calls it and observes {reason}",
                 )
         elif licensed:
             if permanent:
-                errors.append(f"{rid}: {name}: licensed but marked permanent_in_release (closed)")
+                fail("licensed_permanent", f"{rid}: {name}: licensed but marked permanent_in_release (closed)")
             elif promoted:
                 pass
             elif status == "in_progress":
                 if stage == "uncertainty":
-                    errors.append(f"{rid}: {name}: uncertainty route licensed before its record is promoted")
+                    fail("licensed_uncertainty", f"{rid}: {name}: uncertainty route licensed before its record is promoted")
                 if route_claim not in EARLY_CLAIMS:
-                    errors.append(
+                    fail(
+                        "licensed_claim",
                         f"{rid}: {name}: licensed before promotion requires claim = \"point_only\" "
-                        f"or \"none\" on the route (got {route_claim!r})"
+                        f"or \"none\" on the route (got {route_claim!r})",
                     )
                 if unevidenced:
-                    errors.append(
+                    fail(
+                        "licensed_unevidenced",
                         f"{rid}: {name}: licensed before promotion but the record cites no executed "
-                        f"evidence for fixture role(s) {', '.join(unevidenced)}"
+                        f"evidence for fixture role(s) {', '.join(unevidenced)}",
                     )
             else:
-                errors.append(f"{rid}: {name}: licensed while its record is {status}")
+                fail("licensed_status", f"{rid}: {name}: licensed while its record is {status}")
         else:
-            errors.append(f"{rid}: {name}: status must be closed or licensed")
+            fail("route_status", f"{rid}: {name}: status must be closed or licensed")
 
         # Owning registry must hold a row that agrees with the record.
         owning_rows: list[dict] = []
         if owner == "transport_stages":
             row = stage_routes.get(name)
             if row is None:
-                errors.append(
+                fail(
+                    "stages_missing",
                     f"{rid}: {name} has no row in transport_stages.toml; add [[routes]] route = \"{name}\", "
                     f"stage = \"{stage}\", status = \"{'licensed' if licensed else 'closed'}\""
-                    + ("" if licensed else f", reason_code = \"{route.get('reason_code')}\"")
+                    + ("" if licensed else f", reason_code = \"{route.get('reason_code')}\""),
                 )
             else:
                 owning_rows.append(row)
                 there = row.get("status")
                 if row.get("stage") != stage:
-                    errors.append(f"{rid}: {name}: transport_stages.toml stage {row.get('stage')!r} != record stage {stage!r}")
+                    fail("stages_stage", f"{rid}: {name}: transport_stages.toml stage {row.get('stage')!r} != record stage {stage!r}")
                 if there == "licensed" and not licensed:
-                    errors.append(f"{rid}: {name} is licensed in transport_stages.toml but closed in its record")
+                    fail("stages_licensed_only_there", f"{rid}: {name} is licensed in transport_stages.toml but closed in its record")
                 elif there != "licensed" and licensed:
-                    errors.append(f"{rid}: {name} is licensed in its record but not in transport_stages.toml")
+                    fail("stages_licensed_only_here", f"{rid}: {name} is licensed in its record but not in transport_stages.toml")
                 elif there == "closed" and row.get("reason_code") != route.get("reason_code"):
-                    errors.append(
+                    fail(
+                        "stages_reason",
                         f"{rid}: {name}: transport_stages.toml reason_code {row.get('reason_code')!r} "
-                        f"!= record reason_code {route.get('reason_code')!r}"
+                        f"!= record reason_code {route.get('reason_code')!r}",
                     )
             if promoted and not permanent and not licensed:
-                errors.append(f"{rid}: promoted record leaves non-permanent route {name} closed")
+                fail("promoted_closed_route", f"{rid}: promoted record leaves non-permanent route {name} closed")
         elif owner == "support_licensed":
             query, contrast = route.get("query"), route.get("contrast")
             if not query or not contrast:
-                errors.append(f"{rid}: {name}: a support_licensed route names its query and contrast")
+                fail("support_query_contrast", f"{rid}: {name}: a support_licensed route names its query and contrast")
             cells = [c for c in support_cells if c.get("query") == query and c.get("contrast") == contrast]
             closed_rows = [
                 c for c in support_closed_contrasts if c.get("query") == query and c.get("contrast") == contrast
             ]
             owning_rows.extend(cells + closed_rows)
             if cells and not licensed:
-                errors.append(f"{rid}: {name} is licensed in support_licensed.toml but closed in its record")
+                fail("support_licensed_only_there", f"{rid}: {name} is licensed in support_licensed.toml but closed in its record")
             if licensed and not cells:
-                errors.append(f"{rid}: {name} is licensed in its record but has no support_licensed.toml cell")
+                fail("support_licensed_no_cell", f"{rid}: {name} is licensed in its record but has no support_licensed.toml cell")
             if closed_rows and licensed:
-                errors.append(f"{rid}: {name} is licensed in its record but still closed in support_closed.toml")
+                fail("support_licensed_still_closed", f"{rid}: {name} is licensed in its record but still closed in support_closed.toml")
             if not licensed and not closed_rows:
-                errors.append(
+                fail(
+                    "support_no_closed_row",
                     f"{rid}: {name} has no support_closed.toml row; add [[closed_contrast]] query = \"{query}\", "
-                    f"contrast = \"{contrast}\", reason_code = \"{route.get('reason_code')}\", record = \"{rid}\""
+                    f"contrast = \"{contrast}\", reason_code = \"{route.get('reason_code')}\", record = \"{rid}\"",
                 )
             for row in closed_rows:
                 if row.get("record") != rid:
-                    errors.append(f"{rid}: {name}: support_closed.toml row names record {row.get('record')!r}")
+                    fail("support_closed_record", f"{rid}: {name}: support_closed.toml row names record {row.get('record')!r}")
                 if row.get("reason_code") != route.get("reason_code"):
-                    errors.append(
+                    fail(
+                        "support_closed_reason",
                         f"{rid}: {name}: support_closed.toml reason_code {row.get('reason_code')!r} "
-                        f"!= record reason_code {route.get('reason_code')!r}"
+                        f"!= record reason_code {route.get('reason_code')!r}",
                     )
             if promoted and not permanent and not licensed:
-                errors.append(f"{rid}: promoted record leaves non-permanent route {name} closed")
+                fail("promoted_closed_route", f"{rid}: promoted record leaves non-permanent route {name} closed")
 
         # No nominal-only interval ships from implemented 2.2 work, anywhere.
         if implemented:
             if licensed and carries(route, NOMINAL):
-                errors.append(f"{rid}: licensed route {name} carries {NOMINAL}")
+                fail("nominal_route", f"{rid}: licensed route {name} carries {NOMINAL}")
             for row in owning_rows:
                 if carries(row, NOMINAL):
-                    errors.append(f"{rid}: {name}: its {owner} row carries {NOMINAL}")
+                    fail("nominal_row", f"{rid}: {name}: its {owner} row carries {NOMINAL}")
 
-    # Route inventory: every public symbol of a declared surface file is a
-    # component of some route name in this record, or a value/descriptor type
-    # listed in surface_values (classes/structs/enums only, never stale).
+    # ---- route inventory: every public symbol of a declared surface is a component
+    # of some route name in this record, a value/descriptor type listed in
+    # surface_values (classes/structs/enums only, never stale), or a
+    # surface_internal item that is #[doc(hidden)] in Rust.
+    components = {part for name in route_names for part in name.split(".")}
     surface = rec.get("surface")
+    if surface is not None and not isinstance(surface, list):
+        fail("surface_shape", f"{rid}: surface must be a list of source paths")
+        surface = None
+    if isinstance(surface, list) and not all(isinstance(p, str) and p for p in surface):
+        fail("surface_shape", f"{rid}: surface must be a list of source paths")
+        surface = []
+    surface_rust = str_list(rid, "surface_rust", rec.get("surface_rust"))
+    surface_pyo3 = str_list(rid, "surface_pyo3", rec.get("surface_pyo3"))
+    surface_exports = str_list(rid, "surface_exports", rec.get("surface_exports"))
+    owned = str_list(rid, "owned_exports", rec.get("owned_exports"))
     values = rec.get("surface_values")
     if values is not None and (not isinstance(values, list) or not all(isinstance(v, str) and v for v in values)):
-        errors.append(f"{rid}: surface_values must be a list of symbol names")
+        fail("surface_values_shape", f"{rid}: surface_values must be a list of symbol names")
         values = []
     values = values or []
-    if values and surface is None:
-        errors.append(f"{rid}: surface_values {', '.join(values)} listed without a surface")
-    if surface is not None:
-        if not isinstance(surface, list) or not all(isinstance(p, str) and p for p in surface):
-            errors.append(f"{rid}: surface must be a list of source paths")
-            surface = []
-        components = {part for name in route_names for part in name.split(".")}
-        declared: dict[str, tuple[str, str]] = {}
-        for src in surface:
+    internal_raw = rec.get("surface_internal")
+    internal: dict[str, str] = {}
+    if internal_raw is not None and not isinstance(internal_raw, list):
+        fail("surface_internal_shape", f"{rid}: surface_internal must be a list of {{ name, reason }} tables")
+        internal_raw = []
+    for entry in internal_raw or []:
+        if not isinstance(entry, dict) or not entry.get("name") or not entry.get("reason"):
+            fail("surface_internal_shape", f"{rid}: surface_internal entry {entry!r} needs a name and a reason")
+        else:
+            internal[entry["name"]] = entry["reason"]
+    has_surface = surface is not None or bool(surface_rust or surface_pyo3 or surface_exports)
+    if values and not has_surface:
+        fail("surface_values_orphan", f"{rid}: surface_values {', '.join(values)} listed without a surface")
+    if bool(surface_exports) != bool(owned):
+        fail(
+            "surface_owned_orphan",
+            f"{rid}: surface_exports and owned_exports go together (the exports file's __all__ names "
+            f"this record owns); got surface_exports={surface_exports} owned_exports={owned}",
+        )
+
+    def in_crate_of(path: Path) -> bool:
+        return crate_src(path) is not None
+
+    declared: dict[str, tuple[str, str]] = {}  # name -> (kind, src)
+    checked: list[tuple[str, Symbol]] = []  # (src, symbol) each must be covered
+    surface_files: list[str] = []
+    for src in surface or []:
+        path = root / src
+        if not path.is_file() or path.suffix not in (".py", ".rs"):
+            fail("surface_file", f"{rid}: surface {src} is not a Python or Rust source file")
+            continue
+        surface_files.append(src)
+        if path.suffix == ".py":
+            symbols = python_symbols(path)
+        else:  # a Rust facade: top-level public items only
+            code = nontest_rust(path, in_crate=in_crate_of(path))
+            symbols = {
+                name: Symbol(
+                    name, "function" if item == "fn" else "type" if item in ("struct", "enum") else "other", False, "top"
+                )
+                for item, name in re.findall(r"^pub\s+(fn|struct|enum|trait)\s+([A-Za-z_]\w*)", code, re.M)
+            }
+        checked += [(src, sym) for sym in symbols.values()]
+    for keyname, files, scan in (
+        ("surface_rust", surface_rust, rust_pub_symbols),
+        ("surface_pyo3", surface_pyo3, pyo3_symbols),
+    ):
+        for src in files:
             path = root / src
-            if not path.is_file() or path.suffix not in (".py", ".rs"):
-                errors.append(f"{rid}: surface {src} is not a Python or Rust source file")
+            if not path.is_file() or path.suffix != ".rs":
+                fail("surface_file", f"{rid}: {keyname} {src} is not a Rust source file")
                 continue
-            for symbol, kind in surface_symbols(path).items():
-                declared.setdefault(symbol, (kind, src))
-                if symbol not in components and symbol not in values:
-                    errors.append(
-                        f"{rid}: surface symbol {symbol} ({src}) is not a component of any route name; "
-                        + (
-                            "add it to surface_values if it is a pure value/descriptor type, "
-                            if kind == "type"
-                            else ""
-                        )
-                        + "add a route for it (closed until evidenced), or make it private"
-                    )
-        for value in values:
-            if value not in declared:
-                errors.append(
-                    f"{rid}: surface_values entry {value} is not a public symbol of any surface file "
-                    f"({', '.join(surface)}); remove the stale exemption"
-                )
-            elif declared[value][0] != "type":
-                errors.append(
-                    f"{rid}: surface_values entry {value} ({declared[value][1]}) is a {declared[value][0]}, "
-                    f"not a class/struct/enum; an entry point must be a route"
-                )
+            surface_files.append(src)
+            checked += [(src, sym) for sym in scan(path, in_crate=in_crate_of(path)).values()]
+    for src in surface_exports:
+        path = root / src
+        if not path.is_file() or path.suffix != ".py":
+            fail("surface_file", f"{rid}: surface_exports {src} is not a Python source file")
+            continue
+        surface_files.append(src)
+        symbols = python_symbols(path)
+        for name in owned:
+            if name in symbols:
+                checked.append((src, symbols[name]))
+            else:
+                fail("surface_export_stale", f"{rid}: owned_exports entry {name} is not in __all__ of {src}")
+    for src, sym in checked:
+        declared.setdefault(sym.name, (sym.kind, src))
+        if sym.name not in components and sym.name not in values and sym.name not in internal:
+            fail(
+                "surface_symbol",
+                f"{rid}: surface symbol {sym.name} ({src}) is not a component of any route name; "
+                + ("add it to surface_values if it is a pure value/descriptor type, " if sym.kind == "type" else "")
+                + "add a route for it (closed until evidenced), "
+                + ("list it in surface_internal with a reason and mark it #[doc(hidden)], " if sym.where in ("top", "method", "pyo3") else "")
+                + "or make it private",
+            )
+    for value in values:
+        if surface_files and value not in declared:
+            fail(
+                "surface_value_stale",
+                f"{rid}: surface_values entry {value} is not a public symbol of any surface file "
+                f"({', '.join(surface_files)}); remove the stale exemption",
+            )
+        elif value in declared and declared[value][0] != "type":
+            fail(
+                "surface_value_kind",
+                f"{rid}: surface_values entry {value} ({declared[value][1]}) is a {declared[value][0]}, "
+                f"not a class/struct/enum; an entry point must be a route",
+            )
+    for name in internal:
+        matches = [s for _, s in checked if s.name == name and s.where in ("top", "method", "pyo3")]
+        rust_scanned = [src for src in surface_files if src.endswith(".rs")]
+        if not matches:
+            fail(
+                "surface_internal_stale",
+                f"{rid}: surface_internal entry {name} names no Rust/pyo3 item of {', '.join(rust_scanned) or 'any surface_rust/surface_pyo3 file'}; "
+                f"remove the stale exemption",
+            )
+        elif not all(s.hidden for s in matches):
+            fail(
+                "surface_internal_visible",
+                f"{rid}: surface_internal entry {name} is a public item that is not #[doc(hidden)]; "
+                f"mark it #[doc(hidden)] or make it pub(crate)",
+            )
+
+# ---- registry-wide: one test proves one role.
+for (path, assertion), backers in sorted(test_backers.items()):
+    distinct_roles = {role for _, _, role, _ in backers}
+    if len(distinct_roles) > 1 and not all(shared for *_, shared in backers):
+        who = ", ".join(f"{fid} ({role})" for _, fid, role, _ in backers)
+        fail(
+            "evidence_shared",
+            f"{backers[0][0]}: test {path}::{assertion} backs more than one fixture role: {who}; cite a "
+            f"distinct test per role or set shared_evidence = true on every fixture that shares it",
+        )
+
+
+# --------------------------------------------------------------------- suggest
+
+
+def suggest_report() -> None:
+    """Per record: public symbols of its likely Rust/pyo3/export files that no
+    route, surface_values or surface_internal entry covers."""
+    ns_all = {
+        r.get("detail", "").split(".")[0] for rec in records for r in rec.get("refusals") or [] if "." in r.get("detail", "")
+    }
+    found, _ = scan_details(ns_all)
+    py_files = sorted((root / "python/antecedent").glob("**/*.py"))
+    for rec in records:
+        rid = rec.get("id", "?")
+        components = {part for r in rec.get("routes") or [] for part in r.get("name", "").split(".")}
+        values = set(rec.get("surface_values") or [])
+        internal = {e.get("name") for e in rec.get("surface_internal") or [] if isinstance(e, dict)}
+        covered = components | values | internal
+        ns = {r.get("detail", "").split(".")[0] for r in rec.get("refusals") or [] if "." in r.get("detail", "")}
+        rs: set[Path] = {root / p for p in rec.get("search_impl") or [] if p.endswith(".rs")}
+        rs |= {root / p for p in (rec.get("surface") or []) if p.endswith(".rs")}
+        rs |= {root / p for p in rec.get("surface_rust") or []}
+        for n in ns:
+            for uses in found.get(n, {}).values():
+                rs |= {p for p, c, _ in uses if p.suffix == ".rs" and "/python/src/" not in p.as_posix()}
+        pyfaces = {root / p: python_symbols(root / p) for p in (rec.get("surface") or []) if p.endswith(".py")}
+        names = {s for syms in pyfaces.values() for s in syms} | values
+        pyo3: set[Path] = {root / p for p in rec.get("surface_pyo3") or []}
+        for path in sorted((root / "python/src").glob("*.rs")):
+            text = raw(path)
+            if any(f"{n}." in text for n in ns) or any(re.search(rf"\b{re.escape(s)}\b", text) for s in names if len(s) > 4):
+                pyo3.add(path)
+        owned_exports: dict[Path, list[str]] = {}
+        for path in py_files:
+            if "__all__" not in raw(path) or path in pyfaces:
+                continue
+            try:
+                syms = python_symbols(path)
+            except SyntaxError:
+                continue
+            face_mods = {p.stem for p in pyfaces}
+            imported = set()
+            for m in re.finditer(r"from\s+\.(\w+)\s+import\s+\(?([^)\n]*(?:\n[^)\n]*)*?)\)?(?=\n\S|\Z)", raw(path)):
+                if m.group(1) in face_mods:
+                    imported |= set(re.findall(r"[A-Za-z_]\w*", m.group(2)))
+            mine = sorted(n for n in syms if n in imported)
+            if mine:
+                owned_exports[path] = mine
+        print(f"\n{rid} ({rec.get('status')})")
+        need_rs = {}
+        for path in sorted(rs):
+            syms = rust_pub_symbols(path, in_crate=crate_src(path) is not None)
+            gaps = sorted(s.name for s in syms.values() if s.name not in covered)
+            if gaps:
+                need_rs[rel(path)] = gaps
+        need_py = {}
+        for path in sorted(pyo3):
+            syms = pyo3_symbols(path, in_crate=crate_src(path) is not None)
+            gaps = sorted(s.name for s in syms.values() if s.name not in covered)
+            if gaps:
+                need_py[rel(path)] = gaps
+        print(f"  surface_rust candidates: {sorted(rel(p) for p in rs)}")
+        for src, gaps in need_rs.items():
+            print(f"    {src}: uncovered pub symbols -> {gaps}")
+        print(f"  surface_pyo3 candidates: {sorted(rel(p) for p in pyo3)}")
+        for src, gaps in need_py.items():
+            print(f"    {src}: uncovered pyo3 names -> {gaps}")
+        for path, mine in owned_exports.items():
+            gaps = sorted(n for n in mine if n not in covered)
+            print(f"  surface_exports: {rel(path)} owned_exports={mine}")
+            if gaps:
+                print(f"    uncovered exports -> {gaps}")
+
+
+if suggest:
+    suggest_report()
+    sys.exit(0)
 
 if emit_path is not None:
     emit_path.write_text(
