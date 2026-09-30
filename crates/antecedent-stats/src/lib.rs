@@ -93,8 +93,9 @@ pub use matching::{
     EXACT_MATCHING_ROW_LIMIT, MatchingDistance, MatchingIndex, nearest_euclidean_scalar,
 };
 pub use observation::{
-    GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, fit_observation_logistic,
-    gaussian_observation_log_likelihood, kaplan_meier_ipcw, selected_outcome_pseudo_values,
+    GaussianObservation, KaplanMeierIpcw, ObservationProbabilityFit, censoring_tail_restriction,
+    fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
+    selected_outcome_pseudo_values,
 };
 pub use propensity::{
     PropensityFit, PropensityWorkspace, fit_propensity, fit_propensity_diagnostic,

@@ -360,10 +360,8 @@ fn sample_conditional_interventional_lw(
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<ValueBatch, ModelError> {
-    use crate::mechanism::log_prob_column;
-
     let n_nodes = model.n_nodes();
-    let n_particles = n_rows.saturating_mul(20).max(64);
+    let base_particles = n_rows.saturating_mul(20).max(64);
     let overlay = InterventionOverlay::from_interventions(model, interventions)?;
     overlay.validate()?;
 
@@ -375,10 +373,87 @@ fn sample_conditional_interventional_lw(
         condition_at[idx] = condition_values[ci];
     }
 
-    // Forward likelihood weighting: clamp evidence in topo order and sample every
-    // other node (incl. descendants of evidence) from mechanisms given those clamps.
-    // Propose-from-do then overwrite evidence leaves descendants drawn under the
-    // unconditioned proposal parents — not a conditional draw.
+    // Likelihood weighting with a Kish effective-sample-size floor fixed by the base particle
+    // count. Evidence in a mechanism's tail concentrates the weights on a few particles; the
+    // ESS grows about linearly with the particle count, so the particle set is redrawn (from
+    // the same RNG stream) at double the size until the floor is met, up to
+    // `LW_MAX_PARTICLE_GROWTH` times the base count. Evidence the base set already
+    // represents draws no extra particles.
+    let ess_floor = (0.05 * base_particles as f64).max(2.0);
+    let mut n_particles = base_particles;
+    let (particle_buf, weights) = loop {
+        let (particle_buf, log_w) = weighted_particles(
+            model,
+            &overlay,
+            &is_condition,
+            &condition_at,
+            n_particles,
+            rng,
+            ws,
+        )?;
+        let weights = normalized_weights(&log_w)?;
+        let ess = kish_ess(&weights);
+        if ess.is_finite() && ess >= ess_floor {
+            break (particle_buf, weights);
+        }
+        if n_particles >= base_particles.saturating_mul(LW_MAX_PARTICLE_GROWTH) {
+            return Err(ModelError::Numerical {
+                message: format!(
+                    "conditional do: likelihood weights are degenerate (effective sample size \
+                     {ess:.2} of {n_particles} particles, need at least {ess_floor:.1}, after \
+                     growing the particle set {LW_MAX_PARTICLE_GROWTH}x); the evidence is too \
+                     far in the tail of the model to condition on by likelihood weighting"
+                ),
+            });
+        }
+        n_particles = n_particles.saturating_mul(2);
+    };
+
+    // Systematic resampling.
+    let mut accepted = vec![0.0; n_rows * n_nodes];
+    let u0 = rng.next_f64() / n_rows as f64;
+    let mut cdf = 0.0;
+    let mut idx = 0usize;
+    for i in 0..n_rows {
+        let target = u0 + i as f64 / n_rows as f64;
+        while idx + 1 < n_particles && cdf + weights[idx] < target {
+            cdf += weights[idx];
+            idx += 1;
+        }
+        for node in 0..n_nodes {
+            accepted[node * n_rows + i] = particle_buf[node * n_particles + idx];
+        }
+        // Evidence nodes stay at the conditioned values (already clamped above).
+        for (ci, &node) in condition_nodes.iter().enumerate() {
+            accepted[node.as_usize() * n_rows + i] = condition_values[ci];
+        }
+    }
+    let _ = ctx;
+    Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() })
+}
+
+/// Largest multiple of the base particle count conditional likelihood weighting grows to
+/// (by doubling) before it refuses degenerate weights.
+const LW_MAX_PARTICLE_GROWTH: usize = 64;
+
+/// One likelihood-weighted particle set: column-major particles and their log-weights.
+///
+/// Forward likelihood weighting: clamp evidence in topo order and sample every other node
+/// (incl. descendants of evidence) from mechanisms given those clamps. Propose-from-do then
+/// overwrite evidence leaves descendants drawn under the unconditioned proposal parents — not
+/// a conditional draw.
+fn weighted_particles(
+    model: &CompiledCausalModel,
+    overlay: &InterventionOverlay,
+    is_condition: &[bool],
+    condition_at: &[f64],
+    n_particles: usize,
+    rng: &mut CausalRng,
+    ws: &mut MechanismWorkspace,
+) -> Result<(Vec<f64>, Vec<f64>), ModelError> {
+    use crate::mechanism::log_prob_column;
+
+    let n_nodes = model.n_nodes();
     let mut particle_buf = vec![0.0; n_particles.saturating_mul(n_nodes)];
     let mut log_w = vec![0.0; n_particles];
     let mut lp_buf = vec![0.0; n_particles];
@@ -444,29 +519,12 @@ fn sample_conditional_interventional_lw(
         }
     }
 
-    let weights = normalized_weights(&log_w)?;
+    Ok((particle_buf, log_w))
+}
 
-    // Systematic resampling.
-    let mut accepted = vec![0.0; n_rows * n_nodes];
-    let u0 = rng.next_f64() / n_rows as f64;
-    let mut cdf = 0.0;
-    let mut idx = 0usize;
-    for i in 0..n_rows {
-        let target = u0 + i as f64 / n_rows as f64;
-        while idx + 1 < n_particles && cdf + weights[idx] < target {
-            cdf += weights[idx];
-            idx += 1;
-        }
-        for node in 0..n_nodes {
-            accepted[node * n_rows + i] = particle_buf[node * n_particles + idx];
-        }
-        // Evidence nodes stay at the conditioned values (already clamped above).
-        for (ci, &node) in condition_nodes.iter().enumerate() {
-            accepted[node.as_usize() * n_rows + i] = condition_values[ci];
-        }
-    }
-    let _ = ctx;
-    Ok(ValueBatch { n_rows, n_nodes, values: accepted.into() })
+/// Kish effective sample size `1 / Σ w²` of normalized weights.
+fn kish_ess(weights: &[f64]) -> f64 {
+    1.0 / weights.iter().map(|w| w * w).sum::<f64>()
 }
 
 /// Self-normalised importance weights from log-weights, refusing an all-non-finite or
@@ -1063,6 +1121,56 @@ mod tests {
             (z_mean - interventional_mean).abs() > (z_mean - conditional_mean).abs() + 0.25,
             "Z mean {z_mean} is closer to the do-proposal mean {interventional_mean} than to \
              the clamped conditional mean {conditional_mean}"
+        );
+    }
+
+    /// Tail evidence on `Y` concentrates the likelihood weights of the base particle set
+    /// (ESS ≈ 8 of 1280, below the floor of 64). The sampler grows the particle set until the
+    /// floor is met and returns the correct Gaussian conditional: `E[X | Y = y]` in closed form
+    /// for the fitted `X → Y` pair, and `E[Z | Y = y] = a_z + b_z·y`. Evidence hundreds of
+    /// standard deviations out is still refused once the growth cap is reached.
+    #[test]
+    fn conditional_do_lw_grows_particles_for_tail_evidence() {
+        let model = fitted_three_chain();
+        let linear = |i: u32| match model.mechanisms.get(DenseNodeId::from_raw(i)) {
+            MechanismSlot::LinearGaussian { intercept, coeffs, sigma } => {
+                (*intercept, coeffs.first().copied().unwrap_or(0.0), *sigma)
+            }
+            other => panic!("expected LinearGaussian, got {other:?}"),
+        };
+        let ((mx, _, sx), (ay, by, sy), (az, bz, sz)) = (linear(0), linear(1), linear(2));
+        let y_node = DenseNodeId::from_raw(1);
+        let run = |value: f64| {
+            let mut rng = CausalRng::from_seed(5);
+            let mut ws = MechanismWorkspace::default();
+            sample_conditional_interventional(
+                &model,
+                &[],
+                &[y_node],
+                &[value],
+                64,
+                &mut rng,
+                &mut ws,
+                &ExecutionContext::for_tests(1),
+            )
+        };
+        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+
+        // y = 7.5 is ~3.6 marginal standard deviations above the mean of Y.
+        let y = 7.5;
+        let batch = run(y).unwrap();
+        let prior_var = sx * sx;
+        let x_expected = mx + by * prior_var * (y - ay - by * mx) / (by * by * prior_var + sy * sy);
+        let x_mean = mean(batch.column(0).unwrap());
+        assert!((x_mean - x_expected).abs() < 0.05, "E[X|Y] {x_mean} vs {x_expected}");
+        let z_mean = mean(batch.column(2).unwrap());
+        assert!((z_mean - (az + bz * y)).abs() < 4.0 * sz / 8.0, "E[Z|Y] {z_mean}");
+
+        let far = ay + by * mx + 1_000.0 * sy;
+        let err = run(far).unwrap_err();
+        assert!(
+            matches!(&err, ModelError::Numerical { message } if message.contains("effective sample size")),
+            "expected a degeneracy refusal at the cap, got {err:?}"
         );
     }
 

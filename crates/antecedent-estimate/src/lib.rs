@@ -101,15 +101,14 @@ pub use estimator_menu::{
     EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
     transport_estimator_menu_with,
 };
+#[cfg(feature = "calibration-internal")]
+pub use learned_continuous::learned_continuous_interval_internal;
 pub use learned_continuous::{
     FoldProvenance, LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousEstimate, LearnedContinuousOptions,
     LearnedContinuousUncertainty, check_membership_overlap, estimate_learned_continuous,
-    parse_learned_continuous_sampling,
-    parse_learned_continuous_target, refuse_learned_continuous_interval,
-    validate_learned_continuous,
+    parse_learned_continuous_sampling, parse_learned_continuous_target,
+    refuse_learned_continuous_interval, validate_learned_continuous,
 };
-#[cfg(feature = "calibration-internal")]
-pub use learned_continuous::learned_continuous_interval_internal;
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
     learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,
@@ -293,6 +292,7 @@ pub use transport::{
 };
 pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 
+mod splitmix;
 mod static_mediation;
 pub use static_mediation::{
     MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,

@@ -157,6 +157,7 @@ impl Pc {
         let col_owned = collect_float_columns(data, variables)?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
         let n = cols[0].len();
+        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
         if n < 3 {
             return Err(DiscoveryError::stats_msg("insufficient rows for PC"));
         }
@@ -200,6 +201,20 @@ impl Pc {
         // tested; constraint-required edges carry no test and pass through untouched.
         let (tested, untested): (Vec<ScoredLink>, Vec<ScoredLink>) =
             scored.drain(..).partition(|s| s.p_value.is_finite());
+        // The family is one hypothesis per tested edge (see `retain_after_family_fdr`).
+        let family_size = if family_p.len() == family_edge.len() && !family_edge.is_empty() {
+            family_edge.iter().collect::<HashSet<_>>().len()
+        } else {
+            tested.len()
+        };
+        let fdr_diagnostic = self.fdr.and_then(|_| {
+            crate::ci::fdr_resolution_diagnostic(
+                &*self.ci,
+                self.constraints.significance,
+                alpha,
+                family_size,
+            )
+        });
         scored = retain_after_family_fdr(tested, &family_p, &family_edge, self.fdr, alpha);
         scored.extend(untested);
         let kept: HashSet<(u32, u32)> =
@@ -246,7 +261,7 @@ impl Pc {
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
         let orient_delta = run_static_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
 
-        let mut diagnostics = Vec::new();
+        let mut diagnostics: Vec<_> = fdr_diagnostic.into_iter().collect();
         if state.conflicts > 0 || orient_delta.conflicts > 0 {
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("pc.orientation_conflict"),
@@ -393,6 +408,41 @@ mod tests {
         assert!(g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
         assert!(!g.has_edge(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+    }
+
+    /// Static algorithms have no lag rows to drop: a weight vector must hold exactly one entry
+    /// per row. A longer one used to be trimmed to its last `n` entries without a word.
+    #[test]
+    fn static_algorithms_refuse_weights_that_do_not_fit_the_rows() {
+        let data = tabular_n(3, 40);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = DiscoveryWorkspace::default();
+        for len in [39usize, 41, 80] {
+            let ci: Arc<dyn ConditionalIndependence + Send + Sync> = Arc::new(
+                antecedent_stats::WeightedPartialCorrelation::aligned_to_series_end(vec![1.0; len]),
+            );
+            let is_weight_refusal = |e: &DiscoveryError| e.to_string().contains("weights");
+            let e =
+                Pc::new().with_ci(Arc::clone(&ci)).run(&data, &vars, &mut ws, &ctx).unwrap_err();
+            assert!(is_weight_refusal(&e), "pc {len}: {e}");
+            let e = crate::Fci::new()
+                .with_ci(Arc::clone(&ci))
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err();
+            assert!(is_weight_refusal(&e), "fci {len}: {e}");
+            let e = crate::Rfci::new()
+                .with_ci(Arc::clone(&ci))
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err();
+            assert!(is_weight_refusal(&e), "rfci {len}: {e}");
+            let e = crate::Ges::new()
+                .with_ci(Arc::clone(&ci))
+                .with_pc_screening(true)
+                .run(&data, &vars, &mut ws, &ctx)
+                .unwrap_err();
+            assert!(is_weight_refusal(&e), "ges {len}: {e}");
+        }
     }
 
     #[test]

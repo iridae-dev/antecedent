@@ -295,15 +295,21 @@ fn lag_distinct_dbn_fit_failure_demotes_the_correct_weight_in_either_order() {
         for result in [&fresh, &click, &refreshed] {
             assert!((posterior_mean(result) - retained_mean).abs() < 1e-12);
             assert!(result.estimand.adjustment_set.is_empty());
+            // The adjusted atom is identified; its failed estimation is
+            // unevaluable mass, never structural non-identification.
+            let posterior = result.posterior.as_ref().unwrap();
+            assert!(posterior.unidentified_mass.abs() < 1e-12, "{}", posterior.unidentified_mass);
             assert!(
-                (result.posterior.as_ref().unwrap().unidentified_mass - failed_weight).abs()
-                    < 1e-12
+                (posterior.unevaluable_mass - failed_weight).abs() < 1e-12,
+                "{}",
+                posterior.unevaluable_mass
             );
             let demotion = result
                 .diagnostics
                 .iter()
                 .find(|d| d.code.as_ref() == "estimate.dbn_posterior.atom_demotion")
                 .expect("DBN atom demotion must be a summary diagnostic");
+            assert_eq!(demotion.severity, antecedent_core::DiagnosticSeverity::Warning);
             assert!(
                 demotion.message.contains(
                     "identify_unidentified=0 (invalid_graph=0 identify_failed=0 not_identified=0 no_estimand=0)"

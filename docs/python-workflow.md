@@ -1,6 +1,6 @@
 # Your first Python analysis
 
-Estimate an effect, check the answer, and reuse the analysis on new data. This guide is the 2.0.0 analysis: a graph, a query, `analyze`, then `answer.kind`, inspection, and calibration. Transport uses those same verbs. Callers moving names from the published 1.11 release should read the [transport migration](migrations/2.0-transport-day1.md).
+Estimate an effect, check the answer, and reuse the analysis on new data. This guide walks through one analysis: a graph, a query, `analyze`, then `answer.kind`, inspection, and calibration. Transport uses those same verbs. Callers moving names from the published 1.11 release should read the [transport migration](migrations/2.0-transport-day1.md).
 
 ## Install
 

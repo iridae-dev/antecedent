@@ -358,12 +358,12 @@ pub fn wide(extra: usize) -> (TemporalSequenceSpec, EvidenceCatalog) {
 /// A known model whose two actions have three levels each, enumerated over
 /// independent exogenous variables (some ternary), with the fixture's structure.
 pub mod categorical {
+    use super::super::z_scm::diagram;
     use super::{
         A1, A2, B, EvidenceCatalog, ExactDiscreteLaw, ExactTransportData, InterventionAssignment,
         L1, L2, LawTolerance, RegimeId, ScenarioCoordinate, TemporalSequenceSpec, Value,
         VariableDomain, Y, catalog, coordinates, slots, v,
     };
-    use super::super::z_scm::diagram;
     use antecedent_expr::DiscreteAxis;
     /// Levels of each coordinate `b, l1, a1, l2, a2, y`.
     pub const LEVELS: [usize; 6] = [2, 2, 3, 2, 3, 2];
@@ -578,12 +578,12 @@ pub mod categorical {
 /// with its own period's `Y`. The baseline and `L@2` mechanisms differ between
 /// the populations.
 pub mod template {
+    use super::super::z_scm::Mechanism;
     use super::{
         DiscreteAxis, EvidenceCatalog, ExactDiscreteLaw, ExactTransportData,
         InterventionAssignment, LawTolerance, RegimeId, ScenarioCoordinate, TemporalSequenceSpec,
         Value, VariableDomain, VariableId, catalog_of, regime, v,
     };
-    use super::super::z_scm::Mechanism;
     use antecedent_core::Lag;
     use antecedent_graph::{DenseNodeId, SelectionDiagram, TemporalDag};
     use antecedent_identify::sid::temporal_sequence::{TemplateRoles, unroll_two_slice};

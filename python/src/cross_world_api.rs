@@ -30,7 +30,7 @@ fn refused(error: antecedent::CausalError, names: &[String]) -> PyErr {
     for i in 1..words.len() {
         if words[i - 1] == "variable" {
             if let Some(name) = words[i].parse::<usize>().ok().and_then(|k| names.get(k)) {
-                words[i] = name.clone();
+                words[i].clone_from(name);
             }
         }
     }

@@ -41,6 +41,7 @@ from ._native import (
 from ._native import (
     prepare_cells_batch as _prepare_cells_batch,
 )
+from ._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -538,11 +539,7 @@ def _panel_did_from_raw(
         ),
         support_status=(
             section.graphless_support_status
-            or (
-                "off_axis_interval_evidence"
-                if section.interval_95 is not None
-                else "unlicensed_point_utility"
-            )
+            or unset_panel_license(has_interval=section.interval_95 is not None)
         ),
         cohort=query.target_cohort if staggered else None,
         period=query.target_period if staggered else None,
@@ -919,10 +916,9 @@ def _continuous_dose_from_raw(raw: Any) -> ConditionalDoseResponseEstimate | Non
         fixed_policy=fixed_policy,
         support_status=(
             section.graphless_support_status
-            or (
-                "off_axis_pointwise_95"
-                if fixed_policy is not None and fixed_policy.incremental_interval_95 is not None
-                else "unlicensed_point_utility"
+            or unset_dose_license(
+                has_incremental_interval=fixed_policy is not None
+                and fixed_policy.incremental_interval_95 is not None
             )
         ),
         evaluation_method=(
@@ -955,14 +951,11 @@ def _policy_value_from_raw(raw: Any) -> DoublyRobustPolicyEvaluation | None:
         incremental_value_interval_95=section.incremental_interval_95,
         support_status=(
             section.graphless_support_status
-            or (
-                "off_axis_simultaneous_95"
-                if section.regret is not None
-                else "off_axis_pointwise_95"
-                if section.policy_interval_95 is not None
+            or unset_policy_license(
+                has_regret=section.regret is not None,
+                has_interval=section.policy_interval_95 is not None
                 or any(interval is not None for _, _, _, _, interval in section.uplift_bins)
-                or any(interval is not None for *_, interval in section.multi_action_cate)
-                else "unlicensed_point_utility"
+                or any(interval is not None for *_, interval in section.multi_action_cate),
             )
         ),
         prediction_ownership=section.prediction_ownership,
@@ -4647,6 +4640,7 @@ class PreparedAnalysis(Generic[ResultT]):
         deferred_suite: str | None = None,
         snapshot_data: Any = None,
         design_columns: dict[str, Any] | None = None,
+        named_design_columns: frozenset[str] = frozenset(),
     ) -> None:
         self._native = native
         self._kind = kind
@@ -4661,6 +4655,10 @@ class PreparedAnalysis(Generic[ResultT]):
         self._deferred_suite = deferred_suite
         self._snapshot_data = snapshot_data
         self._design_columns = design_columns
+        # Data columns the query named for its design inputs (see antecedent._columns).
+        # They were read and dropped at prepare; a later click drops them again so the
+        # same table can be passed back, but never re-reads the frozen design.
+        self._named_design_columns = named_design_columns
         self._seed = seed
         self._threads = threads
         self._controls = controls or _Controls()
@@ -4682,6 +4680,7 @@ class PreparedAnalysis(Generic[ResultT]):
             threads=self._threads,
             controls=self._controls,
             design_columns=self._design_columns,
+            named_design_columns=self._named_design_columns,
         )
 
     @property
@@ -4808,8 +4807,10 @@ class PreparedAnalysis(Generic[ResultT]):
         # A design-carrying query may name its row-aligned inputs by data column;
         # resolve those from the raw data (any dtype) and drop them before the numeric
         # ingest. No-op when the caller passed the arrays inline.
+        from ._columns import collect_column_names
         from ._columns import resolve_query as _resolve_query_columns
 
+        named_design_columns = frozenset(collect_column_names(query))
         query, data = _resolve_query_columns(query, data)
         if isinstance(query, Transport):
             if not isinstance(graph, Admg):
@@ -5154,6 +5155,7 @@ class PreparedAnalysis(Generic[ResultT]):
             deferred_suite=route.deferred_suite,
             snapshot_data=data if route.deferred_suite else None,
             design_columns=design_columns,
+            named_design_columns=named_design_columns,
         )
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
@@ -5393,6 +5395,9 @@ class PreparedAnalysis(Generic[ResultT]):
         return raw
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
+        from ._columns import drop_columns
+
+        data = drop_columns(data, self._named_design_columns)
         query = self._query
         if isinstance(query, ConditionalDoseResponse):
             names, columns, design = _continuous_dose_payload(data, query)
@@ -5758,7 +5763,9 @@ class PreparedAnalysis(Generic[ResultT]):
             )
         if isinstance(suite, Refute):
             suite = str(suite)
-        names, columns, arrow = _prepared_columns(data)
+        from ._columns import drop_columns
+
+        names, columns, arrow = _prepared_columns(drop_columns(data, self._named_design_columns))
         kwargs: dict[str, Any] = dict(
             seed=self._seed if seed is None else seed,
             threads=self._threads if threads is None else threads,

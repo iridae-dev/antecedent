@@ -430,7 +430,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **2.1.0**).
+Workspace and Python package version are kept in sync (currently **2.1.1**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -452,9 +452,12 @@ committing. The generator rewrites live licensed-cell markers only in
 
 ## Releases
 
-Keep the changelog's section for the version in preparation headed
-`## X.Y.Z — draft` until a cut is approved and its date is known. A package version bump is not proof that a release has been
-published.
+Head each changelog section with the bare version, `## X.Y.Z`. Do not add
+status markers such as `draft`, `unreleased`, or `in preparation` to the
+changelog, release notes, `SECURITY.md`, or other documentation: they are a
+manual step at the cut and get missed. Write release-neutral text that stays
+true once the version ships. The tag, not the document, records that a release
+was published; a package version bump is not proof of that.
 
 Before merging the release PR:
 
@@ -482,8 +485,8 @@ Before merging the release PR:
 7. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the changelog section for the version being cut is
-dated (`## X.Y.Z — <date>`, no longer `draft`), the release notes named by
+Before tagging, confirm the changelog has a `## X.Y.Z` section for the version
+being cut and no status markers anywhere, the release notes named by
 `docs/release-notes/preparation.toml` (or the workspace version) are current,
 the supported-versions table in `SECURITY.md` and the version in `CITATION.cff`
 name that version, and release-status text matches the cut. Coverage records must be attested at

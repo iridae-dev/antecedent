@@ -35,7 +35,8 @@ use crate::special::gamma_q;
 use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
 use crate::error::StatsError;
 
-/// G-squared conditional independence for discrete (integer-coded) columns.
+/// G-squared conditional independence for discrete columns (integer codes, or any finite
+/// category labels; see [`encode_categories`]).
 #[derive(Clone, Debug, Default)]
 pub struct GSquared;
 
@@ -85,15 +86,19 @@ impl ConditionalIndependenceTest for GSquared {
                     }
                     let n_perm = replicates.max(1) as usize;
                     let strata = discrete_strata(request.columns, z, n)?;
-                    let mut y_perm = request.columns[q.y].to_vec();
+                    // X codes and Z strata are invariant under a Y-only
+                    // permutation; only the Y codes change per replicate. The Y codes are
+                    // permuted as exact f64 images so the block permutation can move them.
+                    let xi = encode_categories(request.columns[q.x])?;
+                    let mut y_perm: Vec<f64> = encode_categories(request.columns[q.y])?
+                        .into_iter()
+                        .map(f64::from)
+                        .collect();
                     let mut rng = ctx.rng.stream_for(
                         StreamDomain::StatsCi,
                         0x65C0_u64 ^ query_stream_salt(&[q.x], &[q.y], z),
                     );
                     let mut null_ge = 0u32;
-                    // X codes and Z strata are invariant under a Y-only
-                    // permutation; only the Y codes change per replicate.
-                    let xi = encode_categories(request.columns[q.x])?;
                     let mut yi_perm: Vec<i32> = vec![0; n];
                     for _ in 0..n_perm {
                         if block_size > 1 {
@@ -106,8 +111,12 @@ impl ConditionalIndependenceTest for GSquared {
                                 }
                             }
                         }
+                        #[allow(
+                            clippy::cast_possible_truncation,
+                            reason = "y_perm holds exact f64 images of i32 codes"
+                        )]
                         for (code, value) in yi_perm.iter_mut().zip(&y_perm) {
-                            *code = category_code(*value)?;
+                            *code = *value as i32;
                         }
                         let (g_null, _) =
                             g_squared_from_parts(&xi, &yi_perm, &strata, workspace, policy)?;
@@ -156,30 +165,38 @@ pub(super) fn ensure_permutation_support<T: PartialEq + Copy>(
     })
 }
 
-/// Integer-code a discrete category. Non-finite values must not become a finite
-/// category (NaN/`±∞` as `i32` is a silent corruption that discovery would treat
-/// as a valid level).
-pub(super) fn category_code(v: f64) -> Result<i32, StatsError> {
-    if !v.is_finite() {
-        return Err(StatsError::Shape {
-            message: "G² category columns must be finite; non-finite values cannot be integer-coded",
-        });
-    }
-    let r = v.round();
-    if !(f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&r) {
-        return Err(StatsError::Shape {
-            message: "G² category columns must fit in a 32-bit integer code",
-        });
-    }
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "r is finite, integral and range-checked into i32 just above"
-    )]
-    Ok(r as i32)
-}
-
+/// Integer-code one category column.
+///
+/// A column whose values are all integers (within `1e-9`) that fit in `i32` keeps those
+/// integers as its codes. Any other finite column is a column of category labels: each distinct
+/// value is its own category, coded densely `0..k` in increasing value order, so `0.3` and `1.3`
+/// are two levels rather than being rounded together. Non-finite values are refused: NaN or
+/// `±∞` is not a category discovery could treat as a valid level.
 pub(super) fn encode_categories(col: &[f64]) -> Result<Vec<i32>, StatsError> {
-    col.iter().copied().map(category_code).collect()
+    if col.iter().any(|v| !v.is_finite()) {
+        return Err(StatsError::Shape {
+            message: "G² category columns must be finite; non-finite values cannot be category codes",
+        });
+    }
+    let fits = |r: f64| (f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&r);
+    if col.iter().all(|&v| (v - v.round()).abs() < 1e-9 && fits(v.round())) {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "every value is finite, integral and range-checked into i32 just above"
+        )]
+        return Ok(col.iter().map(|&v| v.round() as i32).collect());
+    }
+    let mut levels = col.to_vec();
+    levels.sort_by(f64::total_cmp);
+    levels.dedup();
+    col.iter()
+        .map(|v| {
+            let idx = levels.binary_search_by(|l| l.total_cmp(v)).unwrap_or(0);
+            i32::try_from(idx).map_err(|_| StatsError::Shape {
+                message: "G² category columns must have at most i32::MAX distinct levels",
+            })
+        })
+        .collect()
 }
 
 pub(super) fn ensure_finite_categories(
@@ -187,9 +204,7 @@ pub(super) fn ensure_finite_categories(
     idxs: impl IntoIterator<Item = usize>,
 ) -> Result<(), StatsError> {
     for idx in idxs {
-        for &v in columns[idx] {
-            category_code(v)?;
-        }
+        encode_categories(columns[idx])?;
     }
     Ok(())
 }
@@ -203,14 +218,16 @@ pub(super) fn discrete_strata(
     z: &[usize],
     n: usize,
 ) -> Result<Vec<Vec<usize>>, StatsError> {
+    let codes =
+        z.iter().map(|&zc| encode_categories(columns[zc])).collect::<Result<Vec<_>, _>>()?;
     let mut strata: HashMap<u64, Vec<usize>> = HashMap::new();
     for r in 0..n {
         let key = if z.is_empty() {
             0u64
         } else {
             let mut h = 0xcbf2_9ce4_8422_2325_u64;
-            for &zc in z {
-                let v = category_code(columns[zc][r])?;
+            for zc in &codes {
+                let v = zc[r];
                 h ^= u64::from(u32::from_ne_bytes(v.to_ne_bytes()));
                 h = h.wrapping_mul(0x0100_0000_01b3);
             }
@@ -549,6 +566,42 @@ mod tests {
             msg.contains("finite") || msg.contains("non-finite"),
             "expected non-finite refusal, got {msg}"
         );
+    }
+
+    /// Non-integer values are category labels: `0.3` and `1.3` are two levels, not both
+    /// rounded towards `0`/`1`, and the test matches the same table coded `0`/`1`. Integer
+    /// columns keep their own integer codes.
+    #[test]
+    fn gsq_treats_non_integer_values_as_category_labels() {
+        let x_labels: Vec<f64> = (0..80).map(|i| f64::from(i % 2) + 0.3).collect();
+        let x_coded: Vec<f64> = (0..80).map(|i| f64::from(i % 2)).collect();
+        let y: Vec<f64> =
+            (0..80).map(|i| f64::from(((i / 2) % 2) ^ (i % 2 * i32::from(i % 3 == 0)))).collect();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
+        let run = |x: &[f64]| {
+            let cols: [&[f64]; 2] = [x, &y];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &[],
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(6);
+            GSquared::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+        };
+        let labelled = run(&x_labels);
+        let coded = run(&x_coded);
+        assert_eq!(labelled.statistic.to_bits(), coded.statistic.to_bits());
+        assert_eq!(labelled.p_value.to_bits(), coded.p_value.to_bits());
+        assert_eq!(labelled.df.to_bits(), coded.df.to_bits());
+        assert!(coded.statistic > 0.0, "fixture should carry some X–Y association");
+
+        // 0.3 and 0.7 would both have rounded into 1 / 0 with 0.3 → 0: they are distinct now.
+        assert_eq!(encode_categories(&[0.7, 0.3, 1.3, 0.3]).unwrap(), vec![1, 0, 2, 0]);
+        assert_eq!(encode_categories(&[3.0 + 1e-12, -2.0, 7.0]).unwrap(), vec![3, -2, 7]);
+        assert!(encode_categories(&[0.5, f64::NAN]).is_err());
     }
 
     #[test]

@@ -88,8 +88,9 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_design_state.sh
   bash scripts/gate_upstream_names.sh
   # gate_response_calibration.sh and gate_estimate_reuse.sh only re-run tests
-  # from `cargo test --workspace`. The calibration script stays on the
-  # measurement surface; this job does not invoke it.
+  # from `cargo test --workspace`; scripts/gate_named_tests.sh in the Rust job
+  # checks their filters still select tests. The calibration script stays on
+  # the measurement surface; this job does not invoke it.
   bash scripts/gate_causal_artifacts.sh
   bash scripts/gate_composition.sh
   bash scripts/gate_transport.sh
@@ -294,8 +295,11 @@ if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
   base="${PR_BASE_SHA:-}"
   if [[ -z "$base" ]]; then
     echo "pull request base SHA is missing; running the criterion smoke" >&2
-  elif git diff --name-only "$base" HEAD | grep -Eq '(^|/)benches/' \
-    || git diff -U0 "$base" HEAD -- '*Cargo.toml' | grep -Eq '^[+-]\[\[bench\]\]'; then
+  elif ! changed_files="$(git diff --name-only "$base" HEAD)" \
+    || ! manifest_diff="$(git diff -U0 "$base" HEAD -- '*Cargo.toml')"; then
+    echo "git diff against the pull request base failed; running the criterion smoke" >&2
+  elif grep -Eq '(^|/)benches/' <<<"$changed_files" \
+    || grep -Eq '^[+-]\[\[bench\]\]' <<<"$manifest_diff"; then
     echo "== criterion smoke (bench files changed) =="
   else
     echo "== criterion smoke skipped (no bench file or [[bench]] change; main runs it) =="
@@ -305,11 +309,15 @@ else
   echo "== criterion smoke (every bench target of the workspace) =="
 fi
 if [[ "$run_criterion_smoke" -eq 1 ]]; then
-  if python3 scripts/bench_targets.py | awk '{print $1}' | grep -Eq '^(antecedent-py|antecedent-learn-burn)$'; then
+  bench_targets="$(python3 scripts/bench_targets.py)"
+  if awk '{print $1}' <<<"$bench_targets" | grep -Eq '^(antecedent-py|antecedent-learn-burn)$'; then
     echo "criterion smoke excludes a package that now has a bench target" >&2
     exit 1
   fi
-  cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn -- --test
+  # `--bench '*'` selects bench targets only: plain `cargo bench` and `--benches`
+  # also run every library's unit tests under the bench profile (lib is bench = true).
+  cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn \
+    --bench '*' -- --test
 fi
 
 if command -v cargo-deny >/dev/null 2>&1; then

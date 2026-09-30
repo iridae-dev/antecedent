@@ -77,8 +77,10 @@ tree learners are adapters.
 
 ## Consequences
 
-- New crate `antecedent-learn`; feature flags `ml-faer` (default), later
-  `ml-gbdt` / `ml-forest`.
+- New crate `antecedent-learn`. The first-party models build without a
+  feature flag (the `ml-faer` default flag first proposed here was later
+  removed); the tree adapters sit behind `ml-gbdt` / `ml-forest` (together
+  `ml-full`) and the CPU neural adapter behind `ml-neural`.
 - `antecedent-estimate` depends on `antecedent-learn` only when DML/DR
   bind (milestone G). A–C do not rewire AIPW.
 - Public APIs never expose foreign matrix types.

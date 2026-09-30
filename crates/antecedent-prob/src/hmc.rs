@@ -341,6 +341,25 @@ fn fit_hmc_impl(
     workspace: &mut LaplaceWorkspace,
     ctx: Option<&ExecutionContext>,
 ) -> Result<BayesFitResult, ProbError> {
+    // GLM targets read V0 at σ² ≡ 1, so an absolute-scale prior is already in
+    // their units; only a Gaussian target converts it with its residual variance.
+    if likelihood == BayesLikelihood::GaussianIdentity {
+        return crate::conjugate::fit_with_absolute_scale_resolved(design, prior, |prior| {
+            fit_hmc_resolved(likelihood, design, prior, fit_opts, hmc, workspace, ctx)
+        });
+    }
+    fit_hmc_resolved(likelihood, design, prior, fit_opts, hmc, workspace, ctx)
+}
+
+fn fit_hmc_resolved(
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'_>,
+    prior: &PriorSet,
+    fit_opts: &BayesFitOptions,
+    hmc: HmcOptions,
+    workspace: &mut LaplaceWorkspace,
+    ctx: Option<&ExecutionContext>,
+) -> Result<BayesFitResult, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
     validate_design(likelihood, design)?;

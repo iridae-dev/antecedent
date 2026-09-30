@@ -304,8 +304,8 @@ impl MultiSourceZTransportStage {
         );
         let inner = crate::detach_catch(py, move || {
             let ctx = execution_context(seed, memory_bytes, cancel);
-            let functional =
-                bind_mz_transport_catalog(&shared, &derivation, &catalog).map_err(decision_error)?;
+            let functional = bind_mz_transport_catalog(&shared, &derivation, &catalog)
+                .map_err(decision_error)?;
             let limits = ExactEvaluationLimits { operations: max_operations, depth: max_depth };
             let build = if empirical {
                 antecedent::StudyBuilder::mz_transport_empirical
@@ -343,10 +343,7 @@ impl MultiSourceZTransportStage {
 
     /// The decision in variable names and catalog regime ids.
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        to_py_json(
-            py,
-            &decision_json(&self.decision, &self.catalog, &self.graph.names),
-        )
+        to_py_json(py, &decision_json(&self.decision, &self.catalog, &self.graph.names))
     }
 
     /// Prepare exact-law evaluation of the identified formula for one request

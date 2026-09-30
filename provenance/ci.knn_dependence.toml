@@ -14,7 +14,7 @@ papers = []
 
 implementation_deviations = [
  "The statistic is −mean k-th NN Euclidean distance in the concatenated (X, Y, Z) features, not a mutual-information estimator.",
- "Conditional permutation shuffles Y within exact strata when Z has few distinct joint levels and otherwise within size-2 windows of rows ordered along standardised Z, not a full within-neighborhood conditional permutation scheme.",
+ "Conditional permutation shuffles Y within exact strata when Z has few distinct joint levels and otherwise, for a single continuous Z, within size-2 windows of rows sorted by Z, not a full within-neighborhood conditional permutation scheme. A continuous conditioning set of two or more variables is refused: no row grouping keeps near-Z rows close enough for the permutation null to hold Type I error.",
  "Block-preserving permutation is licensed only when Z is empty; with a conditioning set a requested block size is refused.",
  "Without an explicit replicate count the permutation null uses 49 draws, so the smallest attainable p-value is 0.02; discovery refuses an alpha the test cannot resolve.",
  "mixed_knn_dependence rank-transforms columns that look discrete, then runs the same test. That preprocessing is not a published mixed-data CI procedure.",

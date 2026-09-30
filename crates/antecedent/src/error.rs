@@ -307,6 +307,7 @@ impl From<AttributionError> for CausalError {
     fn from(error: AttributionError) -> Self {
         match error {
             AttributionError::Cancelled => Self::Cancelled { stage: STAGE_ATTRIBUTE },
+            AttributionError::Budget { .. } => Self::Resource { message: error.to_string() },
             other => Self::Attribution(other),
         }
     }
@@ -607,6 +608,19 @@ mod tests {
         assert!(
             matches!(error, CausalError::Cancelled { stage: "attribute" }),
             "expected top-level Cancelled, got {error:?}"
+        );
+        assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
+    }
+
+    #[test]
+    fn attribution_budget_is_a_top_level_resource_refusal() {
+        let error = CausalError::from(AttributionError::Budget {
+            message: "path enumeration truncated at max_paths=4 max_len=3".into(),
+        });
+        assert!(
+            matches!(&error, CausalError::Resource { message }
+                if message.contains("path enumeration truncated")),
+            "expected top-level Resource, got {error:?}"
         );
         assert!(error.blocker_id().is_some_and(|b| !b.scientific), "must be non-scientific");
     }

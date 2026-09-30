@@ -1111,18 +1111,20 @@ pub fn verify_contract_against_body(
         unresolved
             .push(Arc::from("dependencies.checked_temporal_graph_posterior_effect_operation"));
     }
-    if contract.estimator.as_deref() == Some("functional.distribution")
-        && body.interventional_distribution.is_none()
-    {
+    if is_functional_distribution_contract(contract) && body.interventional_distribution.is_none() {
         // Pre-atom artifacts remain decodable, but cannot independently verify
         // the distribution that produced the scalar summary.
+        unresolved.push(Arc::from("body.interventional_distribution"));
+    } else if crate::analysis_result_artifact::validate_interventional_distribution(body).is_err() {
+        // Decoding already refuses such bodies; a caller verifying an
+        // in-memory body must see the same refusal.
         unresolved.push(Arc::from("body.interventional_distribution"));
     }
     let factor_laws = contract
         .data_snapshot
         .as_ref()
         .and_then(|snapshot| snapshot.distribution_factor_laws.as_ref());
-    let posterior_distribution = contract.estimator.as_deref() == Some("functional.distribution")
+    let posterior_distribution = is_functional_distribution_contract(contract)
         && (contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
         }) || contract
@@ -1150,7 +1152,7 @@ pub fn verify_contract_against_body(
         // identity. Empirical marginal laws cannot replay their weights.
         unresolved.push(Arc::from("dependencies.distribution_posterior_factor_draws"));
     }
-    if contract.estimator.as_deref() == Some("functional.distribution") && factor_laws.is_none() {
+    if is_functional_distribution_contract(contract) && factor_laws.is_none() {
         // The checked expression proves what to evaluate, while the data snapshot
         // only carries partition digests. Without portable factor laws a detached
         // consumer cannot recompute the atom probabilities.
@@ -1222,7 +1224,7 @@ pub fn verify_contract_against_body(
     if body.identification.query != body.query {
         unresolved.push(Arc::from("body.identification.query"));
     }
-    if contract.estimator.as_deref() == Some("functional.distribution") && !posterior_distribution {
+    if is_functional_distribution_contract(contract) && !posterior_distribution {
         match (
             body.interventional_distribution.as_ref(),
             contract.program.as_ref().and_then(|program| program.functional_program.as_ref()),
@@ -1322,7 +1324,7 @@ pub fn verify_contract_against_body(
     } else if contract.identities.identification_product.is_some() {
         unresolved.push(Arc::from("identities.identification_product"));
     }
-    if contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
+    if contract_uses_estimator(contract, "frontdoor.linear_two_stage")
         && !body.assumptions.iter().any(|assumption| {
             matches!(&assumption.assumption,
                 crate::trace::AssumptionTagWire::ParametricRestriction { id, .. }
@@ -1438,7 +1440,7 @@ fn producer_encoding_unresolved(
     });
     // Preserve portable structural artifacts while making the missing replay
     // input explicit to independent consumers.
-    if contract.estimator.as_deref() == Some("functional.distribution") {
+    if is_functional_distribution_contract(contract) {
         unresolved.retain(|key| key.as_ref() != "dependencies.distribution_factor_laws");
         unresolved.retain(|key| key.as_ref() != "dependencies.distribution_posterior_factor_draws");
     }
@@ -1461,7 +1463,7 @@ fn producer_encoding_unresolved(
     {
         unresolved.retain(|key| key.as_ref() != "dependencies.linear_fit_sufficient_statistics");
     }
-    if contract.estimator.as_deref() == Some("aipw") && contract.program.is_some() {
+    if is_aipw_contract(contract) && contract.program.is_some() {
         if contract.program.as_ref().is_some_and(|program| program.checked_aipw_lowering.is_none())
         {
             unresolved.retain(|key| key.as_ref() != "program.checked_aipw_lowering");
@@ -1652,14 +1654,14 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         .as_ref()
         .and_then(|item| item.functional_program.as_ref())
         .filter(|_| !graph_posterior_functional_effect);
-    let posterior_distribution = contract.estimator.as_deref() == Some("functional.distribution")
+    let posterior_distribution = is_functional_distribution_contract(contract)
         && (contract.program.as_ref().is_some_and(|program| {
             program.commitments.inference == "bayesian" || program.commitments.prior_required
         }) || contract
             .inference_binding
             .as_ref()
             .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
-    if contract.estimator.as_deref() == Some("functional.distribution")
+    if is_functional_distribution_contract(contract)
         && functional.is_none()
         && !posterior_distribution
     {
@@ -1675,7 +1677,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
     }
     if let Some(program) = functional.filter(|_| {
         !posterior_distribution
-            && (contract.estimator.as_deref() == Some("functional.distribution")
+            && (is_functional_distribution_contract(contract)
                 || is_scalar_functional_effect_contract(contract))
     }) {
         if crate::functional_program_from_wire(program, antecedent_expr::ProgramLimits::default())
@@ -1699,7 +1701,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
                         .iter()
                         .any(|estimand| estimand.functional == program.source)
             });
-        let distribution_binding = contract.estimator.as_deref() == Some("functional.distribution")
+        let distribution_binding = is_functional_distribution_contract(contract)
             && matches!(contract.target.query, crate::CausalQueryWire::Distribution(_));
         let effect_method = match &contract.target.query {
             crate::CausalQueryWire::AverageEffect { .. } => Some("general.id"),
@@ -1723,14 +1725,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
     }
     let frontdoor =
         contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
-    if (contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
-        || contract
-            .program
-            .as_ref()
-            .and_then(|item| item.commitments.resolved_estimator.as_deref())
-            == Some("frontdoor.linear_two_stage"))
-        && frontdoor.is_none()
-    {
+    if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
         unresolved.push(Arc::from("program.checked_frontdoor_lowering"));
     }
     if let Some(frontdoor) = frontdoor {
@@ -1820,11 +1815,24 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
     unresolved
 }
 
-fn is_functional_effect_estimator_contract(contract: &AnalysisResultContractWire) -> bool {
-    contract.estimator.as_deref() == Some("functional.effect")
+/// Whether the contract advertises `estimator` or its program resolved to it.
+///
+/// Studies built without an explicit estimator leave `contract.estimator`
+/// unset and commit the resolver's choice only in the program, so every
+/// estimator-specific verification gate must consult both.
+fn contract_uses_estimator(contract: &AnalysisResultContractWire, estimator: &str) -> bool {
+    contract.estimator.as_deref() == Some(estimator)
         || contract.program.as_ref().is_some_and(|program| {
-            program.commitments.resolved_estimator.as_deref() == Some("functional.effect")
+            program.commitments.resolved_estimator.as_deref() == Some(estimator)
         })
+}
+
+fn is_functional_effect_estimator_contract(contract: &AnalysisResultContractWire) -> bool {
+    contract_uses_estimator(contract, "functional.effect")
+}
+
+fn is_functional_distribution_contract(contract: &AnalysisResultContractWire) -> bool {
+    contract_uses_estimator(contract, "functional.distribution")
 }
 
 fn verify_nested_counterfactual_result(
@@ -2472,11 +2480,14 @@ fn verify_checked_iv(
             ),
             _ => return false,
         };
-    let expected_procedure = match contract.estimator.as_deref() {
-        Some("iv.wald") => "wald",
-        Some("iv.2sls") => "two_stage_least_squares",
-        _ => return false,
-    };
+    // An undeclared estimator defers to the program's resolved choice; the
+    // commitment check below still requires the two to agree.
+    let expected_procedure =
+        match contract.estimator.as_deref().or(program.commitments.resolved_estimator.as_deref()) {
+            Some("iv.wald") => "wald",
+            Some("iv.2sls") => "two_stage_least_squares",
+            _ => return false,
+        };
     let expected_weak_uncertainty = match lowering.se_kind.as_str() {
         "homoskedastic" => "anderson_rubin_if_weak",
         "hc0" | "hc1" | "hc2" | "hc3" | "cluster" | "multiway" | "newey_west"
@@ -2624,7 +2635,7 @@ fn verify_frontdoor_lowering(
         && lowering_matches_frontdoor
         && lowering.format == 1
         && lowering.procedure == "linear_path_product"
-        && contract.estimator.as_deref() == Some("frontdoor.linear_two_stage")
+        && matches!(contract.estimator.as_deref(), None | Some("frontdoor.linear_two_stage"))
         && program.commitments.resolved_estimator.as_deref() == Some("frontdoor.linear_two_stage")
         && uncertainty_matches
         && overlap_matches
@@ -2799,7 +2810,7 @@ fn checked_aipw_lowering_well_formed(lowering: &CheckedAipwLoweringWire) -> bool
 fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
     let lowering =
         contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
-    if contract.estimator.as_deref() == Some("aipw") && lowering.is_none() {
+    if is_aipw_contract(contract) && lowering.is_none() {
         unresolved.push(Arc::from("program.checked_aipw_lowering"));
         return;
     }
@@ -2904,7 +2915,7 @@ fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &
         return;
     }
     let Some(row_binding) = row_binding else {
-        if contract.estimator.as_deref() == Some("aipw")
+        if is_aipw_contract(contract)
             || contract
                 .program
                 .as_ref()
@@ -2937,10 +2948,7 @@ fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &
 /// estimator or the planner resolved it (a tiered closure resolves to AIPW
 /// without a declaration).
 fn is_aipw_contract(contract: &AnalysisResultContractWire) -> bool {
-    contract.estimator.as_deref() == Some("aipw")
-        || contract.program.as_ref().is_some_and(|program| {
-            program.commitments.resolved_estimator.as_deref() == Some("aipw")
-        })
+    contract_uses_estimator(contract, "aipw")
 }
 
 /// Score-reuse layer: present with its digest, fitted on this snapshot, and
@@ -3228,12 +3236,22 @@ pub fn validate_mixture_masses(
     unevaluable: f64,
     incomplete_search: f64,
 ) -> Result<(), IoError> {
-    let masses = [identified, unidentified, unevaluable, incomplete_search];
+    validate_mixture_masses_within(
+        [identified, unidentified, unevaluable, incomplete_search],
+        1e-12,
+    )
+}
+
+/// [`validate_mixture_masses`] with an explicit sum tolerance.
+pub(crate) fn validate_mixture_masses_within(
+    masses: [f64; 4],
+    tolerance: f64,
+) -> Result<(), IoError> {
     if masses.iter().any(|mass| !mass.is_finite() || *mass < 0.0 || *mass > 1.0) {
         return Err(IoError::Convert("mixture masses must be finite and inside [0, 1]".into()));
     }
-    let sum = identified + unidentified + unevaluable + incomplete_search;
-    if (sum - 1.0).abs() > 1e-12 {
+    let sum: f64 = masses.iter().sum();
+    if (sum - 1.0).abs() > tolerance {
         return Err(IoError::Convert(format!("mixture masses must sum to 1 (got {sum})")));
     }
     Ok(())
@@ -4257,6 +4275,7 @@ mod tests {
         assert_ne!(proj_zero.value, serde_json::Value::String("unknown".into()));
 
         body.estimate = None;
+        body.standard_error = None;
         let mut absent = contract_for(target.clone(), &body);
         if let Some(claim) = absent.claim.as_mut() {
             claim.value_bits = None;
@@ -4471,6 +4490,33 @@ mod tests {
                 .iter()
                 .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
         );
+    }
+
+    #[test]
+    fn resolved_only_aipw_contract_requires_checked_lowering_and_rows() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        contract.estimator = None;
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = None;
+        program.commitments.resolved_estimator = Some("aipw".into());
+        contract.claim = None;
+        contract.execution = None;
+        contract.identities.execution = None;
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        seal_claim(&mut contract, &body);
+
+        let bytes = to_bytes(&body, names, Some(&contract));
+        let consumed = consume_analysis_result(&bytes).unwrap();
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        for key in ["program.checked_aipw_lowering", "checked_aipw.row_binding"] {
+            assert!(
+                consumed.acceptance.unresolved.iter().any(|reason| reason.as_ref() == key),
+                "{key} missing from {:?}",
+                consumed.acceptance.unresolved
+            );
+        }
     }
 
     #[test]

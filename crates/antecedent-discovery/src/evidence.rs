@@ -45,9 +45,7 @@ pub fn threshold_scored_links(
             let mut family_idx = Vec::new();
             let mut family_p = Vec::new();
             for (i, link) in scored.iter().enumerate() {
-                let contemp = link.link.source_lag.is_contemporaneous()
-                    && link.link.target_lag.is_contemporaneous();
-                if cfg.exclude_contemporaneous && contemp {
+                if !in_fdr_family(link, cfg) {
                     continue;
                 }
                 family_idx.push(i);
@@ -63,6 +61,19 @@ pub fn threshold_scored_links(
     }
     scored.retain(|s| s.adjusted_p_value.unwrap_or(s.p_value) <= alpha);
     scored
+}
+
+/// Whether `link` enters the correction family of [`threshold_scored_links`].
+fn in_fdr_family(link: &ScoredLink, cfg: FdrAdjustment) -> bool {
+    let contemp =
+        link.link.source_lag.is_contemporaneous() && link.link.target_lag.is_contemporaneous();
+    !(cfg.exclude_contemporaneous && contemp)
+}
+
+/// Size of the correction family [`threshold_scored_links`] adjusts over (0 when `fdr` is off).
+#[must_use]
+pub(crate) fn fdr_family_size(scored: &[ScoredLink], fdr: Option<FdrAdjustment>) -> usize {
+    fdr.map_or(0, |cfg| scored.iter().filter(|l| in_fdr_family(l, cfg)).count())
 }
 
 /// FDR over **edges**, then drop any surviving edge whose adjusted p exceeds `alpha`.

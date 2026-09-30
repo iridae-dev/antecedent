@@ -658,6 +658,11 @@ fn contract_to_map(
     );
     if let Some(status) = contract.support_status {
         out.insert("matrix_status".into(), status.as_str().to_string());
+    } else if let Some(support) = contract.reasoning.support.as_ref() {
+        // Graphless families leave the license enum unset and record `off_axis`
+        // on the support slot. The sealed artifact already publishes that
+        // string; the live contract has to carry the same one.
+        out.insert("matrix_status".into(), support.matrix_status.to_string());
     }
     if let Some(support) = contract.reasoning.support.as_ref() {
         if let Some(coordinate) = &support.matrix_coordinate {
@@ -4637,70 +4642,13 @@ impl PyPreparedAnalysis {
             artifact.write_to(&mut bytes).map_err(py_err)?;
             bytes
         } else if result.mediation.is_some() || result.counterfactual.is_some() {
-            let (control_level, active_level) = match self.inner.query() {
-                CausalQuery::Mediation(q) => (hard_value(&q.control), hard_value(&q.active)),
-                CausalQuery::Counterfactual(q) => {
-                    (hard_value(&q.control), q.interventions.first().and_then(hard_value))
-                }
-                CausalQuery::NestedCounterfactual(q) => {
-                    (Some(q.control_value()), Some(q.active_value()))
-                }
-                _ => unreachable!(),
-            };
-            let published = antecedent::PublishedScalarUncertainty::select(&result.estimate);
-            let wire = antecedent_io::StaticResultWire {
-                identification: antecedent_io::identification_to_wire_with_registry(
-                    &result.identification,
-                    self.inner.population_registry(),
-                )
-                .map_err(py_err)?,
-                estimate: result.estimate.ate,
-                standard_error: published.standard_error,
-                interval_lower: published.lower,
-                interval_upper: published.upper,
-                assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
-                support: result
-                    .support_diagnostics()
-                    .map(antecedent_io::diagnostic_to_wire)
-                    .collect(),
-                diagnostics: result
-                    .diagnostics
-                    .iter()
-                    .map(antecedent_io::diagnostic_to_wire)
-                    .collect(),
-                refutations: result
-                    .refutations
-                    .iter()
-                    .map(antecedent_io::refutation_to_wire)
-                    .collect(),
-                unit_effects: result.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
-                unit_extrapolative: result
-                    .counterfactual
-                    .as_ref()
-                    .and_then(|c| c.unit_extrapolative.as_ref())
-                    .map(|flags| flags.to_vec()),
-                mediation: result
-                    .mediation
-                    .as_ref()
-                    .map(|m| {
-                        Ok::<_, PyErr>([
-                            m.total.ok_or_else(|| {
-                                PyValueError::new_err("mediation total is unavailable")
-                            })?,
-                            m.direct.ok_or_else(|| {
-                                PyValueError::new_err("mediation direct is unavailable")
-                            })?,
-                            m.mediated.ok_or_else(|| {
-                                PyValueError::new_err("mediation mediated is unavailable")
-                            })?,
-                        ])
-                    })
-                    .transpose()?,
-                control_level: control_level
-                    .ok_or_else(|| PyValueError::new_err("missing control"))?,
-                active_level: active_level
-                    .ok_or_else(|| PyValueError::new_err("missing active"))?,
-            };
+            let wire = result
+                .static_result_wire(self.inner.query(), self.inner.population_registry())
+                .map_err(|e| match e {
+                    // An incomplete payload stays the ValueError it always was.
+                    antecedent::CausalError::Compile { message } => PyValueError::new_err(message),
+                    other => py_err(other),
+                })?;
             let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));
             let artifact = antecedent_io::encode_causal_payload_artifact(
                 &payload,
@@ -4961,13 +4909,6 @@ fn extract_temporal_class(
         Ok(Some(TemporalClassGraph::Pag(g.pag)))
     } else {
         Err(PyValueError::new_err("class_graph requires TemporalCpdag or TemporalPag"))
-    }
-}
-
-fn hard_value(intervention: &Intervention) -> Option<f64> {
-    match intervention {
-        Intervention::Set { value, .. } => value.as_f64(),
-        _ => None,
     }
 }
 

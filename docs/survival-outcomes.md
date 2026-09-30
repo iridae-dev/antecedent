@@ -1,4 +1,4 @@
-# Survival outcomes: current 2.1.0 slice
+# Survival outcomes
 
 Survival outcomes are an explicitly limited point-estimation slice for
 two-arm, individually randomized studies with right-censored follow-up. The

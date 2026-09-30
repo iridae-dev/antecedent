@@ -2757,7 +2757,10 @@ mod tests {
                     );
                 }
             }
-            let data = ExactTransportData::try_new(laws, 4096).unwrap().with_world_bound_leaves();
+            // Every study is cited: each leaf selects its law by world among them.
+            let cited = regimes.iter().map(|regime| regime.id).collect::<Vec<_>>();
+            let data =
+                ExactTransportData::try_new(laws, 4096).unwrap().with_world_bound_leaves(cited);
             let catalog = EvidenceCatalog::try_new(
                 [],
                 regimes.clone(),

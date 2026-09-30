@@ -165,6 +165,10 @@ fn apply_orient_collider<G: PagOps>(
                     continue; // shielded
                 }
                 let Some(sep) = state.sepset(a, c) else {
+                    // No separating set (e.g. a background-forbidden pair that was never
+                    // tested): collider status unknown, so later rules must not read the
+                    // triple as a definite non-collider.
+                    state.mark_ambiguous_triple(a, b, c);
                     continue;
                 };
                 if sep.iter().any(|&z| z == b) {
@@ -207,7 +211,7 @@ fn apply_r1<G: PagOps>(
                 continue;
             }
             for &c in &nbrs {
-                if c == a || graph.has_edge(a, c) {
+                if c == a || graph.has_edge(a, c) || state.is_ambiguous_triple(a, b, c) {
                     continue;
                 }
                 let Some((at_b_bc, _)) = marks_between(graph, b, c) else {
@@ -315,7 +319,8 @@ fn apply_r3<G: PagOps>(
                 // Find θ = d with circles at θ on θ—a and θ—c, and circle at b on θ—b.
                 for j in 0..n {
                     let d = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
-                    if d == a || d == b || d == c {
+                    // The circles at θ stand for a definite non-collider a *–o θ o–* c.
+                    if d == a || d == b || d == c || state.is_ambiguous_triple(a, d, c) {
                         continue;
                     }
                     let Some((_, at_d_ad)) = marks_between(graph, a, d) else {
@@ -513,11 +518,32 @@ fn apply_r8<G: PagOps>(
     Ok(delta)
 }
 
+/// Per-search bounds on the uncovered potentially-directed path enumeration of R9 / R10.
+const PD_PATH_MAX_PATHS: usize = 8;
+/// Maximum path length (nodes) for the R9 / R10 enumeration.
+const PD_PATH_MAX_LEN: usize = 8;
+
+/// Diagnostic for edges R9 / R10 left open because their path search ran out of budget.
+#[must_use]
+pub(crate) fn pd_path_budget_diagnostic(
+    state: &OrientationState,
+    algorithm: &str,
+) -> Option<crate::result::DiscoveryDiagnostic> {
+    (!state.pd_path_skipped.is_empty()).then(|| crate::result::DiscoveryDiagnostic {
+        code: std::sync::Arc::from(format!("{algorithm}.pd_path_budget")),
+        message: std::sync::Arc::from(format!(
+            "R9/R10 uncovered potentially-directed path search exceeded {PD_PATH_MAX_PATHS} \
+             paths of up to {PD_PATH_MAX_LEN} nodes on {} edge(s) without finding a licensing \
+             path; their circle marks were left unresolved (sound, possibly incomplete)",
+            state.pd_path_skipped.len()
+        )),
+    })
+}
+
 fn apply_r9<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
-    rule_id: &'static str,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
     let focus = focus_nodes(graph.node_count(), queue);
@@ -554,19 +580,23 @@ fn apply_r9<G: PagOps>(
                     EndpointPattern::circle_arrow(),
                     EndpointPattern::directed(),
                 ];
-                let (paths, truncated) =
-                    uncovered_pd_paths_with_budget(graph, b1, c, &initial, 8, 8);
-                if truncated {
-                    return Err(OrientationError::SearchBudgetExhausted {
-                        rule: rule_id,
-                        max_paths: 8,
-                        max_len: 8,
-                    });
-                }
+                let (paths, truncated) = uncovered_pd_paths_with_budget(
+                    graph,
+                    b1,
+                    c,
+                    &initial,
+                    PD_PATH_MAX_PATHS,
+                    PD_PATH_MAX_LEN,
+                );
                 let qualifies = paths.iter().any(|path| {
                     path.len() >= 3 && !path.contains(&a) && !graph.has_edge(a, path[1])
                 });
                 if !qualifies {
+                    // Any path found licenses the orientation; a truncated search that found
+                    // none cannot rule one out, so the edge is left open and recorded.
+                    if truncated {
+                        state.pd_path_skipped.insert((a.raw(), c.raw()));
+                    }
                     continue;
                 }
                 if set_marks_oriented(
@@ -594,7 +624,6 @@ fn apply_r10<G: PagOps>(
     graph: &mut G,
     state: &mut OrientationState,
     queue: &mut OrientationQueue,
-    rule_id: &'static str,
 ) -> Result<RuleDelta, OrientationError> {
     let mut delta = RuleDelta::default();
     let focus = focus_nodes(graph.node_count(), queue);
@@ -622,19 +651,20 @@ fn apply_r10<G: PagOps>(
         for &a in &o_arrow_into {
             // Need two distinct parents (≠ a) with node-disjoint uncovered PD paths from a.
             let mut path_for_parent: Vec<(DenseNodeId, Vec<DenseNodeId>)> = Vec::new();
+            let mut any_truncated = false;
             for &p in &parents_into {
                 if p == a {
                     continue;
                 }
-                let (paths, truncated) =
-                    uncovered_pd_paths_with_budget(graph, a, p, &initial, 8, 8);
-                if truncated {
-                    return Err(OrientationError::SearchBudgetExhausted {
-                        rule: rule_id,
-                        max_paths: 8,
-                        max_len: 8,
-                    });
-                }
+                let (paths, truncated) = uncovered_pd_paths_with_budget(
+                    graph,
+                    a,
+                    p,
+                    &initial,
+                    PD_PATH_MAX_PATHS,
+                    PD_PATH_MAX_LEN,
+                );
+                any_truncated |= truncated;
                 if let Some(path) = paths.into_iter().find(|p| p.len() >= 3 && !p.contains(&c)) {
                     path_for_parent.push((p, path));
                 }
@@ -665,6 +695,11 @@ fn apply_r10<G: PagOps>(
                 }
             }
             if !found_pair {
+                // A pair found within budget licenses the orientation; without one, a
+                // truncated search cannot rule one out, so the edge is left open and recorded.
+                if any_truncated {
+                    state.pd_path_skipped.insert((a.raw(), c.raw()));
+                }
                 continue;
             }
             if set_marks_oriented(graph, state, &mut delta, a, c, Endpoint::Tail, Endpoint::Arrow)?
@@ -918,7 +953,7 @@ impl FciOrientationRule for LpcmciR9 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_r9(graph, state, queue, "fci.r9")
+        apply_r9(graph, state, queue)
     }
 }
 
@@ -933,7 +968,7 @@ impl LpcmciOrientationRule for LpcmciR9 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_r9(graph, state, queue, "lpcmci.r9")
+        apply_r9(graph, state, queue)
     }
 }
 
@@ -944,6 +979,15 @@ impl LpcmciOrientationRule for LpcmciR9 {
 /// A single path into one parent is not sufficient (R10′, generalized from Zhang
 /// 2008's unprimed R10 by Gerhardus & Runge 2020); the prior one-path rule could
 /// over-orient.
+///
+/// Incomplete by construction (sound, may leave circles R10′ would orient):
+/// - paths of two nodes are excluded (`p.len() >= 3`), so the case where the parent is
+///   itself the first node after `a` (μ = β in Zhang's notation) is never used;
+/// - only the first qualifying path per parent is kept, so a pair that is node-disjoint
+///   only through a later path is missed;
+/// - the path enumeration is bounded (8 paths of up to 8 nodes per parent); an edge whose
+///   search runs out without a licensing pair is left open and reported as
+///   `<algorithm>.pd_path_budget` rather than failing the run.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR10;
 
@@ -958,7 +1002,7 @@ impl FciOrientationRule for LpcmciR10 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_r10(graph, state, queue, "fci.r10")
+        apply_r10(graph, state, queue)
     }
 }
 
@@ -973,7 +1017,7 @@ impl LpcmciOrientationRule for LpcmciR10 {
         state: &mut OrientationState,
         queue: &mut OrientationQueue,
     ) -> Result<RuleDelta, OrientationError> {
-        apply_r10(graph, state, queue, "lpcmci.r10")
+        apply_r10(graph, state, queue)
     }
 }
 

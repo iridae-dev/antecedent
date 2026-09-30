@@ -1107,7 +1107,7 @@ impl LinearAdjustmentAte {
                 Ok((se_coef, Some(influence)))
             }
             FitVariance::Ridge { lambda } => {
-                let bread = ridge_gram_inverse(x, nrows, ncols, *lambda);
+                let bread = ridge_gram_inverse(x, nrows, ncols, *lambda)?;
                 let influence = treatment_coef_influence(
                     x,
                     nrows,

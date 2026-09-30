@@ -1142,9 +1142,10 @@ impl ObservationMechanismEstimator {
         let transformed: Vec<f64> =
             observed.iter().map(|&value| if reverse { -value } else { value }).collect();
         // Marginal (`n_cov == 0`) and conditional (Cox) IPCW both report zero weight for
-        // censored rows and, for the marginal path, whether the censoring survival reached
-        // the positivity floor within the follow-up — the tell that the tail beyond that
-        // point cannot be identified from these data (see `KaplanMeierIpcw`).
+        // censored rows and whether the marginal censoring survival reached the positivity
+        // floor within the follow-up — the tell that the tail beyond that point cannot be
+        // identified from these data (see `KaplanMeierIpcw`). Covariates cannot recover
+        // it: every unit still at risk at that boundary was censored.
         let (weights, tail_restriction_transformed) = if n_cov == 0 {
             let fit = kaplan_meier_ipcw(
                 &transformed,
@@ -1161,7 +1162,12 @@ impl ObservationMechanismEstimator {
                 n_cov,
                 self.options.censoring_survival_floor,
             )?;
-            (fit.weights, None)
+            let tail = antecedent_stats::censoring_tail_restriction(
+                &transformed,
+                event,
+                self.options.censoring_survival_floor,
+            )?;
+            (fit.weights, tail)
         };
         // A left-censoring correction reverses the sign before fitting, so a transformed-
         // scale boundary `tau` (unidentified for `transformed >= tau`, i.e. `-observed >=
@@ -1818,6 +1824,31 @@ mod tests {
         // more than 0.5, so silently reporting one as the other would be a materially wrong
         // answer, not rounding noise.
         assert!((restricted_mean - true_unrestricted_mean).abs() > 0.5);
+    }
+
+    #[test]
+    fn administrative_censoring_flags_the_cox_ipcw_mean_as_restricted() {
+        // Y ~ Exp(1) on a deterministic quantile grid, administratively censored at C = 1,
+        // with a covariate that does not drive censoring. E[Y] = 1 is not identified past
+        // C; the covariate-adjusted (Cox) correction must say so like the marginal one.
+        let n = 60usize;
+        let latent: Vec<f64> = (0..n).map(|i| -(1.0 - (i as f64 + 0.5) / n as f64).ln()).collect();
+        let observed: Vec<f64> = latent.iter().map(|&y| y.min(1.0)).collect();
+        let censoring = vec![1.0; n];
+        let event: Vec<f64> = latent.iter().map(|&y| if y < 1.0 { 1.0 } else { 0.0 }).collect();
+        let covariate: Vec<f64> = (0..n).map(|i| ((i * 7) % 11) as f64 / 11.0).collect();
+
+        let adjusted = ObservationMechanismEstimator::default()
+            .censored_from_columns(&observed, &censoring, &event, &covariate, 1, None, false)
+            .unwrap();
+        assert_eq!(adjusted.method.as_ref(), "observation.right_censored.cox_ipcw.v1");
+        assert_eq!(adjusted.tail_restriction, Some(1.0));
+        let mean = adjusted.values.iter().sum::<f64>() / n as f64;
+        // Uncensored rows carry unit weight (no censoring precedes them), so the result is
+        // the restricted mean E[Y · 1{Y < 1}] of the grid, far from E[Y] = 1.
+        let restricted: f64 = latent.iter().filter(|&&y| y < 1.0).sum::<f64>() / n as f64;
+        assert!((mean - restricted).abs() < 1e-9, "{mean} vs {restricted}");
+        assert!((mean - 1.0).abs() > 0.5);
     }
 
     #[test]

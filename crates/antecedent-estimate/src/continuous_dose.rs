@@ -249,7 +249,7 @@ pub struct DoseResponsePoint {
     pub local_outcome_sd: f64,
 }
 
-/// Evaluate a local triangular-kernel response for every group and target.
+/// Evaluate a local Epanechnikov-kernel response for every group and target.
 ///
 /// The density is supplied by the caller; this function does not fit or
 /// authenticate it. Every group-target cell must have the requested support.
@@ -358,12 +358,8 @@ mod policy_tests {
     )]
     use super::*;
 
-    fn uniform(mut state: u64) -> f64 {
-        state ^= state >> 30;
-        state = state.wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        state ^= state >> 27;
-        state = state.wrapping_mul(0x94D0_49BB_1331_11EB);
-        ((state ^ (state >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    fn uniform(state: u64) -> f64 {
+        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
     }
 
     #[test]

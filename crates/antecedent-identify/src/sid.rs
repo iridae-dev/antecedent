@@ -44,10 +44,10 @@ pub use mixed_source::{
 pub use mz_transport::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MZ_TRANSPORT_MEMORY_BYTES, MzSearchInspection, mz_transport_refusal, MzSearchRecord, MzStageRecord,
-    MzTransportDecision, MzTransportDerivation,
-    MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery, MzTransportRoute,
-    ValidatedMzTransportQuery, bind_mz_transport_catalog, decide_mz_transport,
+    MZ_TRANSPORT_MEMORY_BYTES, MzSearchInspection, MzSearchRecord, MzStageRecord,
+    MzTransportDecision, MzTransportDerivation, MzTransportDerivationRecord,
+    MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
+    bind_mz_transport_catalog, decide_mz_transport, mz_transport_refusal,
     validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use z_transport::{
@@ -61,8 +61,9 @@ pub use z_transport::{
     ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportSourceSpec,
     ZTransportTerminalRecord, bind_z_transport_catalog, decide_two_source_z_transport,
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_z_transport,
-    identify_z_transport_reporting, validate_z_experiment_family, validate_z_transport_query,
-    verify_z_transport_derivation, verify_z_transport_obstruction,
+    identify_z_transport_reporting, intervention_ancestral_treatments,
+    intervention_levels_conflict, intervention_mutilated_admg, validate_z_experiment_family,
+    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 
 /// Theoretical query under the classical family of all source experiments.

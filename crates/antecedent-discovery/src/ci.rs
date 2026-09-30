@@ -40,6 +40,39 @@ pub fn ensure_ci_decisions_meaningful(
     Ok(())
 }
 
+/// Diagnostic for a multiple-testing family finer than the CI test can resolve.
+///
+/// Benjamini–Hochberg (and Holm / Bonferroni) keep the smallest p-value only when it is at most
+/// `alpha / m` for a family of `m` hypotheses. A permutation test cannot report a p-value below
+/// its floor, so when that floor exceeds `alpha / m` a lone dependent link cannot survive: at
+/// least `ceil(m · floor / alpha)` links must reach the floor together. Sparse graphs then come
+/// back empty, which reads as evidence of independence. The run is not refused — dense graphs
+/// can still clear the bar — but the result says so.
+#[must_use]
+pub(crate) fn fdr_resolution_diagnostic(
+    ci: &dyn ConditionalIndependence,
+    significance: SignificanceMethod,
+    alpha: f64,
+    family_size: usize,
+) -> Option<crate::result::DiscoveryDiagnostic> {
+    let floor = ci.min_attainable_p(significance);
+    if family_size < 2 || floor <= alpha / family_size as f64 || !floor.is_finite() {
+        return None;
+    }
+    let needed = (family_size as f64 * floor / alpha).ceil();
+    let replicates = (family_size as f64 / alpha).ceil() - 1.0;
+    Some(crate::result::DiscoveryDiagnostic {
+        code: std::sync::Arc::from("ci.fdr_resolution"),
+        message: std::sync::Arc::from(format!(
+            "multiple-testing correction over {family_size} hypotheses keeps a lone link only at \
+             p <= {:.3e}, below this CI test's smallest attainable p-value {floor:.3e}; at least \
+             {needed} links must reach that floor together for any to survive. Use at least \
+             {replicates} permutation replicates or disable the correction",
+            alpha / family_size as f64
+        )),
+    })
+}
+
 /// A test whose per-row weights are aligned to the end of a series may only run on a frame that
 /// is exactly that series minus its leading lag rows, with no interior rows removed.
 ///
@@ -66,6 +99,25 @@ pub fn ensure_ci_fits_frame(
         ));
     }
     Ok(())
+}
+
+/// Static counterpart of [`ensure_ci_fits_frame`]: a static table has no leading lag rows to
+/// drop, so series-aligned weights must hold exactly one entry per row. Trailing alignment
+/// would otherwise pair a longer vector's last `n_rows` entries with the rows.
+///
+/// # Errors
+///
+/// [`DiscoveryError::Unsupported`] when the weight count differs from `n_rows`.
+pub fn ensure_ci_fits_rows(
+    ci: &dyn ConditionalIndependence,
+    n_rows: usize,
+) -> Result<(), DiscoveryError> {
+    match ci.series_aligned_weights_len() {
+        Some(weights) if weights != n_rows => Err(DiscoveryError::unsupported(
+            "observation weights must have exactly one entry per data row",
+        )),
+        _ => Ok(()),
+    }
 }
 
 pub use antecedent_stats::{

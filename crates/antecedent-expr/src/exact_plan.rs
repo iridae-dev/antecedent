@@ -1002,6 +1002,75 @@ mod tests {
         assert_eq!(error.kind, "sampling_zero");
     }
 
+    /// `Σ_{v1,v2} k · (Σ_{v2} k / Σ_{v1,v2} k)` over a composite joint `k = P(v0) · P(v1, v2)`,
+    /// the shape a nested district factor builds: the ratio conditions on `v0` although no
+    /// leaf of `k` is conditional, so no leaf-level support guard fires.
+    fn nested_kernel_ratio() -> (CausalExprArena, ExprId) {
+        let mut arena = CausalExprArena::new();
+        let empty = arena.empty_var_set();
+        let none = arena.intern_intervention_set([]);
+        let population = arena.intern_population("target");
+        let leaf = |arena: &mut CausalExprArena, vars: &[u32]| {
+            let variables = arena.intern_var_set(vars.iter().map(|&i| v(i)));
+            arena.intern(ExprNode::Distribution {
+                variables,
+                conditioned_on: empty,
+                intervention: none,
+                population,
+                domain: DomainRef::Observational,
+                regime: Some(RegimeId::from_raw(0)),
+            })
+        };
+        let p0 = leaf(&mut arena, &[0]);
+        let p12 = leaf(&mut arena, &[1, 2]);
+        let factors = arena.intern_list([p0, p12]);
+        let kernel = arena.intern(ExprNode::Product(factors));
+        let s2 = arena.intern_var_set([v(2)]);
+        let s12 = arena.intern_var_set([v(1), v(2)]);
+        let numerator = arena.intern(ExprNode::SumOut { variables: s2, expr: kernel });
+        let denominator = arena.intern(ExprNode::SumOut { variables: s12, expr: kernel });
+        let ratio = arena.intern(ExprNode::Ratio { numerator, denominator });
+        let list = arena.intern_list([denominator, ratio]);
+        let root = arena.intern(ExprNode::Product(list));
+        (arena, root)
+    }
+
+    fn learned_three_axis(counts: Vec<u64>) -> ExactTransportData {
+        let law = ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(0),
+            [],
+            [0, 1, 2].map(|i| DiscreteAxis {
+                variable: v(i),
+                values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+            }),
+            [0.125; 8],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap()
+        .with_learned_support(counts)
+        .unwrap();
+        ExactTransportData::try_new([law], 100).unwrap()
+    }
+
+    #[test]
+    fn nested_kernel_ratio_keeps_the_empirical_support_guard() {
+        let (arena, root) = nested_kernel_ratio();
+        // Fitted mass everywhere, but no row ever had v0 = 0: conditioning on it is a
+        // sampling zero, not a checked value.
+        let unobserved = learned_three_axis(vec![0, 0, 0, 0, 1, 2, 3, 4]);
+        let EvalError::ExactLaw(error) = evaluate_three_axis(&arena, root, unobserved).unwrap_err()
+        else {
+            panic!("an unobserved conditioning stratum of a composite joint must be located");
+        };
+        assert_eq!(error.kind, "sampling_zero");
+        // Every stratum observed: P(v0) · P(v1 | v0) = 0.25 at each atom.
+        let observed = learned_three_axis(vec![1; 8]);
+        let result = evaluate_three_axis(&arena, root, observed).unwrap();
+        assert!(result.probabilities.iter().all(|p| (p - 0.25).abs() < 1e-12), "{result:?}");
+    }
+
     #[test]
     fn expression_operations_and_provider_rows_share_one_budget() {
         // Evaluate the same plan once against a provider that charges row inspections to the

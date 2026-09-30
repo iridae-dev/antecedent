@@ -27,6 +27,15 @@ pub const POPULATION_TAG_KEY: &str = "population";
 /// Floor on reweighted variance.
 const REWEIGHT_VAR_FLOOR: f64 = 1e-12;
 
+/// Kish effective-sample-size floor for a transport reweight.
+///
+/// Below this many effective units the reweighted mean rests on too few
+/// target-aligned units to be transported, so the source's trust weight α is
+/// forced to 0 (with a recorded reason) instead of moving the prior mean. The
+/// value matches the Kish-ESS floor the workspace already uses for importance
+/// weights (`minimum_local_ess = 20` in the response-curve support diagnostics).
+pub const TRANSPORT_MIN_KISH_ESS: f64 = 20.0;
+
 /// Explicit invariance claim for cross-population prior transfer.
 ///
 /// Never inferred silently — callers must declare which mechanism is assumed
@@ -151,6 +160,27 @@ impl TransportAdjustment {
             .sum::<f64>()
             / mass;
         (mean, var.max(REWEIGHT_VAR_FLOOR))
+    }
+
+    /// Sampling variance of the importance-weighted mean:
+    /// `Σ w²(e − ē)² / (Σ w)²` (absolute effect units).
+    ///
+    /// This is the uncertainty the reweight adds to the transported mean; it is
+    /// large when weights concentrate on a few heterogeneous units.
+    #[must_use]
+    pub fn reweighted_mean_variance(&self) -> f64 {
+        let (mean, _) = self.weighted_moments();
+        let mass: f64 = self.target_weights.iter().sum();
+        let num: f64 = self
+            .unit_effects
+            .iter()
+            .zip(self.target_weights.iter())
+            .map(|(&e, &w)| {
+                let d = e - mean;
+                w * w * d * d
+            })
+            .sum();
+        num / (mass * mass)
     }
 
     /// Kish effective sample size for diagnostics.
@@ -303,6 +333,20 @@ fn transport_assumption(
     }
 }
 
+/// Residual `σ²` used to convert an absolute variance into the source prior's
+/// conjugate `V0` units: the known residual variance, else the Inv-Gamma mean
+/// `β/(α−1)` when it exists, else `1` (the no-residual-scale GLM convention of
+/// [`GaussianCoefficientPrior::absolute_variance`]).
+fn source_residual_sigma2(prior: &PriorSet) -> f64 {
+    if let Some(v) = prior.known_residual_variance() {
+        return v;
+    }
+    match prior.residual_inv_gamma() {
+        Some(ig) if ig.shape > 1.0 => ig.scale / (ig.shape - 1.0),
+        _ => 1.0,
+    }
+}
+
 fn replace_coef_moments(
     prior: &mut PriorSet,
     coef_index: usize,
@@ -400,6 +444,17 @@ pub fn apply_transport(
                     ));
                     extra.push_str("; alpha_forced=0 reason=missing_propensity_weights");
                 }
+                (_, Some(adj)) if adj.kish_ess() < TRANSPORT_MIN_KISH_ESS => {
+                    let ess = adj.kish_ess();
+                    alpha_override = Some(0.0);
+                    zero_reason = Some(Arc::from(format!(
+                        "transport reweight Kish ESS {ess:.3} is below the floor \
+                         {TRANSPORT_MIN_KISH_ESS}; alpha forced to 0"
+                    )));
+                    extra.push_str(&format!(
+                        "; alpha_forced=0 reason=reweight_ess_below_floor ess={ess:.3}"
+                    ));
+                }
                 (_, Some(adj)) => {
                     let (mean, _het_var) = adj.weighted_moments();
                     let coef = prepared
@@ -410,14 +465,22 @@ pub fn apply_transport(
                         })?;
                     let n_coef = coef.len();
                     let idx = ctx.coef_index.unwrap_or(n_coef.saturating_sub(1));
+                    if idx >= n_coef {
+                        return Err(TransportError::CoefIndexOutOfRange { index: idx, n_coef });
+                    }
                     // Heterogeneity updates the prior *mean* under the invariance.
-                    // Coefficient V0 stays the source posterior scale (already in
-                    // conjugate units) — never the weighted unit-effect variance,
-                    // which collapses to the 1e-12 floor when effects are homogeneous.
+                    // The source posterior V0 is kept (never replaced by the weighted
+                    // unit-effect variance, which collapses to the 1e-12 floor when
+                    // effects are homogeneous) and widened by the sampling variance
+                    // of the reweighted mean, converted from absolute units to V0.
+                    let sigma2 = source_residual_sigma2(&prepared.prior);
+                    let reweight_v0 = adj.reweighted_mean_variance() / sigma2;
                     let source_v0 = coef.variance[idx];
-                    replace_coef_moments(&mut prepared.prior, idx, mean, source_v0)?;
+                    let v0 = source_v0 + reweight_v0;
+                    replace_coef_moments(&mut prepared.prior, idx, mean, v0)?;
                     extra.push_str(&format!(
-                        "; reweighted mean={mean:.6} kept_v0={source_v0:.6} ess={:.3}",
+                        "; reweighted mean={mean:.6} source_v0={source_v0:.6} \
+                         reweight_v0={reweight_v0:.6} ess={:.3}",
                         adj.kish_ess()
                     ));
                 }
@@ -634,7 +697,8 @@ mod tests {
         assert!((var - REWEIGHT_VAR_FLOOR).abs() < 1e-18, "var {var}");
         assert!((adj.kish_ess() - 1.0).abs() < 1e-12);
 
-        // Source prior V0 = 1.0; transport must keep it (not write the floor).
+        // One effective unit is below the Kish floor: the reweighted mean is not
+        // transported and the source contributes nothing (α forced to 0).
         let sources = [source("a", 0.0, 1.0)];
         let ctx = TransportContext {
             source_populations: &[Some("us")],
@@ -643,24 +707,13 @@ mod tests {
             adjustment: Some(&adj),
             coef_index: Some(0),
         };
-        let (prepared, _) = apply_transport(&sources, &ctx).unwrap();
-        let coef = prepared[0].prior.gaussian_coefficients().unwrap();
-        assert!((coef.mean[0] - 10.0).abs() < 1e-12, "mean {}", coef.mean[0]);
-        assert!(
-            (coef.variance[0] - 1.0).abs() < 1e-12,
-            "transport must keep source V0, got {}",
-            coef.variance[0]
-        );
-        assert!(coef.variance[0] > REWEIGHT_VAR_FLOOR * 1e3);
-
         let baseline = gauss(0.0, 100.0);
-        let (composed, _) = compose_with_transport(&sources, &baseline, &ctx).unwrap();
+        let (composed, outcomes) = compose_with_transport(&sources, &baseline, &ctx).unwrap();
+        assert_eq!(outcomes[0].alpha_override, Some(0.0));
         let ccoef = composed.prior.gaussian_coefficients().unwrap();
-        // Power-add with α=1: precisions 1/100 (baseline) + 1/1 (source) = 1.01;
-        // mean = (0/100 + 10/1)/1.01 = 1000/101, variance = 1/1.01 = 100/101.
-        assert!((ccoef.mean[0] - 1000.0 / 101.0).abs() < 1e-9, "composed mean {}", ccoef.mean[0]);
+        assert!(ccoef.mean[0].abs() < 1e-12, "composed mean {}", ccoef.mean[0]);
         assert!(
-            (ccoef.variance[0] - 100.0 / 101.0).abs() < 1e-12,
+            (ccoef.variance[0] - 100.0).abs() < 1e-9,
             "composed variance {}",
             ccoef.variance[0]
         );
@@ -668,7 +721,7 @@ mod tests {
 
     #[test]
     fn homogeneous_reweight_does_not_dogmatize_v0() {
-        let adj = TransportAdjustment::new([2.0, 2.0, 2.0], [1.0, 1.0, 1.0]).unwrap();
+        let adj = TransportAdjustment::new(vec![2.0; 30], vec![1.0; 30]).unwrap();
         let (mean, het) = adj.weighted_moments();
         assert!((mean - 2.0).abs() < 1e-12);
         assert!((het - REWEIGHT_VAR_FLOOR).abs() < 1e-18);
@@ -687,6 +740,75 @@ mod tests {
         assert!(
             (coef.variance[0] - 1.0).abs() < 1e-12,
             "homogeneous effects must not replace V0 with REWEIGHT_VAR_FLOOR; got {}",
+            coef.variance[0]
+        );
+    }
+
+    #[test]
+    fn concentrated_weights_force_alpha_zero_below_kish_floor() {
+        // 30 units, almost all mass on one: Kish ESS ~ 1, far below the floor.
+        let mut effects = vec![0.0; 30];
+        effects[29] = 10.0;
+        let mut weights = vec![1e-3; 30];
+        weights[29] = 1.0;
+        let adj = TransportAdjustment::new(effects, weights).unwrap();
+        assert!(adj.kish_ess() < TRANSPORT_MIN_KISH_ESS);
+        let sources = [source("a", 0.0, 0.8)];
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: Some(TransportPolicy::InvariantConditionalOutcome),
+            adjustment: Some(&adj),
+            coef_index: Some(0),
+        };
+        let (prepared, outcomes) = apply_transport(&sources, &ctx).unwrap();
+        assert_eq!(outcomes[0].alpha_override, Some(0.0));
+        assert!(outcomes[0].zero_reason.as_deref().unwrap().contains("Kish ESS"));
+        assert_eq!(prepared[0].weight.alpha, 0.0);
+        let baseline = gauss(0.0, 4.0);
+        let (composed, _) = compose_with_transport(&sources, &baseline, &ctx).unwrap();
+        assert!((composed.alphas_requested[0] - 0.8).abs() < 1e-12);
+        assert_eq!(composed.alphas_applied[0], 0.0);
+    }
+
+    #[test]
+    fn reweighting_variance_widens_source_v0() {
+        // 40 units, two effect levels, unequal but not concentrated weights.
+        let effects: Vec<f64> = (0..40).map(|i| if i % 2 == 0 { 0.0 } else { 4.0 }).collect();
+        let weights: Vec<f64> = (0..40).map(|i| if i % 2 == 0 { 1.0 } else { 3.0 }).collect();
+        let adj = TransportAdjustment::new(effects.clone(), weights.clone()).unwrap();
+        assert!(adj.kish_ess() >= TRANSPORT_MIN_KISH_ESS);
+        let mass: f64 = weights.iter().sum();
+        let mean: f64 = effects.iter().zip(&weights).map(|(e, w)| e * w).sum::<f64>() / mass;
+        let expected_abs: f64 =
+            effects.iter().zip(&weights).map(|(e, w)| w * w * (e - mean) * (e - mean)).sum::<f64>()
+                / (mass * mass);
+        assert!((adj.reweighted_mean_variance() - expected_abs).abs() < 1e-15);
+
+        // Known sigma^2 = 2 on the source: the absolute reweighting variance is
+        // converted to V0 units (divide by sigma^2) and added to the source V0.
+        let mut prior = gauss(0.0, 1.0);
+        prior.push(PriorSpec::KnownResidualVariance(2.0));
+        let sources = [ExternalPriorSource {
+            id: Arc::from("a"),
+            prior,
+            weight: ExternalPriorWeight::power(1.0).unwrap(),
+            ess: None,
+        }];
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: Some(TransportPolicy::InvariantConditionalOutcome),
+            adjustment: Some(&adj),
+            coef_index: Some(0),
+        };
+        let (prepared, outcomes) = apply_transport(&sources, &ctx).unwrap();
+        assert!(outcomes[0].alpha_override.is_none());
+        let coef = prepared[0].prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[0] - mean).abs() < 1e-12);
+        assert!(
+            (coef.variance[0] - (1.0 + expected_abs / 2.0)).abs() < 1e-12,
+            "V0 {}",
             coef.variance[0]
         );
     }

@@ -209,7 +209,9 @@ impl StudyBuilder {
 fn graph_mismatch() -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("invalid_argument"),
-        message: "mz_transport.functional_graph_mismatch: the functional was not decided on this graph".into(),
+        message:
+            "mz_transport.functional_graph_mismatch: the functional was not decided on this graph"
+                .into(),
     }
 }
 

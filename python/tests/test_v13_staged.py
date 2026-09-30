@@ -204,7 +204,9 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
     assert got == pytest.approx(want, abs=pin["tolerance"])
     fresh = ac.analyze(data, graph=graph, query=query, estimator_config=config, refute="none")
     np.testing.assert_array_equal(np.asarray(fresh.estimate, dtype=float).ravel(), got)
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(
+        CausalUnsupportedError, match="function-valued response has no ATE-shaped state"
+    ):
         PreparedAnalysis.prepare(
             data, graph=graph, query=query, estimator_config=config, refute="full"
         )
@@ -280,13 +282,33 @@ def test_new_derivative_boundaries():
     with pytest.raises(ValueError, match="Elasticity.at must be positive"):
         ac.Elasticity("a", "y", at=-0.5)
     data, graph = fixture()
-    for query, config in [
-        (ac.PointDerivative("a", "y", at=0.5), None),
-        (ac.PointDerivative("a", "y", at=0.5), {"bandwidth": -0.2}),
-        (ac.AverageDerivative("a", "y", weighting="custom"), None),
-        (ac.ResponseJacobian(["a", "m", "y"], ["y"], at=[0, 0, 0]), None),
+    for query, config, error, message in [
+        (
+            ac.PointDerivative("a", "y", at=0.5),
+            None,
+            ac.errors.CausalEstimateError,
+            "point derivatives require an explicit bandwidth",
+        ),
+        (
+            ac.PointDerivative("a", "y", at=0.5),
+            {"bandwidth": -0.2},
+            ac.errors.CausalEstimateError,
+            "invalid continuous-response options",
+        ),
+        (
+            ac.AverageDerivative("a", "y", weighting="custom"),
+            None,
+            ValueError,
+            "the current ADE estimator supports weighting='observed'",
+        ),
+        (
+            ac.ResponseJacobian(["a", "m", "y"], ["y"], at=[0, 0, 0]),
+            None,
+            ac.errors.CausalCompileError,
+            "Jacobian dimensions/values are inconsistent",
+        ),
     ]:
-        with pytest.raises((ValueError, ac.CausalError)):
+        with pytest.raises(error, match=message):
             prepared = PreparedAnalysis.prepare(
                 data, graph=graph, query=query, estimator_config=config
             )
@@ -368,7 +390,7 @@ def test_static_artifact_rejects_wrong_family_payload():
     wire = artifacts.loads(prepared.export_artifact())
     payload = dict(wire.payload)
     payload["unit_effects"] = None
-    with pytest.raises((ValueError, ac.CausalError)):
+    with pytest.raises(ac.errors.CausalSerializationError, match="does not match query family"):
         artifacts.dumps(
             "static_result", payload, variable_names=wire.variable_names, artifact_id="bad"
         )

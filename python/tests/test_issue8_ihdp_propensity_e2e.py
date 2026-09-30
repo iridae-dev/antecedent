@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("antecedent")
-
 
 def test_issue8_ihdp_propensity_e2e():
     """Running the example asserts identification + estimate + refuter succeed."""

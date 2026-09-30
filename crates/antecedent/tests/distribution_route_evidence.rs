@@ -368,3 +368,136 @@ fn admg_explicit_frequentist_none() {
         "none",
     );
 }
+
+/// Build a distribution study that leaves the estimator to the resolver, so the
+/// contract advertises no estimator while its program commits to
+/// `functional.distribution`.
+fn resolved_only_distribution_artifact(bayesian: bool) -> antecedent_io::AnalysisResultConsumption {
+    let ctx = ExecutionContext::for_tests(2_101);
+    let (data, dag, _admg, query) = distribution_fixture();
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::Distribution(query))
+        .graph(dag)
+        .inference(if bayesian {
+            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(256))
+        } else {
+            InferenceMode::Frequentist
+        })
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let artifact = prepared.encode_contracted_result(&result, "resolved-only", &ctx).unwrap();
+    let consumed = consume_analysis_result(&artifact).unwrap();
+    let contract = consumed.contract.as_ref().expect("contracted artifact");
+    assert_eq!(contract.estimator, None, "the study never declared an estimator");
+    assert_eq!(
+        contract
+            .program
+            .as_ref()
+            .and_then(|program| program.commitments.resolved_estimator.as_deref()),
+        Some("functional.distribution")
+    );
+    consumed
+}
+
+/// Rebind the claim to a forged body so only the semantic checks can refuse it.
+fn rebind_claim(
+    body: &antecedent_io::AnalysisResultWire,
+    contract: &mut antecedent_io::AnalysisResultContractWire,
+    value: f64,
+) {
+    if let Some(claim) = contract.claim.as_mut() {
+        claim.value_bits = Some(value.to_bits());
+        let result_digest = antecedent_io::result_digest(body).unwrap();
+        let identity = antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+            contract.seal,
+            claim,
+            result_digest,
+        ))
+        .unwrap();
+        claim.claim_id = *identity.as_bytes();
+    }
+}
+
+#[test]
+fn resolved_only_frequentist_distribution_replays_atoms() {
+    let consumed = resolved_only_distribution_artifact(false);
+    assert!(
+        consumed.acceptance.accepts_as_verified_program(),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    let mut body = consumed.body.clone();
+    let mut contract = consumed.contract.clone().unwrap();
+    let distribution = body.interventional_distribution.as_mut().unwrap();
+    for atom in &mut distribution.atoms {
+        let positive = matches!(atom.outcomes[0].1, antecedent_io::ValueWire::Float64(v) if v.to_bits() == 1.0_f64.to_bits());
+        atom.probability = if positive { 0.6 } else { 0.4 };
+    }
+    body.estimate = Some(0.6);
+    rebind_claim(&body, &mut contract, 0.6);
+    let unresolved =
+        antecedent_io::verify_contract_against_body(&consumed.header, &body, &contract);
+    assert!(
+        unresolved.iter().any(|reason| reason.as_ref() == "distribution.atom_replay_mismatch"),
+        "forged atoms must fail replay: {unresolved:?}"
+    );
+}
+
+#[test]
+fn resolved_only_bayesian_distribution_names_posterior_dependency() {
+    let consumed = resolved_only_distribution_artifact(true);
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.distribution_posterior_factor_draws"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+}
+
+#[test]
+fn conditioned_distribution_refuses_a_forged_scalar_estimate() {
+    let ctx = ExecutionContext::for_tests(2_101);
+    let (data, dag, _admg, query) = distribution_fixture();
+    let query = query.with_conditioning(vec![VariableId::from_raw(2)]);
+    let study = Study::tabular(data.clone())
+        .query(CausalQuery::Distribution(query))
+        .graph(dag)
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let artifact = prepared.encode_contracted_result(&result, "conditioned", &ctx).unwrap();
+    let consumed = consume_analysis_result(&artifact).unwrap();
+    assert_eq!(consumed.body.estimate, None, "two conditioning strata define no single mean");
+
+    let mut body = consumed.body.clone();
+    let mut contract = consumed.contract.clone().unwrap();
+    body.estimate = Some(42.0);
+    rebind_claim(&body, &mut contract, 42.0);
+    assert!(
+        antecedent_io::encode_analysis_result_artifact_with_contract(
+            &body,
+            consumed.header.variable_names.clone(),
+            "forged",
+            Some(&contract),
+        )
+        .is_err(),
+        "encoding must refuse a scalar the atoms do not define"
+    );
+    let unresolved =
+        antecedent_io::verify_contract_against_body(&consumed.header, &body, &contract);
+    assert!(
+        unresolved.iter().any(|reason| reason.as_ref() == "body.interventional_distribution"),
+        "verification must refuse a scalar the atoms do not define: {unresolved:?}"
+    );
+}

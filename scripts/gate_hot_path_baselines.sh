@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Hot-path baseline metadata (and optional local Criterion-mean) gate.
 #
-# Always: every `docs/hot_paths.md` Baseline link exists, and that file records
-# either a numeric wall-time (µs/ms/s) or an explicit "none published" waiver.
+# Always: every `docs/hot_paths.md` Baseline link exists, and every
+# `benches/baselines/*.md` file (linked or not) records either a numeric
+# wall-time (µs/ms/s) or an explicit "none published" waiver, plus its
+# Established / Machine class / Commit lines.
 # Optional: GATE_CRITERION_MEANS=1 compares `target/criterion/**/estimates.json`
 # means against parseable gates. Never enabled in CI — Ubuntu runners cannot
 # enforce Apple M1 Max wall times.
@@ -53,7 +55,10 @@ DSEP_GATE = re.compile(
     r"\|\s*`([A-Za-z0-9_]+)`\s*\|[^|]*\|\s*\*\*([0-9.]+)\s*(µs|ms|s)\*\*\s*\|",
 )
 
-for name in sorted(set(linked)):
+# Every baseline file carries the metadata, linked or not: an unlinked file is
+# still read as a timing reference.
+on_disk = {path.name for path in (root / "benches" / "baselines").glob("*.md")}
+for name in sorted(set(linked) | on_disk):
     path = root / "benches" / "baselines" / name
     if not path.is_file():
         fail.append(f"hot_paths Baseline link missing: benches/baselines/{name}")
@@ -129,7 +134,7 @@ if fail:
     sys.exit(1)
 
 print(
-    f"Hot-path baseline metadata OK ({len(set(linked))} linked files, "
+    f"Hot-path baseline metadata OK ({len(set(linked) | on_disk)} baseline files, "
     f"{len(gates)} parseable numeric gates)"
 )
 PY

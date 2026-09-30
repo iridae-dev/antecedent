@@ -24,6 +24,16 @@ impl std::fmt::Debug for CheckedLocalPolynomialRatioOperation {
     }
 }
 
+/// Plan id, identifier and estimator a compiled local-ratio plan records.
+pub(super) fn local_polynomial_ratio_plan_ids(kink: bool) -> (String, String, String) {
+    let label = if kink { "regression_kink" } else { "fuzzy_rd" };
+    (
+        format!("quasi.{label}"),
+        format!("quasi.{label}.local_ratio"),
+        format!("quasi.{label}.bias_corrected_local_polynomial"),
+    )
+}
+
 impl CheckedLocalPolynomialRatioOperation {
     pub(crate) fn checked(
         study: &Study,
@@ -42,6 +52,8 @@ impl CheckedLocalPolynomialRatioOperation {
             || study.refute != RefuteSuite::None
             || study.bootstrap_replicates != 0
             || !study.custom_validators.is_empty()
+            || study.graph_posterior.is_some()
+            || study.tiered.is_some()
         {
             return Err(CausalError::Unsupported {
                 message: "local ratio requires a graphless, fixed-bandwidth frequentist design",
@@ -59,6 +71,16 @@ impl CheckedLocalPolynomialRatioOperation {
                     message: "local ratio requires continuous outcome, treatment, and running columns",
                 });
             }
+        }
+        let (plan_id, identifier, estimator) = local_polynomial_ratio_plan_ids(query.kink);
+        if physical.logical.query != study.query
+            || physical.logical.record.plan_id.as_ref() != plan_id.as_str()
+            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
+            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+        {
+            return Err(CausalError::Compile {
+                message: "local ratio design differs from its compiled plan".into(),
+            });
         }
         let (identification, estimand) = local_polynomial_ratio_identification(query);
         Ok(Self {

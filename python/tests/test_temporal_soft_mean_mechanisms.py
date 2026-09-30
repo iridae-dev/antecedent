@@ -42,16 +42,16 @@ def test_extra_soft_families_consume_native_mean_dynamics(family, params):
 
 
 @pytest.mark.parametrize(
-    "family,params",
+    "family,params,message",
     [
-        ("multiplicative", []),
-        ("multiplicative", [1.0, 2.0]),
-        ("multiplicative", [float("nan")]),
-        ("truncated_shift", [1.0]),
-        ("truncated_shift", [1.0, 3.0, 2.0]),
-        ("truncated_shift", [1.0, 0.0, float("inf")]),
+        ("multiplicative", [], "multiplicative requires exactly one parameter"),
+        ("multiplicative", [1.0, 2.0], "multiplicative requires exactly one parameter"),
+        ("multiplicative", [float("nan")], "parameters must be finite"),
+        ("truncated_shift", [1.0], "truncated_shift requires delta, lower, upper"),
+        ("truncated_shift", [1.0, 3.0, 2.0], "lower bound exceeds upper bound"),
+        ("truncated_shift", [1.0, 0.0, float("inf")], "parameters must be finite"),
     ],
 )
-def test_extra_soft_malformed_parameters_fail_at_construction(family, params):
-    with pytest.raises(CausalValueError):
+def test_extra_soft_malformed_parameters_fail_at_construction(family, params, message):
+    with pytest.raises(CausalValueError, match=message):
         Soft("t", family, parameters=params)

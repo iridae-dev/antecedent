@@ -572,14 +572,12 @@ impl PreparedStudy {
                 let CausalQuery::PanelDid(query) = self.query() else {
                     unreachable!("licensed DiD result must retain its DiD query")
                 };
-                let (design, method) =
-                    if query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
-                        ("repeated_cross_section_2x2", "four_cell_cluster_scores_cr1")
-                    } else {
-                        ("panel_2x2", "cluster_change_scores_cr1")
-                    };
+                // Shared with the execute-side licence so the published
+                // coordinate is the key the design was licensed under.
+                let key = super::execute::panel_did_graphless_key(query.design);
                 Arc::from(format!(
-                    "graphless:difference_in_differences/{design}/{method}/pointwise_95_normal_interval"
+                    "graphless:{}/{}/{}/{}",
+                    key.family, key.design, key.method, key.inference_claim
                 ))
             });
         }
@@ -1262,6 +1260,77 @@ impl StudyResult {
         temporal: Option<&CachedTemporalIdentification>,
     ) -> Result<AnalysisResultWire, CausalError> {
         body_for(&body_frame(query, temporal, None, registry)?, self)
+    }
+
+    /// The portable static-result body of an executed mediation or
+    /// counterfactual result: the one producer of
+    /// [`antecedent_io::StaticResultWire`]. `query` is the query that produced
+    /// the result and fixes the control and active levels; `registry` is the
+    /// originating study's population registry.
+    ///
+    /// # Errors
+    ///
+    /// A result without a mediation or counterfactual payload, a mediation
+    /// payload missing a component, a query without hard control and active
+    /// levels ([`CausalError::Compile`]), or an identification encoding failure.
+    pub fn static_result_wire(
+        &self,
+        query: &antecedent_core::CausalQuery,
+        registry: Option<&antecedent_core::PopulationRegistry>,
+    ) -> Result<antecedent_io::StaticResultWire, CausalError> {
+        use antecedent_core::{CausalQuery, Intervention};
+        let compile = |message: &str| CausalError::Compile { message: message.into() };
+        let hard = |intervention: &Intervention| match intervention {
+            Intervention::Set { value, .. } => value.as_f64(),
+            _ => None,
+        };
+        let (control_level, active_level) = match query {
+            CausalQuery::Mediation(q) => (hard(&q.control), hard(&q.active)),
+            CausalQuery::Counterfactual(q) => {
+                (hard(&q.control), q.interventions.first().and_then(hard))
+            }
+            CausalQuery::NestedCounterfactual(q) => {
+                (Some(q.control_value()), Some(q.active_value()))
+            }
+            _ => (None, None),
+        };
+        if self.mediation.is_none() && self.counterfactual.is_none() {
+            return Err(compile("static result requires a mediation or counterfactual payload"));
+        }
+        let published = crate::PublishedScalarUncertainty::select(&self.estimate);
+        Ok(antecedent_io::StaticResultWire {
+            identification: antecedent_io::identification_to_wire_with_registry(
+                &self.identification,
+                registry,
+            )?,
+            estimate: self.estimate.ate,
+            standard_error: published.standard_error,
+            interval_lower: published.lower,
+            interval_upper: published.upper,
+            assumptions: antecedent_io::assumptions_to_wire(&self.estimate.assumptions),
+            support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
+            diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
+            refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
+            unit_effects: self.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
+            unit_extrapolative: self
+                .counterfactual
+                .as_ref()
+                .and_then(|c| c.unit_extrapolative.as_ref())
+                .map(|flags| flags.to_vec()),
+            mediation: self
+                .mediation
+                .as_ref()
+                .map(|m| {
+                    Ok::<_, CausalError>([
+                        m.total.ok_or_else(|| compile("mediation total is unavailable"))?,
+                        m.direct.ok_or_else(|| compile("mediation direct is unavailable"))?,
+                        m.mediated.ok_or_else(|| compile("mediation mediated is unavailable"))?,
+                    ])
+                })
+                .transpose()?,
+            control_level: control_level.ok_or_else(|| compile("missing control"))?,
+            active_level: active_level.ok_or_else(|| compile("missing active"))?,
+        })
     }
 }
 
@@ -2095,7 +2164,7 @@ fn compile_with_payloads(
             accepted_variable_names: study.graph.variable_names().map(Arc::from),
             support_status: study.support_status,
             identifier: study.identifier.map(|id| Arc::from(id.as_str())),
-            estimator: study.estimator.map(|id| Arc::from(id.as_str())),
+            estimator: advertised_estimator(study, resolved_estimator.as_deref()).map(Arc::from),
             resolved_estimator,
             row_count: data_row_count(&study.data),
             modality: Arc::from(snapshot_modality(&study.data)),
@@ -2483,6 +2552,26 @@ fn identification_search_capped(result: &IdentificationResult) -> bool {
         .any(|diagnostic| diagnostic.code.as_ref() == CAPPED_COMPLETION_DIAGNOSTIC_CODE)
 }
 
+/// Estimator name the contract may advertise.
+///
+/// A builder placeholder ([`Study::caller_selected_estimator`] is `None`) is
+/// advertised only while it agrees with the plan, or before a plan resolves
+/// one: `inference()` binds `BayesianGcomp` on every static average effect,
+/// including classes whose compiler keeps an identifier-native estimator
+/// (`functional.effect` on an ADMG), and advertising both names makes the
+/// functional-program contract fail to verify. A caller-selected estimator is
+/// kept even when it disagrees; the verifier then refuses it.
+fn advertised_estimator(study: &Study, resolved_estimator: Option<&str>) -> Option<&'static str> {
+    study
+        .caller_selected_estimator()
+        .or_else(|| {
+            study.estimator.filter(|placeholder| {
+                resolved_estimator.is_none_or(|resolved| resolved == placeholder.as_str())
+            })
+        })
+        .map(|id| id.as_str())
+}
+
 /// Inferential commitments of the compiled program. `resolved_estimator` is
 /// the prepared plan's `logical_plan.estimator`; cheap inspection compiles no
 /// plan and leaves it `None`.
@@ -2501,7 +2590,7 @@ fn inferential_commitments(
     }
     InferentialCommitmentsWire {
         format: IDENTITY_FORMAT,
-        estimator: study.estimator.map(|id| id.as_str().to_string()),
+        estimator: advertised_estimator(study, resolved_estimator).map(str::to_string),
         resolved_estimator: resolved_estimator.map(str::to_string),
         identifier: study.identifier.map(|id| id.as_str().to_string()),
         inference: match study.inference {
@@ -3348,16 +3437,8 @@ fn executed_scalar(result: &StudyResult) -> Option<f64> {
     if result.response.is_some() {
         return None;
     }
-    if let Some(distribution) = &result.distribution {
-        return distribution.mean.is_finite().then_some(distribution.mean);
-    }
-    if let Some(counterfactual) = &result.counterfactual {
-        return counterfactual.mean_ite.is_finite().then_some(counterfactual.mean_ite);
-    }
-    result
-        .estimate
-        .as_effect()
-        .and_then(|estimate| estimate.ate.is_finite().then_some(estimate.ate))
+    let scalar = result.effect();
+    scalar.is_finite().then_some(scalar)
 }
 
 fn body_frame(
@@ -3396,6 +3477,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
     identification.query = frame.query.clone();
     let effect = result.estimate.as_effect();
     let published = effect.map(crate::PublishedScalarUncertainty::select);
+    let executed_estimate = effect.and_then(|_| executed_scalar(result));
     let policy_value = result.policy_value.as_ref().map(|policy| antecedent_io::PolicyValueWire {
         policy_value: policy.policy_value,
         reference_value: policy.reference_value,
@@ -3453,7 +3535,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         identification,
         identification_variables,
         temporal_identification,
-        estimate: effect.and_then(|_| executed_scalar(result)),
+        estimate: executed_estimate,
         policy_value,
         continuous_dose_response: result.continuous_dose_response.as_ref().map(|fit| {
             antecedent_io::analysis_result_artifact::ContinuousDoseResponseWire {
@@ -3783,7 +3865,8 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
                     .collect(),
             }
         }),
-        standard_error: published.as_ref().and_then(|p| p.standard_error),
+        // A standard error describes the published scalar; none rides without it.
+        standard_error: executed_estimate.and(published.as_ref().and_then(|p| p.standard_error)),
         interval_lower: published.as_ref().and_then(|p| p.lower),
         interval_upper: published.as_ref().and_then(|p| p.upper),
         assumptions: antecedent_io::assumptions_to_wire(

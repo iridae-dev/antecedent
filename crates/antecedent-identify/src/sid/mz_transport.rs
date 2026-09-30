@@ -474,14 +474,8 @@ impl MzTransportDerivation {
         {
             return Err(bounds_exceeded());
         }
-        let MzTransportDecision::Identified { derivation, .. } = decide_bounded(
-            graph,
-            query,
-            catalog,
-            stored,
-            record.search.memory_limit_bytes,
-            ctx,
-        )?
+        let MzTransportDecision::Identified { derivation, .. } =
+            decide_bounded(graph, query, catalog, stored, record.search.memory_limit_bytes, ctx)?
         else {
             return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
         };
@@ -1149,6 +1143,12 @@ impl BoundMzTransportFunctional {
 /// Bind a checked derivation to a catalog. Each leaf binds only to a regime of
 /// its own population, so a factor is always evaluated from the source whose
 /// premises certified it.
+///
+/// Duplicate evidence binds by the single-source z-transport rule on every
+/// route: a family regime (no declared levels) before a concrete one, otherwise
+/// the lowest regime id, independent of catalog order; supplying a factor more
+/// than once is never refused. Exact evaluation selects world-bound laws among
+/// the cited regimes only.
 ///
 /// # Errors
 ///

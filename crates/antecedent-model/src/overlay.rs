@@ -156,6 +156,18 @@ fn temporal_active(policy: &TemporalPolicy, t: i32) -> Result<bool, ModelError> 
     Ok(policy.is_active_at(t))
 }
 
+/// Compose a finite additive shift, refusing a composition that overflows.
+fn add_shift(overlay: &mut InterventionOverlay, idx: usize, delta: f64) -> Result<(), ModelError> {
+    let total = overlay.shifts[idx] + delta;
+    if !total.is_finite() {
+        return Err(ModelError::Unsupported {
+            message: "composed shifts overflow to a non-finite delta".into(),
+        });
+    }
+    overlay.shifts[idx] = total;
+    Ok(())
+}
+
 #[allow(clippy::float_cmp)] // a repeated identical set is idempotent: exact equality is intended
 fn apply_intervention(
     model: &CompiledCausalModel,
@@ -183,11 +195,10 @@ fn apply_intervention(
         }
         Intervention::Shift { variable, delta } => {
             let dense = require_dense(model, *variable)?;
-            let d = delta.as_f64().ok_or_else(|| ModelError::Unsupported {
-                message: "shift requires numeric delta".into(),
+            let d = delta.as_f64().filter(|d| d.is_finite()).ok_or_else(|| {
+                ModelError::Unsupported { message: "shift requires a finite numeric delta".into() }
             })?;
-            overlay.shifts[dense.as_usize()] += d;
-            Ok(())
+            add_shift(overlay, dense.as_usize(), d)
         }
         Intervention::Stochastic { variable, policy } => {
             policy.validate().map_err(|e| ModelError::Unsupported { message: e.to_string() })?;
@@ -217,8 +228,7 @@ fn apply_intervention(
                         });
                     }
                 };
-                overlay.shifts[idx] += d;
-                return Ok(());
+                return add_shift(overlay, idx, d);
             }
             if overlay.hard_set[idx].is_some()
                 || overlay.stochastic[idx].is_some()
@@ -325,6 +335,29 @@ mod tests {
         // An unrelated variable is untouched.
         assert!(overlay.shifts[1].abs() < 1e-12);
         assert!(overlay.hard_set[y.as_usize()].is_none());
+    }
+
+    #[test]
+    fn non_finite_shift_is_refused() {
+        let model = CompiledCausalModel::compile(Dag::with_variables(1)).unwrap();
+        let x = VariableId::from_raw(0);
+        for delta in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let err = InterventionOverlay::from_interventions(
+                &model,
+                &[Intervention::shift(x, Value::f64(delta))],
+            )
+            .unwrap_err();
+            assert!(matches!(err, ModelError::Unsupported { .. }), "{delta}: {err}");
+        }
+        let err = InterventionOverlay::from_interventions(
+            &model,
+            &[
+                Intervention::shift(x, Value::f64(f64::MAX)),
+                Intervention::shift(x, Value::f64(f64::MAX)),
+            ],
+        )
+        .unwrap_err();
+        assert!(matches!(err, ModelError::Unsupported { .. }), "{err}");
     }
 
     /// Order-independence matters: `apply_intervention` writes `hard_set` and `shifts`

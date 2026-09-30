@@ -630,14 +630,16 @@ fn the_success_path_receipt_is_deterministic_and_matches_the_operations_charged(
     assert_eq!(receipt.operations_consumed, operations_needed(&figure_1_graph(), &q));
     assert!(receipt.depth_reached >= 1);
     // Deterministic: another context and the other declaration order agree.
-    let again = identified(decide_mz_transport(
-        &figure_1_graph(),
-        &query(vec![source_b(), source_a()]),
-        &complementary_catalog(),
-        MZ_TRANSPORT_DEFAULT_LIMITS,
-        &ExecutionContext::for_tests(4),
-    )
-    .unwrap());
+    let again = identified(
+        decide_mz_transport(
+            &figure_1_graph(),
+            &query(vec![source_b(), source_a()]),
+            &complementary_catalog(),
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            &ExecutionContext::for_tests(4),
+        )
+        .unwrap(),
+    );
     assert_eq!(again.search_record(), receipt);
     // A stage that identifies early leaves later stages unevaluated.
     let mut g = Admg::with_variables(4);
@@ -745,18 +747,14 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
     assert_eq!(pair(&bound), ("route_not_supported", "mz_transport.bounds_exceeded"));
     // An invalid query: `invalid_argument`.
     let same_population = query(vec![source("target", &[Z2], &[Z1]), source_b()]);
-    let invalid_query = decide_mz_transport(
-        &graph,
-        &same_population,
-        &full,
-        MZ_TRANSPORT_DEFAULT_LIMITS,
-        &ctx,
-    )
-    .unwrap_err();
+    let invalid_query =
+        decide_mz_transport(&graph, &same_population, &full, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx)
+            .unwrap_err();
     assert_eq!(pair(&invalid_query), ("invalid_argument", "mz_transport.invalid_query"));
     // An invalid catalog (the target supplies an experiment): `invalid_argument`.
     let experimental_target = catalog(vec![regime(0, "target", &[Z2])]);
-    let invalid_catalog = validate_mz_transport_query(&graph, &q, &experimental_target).unwrap_err();
+    let invalid_catalog =
+        validate_mz_transport_query(&graph, &q, &experimental_target).unwrap_err();
     assert_eq!(pair(&invalid_catalog), ("invalid_argument", "mz_transport.invalid_catalog"));
     // An obstruction that does not verify: `transport_not_certified`.
     let MzTransportDecision::ProvenNonTransportable(obstruction) =
@@ -815,5 +813,75 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
         ),
     ] {
         assert_eq!(decision.detail_code(), Some(expected));
+    }
+}
+
+/// A regime of `population` under `do(Z1 = 0)`, declaring the level.
+fn at_z1_zero(id: u32, population: &str) -> EvidenceRegime {
+    let measured = (0..4).filter(|i| *i != Z1).map(v).collect::<Vec<_>>();
+    EvidenceRegime::try_new(
+        RegimeId::from_raw(id),
+        RegimeKind::Experimental,
+        EvidenceKind::Available,
+        [v(Z1)],
+        [InterventionAssignment { variable: v(Z1), value: Value::f64(0.0) }],
+        measured,
+        population,
+        DistributionAvailability::Joint,
+    )
+    .unwrap()
+}
+
+/// The combined route binds duplicate evidence by the single-source rule: a
+/// family regime (no declared levels) before a concrete one, otherwise the
+/// lowest regime id, whatever the catalog order. Supplying a factor twice is
+/// never refused, and the same rule binds the published functional.
+#[test]
+fn combined_route_binds_duplicate_evidence_by_the_single_source_rule() {
+    let q = query(vec![source_a(), source_b()]);
+    let cases: [(Vec<EvidenceRegime>, [u32; 2]); 2] = [
+        // Two family regimes per source: the lowest id of each.
+        (
+            vec![
+                regime(0, "target", &[]),
+                regime(5, "a", &[Z2]),
+                regime(3, "a", &[Z2]),
+                regime(7, "b", &[Z1]),
+                regime(4, "b", &[Z1]),
+            ],
+            [3, 4],
+        ),
+        // b's concrete do(Z1 = 0) regime has the lower id; its family regime wins.
+        (
+            vec![
+                regime(0, "target", &[]),
+                regime(1, "a", &[Z2]),
+                at_z1_zero(2, "b"),
+                regime(8, "b", &[Z1]),
+            ],
+            [1, 8],
+        ),
+    ];
+    for (regimes, expected) in cases {
+        let expected = expected.map(RegimeId::from_raw);
+        for reversed in [false, true] {
+            let mut ordered = regimes.clone();
+            if reversed {
+                ordered.reverse();
+            }
+            let supplied = catalog(ordered);
+            let MzTransportDecision::Identified { derivation, cited } = decide(&q, &supplied)
+            else {
+                panic!("duplicate evidence must still identify (reversed: {reversed})");
+            };
+            assert_eq!(&*cited, expected, "reversed: {reversed}");
+            let bound = antecedent_identify::bind_mz_transport_catalog(
+                &figure_1_graph(),
+                &derivation,
+                &supplied,
+            )
+            .unwrap();
+            assert_eq!(bound.cited_regimes(), expected, "reversed: {reversed}");
+        }
     }
 }

@@ -568,8 +568,9 @@ pub struct ExactTransportData {
     domains: Arc<BTreeMap<VariableId, Arc<[Value]>>>,
     max_support_rows: usize,
     factor_cache: Option<Arc<SharedFactorCache>>,
-    /// Whether a leaf that names no regime may select its law by intervention world.
-    world_bound_leaves: bool,
+    /// The cited regimes among which a leaf that names no regime selects its
+    /// law by intervention world; `None` keeps every leaf regime-bound.
+    world_bound_regimes: Option<Arc<[RegimeId]>>,
 }
 
 impl ExactTransportData {
@@ -635,7 +636,7 @@ impl ExactTransportData {
             domains: Arc::new(domains),
             max_support_rows,
             factor_cache: None,
-            world_bound_leaves: false,
+            world_bound_regimes: None,
         })
     }
     /// Let a leaf that names no regime select its law by intervention world.
@@ -644,12 +645,13 @@ impl ExactTransportData {
     /// (`do(x = 0, z)` with `z` the enclosing summation variable) cites one
     /// regime per world rather than one regime for the whole family, so the
     /// bound leaf carries no regime and the concrete world selects the law.
-    /// The selection must be unambiguous: two laws of one population for the
-    /// same world refuse with `ambiguous_exact_provider`. Every other provider
-    /// keeps requiring an explicit regime.
+    /// The law is selected among the `cited` regimes only, so laws of regimes
+    /// the binding did not choose never compete; when several cited regimes
+    /// still supply the world, the lowest regime id is used, the binding's own
+    /// rule. Every other provider keeps requiring an explicit regime.
     #[must_use]
-    pub const fn with_world_bound_leaves(mut self) -> Self {
-        self.world_bound_leaves = true;
+    pub fn with_world_bound_leaves(mut self, cited: impl Into<Arc<[RegimeId]>>) -> Self {
+        self.world_bound_regimes = Some(cited.into());
         self
     }
     /// Share a bounded factor-value cache across plans bound to this immutable provider.
@@ -703,18 +705,15 @@ impl ExactTransportData {
         let world = lookup_world_key(spec.intervention);
         let index = match spec.regime {
             Some(regime) => regimes.get(&regime).and_then(|worlds| worlds.get(world.as_ref())),
-            None if self.world_bound_leaves => {
-                let mut matches = regimes
+            None => self.world_bound_regimes.as_ref().and_then(|cited| {
+                regimes
                     .iter()
-                    .filter_map(|(_, worlds)| worlds.get(world.as_ref()))
-                    .filter(|index| self.laws[**index].covers(spec));
-                let first = matches.next();
-                if matches.next().is_some() {
-                    return Err(missing("ambiguous_exact_provider"));
-                }
-                first
-            }
-            None => None,
+                    .filter(|(regime, _)| cited.contains(regime))
+                    .filter_map(|(regime, worlds)| Some((regime, worlds.get(world.as_ref())?)))
+                    .filter(|(_, index)| self.laws[**index].covers(spec))
+                    .min_by_key(|(regime, _)| regime.raw())
+                    .map(|(_, index)| index)
+            }),
         };
         index
             .map(|index| &self.laws[*index])

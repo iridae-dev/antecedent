@@ -598,13 +598,7 @@ mod tests {
         let mut covered = [0_usize; 4];
         let mut supported = [0_usize; 4];
         let mut state = 0x8a71_b65d_53cc_f093_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         for _ in 0..DRAWS {
             let assignment = (0..n).map(|_| (3.0 * uniform()).floor() as usize).collect::<Vec<_>>();
             let outcome = assignment
@@ -714,13 +708,7 @@ mod tests {
         const N: usize = 300;
         const DRAWS: usize = 2_000;
         let mut state = 0xb41d_8ac3_67f0_2219_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let mut covered = [0_usize; 2];
         let mut supported = [0_usize; 2];
         for _ in 0..DRAWS {
@@ -778,13 +766,7 @@ mod tests {
         const DRAWS: usize = 2_000;
         let bins = (0..BIN_ROWS * 2).map(|i| usize::from(i >= BIN_ROWS)).collect::<Vec<_>>();
         let mut state = 0x3721_f0de_8b64_5c19_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let truths = [2.0, 0.5];
         let mut covered = [0_usize; 2];
         for _ in 0..DRAWS {
@@ -916,13 +898,7 @@ mod tests {
         let n = 120;
         let simulations = 2_000;
         let mut state = 0x9E37_79B9_7F4A_7C15_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let reference = vec![false; n];
         let truth_policy = 1.0 + 1.85 / 3.0;
         let truth_incremental = truth_policy - 1.0;
@@ -991,13 +967,7 @@ mod tests {
         let n = 300;
         let simulations = 2_000;
         let mut state = 0xD1B5_4A32_4F6C_91E7_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let binary_reference = vec![false; n];
         let multi_reference = vec![0; n];
         let multi_costs = [0.0, 0.1, 0.2];
@@ -1104,13 +1074,7 @@ mod tests {
         const FOLDS: usize = 5;
         let simulations = 2_000;
         let mut state = 0x51ED_270B_6A11_C3D7_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let cost = 0.15;
         let truth_policy = 1.0 + 2.0 * (1.0 / 3.0) - cost * (1.0 / 3.0);
         let truth_incremental = truth_policy - 1.0;
@@ -1215,13 +1179,7 @@ mod tests {
             (0..N).map(|i| i % 2 == 1).collect(),
         ];
         let mut state = 0x6d3a_9f12_98e7_b40d_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         for p in [0.2, 0.5] {
             let mut covered = 0;
             for _ in 0..DRAWS {

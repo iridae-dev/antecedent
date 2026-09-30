@@ -193,7 +193,10 @@ def test_temporal_cpdag_to_json_refuses_unoriented_rather_than_fabricating():
     """
     tcpdag = TemporalCpdag.from_lagged_edges(["x", "y"], [], [("x", 1, "y", 0)])
     accepted = antecedent.AcceptedGraph.from_graph(tcpdag, algorithm_id="lpcmci")
-    with pytest.raises(antecedent.errors.CausalUnsupportedError):
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError,
+        match="has undirected or conflict marks but exposes no edge accessor",
+    ):
         accepted.to_json()
 
 
@@ -217,7 +220,9 @@ def test_temporal_pag_to_json_refuses_rather_than_fabricating():
     """
     tpag = TemporalPag.from_marked_lagged_edges(["x", "y"], [("x", 1, "y", 0, "tail", "arrow")])
     accepted = antecedent.AcceptedGraph.from_graph(tpag, algorithm_id="lpcmci")
-    with pytest.raises(antecedent.errors.CausalUnsupportedError):
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError, match="TemporalPag exposes no edge accessor"
+    ):
         accepted.to_json()
 
 

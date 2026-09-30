@@ -508,6 +508,7 @@ __all__ = [
     "IPCWCumulativeIncidenceEstimate",
     "IPCWSurvivalEstimate",
     "KnownCensoringSurvival",
+    "SurvivalDifferenceBand",
     "SurvivalEstimate",
     "SurvivalOutcome",
     "estimate_cumulative_incidence_ipcw",

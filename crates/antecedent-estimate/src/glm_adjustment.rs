@@ -632,9 +632,12 @@ fn gcomp_delta_method_se(
     let dispersion = match family {
         // For Gaussian/identity the fit's deviance is the RSS.
         GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
-        // NB2: α is the variance-function dispersion; use the fitted value, not 1.
-        GlmFamily::NegativeBinomial => nb_alpha.max(0.0),
-        GlmFamily::BinomialLogit | GlmFamily::BinomialProbit | GlmFamily::PoissonLog => 1.0,
+        // NB2 carries α in its Fisher weight μ/(1+αμ), so (XᵀWX)⁻¹ is already the
+        // full covariance; like the other fixed-dispersion families it scales by 1.
+        GlmFamily::NegativeBinomial
+        | GlmFamily::BinomialLogit
+        | GlmFamily::BinomialProbit
+        | GlmFamily::PoissonLog => 1.0,
     };
 
     let grad = gcomp_gradient(
@@ -1516,9 +1519,11 @@ mod tests {
             &target,
         );
         assert!(se_nb.is_finite() && se_pois.is_finite());
+        // At a common mean the NB2 covariance is the Poisson one scaled by 1+αμ.
+        let ratio = se_nb / se_pois;
         assert!(
-            se_nb > se_pois,
-            "NB SE must exceed Poisson SE at the same mean when α≠1; nb={se_nb} pois={se_pois}"
+            (ratio - (1.0 + alpha * mu).sqrt()).abs() < 1e-10,
+            "NB/Poisson SE ratio {ratio} must be sqrt(1+αμ); nb={se_nb} pois={se_pois}"
         );
     }
 

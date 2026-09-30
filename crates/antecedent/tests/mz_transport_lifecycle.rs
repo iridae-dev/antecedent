@@ -297,7 +297,8 @@ fn a_mutated_artifact_fails_independent_consumption() {
         consume_mz_transport_artifact(&claimed, MzTransportConsumeLimits::default(), &ctx)
             .map(|_| ()),
     );
-    let relabelled_reason = mutate(&|w| w.uncertainty.reason = "estimator_grid_not_measured".into());
+    let relabelled_reason =
+        mutate(&|w| w.uncertainty.reason = "estimator_grid_not_measured".into());
     assert!(matches!(
         refused(&relabelled_reason),
         MzTransportArtifactError::UncertaintyMismatch(_)
@@ -380,9 +381,7 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     .unwrap()
     .export()
     .unwrap();
-    assert_interval_refused(
-        MzTransportArtifactWire::consume(&carrying, &ctx).map(|_| ()),
-    );
+    assert_interval_refused(MzTransportArtifactWire::consume(&carrying, &ctx).map(|_| ()));
     assert_interval_refused(
         MzTransportArtifactWire::consume_with_limits(
             &carrying,
@@ -451,10 +450,8 @@ fn an_internal_interval_is_recomputed_bit_for_bit_and_refused_by_public_consumer
     };
     // No public producer builds an interval artifact: the closed route refuses.
     assert_interval_refused(MzTransportArtifactWire::checked(input(), &ctx).map(|_| ()));
-    let bytes = MzTransportArtifactWire::checked_with_interval(input(), &ctx)
-        .unwrap()
-        .export()
-        .unwrap();
+    let bytes =
+        MzTransportArtifactWire::checked_with_interval(input(), &ctx).unwrap().export().unwrap();
     // No public io consumer accepts one either, however it is called.
     assert_interval_refused(
         MzTransportArtifactWire::consume(&bytes, &ExecutionContext::for_tests(0)).map(|_| ()),
@@ -677,11 +674,10 @@ fn preparation_refusals_carry_their_recorded_code_and_detail() {
 fn the_facade_error_reports_the_recorded_top_level_code() {
     use antecedent::CausalError;
     use antecedent_identify::IdentificationError;
-    let proof = CausalError::Serialization(IoError::MzTransport(
-        MzTransportArtifactError::ProofMismatch(IdentificationError::invalid_derivation(
-            "mz_transport.invalid_derivation",
-        )),
-    ));
+    let proof =
+        CausalError::Serialization(IoError::MzTransport(MzTransportArtifactError::ProofMismatch(
+            IdentificationError::invalid_derivation("mz_transport.invalid_derivation"),
+        )));
     assert_eq!(proof.reason_code(), Some("transport_not_certified"));
     let bound = CausalError::Identify(IdentificationError::UnsupportedInput {
         code: "mz_transport.bounds_exceeded",

@@ -67,7 +67,9 @@ pub enum ZExperimentFamilyError {
         /// Concrete assignment required for this regime (empty for observational).
         values: Arc<[(VariableId, f64)]>,
     },
-    /// The cartesian experiment family is larger than the negative-certificate budget.
+    /// The cartesian experiment family is larger than the negative-certificate
+    /// budget, or declares more controllables than
+    /// [`Z_TRANSPORT_MAX_CONTROLLABLE`].
     FamilyExceedsBudget {
         /// Regimes the family would enumerate.
         regimes: usize,
@@ -755,19 +757,16 @@ pub fn validate_z_experiment_family(
             Ok((*variable, values))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut family_size = 0usize;
-    let k = domains.len();
-    for mask in 1..(1usize << k) {
-        let mut block = 1usize;
-        for (bit, (_, levels)) in domains.iter().enumerate() {
-            if mask & (1usize << bit) != 0 {
-                block = block.saturating_mul(levels.len());
-            }
-        }
-        family_size = family_size.saturating_add(block);
-        if family_size > Z_TRANSPORT_MAX_FAMILY_REGIMES {
-            return Err(ZExperimentFamilyError::FamilyExceedsBudget { regimes: family_size });
-        }
+    // Every non-empty subset at every joint level: prod(1 + levels) - 1
+    // regimes. The saturating product is computed without enumerating subsets,
+    // so a controllable set of any width is sized before a mask is shifted.
+    let family_size = domains
+        .iter()
+        .fold(1usize, |size, (_, levels)| size.saturating_mul(levels.len().saturating_add(1)))
+        - 1;
+    if family_size > Z_TRANSPORT_MAX_FAMILY_REGIMES || domains.len() > Z_TRANSPORT_MAX_CONTROLLABLE
+    {
+        return Err(ZExperimentFamilyError::FamilyExceedsBudget { regimes: family_size });
     }
 
     let mut required = Vec::new();
@@ -1217,6 +1216,51 @@ fn mutilated_admg(
     Ok(mutilated)
 }
 
+/// The `do(treatments)`-mutilated form of a static `graph`: directed edges into
+/// a treatment and bidirected edges incident to one are dropped, so the
+/// treatments are exogenous roots.
+///
+/// # Errors
+/// A treatment that is not a static node of `graph`.
+pub fn intervention_mutilated_admg(
+    graph: &antecedent_graph::Admg,
+    treatments: &[VariableId],
+) -> Result<antecedent_graph::Admg, IdentificationError> {
+    let mut set = BitSet::with_len(graph.node_count());
+    for treatment in treatments {
+        set.insert(dense_of(graph, *treatment).ok_or_else(build_unknown)?);
+    }
+    mutilated_admg(graph, &set)
+}
+
+/// The `treatments` that remain directed ancestors of `outcomes` in the
+/// `do(treatments)`-mutilated graph `mutilated` of `graph`, sorted by id: the
+/// treatments whose level still changes the outcomes' interventional law.
+///
+/// # Errors
+/// An outcome that is not a static node of `graph`.
+pub fn intervention_ancestral_treatments(
+    graph: &antecedent_graph::Admg,
+    mutilated: &antecedent_graph::Admg,
+    treatments: &[VariableId],
+    outcomes: &[VariableId],
+) -> Result<Vec<VariableId>, IdentificationError> {
+    let seeds = outcomes
+        .iter()
+        .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ancestors = directed_ancestors(mutilated, &seeds);
+    let mut retained = treatments
+        .iter()
+        .copied()
+        .filter(|treatment| {
+            dense_of(graph, *treatment).is_some_and(|dense| ancestors.contains(dense))
+        })
+        .collect::<Vec<_>>();
+    retained.sort_unstable_by_key(|variable| variable.raw());
+    Ok(retained)
+}
+
 /// Directed-ancestor closure of `seeds` in `graph` (seeds included).
 fn directed_ancestors(graph: &antecedent_graph::Admg, seeds: &[DenseNodeId]) -> BitSet {
     let mut closure = BitSet::with_len(graph.node_count());
@@ -1308,6 +1352,23 @@ fn build_unknown() -> IdentificationError {
     IdentificationError::invalid_input("z_transport.unknown_variable")
 }
 
+/// Whether `current` fixes a treatment that an earlier group already fixed at a
+/// different level. Both factors of a product must describe one intervention:
+/// a treatment that drives both groups is set to the same level in each source,
+/// or the product is not the law of any single target regime.
+#[must_use]
+pub fn intervention_levels_conflict(
+    earlier: &[Vec<CatalogInterventionAssignment>],
+    current: &[CatalogInterventionAssignment],
+) -> bool {
+    earlier.iter().flatten().any(|previous| {
+        current.iter().any(|assignment| {
+            assignment.variable == previous.variable
+                && !antecedent_core::same_intervention_level(&assignment.value, &previous.value)
+        })
+    })
+}
+
 /// Decide the connected complementary case: one connected graph whose intervened
 /// outcomes factorize into two groups, each transported from one distinct
 /// source. Each factor binds only to its own source's regimes (the joint-regime
@@ -1334,26 +1395,12 @@ fn connected_complementary_decision(
     // Each group's marginal effect P*_x(y_g) equals P*_{x_g}(y_g), where x_g are
     // the treatments that remain ancestors of the group after intervention; the
     // other treatments do not change the group's law.
-    let relevant_treatments =
-        |group: &[VariableId]| -> Result<Vec<VariableId>, IdentificationError> {
-            let seeds = group
-                .iter()
-                .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
-                .collect::<Result<Vec<_>, _>>()?;
-            let ancestors = directed_ancestors(&mutilated, &seeds);
-            let mut retained = query
-                .treatments
-                .iter()
-                .copied()
-                .filter(|treatment| {
-                    dense_of(graph, *treatment).is_some_and(|dense| ancestors.contains(dense))
-                })
-                .collect::<Vec<_>>();
-            retained.sort_unstable_by_key(|variable| variable.raw());
-            Ok(retained)
-        };
+    let relevant_treatments = |group: &[VariableId]| {
+        intervention_ancestral_treatments(graph, &mutilated, &query.treatments, group)
+    };
     for order in [[0usize, 1usize], [1usize, 0usize]] {
         let mut proofs = Vec::with_capacity(2);
+        let mut group_assignments: Vec<Vec<CatalogInterventionAssignment>> = Vec::with_capacity(2);
         let mut complete = true;
         for (group_index, source_index) in order.into_iter().enumerate() {
             let outcomes = &groups[group_index];
@@ -1370,10 +1417,12 @@ fn connected_complementary_decision(
                 || !group_treatments.iter().all(|variable| {
                     assignment.iter().any(|assignment| assignment.variable == *variable)
                 })
+                || intervention_levels_conflict(&group_assignments, &assignment)
             {
                 complete = false;
                 break;
             }
+            group_assignments.push(assignment.clone());
             let component_query = ZTransportQuery {
                 outcomes: outcomes.clone().into(),
                 treatments: group_treatments.clone().into(),
@@ -2016,6 +2065,12 @@ fn z_search(
 
 /// Bind the checked surrogate formula to a sufficient source joint margin.
 ///
+/// When several available regimes supply the same factor (or the same world of
+/// a factor whose exchanged coordinate is bound at evaluation), every formula
+/// kind binds by one deterministic rule: prefer a family regime, one declaring
+/// no intervention levels, otherwise the lowest regime id. Duplicate evidence
+/// is never refused, and the choice does not depend on catalog order.
+///
 /// # Errors
 /// Invalid catalog or a missing joint margin covering the formula variables.
 #[allow(clippy::too_many_lines)]
@@ -2057,38 +2112,35 @@ pub fn bind_z_transport_catalog(
     if derivation.kind == ZFormulaKind::DirectJoint {
         let assignment_variables =
             query.experiment_assignment.iter().map(|a| a.variable).collect::<Vec<_>>();
-        let selected = catalog
-            .regimes
-            .iter()
-            .find(|regime| {
-                regime.population.as_ref() == query.source.as_ref()
-                    && regime.supplies_population_law()
-                    && regime.kind == RegimeKind::Experimental
-                    && same_variable_set(&regime.interventions, &assignment_variables)
-                    && regime.intervention_values.len() == query.experiment_assignment.len()
-                    && query.experiment_assignment.iter().all(|expected| {
-                        regime.intervention_values.iter().any(|actual| {
-                            actual.variable == expected.variable
-                                && antecedent_core::same_intervention_level(
-                                    &actual.value,
-                                    &expected.value,
-                                )
-                        })
+        let selected = preferred_regime(catalog.regimes.iter().filter(|regime| {
+            regime.population.as_ref() == query.source.as_ref()
+                && regime.supplies_population_law()
+                && regime.kind == RegimeKind::Experimental
+                && same_variable_set(&regime.interventions, &assignment_variables)
+                && regime.intervention_values.len() == query.experiment_assignment.len()
+                && query.experiment_assignment.iter().all(|expected| {
+                    regime.intervention_values.iter().any(|actual| {
+                        actual.variable == expected.variable
+                            && antecedent_core::same_intervention_level(
+                                &actual.value,
+                                &expected.value,
+                            )
                     })
-                    && query.outcomes.iter().all(|y| regime.measured.contains(y))
-                    && regime.conditioned_on.is_empty()
-                    && regime.distribution == DistributionAvailability::Joint
-                    && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
-            })
-            .ok_or_else(|| {
-                IdentificationError::missing_evidence(
-                    "z_transport.missing_evidence",
-                    format!(
-                        "{} joint law under do({:?}) measuring {:?}",
-                        query.source, query.experiment_assignment, query.outcomes
-                    ),
-                )
-            })?;
+                })
+                && query.outcomes.iter().all(|y| regime.measured.contains(y))
+                && regime.conditioned_on.is_empty()
+                && regime.distribution == DistributionAvailability::Joint
+                && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
+        }))
+        .ok_or_else(|| {
+            IdentificationError::missing_evidence(
+                "z_transport.missing_evidence",
+                format!(
+                    "{} joint law under do({:?}) measuring {:?}",
+                    query.source, query.experiment_assignment, query.outcomes
+                ),
+            )
+        })?;
         let mut arena = derivation.arena.clone();
         let ExprNode::Distribution {
             variables,
@@ -2132,38 +2184,32 @@ pub fn bind_z_transport_catalog(
         });
     };
     let required_margin = [query.outcomes[0], confounder, query.treatments[0]];
-    let selected = catalog
-        .regimes
-        .iter()
-        .find(|regime| {
-            regime.population.as_ref() == query.source.as_ref()
-                && regime.supplies_population_law()
-                && regime.kind == RegimeKind::Experimental
-                && same_variable_set(&regime.interventions, &intervention_variables)
-                && regime.intervention_values.len() == assignments.len()
-                && assignments.iter().all(|expected| {
-                    regime.intervention_values.iter().any(|actual| {
-                        actual.variable == expected.variable
-                            && antecedent_core::same_intervention_level(
-                                &actual.value,
-                                &expected.value,
-                            )
-                    })
+    let selected = preferred_regime(catalog.regimes.iter().filter(|regime| {
+        regime.population.as_ref() == query.source.as_ref()
+            && regime.supplies_population_law()
+            && regime.kind == RegimeKind::Experimental
+            && same_variable_set(&regime.interventions, &intervention_variables)
+            && regime.intervention_values.len() == assignments.len()
+            && assignments.iter().all(|expected| {
+                regime.intervention_values.iter().any(|actual| {
+                    actual.variable == expected.variable
+                        && antecedent_core::same_intervention_level(&actual.value, &expected.value)
                 })
-                && required_margin.iter().all(|variable| regime.measured.contains(variable))
-                && regime.conditioned_on.is_empty()
-                && regime.distribution == DistributionAvailability::Joint
-                && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
-        })
-        .ok_or_else(|| {
-            IdentificationError::missing_evidence(
-                "z_transport.missing_evidence",
-                format!(
-                    "{} joint law under do({:?}) measuring {:?}",
-                    query.source, query.experiment_assignment, required_margin
-                ),
-            )
-        })?;
+            })
+            && required_margin.iter().all(|variable| regime.measured.contains(variable))
+            && regime.conditioned_on.is_empty()
+            && regime.distribution == DistributionAvailability::Joint
+            && catalog.bindings.iter().any(|binding| binding.regime == regime.id)
+    }))
+    .ok_or_else(|| {
+        IdentificationError::missing_evidence(
+            "z_transport.missing_evidence",
+            format!(
+                "{} joint law under do({:?}) measuring {:?}",
+                query.source, query.experiment_assignment, required_margin
+            ),
+        )
+    })?;
 
     let mut arena = derivation.arena.clone();
     let ExprNode::SumOut { variables, expr } = derivation.arena.node(derivation.root).clone()
@@ -2219,6 +2265,19 @@ pub(super) fn cited_regimes(
     cited.sort_unstable_by_key(|regime| regime.raw());
     cited.dedup();
     cited.into()
+}
+
+/// The one rule every binding path uses when several available regimes supply
+/// the same law: prefer a family regime (one declaring no intervention levels,
+/// so it supplies every world at once), otherwise the lowest regime id.
+/// Supplying the same law more than once is never refused as ambiguous; the
+/// choice is deterministic and independent of catalog order.
+fn preferred_regime<'a>(
+    candidates: impl IntoIterator<Item = &'a antecedent_core::EvidenceRegime>,
+) -> Option<&'a antecedent_core::EvidenceRegime> {
+    candidates
+        .into_iter()
+        .min_by_key(|regime| (!regime.intervention_values.is_empty(), regime.id.raw()))
 }
 
 /// How one bound factor selects its law at evaluation.
@@ -2335,22 +2394,14 @@ fn bind_leaf(
         })
         .collect::<Vec<_>>();
     let symbolic = interventions.iter().filter(|a| a.is_symbolic()).collect::<Vec<_>>();
+    let preferred = preferred_regime(candidates.iter().copied());
     if symbolic.is_empty() {
-        return candidates
-            .iter()
-            .map(|regime| regime.id)
-            .min_by_key(|regime| regime.raw())
-            .map(LeafBinding::Single)
-            .ok_or_else(missing);
+        // A concrete factor names one law.
+        return preferred.map(|regime| LeafBinding::Single(regime.id)).ok_or_else(missing);
     }
     // A family regime (no declared levels) supplies every world at once.
-    if let Some(family) = candidates
-        .iter()
-        .filter(|regime| regime.intervention_values.is_empty())
-        .map(|regime| regime.id)
-        .min_by_key(|regime| regime.raw())
-    {
-        return Ok(LeafBinding::Single(family));
+    if let Some(family) = preferred.filter(|regime| regime.intervention_values.is_empty()) {
+        return Ok(LeafBinding::Single(family.id));
     }
     // Otherwise every world of the symbolic coordinates needs its own regime.
     let mut worlds = vec![Vec::new()];
@@ -2389,24 +2440,19 @@ fn bind_leaf(
     }
     let mut regimes = Vec::with_capacity(worlds.len());
     for world in worlds {
-        let mut supplying = candidates.iter().filter(|regime| {
+        let supplying = candidates.iter().copied().filter(|regime| {
             symbolic.iter().zip(&world).all(|(assignment, level)| {
                 regime.intervention_values.iter().any(|actual| {
                     actual.variable == assignment.variable && actual.value.as_f64() == Some(*level)
                 })
             })
         });
-        let Some(regime) = supplying.next() else {
+        let Some(regime) = preferred_regime(supplying) else {
             return Err(IdentificationError::missing_evidence(
                 "z_transport.missing_evidence",
                 format!("{population} joint factor under {interventions:?} at world {world:?}"),
             ));
         };
-        if supplying.next().is_some() {
-            return Err(IdentificationError::invalid_catalog(format!(
-                "z_transport.ambiguous_evidence: {population} supplies world {world:?} under {interventions:?} more than once"
-            )));
-        }
         regimes.push(regime.id);
     }
     Ok(LeafBinding::PerWorld(regimes))
@@ -3542,6 +3588,46 @@ mod tests {
     }
 
     #[test]
+    fn family_check_refuses_a_controllable_set_too_wide_to_enumerate() {
+        // 64 binary controllables: the family has 3^64 - 1 regimes, far past
+        // the budget. It must be refused, never an empty "complete" family.
+        let variables = (0..64).map(VariableId::from_raw).collect::<Vec<_>>();
+        let coordinates = variables
+            .iter()
+            .map(|&variable| VariableCoordinate {
+                variable,
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect::<Vec<_>>();
+        let catalog = EvidenceCatalog::try_new(
+            [
+                Environment::try_new("source", coordinates.clone(), []).unwrap(),
+                Environment::try_new("target", coordinates, []).unwrap(),
+            ],
+            [],
+            [],
+            None,
+        )
+        .unwrap();
+        let diagram =
+            SelectionDiagram::try_new(Admg::with_variables(64), Arc::<[VariableId]>::from([]))
+                .unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([variables[0]]),
+            treatments: Arc::from([variables[1]]),
+            controllable: variables.clone().into(),
+            experiment_assignment: Arc::from([]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        assert!(matches!(
+            validate_z_experiment_family(&diagram, &query, &catalog),
+            Err(ZExperimentFamilyError::FamilyExceedsBudget { regimes }) if regimes > Z_TRANSPORT_MAX_FAMILY_REGIMES
+        ));
+    }
+
+    #[test]
     fn contract_rejects_unknown_and_duplicate_coordinates() {
         let (diagram, mut query) = query(3, &[1]);
         query.controllable = Arc::from([VariableId::from_raw(9)]);
@@ -3946,6 +4032,265 @@ mod tests {
             &antecedent_core::ExecutionContext::for_tests(0),
         )
         .unwrap();
+    }
+
+    /// An available, bound joint regime for the preference tests. `levels`
+    /// `None` declares the whole intervention family.
+    fn preference_regime(
+        raw: u32,
+        population: &str,
+        interventions: &[u32],
+        levels: Option<&[bool]>,
+        measured: &[u32],
+    ) -> antecedent_core::EvidenceRegime {
+        antecedent_core::EvidenceRegime::try_new(
+            RegimeId::from_raw(raw),
+            if interventions.is_empty() {
+                RegimeKind::Observational
+            } else {
+                RegimeKind::Experimental
+            },
+            EvidenceKind::Available,
+            interventions.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+            levels.map_or_else(Vec::new, |levels| {
+                interventions
+                    .iter()
+                    .zip(levels)
+                    .map(|(variable, level)| CatalogInterventionAssignment {
+                        variable: VariableId::from_raw(*variable),
+                        value: Value::Bool(*level),
+                    })
+                    .collect()
+            }),
+            measured.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+            population,
+            DistributionAvailability::Joint,
+        )
+        .unwrap()
+    }
+
+    /// A binary source/target catalog over `n` variables binding every regime.
+    fn preference_catalog(
+        n: u32,
+        regimes: Vec<antecedent_core::EvidenceRegime>,
+    ) -> EvidenceCatalog {
+        let coords = (0..n)
+            .map(|raw| VariableCoordinate {
+                variable: VariableId::from_raw(raw),
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect::<Vec<_>>();
+        let bindings = regimes
+            .iter()
+            .map(|regime| RegimeBinding {
+                dataset_identity: None,
+                regime: regime.id,
+                snapshot_identity: Arc::from(format!("snapshot-{}", regime.id.raw())),
+                schema_names: Arc::from([]),
+                sampling: SamplingDesign::Independent,
+                weights: None,
+                dependence: DependenceGroup::IndependentStudies,
+            })
+            .collect::<Vec<_>>();
+        EvidenceCatalog::try_new(
+            [
+                Environment::try_new("source", coords.clone(), Arc::<[VariableId]>::from([]))
+                    .unwrap(),
+                Environment::try_new("target", coords, Arc::<[VariableId]>::from([])).unwrap(),
+            ],
+            regimes,
+            bindings,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn cited(bound: &BoundZTransportFunctional) -> Vec<u32> {
+        bound.cited_regimes().iter().map(|regime| regime.raw()).collect()
+    }
+
+    /// Z→X→Y with an observed confounder W→X, W→Y: the recursive formula cites
+    /// the target's observational joint. Two target regimes that both supply
+    /// it bind the lowest id, whatever the catalog order.
+    #[test]
+    fn recursive_concrete_factor_binds_the_lowest_of_two_supplying_regimes() {
+        let mut graph = Admg::with_variables(5);
+        for (a, b) in [(1, 2), (2, 3), (0, 2), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (_, query) = surrogate_fixture();
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("the observed-confounder graph identifies recursively")
+        };
+        let all = [0, 1, 2, 3, 4];
+        for order in [[1, 4], [4, 1]] {
+            let catalog = preference_catalog(
+                5,
+                order
+                    .iter()
+                    .map(|raw| preference_regime(*raw, "target", &[], None, &all))
+                    .collect(),
+            );
+            let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+            assert_eq!(cited(&bound), [1], "catalog order {order:?}");
+        }
+    }
+
+    /// The recursive route's concrete source experiment do(X1 = 0): a family
+    /// regime on X1 (no declared levels) supplies it too and is preferred over
+    /// a concrete regime with a lower id; two concrete regimes bind the lowest.
+    #[test]
+    fn recursive_concrete_experiment_prefers_a_family_regime_then_the_lowest_id() {
+        let mut graph = Admg::with_variables(5);
+        for (a, b) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        for (a, b) in [(0, 3), (1, 3), (1, 2)] {
+            graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (_, query) = surrogate_fixture();
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("recursive TRz should identify the graph with an isolated extra node")
+        };
+        let observational = preference_regime(0, "target", &[], None, &[0, 1, 2, 3, 4]);
+        let measured = [0, 2, 3];
+        let concrete = |raw| preference_regime(raw, "source", &[1], Some(&[false]), &measured);
+        let family = |raw| preference_regime(raw, "source", &[1], None, &measured);
+        let catalog = preference_catalog(5, vec![observational.clone(), concrete(1), family(7)]);
+        let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+        assert_eq!(cited(&bound), [7]);
+        let catalog = preference_catalog(5, vec![observational, concrete(6), concrete(2)]);
+        let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+        assert_eq!(cited(&bound), [2]);
+    }
+
+    /// Bow graph W→Y, X→Y, X↔Y with selection on W: the exchanged treatment
+    /// stays symbolic and binds one regime per world. A world supplied twice
+    /// binds the lowest id; a family regime supplies every world and wins.
+    #[test]
+    fn per_world_binding_prefers_a_family_regime_then_the_lowest_id_per_world() {
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        graph.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let diagram =
+            SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([VariableId::from_raw(0)]))
+                .unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([VariableId::from_raw(2)]),
+            treatments: Arc::from([VariableId::from_raw(1)]),
+            controllable: Arc::from([VariableId::from_raw(1)]),
+            experiment_assignment: Arc::from([CatalogInterventionAssignment {
+                variable: VariableId::from_raw(1),
+                value: Value::Bool(false),
+            }]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("the bow graph identifies")
+        };
+        let observational = preference_regime(0, "target", &[], None, &[0, 1, 2]);
+        let at = |raw, level| preference_regime(raw, "source", &[1], Some(&[level]), &[0, 2]);
+        let catalog = preference_catalog(
+            3,
+            vec![observational.clone(), at(5, false), at(2, true), at(3, false)],
+        );
+        let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+        assert_eq!(cited(&bound), [0, 2, 3]);
+        let family = preference_regime(9, "source", &[1], None, &[0, 2]);
+        let catalog = preference_catalog(3, vec![observational, at(1, false), at(2, true), family]);
+        let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+        assert_eq!(cited(&bound), [0, 9]);
+    }
+
+    /// The registered surrogate formula binds one source joint; two supplying
+    /// experiments bind the lowest id, whatever the catalog order.
+    #[test]
+    fn surrogate_formula_binds_the_lowest_of_two_supplying_experiments() {
+        let (diagram, query) = surrogate_fixture();
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("registered surrogate graph should be identified");
+        };
+        assert_eq!(proof.kind, ZFormulaKind::Surrogate);
+        let experiment = |raw| preference_regime(raw, "source", &[1], Some(&[false]), &[0, 2, 3]);
+        for order in [[3, 1], [1, 3]] {
+            let catalog = preference_catalog(4, order.iter().map(|raw| experiment(*raw)).collect());
+            let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+            assert_eq!(cited(&bound), [1], "catalog order {order:?}");
+        }
+    }
+
+    /// The direct joint exchange binds one source joint; two supplying
+    /// experiments bind the lowest id, whatever the catalog order.
+    #[test]
+    fn direct_joint_formula_binds_the_lowest_of_two_supplying_experiments() {
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let query = ZTransportQuery {
+            outcomes: Arc::from([VariableId::from_raw(2)]),
+            treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            controllable: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            experiment_assignment: Arc::from([
+                CatalogInterventionAssignment {
+                    variable: VariableId::from_raw(0),
+                    value: Value::Bool(true),
+                },
+                CatalogInterventionAssignment {
+                    variable: VariableId::from_raw(1),
+                    value: Value::Bool(false),
+                },
+            ]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let ZTransportResult::Identified(proof) = identify_z_transport(
+            &diagram,
+            &query,
+            super::super::SidLimits::default(),
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap() else {
+            panic!("direct joint source exchange must be identified")
+        };
+        assert_eq!(proof.kind, ZFormulaKind::DirectJoint);
+        let experiment =
+            |raw| preference_regime(raw, "source", &[0, 1], Some(&[true, false]), &[2]);
+        for order in [[4, 2], [2, 4]] {
+            let catalog = preference_catalog(3, order.iter().map(|raw| experiment(*raw)).collect());
+            let bound = bind_z_transport_catalog(&diagram, &query, &proof, &catalog).unwrap();
+            assert_eq!(cited(&bound), [2], "catalog order {order:?}");
+        }
     }
 
     #[test]

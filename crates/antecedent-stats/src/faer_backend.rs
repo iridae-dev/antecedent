@@ -101,6 +101,73 @@ impl DenseLinearAlgebra for FaerBackend {
     }
 }
 
+impl FaerBackend {
+    /// Minimum-norm least squares `β = X⁺ y` through a thin SVD, for designs that may be rank
+    /// deficient.
+    ///
+    /// Singular values at or below `max(nrows, ncols) · ε · σ_max` are treated as zero. When
+    /// the columns are collinear the coefficients are not identified individually; this picks
+    /// the solution of smallest Euclidean norm, whose fitted values and residuals are the
+    /// orthogonal projection of `y` on the column space, the same as any least-squares solution.
+    /// Prefer [`DenseLinearAlgebra::least_squares`] when the design is full rank.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch, or an SVD that fails to converge.
+    pub fn min_norm_least_squares(
+        &self,
+        x_colmajor: &[f64],
+        nrows: usize,
+        ncols: usize,
+        y: &[f64],
+    ) -> Result<LeastSquaresFit, StatsError> {
+        if y.len() != nrows {
+            return Err(StatsError::Shape { message: "y length != nrows" });
+        }
+        if x_colmajor.len() < nrows.saturating_mul(ncols) {
+            return Err(StatsError::Shape { message: "X buffer too short" });
+        }
+        let a = Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r]);
+        let svd = a.thin_svd().map_err(|_| {
+            StatsError::Backend("minimum-norm least squares: SVD did not converge".into())
+        })?;
+        let (u, s, v) = (svd.U(), svd.S().column_vector(), svd.V());
+        let size = nrows.min(ncols);
+        let s_max = (0..size).map(|i| s[i].abs()).fold(0.0_f64, f64::max);
+        let tol = (nrows.max(ncols) as f64) * f64::EPSILON * s_max;
+        let mut coefficients = vec![0.0; ncols];
+        let mut rank = 0usize;
+        let mut s_min = f64::INFINITY;
+        for i in 0..size {
+            let si = s[i].abs();
+            if si <= tol {
+                continue;
+            }
+            rank += 1;
+            s_min = s_min.min(si);
+            let uty: f64 = (0..nrows).map(|r| u[(r, i)] * y[r]).sum();
+            let w = uty / s[i];
+            for (c, coef) in coefficients.iter_mut().enumerate() {
+                *coef += v[(c, i)] * w;
+            }
+        }
+        let residuals: Vec<f64> = (0..nrows)
+            .map(|r| {
+                y[r] - (0..ncols).map(|c| x_colmajor[c * nrows + r] * coefficients[c]).sum::<f64>()
+            })
+            .collect();
+        let rss = residuals.iter().map(|e| e * e).sum();
+        let rcond = (rank > 0).then(|| s_min / s_max);
+        Ok(LeastSquaresFit {
+            coefficients,
+            residuals,
+            rank,
+            rss,
+            diagnostics: FitDiagnostics::new(rank, rcond, "faer-svd", 0),
+        })
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::float_cmp,
@@ -128,6 +195,37 @@ mod tests {
     }
 
     use super::*;
+
+    /// `x1 = 2·x0`: the minimum-norm solution splits the effect `β0 + 2β1 = 3` as
+    /// `(3/5, 6/5)` and reproduces the least-squares fit exactly.
+    #[test]
+    fn min_norm_least_squares_resolves_collinear_columns() {
+        let n = 20usize;
+        let x0: Vec<f64> = (0..n).map(|i| (i as f64 * 0.7).sin()).collect();
+        let mut x = x0.clone();
+        x.extend(x0.iter().map(|v| 2.0 * v));
+        let y: Vec<f64> = x0.iter().map(|v| 3.0 * v).collect();
+        assert!(
+            FaerBackend.least_squares(&x, n, 2, &y, &mut LeastSquaresWorkspace::default()).is_err()
+        );
+        let fit = FaerBackend.min_norm_least_squares(&x, n, 2, &y).unwrap();
+        assert_eq!(fit.rank, 1);
+        assert!((fit.coefficients[0] - 0.6).abs() < 1e-12, "{:?}", fit.coefficients);
+        assert!((fit.coefficients[1] - 1.2).abs() < 1e-12, "{:?}", fit.coefficients);
+        assert!(fit.rss < 1e-24);
+
+        // Full rank: agrees with the QR solve.
+        let mut full = x0.clone();
+        full.extend((0..n).map(|i| i as f64 / n as f64));
+        let yf: Vec<f64> = (0..n).map(|i| 1.5 * full[i] - 0.5 * full[n + i]).collect();
+        let qr = FaerBackend
+            .least_squares(&full, n, 2, &yf, &mut LeastSquaresWorkspace::default())
+            .unwrap();
+        let mn = FaerBackend.min_norm_least_squares(&full, n, 2, &yf).unwrap();
+        for (a, b) in qr.coefficients.iter().zip(&mn.coefficients) {
+            assert!((a - b).abs() < 1e-10, "{a} vs {b}");
+        }
+    }
 
     #[test]
     fn qr_recovers_known_line() {

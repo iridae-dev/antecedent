@@ -142,6 +142,12 @@ fn functional_bayesian_path_distribution_and_admg() {
                 "path suite={suite:?} must run the path subset-stability suite"
             );
             assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.")));
+            // Subsample refits are centred on the full-sample estimate by construction and
+            // judged against single-replicate spread, so they cannot fail: not evidence.
+            assert!(
+                result.refutations.iter().all(|r| !r.informative),
+                "path subset stability must not be reported as informative"
+            );
         }
     }
 
@@ -934,13 +940,15 @@ fn static_mediation_named_prior_hydrates_only_the_outcome_treatment_slope() {
     let mapping = antecedent_estimate::HydrateMapping::NamedParameters {
         pairs: vec![("slope_t".into(), "coef_a".into())],
     };
-    let quantities =
-        [antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") }];
+    let quantities = [
+        antecedent_prob::PosteriorQuantityKind::Scalar { name: Arc::from("slope_t") },
+        antecedent_prob::PosteriorQuantityKind::ResidualVariance,
+    ];
     let bridge = antecedent_estimate::MediationPriorBridge {
         mapping: &mapping,
         quantities: &quantities,
-        mean: &[3.0],
-        sd: &[0.2],
+        mean: &[3.0, 1.0],
+        sd: &[0.2, 0.1],
         source_contrast: None,
     };
     let estimator =

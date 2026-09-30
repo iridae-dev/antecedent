@@ -140,7 +140,7 @@ fn retained_synthetic_did_recovers_additive_truth_and_round_trips_weights() {
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
     let bytes = prepared.encode_contracted_result(&result, "synthetic-did", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
-    assert_eq!(body.synthetic_did.as_ref().unwrap().effect, 7.0);
+    assert_eq!(body.synthetic_did.as_ref().unwrap().effect.to_bits(), fit.effect.to_bits());
     assert!(body.standard_error.is_none());
     let mut fabricated = body.clone();
     fabricated.interval_lower = Some(6.0);

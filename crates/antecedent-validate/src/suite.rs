@@ -901,6 +901,8 @@ mod tests {
         let failed =
             outcomes.iter().filter(|o| matches!(o, ValidationOutcome::Failed { .. })).count();
         assert_eq!(reports.len() + skipped.len() + failed, 14);
+        // No validator may fail operationally on this well-posed toy.
+        assert_eq!(failed, 0, "{outcomes:?}");
         // The noise-free toy leaves no residual outcome variation, so no finite confounder
         // strength can explain the effect away: the E-value is infinite, not a finite artefact of
         // the outcome's marginal spread.

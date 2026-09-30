@@ -24,6 +24,14 @@ impl std::fmt::Debug for CheckedTemporalClassEffectExecution {
 }
 
 impl CheckedTemporalClassEffectExecution {
+    /// Replace the caller validators run by the sealed class operation.
+    pub(crate) fn set_custom_validators(
+        &mut self,
+        validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    ) {
+        self.operation.set_custom_validators(validators);
+    }
+
     pub(crate) fn checked(
         operation: crate::analysis::CheckedTemporalClassEffectOperation,
         result_context: IdentifiedResultContext,

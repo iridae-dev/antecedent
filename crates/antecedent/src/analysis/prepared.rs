@@ -2822,6 +2822,24 @@ impl PreparedExecution {
         }
     }
 
+    /// Push rebound caller validators into the sealed operations that run
+    /// them from their own frozen copy.
+    fn set_custom_validators(
+        &mut self,
+        validators: &[Arc<dyn antecedent_validate::CustomEffectValidator>],
+    ) {
+        match self {
+            Self::BayesianGcomp(operation) => operation.set_custom_validators(validators.to_vec()),
+            Self::BayesianConditional(operation) => {
+                operation.set_custom_validators(validators.to_vec());
+            }
+            Self::TemporalClassEffect(operation) => {
+                operation.set_custom_validators(validators.to_vec());
+            }
+            _ => {}
+        }
+    }
+
     pub(crate) fn program_binding(&self) -> CheckedProgramBinding<'_> {
         match self {
             Self::CheckedAipw(operation) => CheckedProgramBinding::Aipw(&operation.preparation),
@@ -2897,21 +2915,22 @@ impl PreparedExecution {
     }
 
     /// Rebind only the checked receipts that still execute through the shared
-    /// tabular dispatcher. Direct operations own their rebind at execution.
-    /// Keeping the variant selection here prevents a refreshed receipt from
-    /// accidentally changing the procedure selected at preparation.
-    fn rebind_for_dispatch(&self, data: &TabularData) -> Result<Self, CausalError> {
-        match self {
-            Self::CheckedLinear(operation) => Ok(Self::CheckedLinear(operation.rebind(data)?)),
+    /// tabular dispatcher; `None` for every other variant, which executes as
+    /// prepared. Direct operations own their rebind at execution. Keeping the
+    /// variant selection here, and only here, prevents a refreshed receipt
+    /// from accidentally changing the procedure selected at preparation.
+    fn rebind_for_dispatch(&self, data: &TabularData) -> Result<Option<Self>, CausalError> {
+        Ok(Some(match self {
+            Self::CheckedLinear(operation) => Self::CheckedLinear(operation.rebind(data)?),
             Self::CheckedGlmAdjustment(operation) => {
-                Ok(Self::CheckedGlmAdjustment(operation.rebind(data)?))
+                Self::CheckedGlmAdjustment(operation.rebind(data)?)
             }
-            Self::CheckedRd(operation) => Ok(Self::CheckedRd(operation.rebind(data)?)),
-            Self::CheckedAipw(operation) => Ok(Self::CheckedAipw(operation.rebind(data)?)),
-            Self::FrontDoorLinear(operation) => Ok(Self::FrontDoorLinear(operation.rebind(data)?)),
-            Self::Iv(operation) => Ok(Self::Iv(operation.rebind(data)?)),
-            other => Ok(other.clone()),
-        }
+            Self::CheckedRd(operation) => Self::CheckedRd(operation.rebind(data)?),
+            Self::CheckedAipw(operation) => Self::CheckedAipw(operation.rebind(data)?),
+            Self::FrontDoorLinear(operation) => Self::FrontDoorLinear(operation.rebind(data)?),
+            Self::Iv(operation) => Self::Iv(operation.rebind(data)?),
+            _ => return Ok(None),
+        }))
     }
 
     pub(crate) fn checked_linear(
@@ -4875,6 +4894,7 @@ impl PreparedStudy {
                 "rebind_validators names must match attested names"
             ));
         }
+        self.execution.set_custom_validators(&validators);
         self.analysis.custom_validators = validators;
         Ok(())
     }
@@ -5344,8 +5364,9 @@ impl PreparedStudy {
         click_analysis.interference =
             click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
         click_analysis.shared_batch_design = shared;
-        let execution = self.execution.rebind_for_dispatch(data)?;
-        let mut result = click_analysis.execute_tabular(data, &self.plan, &execution, ctx)?;
+        let rebound = self.execution.rebind_for_dispatch(data)?;
+        let execution = rebound.as_ref().unwrap_or(&self.execution);
+        let mut result = click_analysis.execute_tabular(data, &self.plan, execution, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
         // record which refutation reports are caller-attested. Without the names,
         // the claim would drop custom-validator evidence from `attested` and from
@@ -5759,6 +5780,24 @@ impl PreparedStudy {
         self.stamp(&DataInput::Tabular(data.clone()), result)
     }
 
+    /// Rebind the row-bound dispatch receipts to `data`. Boxed and out of
+    /// line so the refresh frame never holds a second execution value.
+    #[inline(never)]
+    fn rebound_dispatch_execution(
+        &self,
+        data: &DataInput,
+    ) -> Result<Option<Box<PreparedExecution>>, CausalError> {
+        let DataInput::Tabular(data) = data else {
+            return Ok(None);
+        };
+        Ok(self.execution.rebind_for_dispatch(data)?.map(Box::new))
+    }
+
+    #[inline(never)]
+    fn install_execution(&mut self, execution: Box<PreparedExecution>) {
+        self.execution = *execution;
+    }
+
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
     ///
     /// # Errors
@@ -5799,7 +5838,14 @@ impl PreparedStudy {
             // source for retargeting after the click.
             let scores =
                 if self.score_table.is_some() { refreshed.prepare_score_table(ctx)? } else { None };
+            // Receipts that bind complete-case rows (linear, GLM, RD, AIPW,
+            // front-door, IV) must describe the retained snapshot, or the
+            // published contract would carry prepare-time row counts.
+            let rebound_dispatch = self.rebound_dispatch_execution(&refreshed.data)?;
             self.replace_study(refreshed);
+            if let Some(execution) = rebound_dispatch {
+                self.install_execution(execution);
+            }
             if let PreparedExecution::CellAipwResponse(operation) = &self.execution {
                 if let DataInput::Tabular(data) = &self.analysis.data {
                     self.execution = PreparedExecution::CellAipwResponse(operation.refresh(
@@ -11357,6 +11403,10 @@ mod checked_iv_prepared_tests {
     use super::{CheckedIvOperation, PreparedExecution};
 
     fn data(shift: f64) -> TabularData {
+        data_rows(shift, 1_600)
+    }
+
+    fn data_rows(shift: f64, n: usize) -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
         for (name, hint) in [
             ("t", RoleHint::TreatmentCandidate),
@@ -11377,7 +11427,6 @@ mod checked_iv_prepared_tests {
         let schema = builder.build().unwrap();
         let ids =
             [schema.id_of("t").unwrap(), schema.id_of("y").unwrap(), schema.id_of("z").unwrap()];
-        let n = 1_600;
         let mut t = Vec::with_capacity(n);
         let mut y = Vec::with_capacity(n);
         let mut z = Vec::with_capacity(n);
@@ -11420,6 +11469,32 @@ mod checked_iv_prepared_tests {
             .refute(RefuteSuite::None)
             .build()
             .unwrap()
+    }
+
+    #[test]
+    fn checked_iv_refresh_publishes_the_refreshed_row_count() {
+        let context = ExecutionContext::for_tests(74);
+        for rows in [800_usize, 3_200] {
+            let mut prepared =
+                study(data(0.0), WaldIv::new().with_se_kind(AnalyticSeKind::Homoskedastic))
+                    .prepare(&context)
+                    .unwrap();
+            let refreshed = prepared.refresh(data_rows(0.4, rows), &context).unwrap();
+            let artifact = prepared.encode_contracted_result(&refreshed, "iv", &context).unwrap();
+            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            assert!(
+                consumed.acceptance.accepts_as_verified_program(),
+                "unresolved={:?}",
+                consumed.acceptance.unresolved
+            );
+            let published = consumed
+                .contract
+                .as_ref()
+                .and_then(|contract| contract.program.as_ref())
+                .and_then(|program| program.checked_iv_lowering.as_ref())
+                .map(|lowering| lowering.complete_case_rows);
+            assert_eq!(published, Some(rows as u64));
+        }
     }
 
     #[test]
@@ -11505,6 +11580,10 @@ mod checked_frontdoor_prepared_tests {
     use crate::strategy_table::IdentifierId;
 
     fn data(y_shift: f64) -> TabularData {
+        data_rows(y_shift, 2_000)
+    }
+
+    fn data_rows(y_shift: f64, n: usize) -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
         for (name, hint) in [
             ("t", RoleHint::TreatmentCandidate),
@@ -11523,7 +11602,6 @@ mod checked_frontdoor_prepared_tests {
                 .unwrap();
         }
         let schema = builder.build().unwrap();
-        let n = 2_000;
         let mut treatment = Vec::with_capacity(n);
         let mut mediator = Vec::with_capacity(n);
         let mut outcome = Vec::with_capacity(n);
@@ -11550,6 +11628,49 @@ mod checked_frontdoor_prepared_tests {
             })
             .collect();
         TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+    }
+
+    #[test]
+    fn frontdoor_refresh_publishes_the_refreshed_row_count() {
+        let base_data = data(0.0);
+        let graph = Dag::from_named_edges(base_data.schema(), &[("t", "m"), ("m", "y")]).unwrap();
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            0.0,
+            1.0,
+        );
+        let context = ExecutionContext::for_tests(810);
+        for rows in [1_200_usize, 3_000] {
+            let mut prepared = Study::tabular(base_data.clone())
+                .graph(graph.clone())
+                .query(query.clone())
+                .identifier(IdentifierId::Frontdoor)
+                .estimator(
+                    antecedent_estimate::FrontDoorTwoStage::new().with_bootstrap_replicates(0),
+                )
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+                .prepare(&context)
+                .unwrap();
+            let refreshed = prepared.refresh(data_rows(0.4, rows), &context).unwrap();
+            let artifact =
+                prepared.encode_contracted_result(&refreshed, "frontdoor", &context).unwrap();
+            let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+            assert!(
+                consumed.acceptance.accepts_as_verified_program(),
+                "unresolved={:?}",
+                consumed.acceptance.unresolved
+            );
+            let published = consumed
+                .contract
+                .as_ref()
+                .and_then(|contract| contract.program.as_ref())
+                .and_then(|program| program.checked_frontdoor_lowering.as_ref())
+                .map(|lowering| lowering.complete_case_rows);
+            assert_eq!(published, Some(rows as u64));
+        }
     }
 
     #[test]

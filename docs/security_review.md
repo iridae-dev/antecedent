@@ -1,10 +1,21 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-09-29
+Scope: workspace crates + `python` extension (package version **2.1.1**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+Source review of the 2.1.1 changes against the 2.1.0 tag. They correct
+artifact verification, estimator numerics, transport soundness checks, and
+Python input validation, and adjust CI and gate scripts. The changed Rust
+source adds no `unsafe` block and the lockfile adds no external package.
+`.cargo/config.toml` makes dependency resolution prefer versions compatible
+with the declared rust-version. No workflow permission changed.
+
 Date: 2026-09-24
 Scope: workspace crates + `python` extension (package version **2.1.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
-Pre-release source review of the 2.1.0 development branch against `origin/main`:
+Source review of the 2.1.0 changes against 2.0.0:
 the added Bayesian and evidence routes change statistical and proof handling,
 including query/artifact decoding. The changed Rust source adds no `unsafe`
 block, the lockfile adds no external package, and no workflow permission file

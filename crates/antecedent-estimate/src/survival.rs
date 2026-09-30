@@ -7,6 +7,8 @@
 
 use std::collections::BTreeSet;
 
+use crate::splitmix::splitmix64;
+
 /// Outcome summarized over randomized treatment arms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurvivalEndpoint {
@@ -196,6 +198,9 @@ pub fn randomized_survival_bootstrap_intervals(
     if duration.len() != event_code.len()
         || duration.len() != treated.len()
         || delayed_entry.is_some_and(|entry| entry.len() != duration.len())
+        || known_censoring.is_some_and(|(grid, weights, _)| {
+            weights.len() != duration.len().saturating_mul(grid.len())
+        })
     {
         return Err("survival bootstrap subject arrays must be row-aligned");
     }
@@ -271,14 +276,6 @@ pub fn randomized_survival_bootstrap_intervals(
         replicates_requested: replicates,
         replicates_ok: ok,
     })
-}
-
-fn splitmix64(state: &mut u64) -> u64 {
-    *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let mut x = *state;
-    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    x ^ (x >> 31)
 }
 
 fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
@@ -771,6 +768,21 @@ mod tests {
             )
             .is_err()
         );
+        let short_censoring = vec![1.0; 79];
+        assert_eq!(
+            randomized_survival_bootstrap_intervals(
+                &durations,
+                &events,
+                &treated,
+                None,
+                Some((&[3.0], &short_censoring, 0.05)),
+                3.0,
+                SurvivalEndpoint::Survival,
+                399,
+                17,
+            ),
+            Err("survival bootstrap subject arrays must be row-aligned")
+        );
         assert!(
             randomized_survival_bootstrap_intervals(
                 &durations,
@@ -850,7 +862,7 @@ mod tests {
             let mut treated = Vec::with_capacity(240);
             for i in 0..240 {
                 let arm = i >= 120;
-                let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let u = crate::splitmix::splitmix64_unit(&mut state);
                 let failed = u < if arm { 0.15 } else { 0.30 };
                 durations.push(if failed { 1.0 } else { 3.0 });
                 events.push(i64::from(failed));
@@ -897,7 +909,7 @@ mod tests {
             let mut treated = Vec::with_capacity(240);
             for arm in [false, true] {
                 for _ in 0..120 {
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let failed = u < if arm { 0.15 } else { 0.30 };
                     duration.push(if failed { 1.0 } else { 3.0 });
                     event.push(i64::from(failed));
@@ -950,7 +962,7 @@ mod tests {
                 let mut observed = 0;
                 while observed < 160 {
                     let entry = (splitmix64(&mut state) & 1) as f64;
-                    let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let event_u = crate::splitmix::splitmix64_unit(&mut state);
                     let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
                     let (exit, event) = if event_u < first {
                         (1.0, 1)
@@ -1020,8 +1032,8 @@ mod tests {
             for i in 0..320 {
                 let arm = i >= 160;
                 let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
-                let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let censor_u = crate::splitmix::splitmix64_unit(&mut state);
+                let event_u = crate::splitmix::splitmix64_unit(&mut state);
                 let censored = censor_u >= keep_probability;
                 let failed = event_u < if arm { 0.15 } else { 0.30 };
                 durations.push(if censored {
@@ -1085,7 +1097,7 @@ mod tests {
                 let mut observed = 0;
                 while observed < 200 {
                     let entry = (splitmix64(&mut state) & 1) as f64;
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
                     let (event_time, event): (f64, i64) = if u < first {
                         (1.0, 1)
@@ -1096,8 +1108,8 @@ mod tests {
                     };
                     let high_censoring = splitmix64(&mut state) & 1 == 1;
                     let censor_hazard = if high_censoring { 0.20 } else { 0.10 };
-                    let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let c1 = crate::splitmix::splitmix64_unit(&mut state);
+                    let c2 = crate::splitmix::splitmix64_unit(&mut state);
                     let censor_time = if c1 < censor_hazard {
                         1.5
                     } else if c2 < censor_hazard {
@@ -1174,7 +1186,7 @@ mod tests {
                 let mut observed = 0;
                 while observed < 160 {
                     let entry = (splitmix64(&mut state) & 1) as f64;
-                    let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let event_u = crate::splitmix::splitmix64_unit(&mut state);
                     let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
                     let (exit, event) = if event_u < first {
                         (1.0, 1)
@@ -1235,7 +1247,7 @@ mod tests {
                 let mut observed = 0;
                 while observed < 160 {
                     let entry = (splitmix64(&mut state) & 1) as f64;
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let first_target = if arm { 0.10 } else { 0.15 };
                     let second_target = if arm { 0.10 } else { 0.15 };
                     let (exit, event) = if u < first_target {
@@ -1297,7 +1309,7 @@ mod tests {
                 let mut observed = 0;
                 while observed < 200 {
                     let entry = (splitmix64(&mut state) & 1) as f64;
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let (first, second) = if arm { (0.20, 0.15) } else { (0.30, 0.20) };
                     let (event_time, event): (f64, i64) = if u < first {
                         (1.0, 1)
@@ -1308,8 +1320,8 @@ mod tests {
                     };
                     let high_censoring = splitmix64(&mut state) & 1 == 1;
                     let censor_hazard = if high_censoring { 0.20 } else { 0.10 };
-                    let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let c1 = crate::splitmix::splitmix64_unit(&mut state);
+                    let c2 = crate::splitmix::splitmix64_unit(&mut state);
                     let censor_time = if c1 < censor_hazard {
                         1.5
                     } else if c2 < censor_hazard {
@@ -1390,7 +1402,7 @@ mod tests {
                 let mut observed = 0;
                 while observed < 200 {
                     let entry = (splitmix64(&mut state) & 1) as f64;
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let target = if arm { 0.10 } else { 0.15 };
                     let (event_time, event): (f64, i64) = if u < target {
                         (1.0, 1)
@@ -1404,8 +1416,8 @@ mod tests {
                         (3.0, 0)
                     };
                     let censor_hazard = if splitmix64(&mut state) & 1 == 1 { 0.20 } else { 0.10 };
-                    let c1 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                    let c2 = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let c1 = crate::splitmix::splitmix64_unit(&mut state);
+                    let c2 = crate::splitmix::splitmix64_unit(&mut state);
                     let censor_time = if c1 < censor_hazard {
                         1.5
                     } else if c2 < censor_hazard {
@@ -1461,7 +1473,7 @@ mod tests {
             let mut treated = Vec::with_capacity(320);
             for arm in [false, true] {
                 for _ in 0..160 {
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let (first, second) = if arm { (0.15, 0.10) } else { (0.30, 0.20) };
                     let (exit, event) = if u < first {
                         (1.0, 1)
@@ -1550,7 +1562,7 @@ mod tests {
             let mut treated = Vec::with_capacity(320);
             for arm in [false, true] {
                 for _ in 0..160 {
-                    let u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                    let u = crate::splitmix::splitmix64_unit(&mut state);
                     let (first_target, second_target) =
                         if arm { (0.30, 0.15) } else { (0.20, 0.10) };
                     let (exit, cause) = if u < first_target {
@@ -1609,8 +1621,8 @@ mod tests {
             for i in 0..320 {
                 let arm = i >= 160;
                 let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
-                let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                let event_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let censor_u = crate::splitmix::splitmix64_unit(&mut state);
+                let event_u = crate::splitmix::splitmix64_unit(&mut state);
                 let censored = censor_u >= keep_probability;
                 let failed = event_u < if arm { 0.15 } else { 0.30 };
                 durations.push(if censored {
@@ -1655,8 +1667,8 @@ mod tests {
             for i in 0..320 {
                 let arm = i >= 160;
                 let keep_probability = if i % 2 == 0 { 0.9 } else { 0.7 };
-                let censor_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
-                let cause_u = (splitmix64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+                let censor_u = crate::splitmix::splitmix64_unit(&mut state);
+                let cause_u = crate::splitmix::splitmix64_unit(&mut state);
                 let censored = censor_u >= keep_probability;
                 let first_target = if arm { 0.10 } else { 0.20 };
                 let first_competing = first_target + 0.10;

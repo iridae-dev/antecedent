@@ -106,6 +106,35 @@ fn r1_orients_from_circle_arrow_premise() {
     assert!(matches!(at_c, Endpoint::Arrow));
 }
 
+/// With no separating set for `a, c` the collider phase cannot tell whether `a *→ b ←* c`;
+/// it marks the triple ambiguous, and R1 then must not orient `b → c` from it.
+#[test]
+fn missing_sepset_marks_triple_ambiguous_and_r1_skips_it() {
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, b).unwrap();
+    g.insert_marked(antecedent_graph::MarkedEdge {
+        a: b,
+        b: c,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: antecedent_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    LpcmciOrientationRule::apply(&LpcmciOrientCollider, &mut g, &mut state, &mut queue).unwrap();
+    assert!(state.is_ambiguous_triple(a, b, c));
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciOrientationRule::apply(&LpcmciR1, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    let (at_b, at_c) = marks_between(&g, b, c).unwrap();
+    assert!(matches!(at_b, Endpoint::Circle));
+    assert!(matches!(at_c, Endpoint::Circle));
+}
+
 #[test]
 fn r8_orients_triangle() {
     // a → b → c and a o→ c ⇒ a → c
@@ -724,4 +753,63 @@ fn discriminating_collider_branch_orients_both_ends_of_cb() {
     let (at_c, at_b) = marks_between(&g, c, b).unwrap();
     assert!(matches!(at_c, Endpoint::Arrow), "arrow at c");
     assert!(matches!(at_b, Endpoint::Arrow), "arrow at b");
+}
+
+/// More than 8 uncovered potentially directed paths exhaust the R9 search budget. The edge is
+/// left unresolved and recorded; the run does not fail.
+#[test]
+fn r9_path_budget_exhaustion_skips_the_edge() {
+    let id = DenseNodeId::from_raw;
+    let (a, c, b1) = (id(0), id(1), id(2));
+    let mut g = Pag::with_variables(12);
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_marked(antecedent_graph::MarkedEdge {
+        a: b1,
+        b: a,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: antecedent_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    for k in 3..12 {
+        let m = id(k);
+        g.insert_directed(b1, m).unwrap();
+        g.insert_directed(m, c).unwrap();
+        // `a` adjacent to every first node, so no found path qualifies.
+        g.insert_directed(a, m).unwrap();
+    }
+    let mut state = OrientationState::default();
+    state.set_sepset(b1, c, std::sync::Arc::from([a]));
+    let mut queue = OrientationQueue::new();
+    let d = FciOrientationRule::apply(&LpcmciR9, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    assert!(state.pd_path_skipped.contains(&(a.raw(), c.raw())));
+    let diag = pd_path_budget_diagnostic(&state, "fci").unwrap();
+    assert_eq!(diag.code.as_ref(), "fci.pd_path_budget");
+    let (at_a, _) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
+}
+
+/// The same for R10: nine paths from `a` to one parent exhaust the budget, the second parent
+/// has none, and the edge is recorded instead of failing the run.
+#[test]
+fn r10_path_budget_exhaustion_skips_the_edge() {
+    let id = DenseNodeId::from_raw;
+    let (a, c, p1, p2) = (id(0), id(1), id(2), id(3));
+    let mut g = Pag::with_variables(13);
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_directed(p1, c).unwrap();
+    g.insert_directed(p2, c).unwrap();
+    for k in 4..13 {
+        let m = id(k);
+        g.insert_directed(a, m).unwrap();
+        g.insert_directed(m, p1).unwrap();
+    }
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = FciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    assert!(state.pd_path_skipped.contains(&(a.raw(), c.raw())));
+    let (at_a, _) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
 }

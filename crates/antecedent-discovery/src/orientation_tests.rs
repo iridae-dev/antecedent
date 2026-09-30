@@ -138,6 +138,37 @@ fn meek_r3_orients_diagonal() {
     assert_eq!(g.edge_between(a, b).unwrap().parent_child(), Some((a, b)));
 }
 
+/// R3's premise is that `c — a — d` is a definite non-collider. When that triple is marked
+/// ambiguous (collider status unknown), R3 must not orient `a → b`.
+#[test]
+fn meek_r3_and_contemp_r3_skip_ambiguous_triple() {
+    for contemp in [false, true] {
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let d = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_undirected(a, b).unwrap();
+        g.insert_undirected(a, c).unwrap();
+        g.insert_undirected(a, d).unwrap();
+        g.insert_directed(c, b).unwrap();
+        g.insert_directed(d, b).unwrap();
+        let mut state = OrientationState::default();
+        state.mark_ambiguous_triple(c, a, d);
+        let mut queue = OrientationQueue::new();
+        let delta = if contemp {
+            ContempMeekR3.apply(&mut g, &mut state, &mut queue).unwrap()
+        } else {
+            OrientationRule::<antecedent_graph::TemporalCpdag>::apply(
+                &MeekR3, &mut g, &mut state, &mut queue,
+            )
+            .unwrap()
+        };
+        assert_eq!(delta.edges_changed, 0, "contemp={contemp}");
+        assert!(g.edge_between(a, b).unwrap().is_undirected(), "contemp={contemp}");
+    }
+}
+
 #[test]
 fn static_meek_r1_orients_chain() {
     let mut g = Cpdag::with_variables(3);

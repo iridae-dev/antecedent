@@ -505,9 +505,7 @@ def test_a_source_law_that_does_not_serve_the_cited_leaf_supports_no_history():
         interventions=(("a1", 1.0), ("a2", 0.0)),
     )
     only_actions = transport.ExactTransportData((laws().laws[0], actions_law))
-    with pytest.raises(
-        CausalUnsupportedError, match="temporal_transport.history_outside_support"
-    ):
+    with pytest.raises(CausalUnsupportedError, match="temporal_transport.history_outside_support"):
         prepare(cat=catalog(extra=[_source_actions()]), data=only_actions)
 
 

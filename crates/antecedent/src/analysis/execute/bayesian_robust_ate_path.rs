@@ -136,9 +136,7 @@ impl super::Study {
             identification: identification.status,
             prior_sensitivity: None,
             conflict_summary: None,
-            diagnostics: InferenceDiagnostics::analytic(
-                "bayesian.robust_ate.modular_bootstrap_pushforward",
-            ),
+            diagnostics: InferenceDiagnostics::analytic(super::ROBUST_ATE_BOOTSTRAP_BACKEND),
             assumptions,
             unidentified_mass: 0.0,
             subsampled_out_mass: 0.0,

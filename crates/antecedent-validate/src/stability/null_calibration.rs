@@ -197,7 +197,15 @@ mod tests {
         let ctx = ExecutionContext::for_tests(2);
         let report = cal.run(&mut ws, &ctx).unwrap();
         assert_eq!(report.n_sim, 2);
-        assert!(report.empirical_fpr >= 0.0);
+        // Two variables at lag 1 give a 4-link family, so 2 runs are 8 trials: the rate is a
+        // whole number of hits out of 8, its SE is positive, and the band follows from both.
+        let hits = report.empirical_fpr * 8.0;
+        assert!((hits - hits.round()).abs() < 1e-12 && (0.0..=8.0).contains(&hits), "{hits}");
+        assert!(report.se.is_finite() && report.se > 0.0, "se={}", report.se);
+        assert_eq!(
+            report.within_band,
+            (report.empirical_fpr - report.alpha).abs() <= report.band_tol * report.se
+        );
     }
 
     /// Empirical FPR near α under independent noise. Runs in well under a second

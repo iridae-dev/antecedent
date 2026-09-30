@@ -11,6 +11,19 @@ pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
 );
 
 impl super::Study {
+    /// The estimator the caller selected, or `None` for a builder placeholder.
+    ///
+    /// A caller selects an estimator through an estimator spec. An `estimator`
+    /// without one is a placeholder the builder bound on its own
+    /// (`inference()` binds `BayesianGcomp` on a static average effect,
+    /// `query()` binds `TemporalLinearAdjustment` on a temporal one) and the
+    /// compiled route keeps its own estimator instead. Every route that
+    /// resolves or advertises an estimator decides "caller choice or
+    /// placeholder" here.
+    pub(crate) fn caller_selected_estimator(&self) -> Option<EstimatorId> {
+        self.estimator.filter(|_| self.estimator_spec.is_some())
+    }
+
     pub(super) fn validation_suite_id(&self) -> Option<Arc<str>> {
         let family = match self.query {
             CausalQuery::PathSpecific(_) => Some("path"),
@@ -298,10 +311,7 @@ impl super::Study {
             self.resolve_id_est_pair(IdentifierId::GeneralizedAdjustment, EstimatorId::Aipw)
         } else {
             let identifier = self.identifier.unwrap_or(DEFAULT_ADMG_IDENTIFIER_ID);
-            let estimator = self
-                .estimator
-                .filter(|id| *id != EstimatorId::BayesianGcomp || self.estimator_spec.is_some())
-                .unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
+            let estimator = self.caller_selected_estimator().unwrap_or(DEFAULT_ADMG_ESTIMATOR_ID);
             (Arc::from(identifier.as_str()), Arc::from(estimator.as_str()))
         }
     }
@@ -315,12 +325,7 @@ impl super::Study {
         };
         (
             Arc::from(self.identifier.unwrap_or(DEFAULT_CONDITIONAL_IDENTIFIER_ID).as_str()),
-            Arc::from(
-                self.estimator_spec
-                    .as_ref()
-                    .map_or(self.estimator.unwrap_or(estimator), crate::EstimatorSpec::id)
-                    .as_str(),
-            ),
+            Arc::from(self.caller_selected_estimator().unwrap_or(estimator).as_str()),
         )
     }
 
@@ -1912,6 +1917,26 @@ impl super::Study {
     }
 }
 
+/// Posterior backend of the Bayesian-bootstrap robust ATE.
+pub(crate) const ROBUST_ATE_BOOTSTRAP_BACKEND: &str =
+    "bayesian.robust_ate.modular_bootstrap_pushforward";
+/// Posterior backend of Bayesian anomaly attribution.
+pub(crate) const ANOMALY_DIRICHLET_BACKEND: &str = "gcm.attribution.shared_dirichlet_row_weights";
+/// Posterior backend of Bayesian change attribution.
+pub(crate) const CHANGE_DIRICHLET_BACKEND: &str =
+    "gcm.attribution.shared_population_dirichlet_row_weights";
+/// Posterior backend of the Bayesian GCM counterfactual.
+pub(crate) const COUNTERFACTUAL_DIRICHLET_BACKEND: &str = "gcm.fit.bayesian";
+
+/// Posteriors drawn by Dirichlet row reweighting (a Bayesian bootstrap).
+/// They fit no outcome likelihood, so no Gaussian fit is disclosed for them.
+const BOOTSTRAP_LAW_BACKENDS: [&str; 4] = [
+    ROBUST_ATE_BOOTSTRAP_BACKEND,
+    ANOMALY_DIRICHLET_BACKEND,
+    CHANGE_DIRICHLET_BACKEND,
+    COUNTERFACTUAL_DIRICHLET_BACKEND,
+];
+
 /// Append [`gaussian_likelihood_disclosure`] to `result` once.
 ///
 /// Fresh runs ([`Study::execute_on`]) and prepared clicks (which stamp their
@@ -1923,6 +1948,11 @@ pub(crate) fn push_gaussian_likelihood_disclosure(
 ) {
     const CODE: &str = "estimate.bayesian.gaussian_likelihood_discrete_outcome";
     if result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == CODE) {
+        return;
+    }
+    if result.posterior.as_ref().is_some_and(|posterior| {
+        BOOTSTRAP_LAW_BACKENDS.contains(&posterior.diagnostics.backend_id.as_ref())
+    }) {
         return;
     }
     if let Some(disclosure) = gaussian_likelihood_disclosure(inference, data, result.outcome) {

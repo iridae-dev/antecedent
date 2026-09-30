@@ -166,7 +166,7 @@ fn decision_json(
             "quantities": inspection.quantities,
             "generations": inspection.generations,
             "operations": inspection.operations,
-            "rule_counts": inspection.rule_counts.iter().map(|(rule, count)| (rule.to_string(), *count)).collect::<BTreeMap<_, _>>(),
+            "rule_counts": inspection.rule_counts.iter().map(|(rule, count)| ((*rule).to_string(), *count)).collect::<BTreeMap<_, _>>(),
             "excluded": inspection.exclusions.iter().map(|e| serde_json::json!({
                 "regime": regime_label(catalog, e.regime),
                 "reason": e.reason,
@@ -362,7 +362,7 @@ impl MixedSourceStage {
     /// Counted laws are not licensed on this route: no sampling theory backs an
     /// empirical plug-in of a searched formula, so preparation refuses.
     #[pyo3(signature=(laws, assignments, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
-    #[allow(clippy::too_many_arguments, unused_variables)]
+    #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
     fn prepare_empirical(
         &self,
         laws: &Bound<'_, PyAny>,

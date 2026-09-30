@@ -246,7 +246,7 @@ def test_sequence_refuses_transfer_without_new_filter():
         treatment_lag=1,
     )
     with pytest.raises(
-        (CausalUnsupportedError, antecedent.CausalError),
+        CausalUnsupportedError,
         match=_PIN["sequence_refuses"]["message_contains"],
     ):
         PreparedAnalysis.prepare(

@@ -63,13 +63,13 @@ def test_validation_view_len_iter_getitem():
 
 def test_validation_view_getitem_missing_key_raises_keyerror():
     view = ValidationView(passed=True, ran=True, count=1, reports=[_refutation("placebo", True)])
-    with pytest.raises(KeyError):
+    with pytest.raises(KeyError, match="does_not_exist"):
         view["does_not_exist"]
 
 
 def test_validation_view_getitem_out_of_range_raises_indexerror():
     view = ValidationView(passed=True, ran=True, count=1, reports=[_refutation("placebo", True)])
-    with pytest.raises(IndexError):
+    with pytest.raises(IndexError, match="list index out of range"):
         view[5]
 
 
@@ -120,7 +120,8 @@ def test_posterior_view_array_raises_without_artifact():
 
 
 def test_posterior_view_array_decodes_real_artifact():
-    native = pytest.importorskip("antecedent._native")
+    from antecedent import _native as native
+
     artifact = native.PosteriorArtifact.from_moments(
         n_draws=5,
         mean=[1.0],

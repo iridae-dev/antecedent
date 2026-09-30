@@ -318,23 +318,32 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
             ("factorial_second_arms".into(), format!("{:?}", query.second_factor_arms)),
             ("temporal_coordinates".into(), "none".into()),
         ],
-        CausalQueryWire::PanelDid(query) => vec![
-            ("query_kind".into(), "panel_did".into()),
-            ("outcome".into(), query.outcome.to_string()),
-            ("augmented_nuisance".into(), format!("{:?}", query.augmented)),
-            (
-                "design".into(),
-                if query.augmented.is_some() {
-                    "augmented_panel"
-                } else if query.repeated_cross_section {
-                    "repeated_cross_section"
-                } else {
-                    "balanced_two_period_panel"
-                }
-                .into(),
-            ),
-            ("temporal_coordinates".into(), "pre_post".into()),
-        ],
+        CausalQueryWire::PanelDid(query) => {
+            // Same precedence as the wire decoder's design selection.
+            let design = if query.augmented.is_some() {
+                "augmented_panel"
+            } else if query.staggered_event_study {
+                "staggered_event_study"
+            } else if query.staggered_target.is_some() {
+                "staggered_group_time"
+            } else if query.repeated_cross_section {
+                "repeated_cross_section"
+            } else {
+                "balanced_two_period_panel"
+            };
+            let mut dimensions = vec![
+                ("query_kind".into(), "panel_did".into()),
+                ("outcome".into(), query.outcome.to_string()),
+                ("augmented_nuisance".into(), format!("{:?}", query.augmented)),
+                ("design".into(), design.into()),
+                ("temporal_coordinates".into(), "pre_post".into()),
+            ];
+            if let Some((cohort, period)) = query.staggered_target {
+                dimensions
+                    .push(("staggered_target".into(), format!("cohort={cohort},period={period}")));
+            }
+            dimensions
+        }
         CausalQueryWire::SyntheticControl(query) => {
             let mut dimensions = vec![
                 (
@@ -2642,6 +2651,44 @@ mod tests {
                 .into_iter()
                 .collect();
         assert_eq!(labels.get("design").map(String::as_str), Some("repeated_cross_section"));
+    }
+
+    #[test]
+    fn staggered_panel_did_labels_name_their_design_and_target() {
+        let subjects = ["a", "a", "b", "b"].map(std::sync::Arc::<str>::from);
+        let clusters = subjects.clone();
+        let periods = [1_i64, 2, 1, 2];
+        let cohorts = [2_i64, 2, 0, 0];
+        let labels = |query: antecedent_core::PanelDidQuery| {
+            executed_functional_labels(
+                &causal_query_to_wire(&CausalQuery::PanelDid(query)).unwrap(),
+            )
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>()
+        };
+        let group_time = labels(antecedent_core::PanelDidQuery::staggered_group_time(
+            VariableId::from_raw(1),
+            subjects.clone(),
+            clusters.clone(),
+            periods,
+            cohorts,
+            2,
+            2,
+        ));
+        assert_eq!(group_time.get("design").map(String::as_str), Some("staggered_group_time"));
+        assert_eq!(
+            group_time.get("staggered_target").map(String::as_str),
+            Some("cohort=2,period=2")
+        );
+        let event_study = labels(antecedent_core::PanelDidQuery::staggered_event_study(
+            VariableId::from_raw(1),
+            subjects,
+            clusters,
+            periods,
+            cohorts,
+        ));
+        assert_eq!(event_study.get("design").map(String::as_str), Some("staggered_event_study"));
+        assert_eq!(event_study.get("staggered_target"), None);
     }
 
     #[test]

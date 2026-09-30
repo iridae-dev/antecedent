@@ -706,3 +706,23 @@ fn staggered_event_known_truth_fixture_spans_thin_and_supported_clusters() {
         }
     }
 }
+
+#[test]
+fn licensed_staggered_event_study_publishes_its_own_matrix_coordinate() {
+    let (data, query) = staggered_interval_fixture(24);
+    let context = ExecutionContext::for_tests(112);
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
+    let result = prepared.estimate(&data, &context).unwrap();
+    assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
+    let contract = prepared.contract_for_result(&result).unwrap();
+    match &contract.reasoning.support {
+        antecedent_core::SlotAvailability::Available(slot) => assert_eq!(
+            slot.matrix_coordinate.as_deref(),
+            Some(
+                "graphless:difference_in_differences/staggered_event_study/never_treated_event_study_cluster_cr1/post_adoption_event_time_pointwise_95_normal_intervals"
+            )
+        ),
+        other => panic!("support slot unavailable: {other:?}"),
+    }
+}

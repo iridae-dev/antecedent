@@ -773,6 +773,11 @@ fn eig_graph_entropy(
 ///
 /// This is `1 − exp(−c · k)` (or a sample-size saturating map), not a likelihood
 /// `p(y | G, design)`. Scores that call this are heuristic channel entropy, not EIG.
+///
+/// The symmetric channel carries no information at `reliability = 1/k` rather than
+/// at zero, so the score is not monotone in the design amount: a design whose
+/// reliability falls well below `1/k` (for example a one-row sampling increase)
+/// can outrank a larger one whose reliability sits near `1/k`.
 fn observation_reliability(candidate: &CandidateDesign) -> f64 {
     // Lower bound is 0, not a positive floor: clamping a no-op up to 0.05 made
     // zero-information designs score like weakly informative ones (attr-design-state-5).

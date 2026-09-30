@@ -25,6 +25,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-design/src/ranker.rs"
 evidence_assertion = "identification_prob_increases_when_measuring_unlock_var"
+limitations = "The test checks only that measuring an unlocking variable scores positive on a toy graph sample; no identification probability is compared with an independent truth."
 notes = "IncreaseIdentificationProbability over WeightedGraphSamples"
 
 [[capabilities]]
@@ -33,6 +34,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-design/src/ranker.rs"
 evidence_assertion = "se_increasing_design_scores_negative"
+limitations = "The test pins the score of one SE-increasing design to its hand-computed Gram-formula value (sqrt(0.1) - sqrt(0.4)); the OLS Gram / n scaling is a proxy that is not compared with a measured posterior or interval width."
 notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
 
 [[capabilities]]

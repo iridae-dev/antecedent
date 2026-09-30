@@ -316,9 +316,7 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     artifact = exact.export()
     claimed = _edit_inner(
         artifact,
-        lambda inner: _replace_once(
-            inner, b"\x6apoint_only", b"\x70nominal_interval"
-        ),
+        lambda inner: _replace_once(inner, b"\x6apoint_only", b"\x70nominal_interval"),
     )
     assert claimed != artifact
     with pytest.raises(CausalUnsupportedError) as refused:
@@ -724,12 +722,14 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
         bindings=(
             *bad.bindings,
             transport.RegimeBinding(
-                "target_do", "snap-target_do", sampling="independent",
+                "target_do",
+                "snap-target_do",
+                sampling="independent",
                 dependence="independent_studies",
             ),
         ),
     )
-    with pytest.raises(Exception) as raised:
+    with pytest.raises(Exception, match="mz_transport.invalid_catalog") as raised:
         transport.identify_multi_source_z_transport(
             graph=graph(), query=query(source_a(), source_b()), catalog=bad
         )

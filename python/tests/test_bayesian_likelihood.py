@@ -153,5 +153,7 @@ def test_a_route_that_cannot_fit_the_likelihood_refuses_by_code(name: str, call:
 
 
 def test_unknown_likelihood_is_invalid() -> None:
-    with pytest.raises(ant.errors.CausalValueError):
+    with pytest.raises(
+        ant.errors.CausalValueError, match="unknown Bayesian likelihood 'student_t'"
+    ):
         _bayes(_binary(200)[0], likelihood="student_t")  # type: ignore[arg-type]

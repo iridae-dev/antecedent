@@ -4,7 +4,7 @@
 `analyze(data, query=...).continuous_dose_response`, estimates response levels
 at caller-specified dose targets within supplied baseline groups. The native
 estimator
-uses a triangular kernel centered at each target and inverse supplied density
+uses an Epanechnikov kernel, 0.75(1 - u²), centered at each target and inverse supplied density
 weights, then reports a Hájek local mean. The caller provides the continuous
 dose density evaluated at each observed dose and declares whether it is known
 or externally estimated.

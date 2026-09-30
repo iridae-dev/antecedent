@@ -767,7 +767,7 @@ def test_z_transport_artifact_tamper_is_refused_by_the_consumer():
         transport.consume_z_transport_artifact(moved)
     # An edited embedded law changes the recomputed point (or fails law validation).
     edited_law = _rewrite_f64(artifact, laws[0].probabilities[0], laws[0].probabilities[0] + 0.01)
-    with pytest.raises((CausalSerializationError, CausalValueError)):
+    with pytest.raises(CausalSerializationError, match="unnormalized_law"):
         transport.consume_z_transport_artifact(edited_law)
     # Foreign framing is refused before any byte is trusted.
     with pytest.raises(CausalSerializationError, match="invalid z-transport artifact format"):
@@ -797,7 +797,7 @@ def test_z_transport_consumer_rechecks_the_embedded_point_after_builder_disposal
         transport.consume_z_transport_artifact(moved)
     # An edited embedded law changes the recomputed point or fails law validation.
     edited_law = _rewrite_f64(artifact, laws[0].probabilities[0], laws[0].probabilities[0] + 0.01)
-    with pytest.raises((CausalSerializationError, CausalValueError)):
+    with pytest.raises(CausalSerializationError, match="unnormalized_law"):
         transport.consume_z_transport_artifact(edited_law)
 
 

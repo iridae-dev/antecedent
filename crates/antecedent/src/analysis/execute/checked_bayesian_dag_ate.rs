@@ -42,6 +42,15 @@ impl CheckedBayesianDagAteExecution {
         self.stage_sink = sink;
     }
 
+    /// Replace the caller validators run by this sealed operation. Names are
+    /// checked by the prepared handle before the swap.
+    pub(crate) fn set_custom_validators(
+        &mut self,
+        validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    ) {
+        self.validators = validators;
+    }
+
     pub(crate) fn checked(
         graph: &Dag,
         operation: super::super::prepared::CheckedBayesianGcompOperation,

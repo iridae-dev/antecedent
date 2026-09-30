@@ -385,6 +385,7 @@ fn inference_across_scenarios_is_refused() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // One artifact round trip, then each mutation it must refuse.
 fn artifact_keeps_every_scenario_and_fails_on_mutation() {
     let prepared = prepare(three(Some([0.3, 0.2, 0.4])), catalog(true), laws(SOURCE, true), BUDGET);
     let ctx = ExecutionContext::for_tests(1);
@@ -1271,6 +1272,7 @@ fn empirical_tables_are_fitted_once_and_coverage_is_per_scenario() {
 // ---------------------------------------------------------------------------
 
 #[test]
+#[allow(clippy::float_cmp, reason = "weights summing to one leave exactly zero unaccounted mass")]
 fn weights_that_sum_to_one_leave_no_unaccounted_mass_whatever_the_names() {
     // 0.7 + 0.2 + 0.1 is 0.9999999999999999 added left to right and 1.0 right to
     // left: the result must not depend on which order the names put them in.

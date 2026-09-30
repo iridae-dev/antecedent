@@ -223,7 +223,13 @@ impl ConditionalIndependenceTest for PosteriorPredictiveCi {
 
         let mut results = Vec::with_capacity(nq);
         for q in request.queries {
-            let prepared_cols = prepare_standardized(request, *q)?;
+            let df = (n as f64) - 2.0 - (q.z_len as f64);
+            let Some(prepared_cols) = prepare_standardized(request, *q)? else {
+                // A variable `Z` determines is exactly independent of the other given `Z`: its
+                // residual is zero, so `|r| = 0` and every replicate reaches it.
+                results.push(CiResult { statistic: 0.0, p_value: 1.0, df, ci: None });
+                continue;
+            };
             // Observed statistic on the same standardized/refit pipeline as replicates.
             let ry_obs = prepared_cols.design.residuals(&prepared_cols.y)?;
             let abs_obs = pearson_abs(&prepared_cols.rx, &ry_obs)
@@ -250,7 +256,6 @@ impl ConditionalIndependenceTest for PosteriorPredictiveCi {
                 }
             }
             let p = f64::from(extreme) / f64::from(self.n_sims + 1);
-            let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult { statistic: abs_obs, p_value: p.clamp(0.0, 1.0), df, ci: None });
         }
         Ok(CiBatchResult { results })
@@ -292,10 +297,12 @@ struct PreparedQuery {
     p0: usize,
 }
 
+/// Standardise and residualise one query, or `None` when `Z` determines `x` or `y` (the
+/// independence then holds exactly and there is nothing to simulate).
 fn prepare_standardized(
     request: &CiBatchRequest<'_>,
     q: CiQuery,
-) -> Result<PreparedQuery, StatsError> {
+) -> Result<Option<PreparedQuery>, StatsError> {
     let n = request.nrows()?;
     if q.x >= request.columns.len() || q.y >= request.columns.len() {
         return Err(StatsError::Shape { message: "CI query column out of range" });
@@ -324,15 +331,13 @@ fn prepare_standardized(
     let z_idx: Vec<usize> = (0..z_refs.len()).collect();
     let design = ZDesign::fit(&z_refs, &z_idx, None, n)?;
     let rx = design.residuals(&x)?;
-    // The prior ridge makes `Λₙ` positive definite for any design, so collinearity of `x`
-    // with `Z` cannot show up there. Test it on the un-ridged residual instead: an `x` the
-    // conditioning set determines leaves rounding residue, whose correlation with `y` is noise.
-    if residual_is_uninformative(&x, &rx) {
-        return Err(StatsError::Shape {
-            message: "conditioned variable is collinear with the conditioning set",
-        });
+    // The prior ridge makes `Λₙ` positive definite for any design, so collinearity of `x` or
+    // `y` with `Z` cannot show up there. Test it on the un-ridged residuals instead: a variable
+    // the conditioning set determines leaves only rounding residue: its true residual is zero.
+    if residual_is_uninformative(&x, &rx) || residual_is_uninformative(&y, &design.residuals(&y)?) {
+        return Ok(None);
     }
-    Ok(PreparedQuery { y, rx, design, x0, p0 })
+    Ok(Some(PreparedQuery { y, rx, design, x0, p0 }))
 }
 
 fn design_intercept_z(n: usize, z_cols: &[Vec<f64>]) -> Vec<f64> {
@@ -413,15 +418,17 @@ fn log_bf10_partial_corr(request: &CiBatchRequest<'_>, q: CiQuery) -> Result<f64
     let design = ZDesign::fit(request.columns, z, None, n)?;
     let rx = design.residuals(request.columns[q.x])?;
     let ry = design.residuals(request.columns[q.y])?;
-    if residual_is_uninformative(request.columns[q.x], &rx)
+    // A variable that is constant or determined by `Z` has a zero true residual (what remains
+    // is rounding), so it is exactly independent of the other given `Z`: `r = 0`, the most
+    // the g-prior factor can favour independence at this `n`.
+    let r = if residual_is_uninformative(request.columns[q.x], &rx)
         || residual_is_uninformative(request.columns[q.y], &ry)
     {
-        return Err(StatsError::Shape {
-            message: "a conditioned variable is constant or collinear with the conditioning set",
-        });
-    }
-    let r = pearson_abs(&rx, &ry)
-        .ok_or(StatsError::Shape { message: "degenerate partial correlation" })?;
+        0.0
+    } else {
+        pearson_abs(&rx, &ry)
+            .ok_or(StatsError::Shape { message: "degenerate partial correlation" })?
+    };
     let log_bf = log_bf10_from_partial_corr(r, n, q.z_len);
     if !log_bf.is_finite() {
         return Err(StatsError::Backend("non-finite Bayes factor".into()));
@@ -832,29 +839,45 @@ mod tests {
         assert!(PosteriorPredictiveCi::new(9).p_value_is_frequentist());
     }
 
-    /// The old full-rank check added the prior ridge before factoring, so it could never fail,
-    /// and the PPC then correlated ~1e-12 rounding residue. `x` fully determined by `z` is
-    /// refused by both paths.
+    /// A variable the conditioning set determines is exactly independent of the other given
+    /// it. The old full-rank check added the prior ridge before factoring, so it never fired,
+    /// and the PPC correlated ~1e-12 rounding residue. Both paths now report the exact
+    /// independence: `r = 0` for the Bayes factor, `|r| = 0` with `p = 1` for the PPC, whether
+    /// it is `x` or `y` that `z` determines.
     #[test]
-    fn collinear_x_with_conditioner_is_refused() {
+    fn variable_determined_by_conditioner_is_exactly_independent() {
         let n = 60usize;
         let z: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.37).sin()).collect();
-        let x: Vec<f64> = z.iter().map(|v| 3.0 * v + 2.0).collect();
-        let y: Vec<f64> = (0..n).map(|i| ((i as f64) * 1.1).cos() + z[i]).collect();
-        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let determined: Vec<f64> = z.iter().map(|v| 3.0 * v + 2.0).collect();
+        let free: Vec<f64> = (0..n).map(|i| ((i as f64) * 1.1).cos() + z[i]).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
         let z_flat = [2usize];
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_flat,
-            significance: SignificanceMethod::Analytic,
-            confidence: ConfidenceMethod::None,
-        };
-        let mut ws = CiWorkspace::default();
-        let ctx = ExecutionContext::for_tests(2);
-        assert!(BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).is_err());
-        assert!(PosteriorPredictiveCi::new(19).test_batch_adhoc(&req, &mut ws, &ctx).is_err());
+        let expected_log_bf = log_bf10_from_partial_corr(0.0, n, 1);
+        assert!(expected_log_bf < 0.0);
+        for cols in [[&determined[..], &free, &z], [&free[..], &determined, &z]] {
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::None,
+            };
+            let mut ws = CiWorkspace::default();
+            let ctx = ExecutionContext::for_tests(2);
+            let bf = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
+            assert_eq!(bf.statistic.to_bits(), expected_log_bf.to_bits());
+            assert!(bf.p_value > 0.5, "independence must be favoured: {}", bf.p_value);
+            let dep =
+                PosteriorDependenceCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results
+                    [0];
+            assert!((dep.statistic + bf.p_value - 1.0).abs() < 1e-12);
+            let ppc = PosteriorPredictiveCi::new(19)
+                .test_batch_adhoc(&req, &mut ws, &ctx)
+                .unwrap()
+                .results[0];
+            assert_eq!(ppc.statistic.to_bits(), 0.0_f64.to_bits());
+            assert_eq!(ppc.p_value.to_bits(), 1.0_f64.to_bits());
+        }
     }
 
     /// The replicate stream follows the run's RNG: different analysis seeds give different

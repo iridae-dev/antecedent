@@ -321,6 +321,10 @@ pub struct OrientationState {
     /// Edges `(c, b)` whose discriminating-path search exhausted its budget and were left
     /// unresolved (circle kept at `c`) rather than failing the run.
     pub discriminating_skipped: HashSet<(u32, u32)>,
+    /// Edges `(a, c)` that R9 / R10 left unresolved (circle kept at `a`) because their
+    /// uncovered potentially-directed path search exhausted its budget without finding a
+    /// path that licenses the orientation.
+    pub pd_path_skipped: HashSet<(u32, u32)>,
 }
 
 /// Canonical key for unshielded triple `a — b — c` (same as `c — b — a`).
@@ -627,6 +631,22 @@ impl<G: CpdagOps> OrientationRule<G> for MeekR2 {
     }
 }
 
+/// Whether two nonadjacent `mediators` `c, d` form an unshielded triple `c — a — d` whose
+/// non-collider status is known. R3 rests on that premise, so a triple marked ambiguous (no
+/// separating set or a tied majority vote) cannot license it.
+fn has_definite_noncollider_pair<G: CpdagOps>(
+    graph: &G,
+    state: &OrientationState,
+    a: DenseNodeId,
+    mediators: &[DenseNodeId],
+) -> bool {
+    mediators.iter().enumerate().any(|(i, &c)| {
+        mediators[i + 1..]
+            .iter()
+            .any(|&d| !graph.has_edge(c, d) && !state.is_ambiguous_triple(c, a, d))
+    })
+}
+
 /// Meek R3: if `a — b` and ∃ `c,d` with `a — c → b`, `a — d → b`, `c` not adj `d`, orient `a → b`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct MeekR3;
@@ -651,15 +671,7 @@ fn apply_meek_r3<G: CpdagOps>(
                     mediators.push(c);
                 }
             }
-            let mut orient = false;
-            'pairs: for i in 0..mediators.len() {
-                for j in (i + 1)..mediators.len() {
-                    if !graph.has_edge(mediators[i], mediators[j]) {
-                        orient = true;
-                        break 'pairs;
-                    }
-                }
-            }
+            let orient = has_definite_noncollider_pair(graph, state, *a, &mediators);
             if orient {
                 let premise = format!("meek.r3: {}—{} via nonadjacent mediators", a.raw(), b.raw());
                 if try_orient_undirected(graph, state, &mut delta, *a, b, premise)? {
@@ -899,15 +911,7 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR3 {
                         mediators.push(c);
                     }
                 }
-                let mut orient = false;
-                'pairs: for i in 0..mediators.len() {
-                    for j in (i + 1)..mediators.len() {
-                        if !graph.has_edge(mediators[i], mediators[j]) {
-                            orient = true;
-                            break 'pairs;
-                        }
-                    }
-                }
+                let orient = has_definite_noncollider_pair(graph, state, *a, &mediators);
                 if orient {
                     let premise = format!(
                         "meek.r3.contemp: {}—{} via nonadjacent mediators",

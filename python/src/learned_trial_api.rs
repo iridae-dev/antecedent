@@ -95,9 +95,9 @@ impl PreparedLearnedTrial {
             .map(|slot| slot.status.as_str());
         serde_json::json!({
             "identification":{"available":identification_available,"summary":identification_status.unwrap_or("unavailable")},
-            "support":{"available":self.last.is_some(),"summary":"trial_and_target_overlap_required", "payload": {"overlap":uncertainty.map(|r| r.overlap)}},
+            "support":{"available":self.last.is_some(),"summary":"trial_and_target_overlap_required", "payload": {"overlap":uncertainty.map(|r| r.overlap),"slot":reasoning.as_ref().map(|r| crate::transport_common::support_slot_json(&r.support))}},
             "uncertainty":{"available":uncertainty.is_some_and(|r| r.interval.is_some()),"summary":"joint_outer_bootstrap_uncalibrated","reason":uncertainty.and_then(|r| r.uncertainty_reason.as_deref()),"payload":{"calibration_status":"not_bound_to_this_execution"}},
-            "assumptions":{"available":true,"summary":"declared_randomization_sampling_and_nuisance_models"},
+            "assumptions":{"available":reasoning.as_ref().is_some_and(|r| r.assumptions.is_available()),"summary":"declared_randomization_sampling_and_nuisance_models","payload":{"obligations":reasoning.as_ref().map(|r| crate::transport_common::obligation_ids(&r.assumptions))}},
             "execution_id":self.last.as_ref().map(antecedent::LearnedTrialResult::identity)
         }).to_string()
     }

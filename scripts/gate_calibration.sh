@@ -71,6 +71,17 @@ grid_group() {
 # checkout, or copied from another machine, carry the sha they were measured at
 # instead of whatever HEAD is when the collector runs.
 MEASURED_SHA="$(git rev-parse HEAD)"
+# A stamp is only true of a clean tree: uncommitted edits would be measured and
+# then attributed to HEAD. A dry run only lists groups, so it may run anywhere.
+if [ -z "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ]; then
+  DIRTY="$(git status --porcelain --untracked-files=normal)"
+  if [ -n "$DIRTY" ]; then
+    echo "FAIL: the working tree is dirty; a measurement stamped ${MEASURED_SHA} must be of that commit." >&2
+    echo "commit or remove these first:" >&2
+    printf '%s\n' "$DIRTY" | sed 's/^/  /' >&2
+    exit 2
+  fi
+fi
 # The harness prints it inside every `calibration-record` line (`measured_at`); the
 # collector refuses a record whose own sha is not the one it stamps.
 export ANTECEDENT_CALIBRATION_SHA="$MEASURED_SHA"

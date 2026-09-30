@@ -54,6 +54,66 @@ def test_column_name_that_is_absent_is_a_typed_error():
         ant.analyze({"y": outcome, "id": ids}, query=query)
 
 
+def _randomized_named_query():
+    return ant.experiment.RandomizedEffect(
+        "y", ant.experiment.ExperimentDesign(BernoulliAssignment(0.5), "arm", "id", "id")
+    )
+
+
+@pytest.mark.parametrize(
+    "encode",
+    [
+        pytest.param(lambda a: np.where(np.arange(len(a)) < 40, np.nan, a.astype(float)), id="nan"),
+        pytest.param(lambda a: np.where(a, 1 + np.arange(len(a)) % 2, 0), id="arm-codes-0-1-2"),
+        pytest.param(lambda a: np.where(a, "True", "False"), id="bool-strings"),
+        pytest.param(lambda a: np.where(a, "treated", "control"), id="labels"),
+    ],
+)
+def test_bool_column_accepts_only_bool_or_exact_zero_one(encode):
+    assign, outcome, ids = _bernoulli()
+    with pytest.raises(CausalValueError, match="'arm'.*bool or encoded as 0/1"):
+        ant.analyze(
+            {"y": outcome, "arm": encode(assign), "id": ids}, query=_randomized_named_query()
+        )
+
+
+def test_bool_column_encoded_as_zero_one_matches_bool_column():
+    assign, outcome, ids = _bernoulli()
+    as_bool = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    as_int = ant.analyze(
+        {"y": outcome, "arm": assign.astype(int), "id": ids}, query=_randomized_named_query()
+    )
+    as_float = ant.analyze(
+        {"y": outcome, "arm": assign.astype(float), "id": ids}, query=_randomized_named_query()
+    )
+    assert as_int.answer.value == pytest.approx(as_bool.answer.value)
+    assert as_float.answer.value == pytest.approx(as_bool.answer.value)
+
+
+@pytest.mark.parametrize(
+    ("folds", "match"),
+    [
+        pytest.param([0.0, 1.0, 2.7, 1.0], "finite integers", id="fractional"),
+        pytest.param([0.0, 1.0, np.nan, 1.0], "finite integers", id="nan"),
+        pytest.param(["0", "1", "0", "1"], "must be integers", id="strings"),
+    ],
+)
+def test_int_column_requires_finite_integral_values(folds, match):
+    from antecedent._columns import resolve_query
+
+    query = _policy.PolicyValue(
+        "y",
+        "asg",
+        0.5,
+        _policy.BinaryPolicy([True, False] * 2),
+        [f"e{i}" for i in range(4)],
+        fold_ids="fold",
+    )
+    data = {"y": [1.0, 2.0, 3.0, 4.0], "asg": [True, False] * 2, "fold": folds}
+    with pytest.raises(CausalValueError, match=f"fold_ids='fold'.*{match}"):
+        resolve_query(query, data)
+
+
 def test_refresh_reuses_the_frozen_design_with_outcome_only_data():
     assign, outcome, ids = _bernoulli()
     result = ant.analyze(
@@ -66,6 +126,41 @@ def test_refresh_reuses_the_frozen_design_with_outcome_only_data():
     updated = result.study.refresh({"y": assign.astype(float) + rng.normal(size=len(assign))})
     assert updated.answer.kind == "point"
     assert updated.program_id == result.program_id
+
+
+def test_refresh_accepts_the_table_used_at_analyze():
+    import pandas as pd
+
+    assign, outcome, ids = _bernoulli()
+    table = {"y": outcome, "arm": assign, "id": ids}
+    for data in (table, pd.DataFrame(table)):
+        result = ant.analyze(data, query=_randomized_named_query())
+        refreshed = result.study.refresh(data)
+        assert refreshed.answer.value == pytest.approx(result.answer.value)
+        outcome_only = result.study.refresh({"y": outcome})
+        assert outcome_only.answer.value == pytest.approx(result.answer.value)
+
+
+def test_refresh_drops_named_design_columns_without_rereading_them():
+    assign, outcome, ids = _bernoulli()
+    result = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    shifted = outcome + 5.0
+    frozen = result.study.refresh({"y": shifted})
+    # A flipped arm column in the refresh table is dropped: the design stays frozen.
+    with_flipped_arm = result.study.refresh({"y": shifted, "arm": ~assign, "id": ids})
+    assert with_flipped_arm.answer.value == pytest.approx(frozen.answer.value)
+
+
+def test_named_design_columns_are_dropped_from_an_arrow_table():
+    pa = pytest.importorskip("pyarrow")
+    from antecedent._columns import drop_columns
+
+    assign, outcome, ids = _bernoulli()
+    table = pa.table({"y": outcome, "arm": assign, "id": ids})
+    assert drop_columns(table, {"arm", "id"}).column_names == ["y"]
+    named = ant.analyze(table, query=_randomized_named_query())
+    inline = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
+    assert named.answer.value == pytest.approx(inline.answer.value)
 
 
 # --- Adopted classes: array vs column-name equality (see antecedent._columns) ---

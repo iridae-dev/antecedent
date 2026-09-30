@@ -4448,7 +4448,6 @@ def consume_temporal_transport_artifact(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
-
 def evaluate_cross_world_edge_contrast(
     names: list[str],
     columns: Sequence[Any],
