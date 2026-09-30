@@ -814,6 +814,7 @@ impl MzTransportArtifactWire {
     fn check_limits(
         &self,
         limits: &MzTransportConsumeLimits,
+        ctx: &ExecutionContext,
     ) -> Result<(), MzTransportArtifactError> {
         let exceeded = MzTransportArtifactError::LimitsExceeded;
         if self.search_operations > limits.search.operations {
@@ -822,7 +823,15 @@ impl MzTransportArtifactWire {
         if self.search_depth > limits.search.depth {
             return Err(exceeded("search depth limit"));
         }
-        if self.proof.search.memory_limit_bytes > limits.search_memory_bytes {
+        // The replay runs under the producer's stored memory cap, so the consumer's
+        // own limit (its consume limits and the context's hard limit) must cover it.
+        // Refusing here, before any work, is a limits refusal the caller can retry
+        // with a larger budget, not a claim that the proof is invalid.
+        let memory_cap = ctx
+            .memory
+            .hard_limit_bytes
+            .map_or(limits.search_memory_bytes, |hard| hard.min(limits.search_memory_bytes));
+        if self.proof.search.memory_limit_bytes > memory_cap {
             return Err(exceeded("search memory limit"));
         }
         if self.operation_limit > limits.evaluation.operations {
@@ -890,7 +899,7 @@ impl MzTransportArtifactWire {
         allow_interval: bool,
     ) -> Result<ConsumedMzTransport, IoError> {
         let wire = Self::decode(bytes)?;
-        wire.check_limits(&limits)?;
+        wire.check_limits(&limits, ctx)?;
         if wire.expected_premises_digest()? != wire.premises_digest {
             return Err(MzTransportArtifactError::PremisesMismatch.into());
         }

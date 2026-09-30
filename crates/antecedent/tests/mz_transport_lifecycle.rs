@@ -315,6 +315,43 @@ fn a_mutated_artifact_fails_independent_consumption() {
 }
 
 #[test]
+fn a_consumer_that_cannot_afford_the_stored_memory_cap_refuses_with_a_limits_error() {
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, false);
+    let ctx = ExecutionContext::for_tests(4);
+    let bytes = prepared.estimate(&ctx).unwrap().export(&prepared, &ctx).unwrap();
+    let stored = MzTransportArtifactWire::decode(&bytes).unwrap().proof.search.memory_limit_bytes;
+    let mut tight = ExecutionContext::for_tests(4);
+    tight.memory = antecedent_core::MemoryBudget {
+        soft_limit_bytes: None,
+        hard_limit_bytes: Some(stored - 1),
+    };
+    // The replay runs under the producer's cap; the consumer's own hard limit is
+    // below it, so the artifact is refused up front as a limits problem the caller
+    // can retry with a larger budget, never as an invalid proof.
+    let refusal =
+        consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &tight)
+            .map(|_| ())
+            .unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            IoError::MzTransport(MzTransportArtifactError::LimitsExceeded("search memory limit"))
+        ),
+        "{refusal:?}"
+    );
+    // With exactly the stored cap the same artifact consumes and replays.
+    tight.memory.hard_limit_bytes = Some(stored);
+    let replayed =
+        consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &tight)
+            .expect("a consumer that can afford the cap verifies the artifact");
+    assert_eq!(
+        risk_of(replayed.distribution()).to_bits(),
+        risk_of(prepared.estimate(&ctx).unwrap().distribution()).to_bits()
+    );
+}
+
+#[test]
 fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     let (catalog, exact) = evidence();
     let data = empirical(&exact, 40_000.0);
