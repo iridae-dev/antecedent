@@ -1427,6 +1427,56 @@ pub fn mz_transport_bootstrap_law_draws(
 }
 
 #[cfg(feature = "calibration-internal")]
+/// The law sets of the iid row bootstrap of a single-source z functional's cited
+/// count tables, one per replicate (`None` for a replicate whose draw failed).
+///
+/// Same stream, alias policy and dependence rule as [`nominal_z_transport_interval`];
+/// the 2.2B X3 joint-sensitivity endpoint bootstrap evaluates its exact range on
+/// each draw. Compiled only under `calibration-internal` (dev-dependencies alone).
+///
+/// # Errors
+/// Fewer than two replicates, a provider/catalog disagreement, or cancellation.
+#[doc(hidden)]
+pub fn z_transport_bootstrap_law_draws(
+    functional: &antecedent_identify::BoundZTransportFunctional,
+    data: &antecedent_expr::ExactTransportData,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Result<Result<Vec<Option<antecedent_expr::ExactTransportData>>, &'static str>, EstimationError>
+{
+    let spec = ZDrawSpec {
+        method: PERCENTILE_BOOTSTRAP,
+        stream: TransportStream::Bootstrap,
+        stage: "z-transport joint sensitivity bootstrap",
+        replicates,
+        coverage_level: 0.95,
+        keep_counts: true,
+    };
+    validate_draw_spec(&spec)?;
+    if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
+        return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
+    }
+    let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
+    if !licensed_iid_regimes(functional.catalog(), regimes) {
+        return Ok(Err("transport.unsupported_dependence"));
+    }
+    crate::transport::validate_exact_laws(functional.catalog(), data)
+        .map_err(|error| refuse_eval(&error))?;
+    let tables = CitedTables::new(functional, data, AliasPolicy::Identical)?
+        .map_err(EstimationError::data_msg)?;
+    let mut indexes = Vec::new();
+    let mut drawer = TableDrawer::new(&tables, data.max_support_rows());
+    let mut out = Vec::with_capacity(replicates as usize);
+    for replicate in 0..replicates {
+        crate::transport::refuse_cancelled(ctx, spec.stage)?;
+        out.push(drawer.draw(&spec, replicate, ctx, &mut |counts, rng, p, resampled| {
+            bootstrap_draw(counts, rng, &mut indexes, p, resampled)
+        })?);
+    }
+    Ok(Ok(out))
+}
+
+#[cfg(feature = "calibration-internal")]
 /// Joint percentile bootstrap of a multi-source mz functional over `requests`.
 ///
 /// This is the internal estimator the calibration harness measures; the public

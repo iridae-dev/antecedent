@@ -5,6 +5,7 @@
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod admg_conditional_transport_artifact;
 pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod arrow_section;
@@ -14,6 +15,7 @@ pub mod container;
 pub mod contract_section;
 pub mod contrast_wire;
 pub mod convert;
+pub mod counterfactual_id_artifact;
 pub mod coverage_records_data;
 pub mod cross_world_artifact;
 pub mod discovery_wire;
@@ -47,6 +49,7 @@ pub mod provenance_wire;
 pub mod provider_envelope;
 pub mod query_wire;
 pub mod reader;
+pub mod recovery_artifact;
 pub mod response_wire;
 pub mod temporal_transport_artifact;
 pub mod trace;
@@ -371,3 +374,5 @@ pub mod transport_grid_wire;
 pub mod learned_continuous_artifact;
 /// Learner-backed trial transport artifact verification.
 pub mod learned_trial_wire;
+/// Smoothed dose-response transport grid artifact verification (2.2B X4).
+pub mod smoothed_dose_artifact;

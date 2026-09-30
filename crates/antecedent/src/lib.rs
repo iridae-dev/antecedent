@@ -52,6 +52,7 @@ pub mod accepted;
 pub mod analysis;
 pub mod callback_plan;
 pub mod class_prior;
+pub mod counterfactual_id;
 pub mod cross_world;
 pub mod design;
 pub mod discovery;
@@ -82,6 +83,10 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
+    AdmgConditionalResult, PreparedAdmgConditionalTransport,
+    consume_admg_conditional_transport_artifact,
+};
+pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
     CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,
@@ -97,10 +102,19 @@ pub use analysis::{
     ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use analysis::{
+    JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
+    JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
+    JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
+};
+pub use analysis::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
 };
 pub use analysis::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use analysis::{
+    ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+};
+pub use analysis::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use analysis::{PreparedTemporalTransport, consume_temporal_transport_artifact};
 pub use analysis::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
 pub use class_prior::ClassPrior;

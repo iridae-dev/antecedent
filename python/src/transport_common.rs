@@ -163,6 +163,20 @@ impl TransportPyErr for antecedent_io::learned_continuous_artifact::LearnedConti
     }
 }
 
+impl TransportPyErr for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            // A replay the request no longer passes carries the record's reason code.
+            E::ReplayRefused { code, message } => {
+                crate::with_reason_code(serialization_error(message), code)
+            }
+            other => serialization_error(other),
+        }
+    }
+}
+
 impl TransportPyErr for antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError {
     fn into_transport_py_err(self) -> PyErr {
         use antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError as E;
@@ -194,6 +208,7 @@ impl TransportPyErr for antecedent_io::IoError {
             E::TransportScenario(inner) => inner.into_transport_py_err(),
             E::TemporalTransport(inner) => inner.into_transport_py_err(),
             E::LearnedContinuous(inner) => inner.into_transport_py_err(),
+            E::SmoothedDose(inner) => inner.into_transport_py_err(),
             E::UnsupportedVersion { .. } => serialization_error(self),
             // The facade still carries some refusals as converted messages.
             E::Convert(message) => classify(&message),

@@ -230,6 +230,12 @@ impl EvidenceCatalogWire {
                     model_artifact: match &r.origin {
                         LawOrigin::Measured => None,
                         LawOrigin::ModelArtifact { artifact } => Some(artifact.to_string()),
+                        // The 2.1 wire has no recovered-law field; a recovered law is
+                        // encoded fail-closed as a model artifact, so it can never
+                        // round-trip into a measured law (2.2B X10).
+                        LawOrigin::Recovered { derivation } => {
+                            Some(format!("recovered:{derivation}"))
+                        }
                     },
                 })
                 .collect(),

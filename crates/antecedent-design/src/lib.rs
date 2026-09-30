@@ -24,12 +24,20 @@ pub mod candidate;
 pub mod decision;
 pub mod error;
 pub mod objective;
+mod plan_common;
 pub mod preposterior;
 pub mod ranker;
 pub mod result;
+pub mod study_plan_artifact;
+pub mod study_planner;
 pub mod transport_planner;
 pub mod z_transport_planner;
 
+/// The plan the proposals are read from, owned by the identification crate that
+/// runs it; re-exported so the facade reaches it through the design crate.
+pub use antecedent_identify::{
+    StudyPlan, StudyPlanLimits, StudyPlanRoute, StudyPlanStop, StudyProposal, StudySubsetOutcome,
+};
 pub use candidate::{
     CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
 };
@@ -48,6 +56,16 @@ pub use ranker::{
     ModelLoglikDraws,
 };
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+pub use study_plan_artifact::{
+    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
+    StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
+    StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire, StudyPlanPremisesWire,
+    StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
+};
+pub use study_planner::{
+    StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
+    StudyPlanProposal, StudyPlanResult, plan_studies,
+};
 pub use transport_planner::{
     TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
     TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,

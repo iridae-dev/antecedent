@@ -62,6 +62,39 @@ impl EvidenceCatalogDelta {
             base.target_sampling,
         )
     }
+
+    /// Add one isolated placeholder provider binding per proposed regime to an
+    /// already previewed catalog (see [`Self::preview_catalog`]), so structural
+    /// planning can check whether a proposed law would satisfy a formula. The
+    /// placeholder snapshot is `hypothetical:<regime id>`; these bindings never
+    /// leave a plan as available evidence and are replaced by the provider's
+    /// actual bindings when the evidence arrives.
+    ///
+    /// # Errors
+    /// A preview that no longer forms a valid catalog with the bindings.
+    pub fn with_placeholder_bindings(
+        &self,
+        preview: &EvidenceCatalog,
+    ) -> Result<EvidenceCatalog, QueryError> {
+        let mut bindings = preview.bindings.to_vec();
+        for regime in self.proposed_regimes.iter() {
+            bindings.push(crate::RegimeBinding {
+                dataset_identity: None,
+                regime: regime.id,
+                snapshot_identity: Arc::from(format!("hypothetical:{}", regime.id.raw())),
+                schema_names: Arc::from([]),
+                sampling: crate::SamplingDesign::Independent,
+                weights: None,
+                dependence: crate::DependenceGroup::IndependentStudies,
+            });
+        }
+        EvidenceCatalog::try_new(
+            Arc::clone(&preview.environments),
+            Arc::clone(&preview.regimes),
+            bindings,
+            preview.target_sampling,
+        )
+    }
 }
 
 #[cfg(test)]

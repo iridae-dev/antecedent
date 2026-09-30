@@ -90,6 +90,11 @@ pub enum IoError {
     /// A mixed-source proof-search artifact failed one of its typed consumer checks.
     #[error("mixed-source artifact: {0}")]
     MixedSource(#[from] crate::mixed_source_artifact::MixedSourceArtifactError),
+    /// An ADMG conditional transport artifact failed one of its typed consumer checks.
+    #[error("admg conditional transport artifact: {0}")]
+    AdmgConditional(
+        #[from] crate::admg_conditional_transport_artifact::AdmgConditionalArtifactError,
+    ),
     /// A transport scenario artifact failed one of its typed consumer checks.
     #[error("transport scenario artifact: {0}")]
     TransportScenario(#[from] crate::transport_scenario_artifact::TransportScenarioArtifactError),
@@ -99,6 +104,9 @@ pub enum IoError {
     /// A learned continuous-outcome transport artifact failed one of its typed consumer checks.
     #[error("learned continuous transport artifact: {0}")]
     LearnedContinuous(#[from] crate::learned_continuous_artifact::LearnedContinuousArtifactError),
+    /// A smoothed dose-response transport artifact failed one of its typed consumer checks.
+    #[error("smoothed dose transport artifact: {0}")]
+    SmoothedDose(#[from] crate::smoothed_dose_artifact::SmoothedDoseArtifactError),
 }
 
 impl IoError {
@@ -109,6 +117,8 @@ impl IoError {
         match self {
             Self::Refused { code, .. } => Some(code),
             Self::MzTransport(inner) => inner.refusal().map(|(code, _)| code),
+            Self::AdmgConditional(inner) => Some(inner.refusal().0),
+            Self::SmoothedDose(inner) => inner.reason_code(),
             _ => None,
         }
     }

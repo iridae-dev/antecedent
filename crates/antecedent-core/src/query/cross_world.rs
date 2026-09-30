@@ -119,14 +119,19 @@ impl WorldSpec {
 
 /// How the exogenous terms of the worlds are coupled.
 ///
-/// Only one coupling exists today: every world shares one abduced exogenous term
-/// per variable and unit. Latent or partially shared exogenous structure across
-/// worlds is a later extension and enters here as a new variant.
+/// The path-specific edge contrast (2.2A) uses [`Self::SharedAbducedExogenous`];
+/// counterfactual identification from an observational law on a latent-variable
+/// graph (2.2B) uses [`Self::SharedLatentExogenous`]. A route refuses a coupling
+/// its contract does not name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ExogenousCoupling {
     /// One abduced exogenous term per variable and unit, shared by every world.
     SharedAbducedExogenous,
+    /// The exogenous terms of the semi-Markovian model (one per variable and one
+    /// per bidirected edge) are shared by every world and marginalized over their
+    /// unknown law, never abducted per unit.
+    SharedLatentExogenous,
 }
 
 impl ExogenousCoupling {
@@ -135,6 +140,7 @@ impl ExogenousCoupling {
     pub const fn tag(self) -> &'static str {
         match self {
             Self::SharedAbducedExogenous => "shared_abduced_exogenous",
+            Self::SharedLatentExogenous => "shared_latent_exogenous",
         }
     }
 }

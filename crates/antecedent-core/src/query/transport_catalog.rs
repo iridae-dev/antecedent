@@ -205,6 +205,19 @@ pub enum LawOrigin {
         /// Identity of the artifact that produced it.
         artifact: Arc<str>,
     },
+    /// A law derived by graph-licensed observation recovery (2.2B X10) from an
+    /// observed pattern law: a derived law with provenance, never an observed
+    /// table. It never supplies a population law (by `origin == Measured` in
+    /// [`EvidenceRegime::supplies_population_law`]), so it satisfies no
+    /// identification factor of the catalog routes (tested in
+    /// `a_recovered_law_never_supplies_a_factor_and_keeps_its_own_identity`);
+    /// the X9 mixed-source search excludes it as `recovered_law`. Only the
+    /// recovery handoff, after checking population, variables, factorization and
+    /// support, feeds it onward. On the catalog wire it is its own additive field.
+    Recovered {
+        /// Digest of the checked recovery derivation that produced it.
+        derivation: Arc<str>,
+    },
 }
 
 /// One available intervention assignment.
@@ -412,6 +425,13 @@ impl EvidenceRegime {
             if artifact.trim().is_empty() {
                 return Err(QueryError::InvalidTransport(
                     "model artifact identity must be non-empty".into(),
+                ));
+            }
+        }
+        if let LawOrigin::Recovered { derivation } = &self.origin {
+            if derivation.trim().is_empty() {
+                return Err(QueryError::InvalidTransport(
+                    "recovered law derivation identity must be non-empty".into(),
                 ));
             }
         }

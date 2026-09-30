@@ -4,6 +4,7 @@
 
 #![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
+mod admg_conditional_transport;
 mod batch;
 mod builder;
 mod checked_bayesian_class_conditional;
@@ -24,16 +25,23 @@ mod contract;
 mod contract_identity;
 mod exact;
 mod execute;
+mod joint_sensitivity;
 mod learned_continuous;
 mod learned_trial;
 mod mixed_source;
 mod mz_transport;
+mod recovery;
+mod smoothed_dose;
 mod statistical;
 mod temporal_transport;
 mod transport_grid;
 mod transport_scenarios;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
+pub use admg_conditional_transport::{
+    AdmgConditionalResult, PreparedAdmgConditionalTransport,
+    consume_admg_conditional_transport_artifact,
+};
 pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
 pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
 pub(crate) use checked_bayesian_temporal_class_effect::CheckedBayesianTemporalClassEffectOperation;
@@ -57,12 +65,21 @@ pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use joint_sensitivity::{
+    JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
+    JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
+    JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
+};
 pub use learned_continuous::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
 };
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use recovery::{
+    ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+};
+pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,

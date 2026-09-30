@@ -350,6 +350,28 @@ pub fn transport_estimator_menu_with(
                 "the outcome is continuous; a finite law cannot represent its mean contrast",
             )),
         },
+        // 2.2B X4: the smoothed dose-response grid has its own query and menu
+        // (`smoothed_dose::smoothed_dose_estimator_menu`); a binary contrast never runs it.
+        EstimatorMenuEntry {
+            estimator: "smoothed_dose_transport_aipw".into(),
+            eligible: false,
+            required_laws: strings(&[
+                "source outcome regression over a randomized continuous dose",
+                "known conditional dose density on a declared support",
+            ]),
+            required_graph_conditions: strings(&["the continuous dose as the single source experiment"]),
+            nuisance_tasks: strings(&["cross-fitted outcome regression over the dose basis and membership"]),
+            support_requirements: strings(&["every kernel window inside the declared dose support"]),
+            sampling_design: strings(&["nested_cohort", "independent_samples"]),
+            uncertainty_status: "withheld: cell_not_licensed (joint outer bootstrap route closed)".into(),
+            static_fields: all_requirements.map(String::from).to_vec(),
+            refusal: Some(refusal(
+                antecedent_core::reason_code!("route_not_supported"),
+                None,
+                "the query is a binary [0,1] contrast; the smoothed dose-response grid needs a \
+                 smoothed dose transport query",
+            )),
+        },
     ];
     EstimatorMenu { selection: "manual".into(), entries }
 }

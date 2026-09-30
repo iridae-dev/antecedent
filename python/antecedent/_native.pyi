@@ -4468,6 +4468,41 @@ def consume_cross_world_edge_contrast_artifact(
     seed: int = 0,
 ) -> tuple[str, bytes]: ...
 
+class NativePreparedCounterfactualId:
+    def evaluate(
+        self,
+        *,
+        probabilities: list[float] | None = None,
+        counts: list[int] | None = None,
+        seed: int = 0,
+    ) -> tuple[str, bytes]: ...
+    @property
+    def derivation(self) -> str: ...
+    @property
+    def search(self) -> str: ...
+
+def prepare_counterfactual_id_native(
+    names: list[str],
+    directed: list[tuple[str, str]],
+    bidirected: list[tuple[str, str]],
+    levels: list[list[float]],
+    treatment: str,
+    active: float,
+    observed: float,
+    outcome: str,
+    outcome_level: float,
+    *,
+    operations: int = 20_000,
+    depth: int = 48,
+    interval_requested: bool = False,
+    seed: int = 0,
+) -> NativePreparedCounterfactualId: ...
+def consume_counterfactual_id_artifact_native(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+) -> tuple[str, bytes]: ...
+
 class MixedSourceStage:
     @property
     def outcome(self) -> str: ...
@@ -4534,6 +4569,196 @@ def consume_mixed_source_artifact(
     *,
     max_search_operations: int = 20_000,
     max_search_depth: int = 16,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class StudyPlanStage:
+    @property
+    def outcome(self) -> str: ...
+    def plan(self) -> dict[str, Any]: ...
+    def receive(self, rank: int, catalog: Any, provider_snapshot: str) -> dict[str, Any]: ...
+    def export(self) -> bytes: ...
+
+def plan_studies_stage(
+    graph: Admg,
+    route: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    sources: list[tuple[str, list[str], dict[str, float], list[str]]],
+    catalog: Any,
+    candidates: list[
+        tuple[
+            str,
+            str,
+            list[str],
+            list[dict[str, float]] | None,
+            list[str],
+            str,
+            int,
+            int,
+            list[str],
+            list[str],
+            list[str],
+        ]
+    ],
+    *,
+    max_operations: int,
+    max_depth: int,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> StudyPlanStage: ...
+def replay_study_plan(
+    artifact: bytes,
+    *,
+    max_operations: int,
+    max_depth: int,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class ObservationRecoveryStage:
+    @property
+    def outcome(self) -> str: ...
+    def decision(self) -> dict[str, Any]: ...
+    def prepare_exact(
+        self,
+        law: Any,
+        requests: list[dict[str, float]] | None = None,
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedObservationRecoveryStage: ...
+    def prepare_empirical(
+        self,
+        law: Any,
+        requests: list[dict[str, float]] | None = None,
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedObservationRecoveryStage: ...
+
+class PreparedObservationRecoveryStage:
+    def estimate(
+        self,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def refresh(
+        self,
+        law: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    def export(self) -> bytes: ...
+    def plan(self) -> dict[str, Any]: ...
+
+def identify_observation_recovery_stage(
+    graph: Admg,
+    population: str,
+    observed_regime: str,
+    partially_observed: list[tuple[str, str, str]],
+    fully_observed: list[str],
+    catalog: Any,
+    *,
+    effect_outcomes: list[str] | None = None,
+    effect_treatments: list[str] | None = None,
+    effect_graph: Admg | None = None,
+    max_operations: int = 50_000,
+    max_depth: int = 32,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> ObservationRecoveryStage: ...
+def consume_observation_recovery_artifact(
+    artifact: bytes,
+    *,
+    max_search_operations: int = 50_000,
+    max_search_depth: int = 32,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_requests: int = 64,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class AdmgConditionalTransportStage:
+    @property
+    def outcome(self) -> str: ...
+    def decision(self) -> dict[str, Any]: ...
+    def prepare_exact(
+        self,
+        laws: Any,
+        assignments: dict[str, float] | Sequence[dict[str, float]],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedAdmgConditionalTransportStage: ...
+    def prepare_empirical(
+        self,
+        laws: Any,
+        assignments: dict[str, float] | Sequence[dict[str, float]],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedAdmgConditionalTransportStage: ...
+
+class PreparedAdmgConditionalTransportStage:
+    def estimate(
+        self,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+        seed: int | None = None,
+    ) -> str: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    def export(self) -> bytes: ...
+    def plan(self) -> dict[str, Any]: ...
+    @property
+    def seed(self) -> int: ...
+
+def identify_admg_conditional_transport_stage(
+    graph: Admg,
+    source: str,
+    target: str,
+    selections: list[str],
+    outcomes: list[str],
+    treatments: list[str],
+    conditioned_on: list[str],
+    catalog: Any,
+    *,
+    max_operations: int = 4096,
+    max_depth: int = 24,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> AdmgConditionalTransportStage: ...
+def consume_admg_conditional_transport_artifact(
+    artifact: bytes,
+    *,
+    max_search_operations: int = 4096,
+    max_search_depth: int = 24,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     max_support_rows: int | None = None,
@@ -4668,6 +4893,56 @@ def consume_z_transport_sensitivity_artifact(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> ZTransportSensitivityResult: ...
+def z_transport_joint_sensitivity(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    *,
+    decision_threshold: float | None = None,
+    total_budget: float | None = None,
+    tolerance: float = 1e-9,
+    frontier_points: int = 17,
+    max_operations: int = 100_000,
+    max_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]: ...
+def export_z_transport_joint_sensitivity(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    *,
+    decision_threshold: float | None = None,
+    total_budget: float | None = None,
+    tolerance: float = 1e-9,
+    frontier_points: int = 17,
+    max_operations: int = 100_000,
+    max_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> bytes: ...
+def consume_z_transport_joint_sensitivity_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    max_search_operations: int = 100_000,
+    max_search_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]: ...
+def z_transport_joint_sensitivity_interval(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    *,
+    decision_threshold: float | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
 def consume_z_transport_failure_snapshot(
     artifact: bytes,
     *,
@@ -4871,6 +5146,39 @@ def learned_continuous_estimator_menu(
     learners: str | None = None,
 ) -> str: ...
 def consume_learned_continuous(
+    artifact: bytes,
+    *,
+    max_rows: int | None = None,
+    max_features: int | None = None,
+) -> str: ...
+
+class PreparedSmoothedDoseNative:
+    def estimate(self, cancel: CancellationToken | None = None) -> str: ...
+    def interval(self, cancel: CancellationToken | None = None) -> None: ...
+    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def export(self) -> bytes: ...
+    def estimator_menu(self) -> str: ...
+    def last_result(self) -> str: ...
+
+def prepare_smoothed_dose(
+    graph: Admg,
+    selections: list[str],
+    query: str,
+    data: Any,
+    options: str,
+    target_name: str,
+    *,
+    seed: int = 1,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedSmoothedDoseNative: ...
+def smoothed_dose_estimator_menu(
+    graph: Admg,
+    selections: list[str],
+    query: str,
+    options: str | None = None,
+) -> str: ...
+def consume_smoothed_dose(
     artifact: bytes,
     *,
     max_rows: int | None = None,

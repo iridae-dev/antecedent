@@ -450,6 +450,11 @@ impl PreparedZTransport {
     pub fn data(&self) -> &ExactTransportData {
         &self.data
     }
+
+    /// Checked selection diagram the functional was verified against.
+    pub(crate) const fn diagram(&self) -> &SelectionDiagram {
+        &self.diagram
+    }
 }
 
 fn same_causal_graph(left: &SelectionDiagram, right: &SelectionDiagram) -> bool {

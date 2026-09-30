@@ -16,6 +16,7 @@
 #![deny(missing_docs)]
 
 pub mod adjustment;
+pub mod admg_conditional_transport;
 pub mod aipw;
 pub mod ancova;
 pub mod ar_kernel;
@@ -61,6 +62,7 @@ pub mod quantile;
 pub mod randomized_neyman;
 pub mod randomized_scores;
 pub mod rd;
+pub mod recovery;
 pub mod response;
 pub mod retarget;
 pub mod scores;
@@ -97,6 +99,7 @@ pub mod learned_continuous;
 pub mod learned_trial;
 pub mod longitudinal_regime;
 pub mod marginal_structural_model;
+pub mod smoothed_dose;
 pub use estimator_menu::{
     EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
     transport_estimator_menu_with,
@@ -113,9 +116,19 @@ pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
     learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,
 };
+pub use smoothed_dose::{
+    DoseBasis, SMOOTHED_DOSE_BOUNDS, SmoothedDoseEstimate, SmoothedDoseInput, SmoothedDoseOptions,
+    SmoothedDoseUncertainty, estimate_smoothed_dose, smoothed_dose_estimator_menu,
+    validate_smoothed_dose,
+};
+#[cfg(feature = "calibration-internal")]
+pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
 mod fitted_effect;
 pub use fitted_effect::FittedEffect;
 
+pub use admg_conditional_transport::{
+    AdmgConditionalExactPlan, prepare_exact_admg_conditional_transport,
+};
 pub use aipw::{
     AipwAte, AipwWorkspace, CheckedAipwLowering, CheckedAipwPreparation, CheckedAipwProcedure,
 };
@@ -218,6 +231,7 @@ pub use rd::{
     CheckedRdLowering, CheckedRdPreparation, PreparedRdProblem, RdWorkspace,
     SharpRegressionDiscontinuity,
 };
+pub use recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
 pub use retarget::{
     DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, changes_target,
@@ -245,7 +259,7 @@ pub use statistical_transport::{
 #[cfg(feature = "calibration-internal")]
 pub use statistical_transport::{
     MzRequestInterval, MzTransportIntervals, mz_transport_bootstrap_interval,
-    mz_transport_bootstrap_law_draws,
+    mz_transport_bootstrap_law_draws, z_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,

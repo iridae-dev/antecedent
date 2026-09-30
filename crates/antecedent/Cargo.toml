@@ -52,6 +52,8 @@ antecedent-identify = { version = "2.1.1", path = "../antecedent-identify", feat
 # The calibration harness and lifecycle tests measure the closed X4 interval estimator.
 antecedent-estimate = { version = "2.1.1", path = "../antecedent-estimate", features = ["calibration-internal"] }
 antecedent-io = { version = "2.1.1", path = "../antecedent-io", features = ["calibration-internal"] }
+# The X3 joint-sensitivity calibration harness measures the closed endpoint bootstrap.
+antecedent-validate = { version = "2.1.1", path = "../antecedent-validate", features = ["calibration-internal"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 serde_json = { workspace = true }

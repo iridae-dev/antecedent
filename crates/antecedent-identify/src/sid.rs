@@ -20,12 +20,22 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+mod conditional;
 mod meta;
 mod mixed_source;
 mod mz_transport;
 pub mod scenarios;
+mod study_planning;
 pub mod temporal_sequence;
 mod z_transport;
+pub use conditional::{
+    ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
+    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS, ADMG_CONDITIONAL_MEMORY_BYTES,
+    BoundConditionalTransportFunctional, ConditionalObstructionCandidate,
+    ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
+    ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
+    ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
+};
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
     CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
@@ -49,6 +59,14 @@ pub use mz_transport::{
     MzTransportObstruction, MzTransportQuery, MzTransportRoute, ValidatedMzTransportQuery,
     bind_mz_transport_catalog, decide_mz_transport, mz_transport_refusal,
     validate_mz_transport_query, verify_mz_transport_obstruction,
+};
+pub use study_planning::{
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
+    STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
+    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan,
+    StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop,
+    StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
+    plan_study_additions,
 };
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,

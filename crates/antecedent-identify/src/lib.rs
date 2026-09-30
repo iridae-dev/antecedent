@@ -20,6 +20,7 @@ pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
 pub mod bounds;
+pub mod counterfactual_id;
 pub mod cross_world;
 pub mod efficient;
 pub(crate) mod enum_masks;
@@ -36,6 +37,7 @@ pub mod iv;
 pub mod path_specific;
 pub mod prepared;
 pub mod rd;
+pub mod recovery;
 pub mod response;
 pub(crate) mod response_id;
 pub mod result;
@@ -47,6 +49,23 @@ mod temporal_mag;
 pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
+pub use recovery::{
+    ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
+    RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS, RECOVERY_MAX_PARTIALLY_OBSERVED,
+    RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery, RecoveredEffectRecord,
+    RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError,
+    RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord, RecoveryReceiptRecord,
+    RecoveryWitness, WitnessCheck, WitnessMechanism, decide_observation_recovery,
+    verify_observation_recovery, verify_recovery_witness,
+};
+pub use sid::{
+    ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
+    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS, ADMG_CONDITIONAL_MEMORY_BYTES,
+    BoundConditionalTransportFunctional, ConditionalObstructionCandidate,
+    ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
+    ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
+    ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
+};
 pub use sid::{
     BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
     MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
@@ -82,6 +101,14 @@ pub use sid::{
     validate_mz_transport_query, validate_z_experiment_family, validate_z_transport_query,
     verify_classical_transport, verify_meta_s_hedge, verify_meta_transport,
     verify_mz_transport_obstruction, verify_z_transport_derivation, verify_z_transport_obstruction,
+};
+pub use sid::{
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
+    STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
+    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan,
+    StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop,
+    StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
+    plan_study_additions,
 };
 mod transport_lower;
 

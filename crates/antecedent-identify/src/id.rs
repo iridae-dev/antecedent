@@ -100,6 +100,104 @@ enum IdOutcome {
     Fail(HedgeCertificate),
 }
 
+/// Budget hook of a metered ID recursion: every recursive call charges
+/// `(recursion depth, estimated live bytes)` to the caller's budget, and an error
+/// stops the recursion. Unmetered callers (every public entry point) pass
+/// [`IdMeter::unmetered`] and see unchanged behaviour.
+pub(crate) struct IdMeter<'m> {
+    charge: Option<&'m mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + 'm)>,
+    depth: usize,
+}
+
+impl IdMeter<'_> {
+    const fn unmetered() -> Self {
+        Self { charge: None, depth: 0 }
+    }
+
+    /// Enter one recursive call and charge it: the live state is the expression
+    /// arena and the memo table, estimated per node and per entry.
+    fn enter(
+        &mut self,
+        arena_nodes: usize,
+        memo_entries: usize,
+    ) -> Result<(), IdentificationError> {
+        self.depth += 1;
+        let bytes = (arena_nodes as u64)
+            .saturating_mul(96)
+            .saturating_add((memo_entries as u64).saturating_mul(192));
+        match self.charge.as_mut() {
+            Some(charge) => charge(self.depth, bytes),
+            None => Ok(()),
+        }
+    }
+
+    const fn leave(&mut self) {
+        self.depth = self.depth.saturating_sub(1);
+    }
+}
+
+/// Result of [`identify_interventional_metered`].
+#[allow(
+    clippy::large_enum_variant,
+    reason = "built once per district term and moved, never stored in bulk"
+)]
+pub(crate) enum MeteredId {
+    /// `P_x(y)` as a functional of the observational law. The functional leaves
+    /// the treatments free (no do-labels are baked in): evaluate it with the
+    /// treatments bound to their levels.
+    Identified {
+        /// Arena holding the functional.
+        arena: CausalExprArena,
+        /// Root of the functional.
+        expression: ExprId,
+    },
+    /// ID line 5: the hedge, carrying its problem so it re-verifies anywhere.
+    Hedge(HedgeCertificate),
+}
+
+/// Complete ID of `P(y | do(x))` on `prepared`, charging every recursive call to
+/// `charge` (the counterfactual-identification route's shared budget).
+///
+/// # Errors
+///
+/// The error `charge` returns when the budget stops the recursion, or an
+/// identification failure (overlapping sets, unknown variables).
+pub(crate) fn identify_interventional_metered(
+    prepared: &PreparedAdmg,
+    y: &BitSet,
+    x: &BitSet,
+    ws: &mut GraphWorkspace,
+    charge: &mut (dyn FnMut(usize, u64) -> Result<(), IdentificationError> + '_),
+) -> Result<MeteredId, IdentificationError> {
+    require_disjoint(y, x)?;
+    let mut working = prepared.clone();
+    let mut arena = CausalExprArena::new();
+    let mut derivation = DerivationTrace::default();
+    let mut memo: HashMap<SubproblemKey, IdOutcome> = HashMap::new();
+    let mut perf = IdentificationPerformanceRecord::default();
+    let active = full_nodes(working.admg().node_count());
+    let mut meter = IdMeter { charge: Some(charge), depth: 0 };
+    match id_recurse(
+        &mut working,
+        y,
+        x,
+        &active,
+        &DistCtx::Marginal,
+        &mut arena,
+        &mut memo,
+        &mut derivation,
+        &mut perf,
+        ws,
+        Arc::from([]),
+        &mut meter,
+    )? {
+        IdOutcome::Expr(expression) => Ok(MeteredId::Identified { arena, expression }),
+        IdOutcome::Fail(hedge) => Ok(MeteredId::Hedge(
+            hedge.with_problem(crate::hedge::HedgeProblem::capture(prepared, x, y)?),
+        )),
+    }
+}
+
 /// Identifier implementing the complete ID algorithm on ADMGs.
 ///
 /// Every valid query over a valid ADMG ends in exactly one of two ways: an
@@ -378,6 +476,7 @@ impl IdIdentifier {
             &mut perf,
             &mut workspace.graph,
             Arc::from([(t, active_level)]),
+            &mut IdMeter::unmetered(),
         )? {
             IdOutcome::Expr(e) => e,
             IdOutcome::Fail(hedge) => {
@@ -402,6 +501,7 @@ impl IdIdentifier {
             &mut perf,
             &mut workspace.graph,
             Arc::from([(t, control_level)]),
+            &mut IdMeter::unmetered(),
         )? {
             IdOutcome::Expr(e) => e,
             IdOutcome::Fail(hedge) => {
@@ -501,6 +601,7 @@ impl IdIdentifier {
                 perf,
                 &mut workspace.graph,
                 assign,
+                &mut IdMeter::unmetered(),
             )
         };
         let left = match side(
@@ -590,6 +691,7 @@ impl IdIdentifier {
             &mut perf,
             &mut workspace.graph,
             assignments,
+            &mut IdMeter::unmetered(),
         )? {
             IdOutcome::Expr(functional) => {
                 let estimand = IdentifiedEstimand::new(
@@ -761,6 +863,7 @@ fn id_recurse(
     perf: &mut IdentificationPerformanceRecord,
     ws: &mut GraphWorkspace,
     assign: Assign,
+    meter: &mut IdMeter<'_>,
 ) -> Result<IdOutcome, IdentificationError> {
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
     let key = SubproblemKey {
@@ -770,12 +873,16 @@ fn id_recurse(
         assign: assign.clone(),
         dist: dist.clone(),
     };
+    meter.enter(arena.len(), memo.len())?;
     if let Some(hit) = memo.get(&key) {
         perf.sets_returned = perf.sets_returned.saturating_add(1);
+        meter.leave();
         return Ok(hit.clone());
     }
 
-    let outcome = id_body(prepared, y, x, v, dist, arena, memo, derivation, perf, ws, assign)?;
+    let outcome =
+        id_body(prepared, y, x, v, dist, arena, memo, derivation, perf, ws, assign, meter)?;
+    meter.leave();
     memo.insert(key, outcome.clone());
     Ok(outcome)
 }
@@ -792,6 +899,7 @@ fn id_body(
     perf: &mut IdentificationPerformanceRecord,
     ws: &mut GraphWorkspace,
     assign: Assign,
+    meter: &mut IdMeter<'_>,
 ) -> Result<IdOutcome, IdentificationError> {
     // Line 1: x = ∅ → ∑_{v\y} of the *current* distribution
     if !x.any() {
@@ -810,7 +918,7 @@ fn id_body(
         let dist2 = dist.marginalize(&removed);
         derivation.push("general.id.line2", "restrict to ancestral set of Y");
         return id_recurse(
-            prepared, y, &x2, &an_y, &dist2, arena, memo, derivation, perf, ws, assign,
+            prepared, y, &x2, &an_y, &dist2, arena, memo, derivation, perf, ws, assign, meter,
         );
     }
 
@@ -824,7 +932,9 @@ fn id_body(
         let mut x2 = x.clone();
         x2.union_with(&w);
         derivation.push("general.id.line3", "add superfluous interventions");
-        return id_recurse(prepared, y, &x2, v, dist, arena, memo, derivation, perf, ws, assign);
+        return id_recurse(
+            prepared, y, &x2, v, dist, arena, memo, derivation, perf, ws, assign, meter,
+        );
     }
 
     // Line 4 / 5–7: C-components of G[V\X]
@@ -860,6 +970,7 @@ fn id_body(
                 perf,
                 ws,
                 assign.clone(),
+                meter,
             )? {
                 IdOutcome::Expr(e) => factors.push(e),
                 fail @ IdOutcome::Fail(_) => return Ok(fail),
@@ -898,7 +1009,7 @@ fn id_body(
         return Ok(IdOutcome::Fail(hedge));
     }
 
-    id_lines_5_to_7(prepared, y, x, v, s, dist, arena, memo, derivation, perf, ws, assign)
+    id_lines_5_to_7(prepared, y, x, v, s, dist, arena, memo, derivation, perf, ws, assign, meter)
 }
 
 /// Lines 6–7 dispatch for the single-C-component case (line 5 handled above).
@@ -916,6 +1027,7 @@ fn id_lines_5_to_7(
     perf: &mut IdentificationPerformanceRecord,
     ws: &mut GraphWorkspace,
     assign: Assign,
+    meter: &mut IdMeter<'_>,
 ) -> Result<IdOutcome, IdentificationError> {
     // Districts of G (on V)
     let g_comps = prepared.c_components(v);
@@ -952,7 +1064,7 @@ fn id_lines_5_to_7(
         let dist2 =
             DistCtx::CFactor(Arc::new(Law { sumset: BitSet::with_len(v.bit_len()), factors }));
         return id_recurse(
-            prepared, y, &x2, s_prime, &dist2, arena, memo, derivation, perf, ws, assign,
+            prepared, y, &x2, s_prime, &dist2, arena, memo, derivation, perf, ws, assign, meter,
         );
     }
 
@@ -1681,5 +1793,87 @@ mod tests {
             matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("Soft")),
             "{err}"
         );
+    }
+
+    /// The counterfactual-identification hook charges every ID recursion: the
+    /// front-door `P_x(y)` charges each recursive call with its depth and live
+    /// bytes, and an error from the charge stops ID with that error.
+    #[test]
+    fn every_metered_recursion_is_charged_and_a_stop_ends_it() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let prepared = PreparedAdmg::new(g).unwrap();
+        let set = |ids: &[u32]| {
+            let mut b = BitSet::with_len(3);
+            for &i in ids {
+                b.insert(DenseNodeId::from_raw(i));
+            }
+            b
+        };
+        // P_x(y): line 3 and the line-4 district factorization recurse.
+        let (y, x) = (set(&[2]), set(&[0]));
+        let mut charges = Vec::new();
+        let mut record = |depth: usize, bytes: u64| {
+            charges.push((depth, bytes));
+            Ok(())
+        };
+        let outcome = identify_interventional_metered(
+            &prepared,
+            &y,
+            &x,
+            &mut GraphWorkspace::default(),
+            &mut record,
+        )
+        .unwrap();
+        assert!(matches!(outcome, MeteredId::Identified { .. }));
+        assert!(charges.len() >= 3, "{charges:?}");
+        assert_eq!(charges[0].0, 1, "the first call is at depth one");
+        assert!(charges.iter().map(|c| c.0).max().unwrap() >= 2, "{charges:?}");
+        assert!(charges.windows(2).all(|w| w[1].1 >= w[0].1), "live bytes only grow: {charges:?}");
+        // A stop on the second charge ends ID with that error.
+        let mut calls = 0;
+        let mut stop = |_: usize, _: u64| {
+            calls += 1;
+            if calls >= 2 { Err(IdentificationError::Cancelled) } else { Ok(()) }
+        };
+        let stopped = identify_interventional_metered(
+            &prepared,
+            &y,
+            &x,
+            &mut GraphWorkspace::default(),
+            &mut stop,
+        );
+        assert!(matches!(stopped, Err(IdentificationError::Cancelled)));
+        assert_eq!(calls, 2);
+        // The bow arc's P_x(y) is a hedge carrying its problem.
+        let mut bow = Admg::with_variables(2);
+        bow.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        bow.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let bow = PreparedAdmg::new(bow).unwrap();
+        let (y, x) = (
+            {
+                let mut b = BitSet::with_len(2);
+                b.insert(DenseNodeId::from_raw(1));
+                b
+            },
+            {
+                let mut b = BitSet::with_len(2);
+                b.insert(DenseNodeId::from_raw(0));
+                b
+            },
+        );
+        let MeteredId::Hedge(hedge) = identify_interventional_metered(
+            &bow,
+            &y,
+            &x,
+            &mut GraphWorkspace::default(),
+            &mut |_, _| Ok(()),
+        )
+        .unwrap() else {
+            panic!("expected a hedge")
+        };
+        hedge.verify_carried().unwrap();
     }
 }

@@ -627,7 +627,7 @@ impl ZTransportStage {
 }
 
 #[pyclass(skip_from_py_object)]
-struct PreparedZTransportStage {
+pub(crate) struct PreparedZTransportStage {
     inner: antecedent::PreparedZTransport,
     graph: Admg,
     diagram: SelectionDiagram,
@@ -758,7 +758,7 @@ impl PreparedZTransportStage {
         })
     }
 
-    fn ctx(
+    pub(crate) fn ctx(
         &self,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
@@ -776,13 +776,18 @@ impl PreparedZTransportStage {
     }
 
     /// The raw io-crate artifact of the last execution.
-    fn raw_export(&self, what: &str) -> PyResult<Vec<u8>> {
+    pub(crate) fn raw_export(&self, what: &str) -> PyResult<Vec<u8>> {
         self.last_result(what)?.export(&self.inner).map_err(error)
     }
 
     /// Interval JSON for one execution: availability is the presence of mean
     /// intervals, never a string test on the method name. `method` is the
     /// interval constructor and `reason` why it is withheld or uncalibrated.
+    /// The retained prepared z stage (shared, immutable).
+    pub(crate) const fn prepared(&self) -> &antecedent::PreparedZTransport {
+        &self.inner
+    }
+
     fn interval_json(&self, result: &antecedent::ZTransportResult) -> serde_json::Value {
         let names = &self.graph.names;
         if result.mean_intervals().is_empty() {

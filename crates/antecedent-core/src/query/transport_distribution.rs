@@ -160,6 +160,9 @@ impl CatalogDistribution {
             &match &self.origin {
                 LawOrigin::Measured => "measured".to_owned(),
                 LawOrigin::ModelArtifact { artifact } => format!("model_artifact:{artifact}"),
+                // Additive (2.2B X10): the measured and model-artifact spellings, and so
+                // every existing identity, are unchanged.
+                LawOrigin::Recovered { derivation } => format!("recovered:{derivation}"),
             },
         );
         field(
@@ -428,6 +431,59 @@ mod tests {
         assert!(
             pairs.contains("|availability=marginals:1,2|") && joint.contains("availability=joint")
         );
+    }
+
+    #[test]
+    fn a_recovered_law_never_supplies_a_factor_and_keeps_its_own_identity() {
+        // 2.2B X10: `LawOrigin::Recovered` is additive. It never supplies a
+        // population law (so never satisfies a factor or counts as an available
+        // experiment), an empty derivation is refused, and its identity spelling
+        // is its own while the 2.1 spellings are unchanged.
+        let need_vars = ids(&[1]);
+        let need_do = ids(&[0]);
+        let need = super::super::transport_catalog::FactorNeed {
+            population: "trial",
+            variables: &need_vars,
+            conditioned_on: &[],
+            interventions: &need_do,
+        };
+        let base = regime(1, "trial", &[0], &[1]);
+        assert!(base.supplies_population_law() && base.satisfies(&need));
+        let mut recovered = base.clone();
+        recovered.origin = LawOrigin::Recovered { derivation: Arc::from("x10.recovery.v1|d") };
+        assert!(!recovered.supplies_population_law());
+        assert!(!recovered.satisfies(&need));
+        assert!(!recovered.available_experiment_on("trial", &need_do));
+        recovered.validate_descriptor().unwrap();
+        let catalog = EvidenceCatalog::try_new([], [recovered.clone()], [], None).unwrap();
+        assert!(catalog.source_experiment_variables("trial").is_empty());
+        let identity = catalog.distribution(RegimeId::from_raw(1)).unwrap().canonical_identity();
+        assert!(identity.contains("|origin=recovered:x10.recovery.v1"), "{identity}");
+        // An empty derivation identity is refused, by the descriptor and the catalog.
+        for empty in ["", "  "] {
+            let mut blank = base.clone();
+            blank.origin = LawOrigin::Recovered { derivation: Arc::from(empty) };
+            assert!(matches!(
+                blank.validate_descriptor(),
+                Err(QueryError::InvalidTransport(message)) if message.contains("recovered law derivation")
+            ));
+            assert!(EvidenceCatalog::try_new([], [blank], [], None).is_err());
+        }
+        // The 2.1 spellings are unchanged, and a model artifact named like a
+        // recovered law does not share its identity.
+        let spelled = |origin: LawOrigin| {
+            let mut r = base.clone();
+            r.origin = origin;
+            EvidenceCatalog::try_new([], [r], [], None)
+                .unwrap()
+                .distribution(RegimeId::from_raw(1))
+                .unwrap()
+                .canonical_identity()
+        };
+        assert!(spelled(LawOrigin::Measured).contains("|origin=measured|"));
+        let artifact = spelled(LawOrigin::ModelArtifact { artifact: Arc::from("recovered:d") });
+        assert!(artifact.contains("|origin=model_artifact:recovered:d|"), "{artifact}");
+        assert_ne!(artifact, spelled(LawOrigin::Recovered { derivation: Arc::from("d") }));
     }
 
     #[test]

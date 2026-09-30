@@ -7,6 +7,11 @@ and stage verbs live here; they are not re-exported from
 
 from __future__ import annotations
 
+from ._admg_conditional import (
+    ConditionalTransportQuery,
+    consume_admg_conditional_transport_artifact,
+    identify_admg_conditional_transport,
+)
 from ._impl import (
     ClassicalTransportIdentification,
     DirectFormula,
@@ -70,6 +75,13 @@ from ._impl import (
     replay_z_transport_proposal,
     restore_lowered_program,
 )
+from ._joint_sensitivity import (
+    JointDeviation,
+    consume_joint_mechanism_sensitivity_artifact,
+    export_joint_mechanism_sensitivity,
+    joint_mechanism_sensitivity,
+    joint_mechanism_sensitivity_interval,
+)
 from ._learned_continuous import (
     EstimatorMenu,
     EstimatorMenuEntry,
@@ -91,12 +103,31 @@ from ._multi_source import (
     consume_multi_source_z_transport_artifact,
     identify_multi_source_z_transport,
 )
+from ._recovery import (
+    ObservationRecoveryQuery,
+    PartiallyObservedVariable,
+    consume_observation_recovery_artifact,
+    identify_observation_recovery,
+)
 from ._scenarios import (
     TransportScenario,
     TransportScenarioSet,
     consume_transport_scenarios_artifact,
     prepare_transport_scenarios,
 )
+from ._smoothed_dose import (
+    DoseBasis,
+    PreparedSmoothedDose,
+    SmoothedDoseData,
+    SmoothedDoseEstimate,
+    SmoothedDoseGridPoint,
+    SmoothedDoseOptions,
+    SmoothedDoseQuery,
+    consume_smoothed_dose,
+    prepare_smoothed_dose,
+    smoothed_dose_estimator_menu,
+)
+from ._study_planning import StudyCandidate, plan_studies, replay_study_plan
 from ._temporal import (
     TemporalSequenceSpec,
     consume_temporal_transport_artifact,
@@ -104,6 +135,11 @@ from ._temporal import (
 )
 
 __all__ = [
+    "JointDeviation",
+    "consume_joint_mechanism_sensitivity_artifact",
+    "export_joint_mechanism_sensitivity",
+    "joint_mechanism_sensitivity",
+    "joint_mechanism_sensitivity_interval",
     "EstimatorMenu",
     "EstimatorMenuEntry",
     "LearnedContinuousEstimate",
@@ -112,7 +148,18 @@ __all__ = [
     "consume_learned_continuous",
     "estimator_menu",
     "prepare_learned_continuous",
+    "DoseBasis",
+    "PreparedSmoothedDose",
+    "SmoothedDoseData",
+    "SmoothedDoseEstimate",
+    "SmoothedDoseGridPoint",
+    "SmoothedDoseOptions",
+    "SmoothedDoseQuery",
+    "consume_smoothed_dose",
+    "prepare_smoothed_dose",
+    "smoothed_dose_estimator_menu",
     "ClassicalTransportIdentification",
+    "ConditionalTransportQuery",
     "DirectFormula",
     "Environment",
     "EvidenceCatalog",
@@ -124,6 +171,9 @@ __all__ = [
     "ExactTransportQuery",
     "LearnedTrialEstimate",
     "MixedSourceQuery",
+    "StudyCandidate",
+    "ObservationRecoveryQuery",
+    "PartiallyObservedVariable",
     "MultiSourceZTransportQuery",
     "MissingEvidenceCertificate",
     "NotCertifiedCertificate",
@@ -154,8 +204,10 @@ __all__ = [
     "TrialTransportEstimate",
     "VariableCoordinate",
     "ZTransportSource",
+    "consume_admg_conditional_transport_artifact",
     "consume_exact",
     "consume_mixed_source_artifact",
+    "consume_observation_recovery_artifact",
     "consume_multi_source_z_transport_artifact",
     "consume_z_transport_artifact",
     "consume_z_transport_sensitivity_artifact",
@@ -168,13 +220,17 @@ __all__ = [
     "evaluate_exact",
     "evaluate_statistical_grid",
     "identify",
+    "identify_admg_conditional_transport",
     "identify_classical",
     "identify_meta",
     "identify_mixed_source_transport",
+    "identify_observation_recovery",
     "identify_multi_source_z_transport",
     "identify_z_transport",
+    "plan_studies",
     "plan_z_transport_evidence",
     "replay_z_transport_proposal",
+    "replay_study_plan",
     "inspect_catalog",
     "inspect_proof_graph",
     "prepare",

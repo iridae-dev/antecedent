@@ -61,7 +61,7 @@ pub struct ContinuousDoseResponseQuery {
     pub baseline_groups: Arc<[Arc<str>]>,
     /// Prespecified dose grid evaluated in every baseline group.
     pub target_doses: Arc<[f64]>,
-    /// Triangular-kernel bandwidth.
+    /// Epanechnikov-kernel bandwidth.
     pub bandwidth: f64,
     /// Number of local rows required in every group-target cell.
     pub min_local_support: usize,

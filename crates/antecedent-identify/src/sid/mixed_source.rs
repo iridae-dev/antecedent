@@ -316,8 +316,9 @@ impl MixedSourceQuery {
 pub struct MixedExclusion {
     /// The excluded regime.
     pub regime: RegimeId,
-    /// `other_population`, `not_available`, `model_artifact`, `selected_sample`,
-    /// `conditioned_projection`, `separate_marginals` or `restricted_levels`.
+    /// `other_population`, `not_available`, `recovered_law`, `model_artifact`,
+    /// `selected_sample`, `conditioned_projection`, `separate_marginals` or
+    /// `restricted_levels`.
     pub reason: &'static str,
 }
 
@@ -437,6 +438,13 @@ pub fn validate_mixed_source_query(
         }
         if !distribution.evidence_kind.can_satisfy_factor() {
             exclusions.push(exclude("not_available"));
+            continue;
+        }
+        // 2.2B X10 (B6 audit D3): a recovered law is a derived law, neither a
+        // model artifact nor a posterior; it is excluded under its own reason in
+        // either kind (fail-closed, no new refusal detail).
+        if matches!(distribution.origin, LawOrigin::Recovered { .. }) {
+            exclusions.push(exclude("recovered_law"));
             continue;
         }
         if distribution.origin != LawOrigin::Measured {
@@ -1329,16 +1337,19 @@ impl<'g> Engine<'g> {
 /// no code with the search's m-separation oracle, and rebuilds every expression in
 /// a fresh arena; the shared expression layer then compiles the root and binds
 /// its leaves ([`check_with_shared_expression_layer`]).
-struct Checker {
+///
+/// The conditional transport checker (`sid::conditional`) reuses its separation
+/// test for rule-2 premises, so it is visible to the parent module.
+pub(super) struct Checker {
     variables: Vec<VariableId>,
     parents: Vec<Vec<usize>>,
     siblings: Vec<Vec<usize>>,
 }
 
-type Set = BTreeSet<usize>;
+pub(super) type Set = BTreeSet<usize>;
 
 impl Checker {
-    fn new(graph: &Admg) -> Result<Self, IdentificationError> {
+    pub(super) fn new(graph: &Admg) -> Result<Self, IdentificationError> {
         let variables = dense_variables(graph)?;
         let n = variables.len();
         let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
@@ -1382,7 +1393,7 @@ impl Checker {
 
     /// `a` and `b` are m-separated given `cond` after every edge into `over` and
     /// every directed edge out of `under` is removed.
-    fn separated(&self, over: &Set, under: &Set, a: &Set, b: &Set, cond: &Set) -> bool {
+    pub(super) fn separated(&self, over: &Set, under: &Set, a: &Set, b: &Set, cond: &Set) -> bool {
         let n = self.variables.len();
         let mut parents = vec![Vec::new(); n];
         let mut siblings = vec![Vec::new(); n];
@@ -1961,6 +1972,28 @@ pub fn decide_mixed_source(
             ..receipt
         })),
     }
+}
+
+/// [`decide_mixed_source`] charging a budget an enclosing plan already shares
+/// (the X6 study planner re-decides each preview catalog on it). Validation,
+/// stages and outcomes are exactly those of the public route; the caller owns
+/// the limits.
+///
+/// # Errors
+///
+/// As [`decide_mixed_source`], except the limits.
+pub(super) fn decide_mixed_source_shared(
+    graph: &Admg,
+    query: &MixedSourceQuery,
+    catalog: &EvidenceCatalog,
+    search: &mut SharedSearch<'_>,
+    ctx: &ExecutionContext,
+) -> Result<MixedSourceDecision, IdentificationError> {
+    let validated = validate_mixed_source_query(graph, query, catalog)?;
+    catalog.validate().map_err(|error| {
+        IdentificationError::invalid_catalog(format!("{INVALID_QUERY}: {error}"))
+    })?;
+    decide_charged(graph, &validated, catalog, search, ctx)
 }
 
 /// The receipt of a stop: finished stages and completed generations are explored;

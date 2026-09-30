@@ -371,6 +371,7 @@ dependencies = [
  "antecedent-kernels",
  "antecedent-prob",
  "antecedent-stats",
+ "antecedent-validate",
  "serde_json",
  "thiserror 2.0.20",
 ]

@@ -134,10 +134,12 @@ pub use query::{
     TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
     VariableDomain, policy_graphless_coordinate, randomized_graphless_coordinate,
 };
+pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
     CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
     WorldSpec,
 };
+pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use reasoning::{
     AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
     UncertaintyComponent, UncertaintySlot, UncertaintySource,
