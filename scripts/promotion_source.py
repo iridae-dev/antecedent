@@ -189,6 +189,7 @@ class Symbol:
     kind: str  # "type" | "function" | "other"
     hidden: bool  # #[doc(hidden)] (Rust) or a leading underscore (pyo3 export name)
     where: str  # "top" | "method" | "pyo3" | "python" | "export"
+    owner: str | None = None  # the Self type of an inherent-impl method (where "method") or the exposed pyclass of a #[pymethods] fn (where "pyo3")
 
 
 _PUB = re.compile(
@@ -217,13 +218,22 @@ def _self_type(head: str) -> tuple[str | None, bool]:
 
 
 def rust_pub_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
+    """`rust_pub_items` keyed by name (the first item of a name wins)."""
+    out: dict[str, Symbol] = {}
+    for sym in rust_pub_items(path, in_crate=in_crate):
+        out.setdefault(sym.name, sym)
+    return out
+
+
+def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
     """Public non-test `pub fn/struct/enum/trait` items: top-level, in public
-    modules, and methods of inherent `impl` blocks of public types. Items in fn
+    modules, and methods of inherent `impl` blocks of public types (each carries
+    its owner type, so two types' same-named methods stay distinct). Items in fn
     bodies, in private modules and in impls of non-public or trait types are not
     public API and are skipped."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     if not code:
-        return {}
+        return []
     _, items = rust_items(path.resolve())
     fn_bodies = [it.body for it in items if it.kind == "fn"]
     private_mods = [
@@ -241,7 +251,8 @@ def rust_pub_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
     for m in _IMPL.finditer(skel):
         name, trait = _self_type(m.group("head"))
         impls.append((m.end() - 1, _match_bracket(skel, m.end() - 1), name, trait))
-    out: dict[str, Symbol] = {}
+    out: list[Symbol] = []
+    seen: set[tuple[str, str | None]] = set()
     for m in _PUB.finditer(skel):
         pos = m.start()
         if _inside(fn_bodies, pos) or _inside(private_mods, pos):
@@ -249,22 +260,26 @@ def rust_pub_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
         keyword_at = m.start(1)
         enclosing = [i for i in impls if i[0] < pos < i[1]]
         where = "top"
+        owner: str | None = None
         if enclosing:
             lo, hi, tname, trait = max(enclosing, key=lambda i: i[0])
             if trait or m.group(1) != "fn" or not types_public.get(tname or "", True):
                 continue
             if any(lo2 < pos < hi2 and (lo2, hi2) != (lo, hi) for lo2, hi2, *_ in enclosing if lo2 > lo):
                 continue
-            where = "method"
+            where, owner = "method", tname
         name, item = m.group(2), m.group(1)
-        out.setdefault(
-            name,
+        if (name, owner) in seen:
+            continue
+        seen.add((name, owner))
+        out.append(
             Symbol(
                 name,
                 "function" if item == "fn" else "type" if item in ("struct", "enum") else "other",
                 _hidden(_attrs_before(skel, code, keyword_at)),
                 where,
-            ),
+                owner,
+            )
         )
     return out
 
@@ -275,34 +290,45 @@ _PY_FN = re.compile(
 _PY_CLASS = re.compile(
     r"#\[pyclass(?P<args>[^\]]*)\](?P<attrs>(?:\s*#\[[^\]]*\])*)\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum)\s+(?P<name>\w+)"
 )
-_PY_METHODS = re.compile(r"#\[pymethods\]\s*impl\b[^{;]*\{")
+_PY_METHODS = re.compile(r"#\[pymethods\]\s*impl\b(?P<head>[^{;]*)\{")
 _PY_NAME = re.compile(r"""name\s*=\s*"([^"]+)\"""")
 
 
-def pyo3_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
+def pyo3_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
     """Names a pyo3 module exposes: `#[pyfunction]`s, `#[pyclass]`es and the
     methods of `#[pymethods]` impls (constructors and dunders are part of their
     class). A `#[pyo3(name = "x")]` renames; a leading underscore or
-    `#[doc(hidden)]` marks the export internal."""
+    `#[doc(hidden)]` marks the export internal. A method carries its class as
+    `owner` (the exposed class name), so two classes' same-named getters stay
+    distinct and a `surface_values` class can cover its own getters."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     if not code:
-        return {}
-    out: dict[str, Symbol] = {}
+        return []
+    out: list[Symbol] = []
+    seen: set[tuple[str, str | None]] = set()
 
-    def add(name: str, kind: str, attrs: str, where: str) -> None:
+    def add(name: str, kind: str, attrs: str, owner: str | None = None) -> None:
         renamed = _PY_NAME.search(attrs)
         exposed = renamed.group(1) if renamed else name
-        out.setdefault(exposed, Symbol(exposed, kind, exposed.startswith("_") or "doc(hidden)" in re.sub(r"\s+", "", attrs), where))
+        if (exposed, owner) in seen:
+            return
+        seen.add((exposed, owner))
+        hidden = exposed.startswith("_") or "doc(hidden)" in re.sub(r"\s+", "", attrs)
+        out.append(Symbol(exposed, kind, hidden, "pyo3", owner))
 
+    classes: dict[str, str] = {}  # rust struct name -> exposed class name
     for m in _PY_FN.finditer(code):
-        add(m.group("name"), "function", m.group("attrs"), "pyo3")
+        add(m.group("name"), "function", m.group("attrs"))
     for m in _PY_CLASS.finditer(code):
-        add(m.group("name"), "type", m.group("args") + m.group("attrs"), "pyo3")
+        add(m.group("name"), "type", m.group("args") + m.group("attrs"))
+        renamed = _PY_NAME.search(m.group("args") + m.group("attrs"))
+        classes[m.group("name")] = renamed.group(1) if renamed else m.group("name")
     for m in _PY_METHODS.finditer(skel):
         lo = m.end() - 1
         hi = _match_bracket(skel, lo)
+        rust_name, _ = _self_type(m.group("head"))
+        owner = classes.get(rust_name or "", rust_name)
         depth = 0
-        pos = lo
         for fm in re.finditer(r"[{}]|\bfn\s+(\w+)", skel[lo:hi]):
             if fm.group(0) == "{":
                 depth += 1
@@ -312,9 +338,16 @@ def pyo3_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
                 name = fm.group(1)
                 if name == "new" or (name.startswith("__") and name.endswith("__")):
                     continue
-                pos = lo + fm.start()
-                attrs = "".join(_attrs_before(skel, code, pos))
-                add(name, "function", attrs, "pyo3")
+                attrs = "".join(_attrs_before(skel, code, lo + fm.start()))
+                add(name, "function", attrs, owner)
+    return out
+
+
+def pyo3_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
+    """`pyo3_items` keyed by exposed name (the first item of a name wins)."""
+    out: dict[str, Symbol] = {}
+    for sym in pyo3_items(path, in_crate=in_crate):
+        out.setdefault(sym.name, sym)
     return out
 
 

@@ -164,7 +164,7 @@ surface_pyo3 = ["{{D}}/pyo3_api.rs"]
 surface_exports = ["{{D}}/exports.py"]
 owned_exports = ["point_route", "SelfTestValue"]
 surface_values = ["SelfTestValue"]
-surface_internal = [{{ name = "hidden_helper", reason = "self-test hidden helper" }}]
+surface_internal = [{{ name = "hidden_helper", why = "self-test hidden helper" }}]
 bounds = {{ max_states = 16, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "SearchLimits.memory" }}
 refusals = [
 {FIRST_REFUSAL}  {{ code = "transport_not_certified", detail = "self_test_cell.search_incomplete", when = "search finished without a verdict" }},
@@ -257,6 +257,11 @@ EXPORTS = (
     "def point_route():\n    pass\n\n\nclass SelfTestValue:\n    pass\n\n\ndef other_export():\n    pass\n"
 )
 
+# An impl of a listed value type in a file no surface field names: never scanned.
+UNSCANNED_IMPL = "impl SelfTestValue {\n    pub fn self_test_shared_name(&self) {}\n    pub fn run_unscanned(&self) {}\n}\n"
+IMPL_ANCHOR = "    pub fn point_route(&self) {}\n"
+PLAIN_TYPE = "pub struct SelfTestPlain;\n\nimpl SelfTestPlain {\n    pub fn self_test_shared_name(&self) {}\n}\n"
+
 FILES = {
     "record.toml": RECORD,
     "stages.toml": STAGES,
@@ -266,6 +271,7 @@ FILES = {
     "surface_api.rs": SURFACE_API,
     "pyo3_api.rs": PYO3_API,
     "exports.py": EXPORTS,
+    "unscanned_impl.rs": UNSCANNED_IMPL,
     "search_ok.rs": SEARCH_OK,
     "search_nobudget.rs": "fn walk() {\n    for x in xs {\n        s.charge(1, x);\n    }\n}\n",
     "synth_tests.rs": SYNTH_RS,
@@ -289,13 +295,24 @@ NO_SURFACE = [
     ("record.toml", 'surface_pyo3 = ["{D}/pyo3_api.rs"]\n', ""),
     ("record.toml", 'surface_exports = ["{D}/exports.py"]\n', ""),
     ("record.toml", 'owned_exports = ["point_route", "SelfTestValue"]\n', ""),
-    ("record.toml", 'surface_internal = [{ name = "hidden_helper", reason = "self-test hidden helper" }]\n', ""),
+    ("record.toml", 'surface_internal = [{ name = "hidden_helper", why = "self-test hidden helper" }]\n', ""),
 ]
-INTERNAL = 'surface_internal = [{ name = "hidden_helper", reason = "self-test hidden helper" }]'
+INTERNAL = 'surface_internal = [{ name = "hidden_helper", why = "self-test hidden helper" }]'
 
 
 def rec(old, new):
     return ("record.toml", old, new)
+
+
+def covering(route_line, *entries):
+    """`route_line` with an added `covers` list."""
+    listed = ", ".join(f'"{e}"' for e in entries)
+    return route_line.replace(" },\n", f", covers = [{listed}] }},\n")
+
+
+PY_ANCHOR = "    fn identify_route(&self) {}\n"
+PY_PLAIN = "#[pyclass]\nstruct SelfTestPlainPy {}\n\n#[pymethods]\nimpl SelfTestPlainPy {\n    fn self_test_plain_getter(&self) {}\n}\n"
+EXTRA_FN = "pub fn self_test_extra_fn() {}\n"
 
 
 def syn(fid, role, test, assertion, extra=""):
@@ -546,19 +563,62 @@ cases = [
      "nope.rs is not a Rust source file", None),
     ("surface_symbol", "python surface symbol without a route", [("surface.py", SURFACE_PY, UNROUTED_SURFACE)],
      "surface symbol self_test_unrouted_symbol", "_self_test_private"),
-    ("surface_symbol", "public rust method without a route",
-     [("surface_api.rs", "    fn private_method(&self) {}\n", "    fn private_method(&self) {}\n    pub fn self_test_new_public(&self) {}\n")],
+    ("surface_symbol", "method of a type that is not a listed value type",
+     [("surface_api.rs", None, PLAIN_TYPE.replace("self_test_shared_name", "self_test_new_public"))],
      "surface symbol self_test_new_public", "private_type_method"),
+    ("surface_symbol", "value type's accessor is uncovered once the type is not in surface_values",
+     [("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn self_test_accessor(&self) {}\n"),
+      rec('surface_values = ["SelfTestValue"]', 'surface_values = []')],
+     "surface symbol self_test_accessor", None),
+    ("surface_symbol", "a listed type does not cover the same-named method of an unlisted type; an impl in a non-scanned file covers nothing",
+     [("surface_api.rs", None, PLAIN_TYPE)],
+     "surface symbol self_test_shared_name", "surface_value_method_verb"),
+    ("surface_symbol", "a free decide_* function next to a listed value type still needs a route",
+     [("surface_api.rs", None, "pub fn decide_self_test() {}\n")],
+     "surface symbol decide_self_test", "surface_value_method_verb"),
+    ("surface_value_method_verb", "executing-verb method on a listed value type",
+     [("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn run_self_test(&self) {}\n")],
+     "SelfTestValue.run_self_test", "surface symbol run_self_test"),
+    ("surface_value_method_verb", "exact executing verb on a listed value type",
+     [("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn consume(self) {}\n")],
+     "SelfTestValue.consume", None),
     ("surface_symbol", "public rust function without a route",
      [("surface_api.rs", None, "pub fn self_test_new_function() {}\n")],
      "surface symbol self_test_new_function", "crate_only"),
-    ("surface_symbol", "hidden rust item not listed as internal", [rec(INTERNAL + "\n", "")],
-     "surface symbol hidden_helper", None),
+    ("surface_symbol", "hidden rust item not listed as internal",
+     [("surface_api.rs", None, "#[doc(hidden)]\npub fn hidden_free() {}\n")],
+     "surface symbol hidden_free", None),
     ("surface_symbol", "pyo3 function without a route", [("pyo3_api.rs", None, "#[pyfunction]\nfn self_test_unrouted_py() {}\n")],
      "surface symbol self_test_unrouted_py", None),
     ("surface_symbol", "pyo3 method without a route",
-     [("pyo3_api.rs", "    fn identify_route(&self) {}\n", "    fn identify_route(&self) {}\n    fn self_test_unrouted_method(&self) {}\n")],
-     "surface symbol self_test_unrouted_method", "surface symbol new"),
+     [("pyo3_api.rs", None, PY_PLAIN)],
+     "surface symbol self_test_plain_getter", "surface symbol new"),
+    ("surface_symbol", "a pyclass getter is uncovered once its class is not in surface_values",
+     [("pyo3_api.rs", PY_ANCHOR, PY_ANCHOR + "    fn self_test_getter(&self) {}\n"),
+      rec('surface_values = ["SelfTestValue"]', 'surface_values = []')],
+     "surface symbol self_test_getter", None),
+    ("surface_symbol", "a route's covers does not reach an unlisted symbol of another name",
+     [("surface_api.rs", None, EXTRA_FN + "pub fn self_test_other_fn() {}\n"),
+      rec(POINT, covering(POINT, "self_test_extra_fn"))],
+     "surface symbol self_test_other_fn", "surface symbol self_test_extra_fn"),
+    ("surface_value_method_verb", "refresh method of a listed pyclass",
+     [("pyo3_api.rs", PY_ANCHOR, PY_ANCHOR + "    fn refresh_self_test(&self) {}\n")],
+     "SelfTestValue.refresh_self_test", "surface symbol refresh_self_test"),
+    ("surface_value_method_verb", "exact executing verb (export) on a listed pyclass",
+     [("pyo3_api.rs", PY_ANCHOR, PY_ANCHOR + "    fn export(&self) {}\n")],
+     "SelfTestValue.export", None),
+    ("surface_value_method_verb", "executing-verb method (prepare_*) on a listed pyclass",
+     [("pyo3_api.rs", PY_ANCHOR, PY_ANCHOR + "    fn prepare_self_test(&self) {}\n")],
+     "SelfTestValue.prepare_self_test", None),
+    ("route_covers_shape", "covers is not a list of names",
+     [rec(POINT, POINT.replace(" },\n", ', covers = "self_test_extra_fn" },\n'))],
+     "covers must be a list of non-empty symbol names", None),
+    ("route_covers_stale", "covers names a symbol no surface file declares",
+     [rec(POINT, covering(POINT, "self_test_no_such_symbol"))],
+     "covers entry self_test_no_such_symbol is not a public symbol", None),
+    ("route_covers_stale", "covers names a Type.method of another owner",
+     [rec(POINT, covering(POINT, "SelfTestValue.self_test_no_such_method"))],
+     "covers entry SelfTestValue.self_test_no_such_method is not a public symbol", None),
     ("surface_symbol", "owned export without a route",
      [rec('owned_exports = ["point_route", "SelfTestValue"]', 'owned_exports = ["point_route", "SelfTestValue", "self_test_unrouted_export"]'),
       ("exports.py", '"other_export"]', '"other_export", "self_test_unrouted_export"]'),
@@ -574,13 +634,13 @@ cases = [
      [("surface.py", SURFACE_PY, UNROUTED_SURFACE),
       rec('surface_values = ["SelfTestValue"]', 'surface_values = ["SelfTestValue", "self_test_unrouted_symbol"]')],
      "surface_values entry self_test_unrouted_symbol", "surface symbol SelfTestValue"),
-    ("surface_internal_shape", "surface_internal entry without a reason", [rec(', reason = "self-test hidden helper"', '')],
+    ("surface_internal_shape", "surface_internal entry without a why", [rec(', why = "self-test hidden helper"', '')],
      "surface_internal entry", None),
     ("surface_internal_stale", "surface_internal names nothing",
-     [rec(INTERNAL, 'surface_internal = [{ name = "hidden_helper", reason = "r" }, { name = "no_such_item", reason = "r" }]')],
+     [rec(INTERNAL, 'surface_internal = [{ name = "hidden_helper", why = "r" }, { name = "no_such_item", why = "r" }]')],
      "surface_internal entry no_such_item names no Rust/pyo3 item", None),
     ("surface_internal_visible", "surface_internal names a visible pub item",
-     [rec(INTERNAL, 'surface_internal = [{ name = "hidden_helper", reason = "r" }, { name = "identify_route", reason = "r" }]')],
+     [rec(INTERNAL, 'surface_internal = [{ name = "hidden_helper", why = "r" }, { name = "identify_route", reason = "r" }]')],
      "surface_internal entry identify_route is a public item that is not #[doc(hidden)]", None),
     ("surface_owned_orphan", "surface_exports without owned_exports", [rec('owned_exports = ["point_route", "SelfTestValue"]\n', '')],
      "surface_exports and owned_exports go together", None),
@@ -598,6 +658,30 @@ positives = [
      [rec(POS, syn("xt.point_a.positive", "positive", SYN_RS, "helper_asserts")),
       rec(NEG, syn("xt.refusal_a.negative", "negative", SYN_RS, "expects_err")),
       rec(ART, syn("xt.roundtrip_a.artifact", "artifact", SYN_PY, "test_raises"))]),
+    ("a listed value type covers its accessors and constructors (verb-like prefixes need a word boundary)",
+     [("surface_api.rs", IMPL_ANCHOR,
+       IMPL_ANCHOR + "    pub fn self_test_accessor(&self) {}\n    pub fn from_record_checked() -> Self { SelfTestValue }\n"
+       "    pub fn identifiable(&self) {}\n    pub fn fitted_values(&self) {}\n")]),
+    ("a #[pymethods] getter of a listed pyclass is covered (interval/plan/outcome style accessors)",
+     [("pyo3_api.rs", PY_ANCHOR, PY_ANCHOR + "    fn interval(&self) {}\n    fn plan(&self) {}\n    fn refreshing(&self) {}\n")]),
+    ("a pyclass verb method is fine when it is internal (underscore name) or covered by a route",
+     [("pyo3_api.rs", PY_ANCHOR, PY_ANCHOR + "    fn _refresh_hidden(&self) {}\n    fn export_wire(&self) {}\n"),
+      rec(POINT, covering(POINT, "SelfTestValue.export_wire"))]),
+    ("a route covers a free function and a Type.method verb; route names stay unchanged",
+     [("surface_api.rs", None, EXTRA_FN),
+      ("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn run_self_test(&self) {}\n"),
+      rec(POINT, covering(POINT, "self_test_extra_fn", "SelfTestValue.run_self_test"))]),
+    ("a covers entry no evidence closure or entry file mentions still passes but warns",
+     [("surface_api.rs", None, EXTRA_FN),
+      rec(UNC_CLOSED, covering(UNC_CLOSED, "self_test_extra_fn"))],
+     "warning: 2.2A.XT.self_test_cell: self_test_cell.uncertainty_route: covers entry self_test_extra_fn"),
+    ("an executing-verb method on a listed value type is fine when it is a route component or internal",
+     [("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn identify_route(&self) {}\n    #[doc(hidden)]\n    pub fn run_hidden(&self) {}\n"),
+      rec('reason = "self-test hidden helper" }]', 'reason = "self-test hidden helper" }, { name = "run_hidden", reason = "r" }]')]),
+    ("trait-impl methods of a listed value type are not scanned (no verb guard, no coverage needed)",
+     [("surface_api.rs", None, "impl Default for SelfTestValue {\n    pub fn run_default() -> Self { SelfTestValue }\n}\n")]),
+    ("an impl of a listed value type in a non-scanned file is not scanned",
+     [("unscanned_impl.rs", UNSCANNED_IMPL, UNSCANNED_IMPL + "\n")]),
     ("a python helper's assert counts", [rec(POS, syn("xt.point_a.positive", "positive", SYN_PY, "test_helper_asserts"))]),
     ("a const detail used by live code",
      [rec(FIRST_REFUSAL, FIRST_REFUSAL + '  { code = "invalid_argument", detail = "self_test_cell.live_detail", when = "self-test" },\n'),
@@ -670,7 +754,7 @@ def check(index: int, case, disable: str | None = None) -> tuple[bool, str]:
     return True, f"self-test ok: [{rule}] '{label}' fails"
 
 
-def positive(index: int, label: str, edits) -> tuple[bool, str]:
+def positive(index: int, label: str, edits, expect_out: str | None = None) -> tuple[bool, str]:
     try:
         reg, env = synthetic(index, edits, baseline=True)
     except LookupError as err:
@@ -678,6 +762,8 @@ def positive(index: int, label: str, edits) -> tuple[bool, str]:
     code, out = run(reg, env)
     if code != 0:
         return False, f"SELF-TEST FAIL: positive '{label}' must pass\n{out[-1500:]}"
+    if expect_out and expect_out not in out:
+        return False, f"SELF-TEST FAIL: positive '{label}' must print {expect_out!r}\n{out[-1500:]}"
     return True, f"self-test ok: '{label}' passes"
 
 
@@ -746,7 +832,7 @@ def main() -> int:
                 if os.environ.get("PROMOTION_SELFTEST_SKIP_COMMITTED") != "1":  # analysis only
                     jobs.append(pool.submit(committed))
                 jobs += [pool.submit(check, i, c) for i, c in enumerate(cases)]
-                jobs += [pool.submit(positive, 1000 + i, label, edits) for i, (label, edits) in enumerate(positives)]
+                jobs += [pool.submit(positive, 1000 + i, label, *rest) for i, (label, *rest) in enumerate(positives)]
             results = [j.result() for j in jobs]
     for _, message in results:
         print(message)

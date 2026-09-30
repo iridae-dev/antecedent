@@ -32,10 +32,27 @@ Optional record fields (in addition to the frozen ones):
   surface_rust      rust files: every `pub fn/struct/enum/trait`, including methods of
                     inherent impls of public types, needs a route component,
                     surface_values (types) or surface_internal
-  surface_pyo3      rust files: every #[pyfunction]/#[pyclass]/#[pymethods] fn likewise
+  surface_values    [type names]: struct/enum symbols of a surface file that are data,
+                    not routes. A listed type also covers the INHERENT methods and
+                    associated functions of its `impl Type` blocks in the scanned
+                    files, except methods starting with run/execute/evaluate/decide/
+                    identify/prepare/estimate/consume/fit (surface_value_method_verb:
+                    those, free functions and pyo3 items still need a route or
+                    surface_internal)
+  surface_pyo3      rust files: every #[pyfunction]/#[pyclass]/#[pymethods] fn likewise;
+                    a #[pymethods] fn of a #[pyclass] listed in surface_values is
+                    covered like a Rust inherent method (getters such as interval/plan
+                    included), except executing-verb names (the Rust verbs plus
+                    refresh and export), which need a route or surface_internal
+  route `covers`    on a route: ["symbol", "Type.method", ...] extra public symbols
+                    of the record's surface files that route accounts for, counted
+                    exactly like a route-name component (route_covers_stale if an
+                    entry is no public symbol; a warning is printed when the name
+                    appears in no cited evidence closure nor the route's entry-point
+                    file). Route names stay meaningful identifiers.
   surface_exports   python files whose `__all__` names listed in owned_exports are
                     covered likewise; owned_exports = names this workstream owns
-  surface_internal  [{ name = "...", reason = "..." }]: exempt Rust/pyo3 items that
+  surface_internal  [{ name = "...", why = "..." }]: exempt Rust/pyo3 items that
                     must be #[doc(hidden)] (or an underscore pyo3 name)
   shared_evidence   true on a fixture: it may share its test with another role
                     (every fixture citing that test must set it)
@@ -69,11 +86,11 @@ from promotion_source import (
     closure_code,
     crate_src,
     nontest_rust,
-    pyo3_symbols,
+    pyo3_items,
     python_literals,
     python_symbols,
     rust_literals,
-    rust_pub_symbols,
+    rust_pub_items,
 )
 from test_evidence import (
     resolve_python_test,
@@ -174,7 +191,10 @@ RULES = {
     "surface_values_orphan": "surface_values needs a declared surface",
     "surface_value_stale": "a surface_values entry is a public symbol",
     "surface_value_kind": "a surface_values entry is a class/struct/enum",
-    "surface_internal_shape": "surface_internal entries carry a name and a reason",
+    "surface_value_method_verb": "a value type / pyclass does not cover an executing-verb method (run/execute/evaluate/decide/...)",
+    "route_covers_shape": "a route's covers is a list of symbol names",
+    "route_covers_stale": "a route's covers entry is a public symbol of a scanned surface file",
+    "surface_internal_shape": "surface_internal entries carry a name and a why",
     "surface_internal_stale": "a surface_internal entry names a Rust/pyo3 item",
     "surface_internal_visible": "a surface_internal item is #[doc(hidden)]",
     "surface_owned_orphan": "surface_exports and owned_exports come together",
@@ -272,6 +292,36 @@ def fail(rule: str, message: str) -> None:
 
 if registry.get("version") != 1 or registry.get("release") != "2.2":
     fail("registry_header", "promotion registry requires version 1 and release 2.2")
+
+
+# A surface_values type also covers the INHERENT methods and associated functions
+# of `impl <Type>` blocks in the scanned files (trait impls are never scanned): a
+# value type's own accessors and constructors are data access, not routes. Methods
+# that start with an executing verb are not covered; they must be routes or
+# surface_internal. Free functions and pyo3 items are never covered this way.
+EXECUTING_VERBS = ("run", "execute", "evaluate", "decide", "identify", "prepare", "estimate", "consume", "fit")
+
+
+# A #[pymethods] fn of a listed #[pyclass] is covered the same way, with two more
+# executing verbs: `refresh` (re-runs against a new snapshot) and `export` (builds
+# the wire artifact) act on data, they do not merely expose it. Getters such as
+# `interval`, `plan`, `outcome`, `decision`, `seed` are plain accessors: covered.
+PYO3_EXTRA_VERBS = ("refresh", "export")
+
+
+def executing_verb(name: str, where: str = "method") -> str | None:
+    """The executing verb a method name starts with (`decide`, `decide_x`), if any."""
+    verbs = EXECUTING_VERBS + (PYO3_EXTRA_VERBS if where == "pyo3" else ())
+    return next((v for v in verbs if name == v or name.startswith(v + "_")), None)
+
+
+def value_method_state(sym: Symbol, value_types: set[str]) -> str | None:
+    """None if `sym` is not a method of a listed value type (a Rust inherent
+    method, or a #[pymethods] fn of a #[pyclass]); else "covered" or "verb" (an
+    executing-verb method, which a value type cannot cover)."""
+    if sym.where not in ("method", "pyo3") or sym.owner is None or sym.owner not in value_types:
+        return None
+    return "verb" if executing_verb(sym.name, sym.where) else "covered"
 
 
 def rel(path: Path) -> str:
@@ -685,12 +735,19 @@ for rec in records:
     unevidenced = sorted(early_roles - evidenced)
 
     route_names: list[str] = []
+    route_covers: dict[str, list[str]] = {}
     for route in rec.get("routes") or []:
         name = route.get("name")
         if not name or name in seen_routes:
             fail("route_name", f"{rid}: duplicate or missing route name {name!r}")
         seen_routes.add(name)
         route_names.append(name or "")
+        route_cover = route.get("covers")
+        if route_cover is not None:
+            if not isinstance(route_cover, list) or not all(isinstance(c, str) and c for c in route_cover):
+                fail("route_covers_shape", f"{rid}: {name}: covers must be a list of non-empty symbol names")
+            else:
+                route_covers[name or ""] = route_cover
         stage = route.get("stage")
         if stage not in STAGES:
             fail("route_stage", f"{rid}: {name}: invalid stage {stage!r}")
@@ -828,8 +885,8 @@ for rec in records:
 
     # ---- route inventory: every public symbol of a declared surface is a component
     # of some route name in this record, a value/descriptor type listed in
-    # surface_values (classes/structs/enums only, never stale), or a
-    # surface_internal item that is #[doc(hidden)] in Rust.
+    # surface_values (classes/structs/enums only, never stale; also covering the
+    # non-verb inherent methods of that type), or a surface_internal item that is #[doc(hidden)] in Rust.
     components = {part for name in route_names for part in name.split(".")}
     surface = rec.get("surface")
     if surface is not None and not isinstance(surface, list):
@@ -850,13 +907,13 @@ for rec in records:
     internal_raw = rec.get("surface_internal")
     internal: dict[str, str] = {}
     if internal_raw is not None and not isinstance(internal_raw, list):
-        fail("surface_internal_shape", f"{rid}: surface_internal must be a list of {{ name, reason }} tables")
+        fail("surface_internal_shape", f"{rid}: surface_internal must be a list of {{ name, why }} tables")
         internal_raw = []
     for entry in internal_raw or []:
-        if not isinstance(entry, dict) or not entry.get("name") or not entry.get("reason"):
-            fail("surface_internal_shape", f"{rid}: surface_internal entry {entry!r} needs a name and a reason")
+        if not isinstance(entry, dict) or not entry.get("name") or not entry.get("why"):
+            fail("surface_internal_shape", f"{rid}: surface_internal entry {entry!r} needs a name and a why")
         else:
-            internal[entry["name"]] = entry["reason"]
+            internal[entry["name"]] = entry["why"]
     has_surface = surface is not None or bool(surface_rust or surface_pyo3 or surface_exports)
     if values and not has_surface:
         fail("surface_values_orphan", f"{rid}: surface_values {', '.join(values)} listed without a surface")
@@ -891,8 +948,8 @@ for rec in records:
             }
         checked += [(src, sym) for sym in symbols.values()]
     for keyname, files, scan in (
-        ("surface_rust", surface_rust, rust_pub_symbols),
-        ("surface_pyo3", surface_pyo3, pyo3_symbols),
+        ("surface_rust", surface_rust, rust_pub_items),
+        ("surface_pyo3", surface_pyo3, pyo3_items),
     ):
         for src in files:
             path = root / src
@@ -900,7 +957,8 @@ for rec in records:
                 fail("surface_file", f"{rid}: {keyname} {src} is not a Rust source file")
                 continue
             surface_files.append(src)
-            checked += [(src, sym) for sym in scan(path, in_crate=in_crate_of(path)).values()]
+            found_syms = scan(path, in_crate=in_crate_of(path))
+            checked += [(src, sym) for sym in (found_syms if isinstance(found_syms, list) else found_syms.values())]
     for src in surface_exports:
         path = root / src
         if not path.is_file() or path.suffix != ".py":
@@ -913,17 +971,73 @@ for rec in records:
                 checked.append((src, symbols[name]))
             else:
                 fail("surface_export_stale", f"{rid}: owned_exports entry {name} is not in __all__ of {src}")
-    for src, sym in checked:
-        declared.setdefault(sym.name, (sym.kind, src))
-        if sym.name not in components and sym.name not in values and sym.name not in internal:
-            fail(
-                "surface_symbol",
-                f"{rid}: surface symbol {sym.name} ({src}) is not a component of any route name; "
-                + ("add it to surface_values if it is a pure value/descriptor type, " if sym.kind == "type" else "")
-                + "add a route for it (closed until evidenced), "
-                + ("list it in surface_internal with a reason and mark it #[doc(hidden)], " if sym.where in ("top", "method", "pyo3") else "")
-                + "or make it private",
+    # `covers`: public symbols a route accounts for besides its name components. An
+    # entry is `symbol` (any owner, like a route-name component) or `Type.method`.
+    covers = {c for lst in route_covers.values() for c in lst}
+    for cname, lst in route_covers.items():
+        for entry in lst:
+            if not any(entry in (sym.name, f"{sym.owner}.{sym.name}") for _, sym in checked):
+                fail(
+                    "route_covers_stale",
+                    f"{rid}: {cname}: covers entry {entry} is not a public symbol of any surface file "
+                    f"({', '.join(surface_files) or 'none declared'}); remove the stale entry",
+                )
+    if covers:
+        # Reach (a warning, not a rule): the covered name should appear in a cited
+        # evidence test closure of the record or in the source file declaring the
+        # route's own entry point.
+        bodies = []
+        for pth, assertion in [(f.get("evidence_test"), f.get("evidence_assertion")) for f in rec.get("fixtures") or []] + [
+            (r.get("refusal_test"), r.get("refusal_assertion")) for r in rec.get("routes") or []
+        ]:
+            if pth and assertion and ((root / pth).is_file() or outside_repo(pth)):
+                try:
+                    bodies.append(closure_code(root / pth if not outside_repo(pth) else Path(pth), assertion))
+                except (ValueError, SyntaxError, OSError):
+                    pass
+        for cname, lst in route_covers.items():
+            parts = set(cname.split("."))
+            entry_text = "".join(
+                raw(root / src) for src in sorted({s2 for s2, y in checked if y.name in parts})
             )
+            for entry in lst:
+                word = re.compile(r"(?<![A-Za-z0-9_])" + re.escape(entry.rsplit(".", 1)[-1]) + r"(?![A-Za-z0-9_])")
+                if not (any(word.search(b) for b in bodies) or word.search(entry_text)):
+                    print(
+                        f"warning: {rid}: {cname}: covers entry {entry} appears in no cited evidence test closure "
+                        f"and not in the route's own entry-point file; is it really reached by this route?",
+                        file=sys.stderr,
+                    )
+    for src, sym in checked:
+        if sym.name not in declared or (declared[sym.name][0] != "type" and sym.kind == "type"):
+            declared[sym.name] = (sym.kind, src)
+    value_types = {v for v in values if declared.get(v, ("", ""))[0] == "type"}
+    for src, sym in checked:
+        if sym.name in components or sym.name in values or sym.name in internal or sym.name in covers or (
+            sym.owner and f"{sym.owner}.{sym.name}" in covers
+        ):
+            continue
+        state = value_method_state(sym, value_types)
+        if state == "covered":
+            continue
+        if state == "verb":
+            fail(
+                "surface_value_method_verb",
+                f"{rid}: {sym.owner}.{sym.name} ({src}) starts with the executing verb "
+                f"'{executing_verb(sym.name, sym.where)}', so surface_values entry {sym.owner} does not cover it; "
+                f"add a route (or a route `covers` entry) for it (closed until evidenced), list it in surface_internal "
+                f"with a reason and mark it #[doc(hidden)] (or an underscore pyo3 name), or make it private",
+            )
+            continue
+        fail(
+            "surface_symbol",
+            f"{rid}: surface symbol {sym.name} ({src}) is not a component of any route name; "
+            + (f"it is a method of {sym.owner}: list {sym.owner} in surface_values to cover its accessors, " if sym.owner else "")
+            + ("add it to surface_values if it is a pure value/descriptor type, " if sym.kind == "type" else "")
+            + "add a route for it (closed until evidenced) or list it in a route's `covers`, "
+            + ("list it in surface_internal with a why and mark it #[doc(hidden)], " if sym.where in ("top", "method", "pyo3") else "")
+            + "or make it private",
+        )
     for value in values:
         if surface_files and value not in declared:
             fail(
@@ -981,7 +1095,8 @@ def suggest_report() -> None:
         components = {part for r in rec.get("routes") or [] for part in r.get("name", "").split(".")}
         values = set(rec.get("surface_values") or [])
         internal = {e.get("name") for e in rec.get("surface_internal") or [] if isinstance(e, dict)}
-        covered = components | values | internal
+        covers = {c.rsplit(".", 1)[-1] for r in rec.get("routes") or [] for c in r.get("covers") or []}
+        covered = components | values | internal | covers
         ns = {r.get("detail", "").split(".")[0] for r in rec.get("refusals") or [] if "." in r.get("detail", "")}
         rs: set[Path] = {root / p for p in rec.get("search_impl") or [] if p.endswith(".rs")}
         rs |= {root / p for p in (rec.get("surface") or []) if p.endswith(".rs")}
@@ -1013,21 +1128,76 @@ def suggest_report() -> None:
             if mine:
                 owned_exports[path] = mine
         print(f"\n{rid} ({rec.get('status')})")
-        need_rs = {}
-        for path in sorted(rs):
-            syms = rust_pub_symbols(path, in_crate=crate_src(path) is not None)
-            gaps = sorted(s.name for s in syms.values() if s.name not in covered)
-            if gaps:
-                need_rs[rel(path)] = gaps
+        items: dict[Path, list[Symbol]] = {
+            path: rust_pub_items(path, in_crate=crate_src(path) is not None) for path in sorted(rs)
+        }
+        declared_types = {s.name for syms in items.values() for s in syms if s.kind == "type" and s.where == "top"}
+        value_types = values & declared_types
         need_py = {}
         for path in sorted(pyo3):
-            syms = pyo3_symbols(path, in_crate=crate_src(path) is not None)
-            gaps = sorted(s.name for s in syms.values() if s.name not in covered)
+            syms = pyo3_items(path, in_crate=crate_src(path) is not None)
+            py_types = values & {s.name for s in syms if s.kind == "type"}
+            gaps = sorted(
+                {
+                    f"{s.owner}.{s.name}" if s.owner else s.name
+                    for s in syms
+                    if s.name not in covered and value_method_state(s, value_types | py_types) != "covered"
+                }
+            )
             if gaps:
                 need_py[rel(path)] = gaps
         print(f"  surface_rust candidates: {sorted(rel(p) for p in rs)}")
-        for src, gaps in need_rs.items():
-            print(f"    {src}: uncovered pub symbols -> {gaps}")
+        n_covered = n_verb = n_free = 0
+        all_syms = [s for syms in items.values() for s in syms]
+        for path, syms in items.items():
+            todo = [s for s in syms if s.name not in covered and value_method_state(s, value_types) != "covered"]
+            free = sorted({s.name for s in todo if s.where == "top" and s.kind != "type"})
+            verbs = sorted(f"{s.owner}.{s.name}" for s in todo if s.where == "method" and s.owner in value_types)
+            # types not yet listed that would become values, with the methods each would cover
+            cand: dict[str, int] = {}
+            for s in todo:
+                if s.where == "top" and s.kind == "type":
+                    cand[s.name] = sum(
+                        1
+                        for t in all_syms
+                        if t.where == "method" and t.owner == s.name and t.name not in covered and not executing_verb(t.name)
+                    )
+            # methods of a type not listed in surface_values and not a candidate here (declared in another file)
+            orphans = sorted(
+                {
+                    f"{s.owner}.{s.name}"
+                    for s in todo
+                    if s.where == "method" and s.owner not in value_types and s.owner not in declared_types
+                }
+            )
+            cand_verbs = sorted(
+                f"{t.owner}.{t.name}"
+                for t in all_syms
+                if t.where == "method" and t.owner in cand and t.name not in covered and executing_verb(t.name)
+            )
+            if not (free or verbs or cand or orphans):
+                continue
+            print(f"    {rel(path)}:")
+            if cand:
+                print(
+                    "      surface_values candidates (type: methods it would cover): "
+                    + ", ".join(f"{t}: {n}" for t, n in sorted(cand.items()))
+                )
+                n_covered += sum(cand.values())
+            if free:
+                print(f"      free functions / other items still needing a route or surface_internal -> {free}")
+                n_free += len(free)
+            if verbs or cand_verbs:
+                print(f"      executing-verb methods a value type cannot cover -> {sorted(verbs + cand_verbs)}")
+                n_verb += len(verbs) + len(cand_verbs)
+            if orphans:
+                print(f"      methods of types declared outside these files (route or surface_internal) -> {orphans}")
+                n_free += len(orphans)
+        print(
+            f"  summary: {n_covered} methods coverable by listing value types, "
+            f"{n_free} free functions/items needing routes, {n_verb} executing-verb methods needing routes, "
+            f"{sum(len(g) for g in need_py.values())} pyo3 items needing routes"
+        )
         print(f"  surface_pyo3 candidates: {sorted(rel(p) for p in pyo3)}")
         for src, gaps in need_py.items():
             print(f"    {src}: uncovered pyo3 names -> {gaps}")

@@ -470,15 +470,22 @@ def self_test() -> int:
             fail_with="does not exist",
         )
         x5 = next(r for r in promotion["record"] if workstream(r) == "X5")
-        x5_route = next(r for r in x5["routes"] if r["stage"] == "uncertainty")
-        x5_head = f'{{ name = "{x5_route["name"]}", stage = "uncertainty", status = "closed"'
+        x5_heads = [
+            f'{{ name = "{r["name"]}", stage = "uncertainty", status = "closed"'
+            for r in x5["routes"]
+            if r["stage"] == "uncertainty"
+        ]
 
         def drop_x5_interval_route(case: Path) -> None:
+            # X5 declares one closed uncertainty route per surface (Rust facade, Python stage);
+            # the violation is having none, so every one of them goes.
             path = case / promo
             text = path.read_text()
-            start = text.index(x5_head)
-            end = text.index("},", start) + 2
-            path.write_text(text[:start] + text[end:])
+            for head in x5_heads:
+                start = text.index(head)
+                end = text.index("},", start) + 2
+                text = text[:start] + text[end:]
+            path.write_text(text)
 
         expect("interval-bearing surface with no closed route", run(drop_x5_interval_route),
                fail_with="has no closed uncertainty route")
