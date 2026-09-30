@@ -301,10 +301,26 @@ pub fn identify_meta_catalog(
     limits: SidLimits,
     ctx: &ExecutionContext,
 ) -> Result<CatalogTransportResult, IdentificationError> {
+    identify_meta_catalog_metered(graph, query, catalog, super::SidMeter::Limits(limits), ctx)
+}
+
+/// [`identify_meta_catalog`] charging `meter`: its own [`SidLimits`], or a shared
+/// budget that the recursion and every replay of the meta engine charge.
+///
+/// # Errors
+/// As [`identify_meta_catalog`]; under a shared budget, its stop.
+pub(crate) fn identify_meta_catalog_metered(
+    graph: &Admg,
+    query: &MetaTransportQuery,
+    catalog: &antecedent_core::EvidenceCatalog,
+    meter: super::SidMeter<'_>,
+    ctx: &ExecutionContext,
+) -> Result<CatalogTransportResult, IdentificationError> {
+    let limits = meter.limits();
     check_meta_resources(graph, &query.sources, limits.steps, ctx)?;
     let (query, diagram, sources) = query.canonical(graph)?;
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
-    let mut engine = Engine::new(&diagram, &query, limits, ctx)?;
+    let mut engine = Engine::new_metered(&diagram, &query, meter, ctx)?;
     engine.sources.clone_from(&sources);
     let state = engine.initial()?;
     let mut obligations = Vec::new();

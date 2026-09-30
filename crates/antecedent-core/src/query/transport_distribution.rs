@@ -403,6 +403,33 @@ mod tests {
         assert_ne!(identity(forged), identity(a));
     }
 
+    /// `availability` is part of a distribution's identity: a joint law and the
+    /// separate marginals of the same measured set are different evidence, and so
+    /// are two families of marginals that differ.
+    #[test]
+    fn canonical_identity_distinguishes_a_joint_from_marginals() {
+        let identity = |availability: DistributionAvailability| {
+            let mut r = regime(1, "target", &[], &[1, 2, 3]);
+            r.distribution = availability;
+            EvidenceCatalog::try_new([], [r], [], None).unwrap().distributions()[0]
+                .canonical_identity()
+        };
+        let marginals = |raw: &[u32]| DistributionAvailability::SeparateMarginals {
+            variables: ids(raw).into(),
+        };
+        let joint = identity(DistributionAvailability::Joint);
+        let pairs = identity(marginals(&[1, 2]));
+        assert_ne!(joint, pairs, "joint versus marginals of the same measured set");
+        assert_ne!(pairs, identity(marginals(&[1, 3])), "different marginal families");
+        assert_ne!(identity(marginals(&[1, 2, 3])), joint);
+        // Marginal order is not identity.
+        assert_eq!(pairs, identity(marginals(&[2, 1])));
+        // The field is what carries it.
+        assert!(
+            pairs.contains("|availability=marginals:1,2|") && joint.contains("availability=joint")
+        );
+    }
+
     #[test]
     fn selected_samples_and_model_artifacts_never_satisfy_factors() {
         let need_vars = ids(&[1]);

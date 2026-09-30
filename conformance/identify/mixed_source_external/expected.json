@@ -1,0 +1,492 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "kind": "frozen_external_oracle",
+    "executed_here": true,
+    "note": "Every case's oracle output below was produced by running the pinned released package on the documented graph and inputs in a temporary environment that was deleted after import. Only the recorded output is durable: this version of the oracle, with these inputs, produced this output. Disagreements and out-of-scope cases are recorded, never bent. The parity test parses each verbatim output: the verdict must equal oracle_result and the distributions the oracle's formula cites must equal the distributions our recorded proof cites; a named route is an agreement of a weaker class (agree_named_route).",
+    "sources": {
+      "ananke": "https://ananke.readthedocs.io/en/latest/notebooks/identification_surrogates.html",
+      "dosearch": "https://santikka.r-universe.dev/dosearch/doc/manual.html"
+    },
+    "generation": {
+      "script": "/tmp/oracle_harness_deleted_after_artifact_import (harness_ananke.py, harness_dosearch.R)",
+      "script_sha256": {
+        "harness_ananke.py": "2836ee4d3e24e3e6a7fa4ff06f9ff8ebbee1331c6361aeb6a6c22f42a6b203a4",
+        "harness_dosearch.R": "e4e5c326a181a7d0981de33bda948f69b996d26d705b89424fc1b87eb1136301"
+      },
+      "baseline_pin": [
+        "parity/baselines/ananke-causal.toml",
+        "parity/baselines/dosearch.toml"
+      ],
+      "env": {
+        "ananke": "uv venv --python 3.11 <tmp>/venv && uv pip install --python <tmp>/venv/bin/python ananke-causal==0.5.0 scipy==1.11.4 'numpy<2' 'pandas<2.3' && <tmp>/venv/bin/python harness_ananke.py",
+        "dosearch": "R_LIBS_USER=<tmp>/rlib Rscript -e 'install.packages(\"dosearch\", lib=Sys.getenv(\"R_LIBS_USER\"), repos=\"https://cloud.r-project.org\")' && R_LIBS_USER=<tmp>/rlib Rscript harness_dosearch.R"
+      },
+      "generator_retained": false,
+      "reproducible_from_repo": false,
+      "script_note": "The harness scripts were deleted after the import, per convention. Their sha256 hashes are provenance only: the outputs below cannot be reproduced from this repository, and the parity test reads the recorded verbatim output rather than re-running an oracle."
+    },
+    "reference": [
+      {
+        "project": "ananke-causal",
+        "available": true,
+        "version": "0.5.0",
+        "commit": null,
+        "runtime": "CPython 3.11.5; numpy 1.26.4, scipy 1.11.4 (older than the resolver's default, which fails to import with statsmodels 0.13.5), pandas 1.5.3, sympy 1.14.0, pgmpy 0.1.26",
+        "note": "black-box execution only; the PyPI release does not record a source commit"
+      },
+      {
+        "project": "dosearch",
+        "available": true,
+        "version": "1.0.12",
+        "commit": null,
+        "runtime": "R 4.6.1 (2026-06-24), CRAN source install into a temporary library",
+        "note": "black-box execution only; the CRAN release does not record a source commit"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "ananke_gid_two_experiments",
+      "oracle": "ananke_onelinegid",
+      "nodes": [
+        "X1",
+        "X2",
+        "W",
+        "Y"
+      ],
+      "directed": [
+        [
+          "X1",
+          "W"
+        ],
+        [
+          "W",
+          "Y"
+        ],
+        [
+          "X2",
+          "Y"
+        ]
+      ],
+      "bidirected": [
+        [
+          "X1",
+          "X2"
+        ],
+        [
+          "X1",
+          "W"
+        ],
+        [
+          "X2",
+          "Y"
+        ]
+      ],
+      "query": {
+        "outcomes": [
+          "Y"
+        ],
+        "treatments": [
+          "X1",
+          "X2"
+        ]
+      },
+      "inputs": [
+        {
+          "study": "exp-x1",
+          "do": [
+            "X1"
+          ],
+          "measured": [
+            "W",
+            "X2",
+            "Y"
+          ]
+        },
+        {
+          "study": "exp-x2",
+          "do": [
+            "X2"
+          ],
+          "measured": [
+            "W",
+            "X1",
+            "Y"
+          ]
+        }
+      ],
+      "oracle_result": "identified",
+      "expected_here": "identified",
+      "agreement": "agree",
+      "must_cite_studies": [
+        "exp-x1",
+        "exp-x2"
+      ],
+      "oracle_formula": "ΣW ΦX2,Y p(W,X2,Y | do(X1))ΦX1,W p(W,X1,Y | do(X2))",
+      "oracle_output_verbatim": {
+        "identified": true,
+        "functional": "ΣW ΦX2,Y p(W,X2,Y | do(X1))ΦX1,W p(W,X1,Y | do(X2))"
+      }
+    },
+    {
+      "id": "ananke_aid_ancestral_margin",
+      "oracle": "ananke_onelineaid",
+      "nodes": [
+        "X1",
+        "X2",
+        "W",
+        "Y"
+      ],
+      "directed": [
+        [
+          "X1",
+          "W"
+        ],
+        [
+          "W",
+          "Y"
+        ],
+        [
+          "X2",
+          "Y"
+        ]
+      ],
+      "bidirected": [
+        [
+          "X1",
+          "X2"
+        ],
+        [
+          "X1",
+          "W"
+        ],
+        [
+          "X2",
+          "Y"
+        ]
+      ],
+      "query": {
+        "outcomes": [
+          "Y"
+        ],
+        "treatments": [
+          "X1",
+          "X2"
+        ]
+      },
+      "inputs": [
+        {
+          "study": "exp-x1-ancestral",
+          "do": [
+            "X1"
+          ],
+          "measured": [
+            "W"
+          ]
+        },
+        {
+          "study": "exp-x2",
+          "do": [
+            "X2"
+          ],
+          "measured": [
+            "W",
+            "X1",
+            "Y"
+          ]
+        }
+      ],
+      "oracle_result": "identified",
+      "expected_here": "identified",
+      "agreement": "agree",
+      "must_cite_studies": [
+        "exp-x1-ancestral",
+        "exp-x2"
+      ],
+      "oracle_formula": "ΣW  p(W | do(X1))ΦX1,W p(W,X1,Y | do(X2))",
+      "oracle_output_verbatim": {
+        "identified": true,
+        "functional": "ΣW  p(W | do(X1))ΦX1,W p(W,X1,Y | do(X2))"
+      }
+    },
+    {
+      "id": "ananke_observational_only",
+      "oracle": "ananke_onelineid",
+      "nodes": [
+        "X1",
+        "X2",
+        "W",
+        "Y"
+      ],
+      "directed": [
+        [
+          "X1",
+          "W"
+        ],
+        [
+          "W",
+          "Y"
+        ],
+        [
+          "X2",
+          "Y"
+        ]
+      ],
+      "bidirected": [
+        [
+          "X1",
+          "X2"
+        ],
+        [
+          "X1",
+          "W"
+        ],
+        [
+          "X2",
+          "Y"
+        ]
+      ],
+      "query": {
+        "outcomes": [
+          "Y"
+        ],
+        "treatments": [
+          "X1",
+          "X2"
+        ]
+      },
+      "inputs": [
+        {
+          "study": "obs",
+          "do": [],
+          "measured": [
+            "X1",
+            "X2",
+            "W",
+            "Y"
+          ]
+        }
+      ],
+      "oracle_result": "not_identified",
+      "expected_here": "not_certified",
+      "agreement": "consistent",
+      "note": "The oracle (Ananke OneLineID.id()) returned False, i.e. proves non-identifiability from observational data; this search only reports that its frozen rule set found nothing (not_certified), which is compatible with but weaker than the oracle's verdict.",
+      "oracle_output_verbatim": {
+        "identified": false
+      }
+    },
+    {
+      "id": "dosearch_backdoor_single_distribution",
+      "oracle": "dosearch",
+      "nodes": [
+        "x",
+        "y",
+        "z"
+      ],
+      "directed": [
+        [
+          "x",
+          "y"
+        ],
+        [
+          "z",
+          "x"
+        ],
+        [
+          "z",
+          "y"
+        ]
+      ],
+      "bidirected": [],
+      "query": {
+        "outcomes": [
+          "y"
+        ],
+        "treatments": [
+          "x"
+        ]
+      },
+      "inputs": [
+        {
+          "study": "obs",
+          "do": [],
+          "measured": [
+            "x",
+            "y",
+            "z"
+          ]
+        }
+      ],
+      "oracle_result": "identified",
+      "expected_here": "named_route",
+      "agreement": "agree_named_route",
+      "note": "Data P(x,y,z): the theorem-scoped sID route identifies it before any generic search; dosearch returns the backdoor adjustment. agree (named route): the theorem-scoped sID route identifies it, so Antecedent returns the named route and no proof; nothing cites leaves to compare. Every term of the oracle's formula is a margin or conditional of the one input distribution.",
+      "oracle_formula": "\\sum_{z}\\left(p(z)p(y|x,z)\\right)",
+      "oracle_output_verbatim": "\\sum_{z}\\left(p(z)p(y|x,z)\\right)"
+    },
+    {
+      "id": "dosearch_frontdoor_single_distribution",
+      "oracle": "dosearch",
+      "nodes": [
+        "x",
+        "z",
+        "y"
+      ],
+      "directed": [
+        [
+          "x",
+          "z"
+        ],
+        [
+          "z",
+          "y"
+        ]
+      ],
+      "bidirected": [
+        [
+          "x",
+          "y"
+        ]
+      ],
+      "query": {
+        "outcomes": [
+          "y"
+        ],
+        "treatments": [
+          "x"
+        ]
+      },
+      "inputs": [
+        {
+          "study": "obs",
+          "do": [],
+          "measured": [
+            "x",
+            "z",
+            "y"
+          ]
+        }
+      ],
+      "oracle_result": "identified",
+      "expected_here": "named_route",
+      "agreement": "agree_named_route",
+      "oracle_formula": "\\sum_{z}\\left(p(z|x)\\sum_{x}\\left(p(x)p(y|z,x)\\right)\\right)",
+      "oracle_output_verbatim": "\\sum_{z}\\left(p(z|x)\\sum_{x}\\left(p(x)p(y|z,x)\\right)\\right)",
+      "note": "agree (named route): the theorem-scoped sID route identifies it, so Antecedent returns the named route and no proof; nothing cites leaves to compare. Every term of the oracle's formula is a margin or conditional of the one input distribution."
+    },
+    {
+      "id": "dosearch_mixed_distributions_two_studies",
+      "oracle": "dosearch",
+      "nodes": [
+        "x",
+        "z",
+        "y"
+      ],
+      "directed": [
+        [
+          "x",
+          "z"
+        ],
+        [
+          "z",
+          "y"
+        ]
+      ],
+      "bidirected": [],
+      "query": {
+        "outcomes": [
+          "y"
+        ],
+        "treatments": [
+          "x"
+        ]
+      },
+      "inputs": [
+        {
+          "study": "study-1",
+          "do": [],
+          "measured": [
+            "x",
+            "z"
+          ]
+        },
+        {
+          "study": "study-2",
+          "do": [],
+          "measured": [
+            "z",
+            "y"
+          ]
+        }
+      ],
+      "oracle_result": "identified",
+      "oracle_input_syntax": [
+        "p(x,z)",
+        "p(z,y)"
+      ],
+      "expected_here": "identified",
+      "agreement": "agree",
+      "must_cite_studies": [
+        "study-1",
+        "study-2"
+      ],
+      "note": "Executed dosearch (data p(x,z) and p(z,y), graph x -> z -> y) identifies p(y|do(x)) = sum_z p(y|z) p(z|x). This search identifies the same query and cites both studies; its value is also checked against enumerated truth (crates/antecedent-estimate/tests/mixed_source_execution.rs).",
+      "oracle_formula": "\\sum_{z}\\left(p(y|z)p(z|x)\\right)",
+      "oracle_output_verbatim": "\\sum_{z}\\left(p(y|z)p(z|x)\\right)"
+    },
+    {
+      "id": "dosearch_transportability_and_selection_bias",
+      "oracle": "dosearch",
+      "nodes": [
+        "x",
+        "z",
+        "y",
+        "s",
+        "t"
+      ],
+      "directed": [
+        [
+          "x",
+          "z"
+        ],
+        [
+          "z",
+          "y"
+        ],
+        [
+          "x",
+          "s"
+        ],
+        [
+          "t",
+          "z"
+        ]
+      ],
+      "bidirected": [
+        [
+          "x",
+          "y"
+        ]
+      ],
+      "query": {
+        "outcomes": [
+          "y"
+        ],
+        "treatments": [
+          "x"
+        ]
+      },
+      "oracle_input_syntax": [
+        "p(x,z,y|s)",
+        "p(y,z|t,do(x))"
+      ],
+      "oracle_result": "identified",
+      "expected_here": "out_of_scope",
+      "agreement": "out_of_scope",
+      "note": "Executed dosearch (transportability node t, selection node s) identifies the query. Needs selection-bias and transportability nodes as inputs: this route searches only the target population's whole-population studies (other populations and selected samples are excluded and listed), so it cannot express this case. Recorded, not shaped.",
+      "oracle_formula": "\\sum_{z}\\left(p(z|x,s)p(y|do(x),z,t)\\right)",
+      "oracle_output_verbatim": "\\sum_{z}\\left(p(z|x,s)p(y|do(x),z,t)\\right)"
+    }
+  ]
+}

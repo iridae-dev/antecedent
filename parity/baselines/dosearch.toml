@@ -1,0 +1,6 @@
+# Immutable released-package oracle pin for the mixed-source proof-search parity case.
+project = "dosearch"
+version = "1.0.12"
+source = "https://cran.r-project.org/package=dosearch"
+license = "GPL (>= 3)"
+notes = "Black-box oracle for conformance/identify/mixed_source_external (dosearch() on single-distribution, mixed-distribution and transportability/selection-bias specifications). Executed once in a temporary R library that was deleted after the output was recorded; source/tests are not copied."
