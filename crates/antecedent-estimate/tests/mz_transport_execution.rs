@@ -13,7 +13,9 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent_core::{DependenceGroup, EvidenceCatalog, ExecutionContext, Value};
+use antecedent_core::{
+    DependenceGroup, EvidenceCatalog, ExecutionContext, InterventionAssignment, RegimeKind, Value,
+};
 use antecedent_estimate::{
     Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_exact_mz_transport, mz_interval_withheld_reason,
     mz_sampling_dependence, mz_transport_bootstrap_interval, mz_transport_bootstrap_law_draws,
@@ -22,12 +24,14 @@ use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_identify::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MzTransportDecision, MzTransportRoute,
     ZTransportSourceSpec, bind_mz_transport_catalog, decide_mz_transport,
+    verify_mz_transport_obstruction,
 };
 use common::mz_fixture::{
-    B_TRIAL_REGIME, SHARED_REGIME, SharedTable, X, Y, empirical, evidence, graph, query,
-    source_b_scm, sources, target_scm, with_conflicting_a_trial, with_shared_b_trial, with_studies,
+    B_TRIAL_REGIME, SHARED_REGIME, SharedTable, X, Y, empirical, evidence, evidence_with_twin,
+    graph, query, source_b_scm, sources, target_scm, twin_sources, with_conflicting_a_trial,
+    with_shared_b_trial, with_studies,
 };
-use common::z_scm::{risk_of, vid};
+use common::z_scm::{Mechanism, Scm, Spec, build, diagram, risk_of, vid};
 
 fn bound(
     sources: Vec<ZTransportSourceSpec>,
@@ -374,4 +378,181 @@ fn unrelatable_tables_of_one_dataset_withhold_the_interval_not_the_point() {
         mz_interval_withheld_reason(&functional, &data).unwrap(),
         Some("transport.unsupported_dependence")
     );
+}
+
+/// Two sources that both certify `Q[Y]` (departure from Fig. 3 line 11). The paper
+/// combines the certifying sources by a weighted sum; this contract returns the
+/// first in canonical order. Each is a valid exact formula, so the numbers agree
+/// with the enumerated target truth whichever source is used, whatever the
+/// declaration order, and any weighted combination of the two.
+#[test]
+fn two_sources_certifying_one_factor_give_the_same_truth_either_way() {
+    let (catalog, data) = evidence_with_twin();
+    let ctx = ExecutionContext::for_tests(3);
+    let by_name = |names: &[&str]| {
+        let pool = twin_sources();
+        names
+            .iter()
+            .map(|name| pool.iter().find(|s| s.population.as_ref() == *name).unwrap().clone())
+            .collect::<Vec<_>>()
+    };
+    let point = |functional: &BoundMzTransportFunctional, x: u8| {
+        risk_of(
+            &evaluate_exact_mz_transport(
+                functional,
+                data.clone(),
+                request(x == 1),
+                ExactEvaluationLimits::default(),
+                &ctx,
+            )
+            .unwrap(),
+        )
+    };
+    // a and c both certify Q[Y]; the canonical first (a) is the one cited.
+    let with_both = bound(by_name(&["a", "b", "c"]), &catalog);
+    assert!(
+        with_both.cited_regimes().iter().all(|r| r.raw() <= 3),
+        "{:?}",
+        with_both.cited_regimes()
+    );
+    let reversed = bound(by_name(&["c", "b", "a"]), &catalog);
+    assert_eq!(with_both.cited_regimes(), reversed.cited_regimes());
+    // Each certifying source alone, in both orders.
+    let via_a = bound(by_name(&["a", "b"]), &catalog);
+    let via_c = bound(by_name(&["c", "b"]), &catalog);
+    assert!(via_c.cited_regimes().iter().any(|r| r.raw() >= 4), "c's regimes are cited");
+    assert!(via_c.cited_regimes().iter().all(|r| r.raw() == 0 || r.raw() >= 3));
+    for x in [0u8, 1] {
+        let (both, backward) = (point(&with_both, x), point(&reversed, x));
+        let (a, c) = (point(&via_a, x), point(&via_c, x));
+        assert_eq!(both.to_bits(), backward.to_bits(), "order invariance at do(X={x})");
+        assert_eq!(both.to_bits(), a.to_bits(), "the first canonical source is the one used");
+        // The two certifying sources agree with each other and with the truth.
+        assert!((a - c).abs() < 1e-12, "do(X={x}): a {a}, c {c}");
+        assert!((a - truth(x)).abs() < 1e-12, "do(X={x}): a {a}, truth {}", truth(x));
+        // The paper's weighted combination of the two is the same number.
+        for weight in [0.25, 0.5, 0.75] {
+            let mixed = weight * a + (1.0 - weight) * c;
+            assert!((mixed - truth(x)).abs() < 1e-12, "weight {weight} at do(X={x})");
+        }
+    }
+    // The twin differs from `a` as a population: its own laws are not a's.
+    let law_of = |regime: u32| {
+        data.laws()
+            .iter()
+            .find(|law| law.regime().raw() == regime)
+            .unwrap()
+            .probabilities()
+            .to_vec()
+    };
+    assert!(law_of(1).iter().zip(law_of(4)).any(|(p, q)| (p - q).abs() > 1e-3));
+}
+
+/// R-443 Figure 2 analogue (`Z -> X -> Y`, `X <-> Y`; source `a` runs `do(X)` but
+/// its selection node points into `Y`, source `b` runs `do(Z)` and its selection
+/// node points into `X`). The obstruction the search certifies is real: two fully
+/// specified SCMs agree on the target's observational law and on every
+/// experiment either source supplies, yet give different `P*(y | do(x))`. The
+/// exact Figure 2 graph was not available offline, so the counterexample is our
+/// own for this graph family, not the paper's Eqs. 3-4. The bow arc `X <-> Y` is
+/// the witness: model 1 has no effect of `X` on `Y` (`Y = U`), model 2 copies `X`
+/// (`Y = X`), and with `X = U` the two are observationally identical. Source `a`
+/// draws `Y` from an independent coin (the mechanism its selection node may
+/// change) and source `b` runs the target's own mechanisms, so every law
+/// supplied is the same in both models.
+#[test]
+fn fig_2_analogue_obstruction_is_real_two_models_agree_on_every_experiment() {
+    const Z: usize = 0;
+    const XV: usize = 1;
+    const YV: usize = 2;
+    // e0 = Z's coin, e1 = the X <-> Y confounder U, e2 = source a's own Y coin.
+    let model = |copies_x: bool| -> [Scm; 3] {
+        let x_is_u = || -> Mechanism { Box::new(|_, e| e[1]) };
+        let z_coin = || -> Mechanism { Box::new(|_, e| e[0]) };
+        let target_y = move || -> Mechanism {
+            if copies_x { Box::new(|v, _| v[XV]) } else { Box::new(|_, e| e[1]) }
+        };
+        let scm =
+            |y: Mechanism| Scm { n: 3, exo_p: vec![0.5, 0.4, 0.3], f: vec![z_coin(), x_is_u(), y] };
+        // target, source a (Y differs), source b (the target's mechanisms)
+        [scm(target_y()), scm(Box::new(|_, e| e[2])), scm(target_y())]
+    };
+    let evidence_of = |copies_x: bool| {
+        let [target, a, b] = model(copies_x);
+        let specs = [
+            Spec { population: "target", kind: RegimeKind::Observational, assignments: vec![] },
+            Spec { population: "a", kind: RegimeKind::Observational, assignments: vec![] },
+            Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(XV, 0)] },
+            Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(XV, 1)] },
+            Spec { population: "b", kind: RegimeKind::Observational, assignments: vec![] },
+            Spec { population: "b", kind: RegimeKind::Experimental, assignments: vec![(Z, 0)] },
+            Spec { population: "b", kind: RegimeKind::Experimental, assignments: vec![(Z, 1)] },
+        ];
+        let scm_for = |population: &str| -> &Scm {
+            match population {
+                "a" => &a,
+                "b" => &b,
+                _ => &target,
+            }
+        };
+        let evidence = build(&scm_for, 3, &specs, &["target", "a", "b"]);
+        let truth = |x: u8| model(copies_x)[0].risk(&[(XV, x)], YV);
+        (evidence, truth(0), truth(1))
+    };
+    let ((catalog, data_1), t1_0, t1_1) = evidence_of(false);
+    let ((_, data_2), t2_0, t2_1) = evidence_of(true);
+
+    // Every supplied law is identical across the two models ...
+    assert_eq!(data_1.laws().len(), data_2.laws().len());
+    for (l1, l2) in data_1.laws().iter().zip(data_2.laws()) {
+        assert_eq!((l1.population(), l1.regime()), (l2.population(), l2.regime()));
+        let worst = l1
+            .probabilities()
+            .iter()
+            .zip(l2.probabilities())
+            .map(|(p, q)| (p - q).abs())
+            .fold(0.0, f64::max);
+        assert!(
+            worst < 1e-15,
+            "{} regime {}: laws differ by {worst}",
+            l1.population(),
+            l1.regime().raw()
+        );
+    }
+    // ... yet the target's interventional effect is not: X has no effect in
+    // model 1 and copies itself in model 2.
+    assert!((t1_0 - 0.4).abs() < 1e-12 && (t1_1 - 0.4).abs() < 1e-12);
+    assert!((t2_0 - 0.0).abs() < 1e-12 && (t2_1 - 1.0).abs() < 1e-12);
+    assert!((t1_1 - t2_1).abs() > 0.5);
+
+    // The search certifies exactly this: a checked obstruction, replayed.
+    let graph = diagram(3, &[(Z, XV), (XV, YV)], &[(XV, YV)], &[]).causal_graph().clone();
+    let source = |name: &str, controllable: usize, target: usize| ZTransportSourceSpec {
+        population: Arc::from(name),
+        controllable: Arc::from([vid(controllable)]),
+        experiment_assignment: Arc::from([InterventionAssignment {
+            variable: vid(controllable),
+            value: Value::Bool(false),
+        }]),
+        selection_targets: Arc::from([vid(target)]),
+    };
+    let q = antecedent_identify::MzTransportQuery {
+        outcomes: Arc::from([vid(YV)]),
+        treatments: Arc::from([vid(XV)]),
+        target: Arc::from("target"),
+        sources: Arc::from([source("a", XV, YV), source("b", Z, XV)]),
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    let decision =
+        decide_mz_transport(&graph, &q, &catalog, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
+    let MzTransportDecision::ProvenNonTransportable(obstruction) = decision else {
+        panic!("the Figure 2 analogue is non-transportable, got {decision:?}");
+    };
+    verify_mz_transport_obstruction(
+        &graph,
+        &obstruction,
+        antecedent_identify::SidLimits::default(),
+        &ctx,
+    )
+    .unwrap();
 }

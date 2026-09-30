@@ -326,9 +326,43 @@ interval request refuses (`temporal_transport.interval_requested`,
 from two to four source populations, each with its own selection targets,
 controllable set and experiment levels. The result is sound and incomplete within the
 bounds (12 observed variables, 4 controllables per source, 64 candidate regimes,
-4096 operations, depth 24) and never mixes sources inside one c-factor. The
-completeness citation (R-443, Theorems 4-5) behind the checked line-11 obstruction has
-not been checked against the paper offline and needs a human check.
+4096 operations, depth 24) and never mixes sources inside one c-factor. The checked
+line-11 obstruction rests on R-443 (Bareinboim and Pearl, NeurIPS 2014; Theorems 4-5
+and Corollary 1, over the power-set information family of Def. 2) and is a strict
+subset of the paper's FAILs: it is certified only at a forced line-11 terminal with no
+active experiment where no source can exchange, and is replayed by an independent
+checker. Where this search departs from the paper's `TR^mz`, each departure is pinned
+by an executed test (`crates/antecedent-identify/tests/mz_transport_search.rs`,
+`mz_transport_paper_reference.rs`, and `crates/antecedent-estimate/tests/mz_transport_execution.rs`):
+
+- R-443 Fig. 1(e,f), an experiment on `Z2` in one source and on `Z1` in another, is not
+  transportable in the paper; here it is `not_certified` with `mz_transport.fabricated_joint`
+  and never an obstruction, because the failure is reached after an exchange.
+- The paper's own non-transportable example type, an `X`-experiment in one source and a
+  `Z`-experiment in the other (R-443 Fig. 2), is a checked obstruction; the exact paper
+  graph was not available offline, so the test uses the closest analogue (`Z -> X -> Y`,
+  `X <-> Y`) and exhibits two SCMs that agree on the target observational law and every
+  supplied experiment but differ on `P*(y | do(x))`.
+- A paper FAIL reached after an exchange whose every candidate line-10 branch fails is
+  `not_certified` with `mz_transport.search_incomplete`, never an obstruction.
+- Fig. 3 line 10 fires only with no active experiment (one exchange per branch); the search
+  also lets the active source exchange its remaining controllables. A differential test
+  against a literal one-exchange reference of `TR^mz` over R-443 Fig. 1 variants and 6000
+  seeded two-source selection ADMGs finds the extension never eligible (after an exchange
+  the non-treatment vertices are still one c-component inside `An(Y)` in `D_Xbar`, so no
+  controllable of the active source can enter `X`), the search never identifies where the
+  reference fails, and the regime cited for an exchange of several controllables is their
+  one joint `do(Z_i ∩ X)`.
+- Fig. 3 line 11 returns a weighted combination of all certifying sources; the search
+  returns the first in canonical source order and does not retain the others, so a missing
+  regime of that source is reported even when another source could have supplied it.
+  Either source gives the enumerated truth and the same number.
+- The line-10 separation is tested in the graph with edges into `X` removed and needs the
+  source's controllable set to meet `X` (selection separated only after the mutilation, into
+  a non-ancestor of `Y`, not separated, and separated with nothing to exchange are each
+  pinned).
+- Target experiments are supported by the paper and refused here by design:
+  `invalid_argument` with `mz_transport.invalid_catalog`, before any search.
 
 Every stage of one decision (target only, each source's `TR^z`, the combined search
 and the obstruction replay) charges one `SearchBudget`: operations and depth are

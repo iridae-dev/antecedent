@@ -24,9 +24,15 @@
 //! source can exchange. A failure after an exchange (e.g. R-443 Fig. 1(e,f)
 //! split across two sources, which the paper calls not transportable) is
 //! reported `not_certified`. Fig. 3 line 10 fires only with no active
-//! experiment (one exchange per branch); this search may also exchange the
-//! active source's later-activated controllables, which never touches the
-//! obstruction because that is certified only with no active experiment. When several sources certify the same factor, the paper
+//! experiment (one exchange per branch). The recursion also permits the active
+//! source to exchange its remaining controllables again, but that path is
+//! structurally unreachable: at a line-10 state `V \ X` is one c-component inside
+//! `An(Y)` in `D_Xbar`, an exchange removes only treatments, so lines 3 and 4
+//! cannot later add a controllable of the active source to `X`. The search
+//! therefore equals the literal one-exchange `TR^mz` (tested differentially in
+//! `tests/mz_transport_paper_reference.rs`), and a cited joint regime is always
+//! the one joint of a single exchange. The obstruction is unaffected either way
+//! because it is certified only with no active experiment. When several sources certify the same factor, the paper
 //! returns a weighted combination; for exact laws each is a valid formula, so
 //! this contract returns the first certifying source in canonical source order
 //! and does not retain the others, which makes the result invariant to source

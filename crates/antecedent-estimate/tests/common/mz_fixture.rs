@@ -272,3 +272,55 @@ pub fn with_conflicting_a_trial(catalog: &EvidenceCatalog) -> EvidenceCatalog {
     out.bindings = bindings.into();
     out
 }
+
+/// Source `c`: a twin of `a` that certifies the same factor `Q[Y]` (same
+/// controllable `Z2` and selection on `Z1`, `Z2`) from a different population:
+/// its `Z1` and `Z2` mechanisms differ from both the target's and `a`'s, while
+/// `X` and `Y` keep the target's mechanisms.
+pub fn source_c_scm() -> Scm {
+    Scm {
+        n: 4,
+        exo_p: EXO.to_vec(),
+        f: vec![
+            Box::new(|_, e| bit(e[0] == 1 || e[3] == 1)),
+            x_mechanism(),
+            Box::new(|v, e| bit(v[X] == 1) ^ bit(e[1] == 1 && e[5] == 0)),
+            y_target(),
+        ],
+    }
+}
+
+/// `a`, `b` and the twin `c` (declared last, so canonical order is `a`, `b`, `c`).
+pub fn twin_sources() -> Vec<ZTransportSourceSpec> {
+    let mut all = sources();
+    all.push(ZTransportSourceSpec {
+        population: Arc::from("c"),
+        controllable: Arc::from([vid(Z2)]),
+        experiment_assignment: Arc::from([]),
+        selection_targets: Arc::from([vid(Z1), vid(Z2)]),
+    });
+    all
+}
+
+/// [`evidence`] plus `c`'s `do(Z2 = 0/1)` laws as regimes 4 and 5 (regimes 0 to 3
+/// are exactly those of [`evidence`]).
+pub fn evidence_with_twin() -> (EvidenceCatalog, ExactTransportData) {
+    let specs = [
+        Spec { population: "target", kind: RegimeKind::Observational, assignments: vec![] },
+        Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(Z2, 0)] },
+        Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(Z2, 1)] },
+        Spec { population: "b", kind: RegimeKind::Experimental, assignments: vec![(Z1, 0)] },
+        Spec { population: "c", kind: RegimeKind::Experimental, assignments: vec![(Z2, 0)] },
+        Spec { population: "c", kind: RegimeKind::Experimental, assignments: vec![(Z2, 1)] },
+    ];
+    let (target, a, b, c) = (target_scm(), source_a_scm(), source_b_scm(), source_c_scm());
+    let scm_for = |population: &str| -> &Scm {
+        match population {
+            "a" => &a,
+            "b" => &b,
+            "c" => &c,
+            _ => &target,
+        }
+    };
+    build(&scm_for, 4, &specs, &["target", "a", "b", "c"])
+}

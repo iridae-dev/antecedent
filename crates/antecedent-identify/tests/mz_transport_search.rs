@@ -77,7 +77,12 @@ fn query(sources: Vec<ZTransportSourceSpec>) -> MzTransportQuery {
 
 /// An available joint regime over every coordinate it does not intervene on.
 fn regime(id: u32, population: &str, on: &[u32]) -> EvidenceRegime {
-    let measured = (0..4).filter(|i| !on.contains(i)).map(v).collect::<Vec<_>>();
+    regime_over(4, id, population, on)
+}
+
+/// [`regime`] over the first `n` coordinates.
+fn regime_over(n: u32, id: u32, population: &str, on: &[u32]) -> EvidenceRegime {
+    let measured = (0..n).filter(|i| !on.contains(i)).map(v).collect::<Vec<_>>();
     EvidenceRegime::try_new(
         RegimeId::from_raw(id),
         if on.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental },
@@ -884,4 +889,264 @@ fn combined_route_binds_duplicate_evidence_by_the_single_source_rule() {
             assert_eq!(bound.cited_regimes(), expected, "reversed: {reversed}");
         }
     }
+}
+
+/// The decision of the Figure 1(e,f) graph, whatever the catalog supplies.
+fn decide_split_1ef(sources: Vec<ZTransportSourceSpec>) -> MzTransportDecision {
+    let evidence =
+        catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2]), regime(2, "b", &[Z1])]);
+    decide_1ef(&query(sources), &evidence)
+}
+
+/// DELIBERATE INCOMPLETENESS (paper-vs-code departure 1). R-443 states that
+/// Figure 1(e,f), with an experiment on {Z2} in one source and on {Z1} in the
+/// other, is NOT mz-transportable. The search reaches that state only after a
+/// line-10 exchange (an experiment is active), where the forced line-11 terminal
+/// that certifies an obstruction is unavailable, so it reports `not_certified`
+/// with the detail `mz_transport.fabricated_joint` and never claims the paper's
+/// verdict. The sound direction is kept: nothing is identified and nothing is
+/// proven impossible by this route.
+#[test]
+fn fig_1ef_split_is_non_transportable_in_the_paper_but_deliberately_not_certified_here() {
+    let split = || {
+        vec![
+            assigned(source("a", &[Z2], &[Z1]), &[(Z2, 0.0)]),
+            assigned(source("b", &[Z1], &[Z2]), &[(Z1, 0.0)]),
+        ]
+    };
+    let mut reversed = split();
+    reversed.reverse();
+    for sources in [split(), reversed] {
+        let decision = decide_split_1ef(sources);
+        // The paper would answer "not transportable"; this contract does not.
+        assert!(
+            !matches!(decision, MzTransportDecision::ProvenNonTransportable(_)),
+            "an obstruction after an exchange must never be claimed: {decision:?}"
+        );
+        assert_ne!(decision.reason_code(), Some("transport_proven_non_transportable"));
+        assert_ne!(decision.detail_code(), Some("mz_transport.checked_obstruction"));
+        assert!(!matches!(decision, MzTransportDecision::Identified { .. }));
+        let MzTransportDecision::NotCertified(inspection) = &decision else {
+            panic!("expected not_certified, got {decision:?}");
+        };
+        assert_eq!(inspection.detail, "mz_transport.fabricated_joint");
+        assert_eq!(decision.reason_code(), Some("transport_not_certified"));
+        // The combined search ended not_certified, not in an obstruction.
+        assert_eq!(inspection.stages.last().map(|s| s.outcome), Some("not_certified"));
+        // The non-claim is a failure reached after an exchange: an experiment was
+        // active at the line-11 state, which is exactly what disqualifies it.
+        let rules = &inspection.explored_rules;
+        let first_exchange = rules.iter().position(|r| r.starts_with("ztr.line10.source_exchange"));
+        let first_fail = rules.iter().position(|r| r == "ztr.line11.fail");
+        assert!(first_exchange.is_some() && first_fail > first_exchange, "{rules:?}");
+    }
+}
+
+/// A three-node analogue of R-443 Figure 2(a,b) (`Z -> X -> Y`, `X <-> Y`): source
+/// `a` experiments on `X` but its selection node points into `Y`, source `b`
+/// experiments on `Z` and its selection node points into `X`. Neither experiment
+/// set transports `P*(y | do(x))`, and no combination helps: the obstruction is a
+/// forced line-11 terminal with no active experiment. The exact Figure 2 graph
+/// was not available offline, so this is the closest analogue; its two-model
+/// counterexample is executed in `antecedent-estimate`'s `mz_transport_execution`
+/// (`fig_2_analogue_obstruction_is_real_two_models_agree_on_every_experiment`).
+const FIG2_Z: u32 = 0;
+const FIG2_X: u32 = 1;
+const FIG2_Y: u32 = 2;
+
+fn fig_2_graph() -> Admg {
+    let mut g = Admg::with_variables(3);
+    for (a, b) in [(FIG2_Z, FIG2_X), (FIG2_X, FIG2_Y)] {
+        g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    g.insert_bidirected(DenseNodeId::from_raw(FIG2_X), DenseNodeId::from_raw(FIG2_Y)).unwrap();
+    g
+}
+
+fn fig_2_sources() -> Vec<ZTransportSourceSpec> {
+    vec![
+        assigned(source("a", &[FIG2_X], &[FIG2_Y]), &[(FIG2_X, 0.0)]),
+        assigned(source("b", &[FIG2_Z], &[FIG2_X]), &[(FIG2_Z, 0.0)]),
+    ]
+}
+
+fn fig_2_query(sources: Vec<ZTransportSourceSpec>) -> MzTransportQuery {
+    MzTransportQuery {
+        outcomes: Arc::from([v(FIG2_Y)]),
+        treatments: Arc::from([v(FIG2_X)]),
+        target: Arc::from("target"),
+        sources: sources.into(),
+    }
+}
+
+#[test]
+fn fig_2_analogue_with_an_x_experiment_and_a_z_experiment_is_a_replayed_obstruction() {
+    let on = |id, population: &str, on: &[u32]| regime_over(3, id, population, on);
+    // Every regime the paper's information family supplies: the target's
+    // observational law, source a's do(X) and source b's do(Z).
+    let evidence =
+        catalog(vec![on(0, "target", &[]), on(1, "a", &[FIG2_X]), on(2, "b", &[FIG2_Z])]);
+    let graph = fig_2_graph();
+    let ctx = ExecutionContext::for_tests(1);
+    let mut reversed = fig_2_sources();
+    reversed.reverse();
+    let mut signatures = Vec::new();
+    for sources in [fig_2_sources(), reversed] {
+        let decision = decide_mz_transport(
+            &graph,
+            &fig_2_query(sources),
+            &evidence,
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap();
+        let MzTransportDecision::ProvenNonTransportable(obstruction) = &decision else {
+            panic!("the Figure 2 analogue is non-transportable, got {decision:?}");
+        };
+        assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
+        assert_eq!(decision.detail_code(), Some("mz_transport.checked_obstruction"));
+        // The failing c-component is {Y}, inside the confounded {X, Y}.
+        assert_eq!(obstruction.c0(), [FIG2_Y]);
+        // No source can exchange at the terminal, each for its own reason: a
+        // holds the active X but S_a -> Y is not separated from Y; b's selection
+        // node is separated (S_b -> X is cut by the edges-into-X removal) but its
+        // Z never meets the treatments.
+        let mut per_source = obstruction.sources();
+        per_source.sort();
+        assert_eq!(per_source, [("a", &[FIG2_X][..], false), ("b", &[][..], true)]);
+        assert!(
+            obstruction
+                .sources()
+                .iter()
+                .all(|(_, active, separated)| active.is_empty() || !separated)
+        );
+        // The independent checker replays the same terminal.
+        verify_mz_transport_obstruction(&graph, obstruction, SidLimits::default(), &ctx).unwrap();
+        signatures.push(outcome_signature(&decision));
+    }
+    assert_eq!(signatures[0], signatures[1]);
+}
+
+/// Target experiments (`Z* != {}`) are supported by R-443 and refused here by
+/// design: the contract gives the target observational evidence only. The
+/// refusal is the catalog validation refusal `mz_transport.invalid_catalog`
+/// (reason code `invalid_argument`), raised before any search, never a
+/// verdict, even when the target experiment would identify the effect at once.
+#[test]
+fn target_experiments_are_refused_by_design_though_the_paper_supports_them() {
+    use antecedent_identify::{mz_transport_refusal, validate_mz_transport_query};
+    let ctx = ExecutionContext::for_tests(1);
+    let q = query(vec![source_a(), source_b()]);
+    // The target ran do(X): P*(y | do(x)) is directly observed, yet refused.
+    let with_target_experiment = catalog(vec![
+        regime(0, "target", &[]),
+        regime(1, "target", &[X]),
+        regime(2, "a", &[Z2]),
+        regime(3, "b", &[Z1]),
+    ]);
+    for refused in [
+        decide_mz_transport(
+            &figure_1_graph(),
+            &q,
+            &with_target_experiment,
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap_err(),
+        validate_mz_transport_query(&figure_1_graph(), &q, &with_target_experiment).unwrap_err(),
+    ] {
+        assert!(matches!(refused, IdentificationError::InvalidCatalog { .. }), "{refused:?}");
+        assert!(refused.to_string().contains("target regime 1 is experimental"), "{refused}");
+        assert_eq!(
+            mz_transport_refusal(&refused),
+            Some(("invalid_argument", "mz_transport.invalid_catalog"))
+        );
+    }
+    // The same query with only observational target evidence decides normally.
+    let observational =
+        catalog(vec![regime(0, "target", &[]), regime(2, "a", &[Z2]), regime(3, "b", &[Z1])]);
+    assert!(matches!(decide(&q, &observational), MzTransportDecision::Identified { .. }));
+    // A target experiment on any other variable is refused the same way.
+    for on in [&[Z1][..], &[Z2], &[Z1, Z2]] {
+        let evidence = catalog(vec![regime(0, "target", &[]), regime(1, "target", on)]);
+        let refused = decide_mz_transport(
+            &figure_1_graph(),
+            &q,
+            &evidence,
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(matches!(refused, IdentificationError::InvalidCatalog { .. }), "{on:?}");
+    }
+}
+
+/// A second source `c` that certifies exactly what `a` certifies: same
+/// controllable {Z2} and selection on {Z1, Z2}.
+fn twin_of_a() -> ZTransportSourceSpec {
+    source("c", &[Z2], &[Z1, Z2])
+}
+
+/// DEPARTURE FROM FIG. 3 LINE 11 (paper-vs-code departure 5). When two sources
+/// both certify the factor `Q[Y]`, the paper returns a weighted combination of
+/// the certifying sources. This search returns only the first certifying source
+/// in canonical (population-sorted) order and does not retain the other. Either
+/// is a valid formula for exact laws, so the result is the same with either
+/// source alone (its numeric agreement with enumerated truth is executed in
+/// `mz_transport_execution::two_sources_certifying_one_factor_give_the_same_truth_either_way`).
+#[test]
+fn two_sources_certifying_one_factor_yield_the_first_canonical_source_in_any_order() {
+    let all = catalog(vec![
+        regime(0, "target", &[]),
+        regime(1, "a", &[Z2]),
+        regime(2, "b", &[Z1]),
+        regime(3, "c", &[Z2]),
+    ]);
+    let ids = |cited: &[RegimeId]| cited.iter().map(|r| r.raw()).collect::<Vec<_>>();
+    let mut results = Vec::new();
+    for order in [[0, 1, 2], [2, 1, 0], [1, 2, 0], [2, 0, 1]] {
+        let pool = [source_a(), source_b(), twin_of_a()];
+        let sources = order.iter().map(|i| pool[*i].clone()).collect::<Vec<_>>();
+        let MzTransportDecision::Identified { derivation, cited } = decide(&query(sources), &all)
+        else {
+            panic!("a twin source must not change identifiability");
+        };
+        // First certifying source in canonical order: a (not c); c is not retained.
+        assert_eq!(
+            derivation.route(),
+            &MzTransportRoute::Combined {
+                populations: Arc::from([Arc::from("a"), Arc::from("b")])
+            }
+        );
+        assert_eq!(ids(&cited), [1, 2]);
+        assert!(!derivation.rules().iter().any(|r| r.contains(":c:")));
+        results.push(outcome_signature(&MzTransportDecision::Identified { derivation, cited }));
+    }
+    assert!(results.windows(2).all(|w| w[0] == w[1]), "source order changed the result");
+
+    // `c` alone certifies the same factor: the formula is the same up to the
+    // population label, so either certifying source is a valid answer.
+    let only_c =
+        catalog(vec![regime(0, "target", &[]), regime(2, "b", &[Z1]), regime(3, "c", &[Z2])]);
+    let with_a = identified(decide(&query(vec![source_a(), source_b()]), &complementary_catalog()));
+    let with_c = identified(decide(&query(vec![source_b(), twin_of_a()]), &only_c));
+    // Only the first certifying source is kept: when its experiment was never
+    // supplied the decision is missing evidence for `a`, although `c` could have
+    // supplied the same factor (the paper's weighted sum would have used it).
+    let c_supplied_only =
+        catalog(vec![regime(0, "target", &[]), regime(2, "b", &[Z1]), regime(3, "c", &[Z2])]);
+    let decision = decide(&query(vec![source_a(), source_b(), twin_of_a()]), &c_supplied_only);
+    let MzTransportDecision::MissingEvidence { derivation: Some(kept), detail } = decision else {
+        panic!("expected missing evidence for the first certifying source, got {decision:?}");
+    };
+    assert!(detail.contains(": a ") && !detail.contains(": c "), "{detail}");
+    assert!(!kept.rules().iter().any(|r| r.contains(":c:")));
+    let relabel = |rules: &[String]| {
+        rules.iter().map(|r| r.replace("exchange:c:", "exchange:a:")).collect::<Vec<_>>()
+    };
+    assert_eq!(with_a.rules(), relabel(with_c.rules()));
+    assert_eq!(
+        with_c.route(),
+        &MzTransportRoute::Combined { populations: Arc::from([Arc::from("b"), Arc::from("c")]) }
+    );
 }
