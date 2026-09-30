@@ -696,7 +696,7 @@ evidence = "one_catalog_bound_independently_per_scenario"
 functional = "per_scenario_target_interventional_distribution"
 observation = "exact_or_empirical_plugin_laws"
 guarantee = "each_scenario_decided_once_by_the_licensed_classical_catalog_route_and_compiled_once"
-limits = "One to 64 scenarios over the same named variables (at most 12), each a fixed selection ADMG; per-scenario identification limits and a scenario budget whose excess is reported unevaluated. Not CPDAG/PAG-native transport. Only a verified s-hedge is a per-scenario impossibility claim."
+limits = "One to 64 scenarios over the same named variables (at most 12) and one shared coordinate schema (names, domains, cardinalities, units; disagreement refuses schema_mismatch), each a fixed selection ADMG; one search budget (operations, depth, memory, cancellation) shared by every scenario entered and its search and proof replay, whose stop is reported unevaluated with a receipt. Supplied exact laws or empirical plug-in points; no interval. Not CPDAG/PAG-native transport. Only a verified s-hedge is a per-scenario impossibility claim."
 evidence_test = "python/tests/test_transport_scenarios.py"
 evidence_assertion = "test_prepare_retains_checked_scenario_plans_after_builder_disposal"
 
@@ -718,9 +718,9 @@ stage = "evaluate"
 status = "licensed"
 graph = "finite_supplied_fixed_selection_admg_scenarios_over_shared_coordinates"
 evidence = "declared_scenario_weights_summing_to_at_most_one"
-functional = "identified_weighted_sum_and_range_with_unaccounted_mass_at_support_limits"
+functional = "identified_weighted_sum_and_range_with_unaccounted_mass_at_declared_domain_limits"
 guarantee = "no_renormalization_over_identified_scenarios"
-limits = "Only for declared weights. Unidentified and unevaluated scenario weight and the undeclared residual stay unaccounted; the range lets that mass take any value in the outcome's support. No inferential statement across scenarios sharing data."
+limits = "Only for declared weights. Unidentified and unevaluated scenario weight and the undeclared residual stay unaccounted; the range lets that mass take any value in the outcome's declared domain (withheld for an unbounded domain). No inferential statement across scenarios sharing data."
 evidence_test = "python/tests/test_transport_scenarios.py"
 evidence_assertion = "test_weighted_report_executes_from_retained_plans_after_builder_disposal"
 
@@ -728,10 +728,258 @@ evidence_assertion = "test_weighted_report_executes_from_retained_plans_after_bu
 route = "antecedent.transport.advanced.consume_transport_scenarios_artifact"
 stage = "consume"
 status = "licensed"
-graph = "embedded_scenario_graphs_selections_and_weights"
-evidence = "embedded_catalog_laws_and_producer_limits"
+graph = "embedded_scenario_graphs_selections_weights_and_coordinate_schema"
+evidence = "embedded_catalog_laws_samples_and_producer_budget"
 functional = "replayed_scenario_report"
 guarantee = "every_scenario_re_decided_recompiled_and_re_evaluated_to_an_identical_report"
-limits = "Replays under the producer's recorded limits, refused when they exceed the consumer's; statuses, proofs, points, masses, envelope, weighted report and receipt must match exactly."
+limits = "Replays under the producer's recorded shared budget (operations, depth, memory), refused when it exceeds the consumer's; identity binds scenarios, weights, coordinate schema and variable names, question, request and budgets; statuses, proofs, points, masses, envelope, weighted report and receipt must match exactly."
 evidence_test = "python/tests/test_transport_scenarios.py"
 evidence_assertion = "test_consume_rechecks_the_report_from_retained_plans_after_builder_disposal"
+
+[[routes]]
+route = "transport.scenarios.aggregate_inference"
+stage = "uncertainty"
+status = "closed"
+reason_code = "scenario_aggregate_not_licensed"
+notes = "Inference across scenarios that share data is 2.3A: PreparedTransportScenariosStage.aggregate_interval always refuses (detail scenarios.shared_data_aggregate). Only per-scenario results and the structural envelope are licensed; the envelope is not a confidence interval."
+
+[[routes]]
+route = "transport.scenarios.equivalence_class_native"
+stage = "identify"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "A CPDAG or PAG in place of an explicit scenario list refuses (detail scenarios.equivalence_class_input). The scenario route is a structural envelope over a supplied finite list of fixed graphs, not an equivalence-class solver."
+
+# 2.2A X4 learned continuous trial transport (parity/promotion_2_2.toml, 2.2A.X4.learned_continuous_trial_transport).
+# Frozen: closed until the record evidences them.
+[[routes]]
+route = "antecedent.transport.estimator_menu"
+stage = "representation"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.prepare_learned_continuous"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.consume_learned_continuous"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+# 2.2A X5 two-step temporal transport (parity/promotion_2_2.toml, 2.2A.X5.two_step_temporal_transport).
+# Frozen: closed until the record evidences them; temporal uncertainty stays closed in 2.2.
+[[routes]]
+route = "antecedent_identify.identify_temporal_transport_sequence"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.temporal.prepare_exact_sequence"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.temporal.evaluate_exact_sequence"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.temporal.consume_sequence"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "transport.temporal.uncertainty"
+stage = "uncertainty"
+status = "closed"
+reason_code = "estimator_inference_mismatch"
+
+# 2.2A X9 mixed-source proof search (parity/promotion_2_2.toml, 2.2A.X9.mixed_source_proof_search).
+# Frozen: closed until the record evidences them.
+[[routes]]
+route = "antecedent_identify.mixed_source_search"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.evaluate_mixed_source_exact"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+[[routes]]
+route = "antecedent.transport.consume_mixed_source"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+
+# 2.2A X1 multi-source limited-experiment transport (parity/promotion_2_2.toml,
+# 2.2A.X1.multi_source_limited_experiment). Point routes are licensed point-only;
+# the joint-bootstrap interval route stays closed until its two coverage records
+# (multi_source_mz_independent_studies, multi_source_mz_shared_units) are measured.
+[[routes]]
+route = "antecedent_identify.decide_mz_transport"
+stage = "identify"
+status = "licensed"
+graph = "shared_finite_discrete_admg_with_one_selection_diagram_per_source"
+evidence = "target_observational_joint_and_per_source_supplied_joint_regimes"
+functional = "target_interventional_outcome_distribution"
+observation = "cited_joint_regimes_only_never_fabricated_across_sources"
+guarantee = "sound_incomplete"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+limits = "Two to four sources, 12 observed variables, 4 controllable variables per source, 64 candidate regimes, SearchLimits operations/depth plus memory and cancellation. Stages: target only, each source's own TRz, then the combined TR^mz search. Missing evidence, a budget stop (transport_budget_cancel with a receipt), a not-certified search and a checked line-11 obstruction are distinct outcomes; only the obstruction is a non-transportability claim."
+evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs"
+evidence_assertion = "combined_catalog_identifies_what_no_single_source_can"
+
+[[routes]]
+route = "antecedent_estimate.evaluate_exact_mz_transport"
+stage = "evaluate"
+status = "licensed"
+graph = "shared_finite_discrete_admg_with_one_selection_diagram_per_source"
+evidence = "catalog_bound_cited_joint_regimes_exact_or_counted"
+functional = "target_interventional_outcome_distribution"
+observation = "exact_law_or_empirical_plugin_joint_table"
+guarantee = "point_distribution_only_without_sampling_uncertainty"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+limits = "The checked combined formula evaluated on the laws its catalog binds; the R-443 Figure 1(c,d) specimen matches the target's enumerated interventional truth. No interval is published on this route."
+evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs"
+evidence_assertion = "combined_formula_matches_the_target_interventional_truth"
+
+[[routes]]
+route = "antecedent.PreparedMzTransport.estimate_refresh"
+stage = "evaluate"
+status = "licensed"
+graph = "checked_catalog_bound_mz_transport_functional"
+evidence = "frozen_proof_and_bound_snapshot_laws"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+observation = "exact_or_empirical_plugin_point_distributions"
+guarantee = "point_only_counted_laws_withhold_the_interval_as_cell_not_licensed"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+limits = "Rust facade (StudyBuilder::mz_transport / mz_transport_empirical, PreparedMzTransport::estimate / refresh / export). One compiled plan per request; contrasts are request k minus request 0 per outcome mean. Counted laws return the point and uncertainty withheld/cell_not_licensed with the declared-sampling reason the internal bootstrap would also withhold for; never a nominal interval. Refresh accepts only the frozen catalog's snapshots."
+evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs"
+evidence_assertion = "contrasts_run_through_prepare_estimate_refresh_export_and_consume"
+
+[[routes]]
+route = "antecedent.consume_mz_transport_artifact"
+stage = "consume"
+status = "licensed"
+graph = "embedded_checked_mz_transport_proof_and_search_receipt"
+evidence = "embedded_catalog_laws_requests_points_and_contrasts"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+guarantee = "independently_re_decided_re_bound_and_bit_exact_recomputed"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+limits = "Re-decides under the consumer's limits, re-binds every source, recomputes every point and contrast bit for bit. The premises digest binds graph, query, proof, expression, search and evaluation limits, requests and variable names; the data-identity digest binds catalog and law snapshot ids. An artifact that carries an interval is refused with cell_not_licensed (mz_transport.interval_withheld)."
+evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs"
+evidence_assertion = "a_mutated_artifact_fails_independent_consumption"
+
+[[routes]]
+route = "antecedent.transport.advanced.identify_multi_source_z_transport"
+stage = "identify"
+status = "licensed"
+graph = "shared_finite_discrete_admg_with_one_selection_diagram_per_source"
+evidence = "target_observational_joint_and_per_source_supplied_joint_regimes"
+functional = "target_interventional_outcome_distribution"
+observation = "cited_joint_regimes_only_never_fabricated_across_sources"
+guarantee = "sound_incomplete"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+limits = "Python surface of antecedent_identify.decide_mz_transport: the decision is taken once and every preparation reuses it. Out-of-bound queries refuse as route_not_supported (mz_transport.bounds_exceeded); a non-identified decision refuses preparation with its own reason code and mz_transport detail."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_multi_source_identification_executes_its_plan_after_query_disposal"
+
+[[routes]]
+route = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_exact"
+stage = "prepare"
+status = "licensed"
+graph = "checked_catalog_bound_mz_transport_functional"
+evidence = "exact_laws_bound_to_the_frozen_catalog"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+observation = "exact_law_joint_tables"
+guarantee = "checked_prepared_point_route"
+limits = "One assignment mapping or a sequence of them; one compiled plan per request. Exact laws are point_only."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_prepare_exact_compiles_a_checked_plan_after_builder_disposal"
+
+[[routes]]
+route = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_empirical"
+stage = "prepare"
+status = "licensed"
+graph = "checked_catalog_bound_mz_transport_functional"
+evidence = "counted_laws_bound_to_the_frozen_catalog"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+observation = "empirical_plugin_joint_tables"
+guarantee = "checked_prepared_point_route_interval_withheld_cell_not_licensed"
+limits = "Every law carries counts (transport_missing_provider, mz_transport.empirical_counts_required otherwise). The point is the empirical plug-in; the interval is withheld as cell_not_licensed."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_prepare_empirical_compiles_a_counted_plan_after_builder_disposal"
+
+[[routes]]
+route = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.estimate"
+stage = "evaluate"
+status = "licensed"
+graph = "checked_catalog_bound_mz_transport_functional"
+evidence = "frozen_proof_and_bound_snapshot_laws"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+observation = "exact_or_empirical_plugin_point_distributions"
+guarantee = "point_only_counted_laws_withhold_the_interval_as_cell_not_licensed"
+limits = "Every request's point and outcome means, and contrasts against request 0 (points only). interval.available is always false: point_only for exact laws, withheld/cell_not_licensed for counted laws with dependence_reason when declared sampling would also withhold."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_estimate_executes_every_request_and_contrast_from_the_retained_plan"
+
+[[routes]]
+route = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.refresh"
+stage = "prepare"
+status = "licensed"
+graph = "checked_catalog_bound_mz_transport_functional"
+evidence = "fresh_laws_under_the_frozen_catalog_snapshots"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+guarantee = "proof_and_requests_unchanged_snapshot_identity_enforced"
+limits = "Recompiles every request's plan against laws of the snapshots the frozen catalog binds; another snapshot, regime or population needs a new decision. Clears the last claim."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan"
+
+[[routes]]
+route = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.export"
+stage = "representation"
+status = "licensed"
+graph = "checked_catalog_bound_mz_transport_functional"
+evidence = "last_executed_points_contrasts_and_bookkeeping"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+guarantee = "names_limits_requests_and_snapshot_ids_bound_into_the_verified_identity"
+limits = "Framed mz artifact v1. Relabelled names, changed limits and renamed snapshots are refused by the consumer with typed errors."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_export_binds_names_limits_and_snapshots_into_the_verified_identity"
+
+[[routes]]
+route = "antecedent.transport.advanced.consume_multi_source_z_transport_artifact"
+stage = "consume"
+status = "licensed"
+graph = "embedded_checked_mz_transport_proof_and_search_receipt"
+evidence = "embedded_catalog_laws_requests_points_and_contrasts"
+functional = "target_interventional_distributions_and_mean_contrasts_against_request_zero"
+guarantee = "independently_re_decided_re_bound_and_bit_exact_recomputed"
+reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r443.pdf"
+limits = "Python surface of antecedent.consume_mz_transport_artifact; the frame's names must equal the verified name mapping; the stored interval seed is reported as stored (none while the route is closed)."
+evidence_test = "python/tests/test_transport_multi_source.py"
+evidence_assertion = "test_consumer_recomputes_points_and_contrasts_after_builder_disposal"
+
+[[routes]]
+route = "antecedent.transport.multi_source_z_transport.uncertainty_joint_bootstrap"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies and ...multi_source_mz_shared_units are measured (crates/antecedent/tests/mz_transport_calibration.rs, gate_calibration.sh run_mz). Runtime refusal: crates/antecedent/tests/mz_transport_lifecycle.rs::the_unmeasured_interval_route_refuses_with_cell_not_licensed and python/tests/test_transport_multi_source.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed. The internal estimator is antecedent_estimate::mz_transport_bootstrap_interval."

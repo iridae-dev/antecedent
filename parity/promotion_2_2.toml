@@ -6,18 +6,33 @@
 # scripts/check_promotion_records.py (run by scripts/gate_promotion.sh) enforces:
 #
 #   - every frozen field is present and every refusal code is registered;
-#   - a bounded search declares cancellation, operation, depth and memory limits;
-#   - a record's routes stay closed until the record is `promoted`, and a
-#     2.2 route cannot be licensed in parity/transport_stages.toml ahead of it;
+#   - a bounded search declares cancellation, operation, depth and memory limits,
+#     and once in_progress names `search_impl` files that run under SearchBudget
+#     and together call `.charge(` on it (metered, not only pre-flighted);
+#   - a route is `licensed` only when its record carries the evidence: always once
+#     `promoted`; while `in_progress` only for a non-uncertainty route declaring
+#     `claim = "point_only"` or `"none"` whose record already cites executed
+#     positive, negative, artifact (and, for a search, budget) fixtures. An
+#     uncertainty route is never licensed before promotion;
+#   - every route has a row in its owning registry that agrees with it
+#     (parity/transport_stages.toml [[routes]], or support_licensed.toml cells /
+#     support_closed.toml [[closed_contrast]] rows), same status and reason_code;
+#   - once `in_progress` or `promoted`: every closed route cites an executed
+#     runtime-refusal test (`refusal_test` + `refusal_assertion`) that observes its
+#     reason_code; the record's refusal details equal the `"<ns>.<detail>"` literals
+#     in non-test source (crates/*/src, python/src, python/antecedent); every public
+#     symbol of the record's `surface` files is a route-name component or a value
+#     type listed in `surface_values`;
 #   - a `promoted` record cites executed positive, negative, artifact (and, for a
 #     search, budget) fixtures, plus coverage records for any calibrated interval;
-#   - no 2.2 record publishes a nominal-only interval (`estimator_grid_not_measured`
-#     is not a 2.2 inference claim).
+#   - no 2.2 record publishes a nominal-only interval: `estimator_grid_not_measured`
+#     is not a 2.2 inference claim and may not appear on a licensed route or owning
+#     row of in_progress/promoted work.
 #
 # Record status: frozen -> in_progress -> promoted, or carried_forward (the cell
 # failed its gate; its refusal stays visible and the rest of 2.2 still ships).
-# Routes here are closed until promotion; on promotion the licensed row moves to
-# its owning stage registry and this record points at it.
+# Closed routes are refused at runtime; on licensing, the owning registry row
+# flips to licensed together with the record route.
 #
 # Inference-claim vocabulary (release notes must use the same words):
 #   point_only            exact or plug-in point, no interval
@@ -44,29 +59,45 @@ evidence_family = "Per-source joint-regime experimental laws do(Z_i=z) with thei
 provider = "Existing exact finite-law evaluator; empirical tables through the same checked formula (no separate estimator route)."
 estimand = "Target interventional outcome distribution P*(y | do(x)) and its numeric means/contrasts."
 inference_claim = "calibrated"
-inference_notes = "Exact laws are point_only. An empirical interval ships only for independent studies or declared shared units, via joint outer bootstrap sharing replicate ids; unknown dependence withholds it (sampling_dependence_unknown). The interval ships only after its coverage records exist."
+inference_notes = "Exact laws are point_only; counted laws give the empirical plug-in point. The joint outer bootstrap (independent studies resampled independently under one replicate id; regimes of one forwarded dataset resampled as one table, margins projected from it within each replicate) is wired for calibration but its public route is closed: estimates report uncertainty withheld/cell_not_licensed with the declared-sampling dependence_reason, and public consumers refuse an artifact that carries an interval. The route opens only after both coverage records are measured."
 owners = ["antecedent-core", "antecedent-identify", "antecedent-expr", "antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 identity_inputs = ["graph digest", "ordered-canonical source set (sorted by population id; permutation invariant)", "per-source selection targets", "per-source controllable set", "per-source supplied regime set with intervention values", "target query (outcomes, treatments, values)", "search limits", "evidence snapshot ids (data identity; refresh-replaceable)"]
 wire_changes = ["Additive: multi-source z-transport artifact v1 (separate from the v2 single-source artifact); per-leaf source population on proof nodes; search receipt with explored/unevaluated regions; sampling-dependence declaration per source pair."]
 compatibility = "The single- and two-source routes and their artifacts are unchanged; two-source queries keep their registered factorizations. The new route is a superset only through its own artifact version."
 coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_shared_units"]
 search = true
+search_impl = ["crates/antecedent-identify/src/sid/mz_transport.rs", "crates/antecedent-identify/src/sid.rs"]
+surface = ["python/antecedent/transport/_multi_source.py"]
+surface_values = ["ZTransportSource", "MultiSourceZTransportQuery"]
 bounds = { max_observed = 12, max_sources = 4, max_controllable_per_source = 4, max_candidate_regimes = 64, max_search_states = 4096, max_depth = 24, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
 refusals = [
-  { code = "transport_not_certified", detail = "mz_transport.search_incomplete", when = "Licensed rules exhausted within budget without a formula or theorem-backed obstruction." },
-  { code = "transport_proven_non_transportable", detail = "mz_transport.checked_obstruction", when = "Every source reaches a checked line-11 terminal under a shared controllable set and selection targets, as the theorem licenses." },
-  { code = "transport_missing_evidence", detail = "mz_transport.missing_joint_regime", when = "A certified factor cites a joint regime no source supplied." },
-  { code = "transport_not_certified", detail = "mz_transport.fabricated_joint", when = "A factor would need one joint over several sources' interventions." },
-  { code = "transport_budget_cancel", detail = "mz_transport.budget", when = "Steps, depth, memory or cancellation stopped the search; receipt records explored and unevaluated regions." },
-  { code = "route_not_supported", detail = "mz_transport.bounds_exceeded", when = "More sources, observed variables, controllables or candidate regimes than the declared bounds." },
-  { code = "sampling_dependence_unknown", detail = "mz_transport.interval_withheld", when = "Point retained; interval withheld because inter-source dependence is undeclared." },
+  { code = "transport_not_certified", detail = "mz_transport.search_incomplete", when = "The combined search finished within budget without a formula or a checked obstruction." },
+  { code = "transport_proven_non_transportable", detail = "mz_transport.checked_obstruction", when = "A forced line-11 terminal with no active experiment is reached and independently replayed, as the theorem licenses." },
+  { code = "transport_missing_evidence", detail = "mz_transport.missing_joint_regime", when = "A certified formula cites a regime or level no source supplied (separate do(A), do(B) never stand in for do(A,B))." },
+  { code = "transport_not_certified", detail = "mz_transport.fabricated_joint", when = "A line-11 state could be completed only by one joint over two sources' interventions, or a leaf intervenes outside its source's controllables." },
+  { code = "transport_budget_cancel", detail = "mz_transport.budget", when = "Operations, depth, memory or cancellation stopped the one budget shared by every stage; the receipt records explored stages/rules and unevaluated stages and line-10 source branches." },
+  { code = "route_not_supported", detail = "mz_transport.bounds_exceeded", when = "Sources outside 2-4, more than 12 observed, controllables per source outside 1-4, more than 64 candidate regimes, or search limits above 4096 operations / depth 24." },
+  { code = "invalid_argument", detail = "mz_transport.invalid_query", when = "Populations not distinct or equal to the target, an invalid selection diagram, or a malformed per-source query." },
+  { code = "invalid_argument", detail = "mz_transport.invalid_catalog", when = "The catalog fails validation, the target supplies an experiment, or a source regime intervenes outside its controllable set." },
+  { code = "transport_not_certified", detail = "mz_transport.invalid_derivation", when = "A stored derivation is not reproduced, binding disagrees with the graph or route, or a leaf check fails." },
+  { code = "transport_not_certified", detail = "mz_transport.invalid_obstruction", when = "A stored obstruction does not verify or replay." },
+  { code = "invalid_argument", detail = "mz_transport.functional_graph_mismatch", when = "Preparation receives a functional decided on a different graph." },
+  { code = "transport_missing_provider", detail = "mz_transport.empirical_counts_required", when = "Empirical preparation or refresh receives a law without counts." },
+  { code = "cell_not_licensed", detail = "mz_transport.interval_withheld", when = "Point retained; the interval route is closed until its coverage records are measured, and a public consumer refuses an artifact that carries an interval." },
 ]
 routes = [
-  { name = "antecedent_identify.decide_mz_transport", stage = "identify", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_exact", stage = "prepare", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.estimate", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.multi_source_z_transport.uncertainty_joint_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed" },
-  { name = "antecedent.transport.advanced.consume_multi_source_z_transport_artifact", stage = "consume", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent_identify.decide_mz_transport", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent_estimate.evaluate_exact_mz_transport", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.PreparedMzTransport.estimate_refresh", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.consume_mz_transport_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.identify_multi_source_z_transport", stage = "identify", status = "licensed", claim = "none" },
+  { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_exact", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.MultiSourceZTransportStage.prepare_empirical", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.refresh", stage = "prepare", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.export", stage = "representation", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.advanced.consume_multi_source_z_transport_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.transport.multi_source_z_transport.uncertainty_joint_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", refusal_assertion = "the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
 ]
 fixtures = [
   { id = "x1.combined_catalog_only.positive", role = "positive", intent = "No single source identifies; the combined catalog does; exact SCM truth.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "combined_catalog_identifies_what_no_single_source_can" },
@@ -80,7 +111,15 @@ fixtures = [
   { id = "x1.mutated_artifact.negative", role = "negative", intent = "Mutated result, premises, source identity, bindings, data identity, bookkeeping or limits fail independent consumption.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "a_mutated_artifact_fails_independent_consumption" },
   { id = "x1.dependence.negative", role = "negative", intent = "Undeclared, linked or unresolvable shared sampling withholds the interval, never the point.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "undeclared_or_unsupported_dependence_withholds_the_interval_not_the_point" },
   { id = "x1.python_roundtrip.artifact", role = "artifact", intent = "Python surface: identify, prepare, estimate, export and independent consume match the Rust route.", evidence_test = "python/tests/test_transport_multi_source.py", evidence_assertion = "test_exported_result_is_recomputed_by_an_independent_consumer" },
-  { id = "x1.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the joint bootstrap under independent and shared designs." },
+  { id = "x1.shared_budget.budget", role = "budget", intent = "One SearchBudget bounds every stage; a limit each stage fits alone exhausts in total.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "one_budget_is_shared_by_every_stage" },
+  { id = "x1.depth_memory.budget", role = "budget", intent = "Depth and memory stops are receipts under SearchBudget semantics, never verdicts.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "memory_exhaustion_is_a_receipt_and_is_checked_on_every_charge" },
+  { id = "x1.bounds.negative", role = "negative", intent = "Graph, controllable and search-limit maxima refuse as bounds_exceeded.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "graph_and_controllable_bounds_refuse_as_bounds_exceeded" },
+  { id = "x1.every_outcome_order.invariance", role = "invariance", intent = "Obstruction, missing evidence, not-certified and exhausted outcomes are invariant to source order.", evidence_test = "crates/antecedent-identify/tests/mz_transport_search.rs", evidence_assertion = "every_outcome_is_invariant_to_source_declaration_order" },
+  { id = "x1.shared_dataset.lifecycle", role = "lifecycle", intent = "Regimes of one forwarded dataset always return the point; the interval is withheld, never the point.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "shared_dataset_regimes_always_return_the_point" },
+  { id = "x1.contrasts.lifecycle", role = "lifecycle", intent = "Contrasts run through prepare, estimate, refresh, export and consume.", evidence_test = "crates/antecedent/tests/mz_transport_lifecycle.rs", evidence_assertion = "contrasts_run_through_prepare_estimate_refresh_export_and_consume" },
+  { id = "x1.python_fabricated_joint.negative", role = "negative", intent = "Python surface refuses a fabricated cross-source joint.", evidence_test = "python/tests/test_transport_multi_source.py", evidence_assertion = "test_a_fabricated_cross_source_joint_is_refused" },
+  { id = "x1.python_mutation.negative", role = "negative", intent = "Semantic mutation of names, limits or snapshots fails Python consumption with a typed error.", evidence_test = "python/tests/test_transport_multi_source.py", evidence_assertion = "test_export_binds_names_limits_and_snapshots_into_the_verified_identity" },
+  { id = "x1.repeated_sampling.calibration", role = "calibration", intent = "Repeated-sampling coverage of the joint bootstrap under independent and shared designs (wired; ignored until measured by gate_calibration.sh)." },
 ]
 
 [[record]]
@@ -90,37 +129,46 @@ milestone = "A"
 work_package = "A2"
 status = "promoted"
 consumer_question = "Which transport conclusions survive each of a finite, explicitly supplied set of graph/selection scenarios?"
-theorem = "No new theorem: each scenario is decided independently by an already licensed fixed-graph transport contract (classical sID, z-transport). The envelope is a report over those results, not an identification claim about an equivalence class."
+theorem = "No new theorem: each scenario is decided independently by the already licensed classical catalog transport contract (sID with checked s-hedge obstructions). The envelope is a report over those results, not an identification claim about an equivalence class."
 reference = "https://arxiv.org/abs/1312.7485v1"
 guarantee = "per_scenario_contract_guarantee"
-graph_class = "Finite list of fixed DAG/selection-ADMG scenarios admitted by existing licensed transport rows; ADMG rows enter only after 2.2B B1 passes. No CPDAG/PAG-native transport ID."
-population_semantics = "Shared named variable coordinates, domains, units and cardinalities across scenarios; the same target question; edges and selection targets vary per scenario."
-evidence_family = "Evidence bound independently per scenario; evidence certified for one scenario never satisfies another."
-provider = "Whatever the scenario's licensed route uses (exact or empirical plug-in)."
+graph_class = "Finite list (1-64) of fixed selection diagrams over at most 12 shared observed variables, each decided by the already licensed classical catalog sID row (selection ADMGs as that row admits them). The new bounded ADMG transport class of 2.2B B1 enters only after B1 passes. No CPDAG/PAG-native transport ID."
+population_semantics = "One declared coordinate schema (names, domains, cardinalities, units) shared by every scenario and validated against each graph, the catalog, laws, samples and the request; the same target question; edges and selection targets vary per scenario."
+evidence_family = "One supplied catalog; each scenario binds its own selection targets and its own derivation's evidence obligations, so evidence certified for one scenario never satisfies another. Shared-catalog environments may not declare selections (they belong to each scenario)."
+provider = "Exact finite laws, or empirical tables fitted once and plugged into the same compiled per-scenario plan (points only)."
 estimand = "Per-scenario target response; unweighted structural envelope (min/max over identified scenarios with the unidentified/unevaluated set named); optional declared-weight mixture report with residual mass preserved."
 inference_claim = "structural_envelope"
-inference_notes = "Within-scenario inference only where that scenario's row already licenses it. Cross-scenario aggregate inference with shared data is 2.3A and refuses (scenario_aggregate_not_licensed). Spread is never labelled a confidence interval or sharp bound."
+inference_notes = "Point-only per scenario: the classical row's within-scenario bootstrap is not carried into the envelope in 2.2A. Weighted ranges use the declared outcome domain limits and are withheld when unaccounted mass meets an unbounded domain. Cross-scenario aggregate inference with shared data is 2.3A and refuses (scenario_aggregate_not_licensed). Spread is never labelled a confidence interval or sharp bound."
 owners = ["antecedent-core", "antecedent-identify", "antecedent-io", "antecedent", "python/antecedent/transport"]
-identity_inputs = ["canonical scenario set (sorted scenario digests; permutation invariant)", "declared weights (exact rationals/f64 bits) when supplied", "shared coordinate schema", "target question", "evaluation budget"]
-wire_changes = ["Additive: scenario-set wire and scenario-envelope artifact v1 retaining every scenario with status identified | structurally_unidentified | missing_evidence | unsupported_provider | unevaluated_budget."]
+identity_inputs = ["canonical scenario set (sorted by unique scenario name; permutation invariant)", "declared weights (f64 bits) when supplied", "shared coordinate schema including variable names", "target question and request", "shared scenario budget (operations, depth, memory) and evaluation budget", "provider and fitted-sample summaries"]
+wire_changes = ["Additive: scenario-set wire and scenario-envelope artifact v1 retaining every scenario with status identified | structurally_unidentified | missing_evidence | unsupported_provider | support_failure | not_certified | unevaluated (detail scenarios.unevaluated_budget: search.<stop>)."]
 compatibility = "Fixed-graph transport artifacts are unchanged; a one-scenario set is a separate artifact, not a relabelled fixed-graph result."
 coverage_records = []
 search = true
-bounds = { max_scenarios = 64, max_observed = 12, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
+search_impl = ["crates/antecedent-identify/src/sid/scenarios.rs", "crates/antecedent-identify/src/sid.rs"]
+surface = ["python/antecedent/transport/_scenarios.py"]
+surface_values = ["TransportScenario", "TransportScenarioSet"]
+bounds = { max_scenarios = 64, max_observed = 12, shared_budget = "one SearchBudget over every scenario entry, catalog search, s-hedge check and verification replay", cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "ExecutionContext.memory.hard_limit_bytes" }
 refusals = [
   { code = "scenario_aggregate_not_licensed", detail = "scenarios.shared_data_aggregate", when = "An inferential statement across scenarios sharing data is requested (2.3A)." },
-  { code = "schema_mismatch", detail = "scenarios.coordinate_mismatch", when = "Scenarios disagree on named variables, domains, units or cardinalities." },
-  { code = "invalid_argument", detail = "scenarios.invalid_weights", when = "Declared weights are negative, non-finite, or exceed total mass one." },
+  { code = "schema_mismatch", detail = "scenarios.coordinate_mismatch", when = "Scenarios disagree on names, domains, cardinalities or units; a schema does not cover its graph exactly; or a catalog environment, law, sample, request or question falls outside the shared schema." },
+  { code = "invalid_argument", detail = "scenarios.invalid_weights", when = "Weights not declared for all or none, or not finite, non-negative and summing to at most one." },
+  { code = "invalid_argument", detail = "scenarios.empty", when = "No scenarios are supplied." },
+  { code = "invalid_argument", detail = "scenarios.duplicate_or_empty_name", when = "A scenario name is blank or repeated." },
+  { code = "invalid_argument", detail = "scenarios.duplicate_scenario", when = "Two scenarios have identical graphs and selections." },
+  { code = "invalid_argument", detail = "scenarios.catalog_selections", when = "A shared-catalog environment declares selection targets." },
+  { code = "route_not_supported", detail = "scenarios.count", when = "More than 64 scenarios." },
+  { code = "route_not_supported", detail = "scenarios.observed_count", when = "More than 12 observed variables." },
   { code = "route_not_supported", detail = "scenarios.equivalence_class_input", when = "A CPDAG/PAG is supplied in place of an explicit scenario list." },
-  { code = "transport_budget_cancel", detail = "scenarios.unevaluated_budget", when = "Remaining scenarios are recorded unevaluated, never dropped." },
+  { code = "transport_budget_cancel", detail = "scenarios.unevaluated_budget", when = "The shared budget or cancellation stopped the set; the scenario being decided and all later ones are reported unevaluated with one cumulative receipt, never dropped." },
 ]
 routes = [
   { name = "antecedent.transport.advanced.prepare_transport_scenarios", stage = "prepare", status = "licensed" },
   { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.estimate.structural_envelope", stage = "evaluate", status = "licensed" },
   { name = "antecedent.transport.advanced.PreparedTransportScenariosStage.estimate.weighted_report", stage = "evaluate", status = "licensed" },
   { name = "antecedent.transport.advanced.consume_transport_scenarios_artifact", stage = "consume", status = "licensed" },
-  { name = "transport.scenarios.aggregate_inference", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true },
-  { name = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", permanent_in_release = true },
+  { name = "transport.scenarios.aggregate_inference", stage = "uncertainty", status = "closed", reason_code = "scenario_aggregate_not_licensed", permanent_in_release = true, refusal_test = "crates/antecedent/tests/transport_scenarios.rs", refusal_assertion = "inference_across_scenarios_is_refused" },
+  { name = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "python/tests/test_transport_scenarios.py", refusal_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
 ]
 fixtures = [
   { id = "x2.conflicting_identified.positive", role = "positive", intent = "All scenarios identified with conflicting answers; envelope spans them.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "identified_scenarios_disagree_and_the_envelope_spans_them" },
@@ -132,6 +180,17 @@ fixtures = [
   { id = "x2.roundtrip.artifact", role = "artifact", intent = "Artifact retains failed and successful scenarios.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "artifact_keeps_every_scenario_and_fails_on_mutation" },
   { id = "x2.refusals.negative", role = "negative", intent = "Cross-scenario inference refuses with scenario_aggregate_not_licensed; a CPDAG/PAG input refuses with route_not_supported.", evidence_test = "python/tests/test_transport_scenarios.py", evidence_assertion = "test_cross_scenario_inference_and_equivalence_classes_are_refused" },
   { id = "x2.refresh.lifecycle", role = "lifecycle", intent = "Refresh keeps every decision and recompiles against new laws.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "estimate_after_refresh_keeps_decisions_and_moves_points" },
+  { id = "x2.schema_mismatch.negative", role = "negative", intent = "Scenarios disagreeing on names, domains, cardinalities or units refuse with schema_mismatch.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "scenarios_disagreeing_on_names_domains_or_units_refuse_with_schema_mismatch" },
+  { id = "x2.schema_binding.negative", role = "negative", intent = "Laws, requests and catalogs outside the shared schema refuse.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "laws_requests_and_catalogs_are_validated_against_the_shared_schema" },
+  { id = "x2.declared_domain.positive", role = "positive", intent = "Weighted ranges use the declared outcome domain, not observed atoms.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "weighted_ranges_use_the_declared_outcome_domain_not_the_observed_atoms" },
+  { id = "x2.support_failure.negative", role = "negative", intent = "A support failure is scenario-local.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "a_support_failure_is_scenario_local" },
+  { id = "x2.not_certified.negative", role = "negative", intent = "A not-certified scenario is reported with its obligations.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "a_not_certified_scenario_is_reported_and_carries_its_obligations" },
+  { id = "x2.shared_total.budget", role = "budget", intent = "A budget that suffices per scenario does not suffice in total.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "a_budget_that_suffices_per_scenario_does_not_suffice_in_total" },
+  { id = "x2.depth_memory.budget", role = "budget", intent = "The shared budget observes depth and memory.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "the_shared_budget_observes_depth_and_memory" },
+  { id = "x2.cancellation.budget", role = "budget", intent = "Cancellation mid-set leaves the remaining scenarios unevaluated.", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "cancellation_mid_set_leaves_the_remaining_scenarios_unevaluated" },
+  { id = "x2.scenario_bound.negative", role = "negative", intent = "64 scenarios are admitted; 65 refuse with scenarios.count.", evidence_test = "python/tests/test_transport_scenarios.py", evidence_assertion = "test_the_frozen_scenario_bound_refuses_65_scenarios" },
+  { id = "x2.empirical_plug_in.positive", role = "positive", intent = "Empirical tables are fitted once and plug into each scenario's compiled plan (points only).", evidence_test = "crates/antecedent/tests/transport_scenarios.rs", evidence_assertion = "empirical_plug_in_points_compile_per_scenario_through_the_same_plan" },
+  { id = "x2.python_mutation.negative", role = "negative", intent = "Semantic mutation of names or weights fails Python consumption with a typed error.", evidence_test = "python/tests/test_transport_scenarios.py", evidence_assertion = "test_semantic_artifact_mutations_fail_consume_with_typed_errors" },
   { id = "x2.python_roundtrip.artifact", role = "artifact", intent = "Python surface: prepare, estimate, export and independent consume keep every scenario.", evidence_test = "python/tests/test_transport_scenarios.py", evidence_assertion = "test_artifact_round_trip_keeps_failed_scenarios_and_refuses_tampering" },
 ]
 
