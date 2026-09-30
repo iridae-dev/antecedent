@@ -18,6 +18,7 @@ per family:
 | Limited / z-experiment | sound and incomplete within 12 observed and 4 controllable variables; positives use cited joints; a line-11 obstruction is structural in the declared controllable set; two sources are searched separately, and complementary factors combine under two registered factorizations (disconnected graph components and, on one connected graph, intervention-separated outcome groups); a single connected c-factor that would need one fabricated joint over both sources' interventions is refused with reason code `transport_not_certified` whose message names `z_transport.multi_source_combination_not_searched` | `antecedent.transport.advanced.identify_z_transport` and `antecedent_identify.decide_two_source_z_transport` → Bareinboim and Pearl, *Causal Transportability with Limited Experiments* (AAAI 2013, [R-408](https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf)) and *Transportability from Multiple Environments with Limited Experiments* (mz-transportability, NeurIPS 2014); the c-factor step and the completeness result are Lee and Honavar's [arXiv:1309.6842](https://arxiv.org/abs/1309.6842), which this implementation does not claim |
 | Finite scenario envelope (X2) | no new theorem: each scenario of an explicitly supplied list of one to 64 fixed selection ADMGs (at most 12 observed variables) is decided independently by the classical catalog route; the envelope is a report over those decisions, not an identification claim | `antecedent.transport.advanced.prepare_transport_scenarios` → see [Finite scenario envelopes](#finite-scenario-envelopes) |
 | Two-step temporal sequence (X5) | classical sID on the explicit two-slice unrolled selection diagram, deciding `do(A_1=a_1, A_2=a_2)` as one joint intervention; sound and incomplete; exact and point-only | `antecedent.transport.advanced.prepare_temporal_transport_sequence` → see [Two-step temporal sequences](#two-step-temporal-sequences-22a-x5) |
+| ADMG conditional transport (2.2B X2) | sound and incomplete: rule 2 moves every conditioned variable it can into the intervention set (the IDC reduction), classical sID decides the reduced joint over the complete source family, and the conditional is that joint normalized at the remaining conditioned levels; a reduced-joint s-hedge is `not_certified`, never proven (the conditional completeness step is paper-inherited); at most 6 observed variables; exact and point-only | `antecedent.transport.advanced.identify_admg_conditional_transport` → see [ADMG conditional transport](#admg-conditional-transport-22b-x2) |
 
 Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent. The static checker in
 `scripts/check_transport_stages.py` refuses a completeness guarantee that
@@ -169,6 +170,24 @@ executes, refuses sensitivity with `IncompatibleFormula`; the point result is
 unaffected. The sensitivity range is an exact assumption range, not a sampling
 interval.
 
+### Joint mechanism deviations (2.2B X3)
+
+`antecedent.transport.advanced.joint_mechanism_sensitivity(stage, JointDeviation(...))`
+perturbs the surrogate formula's outcome kernel and shared parent marginal together,
+each within its own fraction bound (a box; a coupled total budget refuses with
+`joint_sensitivity.budget_coupling`). It reports the exact joint assumption range,
+the axis tipping points (equal to the 2.1 one-factor values) and a tipping frontier
+of certified bisection brackets under one shared search budget. Fixed-graph parent
+or conditional-mechanism perturbations, the treatment mechanism, more than three
+factors and source-target discrepancy diagnostics refuse with typed
+`joint_sensitivity.*` details. Declared bounds: at most 3 factors declared (only 2
+are supported), 64 parent levels, 32 outcome categories, a frontier grid of 1 to 33
+points, at most 100000 search operations, a bisection depth of 64 iterations per
+frontier line, and a bootstrap request cap of 2000 (internal). The range is never a confidence interval; the one
+declared sampling composition (conservative endpoint percentile bootstrap) is
+closed (`cell_not_licensed`). Export and consume use a separate version 3
+artifact. Derivation and scope: [joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
+
 ## Learned continuous-outcome transport (2.2A X4)
 
 One cell: a randomized binary source treatment with known probabilities, a
@@ -211,6 +230,8 @@ standardizers (a direct or baseline-standardization certificate, the
   (all requirement fields of the refused `dr_learner_cate` and
   `exact_finite_law_evaluator`, and three of the supplied-probability IPW entry).
   Selection stays manual; nothing is recommended.
+- **Bounds.** At most 20 cross-fitting folds and a bootstrap cap of 2000 replicates
+  (floor 199); a consumer admits at most 1,000,000 rows and 256 features.
 - **Interval.** The single method is the joint outer refit percentile bootstrap of the
   whole cross-fitted estimator, grouped per design, replicate floor 199. Its route is
   closed (`cell_not_licensed`) until its two coverage records are measured: estimates
@@ -310,7 +331,7 @@ interval request refuses (`temporal_transport.interval_requested`,
   initial-state masses (beyond 1e-9); a moved initial state is initial-state
   uncertainty or a new period (2.3A) and refuses as a changed window.
 - **Lifecycle.** A same-window evidence refresh re-estimates under the same proof and
-  identity. A longer horizon, a third period, laws over other coordinates or another
+  identity. The licensed horizon is 2 steps. A longer horizon, a third period, laws over other coordinates or another
   measurement window refuse (`temporal_transport.horizon`) and need a new
   preparation. The artifact binds the graph, selections, slots, variable names,
   question, ordered sequence, horizon and limits; a consumer re-decides, recompiles
@@ -454,6 +475,9 @@ identification of Lee, Correa and Bareinboim is not implemented), so the
 multi-study claim remains soundness against enumerated structural models, with no
 completeness figure.
 
+Bounds: at most 10 observed variables, 16 usable distributions and 4 sources, under a
+search budget of 20000 operations at depth 16.
+
 Outcomes: `identified` (with alternative derivations only when actually found),
 `named_route`, `missing_evidence` (`mixed_search.missing_joint`: the exact joint a
 study holds only as separate marginals), `not_certified` (the rule set reached its
@@ -483,6 +507,206 @@ cites. Where Antecedent returns a theorem-scoped named route instead of a proof
 (both single-distribution dosearch cases) the agreement is `agree_named_route`, a
 weaker class than agreement of proofs; see
 `conformance/identify/mixed_source_external/expected.json`.
+
+## ADMG conditional transport (2.2B X2)
+
+`identify_admg_conditional_transport` (Python) and
+`decide_admg_conditional_transport` (Rust) answer the target population's
+`P*(y | do(x), w)` over a selection ADMG (directed and bidirected edges, at most 6
+observed variables, 0-3 treatments, 1-3 conditioned variables) from one source
+that can run every experiment plus the target's observational law. The query
+wraps the classical query (`ConditionalTransportQuery { base, conditioned_on }`);
+it is not a second transport engine.
+
+- **Reduction.** Rule 2 of the do-calculus, applied in the target population,
+  moves a conditioned `w` into the intervention set when `Y` is m-separated from
+  `w` given `X` and the other conditioned variables in the graph with edges into
+  `X` and out of `w` removed (IDC line 1; the moved set equals the one the repo's
+  `IdcIdentifier` moves on every tested graph). The classical sID engine then
+  decides the reduced joint `P*(y, w'' | do(x, w'))`, and the answer is that joint
+  normalized over `y` at the requested `w''`. A zero-mass conditioning event is
+  `transport_support_failure` (`admg_transport.support_failure`).
+- **Guarantee.** Sound and incomplete. Every move is re-checked by an independent
+  augmented-graph separation test (including maximality of the moved set), the
+  joint by the classical sID checker, and the conditional values are compared with
+  enumerated latent SCMs on every three-node ADMG and a seeded four-node sample.
+  Whether a reduced-joint s-hedge makes the conditional non-transportable is the
+  transport analogue of IDC completeness; its theorem text was not read, so the
+  claim is paper-inherited and such a case is `not_certified`
+  (`admg_transport.not_certified`) with an inspection-only
+  `ConditionalObstructionCandidate` (`"proof": false` in Python).
+- **Budget.** One `SearchBudget` (at most 4096 operations, depth 24, a memory cap
+  that is never absent) is charged by every rule-2 separation test, every sID step
+  and the catalog binding. A stop is `exhausted` with a receipt of explored and
+  unevaluated stages, never a verdict.
+- **Artifact.** `checked_admg_conditional_point_v1`: the consumer refuses stored
+  limits above its own before any work, checks a premises digest and a separate
+  data-identity digest, re-checks the proof and re-decides the query under the
+  producer's stored limits, re-binds the leaves and recomputes every point bit for
+  bit. It does not authenticate the laws (the data digest names snapshots), and it
+  cannot detect a wrong causal graph or a consistently re-sealed forgery (the
+  digests are integrity checks, not signatures).
+- **Not licensed.** Counted laws, an empirical plug-in and any interval
+  (`cell_not_licensed`, `admg_transport.interval_withheld`); selection-bias
+  (`S = 1` sampling) semantics; soft interventions; gID / g-transportability with
+  surrogate or heterogeneous experiments (deferred to 2.3A).
+- **Witness extension note.** `ConditionalObstructionCandidate` is additive: it
+  pairs the unchanged `SHedgeCertificate` of the reduced joint with the rule-2 moves
+  and the non-movable remainder (`ConditionalObstructionRecord`). The hedge and
+  s-hedge certificate shapes are unchanged, so the ADMG counterfactual work (2.2B
+  B5) can converge on this record for a conditional-obstruction witness and upgrade
+  it to a proof once the conditional completeness theorem is verified.
+
+## Smoothed dose-response transport (2.2B X4)
+
+One cell: a randomized continuous source dose with a **known** conditional density
+`pi(a | x)` on a declared support, transported to an overlap-supported target, on a grid
+of at most 16 doses at one declared bandwidth `h` with the Epanechnikov kernel. The
+estimand is `psi_h(a) = E_target[ integral K_h(a - t) E(Y | X, A=t, S=1) dt ]`; the
+bandwidth and kernel are part of it, never tuned. The derivation of the score, its model
+double robustness and the executed numerical checks are in
+[smoothed-dose-response-transport.md](../smoothed-dose-response-transport.md); record
+`2.2B.X4.smoothed_dose_response_transport`, refusal namespace `dose_response`.
+
+- **Surface.** Rust `StudyBuilder::smoothed_dose_transport` / `PreparedSmoothedDose`
+  (estimate, refresh, interval, estimator menu) and `consume_smoothed_dose_artifact`;
+  Python `advanced.prepare_smoothed_dose`, `advanced.consume_smoothed_dose`,
+  `advanced.smoothed_dose_estimator_menu`.
+- **Support.** Every window `[a - h, a + h]` must lie in the dose support (no boundary
+  kernels; `dose_response.grid_outside_dose_support`); known densities must be valid and
+  above a floor; the local kernel-weight effective sample size and the number of
+  distinct doses per window are gated; membership overlap as in the learned-trial cell.
+  An estimated (generalized-propensity) density, point-curve, stochastic, derivative,
+  conditional or simultaneous targets are refused.
+- **Nuisances.** `mu(t, x)` (Regression over a row-wise dose-by-covariate basis) and
+  membership (BinaryProbability) through `LearnerSpec`, cross-fitted on one shared fold
+  assignment; every fold model is kept as a portable predictor, so a learner without one
+  is refused (`dose_response.learner_not_portable`).
+- **Errors kept apart.** Each grid dose records the quadrature error
+  `|psi_Q - psi_2Q|` (refused above the declared tolerance,
+  `dose_response.quadrature_tolerance`) and the smoothing-bias diagnostic
+  `psi_h - psi_{h/2}` (plug-in) with its local-quadratic extrapolation; neither is added
+  to the estimate. The analytic influence-function standard error is a diagnostic only.
+- **Bounds.** At most 16 grid doses, 20 cross-fitting folds, 200,000 rows, 256 covariates,
+  basis degree 1 to 3, at most 8 knots, and a bootstrap request of 199 to 2000 replicates;
+  a violation refuses as `dose_response.bounds_exceeded`.
+- **Interval.** The pointwise joint outer refit percentile bootstrap of the whole
+  composed estimator (`smoothed_dose_interval_internal`, `calibration-internal` only)
+  is wired in `crates/antecedent/tests/smoothed_dose_calibration.rs`; its route is closed
+  (`cell_not_licensed`) until its two coverage records are measured.
+- **Artifact.** `checked_smoothed_dose_transport_v1`: a consumer re-derives the
+  certificate, re-predicts every nuisance from the stored fold models and re-integrates
+  every quadrature bit for bit, without fitting; it cannot establish that the stored
+  models were fitted as recorded.
+
+## Exact binary observation recovery (2.2B X10)
+
+Graph-licensed recovery, not MAR/IPCW. A separate recovery stage recovers the full
+law `P(X(1), O)` of item-missing binary variables from one named observed pattern
+law `P(R, X*, O)` (`identify_observation_recovery`, `StudyBuilder::observation_recovery`),
+then feeds it to the ordinary target ID stage of sID for a causal effect.
+
+- **Class.** A binary DAG m-graph: at most 3 partially observed variables `X`, each
+  with a response indicator `R` (parents among `X` and `O` only) and a deterministic
+  proxy `X*` with levels `0`, `1`, `?`; at most 2 fully observed `O`; at most 864
+  observed cells. Selection nodes, bidirected edges, non-binary variables,
+  `R -> R` edges and noisy proxies refuse as `recovery.unsupported_mechanism`.
+- **Decision.** Recoverable exactly when no `X_i -> R_i` edge exists. The formula
+  `P(R = 1, X* = x, O = o) / prod_i p(R_i = 1 | pa(R_i))`, each propensity a ratio
+  of observed pattern margins, is derived in the module docs, lowered to the
+  expression IR with every leaf bound to a margin of the named catalog distribution,
+  and checked by an independent checker. A self-censoring edge is proved
+  nonrecoverable by an exact-integer witness (`recovery.nonrecoverable_witness`).
+  In this class both directions are proved in the repo; the general Nabi,
+  Bhattacharya and Shpitser (2020) criterion (with colluders) is paper-inherited.
+- **Evidence.** One joint law over exactly `R`, `X*`, `O`; separate marginals refuse as
+  `recovery.missing_margin`. No complete-case fallback and no MAR or IPCW
+  substitution: the missingness assumption lives in the graph and is checked.
+- **Recovered law.** A derived law with `LawOrigin::Recovered` provenance, never an
+  observed table; it never satisfies a catalog-route factor. The effect handoff
+  requires the same population, the variables `X ∪ O`, the m-graph's causal
+  restriction as the effect graph (`recovery.handoff_mismatch` otherwise) and
+  strictly positive support.
+- **Budget.** One `SearchBudget` (at most 50000 operations, depth 32) bounds every stage;
+  a stop is `recovery.budget` with a receipt, never a verdict.
+- **Artifact.** `checked_observation_recovery_point_v1`: a consumer re-decides under
+  the stored limits, re-checks the formula and recomputes the recovered law and every
+  effect point bit for bit. It cannot establish that the observed table describes real
+  data, nor the m-graph's untestable premises. Exact laws only: point-only, and counted
+  laws refuse as `cell_not_licensed`.
+
+## Study planning over the X1 and X9 catalogs (2.2B X6)
+
+Structural plus declared-cost planning, not a success probability. Given a query the
+multi-source (`mz`) or mixed-source (`mixed`) route cannot identify from its catalog,
+and a declared universe of candidate studies, `plan_studies`
+(`antecedent::design::plan_studies`, Python `plan_studies`) finds the cheapest subset
+that would make the same route identify the query if the studies delivered exactly
+the declared regimes.
+
+- **Candidates.** A study is a population (the target or a declared source; new
+  populations are not planned), an intervention set with its feasible level
+  combinations (or every level), the jointly measured margin, a recruitment
+  declaration, a positive integer cost, a sample budget (a tie-breaker only) and
+  `requires`/`conflicts` constraints. Each compiles to a typed hypothetical
+  `EvidenceCatalogDelta`. Source experiments stay inside the source's controllable
+  set; the target never experiments on the mz route; value-restricted studies refuse
+  on the mixed route; everything else refuses as `study_plan.invalid_candidate`.
+- **Search.** At most 16 candidates, 8 regimes each; every subset of at most 3 is
+  evaluated in cost order (cost units, sample budget, size, sorted ids;
+  `x6.ranking.v1`) by re-running the route's decision on the preview catalog. One
+  `SearchBudget` (at most 200000 operations, depth 24, 16 on the mixed route, and
+  512 MiB; at most 32 proposals retained) bounds the base decision and every subset decision; a stop keeps the
+  proposals verified so far with a receipt of the unevaluated subsets
+  (`study_plan.budget`), never a verdict. A decision above the route's own cap (4096
+  operations on mz, 20000 on mixed) is inconclusive for that subset.
+- **Sufficiency.** Only a re-run decision that identifies, whose derivation re-checks
+  against the preview catalog (an X9 derivation through the independent checker, an
+  X9 named route re-run and bound), and whose formula cites a proposed regime. The
+  proposal names each repaired factor or X9 proof step and the margin the proof reads
+  from each proposed regime; a smaller margin is verified only as its own declared
+  candidate (no margin power-set search).
+- **Claims.** No sufficient subset is `study_plan.none_certified` within the universe,
+  never an impossibility claim. The only theorem-limited refusal is a base X1 decision
+  that is a replayed checked obstruction over the declared controllable sets
+  (`study_plan.theorem_limited`). The top proposal is marked minimal only when every
+  strictly cheaper subset was decided without a stop: cost-minimal among
+  verified-derivable subsets of this universe under this search and rule set. Supersets
+  of a sufficient subset are listed `dominated`, for ranking only.
+- **Arrival.** `receive` requires the frozen base unchanged and every proposed regime
+  present as available evidence of exactly the proposed shape, bound to the provider's
+  snapshot (`study_plan.arrival_mismatch`), then decides the real catalog through the
+  public route. Positivity is a premise: a law without mass at a level the formula
+  reads passes `receive` and is refused by the ordinary evaluator.
+- **Artifact.** `study_plan_v1` carries the premises, the base catalog lineage and the
+  whole plan under premises, data and plan digests. A consumer refuses stored limits
+  above its own before any work and accepts only a plan its full replay reproduces
+  (`study_plan.invalid_artifact`). It cannot tell whether a producer stated another
+  base catalog or candidate universe and re-sealed honestly, nor whether a study will
+  deliver its declared regimes.
+
+## Path-specific edge intervention (2.2A X8)
+
+One cell on the two-world cross-world contrast: how much of the treatment effect flows
+along a chosen set of edges of an explicit Markovian DAG while every other edge sees the
+baseline value. The graph has at most 8 variables, a query declares at most 8 worlds, and
+a consumer admits at most 100,000 rows; the claim is a point, never an interval. Out of
+contract shapes refuse with `cross_world.*` details (for example
+`cross_world.graph_outside_contract`). Latent confounding is handled by the 2.2B X8
+cell below.
+
+## ADMG counterfactual identification (2.2B X8)
+
+One cell: the effect of treatment on the treated, `P(Y_x = y | X = x')` with `x != x'`,
+on a supplied explicit ADMG (or DAG) of at most 6 finite-discrete variables with at
+most 4 levels each, from the observational joint (exact law or empirical counts). ID*
+on the conjunction `{Y_x = y, X = x'}` identifies each district term by ID under one
+`SearchBudget` (at most 100000 operations, depth 64); Python
+`antecedent.counterfactual_id.prepare_effect_on_treated`, record
+`2.2B.X8.admg_counterfactual_id`. A query that is not identified refuses with
+`cross_world_not_identified`; the claim is a point and never carries an interval;
+path-specific queries on ADMGs are deferred to 2.3. The consumer refuses stored limits
+above its own before any work.
 
 ## Estimation assumptions
 
