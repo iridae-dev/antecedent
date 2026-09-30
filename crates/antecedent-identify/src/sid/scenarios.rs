@@ -5,8 +5,10 @@
 //! classical catalog route: a bounded catalog-aware search, and, only when that
 //! search certifies nothing, the classical identifier for an independently
 //! verified s-hedge. A scenario's evidence binding is its own; nothing certified
-//! for one scenario is reused for another. Declared weights are carried beside
-//! the structural set and never renormalized over the scenarios that survive.
+//! for one scenario is reused for another. Every scenario declares the same
+//! named coordinate schema (domains, cardinalities, units). One search budget
+//! bounds the whole set. Declared weights are carried beside the structural
+//! set and never renormalized over the scenarios that survive.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -15,14 +17,14 @@ use std::sync::Arc;
 
 use antecedent_core::{
     EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits, SearchReceipt,
-    VariableId,
+    SearchStop, Value, VariableDomain, VariableId, reason_code,
 };
 use antecedent_graph::SelectionDiagram;
 
 use super::{
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery,
-    ClassicalTransportResult, IdentificationError, SHedgeRecord, SidLimits,
-    identify_catalog_transport, identify_classical_transport,
+    ClassicalTransportResult, IdentificationError, SHedgeRecord, SearchCharge, SharedSearch,
+    identify_catalog_transport_metered, identify_classical_transport_metered,
 };
 
 /// Scenarios in one set.
@@ -32,8 +34,97 @@ pub const SCENARIO_MAX_OBSERVED: usize = 12;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 
-/// One supplied scenario: a named fixed graph and the mechanisms that may differ
-/// between source and target under it.
+/// Detail of a scenario that a budget stop or cancellation left unevaluated.
+/// The stop itself (`search.operations`, `search.depth`, `search.memory` or
+/// `search.cancelled`) is carried beside it.
+pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
+
+/// A refused scenario set: a registered top-level reason code and a stable
+/// `scenarios.*` detail.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{detail}: {message}")]
+pub struct ScenarioSetRefusal {
+    /// Registered runtime-refusal reason code.
+    pub code: &'static str,
+    /// Stable `scenarios.*` detail.
+    pub detail: &'static str,
+    /// Human-readable explanation.
+    pub message: String,
+}
+
+impl ScenarioSetRefusal {
+    fn invalid(detail: &'static str, message: impl Into<String>) -> Self {
+        Self { code: reason_code!("invalid_argument"), detail, message: message.into() }
+    }
+
+    fn bound(detail: &'static str, message: impl Into<String>) -> Self {
+        Self { code: reason_code!("route_not_supported"), detail, message: message.into() }
+    }
+
+    /// A scenario, law or request that disagrees with the shared coordinate schema.
+    #[must_use]
+    pub fn coordinate_mismatch(message: impl Into<String>) -> Self {
+        Self {
+            code: reason_code!("schema_mismatch"),
+            detail: "scenarios.coordinate_mismatch",
+            message: message.into(),
+        }
+    }
+}
+
+impl From<ScenarioSetRefusal> for IdentificationError {
+    fn from(refusal: ScenarioSetRefusal) -> Self {
+        Self::invalid_input(refusal.to_string())
+    }
+}
+
+/// One named coordinate of a scenario's declared schema: the shared variable,
+/// its name, value domain (with cardinality for a categorical domain) and unit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScenarioCoordinate {
+    /// Variable id in the scenario graph.
+    pub variable: VariableId,
+    /// Declared variable name.
+    pub name: Arc<str>,
+    /// Declared value domain.
+    pub domain: VariableDomain,
+    /// Declared physical unit, if any.
+    pub unit: Option<Arc<str>>,
+}
+
+impl ScenarioCoordinate {
+    /// Whether `value` lies in the declared domain.
+    #[must_use]
+    #[allow(clippy::float_cmp)] // Domain membership is exact, not approximate equality.
+    pub fn accepts(&self, value: &Value) -> bool {
+        let value = value.as_f64();
+        match self.domain {
+            VariableDomain::Unspecified => true,
+            VariableDomain::Continuous => value.is_some_and(f64::is_finite),
+            VariableDomain::Binary => value.is_some_and(|v| v == 0.0 || v == 1.0),
+            VariableDomain::Count => value.is_some_and(|v| v >= 0.0 && v.fract() == 0.0),
+            VariableDomain::Categorical { cardinality } => {
+                value.is_some_and(|v| v >= 0.0 && v < f64::from(cardinality) && v.fract() == 0.0)
+            }
+        }
+    }
+
+    /// Smallest and largest value of a finite declared domain; `None` for a
+    /// continuous, count or unspecified domain.
+    #[must_use]
+    pub fn support_limits(&self) -> Option<(f64, f64)> {
+        match self.domain {
+            VariableDomain::Binary => Some((0.0, 1.0)),
+            VariableDomain::Categorical { cardinality } if cardinality > 0 => {
+                Some((0.0, f64::from(cardinality - 1)))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// One supplied scenario: a named fixed graph, the mechanisms that may differ
+/// between source and target under it, and its declared coordinate schema.
 #[derive(Clone, Debug)]
 pub struct TransportScenario {
     /// Unique scenario name.
@@ -42,61 +133,146 @@ pub struct TransportScenario {
     pub diagram: SelectionDiagram,
     /// Declared weight, when the set is weighted.
     pub weight: Option<f64>,
+    /// Declared coordinates: every graph variable exactly once.
+    pub coordinates: Arc<[ScenarioCoordinate]>,
 }
 
-/// A validated scenario set in canonical (name) order.
+/// A validated scenario set in canonical (name) order with one shared
+/// coordinate schema.
 #[derive(Clone, Debug)]
 pub struct TransportScenarioSet {
     scenarios: Arc<[TransportScenario]>,
+    schema: Arc<[ScenarioCoordinate]>,
     weighted: bool,
+}
+
+/// A scenario's declared coordinates in variable order, checked against its graph.
+fn scenario_schema(
+    scenario: &TransportScenario,
+) -> Result<Vec<ScenarioCoordinate>, ScenarioSetRefusal> {
+    let mut schema = scenario.coordinates.to_vec();
+    schema.sort_by_key(|c| c.variable);
+    let nodes =
+        scenario.diagram.causal_graph().nodes().iter().copied().collect::<BTreeSet<NodeRef>>();
+    let declared = schema.iter().map(|c| NodeRef::Static(c.variable)).collect::<BTreeSet<_>>();
+    let names = schema.iter().map(|c| c.name.clone()).collect::<BTreeSet<_>>();
+    if declared != nodes
+        || declared.len() != schema.len()
+        || names.len() != schema.len()
+        || schema.iter().any(|c| c.name.trim().is_empty())
+        || schema.iter().any(|c| matches!(c.domain, VariableDomain::Categorical { cardinality: 0 }))
+    {
+        return Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+            "scenario {} must declare every graph variable exactly once with a unique \
+             non-empty name and a valid domain",
+            scenario.name
+        )));
+    }
+    Ok(schema)
+}
+
+/// Name the first field on which two schemas disagree.
+fn schema_difference(a: &[ScenarioCoordinate], b: &[ScenarioCoordinate]) -> String {
+    if a.len() != b.len() {
+        return "different variables".into();
+    }
+    for (x, y) in a.iter().zip(b) {
+        let field = if x.variable != y.variable {
+            "variables"
+        } else if x.name != y.name {
+            "name"
+        } else if x.domain != y.domain {
+            "domain or cardinality"
+        } else if x.unit != y.unit {
+            "unit"
+        } else {
+            continue;
+        };
+        return format!("{field} of {}", x.name);
+    }
+    "nothing".into()
 }
 
 impl TransportScenarioSet {
     /// Validate and canonicalize a scenario set.
     ///
-    /// Every scenario shares the same observed variables (the same node set), no
-    /// two scenarios coincide in graph and selections, and weights are declared
-    /// for all scenarios or none: finite, non-negative and summing to at most one.
+    /// Every scenario shares the same observed variables and declares the same
+    /// coordinate schema (names, domains and cardinalities, units), no two
+    /// scenarios coincide in graph and selections, and weights are declared for
+    /// all scenarios or none: finite, non-negative and summing to at most one.
     /// The undeclared remainder is kept as residual mass.
     ///
     /// # Errors
-    /// [`IdentificationError::InvalidInput`] with a `scenarios.*` code, or
-    /// [`IdentificationError::UnsupportedInput`] for an exceeded bound.
-    pub fn try_new(scenarios: Vec<TransportScenario>) -> Result<Self, IdentificationError> {
-        let invalid = |code: &'static str| IdentificationError::invalid_input(code);
+    /// A [`ScenarioSetRefusal`]: `schema_mismatch` / `scenarios.coordinate_mismatch`
+    /// for disagreeing coordinates, `route_not_supported` for an exceeded bound,
+    /// and `invalid_argument` otherwise.
+    pub fn try_new(scenarios: Vec<TransportScenario>) -> Result<Self, ScenarioSetRefusal> {
+        use ScenarioSetRefusal as R;
         if scenarios.is_empty() {
-            return Err(invalid("scenarios.empty"));
+            return Err(R::invalid("scenarios.empty", "a scenario set needs a scenario"));
         }
         if scenarios.len() > SCENARIO_MAX_COUNT {
-            return Err(IdentificationError::UnsupportedInput { code: "scenarios.count" });
+            return Err(R::bound(
+                "scenarios.count",
+                format!("{} scenarios exceed the bound of {SCENARIO_MAX_COUNT}", scenarios.len()),
+            ));
         }
         let mut scenarios = scenarios;
         scenarios.sort_by(|a, b| a.name.cmp(&b.name));
         let first = scenarios[0].diagram.causal_graph();
         if first.node_count() > SCENARIO_MAX_OBSERVED {
-            return Err(IdentificationError::UnsupportedInput { code: "scenarios.observed_count" });
+            return Err(R::bound(
+                "scenarios.observed_count",
+                format!("more than {SCENARIO_MAX_OBSERVED} observed variables"),
+            ));
         }
+        // A schema declares static variables only, so a graph with any other
+        // node kind fails the schema check below.
         let variables = first.nodes().iter().copied().collect::<BTreeSet<_>>();
-        if variables.iter().any(|node| !matches!(node, NodeRef::Static(_))) {
-            return Err(invalid("scenarios.non_static_graph"));
-        }
+        let schema = scenario_schema(&scenarios[0])?;
         let mut names = BTreeSet::new();
         let mut signatures = BTreeSet::new();
         for scenario in &scenarios {
             if scenario.name.trim().is_empty() || !names.insert(scenario.name.clone()) {
-                return Err(invalid("scenarios.duplicate_or_empty_name"));
+                return Err(R::invalid(
+                    "scenarios.duplicate_or_empty_name",
+                    "scenario names must be unique and non-empty",
+                ));
             }
             let nodes = scenario.diagram.causal_graph().nodes();
-            if nodes.len() != variables.len() || nodes.iter().any(|node| !variables.contains(node)) {
-                return Err(invalid("scenarios.coordinate_mismatch"));
+            if nodes.len() != variables.len() || nodes.iter().any(|node| !variables.contains(node))
+            {
+                return Err(R::coordinate_mismatch(format!(
+                    "scenario {} has different variables",
+                    scenario.name
+                )));
+            }
+            let own = scenario_schema(scenario)?;
+            if own != schema {
+                return Err(R::coordinate_mismatch(format!(
+                    "scenarios {} and {} disagree on the {}",
+                    scenarios[0].name,
+                    scenario.name,
+                    schema_difference(&schema, &own)
+                )));
             }
             if !signatures.insert(super::graph_signature(&scenario.diagram)) {
-                return Err(invalid("scenarios.duplicate_scenario"));
+                return Err(R::invalid(
+                    "scenarios.duplicate_scenario",
+                    format!("scenario {} repeats another's graph and selections", scenario.name),
+                ));
             }
         }
         let weighted = scenarios[0].weight.is_some();
+        let bad_weights = || {
+            R::invalid(
+                "scenarios.invalid_weights",
+                "weights are declared for all scenarios or none, finite, non-negative and \
+                 summing to at most one",
+            )
+        };
         if scenarios.iter().any(|s| s.weight.is_some() != weighted) {
-            return Err(invalid("scenarios.invalid_weights"));
+            return Err(bad_weights());
         }
         if weighted {
             let weights = scenarios.iter().filter_map(|s| s.weight).collect::<Vec<_>>();
@@ -104,16 +280,123 @@ impl TransportScenarioSet {
             if weights.iter().any(|w| !w.is_finite() || *w < 0.0)
                 || total > 1.0 + SCENARIO_WEIGHT_TOLERANCE
             {
-                return Err(invalid("scenarios.invalid_weights"));
+                return Err(bad_weights());
             }
         }
-        Ok(Self { scenarios: scenarios.into(), weighted })
+        Ok(Self { scenarios: scenarios.into(), schema: schema.into(), weighted })
     }
 
     /// Scenarios in canonical order.
     #[must_use]
     pub fn scenarios(&self) -> &[TransportScenario] {
         &self.scenarios
+    }
+
+    /// The shared coordinate schema, in variable order.
+    #[must_use]
+    pub fn schema(&self) -> &[ScenarioCoordinate] {
+        &self.schema
+    }
+
+    /// The shared coordinate of `variable`.
+    #[must_use]
+    pub fn coordinate(&self, variable: VariableId) -> Option<&ScenarioCoordinate> {
+        self.schema.iter().find(|c| c.variable == variable)
+    }
+
+    /// Check that `value` is a declared value of `variable`.
+    ///
+    /// # Errors
+    /// `schema_mismatch` / `scenarios.coordinate_mismatch` for an undeclared
+    /// variable or a value outside its declared domain.
+    pub fn check_value(
+        &self,
+        variable: VariableId,
+        value: &Value,
+        context: &str,
+    ) -> Result<(), ScenarioSetRefusal> {
+        match self.coordinate(variable) {
+            None => Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+                "{context} names variable {} outside the shared schema",
+                variable.raw()
+            ))),
+            Some(c) if !c.accepts(value) => Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+                "{context} gives {} the value {value:?} outside its declared {:?} domain",
+                c.name, c.domain
+            ))),
+            Some(_) => Ok(()),
+        }
+    }
+
+    /// Check the shared catalog against the set. Its environment coordinates
+    /// agree with the shared schema: a declared domain equals the schema's
+    /// unless either is unspecified, and a declared unit equals the schema's
+    /// when both are given. Selection targets belong to each scenario, so no
+    /// environment of the shared catalog declares any; each scenario's decision
+    /// binds the catalog with that scenario's selections on the source
+    /// environment.
+    ///
+    /// # Errors
+    /// `schema_mismatch` / `scenarios.coordinate_mismatch` for a disagreeing
+    /// coordinate; `invalid_argument` / `scenarios.catalog_selections` for an
+    /// environment declaring selection targets.
+    pub fn check_catalog(&self, catalog: &EvidenceCatalog) -> Result<(), ScenarioSetRefusal> {
+        for environment in catalog.environments.iter() {
+            if !environment.selection_targets.is_empty() {
+                return Err(ScenarioSetRefusal::invalid(
+                    "scenarios.catalog_selections",
+                    format!(
+                        "catalog environment {} declares selection targets; selections belong \
+                         to each scenario",
+                        environment.identity
+                    ),
+                ));
+            }
+            for declared in environment.variables.iter() {
+                let Some(shared) = self.coordinate(declared.variable) else {
+                    return Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+                        "catalog environment {} declares variable {} outside the shared schema",
+                        environment.identity,
+                        declared.variable.raw()
+                    )));
+                };
+                let domain = matches!(declared.domain, VariableDomain::Unspecified)
+                    || matches!(shared.domain, VariableDomain::Unspecified)
+                    || declared.domain == shared.domain;
+                let unit = match (&declared.unit, &shared.unit) {
+                    (Some(a), Some(b)) => a == b,
+                    _ => true,
+                };
+                if !domain || !unit {
+                    return Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+                        "catalog environment {} declares {} with a different {}",
+                        environment.identity,
+                        shared.name,
+                        if domain { "unit" } else { "domain or cardinality" }
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Check that the question's outcomes and treatments are shared coordinates.
+    ///
+    /// # Errors
+    /// `schema_mismatch` / `scenarios.coordinate_mismatch`.
+    pub fn check_query(&self, query: &ClassicalTransportQuery) -> Result<(), ScenarioSetRefusal> {
+        match query
+            .outcomes
+            .iter()
+            .chain(query.treatments.iter())
+            .find(|v| self.coordinate(**v).is_none())
+        {
+            Some(v) => Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+                "the question names variable {} outside the shared schema",
+                v.raw()
+            ))),
+            None => Ok(()),
+        }
     }
 
     /// Whether weights were declared.
@@ -132,16 +415,16 @@ impl TransportScenarioSet {
     /// The shared observed variables.
     #[must_use]
     pub fn variables(&self) -> Vec<VariableId> {
-        self.scenarios[0]
-            .diagram
-            .causal_graph()
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                NodeRef::Static(v) => Some(*v),
-                _ => None,
-            })
-            .collect()
+        self.schema.iter().map(|c| c.variable).collect()
+    }
+
+    /// Live bytes the decision holds once `decided` scenarios are entered: each
+    /// retained scenario's graph with quadratic coordinate storage, the same
+    /// per-state shape the sID engine charges.
+    fn live_bytes(&self, decided: usize) -> u64 {
+        let n = self.schema.len();
+        let per = n.saturating_mul(n).saturating_mul(64).saturating_add(512);
+        u64::try_from(per.saturating_mul(decided)).unwrap_or(u64::MAX)
     }
 }
 
@@ -164,11 +447,11 @@ pub enum ScenarioOutcome {
         /// Scope notes, per strategy.
         obligations: Arc<[Arc<str>]>,
     },
-    /// Not decided: the scenario budget, this scenario's search limits, or
-    /// cancellation stopped it.
+    /// Not decided: a search bound or cancellation stopped it. Detail
+    /// [`SCENARIO_UNEVALUATED_DETAIL`].
     Unevaluated {
-        /// `scenarios.scenario_budget`, `scenarios.search_budget` or `scenarios.cancelled`.
-        reason: &'static str,
+        /// The bound that stopped it.
+        stop: SearchStop,
     },
 }
 
@@ -195,127 +478,156 @@ pub struct ScenarioDecision {
     pub outcome: ScenarioOutcome,
 }
 
-/// Every scenario's decision, in canonical order, plus the scenario-budget
-/// receipt when a budget or cancellation left scenarios unevaluated.
+/// The limits a scenario set was decided under, recorded so a consumer replays
+/// under exactly the producer's limits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScenarioDecisionLimits {
+    /// The one shared budget: every scenario entered (one operation at depth
+    /// one) and every step of every scenario's search and verification replay.
+    pub budget: SearchLimits,
+    /// The context's hard memory limit during the decision.
+    pub memory_limit_bytes: Option<u64>,
+}
+
+/// Every scenario's decision, in canonical order, plus the shared budget's
+/// receipt when a budget stop or cancellation left scenarios unevaluated.
 #[derive(Clone, Debug)]
 pub struct ScenarioSetDecision {
     /// The validated set.
     pub set: TransportScenarioSet,
     /// One decision per scenario, failed as well as successful.
     pub decisions: Vec<ScenarioDecision>,
-    /// Present when scenarios were left unevaluated by the scenario budget.
+    /// Present when the shared budget or cancellation stopped the set.
     pub receipt: Option<SearchReceipt>,
+    /// The limits in force.
+    pub limits: ScenarioDecisionLimits,
 }
 
 /// Decide every scenario independently against the same question and catalog.
 ///
-/// `budget.operations` bounds how many scenarios are decided, in canonical
-/// order; the rest are recorded unevaluated with a receipt, never dropped.
-/// `limits` bounds each scenario's own search; exhausting it leaves that
-/// scenario unevaluated and the others proceed. Cancellation leaves every
-/// remaining scenario unevaluated.
+/// One [`SearchBudget`] bounds the whole set. Each scenario entered is charged
+/// one operation at depth one with the decision's live-state bytes, and its
+/// catalog-aware search, the classical s-hedge check, and every verification
+/// replay charge the same budget at their own recursion depth and live bytes.
+/// The operation, depth and memory limits and cancellation therefore bound the
+/// set as a whole: when any charge stops, the scenario being decided and every
+/// later one are recorded [`ScenarioOutcome::Unevaluated`] with one cumulative
+/// receipt, never dropped. (The pretreatment-standardization subset search of
+/// the catalog route keeps its own count of `budget.operations` separation
+/// tests, whose exhaustion is an obligation of that scenario.) Progress is
+/// reported to the context's sink after each scenario.
 ///
 /// # Errors
-/// An invalid query or catalog, or a query naming variables outside the shared set.
+/// An invalid query or catalog, or a catalog or question disagreeing with the
+/// shared schema ([`TransportScenarioSet::check_catalog`],
+/// [`TransportScenarioSet::check_query`]).
 pub fn decide_transport_scenarios(
     set: &TransportScenarioSet,
     query: &ClassicalTransportQuery,
     catalog: &EvidenceCatalog,
-    limits: SidLimits,
     budget: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<ScenarioSetDecision, IdentificationError> {
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
-    let variables = set.variables();
-    if query.outcomes.iter().chain(query.treatments.iter()).any(|v| !variables.contains(v)) {
-        return Err(IdentificationError::invalid_input("scenarios.query_outside_coordinates"));
-    }
-    let mut decisions = Vec::with_capacity(set.scenarios().len());
+    set.check_catalog(catalog)?;
+    set.check_query(query)?;
+    let total = set.scenarios().len();
+    let remaining = |from: usize| -> Vec<String> {
+        set.scenarios()[from..].iter().map(|s| s.name.to_string()).collect()
+    };
+    let mut decisions = Vec::with_capacity(total);
     let mut receipt = None;
-    let mut meter =
-        match SearchBudget::new(SearchLimits { depth: budget.depth.max(1), ..budget }, ctx) {
-            Ok(meter) => Some(meter),
-            Err(stopped) => {
-                receipt = Some(stopped);
-                None
-            }
-        };
-    let mut explored = Vec::new();
-    for scenario in set.scenarios() {
-        let stop = match meter.as_mut() {
-            None => Some(()),
-            Some(meter) => match meter.charge(0, 0) {
-                Ok(()) => None,
-                Err(stop) => {
-                    let unevaluated = set
-                        .scenarios()
-                        .iter()
-                        .skip(decisions.len())
-                        .map(|s| s.name.to_string())
-                        .collect();
-                    receipt = Some(meter.receipt(stop, explored.clone(), unevaluated));
-                    Some(())
-                }
-            },
-        };
-        if stop.is_some() {
-            meter = None;
-            let reason = match receipt.as_ref().map(|r| r.stop) {
-                Some(antecedent_core::SearchStop::Cancelled) => "scenarios.cancelled",
-                _ => "scenarios.scenario_budget",
-            };
-            decisions.push(ScenarioDecision {
-                scenario: scenario.clone(),
-                outcome: ScenarioOutcome::Unevaluated { reason },
-            });
-            continue;
+    let mut search = match SearchBudget::new(budget, ctx) {
+        Ok(budget) => Some(SharedSearch::new(budget)),
+        Err(mut stopped) => {
+            stopped.unevaluated = remaining(0);
+            receipt = Some(stopped);
+            None
         }
-        explored.push(scenario.name.to_string());
-        let outcome = decide_one(&scenario.diagram, query, catalog, limits, ctx)?;
+    };
+    let mut explored = Vec::new();
+    for (index, scenario) in set.scenarios().iter().enumerate() {
+        if let Some(active) = search.as_mut() {
+            if let Err(stop) = active.charge(1, set.live_bytes(index + 1)) {
+                receipt = Some(active.receipt(stop, explored.clone(), remaining(index)));
+                search = None;
+            }
+        }
+        let outcome = if let Some(active) = search.as_mut() {
+            explored.push(scenario.name.to_string());
+            let bound = scenario_catalog(catalog, scenario, query);
+            match decide_one(&scenario.diagram, query, &bound, active, ctx) {
+                Ok(outcome) => outcome,
+                Err(error) if error.is_budget_or_cancel() => {
+                    let stop = active.stop_of(&error);
+                    receipt = Some(active.receipt(stop, explored.clone(), remaining(index)));
+                    search = None;
+                    ScenarioOutcome::Unevaluated { stop }
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            let stop = receipt.as_ref().map_or(SearchStop::Operations, |r| r.stop);
+            ScenarioOutcome::Unevaluated { stop }
+        };
         decisions.push(ScenarioDecision { scenario: scenario.clone(), outcome });
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)] // At most 64 scenarios.
+            progress.report(decisions.len() as f64 / total as f64, "transport scenarios");
+        }
     }
-    if let Some(receipt) = receipt.as_mut() {
-        receipt.unevaluated = decisions
-            .iter()
-            .filter(|d| matches!(d.outcome, ScenarioOutcome::Unevaluated { .. }))
-            .map(|d| d.scenario.name.to_string())
-            .collect();
-    }
-    Ok(ScenarioSetDecision { set: set.clone(), decisions, receipt })
+    Ok(ScenarioSetDecision {
+        set: set.clone(),
+        decisions,
+        receipt,
+        limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes },
+    })
 }
 
+/// The shared catalog as one scenario declares it: the source environment,
+/// when the catalog has one, carries that scenario's selection targets.
+fn scenario_catalog(
+    catalog: &EvidenceCatalog,
+    scenario: &TransportScenario,
+    query: &ClassicalTransportQuery,
+) -> EvidenceCatalog {
+    let mut bound = catalog.clone();
+    if catalog.environments.iter().any(|e| e.identity == query.source) {
+        bound.environments = catalog
+            .environments
+            .iter()
+            .map(|e| {
+                let mut e = e.clone();
+                if e.identity == query.source {
+                    e.selection_targets = Arc::from(scenario.diagram.selection_targets());
+                }
+                e
+            })
+            .collect();
+    }
+    bound
+}
+
+/// Decide one scenario on the shared budget. A budget or cancellation error is
+/// returned for the caller to record against the whole set.
 fn decide_one(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
     catalog: &EvidenceCatalog,
-    limits: SidLimits,
+    search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
 ) -> Result<ScenarioOutcome, IdentificationError> {
-    let unevaluated = |error: &IdentificationError| ScenarioOutcome::Unevaluated {
-        reason: if matches!(error, IdentificationError::Cancelled) {
-            "scenarios.cancelled"
-        } else {
-            "scenarios.search_budget"
-        },
-    };
-    let searched = match identify_catalog_transport(diagram, query, catalog, limits, ctx) {
-        Ok(result) => result,
-        Err(error) if error.is_budget_or_cancel() => return Ok(unevaluated(&error)),
-        Err(error) => return Err(error),
-    };
-    Ok(match searched {
+    Ok(match identify_catalog_transport_metered(diagram, query, catalog, search.meter(), ctx)? {
         CatalogTransportResult::Identified(bound) => ScenarioOutcome::Identified(bound),
         CatalogTransportResult::MissingEvidence { obligations, .. } => {
             ScenarioOutcome::MissingEvidence { obligations }
         }
         CatalogTransportResult::NotCertified { obligations, .. } => {
-            match identify_classical_transport(diagram, query, limits, ctx) {
-                Ok(ClassicalTransportResult::ProvenNonTransportable(hedge)) => {
+            match identify_classical_transport_metered(diagram, query, search.meter(), ctx)? {
+                ClassicalTransportResult::ProvenNonTransportable(hedge) => {
                     ScenarioOutcome::StructurallyUnidentified(Box::new(hedge.to_record()))
                 }
-                Ok(_) => ScenarioOutcome::NotCertified { obligations },
-                Err(error) if error.is_budget_or_cancel() => unevaluated(&error),
-                Err(error) => return Err(error),
+                _ => ScenarioOutcome::NotCertified { obligations },
             }
         }
     })
@@ -325,6 +637,17 @@ fn decide_one(
 mod tests {
     use super::*;
     use antecedent_graph::{Admg, DenseNodeId};
+
+    fn coordinates(nodes: u32) -> Arc<[ScenarioCoordinate]> {
+        (0..nodes)
+            .map(|i| ScenarioCoordinate {
+                variable: VariableId::from_raw(i),
+                name: Arc::from(format!("v{i}")),
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect()
+    }
 
     fn scenario(
         name: &str,
@@ -340,15 +663,25 @@ mod tests {
             diagram: SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections))
                 .unwrap(),
             weight,
+            coordinates: coordinates(nodes),
         }
     }
 
-    fn code(result: Result<TransportScenarioSet, IdentificationError>) -> String {
+    fn code(
+        result: Result<TransportScenarioSet, ScenarioSetRefusal>,
+    ) -> (&'static str, &'static str) {
         match result {
-            Err(IdentificationError::InvalidInput { message }) => message,
-            Err(IdentificationError::UnsupportedInput { code }) => code.to_owned(),
-            other => panic!("expected a refusal, got {other:?}"),
+            Err(refusal) => (refusal.code, refusal.detail),
+            Ok(_) => panic!("expected a refusal"),
         }
+    }
+
+    fn edited(edit: impl Fn(&mut ScenarioCoordinate)) -> TransportScenario {
+        let mut b = scenario("b", 2, &[1], None);
+        let mut coordinates = b.coordinates.to_vec();
+        edit(&mut coordinates[1]);
+        b.coordinates = coordinates.into();
+        b
     }
 
     #[test]
@@ -360,34 +693,38 @@ mod tests {
         .unwrap();
         assert_eq!(set.scenarios().iter().map(|s| &*s.name).collect::<Vec<_>>(), ["a", "b"]);
         assert_eq!(set.residual_mass(), None);
-        assert_eq!(code(TransportScenarioSet::try_new(vec![])), "scenarios.empty");
+        assert_eq!(set.schema().len(), 2);
+        assert_eq!(
+            code(TransportScenarioSet::try_new(vec![])),
+            ("invalid_argument", "scenarios.empty")
+        );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], None),
                 scenario("a", 2, &[1], None)
             ])),
-            "scenarios.duplicate_or_empty_name"
+            ("invalid_argument", "scenarios.duplicate_or_empty_name")
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[1], None),
                 scenario("b", 2, &[1], None)
             ])),
-            "scenarios.duplicate_scenario"
+            ("invalid_argument", "scenarios.duplicate_scenario")
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], None),
                 scenario("b", 3, &[], None)
             ])),
-            "scenarios.coordinate_mismatch"
+            ("schema_mismatch", "scenarios.coordinate_mismatch")
         );
         assert_eq!(
             code(TransportScenarioSet::try_new(vec![
                 scenario("a", 2, &[], Some(-0.1)),
                 scenario("b", 2, &[1], Some(0.2))
             ])),
-            "scenarios.invalid_weights"
+            ("invalid_argument", "scenarios.invalid_weights")
         );
         let weighted = TransportScenarioSet::try_new(vec![
             scenario("a", 2, &[], Some(0.25)),
@@ -395,9 +732,51 @@ mod tests {
         ])
         .unwrap();
         assert!((weighted.residual_mass().unwrap() - 0.25).abs() < 1e-12);
-        let many = (0..=SCENARIO_MAX_COUNT)
-            .map(|i| scenario(&format!("s{i}"), 2, &[], None))
-            .collect::<Vec<_>>();
-        assert_eq!(code(TransportScenarioSet::try_new(many)), "scenarios.count");
+    }
+
+    #[test]
+    fn the_frozen_scenario_bound_admits_64_and_refuses_65() {
+        // Six nodes give 64 distinct selection sets, one per scenario.
+        let set = |count: usize| {
+            TransportScenarioSet::try_new(
+                (0..count)
+                    .map(|i| {
+                        let selections =
+                            (0..6u32).filter(|b| i & (1 << b) != 0).collect::<Vec<_>>();
+                        scenario(&format!("s{i:02}"), 6, &selections, None)
+                    })
+                    .collect(),
+            )
+        };
+        assert_eq!(SCENARIO_MAX_COUNT, 64);
+        assert_eq!(set(SCENARIO_MAX_COUNT).unwrap().scenarios().len(), 64);
+        assert_eq!(code(set(SCENARIO_MAX_COUNT + 1)), ("route_not_supported", "scenarios.count"));
+    }
+
+    #[test]
+    fn scenarios_must_share_names_domains_cardinalities_and_units() {
+        let a = || scenario("a", 2, &[], None);
+        let mismatch = ("schema_mismatch", "scenarios.coordinate_mismatch");
+        let name = edited(|c| c.name = Arc::from("renamed"));
+        assert_eq!(code(TransportScenarioSet::try_new(vec![a(), name])), mismatch);
+        let domain = edited(|c| c.domain = VariableDomain::Continuous);
+        assert_eq!(code(TransportScenarioSet::try_new(vec![a(), domain])), mismatch);
+        let cardinality = edited(|c| c.domain = VariableDomain::Categorical { cardinality: 3 });
+        let four = edited(|c| c.domain = VariableDomain::Categorical { cardinality: 4 });
+        let mut three = a();
+        three.coordinates = cardinality.coordinates.clone();
+        assert_eq!(code(TransportScenarioSet::try_new(vec![three, four])), mismatch);
+        let unit = edited(|c| c.unit = Some(Arc::from("mg")));
+        assert_eq!(code(TransportScenarioSet::try_new(vec![a(), unit])), mismatch);
+        // A schema that does not cover the graph exactly is refused on its own.
+        let mut partial = a();
+        partial.coordinates = partial.coordinates[..1].to_vec().into();
+        assert_eq!(code(TransportScenarioSet::try_new(vec![partial])), mismatch);
+        // Values and variables are checked against the shared schema.
+        let set = TransportScenarioSet::try_new(vec![a()]).unwrap();
+        assert!(set.check_value(VariableId::from_raw(1), &Value::f64(1.0), "law").is_ok());
+        let outside = set.check_value(VariableId::from_raw(1), &Value::f64(2.0), "law");
+        assert_eq!(outside.unwrap_err().detail, "scenarios.coordinate_mismatch");
+        assert!(set.check_value(VariableId::from_raw(7), &Value::f64(0.0), "law").is_err());
     }
 }

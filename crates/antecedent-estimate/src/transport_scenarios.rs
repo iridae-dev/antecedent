@@ -6,7 +6,8 @@
 //! weighted report uses only declared weights and never renormalizes over the
 //! identified scenarios: the mass of every other scenario, and the undeclared
 //! residual, is carried as unaccounted mass that may take any value in the
-//! outcome's support.
+//! outcome's declared domain (from the set's shared coordinate schema, not from
+//! the atoms the identified distributions happen to carry).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -22,7 +23,7 @@ use crate::error::EstimationError;
 pub const STRUCTURAL_ENVELOPE_INTERPRETATION: &str =
     "range_over_identified_scenarios_not_a_confidence_interval_or_sharp_bound";
 /// How a weighted scenario range may be read.
-pub const WEIGHTED_RANGE_INTERPRETATION: &str = "declared_weight_range_with_unaccounted_mass_at_outcome_support_limits_not_a_confidence_interval";
+pub const WEIGHTED_RANGE_INTERPRETATION: &str = "declared_weight_range_with_unaccounted_mass_at_declared_domain_limits_not_a_confidence_interval";
 
 /// Range of one outcome's mean across identified scenarios.
 #[derive(Clone, Debug, PartialEq)]
@@ -63,7 +64,9 @@ pub struct WeightedScenarioReport {
     /// Per outcome, `Σ w_s · mean_s` over identified scenarios (not renormalized).
     pub identified_weighted_sums: Vec<(VariableId, f64)>,
     /// Per outcome, the range the mixture mean can take when unaccounted mass
-    /// sits anywhere in the outcome's support; `None` if no scenario identified.
+    /// sits anywhere in the outcome's declared domain; `None` if no scenario
+    /// identified, or if unaccounted mass remains and an outcome's declared
+    /// domain is not finite (continuous, count or unspecified).
     pub ranges: Option<Vec<(VariableId, f64, f64)>>,
     /// Always [`WEIGHTED_RANGE_INTERPRETATION`].
     pub interpretation: &'static str,
@@ -135,14 +138,16 @@ pub fn structural_envelope(
 }
 
 /// Declared-weight report. `points` are the identified scenarios with their
-/// weights; `outcomes` are the queried outcomes; `unaccounted_mass` is one minus
-/// the identified weight (other scenarios plus residual).
+/// weights; `outcomes` are the queried outcomes with the limits of their
+/// declared domains (`None` for a domain that is not finite);
+/// `unaccounted_mass` is one minus the identified weight (other scenarios plus
+/// residual).
 ///
 /// # Errors
 /// Invalid masses, distributions over different outcomes, or a non-numeric outcome.
 pub fn weighted_scenario_report(
     points: &[(Arc<str>, f64, &ExactDistribution)],
-    outcomes: &[VariableId],
+    outcomes: &[(VariableId, Option<(f64, f64)>)],
     unaccounted_mass: f64,
 ) -> Result<WeightedScenarioReport, EstimationError> {
     let identified_mass: f64 = points.iter().map(|(_, w, _)| *w).sum();
@@ -154,39 +159,32 @@ pub fn weighted_scenario_report(
     }
     let named = points.iter().map(|(n, _, d)| (Arc::clone(n), *d)).collect::<Vec<_>>();
     check_outcomes(&named)?;
-    let mut sums = outcomes.iter().map(|o| (*o, 0.0)).collect::<Vec<_>>();
+    let mut sums = outcomes.iter().map(|(o, _)| (*o, 0.0)).collect::<Vec<_>>();
     for (_, weight, distribution) in points {
         for (k, mean) in means(distribution)?.into_iter().enumerate() {
             sums[k].1 += weight * mean;
         }
     }
-    let ranges = (!points.is_empty()).then(|| -> Result<_, EstimationError> {
+    let ranges = if points.is_empty() {
+        None
+    } else if unaccounted_mass == 0.0 {
+        Some(sums.iter().map(|(o, sum)| (*o, *sum, *sum)).collect())
+    } else {
         outcomes
             .iter()
-            .enumerate()
-            .map(|(k, outcome)| {
-                let mut support = (f64::INFINITY, f64::NEG_INFINITY);
-                for (_, _, d) in points {
-                    for atom in d.atoms.iter() {
-                        let value = atom[k].as_f64().ok_or_else(|| {
-                            EstimationError::data_msg("weighted range needs a numeric outcome")
-                        })?;
-                        support = (support.0.min(value), support.1.max(value));
-                    }
-                }
-                Ok((
-                    *outcome,
-                    sums[k].1 + unaccounted_mass * support.0,
-                    sums[k].1 + unaccounted_mass * support.1,
-                ))
+            .zip(&sums)
+            .map(|((outcome, limits), (_, sum))| {
+                limits.map(|(lo, hi)| {
+                    (*outcome, sum + unaccounted_mass * lo, sum + unaccounted_mass * hi)
+                })
             })
-            .collect::<Result<Vec<_>, _>>()
-    });
+            .collect::<Option<Vec<_>>>()
+    };
     Ok(WeightedScenarioReport {
         identified_mass,
         unaccounted_mass,
         identified_weighted_sums: sums,
-        ranges: ranges.transpose()?,
+        ranges,
         interpretation: WEIGHTED_RANGE_INTERPRETATION,
     })
 }
@@ -218,6 +216,8 @@ enum ScenarioPlan {
 pub struct PreparedScenarioSet {
     decision: ScenarioSetDecision,
     data: antecedent_expr::ExactTransportData,
+    /// The finite samples the laws were fitted from, for the empirical plug-in.
+    empirical: Option<Arc<crate::StatisticalTransportInput>>,
     request: antecedent_expr::Assignment,
     limits: antecedent_expr::ExactEvaluationLimits,
     plans: Vec<ScenarioPlan>,
@@ -359,11 +359,43 @@ fn compile_all(
         .collect()
 }
 
-/// Compile each identified scenario of a decided set once against `data`.
+/// Provider identity of supplied exact laws.
+pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
+
+/// Check every law and the request against the set's shared coordinate schema.
+fn check_schema(
+    decision: &ScenarioSetDecision,
+    data: &antecedent_expr::ExactTransportData,
+    request: &antecedent_expr::Assignment,
+) -> Result<(), EstimationError> {
+    let set = &decision.set;
+    let refuse = |refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal| {
+        EstimationError::refused(refusal.code, format!("{}: {}", refusal.detail, refusal.message))
+    };
+    for law in data.laws() {
+        let context = format!("the {} law of regime {}", law.population(), law.regime().raw());
+        for axis in law.axes() {
+            for value in axis.values.iter() {
+                set.check_value(axis.variable, value, &context).map_err(refuse)?;
+            }
+        }
+        for assignment in law.interventions() {
+            set.check_value(assignment.variable, &assignment.value, &context).map_err(refuse)?;
+        }
+    }
+    for (variable, value) in request.entries() {
+        set.check_value(*variable, value, "the request").map_err(refuse)?;
+    }
+    Ok(())
+}
+
+/// Compile each identified scenario of a decided set once against supplied
+/// exact laws.
 ///
 /// # Errors
-/// A request or law set that fails for every scenario (not a scenario-local
-/// provider or support failure), or cancellation.
+/// `schema_mismatch` for a law or request outside the shared coordinate
+/// schema; a request or law set that fails for every scenario (not a
+/// scenario-local provider or support failure); or cancellation.
 pub fn prepare_transport_scenarios(
     decision: ScenarioSetDecision,
     data: antecedent_expr::ExactTransportData,
@@ -371,8 +403,52 @@ pub fn prepare_transport_scenarios(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
+    check_schema(&decision, &data, &request)?;
     let plans = compile_all(&decision, &data, &request, limits, ctx)?;
-    Ok(PreparedScenarioSet { decision, data, request, limits, plans })
+    Ok(PreparedScenarioSet { decision, data, empirical: None, request, limits, plans })
+}
+
+/// Compile each identified scenario against empirical plug-in frequency tables
+/// fitted once from finite samples (with any supplied exact laws), through the
+/// same plan as supplied laws. Points only: no interval is computed, and the
+/// envelope stays a structural range over identified scenarios.
+///
+/// # Errors
+/// As [`prepare_transport_scenarios`], plus a sample the plug-in cannot fit.
+pub fn prepare_empirical_transport_scenarios(
+    decision: ScenarioSetDecision,
+    input: crate::StatisticalTransportInput,
+    max_joint_cells: usize,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<PreparedScenarioSet, EstimationError> {
+    let options = crate::EmpiricalTableOptions {
+        estimator: crate::EmpiricalTableEstimator::Plugin,
+        bootstrap_replicates: 0,
+        max_joint_cells,
+        ..crate::EmpiricalTableOptions::default()
+    };
+    // Every scenario shares the catalog and question, so the fitted tables do
+    // not depend on which identified scenario supplies the binding context;
+    // per-scenario provider coverage is checked when each scenario compiles.
+    let binding = decision.decisions.iter().find_map(|d| match &d.outcome {
+        ScenarioOutcome::Identified(functional) => Some(functional),
+        _ => None,
+    });
+    let data = match binding {
+        Some(functional) => {
+            crate::empirical_table::assemble_grid_point_laws(&input, functional, &options, ctx)?
+        }
+        None => antecedent_expr::ExactTransportData::try_new(
+            input.supplied.clone(),
+            max_joint_cells.max(1),
+        )
+        .map_err(|e| EstimationError::data_msg(e.to_string()))?,
+    };
+    let mut prepared = prepare_transport_scenarios(decision, data, request, limits, ctx)?;
+    prepared.empirical = Some(Arc::new(input));
+    Ok(prepared)
 }
 
 impl PreparedScenarioSet {
@@ -381,10 +457,24 @@ impl PreparedScenarioSet {
     pub const fn decision(&self) -> &ScenarioSetDecision {
         &self.decision
     }
-    /// Retained laws.
+    /// Retained laws: supplied, or fitted by the empirical plug-in.
     #[must_use]
     pub const fn data(&self) -> &antecedent_expr::ExactTransportData {
         &self.data
+    }
+    /// The samples the empirical plug-in fitted, when it did.
+    #[must_use]
+    pub fn empirical_input(&self) -> Option<&crate::StatisticalTransportInput> {
+        self.empirical.as_deref()
+    }
+    /// Provider identity: [`SCENARIO_EXACT_PROVIDER`] or the empirical plug-in's.
+    #[must_use]
+    pub const fn provider(&self) -> &'static str {
+        if self.empirical.is_some() {
+            crate::EMPIRICAL_TABLE_PLUGIN
+        } else {
+            SCENARIO_EXACT_PROVIDER
+        }
     }
     /// Target request.
     #[must_use]
@@ -416,7 +506,28 @@ impl PreparedScenarioSet {
             .collect()
     }
 
-    /// Recompile every identified scenario against new laws; decisions are kept.
+    /// Refit from new samples and recompile; decisions are kept.
+    ///
+    /// # Errors
+    /// As [`prepare_empirical_transport_scenarios`].
+    pub fn refresh_empirical(
+        &self,
+        input: crate::StatisticalTransportInput,
+        max_joint_cells: usize,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, EstimationError> {
+        prepare_empirical_transport_scenarios(
+            self.decision.clone(),
+            input,
+            max_joint_cells,
+            self.request.clone(),
+            self.limits,
+            ctx,
+        )
+    }
+
+    /// Recompile every identified scenario against new supplied laws; decisions
+    /// are kept.
     ///
     /// # Errors
     /// As [`prepare_transport_scenarios`].
@@ -455,7 +566,7 @@ impl PreparedScenarioSet {
                     (*status, Some(detail.clone()), None)
                 }
                 (ScenarioPlan::NotIdentified, outcome) => {
-                    (outcome.status(), Some(outcome_detail(outcome)), None)
+                    (outcome.status(), Some(outcome_detail(outcome, &self.decision.set)), None)
                 }
             };
             scenarios.push(ScenarioResult {
@@ -470,18 +581,39 @@ impl PreparedScenarioSet {
     }
 }
 
-fn outcome_detail(outcome: &ScenarioOutcome) -> String {
+fn outcome_detail(
+    outcome: &ScenarioOutcome,
+    set: &antecedent_identify::sid::scenarios::TransportScenarioSet,
+) -> String {
+    // Declared names in name order, so the detail does not depend on how the
+    // caller numbered the variables.
+    let names = |nodes: &[u32]| {
+        let mut named = nodes
+            .iter()
+            .map(|n| {
+                set.coordinate(VariableId::from_raw(*n))
+                    .map_or_else(|| format!("VariableId({n})"), |c| c.name.to_string())
+            })
+            .collect::<Vec<_>>();
+        named.sort();
+        named.join(", ")
+    };
     match outcome {
         ScenarioOutcome::Identified(_) => String::new(),
         ScenarioOutcome::StructurallyUnidentified(hedge) => {
             format!(
-                "verified s-hedge: forest {:?} inside {:?}",
-                hedge.smaller.nodes, hedge.larger.nodes
+                "verified s-hedge: forest {{{}}} inside {{{}}}",
+                names(&hedge.smaller.nodes),
+                names(&hedge.larger.nodes)
             )
         }
         ScenarioOutcome::MissingEvidence { obligations }
         | ScenarioOutcome::NotCertified { obligations } => obligations.join("; "),
-        ScenarioOutcome::Unevaluated { reason } => (*reason).to_owned(),
+        ScenarioOutcome::Unevaluated { stop } => format!(
+            "{}: {}",
+            antecedent_identify::sid::scenarios::SCENARIO_UNEVALUATED_DETAIL,
+            stop.code()
+        ),
     }
 }
 
@@ -521,7 +653,17 @@ fn report(
                 ScenarioOutcome::Identified(f) => Some(f.derivation().query().outcomes.to_vec()),
                 _ => None,
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .into_iter()
+            .map(|o| {
+                (
+                    o,
+                    decision.set.coordinate(o).and_then(
+                        antecedent_identify::sid::scenarios::ScenarioCoordinate::support_limits,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
         Some(weighted_scenario_report(&points, &outcomes, (1.0 - identified_mass).max(0.0))?)
     } else {
         None
@@ -566,7 +708,7 @@ mod tests {
     fn weighted_report_never_renormalizes_over_identified_scenarios() {
         let (a, b) = (binary(0.2), binary(0.6));
         let points = vec![(Arc::from("a"), 0.3, &a), (Arc::from("b"), 0.2, &b)];
-        let outcomes = [VariableId::from_raw(3)];
+        let outcomes = [(VariableId::from_raw(3), Some((0.0, 1.0)))];
         let report = weighted_scenario_report(&points, &outcomes, 0.5).unwrap();
         let sum = report.identified_weighted_sums[0].1;
         assert!((sum - (0.3 * 0.2 + 0.2 * 0.6)).abs() < 1e-12);
@@ -577,5 +719,24 @@ mod tests {
         assert!(weighted_scenario_report(&points, &outcomes, 0.4).is_err());
         let none = weighted_scenario_report(&[], &outcomes, 1.0).unwrap();
         assert!(none.ranges.is_none());
+    }
+
+    #[test]
+    fn weighted_ranges_use_the_declared_domain_not_the_observed_atoms() {
+        // Both distributions carry atoms {0, 1}, but the outcome is declared
+        // categorical with three levels: unaccounted mass may sit at 2.
+        let (a, b) = (binary(0.2), binary(0.6));
+        let points = vec![(Arc::from("a"), 0.3, &a), (Arc::from("b"), 0.2, &b)];
+        let declared = [(VariableId::from_raw(3), Some((0.0, 2.0)))];
+        let (_, lo, hi) =
+            weighted_scenario_report(&points, &declared, 0.5).unwrap().ranges.unwrap()[0];
+        assert!((lo - 0.18).abs() < 1e-12 && (hi - (0.18 + 0.5 * 2.0)).abs() < 1e-12);
+        // An unbounded declared domain withholds the range while mass is unaccounted.
+        let unbounded = [(VariableId::from_raw(3), None)];
+        assert!(weighted_scenario_report(&points, &unbounded, 0.5).unwrap().ranges.is_none());
+        let full = vec![(Arc::from("a"), 0.5, &a), (Arc::from("b"), 0.5, &b)];
+        let (_, lo, hi) =
+            weighted_scenario_report(&full, &unbounded, 0.0).unwrap().ranges.unwrap()[0];
+        assert!((lo - 0.4).abs() < 1e-12 && (hi - 0.4).abs() < 1e-12);
     }
 }

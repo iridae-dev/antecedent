@@ -4362,7 +4362,16 @@ class PreparedTransportScenariosStage:
     def export(self) -> bytes: ...
 
 def prepare_transport_scenarios_stage(
-    scenarios: list[tuple[str, Admg, list[str], float | None]],
+    scenarios: list[
+        tuple[
+            str,
+            Admg,
+            list[str],
+            float | None,
+            list[tuple[str, str, int | None, str | None]] | None,
+        ]
+    ],
+    coordinates: list[tuple[str, str, int | None, str | None]],
     outcomes: list[str],
     treatments: list[str],
     source: str,
@@ -4373,7 +4382,6 @@ def prepare_transport_scenarios_stage(
     *,
     max_steps: int = 100_000,
     max_depth: int = 256,
-    max_scenarios: int = 64,
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,
@@ -4385,7 +4393,6 @@ def consume_transport_scenarios_artifact(
     *,
     max_steps: int = 100_000,
     max_depth: int = 256,
-    max_scenarios: int = 64,
     max_operations: int = 10_000_000,
     max_evaluation_depth: int = 256,
     max_support_rows: int = 1_000_000,

@@ -16,6 +16,7 @@ per family:
 | Classical meta-transport | complete in the multi-source experimental family | `antecedent.transport.advanced.identify_meta` → [Bareinboim 2013](https://proceedings.mlr.press/v31/bareinboim13a.pdf) |
 | Finite catalog search | sound and incomplete | closed as `transport.finite_catalog_search` |
 | Limited / z-experiment | sound and incomplete within 12 observed and 4 controllable variables; positives use cited joints; a line-11 obstruction is structural in the declared controllable set; two sources are searched separately, and complementary factors combine under two registered factorizations (disconnected graph components and, on one connected graph, intervention-separated outcome groups); a single connected c-factor that would need one fabricated joint over both sources' interventions is refused with reason code `transport_not_certified` whose message names `z_transport.multi_source_combination_not_searched` | `antecedent.transport.advanced.identify_z_transport` and `antecedent_identify.decide_two_source_z_transport` → Bareinboim and Pearl, *Causal Transportability with Limited Experiments* (AAAI 2013, [R-408](https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf)) and *Transportability from Multiple Environments with Limited Experiments* (mz-transportability, NeurIPS 2014); the c-factor step and the completeness result are Lee and Honavar's [arXiv:1309.6842](https://arxiv.org/abs/1309.6842), which this implementation does not claim |
+| Finite scenario envelope (X2) | no new theorem: each scenario of an explicitly supplied list of one to 64 fixed selection ADMGs (at most 12 observed variables) is decided independently by the classical catalog route; the envelope is a report over those decisions, not an identification claim | `antecedent.transport.advanced.prepare_transport_scenarios` → see [Finite scenario envelopes](#finite-scenario-envelopes) |
 
 Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent. The static checker in
 `scripts/check_transport_stages.py` refuses a completeness guarantee that
@@ -31,6 +32,52 @@ drops those pins.
   catalog, and learned-trial paths.
 
 Do not add stage routes as fake analyze cells.
+
+## Finite scenario envelopes
+
+`prepare_transport_scenarios` takes a `TransportScenarioSet`: a finite list you
+supply of named fixed graphs over the same variables, each with its own
+selection targets and optionally a declared weight, plus one shared coordinate
+schema (`VariableCoordinate` names, domains and cardinalities, units). A
+scenario may restate its coordinates; any disagreement between scenarios, or a
+catalog, law, sample or request outside the schema, refuses with reason code
+`schema_mismatch` (detail `scenarios.coordinate_mismatch`).
+
+What it is:
+
+- A per-scenario decision. Each scenario binds its own evidence; nothing
+  certified for one scenario satisfies another. Every scenario is reported
+  whatever its status: `identified`, `structurally_unidentified` (a verified
+  s-hedge for that scenario only), `missing_evidence`, `not_certified`,
+  `unsupported_provider`, `support_failure` or `unevaluated`.
+- A structural envelope: the minimum and maximum of the target response over
+  the scenarios that identified, naming the scenarios that attain them. It is
+  not a confidence interval and not a sharp bound, and it says nothing about
+  scenarios that did not identify.
+- With declared weights, a report that never renormalizes over the identified
+  scenarios: every other scenario's weight and the undeclared residual stay
+  unaccounted mass, placed anywhere in the outcome's declared domain.
+- Points from supplied exact laws or from empirical plug-in tables fitted once
+  from `StatisticalTransportData` samples; never an interval.
+- Bounded by one search budget (`max_steps`, `max_depth`, `memory_bytes`,
+  `cancel`) shared by every scenario entered and every step of its search and
+  proof replay. A stop leaves the scenario being decided and every later one
+  `unevaluated` (detail `scenarios.unevaluated_budget: search.<stop>`) with one
+  receipt; none is dropped. A 65th scenario refuses with `route_not_supported`
+  (`scenarios.count`).
+
+What it is not:
+
+- Not an equivalence-class solver: a `Cpdag` or `Pag` refuses with
+  `route_not_supported` (`scenarios.equivalence_class_input`). Enumerating the
+  members of a class is the caller's choice and responsibility.
+- Not cross-scenario inference: `aggregate_interval()` always refuses with
+  `scenario_aggregate_not_licensed` (`scenarios.shared_data_aggregate`).
+
+`consume_transport_scenarios_artifact` replays the whole set under the
+producer's recorded budget and requires an identical report. The artifact's
+identity binds the scenarios, weights, coordinate schema (and so the variable
+names the report is read with), question, request and budgets.
 
 ## Decision inspection on the z route
 

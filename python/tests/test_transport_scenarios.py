@@ -8,7 +8,9 @@ computed here from the laws.
 """
 
 import json
+import struct
 
+import antecedent
 import pytest
 from antecedent import Admg, Cpdag
 from antecedent.errors import (
@@ -29,14 +31,23 @@ def graph(names=NAMES):
     return Admg.from_edges(names, [("z", "x"), ("z", "y"), ("x", "y")], [("x", "y")])
 
 
-def scenarios(weights=None, names=NAMES):
+def coordinates(y="binary", cardinality=None, unit=None):
+    return [
+        transport.VariableCoordinate("z", "binary"),
+        transport.VariableCoordinate("x", "binary"),
+        transport.VariableCoordinate("y", y, unit=unit, cardinality=cardinality),
+    ]
+
+
+def scenarios(weights=None, names=NAMES, schema=None):
     w = weights or (None, None, None)
     return transport.TransportScenarioSet(
         [
             transport.TransportScenario("standardize", graph(names), ["z"], w[0]),
             transport.TransportScenario("direct", graph(names), [], w[1]),
             transport.TransportScenario("outcome_shift", graph(names), ["y"], w[2]),
-        ]
+        ],
+        schema or coordinates(),
     )
 
 
@@ -149,18 +160,42 @@ def test_each_scenario_binds_its_own_evidence():
     assert by_name(unsupported)["standardize"]["status"] == "unsupported_provider"
 
 
+def _operations_to_decide(sets):
+    for steps in range(1, 10_000):
+        if json.loads(prepare(sets, max_steps=steps).estimate())["receipt"] is None:
+            return steps
+    raise AssertionError("small graphs decide within 10k operations")
+
+
 def test_a_scenario_budget_reports_the_rest_unevaluated():
-    report = json.loads(prepare(max_scenarios=2).estimate())
-    assert by_name(report)["standardize"]["status"] == "unevaluated"
+    direct = _operations_to_decide(
+        transport.TransportScenarioSet(
+            [transport.TransportScenario("direct", graph(), [])], coordinates()
+        )
+    )
+    report = json.loads(prepare(max_steps=direct).estimate())
+    s = by_name(report)
+    assert s["direct"]["status"] == "identified"
+    assert s["standardize"]["status"] == "unevaluated"
+    assert s["standardize"]["detail"] == "scenarios.unevaluated_budget: search.operations"
     assert report["receipt"]["stop"] == "search.operations"
-    assert report["receipt"]["unevaluated"] == ["standardize"]
+    assert report["receipt"]["explored"] == ["direct"]
+    assert report["receipt"]["unevaluated"] == ["outcome_shift", "standardize"]
+    # Enough for every scenario alone is not enough for the set.
+    assert _operations_to_decide(scenarios()) > direct
 
 
 def test_scenario_and_variable_order_do_not_change_the_report():
     forward = prepare(scenarios((0.3, 0.2, 0.4)))
-    shuffled = transport.TransportScenarioSet(list(reversed(scenarios((0.3, 0.2, 0.4)).scenarios)))
+    original = scenarios((0.3, 0.2, 0.4))
+    shuffled = transport.TransportScenarioSet(
+        list(reversed(original.scenarios)), list(reversed(original.coordinates))
+    )
     backward = prepare(shuffled)
     assert json.loads(forward.estimate()) == json.loads(backward.estimate())
+    # The same graphs declared with their variables in another order.
+    reordered = prepare(scenarios((0.3, 0.2, 0.4), names=list(reversed(NAMES))))
+    assert json.loads(reordered.estimate()) == json.loads(forward.estimate())
 
 
 def test_refresh_keeps_decisions_and_moves_points():
@@ -183,13 +218,85 @@ def test_artifact_round_trip_keeps_failed_scenarios_and_refuses_tampering():
         transport.consume_transport_scenarios_artifact(artifact[:-4] + b"\x00\x00\x00\x00")
 
 
+PREFIX = b"ANTECEDENT-TRANSPORT-SCENARIOS\x01"
+
+
+def _head(buf, i):
+    """One CBOR item head: (major type, argument, next offset)."""
+    major, info = buf[i] >> 5, buf[i] & 31
+    if info < 24:
+        return major, info, i + 1
+    width = {24: 1, 25: 2, 26: 4, 27: 8}[info]
+    return major, int.from_bytes(buf[i + 1 : i + 1 + width], "big"), i + 1 + width
+
+
+def _encode_head(major, n):
+    if n < 24:
+        return bytes([major << 5 | n])
+    for info, width in ((24, 1), (25, 2), (26, 4), (27, 8)):
+        if n < 1 << (8 * width):
+            return bytes([major << 5 | info]) + n.to_bytes(width, "big")
+    raise ValueError(n)
+
+
+def _unframe(artifact):
+    """The frame is a CBOR pair: the variable names and the artifact bytes."""
+    body = artifact[len(PREFIX) :]
+    _, _, i = _head(body, 0)
+    _, count, i = _head(body, i)
+    names = []
+    for _ in range(count):
+        _, length, i = _head(body, i)
+        names.append(body[i : i + length].decode())
+        i += length
+    major, length, i = _head(body, i)
+    if major == 2:
+        return names, bytearray(body[i : i + length])
+    inner = bytearray()
+    for _ in range(length):
+        _, value, i = _head(body, i)
+        inner.append(value)
+    return names, inner
+
+
+def _frame(names, inner):
+    out = bytearray(PREFIX) + _encode_head(4, 2) + _encode_head(4, len(names))
+    for name in names:
+        out += _encode_head(3, len(name.encode())) + name.encode()
+    out += _encode_head(4, len(inner))
+    for value in inner:
+        out += _encode_head(0, value)
+    return bytes(out)
+
+
+def test_semantic_artifact_mutations_fail_consume_with_typed_errors():
+    prepared = prepare(scenarios((0.3, 0.2, 0.4)))
+    prepared.estimate()
+    artifact = prepared.export()
+    names, inner = _unframe(artifact)
+    assert names == NAMES and _frame(names, inner) == artifact
+    # Relabel the variables: z and y swap names. The names are bound into the
+    # artifact's identity through its coordinate schema, so the frame cannot
+    # silently relabel the replayed report.
+    with pytest.raises(CausalSerializationError, match="coordinate schema"):
+        transport.consume_transport_scenarios_artifact(_frame(["y", "x", "z"], inner))
+    # Change one declared weight (0.3 -> 0.35) inside the stored scenario set.
+    weight = b"\xfb" + struct.pack(">d", 0.3)
+    reweighted = bytes(inner).replace(weight, b"\xfb" + struct.pack(">d", 0.35), 1)
+    assert reweighted != bytes(inner)
+    with pytest.raises(CausalSerializationError, match="premises digest"):
+        transport.consume_transport_scenarios_artifact(_frame(names, reweighted))
+
+
 def test_cross_scenario_inference_and_equivalence_classes_are_refused():
     prepared = prepare()
-    with pytest.raises(CausalUnsupportedError) as refused:
+    with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
         prepared.aggregate_interval()
     assert refused.value.reason_code == "scenario_aggregate_not_licensed"
     cpdag = Cpdag.from_directed_undirected(NAMES, [("z", "x")], [("x", "y")])
-    with pytest.raises(CausalUnsupportedError) as equivalence:
+    with pytest.raises(
+        CausalUnsupportedError, match="scenarios.equivalence_class_input"
+    ) as equivalence:
         transport.TransportScenario("class", cpdag, [])
     assert equivalence.value.reason_code == "route_not_supported"
 
@@ -248,3 +355,139 @@ def test_consume_rechecks_the_report_from_retained_plans_after_builder_disposal(
     consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
     assert consumed["scenarios"] == live["scenarios"]
     assert consumed["weighted"] == live["weighted"]
+
+
+def _schema_refusal(excinfo):
+    assert excinfo.value.reason_code == "schema_mismatch"
+    assert "scenarios.coordinate_mismatch" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        coordinates(y="categorical", cardinality=3),
+        coordinates(y="continuous"),
+        coordinates(unit="mmHg"),
+    ],
+    ids=["cardinality", "domain", "unit"],
+)
+def test_scenarios_disagreeing_on_the_schema_refuse_with_schema_mismatch(override):
+    base = scenarios()
+    changed = transport.TransportScenario("direct", graph(), [], coordinates=override)
+    mixed = transport.TransportScenarioSet(
+        [base.scenarios[0], changed, base.scenarios[2]], base.coordinates
+    )
+    with pytest.raises(CausalValueError) as refused:
+        prepare(mixed)
+    _schema_refusal(refused)
+
+
+def test_scenarios_disagreeing_on_variable_names_refuse_with_schema_mismatch():
+    renamed = Admg.from_edges(
+        ["z", "x", "outcome"], [("z", "x"), ("z", "outcome"), ("x", "outcome")], []
+    )
+    base = scenarios()
+    other = transport.TransportScenario("direct", renamed, [])
+    with pytest.raises(CausalValueError) as refused:
+        prepare(transport.TransportScenarioSet([base.scenarios[0], other], base.coordinates))
+    _schema_refusal(refused)
+    # A schema naming a variable no graph has.
+    wrong = [*coordinates()[:2], transport.VariableCoordinate("outcome", "binary")]
+    with pytest.raises(CausalValueError) as refused:
+        prepare(scenarios(schema=wrong))
+    _schema_refusal(refused)
+
+
+def test_requests_outside_the_declared_domain_refuse_with_schema_mismatch():
+    with pytest.raises(CausalValueError) as refused:
+        transport.prepare_transport_scenarios(
+            scenarios(),
+            outcomes=["y"],
+            treatments=["x"],
+            source="source",
+            target="target",
+            catalog=catalog(),
+            laws=laws(),
+            at={"x": 2.0},
+        )
+    _schema_refusal(refused)
+
+
+def test_weighted_ranges_use_the_declared_outcome_domain():
+    # y is declared with three levels; no law realizes y = 2, so no atom has it,
+    # yet the unaccounted half may still sit there.
+    report = json.loads(
+        prepare(
+            scenarios((0.3, 0.2, 0.4), schema=coordinates(y="categorical", cardinality=3))
+        ).estimate()
+    )
+    total = 0.3 * STANDARDIZED + 0.2 * DIRECT
+    rng = report["weighted"]["ranges"][0]
+    assert (rng["lower"], rng["upper"]) == pytest.approx((total, total + 0.5 * 2))
+
+
+def test_a_support_failure_is_scenario_local():
+    report = json.loads(prepare(data=laws(source=(0.4, 0.6, 0.0, 0.0))).estimate())
+    s = by_name(report)
+    assert s["standardize"]["status"] == "support_failure"
+    assert s["direct"]["status"] == "identified"
+    assert mean(s["direct"]) == pytest.approx(0.6)
+
+
+def test_the_shared_budget_observes_memory_depth_and_cancellation():
+    memory = json.loads(prepare(memory_bytes=1500).estimate(memory_bytes=None))
+    assert memory["receipt"]["stop"] == "search.memory"
+    assert memory["receipt"]["explored"] == ["direct"]
+    depth = json.loads(prepare(max_depth=0).estimate())
+    assert depth["receipt"]["stop"] == "search.depth"
+    assert {s["status"] for s in depth["scenarios"]} == {"unevaluated"}
+    token = antecedent.state.CancellationToken()
+    token.cancel()
+    cancelled = json.loads(prepare(cancel=token).estimate())
+    assert cancelled["receipt"]["stop"] == "search.cancelled"
+    assert cancelled["receipt"]["unevaluated"] == ["direct", "outcome_shift", "standardize"]
+    assert {s["detail"] for s in cancelled["scenarios"]} == {
+        "scenarios.unevaluated_budget: search.cancelled"
+    }
+
+
+def test_the_frozen_scenario_bound_refuses_65_scenarios():
+    many = [transport.TransportScenario(f"s{i:02}", graph(), []) for i in range(65)]
+    with pytest.raises(CausalUnsupportedError, match="scenarios.count") as refused:
+        transport.TransportScenarioSet(many, coordinates())
+    assert refused.value.reason_code == "route_not_supported"
+
+
+def _environment(population):
+    return transport.Environment(
+        population, [transport.VariableCoordinate(n, "binary") for n in NAMES]
+    )
+
+
+def test_empirical_plug_in_points_per_scenario():
+    cat = transport.EvidenceCatalog(
+        environments=[_environment("source"), _environment("target")],
+        regimes=catalog().regimes,
+    )
+    trial = transport.RegimeSample(
+        "source",
+        "trial",
+        "trial",
+        {"z": [0.0, 0.0, 1.0, 1.0, 1.0], "y": [0.0, 1.0, 1.0, 1.0, 0.0]},
+        interventions=(("x", 1.0),),
+    )
+    target = transport.RegimeSample(
+        "target",
+        "obs",
+        "target",
+        {"z": [0.0, 0.0, 0.0, 1.0], "x": [0.0, 1.0, 0.0, 1.0], "y": [0.0, 1.0, 1.0, 0.0]},
+    )
+    data = transport.StatisticalTransportData(samples=(trial, target))
+    prepared = prepare(cat=cat, data=data)
+    report = json.loads(prepared.estimate())
+    s = by_name(report)
+    assert mean(s["direct"]) == pytest.approx(0.6)
+    assert mean(s["standardize"]) == pytest.approx(0.75 * 0.5 + 0.25 * 2 / 3)
+    assert s["outcome_shift"]["status"] == "structurally_unidentified"
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    assert consumed["scenarios"] == report["scenarios"]

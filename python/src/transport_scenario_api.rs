@@ -1,19 +1,21 @@
 //! Python bindings for finite graph/selection transport scenario sets.
 use crate::transport_common::{
     RegimeCheck, assignment_from_pairs, error, execution_context, frame_named_artifact, parse_laws,
-    resolve, unframe_named_artifact,
+    resolve, serialization_error, unframe_named_artifact,
 };
+use crate::transport_statistical_api::parse_statistical_input;
 use crate::{graphs::Admg, transport_interference_api::parse_catalog};
-use antecedent_core::{SearchLimits, Value, VariableId};
+use antecedent_core::{SearchLimits, Value, VariableDomain, VariableId, reason_code};
 use antecedent_estimate::transport_scenarios::ScenarioSetReport;
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    ClassicalTransportQuery, SidLimits,
-    sid::scenarios::{TransportScenario, TransportScenarioSet},
+    ClassicalTransportQuery,
+    sid::scenarios::{ScenarioCoordinate, TransportScenario, TransportScenarioSet},
 };
+use antecedent_io::IoError;
 use antecedent_io::transport_scenario_artifact::{
-    TransportScenarioArtifactWire, TransportScenarioConsumeLimits,
+    TransportScenarioArtifactWire, TransportScenarioConsumeLimits, scenario_refusal,
 };
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -22,8 +24,65 @@ use std::sync::Arc;
 const SCENARIO_PREFIX: &[u8] = b"ANTECEDENT-TRANSPORT-SCENARIOS\x01";
 const SCOPE: &str = "finite_transport_scenarios_structural_envelope";
 
-/// One Python scenario: `(name, graph, selections, weight)`.
-type ScenarioTuple<'py> = (String, PyRef<'py, Admg>, Vec<String>, Option<f64>);
+/// One declared coordinate: `(name, domain, cardinality, unit)`.
+type CoordinateTuple = (String, String, Option<u32>, Option<String>);
+/// One Python scenario: `(name, graph, selections, weight, coordinates)`; the
+/// coordinates override the set's when given.
+type ScenarioTuple<'py> =
+    (String, PyRef<'py, Admg>, Vec<String>, Option<f64>, Option<Vec<CoordinateTuple>>);
+
+/// A reason-coded scenario refusal: a schema or argument refusal is a value
+/// error carrying its code; any other refusal keeps its transport class.
+fn scenario_error(e: IoError) -> PyErr {
+    match e {
+        IoError::Refused { code, message }
+            if code == reason_code!("schema_mismatch")
+                || code == reason_code!("invalid_argument") =>
+        {
+            crate::with_reason_code(crate::value_err(message), code)
+        }
+        other => error(other),
+    }
+}
+
+fn schema_mismatch(message: String) -> PyErr {
+    crate::with_reason_code(
+        crate::value_err(format!("scenarios.coordinate_mismatch: {message}")),
+        reason_code!("schema_mismatch"),
+    )
+}
+
+/// Resolve declared coordinates against the shared variable names.
+fn parse_coordinates(
+    coordinates: &[CoordinateTuple],
+    names: &[String],
+    scenario: &str,
+) -> PyResult<Arc<[ScenarioCoordinate]>> {
+    coordinates
+        .iter()
+        .map(|(name, domain, cardinality, unit)| {
+            let variable = names.iter().position(|n| n == name).ok_or_else(|| {
+                schema_mismatch(format!("scenario {scenario} declares unknown variable {name}"))
+            })?;
+            let domain = match (domain.as_str(), cardinality) {
+                ("unspecified", None) => VariableDomain::Unspecified,
+                ("continuous", None) => VariableDomain::Continuous,
+                ("binary", None) => VariableDomain::Binary,
+                ("count", None) => VariableDomain::Count,
+                ("categorical", Some(n)) => VariableDomain::Categorical { cardinality: *n },
+                _ => return Err(crate::value_err(format!("invalid domain for {name}"))),
+            };
+            Ok(ScenarioCoordinate {
+                variable: VariableId::from_raw(
+                    u32::try_from(variable).map_err(|e| crate::value_err(e.to_string()))?,
+                ),
+                name: Arc::from(name.as_str()),
+                domain,
+                unit: unit.as_deref().map(Arc::from),
+            })
+        })
+        .collect()
+}
 
 fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Value {
     let name = |v: &VariableId| names[v.as_usize()].clone();
@@ -96,6 +155,26 @@ struct PreparedTransportScenariosStage {
     memory_bytes: Option<u64>,
 }
 
+/// Supplied exact laws, or `StatisticalTransportData` for the empirical plug-in.
+enum Provider {
+    Exact(antecedent_expr::ExactTransportData),
+    Empirical(antecedent_estimate::StatisticalTransportInput),
+}
+
+fn parse_provider(
+    laws: &Bound<'_, PyAny>,
+    catalog: &antecedent_core::EvidenceCatalog,
+    graph: &Admg,
+    max_support_rows: usize,
+) -> PyResult<Provider> {
+    if laws.hasattr("samples")? {
+        return parse_statistical_input(laws, catalog, graph, max_support_rows)
+            .map(Provider::Empirical);
+    }
+    parse_laws(&law_sequence(laws)?, catalog, graph, max_support_rows, RegimeCheck::Strict)
+        .map(Provider::Exact)
+}
+
 #[pymethods]
 impl PreparedTransportScenariosStage {
     /// Evaluate every compiled scenario; the report keeps every scenario.
@@ -114,7 +193,8 @@ impl PreparedTransportScenariosStage {
         Ok(payload)
     }
 
-    /// Recompile identified scenarios against new laws; decisions are kept.
+    /// Recompile identified scenarios against new laws, or refit the empirical
+    /// plug-in from new samples; decisions are kept.
     #[pyo3(signature=(laws, *, memory_bytes=None, cancel=None))]
     fn refresh(
         &mut self,
@@ -123,16 +203,17 @@ impl PreparedTransportScenariosStage {
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<()> {
-        let data = parse_laws(
-            &law_sequence(laws)?,
-            &self.catalog,
-            &self.graph,
-            self.max_support_rows,
-            RegimeCheck::Strict,
-        )?;
+        let provider = parse_provider(laws, &self.catalog, &self.graph, self.max_support_rows)?;
         let ctx = execution_context(0, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
-        self.inner = crate::detach_catch(py, move || inner.refresh(data, &ctx).map_err(error))?;
+        let cells = self.max_support_rows;
+        self.inner = crate::detach_catch(py, move || {
+            match provider {
+                Provider::Exact(data) => inner.refresh(data, &ctx),
+                Provider::Empirical(input) => inner.refresh_empirical(input, cells, &ctx),
+            }
+            .map_err(scenario_error)
+        })?;
         self.last = None;
         Ok(())
     }
@@ -164,14 +245,18 @@ impl PreparedTransportScenariosStage {
 
 /// Decide every scenario once and compile the identified ones.
 ///
-/// `scenarios` are `(name, graph, selections, weight)`; every graph must declare
-/// the same variable names. Weights are given for every scenario or none.
+/// `scenarios` are `(name, graph, selections, weight, coordinates)`; every graph
+/// must declare the same variable names, and each scenario's coordinates (its
+/// own, or the set's `coordinates`) must agree. Weights are given for every
+/// scenario or none. `laws` are supplied exact laws or `StatisticalTransportData`
+/// for empirical plug-in points.
 #[pyfunction]
-#[pyo3(signature=(scenarios, outcomes, treatments, source, target, catalog, laws, assignments, *, max_steps=100_000, max_depth=256, max_scenarios=64, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(scenarios, coordinates, outcomes, treatments, source, target, catalog, laws, assignments, *, max_steps=100_000, max_depth=256, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_transport_scenarios_stage(
     py: Python<'_>,
     scenarios: Vec<ScenarioTuple<'_>>,
+    coordinates: Vec<CoordinateTuple>,
     outcomes: Vec<String>,
     treatments: Vec<String>,
     source: String,
@@ -181,7 +266,6 @@ fn prepare_transport_scenarios_stage(
     assignments: BTreeMap<String, f64>,
     max_steps: usize,
     max_depth: usize,
-    max_scenarios: usize,
     max_operations: usize,
     max_evaluation_depth: usize,
     max_support_rows: usize,
@@ -189,21 +273,22 @@ fn prepare_transport_scenarios_stage(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedTransportScenariosStage> {
     let Some(first) = scenarios.first() else {
-        return Err(crate::value_err(
-            "scenarios.empty: a scenario set needs at least one scenario",
+        return Err(crate::with_reason_code(
+            crate::value_err("scenarios.empty: a scenario set needs at least one scenario"),
+            reason_code!("invalid_argument"),
         ));
     };
     let names = first.1.names.clone();
     let named = Admg { admg: first.1.admg.clone(), names: names.clone() };
+    let mut expected = names.clone();
+    expected.sort();
     let mut built = Vec::with_capacity(scenarios.len());
-    for (name, graph, selections, weight) in &scenarios {
+    for (name, graph, selections, weight, own) in &scenarios {
         let mut sorted_names = graph.names.clone();
         sorted_names.sort();
-        let mut expected = names.clone();
-        expected.sort();
         if sorted_names != expected {
-            return Err(crate::value_err(format!(
-                "scenarios.coordinate_mismatch: scenario {name} declares different variables"
+            return Err(schema_mismatch(format!(
+                "scenario {name} declares different variable names"
             )));
         }
         let selections =
@@ -213,37 +298,51 @@ fn prepare_transport_scenarios_stage(
             Arc::<[VariableId]>::from(selections),
         )
         .map_err(error)?;
-        built.push(TransportScenario { name: Arc::from(name.as_str()), diagram, weight: *weight });
+        let coordinates = parse_coordinates(own.as_ref().unwrap_or(&coordinates), &names, name)?;
+        built.push(TransportScenario {
+            name: Arc::from(name.as_str()),
+            diagram,
+            weight: *weight,
+            coordinates,
+        });
     }
-    let set = TransportScenarioSet::try_new(built).map_err(error)?;
-    let coordinates = |variables: &[String]| -> PyResult<Arc<[VariableId]>> {
+    let set = TransportScenarioSet::try_new(built)
+        .map_err(|refusal| scenario_error(scenario_refusal(refusal)))?;
+    let resolved = |variables: &[String]| -> PyResult<Arc<[VariableId]>> {
         variables.iter().map(|n| resolve(&names, n)).collect::<PyResult<Vec<_>>>().map(Arc::from)
     };
     let query = ClassicalTransportQuery {
-        outcomes: coordinates(&outcomes)?,
-        treatments: coordinates(&treatments)?,
+        outcomes: resolved(&outcomes)?,
+        treatments: resolved(&treatments)?,
         source: source.into(),
         target: target.into(),
     };
     let catalog = parse_catalog(catalog, &named)?;
-    let data =
-        parse_laws(&law_sequence(laws)?, &catalog, &named, max_support_rows, RegimeCheck::Strict)?;
+    let provider = parse_provider(laws, &catalog, &named, max_support_rows)?;
     let request = assignment_from_pairs(&names, assignments)?;
     let stage_catalog = catalog.clone();
     let inner = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        antecedent::StudyBuilder::transport_scenarios(
-            &set,
-            query,
-            catalog,
-            SidLimits { steps: max_steps, depth: max_depth },
-            SearchLimits { operations: max_scenarios, depth: 1 },
-            data,
-            request,
-            ExactEvaluationLimits { operations: max_operations, depth: max_evaluation_depth },
-            &ctx,
-        )
-        .map_err(error)
+        let budget = SearchLimits { operations: max_steps, depth: max_depth };
+        let evaluation =
+            ExactEvaluationLimits { operations: max_operations, depth: max_evaluation_depth };
+        match provider {
+            Provider::Exact(data) => antecedent::StudyBuilder::transport_scenarios(
+                &set, query, catalog, budget, data, request, evaluation, &ctx,
+            ),
+            Provider::Empirical(input) => antecedent::StudyBuilder::transport_scenarios_empirical(
+                &set,
+                query,
+                catalog,
+                budget,
+                input,
+                max_support_rows,
+                request,
+                evaluation,
+                &ctx,
+            ),
+        }
+        .map_err(scenario_error)
     })?;
     Ok(PreparedTransportScenariosStage {
         inner,
@@ -257,14 +356,13 @@ fn prepare_transport_scenarios_stage(
 
 /// Independently replay a framed scenario artifact under the consumer's limits.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, max_steps=100_000, max_depth=256, max_scenarios=64, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, max_laws=256, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(artifact, *, max_steps=100_000, max_depth=256, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, max_laws=256, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn consume_transport_scenarios_artifact(
     py: Python<'_>,
     artifact: &[u8],
     max_steps: usize,
     max_depth: usize,
-    max_scenarios: usize,
     max_operations: usize,
     max_evaluation_depth: usize,
     max_support_rows: usize,
@@ -274,8 +372,7 @@ fn consume_transport_scenarios_artifact(
 ) -> PyResult<String> {
     let (names, bytes) = unframe_named_artifact(SCENARIO_PREFIX, artifact, "transport scenario")?;
     let limits = TransportScenarioConsumeLimits {
-        identification: SidLimits { steps: max_steps, depth: max_depth },
-        scenario_budget: SearchLimits { operations: max_scenarios, depth: 1 },
+        scenario_budget: SearchLimits { operations: max_steps, depth: max_depth },
         evaluation: ExactEvaluationLimits {
             operations: max_operations,
             depth: max_evaluation_depth,
@@ -287,10 +384,21 @@ fn consume_transport_scenarios_artifact(
         let ctx = execution_context(0, memory_bytes, cancel);
         let (wire, report) =
             TransportScenarioArtifactWire::consume_with_limits(&bytes, limits, &ctx)
-                .map_err(error)?;
+                .map_err(scenario_error)?;
         for scenario in &wire.scenarios {
             let graph = antecedent_io::admg_from_wire(&scenario.graph).map_err(error)?;
             crate::transport_exact_api::validate_artifact_names(&names, &graph)?;
+        }
+        // The frame's names must be exactly the ones the identity binds: the
+        // report is read with them.
+        let bound = wire.coordinates.len() == names.len()
+            && wire.coordinates.iter().all(|c| {
+                usize::try_from(c.variable).ok().and_then(|i| names.get(i)) == Some(&c.name)
+            });
+        if !bound {
+            return Err(serialization_error(
+                "transport scenario artifact names disagree with its coordinate schema",
+            ));
         }
         let mut payload = report_json(&report, &names);
         payload["premises_digest"] = wire.premises_digest.clone().into();

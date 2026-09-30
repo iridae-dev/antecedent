@@ -1,27 +1,33 @@
 //! Independent artifacts for finite transport scenario sets.
 //!
 //! Format version 1. The artifact retains every scenario, failed as well as
-//! successful. A consumer trusts nothing: it rebuilds the scenario set, question,
-//! catalog and laws, re-decides every scenario under the producer's recorded
-//! limits (which must not exceed its own, and which it needs to reproduce any
-//! budget truncation), recompiles and re-evaluates, and accepts only a report
-//! identical to the stored one: statuses, proofs, points, masses, envelope,
-//! weighted report and receipt.
+//! successful, and the shared named coordinate schema. A consumer trusts
+//! nothing: it rebuilds the scenario set, schema, question, catalog and laws,
+//! re-decides every scenario under the producer's recorded limits (operations,
+//! depth and memory of the one shared search budget; none may exceed its own,
+//! and it needs them to reproduce any budget truncation), recompiles and
+//! re-evaluates, and accepts
+//! only a report identical to the stored one: statuses, proofs, points, masses,
+//! envelope, weighted report and receipt.
 
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
     mz_transport_artifact::MzTransportPointWire, query_wire::ValueWire,
-    transport_catalog_wire::EvidenceCatalogWire, wire::AdmgWire,
+    transport_catalog_wire::EvidenceCatalogWire, transport_grid_wire::SampleSummary,
+    wire::AdmgWire,
 };
-use antecedent_core::{ExecutionContext, IdentityDomain, SearchLimits, VariableId};
-use antecedent_estimate::transport_scenarios::{PreparedScenarioSet, ScenarioSetReport};
-use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
+use antecedent_core::{ExecutionContext, IdentityDomain, SearchLimits, VariableDomain, VariableId};
+use antecedent_estimate::transport_scenarios::{
+    PreparedScenarioSet, SCENARIO_EXACT_PROVIDER, ScenarioSetReport,
+};
+use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData, LawOrigin};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     ClassicalTransportQuery, SidLimits,
     sid::SidDerivationRecord,
     sid::scenarios::{
-        ScenarioOutcome, TransportScenario, TransportScenarioSet, decide_transport_scenarios,
+        ScenarioCoordinate, ScenarioOutcome, ScenarioSetRefusal, TransportScenario,
+        TransportScenarioSet, decide_transport_scenarios,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -48,14 +54,27 @@ pub enum TransportScenarioArtifactError {
     /// The recomputed report differs from the stored report.
     #[error("scenario report does not replay")]
     ReportMismatch,
+    /// The stored laws disagree with the recorded provider or its samples.
+    #[error("scenario provider mismatch: {0}")]
+    ProviderMismatch(&'static str),
+}
+
+/// A refused scenario set, schema or law as a reason-coded refusal.
+#[must_use]
+#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+pub fn scenario_refusal(refusal: ScenarioSetRefusal) -> IoError {
+    IoError::Refused {
+        code: refusal.code,
+        message: format!("{}: {}", refusal.detail, refusal.message),
+    }
 }
 
 /// Consumer bounds. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct TransportScenarioConsumeLimits {
-    /// Largest per-scenario identification limits the consumer will replay.
-    pub identification: SidLimits,
-    /// Largest scenario budget the consumer will replay.
+    /// Largest shared search budget (operations and depth) the consumer will
+    /// replay. A producer memory limit above the consumer context's hard limit
+    /// is refused too.
     pub scenario_budget: SearchLimits,
     /// Largest exact-evaluation limits the consumer will replay.
     pub evaluation: ExactEvaluationLimits,
@@ -67,13 +86,71 @@ pub struct TransportScenarioConsumeLimits {
 
 impl Default for TransportScenarioConsumeLimits {
     fn default() -> Self {
+        let sid = SidLimits::default();
         Self {
-            identification: SidLimits::default(),
-            scenario_budget: SearchLimits { operations: 64, depth: 1 },
+            scenario_budget: SearchLimits { operations: sid.steps, depth: sid.depth },
             evaluation: ExactEvaluationLimits::default(),
             max_support_rows: 1_000_000,
             max_laws: 256,
         }
+    }
+}
+
+/// One stored coordinate of the shared schema.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioCoordinateWire {
+    /// Variable id.
+    pub variable: u32,
+    /// Declared name.
+    pub name: String,
+    /// `unspecified`, `continuous`, `binary`, `count` or `categorical`.
+    pub domain: String,
+    /// Cardinality of a categorical domain.
+    pub cardinality: Option<u32>,
+    /// Declared unit.
+    pub unit: Option<String>,
+}
+
+impl ScenarioCoordinateWire {
+    /// Encode one coordinate.
+    #[must_use]
+    pub fn from_coordinate(c: &ScenarioCoordinate) -> Self {
+        let (domain, cardinality) = match c.domain {
+            VariableDomain::Unspecified => ("unspecified", None),
+            VariableDomain::Continuous => ("continuous", None),
+            VariableDomain::Binary => ("binary", None),
+            VariableDomain::Count => ("count", None),
+            VariableDomain::Categorical { cardinality } => ("categorical", Some(cardinality)),
+        };
+        Self {
+            variable: c.variable.raw(),
+            name: c.name.to_string(),
+            domain: domain.into(),
+            cardinality,
+            unit: c.unit.as_ref().map(ToString::to_string),
+        }
+    }
+
+    /// Decode one coordinate.
+    ///
+    /// # Errors
+    /// An unknown domain tag or a cardinality on a non-categorical domain.
+    pub fn to_coordinate(&self) -> Result<ScenarioCoordinate, IoError> {
+        let domain = match (self.domain.as_str(), self.cardinality) {
+            ("unspecified", None) => VariableDomain::Unspecified,
+            ("continuous", None) => VariableDomain::Continuous,
+            ("binary", None) => VariableDomain::Binary,
+            ("count", None) => VariableDomain::Count,
+            ("categorical", Some(cardinality)) => VariableDomain::Categorical { cardinality },
+            _ => return Err(IoError::Convert("invalid scenario coordinate domain".into())),
+        };
+        Ok(ScenarioCoordinate {
+            variable: VariableId::from_raw(self.variable),
+            name: std::sync::Arc::from(self.name.as_str()),
+            domain,
+            unit: self.unit.as_deref().map(std::sync::Arc::from),
+        })
     }
 }
 
@@ -177,8 +254,14 @@ pub struct ScenarioReceiptWire {
     pub stop: String,
     /// Scenario budget.
     pub operations_limit: usize,
-    /// Scenarios decided before the stop.
+    /// Depth limit.
+    pub depth_limit: usize,
+    /// Hard memory limit in force.
+    pub memory_limit_bytes: Option<u64>,
+    /// Operations charged before the stop.
     pub operations_consumed: Option<usize>,
+    /// Deepest level charged before the stop.
+    pub depth_reached: Option<usize>,
     /// Scenarios decided, in order.
     pub explored: Vec<String>,
     /// Scenarios left unevaluated.
@@ -265,7 +348,10 @@ impl ScenarioReportWire {
             receipt: report.receipt.as_ref().map(|r| ScenarioReceiptWire {
                 stop: r.stop.code().into(),
                 operations_limit: r.operations_limit,
+                depth_limit: r.depth_limit,
+                memory_limit_bytes: r.memory_limit_bytes,
                 operations_consumed: r.operations_consumed,
+                depth_reached: r.depth_reached,
                 explored: r.explored.clone(),
                 unevaluated: r.unevaluated.clone(),
             }),
@@ -283,18 +369,24 @@ pub struct TransportScenarioArtifactWire {
     pub required_features: Vec<String>,
     /// Scenarios in canonical order.
     pub scenarios: Vec<ScenarioWire>,
+    /// The shared named coordinate schema, in variable order.
+    pub coordinates: Vec<ScenarioCoordinateWire>,
     /// Shared question.
     pub query: ScenarioQueryWire,
-    /// Per-scenario identification step limit the producer ran under.
-    pub identification_steps: usize,
-    /// Per-scenario identification depth limit.
-    pub identification_depth: usize,
-    /// Scenario budget.
-    pub scenario_budget: usize,
+    /// Operation limit of the shared search budget the producer ran under.
+    pub scenario_operations: usize,
+    /// Depth limit of the shared search budget.
+    pub scenario_depth: usize,
+    /// Hard memory limit the producer decided under.
+    pub scenario_memory_bytes: Option<u64>,
     /// Evidence catalog shared by every scenario.
     pub catalog: EvidenceCatalogWire,
-    /// Laws in canonical order.
+    /// Provider identity: supplied exact laws or the empirical plug-in.
+    pub provider: String,
+    /// Laws in canonical order: supplied, or fitted by the empirical plug-in.
     pub laws: Vec<ExactLawWire>,
+    /// Summaries of the samples the empirical plug-in fitted.
+    pub samples: Vec<SampleSummary>,
     /// Support budget.
     pub max_support_rows: usize,
     /// Target request.
@@ -305,31 +397,41 @@ pub struct TransportScenarioArtifactWire {
     pub depth_limit: usize,
     /// The full report.
     pub report: ScenarioReportWire,
-    /// Digest of the scenario set, weights and question: its scientific identity.
+    /// Digest of the scenario set, weights, schema, question, request and
+    /// budgets: its scientific identity.
     pub premises_digest: String,
 }
 
-/// Scientific identity of a scenario set and question: canonical scenarios with
-/// their graphs, selections and weights, and the question.
+/// Scientific identity of a scenario-set execution: canonical scenarios (sorted
+/// by their unique names) with their graphs, selections and weights; the shared
+/// named coordinate schema (names, domains, cardinalities, units), which also
+/// binds the variable names a report is read with; the question and the target
+/// request; and every budget the report depends on (the shared search budget
+/// with its memory limit, and evaluation).
 ///
 /// # Errors
 /// Encoding failure.
-pub fn scenario_set_identity(
-    scenarios: &[ScenarioWire],
-    query: &ScenarioQueryWire,
-) -> Result<String, IoError> {
-    let mut scenarios = scenarios.to_vec();
+pub fn scenario_set_identity(wire: &TransportScenarioArtifactWire) -> Result<String, IoError> {
+    let mut scenarios = wire.scenarios.clone();
     for scenario in &mut scenarios {
         scenario.graph.directed.sort_unstable();
         scenario.graph.bidirected.sort_unstable();
         scenario.selections.sort_unstable();
     }
     scenarios.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut coordinates = wire.coordinates.clone();
+    coordinates.sort_by_key(|c| c.variable);
+    let mut request = wire.request.clone();
+    request.sort_by_key(|(v, _)| *v);
     let weights = scenarios.iter().map(|s| s.weight.map(f64::to_bits)).collect::<Vec<_>>();
     let shape = scenarios.iter().map(|s| (&s.name, &s.graph, &s.selections)).collect::<Vec<_>>();
+    let budget = (
+        (wire.scenario_operations, wire.scenario_depth, wire.scenario_memory_bytes),
+        (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
+    );
     Ok(crate::identity::digest_wire(
         IdentityDomain::TransportCertificate,
-        &("transport_scenarios_v1", shape, weights, query),
+        &("transport_scenarios_v1", shape, weights, coordinates, &wire.query, request, budget),
     )?
     .to_hex())
 }
@@ -346,6 +448,65 @@ fn scenario_wires(set: &TransportScenarioSet) -> Result<Vec<ScenarioWire>, IoErr
             })
         })
         .collect()
+}
+
+/// Every non-supplied law of an empirical provider must be accounted for by
+/// exactly one sample summary of the same world, snapshot and size; a supplied
+/// exact provider carries no samples.
+fn check_provider(
+    provider: &str,
+    data: &ExactTransportData,
+    samples: &[SampleSummary],
+) -> Result<(), TransportScenarioArtifactError> {
+    let mismatch = TransportScenarioArtifactError::ProviderMismatch;
+    let fitted = data.laws().iter().filter(|law| law.origin() != LawOrigin::SuppliedExact);
+    if provider == SCENARIO_EXACT_PROVIDER {
+        if fitted.count() != 0 || !samples.is_empty() {
+            return Err(mismatch("supplied exact laws carry no fitted tables or samples"));
+        }
+        return Ok(());
+    }
+    if provider != antecedent_estimate::EMPIRICAL_TABLE_PLUGIN {
+        return Err(mismatch("unknown provider"));
+    }
+    if samples.is_empty() {
+        return Err(mismatch("an empirical provider needs a sample"));
+    }
+    let mut unmatched = samples.to_vec();
+    for law in fitted {
+        if law.origin() != LawOrigin::EmpiricalPlugin {
+            return Err(mismatch("only empirical plug-in tables are fitted"));
+        }
+        let wire = ExactLawWire::metadata(law);
+        // A plug-in table is a frequency table of its sample: its counts sum
+        // to the sample size, or every probability times the size is whole.
+        let sized = |n: u32| match law.empirical_counts() {
+            Some(counts) => counts.iter().sum::<u64>() == u64::from(n),
+            None => {
+                n > 0
+                    && law.probabilities().iter().all(|p| {
+                        let count = p * f64::from(n);
+                        (count - count.round()).abs()
+                            <= (8.0 * f64::EPSILON * f64::from(n)).max(1e-7)
+                    })
+            }
+        };
+        let index = unmatched
+            .iter()
+            .position(|s| {
+                s.population == wire.population
+                    && s.regime == wire.regime
+                    && s.interventions == wire.interventions
+                    && s.snapshot == wire.snapshot
+                    && sized(s.n)
+            })
+            .ok_or(mismatch("a fitted table has no matching sample summary"))?;
+        unmatched.swap_remove(index);
+    }
+    if !unmatched.is_empty() {
+        return Err(mismatch("a sample summary has no fitted table"));
+    }
+    Ok(())
 }
 
 fn query_wire(query: &ClassicalTransportQuery) -> ScenarioQueryWire {
@@ -377,7 +538,8 @@ struct VersionPeek {
 }
 
 impl TransportScenarioArtifactWire {
-    /// Build an artifact from a prepared set and the report it produced.
+    /// Build an artifact from a prepared set and the report it produced. The
+    /// limits recorded are the ones the decision ran under.
     ///
     /// # Errors
     /// The premises do not encode.
@@ -385,24 +547,34 @@ impl TransportScenarioArtifactWire {
         prepared: &PreparedScenarioSet,
         query: &ClassicalTransportQuery,
         catalog: &antecedent_core::EvidenceCatalog,
-        identification: SidLimits,
-        scenario_budget: SearchLimits,
         report: &ScenarioSetReport,
     ) -> Result<Self, IoError> {
-        let scenarios = scenario_wires(&prepared.decision().set)?;
-        let query = query_wire(query);
-        let premises_digest = scenario_set_identity(&scenarios, &query)?;
+        let decision = prepared.decision();
+        let decided = decision.limits;
         let limits = prepared.limits();
-        Ok(Self {
+        let samples = prepared
+            .empirical_input()
+            .map(|input| input.samples.iter().map(SampleSummary::from_sample).collect())
+            .transpose()?
+            .unwrap_or_default();
+        let mut wire = Self {
             version: TRANSPORT_SCENARIO_ARTIFACT_VERSION,
             required_features: vec![TRANSPORT_SCENARIO_ARTIFACT_FEATURE.into()],
-            scenarios,
-            query,
-            identification_steps: identification.steps,
-            identification_depth: identification.depth,
-            scenario_budget: scenario_budget.operations,
+            scenarios: scenario_wires(&decision.set)?,
+            coordinates: decision
+                .set
+                .schema()
+                .iter()
+                .map(ScenarioCoordinateWire::from_coordinate)
+                .collect(),
+            query: query_wire(query),
+            scenario_operations: decided.budget.operations,
+            scenario_depth: decided.budget.depth,
+            scenario_memory_bytes: decided.memory_limit_bytes,
             catalog: EvidenceCatalogWire::from_catalog(catalog),
+            provider: prepared.provider().into(),
             laws: canonical_laws(prepared.data())?,
+            samples,
             max_support_rows: prepared.data().max_support_rows(),
             request: prepared
                 .request()
@@ -413,8 +585,10 @@ impl TransportScenarioArtifactWire {
             operation_limit: limits.operations,
             depth_limit: limits.depth,
             report: ScenarioReportWire::from_report(prepared, report),
-            premises_digest,
-        })
+            premises_digest: String::new(),
+        };
+        wire.premises_digest = scenario_set_identity(&wire)?;
+        Ok(wire)
     }
 
     /// Encode as CBOR.
@@ -446,15 +620,20 @@ impl TransportScenarioArtifactWire {
     fn check_limits(
         &self,
         limits: &TransportScenarioConsumeLimits,
+        ctx: &ExecutionContext,
     ) -> Result<(), TransportScenarioArtifactError> {
         let exceeded = TransportScenarioArtifactError::LimitsExceeded;
-        if self.identification_steps > limits.identification.steps
-            || self.identification_depth > limits.identification.depth
+        if self.scenario_operations > limits.scenario_budget.operations
+            || self.scenario_depth > limits.scenario_budget.depth
         {
-            return Err(exceeded("identification limits"));
-        }
-        if self.scenario_budget > limits.scenario_budget.operations {
             return Err(exceeded("scenario budget"));
+        }
+        if let (Some(producer), Some(consumer)) =
+            (self.scenario_memory_bytes, ctx.memory.hard_limit_bytes)
+        {
+            if producer > consumer {
+                return Err(exceeded("scenario memory"));
+            }
         }
         if self.operation_limit > limits.evaluation.operations
             || self.depth_limit > limits.evaluation.depth
@@ -480,10 +659,16 @@ impl TransportScenarioArtifactWire {
         ctx: &ExecutionContext,
     ) -> Result<(Self, ScenarioSetReport), IoError> {
         let wire = Self::decode(bytes)?;
-        wire.check_limits(&limits)?;
-        if scenario_set_identity(&wire.scenarios, &wire.query)? != wire.premises_digest {
+        wire.check_limits(&limits, ctx)?;
+        if scenario_set_identity(&wire)? != wire.premises_digest {
             return Err(TransportScenarioArtifactError::PremisesMismatch.into());
         }
+        let coordinates = wire
+            .coordinates
+            .iter()
+            .map(ScenarioCoordinateWire::to_coordinate)
+            .collect::<Result<Vec<_>, _>>()?;
+        let coordinates = Arc::<[ScenarioCoordinate]>::from(coordinates);
         let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
         let scenarios = wire
             .scenarios
@@ -498,10 +683,11 @@ impl TransportScenarioArtifactWire {
                     name: Arc::from(s.name.as_str()),
                     diagram,
                     weight: s.weight,
+                    coordinates: Arc::clone(&coordinates),
                 })
             })
             .collect::<Result<Vec<_>, IoError>>()?;
-        let set = TransportScenarioSet::try_new(scenarios)?;
+        let set = TransportScenarioSet::try_new(scenarios).map_err(scenario_refusal)?;
         let query = ClassicalTransportQuery {
             outcomes: ids(&wire.query.outcomes).into(),
             treatments: ids(&wire.query.treatments).into(),
@@ -517,6 +703,14 @@ impl TransportScenarioArtifactWire {
             .map_err(|e| IoError::Convert(e.to_string()))?;
         let data = ExactTransportData::try_new(laws, wire.max_support_rows)
             .map_err(|e| IoError::Convert(e.to_string()))?;
+        check_provider(&wire.provider, &data, &wire.samples)?;
+        // Replay under the producer's memory limit, which the consumer's own
+        // hard limit already bounds, so a memory truncation reproduces.
+        let mut replay = ctx.clone();
+        if wire.scenario_memory_bytes.is_some() {
+            replay.memory.hard_limit_bytes = wire.scenario_memory_bytes;
+        }
+        let ctx = &replay;
         let request = Assignment::from_pairs(
             wire.request.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())),
         );
@@ -524,8 +718,7 @@ impl TransportScenarioArtifactWire {
             &set,
             &query,
             &catalog,
-            SidLimits { steps: wire.identification_steps, depth: wire.identification_depth },
-            SearchLimits { operations: wire.scenario_budget, depth: 1 },
+            SearchLimits { operations: wire.scenario_operations, depth: wire.scenario_depth },
             ctx,
         )?;
         let prepared = antecedent_estimate::transport_scenarios::prepare_transport_scenarios(

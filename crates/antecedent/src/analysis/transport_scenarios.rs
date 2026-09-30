@@ -8,17 +8,19 @@
 use super::StudyBuilder;
 use super::transport_common::estimate_err;
 use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits};
+use antecedent_estimate::StatisticalTransportInput;
 use antecedent_estimate::transport_scenarios::{
-    PreparedScenarioSet, ScenarioSetReport, prepare_transport_scenarios,
+    PreparedScenarioSet, ScenarioSetReport, prepare_empirical_transport_scenarios,
+    prepare_transport_scenarios,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
-    ClassicalTransportQuery, SidLimits,
+    ClassicalTransportQuery,
     sid::scenarios::{TransportScenarioSet, decide_transport_scenarios},
 };
 use antecedent_io::IoError;
 use antecedent_io::transport_scenario_artifact::{
-    TransportScenarioArtifactWire, TransportScenarioConsumeLimits,
+    TransportScenarioArtifactWire, TransportScenarioConsumeLimits, scenario_refusal,
 };
 
 /// A decided, compiled scenario set.
@@ -27,39 +29,83 @@ pub struct PreparedTransportScenarios {
     inner: PreparedScenarioSet,
     query: ClassicalTransportQuery,
     catalog: EvidenceCatalog,
-    identification: SidLimits,
-    scenario_budget: SearchLimits,
+}
+
+/// Decide every scenario once. A catalog or question disagreeing with the
+/// shared coordinate schema refuses before any search.
+fn decide(
+    set: &TransportScenarioSet,
+    query: &ClassicalTransportQuery,
+    catalog: &EvidenceCatalog,
+    budget: SearchLimits,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_identify::sid::scenarios::ScenarioSetDecision, IoError> {
+    set.check_catalog(catalog).map_err(scenario_refusal)?;
+    set.check_query(query).map_err(scenario_refusal)?;
+    Ok(decide_transport_scenarios(set, query, catalog, budget, ctx)?)
 }
 
 impl StudyBuilder {
     /// Decide every scenario once against the shared question and catalog, and
-    /// compile each identified scenario against `data`.
+    /// compile each identified scenario against supplied exact laws.
+    ///
+    /// `budget` is the one shared search budget of the set: each scenario
+    /// entered is charged at depth one with the decision's live bytes, and each
+    /// scenario's search and verification replay charge it too, against the
+    /// context's hard memory limit and cancellation.
     ///
     /// # Errors
-    /// Invalid query, catalog or laws, or a request that fails for every scenario.
+    /// `schema_mismatch` for a catalog, law or request outside the shared
+    /// coordinate schema; invalid query, catalog or laws; or a request that
+    /// fails for every scenario.
     #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn transport_scenarios(
         set: &TransportScenarioSet,
         query: ClassicalTransportQuery,
         catalog: EvidenceCatalog,
-        identification: SidLimits,
-        scenario_budget: SearchLimits,
+        budget: SearchLimits,
         data: ExactTransportData,
         request: Assignment,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTransportScenarios, IoError> {
-        let decision = decide_transport_scenarios(
-            set,
-            &query,
-            &catalog,
-            identification,
-            scenario_budget,
-            ctx,
-        )?;
+        let decision = decide(set, &query, &catalog, budget, ctx)?;
         let inner = prepare_transport_scenarios(decision, data, request, limits, ctx)
             .map_err(estimate_err)?;
-        Ok(PreparedTransportScenarios { inner, query, catalog, identification, scenario_budget })
+        Ok(PreparedTransportScenarios { inner, query, catalog })
+    }
+
+    /// As [`Self::transport_scenarios`], with empirical plug-in frequency tables
+    /// fitted once from finite samples (plus any supplied exact laws) in place
+    /// of supplied laws. Per-scenario points only; no interval.
+    ///
+    /// # Errors
+    /// As [`Self::transport_scenarios`], plus samples the plug-in cannot fit.
+    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
+    pub fn transport_scenarios_empirical(
+        set: &TransportScenarioSet,
+        query: ClassicalTransportQuery,
+        catalog: EvidenceCatalog,
+        budget: SearchLimits,
+        input: StatisticalTransportInput,
+        max_joint_cells: usize,
+        request: Assignment,
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedTransportScenarios, IoError> {
+        let mut input = input;
+        super::statistical::canonicalize_input(&mut input)?;
+        let decision = decide(set, &query, &catalog, budget, ctx)?;
+        let inner = prepare_empirical_transport_scenarios(
+            decision,
+            input,
+            max_joint_cells,
+            request,
+            limits,
+            ctx,
+        )
+        .map_err(estimate_err)?;
+        Ok(PreparedTransportScenarios { inner, query, catalog })
     }
 }
 
@@ -84,6 +130,24 @@ impl PreparedTransportScenarios {
         Ok(Self { inner: self.inner.refresh(data, ctx).map_err(estimate_err)?, ..self.clone() })
     }
 
+    /// Refit the empirical plug-in from new samples and recompile; decisions
+    /// are kept.
+    ///
+    /// # Errors
+    /// Samples the plug-in cannot fit, or laws outside the shared schema.
+    pub fn refresh_empirical(
+        &self,
+        input: StatisticalTransportInput,
+        max_joint_cells: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let mut input = input;
+        super::statistical::canonicalize_input(&mut input)?;
+        let inner =
+            self.inner.refresh_empirical(input, max_joint_cells, ctx).map_err(estimate_err)?;
+        Ok(Self { inner, ..self.clone() })
+    }
+
     /// Inference across scenarios that share data is not licensed; this always
     /// refuses with `scenario_aggregate_not_licensed`.
     ///
@@ -92,10 +156,8 @@ impl PreparedTransportScenarios {
     pub fn aggregate_interval(&self) -> Result<(), IoError> {
         Err(IoError::Refused {
             code: antecedent_core::reason_code!("scenario_aggregate_not_licensed"),
-            message:
-                "scenarios.shared_data_aggregate: only per-scenario results and the structural \
-                      envelope are licensed"
-                    .into(),
+            message: "scenarios.shared_data_aggregate: only per-scenario results are licensed"
+                .into(),
         })
     }
 
@@ -110,15 +172,8 @@ impl PreparedTransportScenarios {
     /// # Errors
     /// The premises do not encode.
     pub fn export(&self, report: &ScenarioSetReport) -> Result<Vec<u8>, IoError> {
-        TransportScenarioArtifactWire::checked(
-            &self.inner,
-            &self.query,
-            &self.catalog,
-            self.identification,
-            self.scenario_budget,
-            report,
-        )?
-        .export()
+        TransportScenarioArtifactWire::checked(&self.inner, &self.query, &self.catalog, report)?
+            .export()
     }
 }
 
