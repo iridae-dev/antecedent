@@ -49,6 +49,7 @@ pub mod iv;
 pub mod joint_if;
 mod learn_nuisance;
 pub mod local_polynomial_ratio;
+pub mod mixed_source;
 pub mod multi_arm;
 pub mod observation;
 pub mod overlap;
@@ -78,6 +79,7 @@ pub mod temporal_response;
 pub mod temporal_response_dispersion;
 pub mod temporal_sequential;
 pub mod temporal_sequential_tuples;
+pub mod temporal_transport;
 pub mod transport;
 pub mod transport_scenarios;
 pub mod util;
@@ -90,9 +92,24 @@ pub use adjustment::{
     BlockResampling, CandidateSelectionRecord, CheckedLinearAdjustmentAte, EffectEstimate,
     EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
+pub mod estimator_menu;
+pub mod learned_continuous;
 pub mod learned_trial;
 pub mod longitudinal_regime;
 pub mod marginal_structural_model;
+pub use estimator_menu::{
+    EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
+    transport_estimator_menu_with,
+};
+pub use learned_continuous::{
+    FoldProvenance, LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousEstimate, LearnedContinuousOptions,
+    LearnedContinuousUncertainty, check_membership_overlap, estimate_learned_continuous,
+    parse_learned_continuous_sampling,
+    parse_learned_continuous_target, refuse_learned_continuous_interval,
+    validate_learned_continuous,
+};
+#[cfg(feature = "calibration-internal")]
+pub use learned_continuous::learned_continuous_interval_internal;
 pub use learned_trial::{
     TrialAipwEstimate, TrialAipwInput, TrialAipwOptions, TrialSampling, estimate_trial_aipw,
     learned_trial_uncertainty, validate_trial_aipw, validate_trial_query,
@@ -184,6 +201,7 @@ pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
     max_t_critical, monotone_decreasing, monotone_increasing, weighted_mean,
 };
+pub use mixed_source::{evaluate_exact_mixed_source, prepare_exact_mixed_source};
 pub use observation::{
     LAGGED_OUTCOME_REGRESSOR_REFUSAL, ObservationAdjustedOutcome, ObservationEstimatorOptions,
     ObservationMechanismEstimator, SelectedOutcomeCorrection, temporal_curve_outcome_regressors,

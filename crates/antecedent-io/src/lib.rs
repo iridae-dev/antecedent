@@ -15,6 +15,7 @@ pub mod contract_section;
 pub mod contrast_wire;
 pub mod convert;
 pub mod coverage_records_data;
+pub mod cross_world_artifact;
 pub mod discovery_wire;
 mod distribution_replay;
 pub use distribution_replay::distribution_factor_laws_to_wire;
@@ -30,6 +31,7 @@ pub mod graph_networkx;
 pub mod identity;
 pub mod mechanism_wire;
 pub mod migrate;
+pub mod mixed_source_artifact;
 /// Thin mmap wrapper — sole `unsafe` boundary in antecedent-io.
 ///
 /// SPDX-License-Identifier: MIT OR Apache-2.0
@@ -46,6 +48,7 @@ pub mod provider_envelope;
 pub mod query_wire;
 pub mod reader;
 pub mod response_wire;
+pub mod temporal_transport_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
 pub mod transport_certificate;
@@ -364,5 +367,7 @@ mod tests {
 /// Transport grid artifact records and encoding.
 pub mod transport_grid_wire;
 
+/// Learned continuous-outcome trial transport artifact verification (2.2A X4).
+pub mod learned_continuous_artifact;
 /// Learner-backed trial transport artifact verification.
 pub mod learned_trial_wire;

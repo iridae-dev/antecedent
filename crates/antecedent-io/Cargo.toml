@@ -16,6 +16,14 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+# Interval-bearing mz-transport artifact construction and its bit-for-bit
+# recompute, for the calibration harness and lifecycle tests only. Enabled only by
+# the facade's dev-dependencies (resolver 2 keeps it out of normal builds); no
+# released build carries it, so no public route yields or accepts an interval.
+calibration-internal = ["antecedent-estimate/calibration-internal"]
+
 [dependencies]
 antecedent-core = { version = "2.1.0", path = "../antecedent-core" }
 antecedent-discovery = { version = "2.1.0", path = "../antecedent-discovery" }

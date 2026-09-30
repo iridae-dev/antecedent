@@ -3,4 +3,5 @@
 #![allow(dead_code)]
 
 pub mod mz_fixture;
+pub mod temporal_fixture;
 pub mod z_scm;

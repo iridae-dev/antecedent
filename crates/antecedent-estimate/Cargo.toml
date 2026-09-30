@@ -22,6 +22,10 @@ ml-gbdt = ["antecedent-learn/ml-gbdt"]
 ml-forest = ["antecedent-learn/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-learn/ml-neural"]
+# Exposes the closed X4 interval estimator (`learned_continuous_interval_internal`) to the
+# calibration harness. Enabled only by the facade's dev-dependencies (resolver 2 keeps it
+# out of normal builds); no released build carries it.
+calibration-internal = []
 
 [dependencies]
 antecedent-graph = { version = "2.1.0", path = "../antecedent-graph" }

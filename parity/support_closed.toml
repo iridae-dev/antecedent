@@ -265,10 +265,4 @@ reason = "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validat
 # [[closed_contrast]], not [[closed]]: the support-matrix gates read only
 # [[closed]], and scripts/check_promotion_records.py requires one row here for
 # every closed support_licensed route of a record, with the record's reason_code.
-
-[[closed_contrast]]
-query = "NestedCounterfactualEffect"
-contrast = "natural_indirect"
-reason_code = "cell_not_licensed"
-record = "2.2A.X8.natural_indirect_effect"
-reason = "The natural indirect contrast of NestedCounterfactualEffect is frozen under 2.2A X8 and refused until that record is promoted; the licensed cell evaluates the natural direct contrast only."
+# (No record keeps one closed today: 2.2A X8 owns its routes in transport_stages.toml.)

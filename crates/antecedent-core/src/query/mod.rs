@@ -8,6 +8,7 @@ mod attribution;
 mod average;
 mod continuous_dose;
 mod counterfactual;
+mod cross_world;
 mod did;
 mod distribution;
 mod error;
@@ -41,6 +42,10 @@ pub use attribution::{
 pub use average::AverageEffectQuery;
 pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
 pub use counterfactual::CounterfactualQuery;
+pub use cross_world::{
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
+    WorldSpec,
+};
 pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;

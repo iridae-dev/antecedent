@@ -20,6 +20,7 @@ pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
 pub mod bounds;
+pub mod cross_world;
 pub mod efficient;
 pub(crate) mod enum_masks;
 pub mod envelope;
@@ -47,12 +48,23 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use sid::{
+    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
+    MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
+    MixedExclusion, MixedInput, MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule,
+    MixedSearchInspection, MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation,
+    MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
+    MixedStepRecord, ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
+    mixed_source_rule_names, render_frontier, render_quantity, validate_mixed_source_query,
+    verify_mixed_source_derivation,
+};
+pub use sid::{
     BoundMzTransportFunctional, BoundTransportFunctional, BoundZTransportFunctional,
     CatalogTransportResult, CheckedTransportDerivation, ClassicalTransportDerivation,
     ClassicalTransportQuery, ClassicalTransportResult, ComponentFactorization,
     MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MetaSource, MetaTransportQuery, MzSearchInspection, MzStageRecord, MzTransportDecision,
+    MZ_TRANSPORT_MEMORY_BYTES, mz_transport_refusal, MetaSource, MetaTransportQuery, MzSearchInspection,
+    MzSearchRecord, MzStageRecord, MzTransportDecision,
     MzTransportDerivation, MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery,
     MzTransportRoute, SidLimits, TwoSourceZTransportComponent, TwoSourceZTransportDecision,
     TwoSourceZTransportQuery, ValidatedMzTransportQuery, Z_TRANSPORT_MAX_CONTROLLABLE,

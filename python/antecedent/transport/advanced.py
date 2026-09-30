@@ -70,6 +70,21 @@ from ._impl import (
     replay_z_transport_proposal,
     restore_lowered_program,
 )
+from ._learned_continuous import (
+    EstimatorMenu,
+    EstimatorMenuEntry,
+    LearnedContinuousEstimate,
+    LearnedContinuousOptions,
+    PreparedLearnedContinuous,
+    consume_learned_continuous,
+    estimator_menu,
+    prepare_learned_continuous,
+)
+from ._mixed_source import (
+    MixedSourceQuery,
+    consume_mixed_source_artifact,
+    identify_mixed_source_transport,
+)
 from ._multi_source import (
     MultiSourceZTransportQuery,
     ZTransportSource,
@@ -82,8 +97,21 @@ from ._scenarios import (
     consume_transport_scenarios_artifact,
     prepare_transport_scenarios,
 )
+from ._temporal import (
+    TemporalSequenceSpec,
+    consume_temporal_transport_artifact,
+    prepare_temporal_transport_sequence,
+)
 
 __all__ = [
+    "EstimatorMenu",
+    "EstimatorMenuEntry",
+    "LearnedContinuousEstimate",
+    "LearnedContinuousOptions",
+    "PreparedLearnedContinuous",
+    "consume_learned_continuous",
+    "estimator_menu",
+    "prepare_learned_continuous",
     "ClassicalTransportIdentification",
     "DirectFormula",
     "Environment",
@@ -95,6 +123,7 @@ __all__ = [
     "ExactTransportDistribution",
     "ExactTransportQuery",
     "LearnedTrialEstimate",
+    "MixedSourceQuery",
     "MultiSourceZTransportQuery",
     "MissingEvidenceCertificate",
     "NotCertifiedCertificate",
@@ -115,6 +144,7 @@ __all__ = [
     "ZTransportCandidate",
     "ZTransportSensitivityResult",
     "TransportResponseGrid",
+    "TemporalSequenceSpec",
     "TransportScenario",
     "TransportScenarioSet",
     "TransportResponseGridQuery",
@@ -125,12 +155,14 @@ __all__ = [
     "VariableCoordinate",
     "ZTransportSource",
     "consume_exact",
+    "consume_mixed_source_artifact",
     "consume_multi_source_z_transport_artifact",
     "consume_z_transport_artifact",
     "consume_z_transport_sensitivity_artifact",
     "consume_identification",
     "consume_response_grid",
     "consume_statistical",
+    "consume_temporal_transport_artifact",
     "consume_transport_scenarios_artifact",
     "estimate_trial_effect",
     "evaluate_exact",
@@ -138,6 +170,7 @@ __all__ = [
     "identify",
     "identify_classical",
     "identify_meta",
+    "identify_mixed_source_transport",
     "identify_multi_source_z_transport",
     "identify_z_transport",
     "plan_z_transport_evidence",
@@ -149,6 +182,7 @@ __all__ = [
     "prepare_response_grid",
     "prepare_statistical",
     "prepare_trial",
+    "prepare_temporal_transport_sequence",
     "prepare_transport_scenarios",
     "reload_lowered_expression",
     "reload_lowered_program",

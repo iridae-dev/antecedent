@@ -87,9 +87,31 @@ pub enum IoError {
     /// A multi-source mz-transport artifact failed one of its typed consumer checks.
     #[error("mz-transport artifact: {0}")]
     MzTransport(#[from] crate::mz_transport_artifact::MzTransportArtifactError),
+    /// A mixed-source proof-search artifact failed one of its typed consumer checks.
+    #[error("mixed-source artifact: {0}")]
+    MixedSource(#[from] crate::mixed_source_artifact::MixedSourceArtifactError),
     /// A transport scenario artifact failed one of its typed consumer checks.
     #[error("transport scenario artifact: {0}")]
     TransportScenario(#[from] crate::transport_scenario_artifact::TransportScenarioArtifactError),
+    /// A temporal sequence artifact failed one of its typed consumer checks.
+    #[error("temporal transport artifact: {0}")]
+    TemporalTransport(#[from] crate::temporal_transport_artifact::TemporalTransportArtifactError),
+    /// A learned continuous-outcome transport artifact failed one of its typed consumer checks.
+    #[error("learned continuous transport artifact: {0}")]
+    LearnedContinuous(#[from] crate::learned_continuous_artifact::LearnedContinuousArtifactError),
+}
+
+impl IoError {
+    /// The registered reason code this error carries, when it has one: a coded
+    /// refusal, or an mz-transport artifact failure the X1 record assigns a code.
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Refused { code, .. } => Some(code),
+            Self::MzTransport(inner) => inner.refusal().map(|(code, _)| code),
+            _ => None,
+        }
+    }
 }
 
 impl From<antecedent_identify::IdentificationError> for IoError {

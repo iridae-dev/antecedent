@@ -56,7 +56,9 @@ pub use transport_result::TransportGridFailure;
 pub mod response;
 pub mod schema;
 pub mod search;
-pub use search::{SearchBudget, SearchLimits, SearchReceipt, SearchStop};
+pub use search::{
+    DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+};
 pub mod temporal;
 pub mod tolerance;
 pub mod transform;
@@ -131,6 +133,10 @@ pub use query::{
     TransportOutcome, TransportOutcomeKind, TransportQuery, TransportSupportCoordinate,
     TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
     VariableDomain, policy_graphless_coordinate, randomized_graphless_coordinate,
+};
+pub use query::{
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
+    WorldSpec,
 };
 pub use reasoning::{
     AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,

@@ -52,6 +52,7 @@ pub mod accepted;
 pub mod analysis;
 pub mod callback_plan;
 pub mod class_prior;
+pub mod cross_world;
 pub mod design;
 pub mod discovery;
 pub mod discovery_defaults;
@@ -95,7 +96,12 @@ pub use analysis::{
     StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
     ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
+pub use analysis::{
+    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+};
+pub use analysis::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use analysis::{PreparedTemporalTransport, consume_temporal_transport_artifact};
 pub use analysis::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};

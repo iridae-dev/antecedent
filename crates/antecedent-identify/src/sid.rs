@@ -21,18 +21,31 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod meta;
+mod mixed_source;
 mod mz_transport;
 pub mod scenarios;
+pub mod temporal_sequence;
 mod z_transport;
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
     CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
     identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
 };
+pub use mixed_source::{
+    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
+    MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
+    MixedExclusion, MixedInput, MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule,
+    MixedSearchInspection, MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation,
+    MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
+    MixedStepRecord, ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
+    mixed_source_rule_names, render_frontier, render_quantity, validate_mixed_source_query,
+    verify_mixed_source_derivation,
+};
 pub use mz_transport::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MzSearchInspection, MzStageRecord, MzTransportDecision, MzTransportDerivation,
+    MZ_TRANSPORT_MEMORY_BYTES, MzSearchInspection, mz_transport_refusal, MzSearchRecord, MzStageRecord,
+    MzTransportDecision, MzTransportDerivation,
     MzTransportDerivationRecord, MzTransportObstruction, MzTransportQuery, MzTransportRoute,
     ValidatedMzTransportQuery, bind_mz_transport_catalog, decide_mz_transport,
     validate_mz_transport_query, verify_mz_transport_obstruction,
@@ -367,7 +380,13 @@ pub(crate) fn identify_classical_transport_metered(
     }
     let Some(root_step) = result else {
         if let Some(state) = engine.obstruction.clone() {
+            // Under a shared budget the witness construction (which checks its
+            // own candidate) and the independent verification of the result are
+            // each one charged operation at the engine's depth: both are linear
+            // in the graph, so one operation apiece, but never free.
+            engine.charge_shared(1)?;
             if let Some(witness) = engine.negative_witness(&state)? {
+                engine.charge_shared(1)?;
                 verify_s_hedge(diagram, query, &witness, ctx)?;
                 return Ok(ClassicalTransportResult::ProvenNonTransportable(witness));
             }
@@ -608,6 +627,11 @@ impl<'a> Engine<'a> {
         }
         check_sid_memory(self.diagram, self.steps, self.ctx)?;
         Ok(())
+    }
+    /// Charge one operation at `depth` when this engine runs under a shared
+    /// budget; an engine on its own [`SidLimits`] keeps its unchanged accounting.
+    fn charge_shared(&mut self, depth: usize) -> Result<(), IdentificationError> {
+        if self.shared.is_some() { self.charge(depth) } else { Ok(()) }
     }
     /// Estimated live bytes of this engine and the engines it runs inside.
     fn live_bytes(&self) -> u64 {
@@ -2400,6 +2424,20 @@ pub(crate) struct SharedSearch<'c> {
     budget: SearchBudget<'c>,
     stop: Option<SearchStop>,
     unevaluated: Vec<String>,
+    /// Live bytes retained by work already finished under this budget (for a
+    /// scenario set, the earlier scenarios' results): added to every charge so
+    /// memory is cumulative across the decision, not restarted per engine.
+    base_bytes: u64,
+    /// Largest live-state estimate charged since the last [`Self::retain`],
+    /// excluding [`Self::base_bytes`].
+    peak_bytes: u64,
+    /// Largest live-state estimate charged since [`Self::begin_stage`], for
+    /// stage-to-stage retention.
+    stage_peak: u64,
+    /// Bytes retained by the finished stages of the current unit of work.
+    stages_retained: u64,
+    /// Deepest level charged since [`Self::mark_decision`].
+    decision_depth: usize,
     /// Test hook: cancel the token once this many operations were charged,
     /// so a test observes cancellation in the middle of a decision.
     #[cfg(test)]
@@ -2413,9 +2451,53 @@ impl<'c> SharedSearch<'c> {
             budget,
             stop: None,
             unevaluated: Vec::new(),
+            base_bytes: 0,
+            peak_bytes: 0,
+            stage_peak: 0,
+            stages_retained: 0,
+            decision_depth: 0,
             #[cfg(test)]
             cancel_after: None,
         }
+    }
+    /// Start a unit of work on top of `retained` live bytes of finished work.
+    pub(crate) fn begin(&mut self, retained: u64) {
+        self.base_bytes = retained;
+        self.peak_bytes = 0;
+        self.stages_retained = 0;
+    }
+    /// The largest live-state estimate the unit charged since [`Self::begin`]:
+    /// what finished work keeps holding, as an upper bound.
+    pub(crate) const fn peak_bytes(&self) -> u64 {
+        self.peak_bytes
+    }
+    /// Start one search stage of a multi-stage decision.
+    pub(crate) const fn begin_stage(&mut self) {
+        self.stage_peak = 0;
+    }
+    /// Finish a stage whose derivations the decision keeps: its largest
+    /// live-state estimate is retained by every later charge, so live bytes
+    /// accumulate across the stages of one decision instead of restarting.
+    pub(crate) const fn end_stage(&mut self) {
+        self.base_bytes = self.base_bytes.saturating_add(self.stage_peak);
+        self.stages_retained = self.stages_retained.saturating_add(self.stage_peak);
+        self.stage_peak = 0;
+    }
+    /// Operations charged so far, across every decision on this budget.
+    pub(crate) const fn operations(&self) -> usize {
+        self.budget.operations()
+    }
+    /// Effective memory cap of the budget.
+    pub(crate) const fn memory_limit_bytes(&self) -> u64 {
+        self.budget.memory_limit_bytes()
+    }
+    /// Start measuring the depth one decision reaches.
+    pub(crate) const fn mark_decision(&mut self) {
+        self.decision_depth = 0;
+    }
+    /// Deepest level charged since [`Self::mark_decision`].
+    pub(crate) const fn decision_depth(&self) -> usize {
+        self.decision_depth
     }
     /// A meter charging this budget.
     pub(crate) fn meter(&mut self) -> SidMeter<'_> {
@@ -2453,7 +2535,10 @@ impl SearchCharge for SharedSearch<'_> {
                 token.cancel();
             }
         }
-        self.budget.charge(depth, bytes).inspect_err(|stop| {
+        self.peak_bytes = self.peak_bytes.max(bytes.saturating_add(self.stages_retained));
+        self.stage_peak = self.stage_peak.max(bytes);
+        self.decision_depth = self.decision_depth.max(depth);
+        self.budget.charge(depth, bytes.saturating_add(self.base_bytes)).inspect_err(|stop| {
             self.stop.get_or_insert(*stop);
         })
     }
@@ -2542,6 +2627,31 @@ mod tests {
             target: Arc::from("target"),
         }
     }
+    #[test]
+    fn live_bytes_are_cumulative_across_the_stages_of_one_decision() {
+        use antecedent_core::{MemoryBudget, SearchBudget};
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(250) };
+        let limits = SearchLimits { operations: 100, depth: 8 };
+        // Each stage alone fits 250 bytes; the retained first stage does not leave
+        // room for the second.
+        let mut alone = SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
+        alone.begin_stage();
+        alone.charge(0, 200).unwrap();
+        alone.charge(0, 200).unwrap();
+        let mut staged = SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
+        staged.begin_stage();
+        staged.charge(0, 200).unwrap();
+        staged.end_stage();
+        staged.begin_stage();
+        assert_eq!(staged.charge(0, 100), Err(SearchStop::Memory));
+        assert_eq!(staged.peak_bytes(), 300);
+        // Without a context limit the mandatory default cap still bounds it.
+        let free = ExecutionContext::for_tests(1);
+        let mut capped = SharedSearch::new(SearchBudget::new(limits, &free).unwrap());
+        assert_eq!(capped.charge(0, u64::MAX), Err(SearchStop::Memory));
+    }
+
     #[test]
     fn a_shared_budget_is_charged_by_every_pretreatment_subset_test() {
         use antecedent_core::{

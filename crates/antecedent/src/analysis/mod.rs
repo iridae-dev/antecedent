@@ -24,9 +24,12 @@ mod contract;
 mod contract_identity;
 mod exact;
 mod execute;
+mod learned_continuous;
 mod learned_trial;
+mod mixed_source;
 mod mz_transport;
 mod statistical;
+mod temporal_transport;
 mod transport_grid;
 mod transport_scenarios;
 mod z_transport;
@@ -54,12 +57,17 @@ pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use learned_continuous::{
+    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+};
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
+pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,
 };
+pub use temporal_transport::{PreparedTemporalTransport, consume_temporal_transport_artifact};
 pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,

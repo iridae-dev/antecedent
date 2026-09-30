@@ -4401,6 +4401,149 @@ def consume_transport_scenarios_artifact(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+class PreparedTemporalTransportStage:
+    def estimate(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> str: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    def plan(self) -> str: ...
+    def interval(self) -> None: ...
+    def export(self) -> bytes: ...
+
+def prepare_temporal_transport_stage(
+    graph: Admg,
+    selections: list[str],
+    slots: tuple[list[str], list[list[str]], list[str], str],
+    coordinates: list[tuple[str, str, int | None, str | None]],
+    horizon: int,
+    sequence: list[float],
+    source: str,
+    target: str,
+    catalog: Any,
+    laws: Any,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedTemporalTransportStage: ...
+def consume_temporal_transport_artifact(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    max_laws: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+def evaluate_cross_world_edge_contrast(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    treatment: str,
+    outcome: str,
+    control: float,
+    active: float,
+    intervened_edges: list[tuple[str, str]],
+    *,
+    mechanism: str = "linear_gaussian",
+    interval_requested: bool = False,
+    seed: int = 0,
+) -> tuple[str, bytes]: ...
+def consume_cross_world_edge_contrast_artifact(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+) -> tuple[str, bytes]: ...
+
+class MixedSourceStage:
+    @property
+    def outcome(self) -> str: ...
+    def decision(self) -> dict[str, Any]: ...
+    def prepare_exact(
+        self,
+        laws: Any,
+        assignments: dict[str, float] | Sequence[dict[str, float]],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedMixedSourceStage: ...
+    def prepare_empirical(
+        self,
+        laws: Any,
+        assignments: dict[str, float] | Sequence[dict[str, float]],
+        *,
+        max_operations: int = 10_000_000,
+        max_depth: int = 256,
+        seed: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> PreparedMixedSourceStage: ...
+
+class PreparedMixedSourceStage:
+    def estimate(
+        self,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+        seed: int | None = None,
+    ) -> str: ...
+    def refresh(
+        self,
+        laws: Any,
+        *,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+    def export(self) -> bytes: ...
+    def plan(self) -> dict[str, Any]: ...
+    @property
+    def cited_studies(self) -> list[str]: ...
+    @property
+    def seed(self) -> int: ...
+
+def identify_mixed_source_transport_stage(
+    graph: Admg,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    sources: list[tuple[str, list[str], dict[str, float], list[str]]],
+    catalog: Any,
+    *,
+    max_operations: int = 20_000,
+    max_depth: int = 16,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> MixedSourceStage: ...
+def consume_mixed_source_artifact(
+    artifact: bytes,
+    *,
+    max_search_operations: int = 20_000,
+    max_search_depth: int = 16,
+    max_operations: int = 10_000_000,
+    max_depth: int = 256,
+    max_support_rows: int | None = None,
+    max_laws: int | None = None,
+    max_law_cells: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
 class MultiSourceZTransportStage:
     @property
     def outcome(self) -> str: ...
@@ -4695,6 +4838,45 @@ def prepare_learned_trial(
     cancel: CancellationToken | None = None,
 ) -> PreparedLearnedTrial: ...
 def consume_learned_trial(bytes: bytes) -> PreparedLearnedTrial: ...
+
+class PreparedLearnedContinuousNative:
+    def estimate(self, cancel: CancellationToken | None = None) -> str: ...
+    def interval(self, cancel: CancellationToken | None = None) -> None: ...
+    def refresh(self, data: Any, cancel: CancellationToken | None = None) -> None: ...
+    def export(self) -> bytes: ...
+    def estimator_menu(self) -> str: ...
+    def last_result(self) -> str: ...
+
+def prepare_learned_continuous(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    treatment: str,
+    outcome: str,
+    data: Any,
+    options: str,
+    target_name: str,
+    *,
+    seed: int = 1,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PreparedLearnedContinuousNative: ...
+def learned_continuous_estimator_menu(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    treatment: str,
+    outcome: str,
+    learners: str | None = None,
+) -> str: ...
+def consume_learned_continuous(
+    artifact: bytes,
+    *,
+    max_rows: int | None = None,
+    max_features: int | None = None,
+) -> str: ...
 def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(
     bytes: bytes,
