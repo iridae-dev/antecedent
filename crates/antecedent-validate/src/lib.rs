@@ -16,6 +16,7 @@ pub mod error;
 pub mod evalue;
 pub mod functional;
 pub mod graph_refute;
+pub mod joint_mechanism_sensitivity;
 pub mod mechanism_sensitivity;
 pub mod mediation;
 pub mod overlap;
@@ -49,6 +50,16 @@ pub use dummy_outcome::DummyOutcome;
 pub use error::ValidationError;
 pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
+pub use joint_mechanism_sensitivity::{
+    AxisTipping, FrontierPoint, JointDeviationSpec, JointFactor, JointFactorBound,
+    JointMechanismSensitivityResult, JointSensitivityError, JointSensitivityLimits,
+    JointSensitivityRange, JointSensitivityReceipt, JointSensitivityUncertainty, TippingBracket,
+    TippingStatus, z_transport_joint_mechanism_sensitivity,
+};
+#[cfg(feature = "calibration-internal")]
+pub use joint_mechanism_sensitivity::{
+    JointSensitivityInterval, joint_sensitivity_bootstrap_interval_internal,
+};
 pub use mechanism_sensitivity::{
     DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,
     DiscreteKernelSensitivityResult, FIXED_GRAPH_SENSITIVITY_MAX_STRATA,

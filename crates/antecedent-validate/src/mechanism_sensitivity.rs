@@ -316,9 +316,10 @@ impl std::error::Error for ZTransportSensitivityError {}
 /// The compatible formula is `sum_w P_source(Y | w, X, do(Z)) P_source(w | do(Z))`.
 /// The same conditional kernel is used to form both treatment arms. The returned
 /// range is an assumption range over replacement outcome distributions.
-// Keep the checked binding and factor validation together so the returned
-// sensitivity result is built only after the complete proof/provider contract passes.
-#[allow(clippy::too_many_lines)]
+///
+/// # Errors
+///
+/// Returns the typed refusal of the proof, formula, provider, domain or kernel check.
 pub fn z_transport_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -327,6 +328,56 @@ pub fn z_transport_mechanism_sensitivity(
     decision_threshold: Option<f64>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportMechanismSensitivityResult, ZTransportSensitivityError> {
+    let kernels = z_surrogate_kernels(diagram, functional, data, ctx)?;
+    let response = DiscreteKernelSensitivity {
+        source_kernel: kernels.kernels,
+        outcome_values: kernels.outcome_values,
+        stratum_contrast_weights: kernels.weights,
+        max_fraction,
+        decision_threshold,
+    }
+    .evaluate()
+    .map_err(ZTransportSensitivityError::InvalidSensitivity)?;
+    Ok(ZTransportMechanismSensitivityResult {
+        query_binding: kernels.query_binding,
+        provider_snapshot: kernels.provider_snapshot,
+        source_regime: kernels.source_regime,
+        response,
+    })
+}
+
+/// The checked surrogate formula's source factors: the outcome kernel per
+/// `(w, x)` stratum (w-major, control arm first), its signed contrast weights,
+/// the shared parent marginal and the outcome values, with the binding.
+#[derive(Clone, Debug)]
+pub(crate) struct ZSurrogateKernels {
+    /// `P(Y | w, x, do(z))`, one row per `(w, x)` stratum, w-major.
+    pub(crate) kernels: Vec<Vec<f64>>,
+    /// `-P(w | do(z))` for the control arm and `+P(w | do(z))` for the active arm.
+    pub(crate) weights: Vec<f64>,
+    /// `P(w | do(z))` per parent level.
+    pub(crate) parent_marginal: Vec<f64>,
+    /// Numeric outcome value per outcome category.
+    pub(crate) outcome_values: Vec<f64>,
+    /// Stable identity of the checked derivation's inputs.
+    pub(crate) query_binding: String,
+    /// Provider snapshot used by the baseline formula.
+    pub(crate) provider_snapshot: String,
+    /// Source law regime used by the formula.
+    pub(crate) source_regime: RegimeId,
+}
+
+/// Check the proof, formula shape and provider binding of the registered
+/// surrogate z formula and read its source factors from the exact law.
+// Keep the checked binding and factor validation together so a sensitivity
+// result is built only after the complete proof/provider contract passes.
+#[allow(clippy::too_many_lines)]
+pub(crate) fn z_surrogate_kernels(
+    diagram: &SelectionDiagram,
+    functional: &BoundZTransportFunctional,
+    data: &ExactTransportData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ZSurrogateKernels, ZTransportSensitivityError> {
     let cancelled = || {
         if ctx.cancellation.is_cancelled() {
             Err(ZTransportSensitivityError::Cancelled)
@@ -457,6 +508,7 @@ pub fn z_transport_mechanism_sensitivity(
     let strides: Vec<usize> = (0..dims.len()).map(|i| dims[i + 1..].iter().product()).collect();
     let mut kernels = Vec::with_capacity(w_levels * 2);
     let mut weights = Vec::with_capacity(w_levels * 2);
+    let mut parent_marginal = Vec::with_capacity(w_levels);
     for wl in 0..w_levels {
         cancelled()?;
         let mut parent_mass = 0.0;
@@ -481,21 +533,16 @@ pub fn z_transport_mechanism_sensitivity(
             kernels.push(joint.into_iter().map(|p| p / mass).collect());
             weights.push(parent_mass * if xl == 0 { -1.0 } else { 1.0 });
         }
+        parent_marginal.push(parent_mass);
     }
-    let response = DiscreteKernelSensitivity {
-        source_kernel: kernels,
+    Ok(ZSurrogateKernels {
+        kernels,
+        weights,
+        parent_marginal,
         outcome_values: y_values,
-        stratum_contrast_weights: weights,
-        max_fraction,
-        decision_threshold,
-    }
-    .evaluate()
-    .map_err(ZTransportSensitivityError::InvalidSensitivity)?;
-    Ok(ZTransportMechanismSensitivityResult {
         query_binding: format!("{}:{}:{}", query.source, query.target, functional.root().raw()),
         provider_snapshot: law.snapshot_identity().to_owned(),
         source_regime: regime,
-        response,
     })
 }
 
