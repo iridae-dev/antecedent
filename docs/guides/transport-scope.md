@@ -65,9 +65,19 @@ edges over static observed variables, any number of outcomes and treatments) as
 that row. The row's limit that multi-outcome and larger general graphs are not
 enumerated against a latent-SCM oracle narrows its conformance coverage, not
 admission: every scenario result is a checked derivation or an independently
-verified s-hedge. A scenario's `not_certified` status is a reachable outcome of
-the API, but no random ADMG of five to nine variables in the scenario tests
-produced one; it is exercised in the tests by a supplied decision. The bounded
+verified s-hedge. A scenario's `not_certified` status is a defensive status:
+the scenario path reaches it only when the catalog search finds no derivation
+at any stage and the classical identifier finds no verified s-hedge. The
+catalog search's first stage is the classical search itself, so a derivation
+there means `identified` or `missing_evidence`, and a failed classical search
+always leaves an obstruction from which a checkable s-hedge is built
+(`structurally_unidentified`). A tight pretreatment-subset budget only adds an
+inconclusive obligation to a `missing_evidence` or hedge result; it cannot
+produce `not_certified`. No random ADMG in the tests (4 to 11 variables, several
+outcomes and treatments, random selections; 2.15 million in a one-off run, about
+913 thousand s-hedges) reached it, so the status is exercised in the tests by a
+supplied decision and is retained for routes that can return an undecided
+scenario, such as the later 2.2B ADMG rows. The bounded
 ADMG transport class of a later row (2.2B B1) is separate and not part of this
 row.
 
@@ -342,7 +352,13 @@ Refusals pair a reason code with an `mz_transport.*` detail: `route_not_supporte
 Points are exact or the empirical plug-in of counted laws. The joint-bootstrap
 interval route is closed (`cell_not_licensed`, `mz_transport.interval_withheld`) until
 its coverage records are measured: no public constructor yields an interval and every
-public consumer (io, facade, Python) refuses an artifact that carries one. The data
+public consumer (io, facade, Python) refuses an artifact that carries one. The internal
+bootstrap estimator the calibration harness measures (`mz_transport_bootstrap_interval`,
+its draw machinery and interval types) is compiled only under the `calibration-internal`
+feature of `antecedent-estimate`, enabled by dev-dependencies alone, so it is absent from
+normal and Python builds; the declared-sampling classification that reports why an
+interval is withheld (`mz_sampling_dependence`, `mz_interval_withheld_reason`) stays
+public. The data
 identity digest binds the whole evidence catalog (sampling designs, weights,
 dependence declarations, snapshot and dataset ids) and each law's snapshot.
 
@@ -375,6 +391,34 @@ enumeration: every accepted rule instance is compared with an enumerated
 structural model (including Pearl's `W(Z)` exception for rule 3), and every
 identified query in a random and an exhaustive three-node sweep, with one or two
 treatments, equals the enumerated truth.
+
+How incomplete. "Sound, incomplete" is measured, not just declared. Against the
+complete Shpitser-Pearl ID algorithm, on a single observational study of the whole
+joint with the named routes bypassed (the generic rule search run alone; every
+query with non-empty disjoint outcome and treatment sets), the search never
+identified a query ID refutes (230,468 queries) and identifies:
+
+| ADMG nodes | queries | ID-identifiable | search identifies |
+|---|---|---|---|
+| 3, every ADMG | 768 | 612 | 612 (100%) |
+| 4, every ADMG | 204,800 | 142,827 | 142,826 (99.9993%) |
+| 5, 8,000 random ADMGs x 3 queries | 24,000 | 16,676 | 16,238 (97.4%) |
+| 6, 300 random ADMGs x 3 queries (outside the claim) | 900 | 534 | 190 (35.6%) |
+
+Known gap classes, each pinned as a test that fails when it is deliberately fixed:
+(1) the napkin family, where ID's formula is a ratio of a marginalised C-factor
+(the four-node napkin is the only four-node miss; 108 of 109 four-node ratio-form
+queries are found); (2) the intervention bound, at most three treatments per
+derived quantity, so every four-treatment query is `not_certified` even when its
+effect is trivially `P(y)`; (3) the operation budget, which at six nodes ends about
+two thirds of the identifiable queries as `exhausted`. Up to five nodes and three
+treatments the only misses are napkin embeddings (1 of 16,239). A `not_certified` or
+`exhausted` answer on a single fully observed study is therefore never evidence of
+non-identification; the named sID route runs first and decides those exactly. There is
+no complete oracle for the several-study case in this repository (generalized
+identification of Lee, Correa and Bareinboim is not implemented), so the
+multi-study claim remains soundness against enumerated structural models, with no
+completeness figure.
 
 Outcomes: `identified` (with alternative derivations only when actually found),
 `named_route`, `missing_evidence` (`mixed_search.missing_joint`: the exact joint a

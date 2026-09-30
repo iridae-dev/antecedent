@@ -231,7 +231,7 @@ allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution Che
 allow mechanism crates/antecedent/src/support.rs ChangeAttribution
 # Cross-world (nested counterfactual) facade evaluation: drives the counterfactual engine over
 # a compiled model; it is not itself a mechanism-fit path, so it is allowed by name here.
-allow mechanism crates/antecedent/src/cross_world.rs CompiledCausalModel CounterfactualEngine CounterfactualError NestedCounterfactualOperation NestedOutcomeMechanism NoiseInferenceKind antecedent_counterfactual antecedent_model cross_world evaluate_cross_world fit_nested_mechanisms gcm
+allow mechanism crates/antecedent/src/cross_world.rs BasisTerm CompiledCausalModel CounterfactualEngine CounterfactualError MechanismSlot NestedCounterfactualOperation NestedOutcomeMechanism NoiseInferenceKind ParentBasis Product antecedent_counterfactual antecedent_model cross_world evaluate_cross_world fit_nested_mechanisms fit_nested_mechanisms_polled gcm
 # `From` conversions of the facet crates' error types.
 allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualError ModelError antecedent_attribution antecedent_counterfactual antecedent_model
 # `pub mod gcm;`.
