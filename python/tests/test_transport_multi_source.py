@@ -559,11 +559,18 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     assert receipt["memory_limit_bytes"] == 512 * 1024 * 1024
     assert receipt["operations_consumed"] > 0 and receipt["depth_reached"] > 0
     assert receipt["explored"][-1] == "stage:multi_source" and receipt["unevaluated"] == []
-    # A consumer whose own memory limit is below the stored cap refuses.
-    with pytest.raises(CausalSerializationError) as refused:
+    # A consumer whose own memory limit is below the stored cap refuses up front
+    # with a limits error the caller can retry with a larger budget, not an
+    # invalid-proof error.
+    with pytest.raises(CausalResourceError, match="search memory limit"):
         transport.consume_multi_source_z_transport_artifact(artifact, memory_bytes=1 << 20)
-    assert refused.value.reason_code == "route_not_supported"
-    assert "mz_transport.bounds_exceeded" in str(refused.value)
+    # With the stored cap (or more) the same artifact verifies.
+    affordable = json.loads(
+        transport.consume_multi_source_z_transport_artifact(
+            artifact, memory_bytes=512 * 1024 * 1024
+        )
+    )
+    assert affordable["proof"]["search"]["memory_limit_bytes"] == 512 * 1024 * 1024
 
 
 def test_consumer_recomputes_points_and_contrasts_after_builder_disposal():
