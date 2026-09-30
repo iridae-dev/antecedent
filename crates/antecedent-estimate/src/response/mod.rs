@@ -1271,8 +1271,7 @@ impl ContinuousResponseEstimator {
                 draws: None,
             }
         };
-        let row_index: Arc<[u32]> =
-            sample.keep.iter().map(|&i| u32::try_from(i).unwrap_or(u32::MAX)).collect();
+        let row_index = row_ids_u32(&sample.keep)?;
         // Local-polynomial exports are contributions to the estimate (order 1/n).
         // Shared IF covariance expects unnormalised row scores (order 1).
         let scale = n as f64;
@@ -1343,10 +1342,8 @@ impl ContinuousResponseEstimator {
         };
         let level = self.options.confidence_level;
         let z = normal_ppf(0.5 + level / 2.0);
-        let scores = ResponseInfluence {
-            columns: vec![psi],
-            row_index: sample.keep.iter().map(|&i| u32::try_from(i).unwrap_or(u32::MAX)).collect(),
-        };
+        let scores =
+            ResponseInfluence { columns: vec![psi], row_index: row_ids_u32(&sample.keep)? };
         let minima: Vec<f64> =
             (0..treatments.len()).map(|column| sample.treatment_column_range(column).0).collect();
         let maxima: Vec<f64> =
@@ -2362,6 +2359,17 @@ fn credible_scalar_uncertainty(
     }
 }
 
+/// Original row indices as the `u32` row ids influence scores carry; a row past the
+/// `u32` range is an error rather than a saturated id that would alias another row.
+fn row_ids_u32(rows: &[usize]) -> Result<Arc<[u32]>, EstimationError> {
+    rows.iter()
+        .map(|&i| {
+            u32::try_from(i)
+                .map_err(|_| EstimationError::data_msg("row index exceeds the u32 row-id capacity"))
+        })
+        .collect()
+}
+
 struct CompleteSample {
     /// Original dataframe row index of each retained complete row.
     keep: Vec<usize>,
@@ -2862,14 +2870,7 @@ mod tests {
 
     /// Minimal deterministic uniform stream (`SplitMix64`) for exchangeability checks.
     fn uniform_stream(mut state: u64) -> impl FnMut() -> f64 {
-        move || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            z ^= z >> 31;
-            (z >> 11) as f64 / 9_007_199_254_740_992.0
-        }
+        move || crate::splitmix::splitmix64_unit(&mut state)
     }
 
     #[test]

@@ -828,6 +828,7 @@ __all__ = [
     "ExposureLevel",
     "InterferenceQuery",
     "InterferenceEstimate",
+    "InterferencePointwiseInterval",
     "NetworkEdge",
     "NeighborCount",
     "NeighborFraction",

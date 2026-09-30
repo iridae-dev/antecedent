@@ -680,7 +680,7 @@ pub(crate) fn compile_exact_z_transport(
     ExactEvaluationPlan::compile(
         functional.arena(),
         functional.root(),
-        data.with_world_bound_leaves(),
+        data.with_world_bound_leaves(functional.cited_regimes()),
         query.outcomes.clone(),
         request,
         limits,
@@ -978,8 +978,12 @@ mod tests {
                     let py = if yv == xv { 0.80 } else { 0.20 };
                     let probability: f64 = pw * px * py;
                     probabilities.push(probability);
-                    // These finite decimal fixture probabilities produce integral counts.
-                    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                    #[expect(
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss,
+                        reason = "fixture probabilities are finite positive decimals, so the \
+                                  rounded count is a small nonnegative integer"
+                    )]
                     counts.push((probability * 10_000.0).round() as u64);
                 }
             }

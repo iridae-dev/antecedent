@@ -3,9 +3,7 @@
   "tolerance_class": "StableFloat",
   "atol_val": 0.35,
   "rtol_val": 0.15,
-  "atol_se": 0.18,
-  "rtol_se": 0.1,
-  "se_tolerance_note": "Rejects an 8x SE relative to the pinned reference: |8r-r|=7r must exceed atol_se+rtol_se*|r|. Reference SEs (DoWhy/clean-room pins) span linear_regression 0.03858 through ipw_ate 0.2715; at the smallest, 7*0.03858=0.270 > 0.18+0.10*0.03858=0.184. The band still admits the honest Rust analytic SEs (largest pin gap is ipw_ate: Rust~0.105 vs ref 0.271, |delta|=0.166 <= 0.18+0.10*0.271=0.207).",
+  "se_tolerance_note": "Each method row carries its own SE band |se - ref| <= atol_se + rtol_se*|ref|. The linear-regression and AIPW references are the same estimator family as the Rust path, so their bands are relative only (Rust 0.038581 vs 0.038581; 0.041358 vs 0.040624). The two IPW references come from DoWhy's propensity-weighting SE, which is not the Rust Hajek influence-function SE (Rust 0.1053 vs 0.2715 for the ATE, 0.1548 vs 0.2597 for the ATT), so only those rows keep an absolute term; each band still rejects an 8x or 1/8x SE.",
   "n": 800,
   "seed": 7,
   "clip": 0.01,
@@ -95,21 +93,27 @@
       "method_name": "backdoor.linear_regression",
       "target": "ate",
       "val": 2.037513004155971,
-      "se": 0.03858053585514642
+      "se": 0.03858053585514642,
+      "atol_se": 0.0,
+      "rtol_se": 0.01
     },
     "ipw_ate": {
       "method_name": "backdoor.propensity_score_weighting",
       "target": "ate",
       "clip": 0.01,
       "val": 2.087637302194234,
-      "se": 0.27147757618277407
+      "se": 0.27147757618277407,
+      "atol_se": 0.18,
+      "rtol_se": 0.0
     },
     "ipw_att": {
       "method_name": "backdoor.propensity_score_weighting",
       "target": "att",
       "clip": 0.01,
       "val": 2.2709005403867755,
-      "se": 0.25970333631716325
+      "se": 0.25970333631716325,
+      "atol_se": 0.12,
+      "rtol_se": 0.0
     },
     "aipw": {
       "method_name": "clean_room.aipw",
@@ -117,6 +121,8 @@
       "clip": 0.01,
       "val": 2.053393136206015,
       "se": 0.04062422935442714,
+      "atol_se": 0.0,
+      "rtol_se": 0.05,
       "note": "DoWhy DR/AIPW requires econml (excluded); clean-room DR reference"
     },
     "iv_2sls": {

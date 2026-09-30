@@ -5,10 +5,6 @@ from __future__ import annotations
 import runpy
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("antecedent")
-
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "python" / "econml_cate_handoff.py"
 
 

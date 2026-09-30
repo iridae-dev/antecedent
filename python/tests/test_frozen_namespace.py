@@ -289,6 +289,7 @@ _EXPECTED_STAGE_ALL = {
         "CausalProvider",
         "CausalProviderSpec",
         "EffectValidator",
+        "ExecutableProvider",
         "MechanismWrapper",
         "ProviderTrust",
         "ProviderExecution",
@@ -327,9 +328,11 @@ _EXPECTED_STAGE_ALL = {
         "DoublyRobustPolicyEvaluation",
         "FiniteClassRegretEvaluation",
         "FixedDosePolicyValueEstimate",
+        "MultiActionCatePoint",
         "MultiActionPolicy",
         "MultiActionPolicyValue",
         "PolicyEvaluation",
+        "PolicyValue",
         "UpliftBin",
         "evaluate_policy_doubly_robust",
         "evaluate_multi_action_policy",
@@ -379,6 +382,7 @@ _EXPECTED_STAGE_ALL = {
         "IPCWCumulativeIncidenceEstimate",
         "IPCWSurvivalEstimate",
         "KnownCensoringSurvival",
+        "SurvivalDifferenceBand",
         "SurvivalEstimate",
         "SurvivalOutcome",
         "estimate_cumulative_incidence_ipcw",
@@ -504,6 +508,22 @@ def test_stage_module_all_is_frozen(module_name):
     assert set(actual) == _EXPECTED_STAGE_ALL[module_name]
 
 
+@pytest.mark.parametrize(
+    ("module_name", "name"),
+    [
+        ("interference", "InterferencePointwiseInterval"),
+        ("handoff", "EconMLProviderAdapter"),
+    ],
+)
+def test_public_result_types_are_listed_in_their_module_all(module_name, name):
+    """A public type a result hands back is exported by its module's ``__all__``."""
+    import importlib
+
+    module = importlib.import_module(f"antecedent.{module_name}")
+    assert name in module.__all__
+    assert getattr(module, name) is not None
+
+
 def test_estimators_module_is_reachable_and_not_root_exported():
     """Defect 1, directly: `antecedent.estimators` resolves without a direct import."""
     assert hasattr(antecedent, "estimators")
@@ -525,7 +545,7 @@ def test_retired_discover_functions_have_a_signpost_message():
 
 
 def test_unknown_name_still_raises_plain_attribute_error():
-    with pytest.raises(AttributeError):
+    with pytest.raises(AttributeError, match="no attribute 'this_name_was_never_a_thing'"):
         _ = antecedent.this_name_was_never_a_thing
 
 

@@ -292,13 +292,7 @@ mod tests {
         let n = 300;
         let simulations = 2_000;
         let mut state = 0x23A9_E381_7D45_BC06_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let probabilities = vec![0.5; n * 2];
         let censoring = vec![0.9; n * 2];
         let truth = [1.0_f64, 2.0, 3.0];

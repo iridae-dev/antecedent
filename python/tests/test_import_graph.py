@@ -36,6 +36,7 @@ from _repo_text import read_text
 # collection error.
 
 PKG = Path(__file__).resolve().parent.parent / "antecedent"
+TESTS = Path(__file__).resolve().parent
 
 
 def _module_names() -> list[str]:
@@ -118,3 +119,26 @@ def test_module_imports_standalone(module: str) -> None:
         check=False,
     )
     assert proc.returncode == 0, f"import antecedent.{module} failed:\n{proc.stderr}"
+
+
+def test_no_test_module_skips_when_the_package_does_not_import() -> None:
+    """The package under test is not optional: an import failure must fail, not skip.
+
+    ``pytest.importorskip("antecedent")`` (or any ``antecedent.*`` submodule) turns a
+    broken build into a green run of skipped modules.
+    """
+    offenders = []
+    for path in sorted(TESTS.rglob("*.py")):
+        for node in ast.walk(ast.parse(read_text(path), filename=str(path))):
+            if (
+                isinstance(node, ast.Call)
+                and ast.unparse(node.func).endswith("importorskip")
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+                and node.args[0].value.split(".")[0] == "antecedent"
+            ):
+                offenders.append(f"{path.relative_to(TESTS)}:{node.lineno}")
+    assert not offenders, (
+        "importorskip of the package under test (import it directly): " + ", ".join(offenders)
+    )

@@ -409,12 +409,11 @@ class PolicyValue:
                 resolved_opt(self.prediction_excluded_fold_ids),
             )
         object.__setattr__(self, "assignment", tuple(bool(v) for v in self.assignment))
-        object.__setattr__(
-            self, "mu0", tuple(float(v) for v in self.mu0) if self.mu0 is not None else ()
-        )
-        object.__setattr__(
-            self, "mu1", tuple(float(v) for v in self.mu1) if self.mu1 is not None else ()
-        )
+        # Omitted predictions stay None (not ``()``) so ``dataclasses.replace`` round-trips
+        # the query; the native call site turns None into an empty prediction list.
+        if self.mu0 is not None and self.mu1 is not None:
+            object.__setattr__(self, "mu0", tuple(float(v) for v in self.mu0))
+            object.__setattr__(self, "mu1", tuple(float(v) for v in self.mu1))
         object.__setattr__(
             self, "evaluation_subject_ids", tuple(str(v) for v in self.evaluation_subject_ids)
         )
@@ -1153,7 +1152,9 @@ __all__ = [
     "PolicyEvaluation",
     "DoublyRobustPolicyEvaluation",
     "FiniteClassRegretEvaluation",
+    "PolicyValue",
     "MultiActionPolicyValue",
+    "MultiActionCatePoint",
     "UpliftBin",
     "ConditionalDoseResponsePoint",
     "ConditionalDoseResponseEstimate",

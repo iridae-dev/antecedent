@@ -387,16 +387,8 @@ impl JpcmciPlus {
             sepsets.insert(k, v);
         }
 
-        let truncated = trunc_a + trunc_b + trunc_c;
-        if truncated > 0 {
-            push_diagnostic(
-                &mut diagnostics,
-                "mci.conditioning_truncated",
-                format!(
-                    "MCI conditioning sets dropped {truncated} weakest condition(s) at the column cap"
-                ),
-            );
-        }
+        // `contemp_mci_phase` refuses any truncated MCI conditioning set, so no count survives.
+        debug_assert_eq!(trunc_a + trunc_b + trunc_c, 0, "truncated MCI is refused in the phase");
 
         // Merge phase scored survivors only (PCMCI+ style: no PC1 re-injection).
         let space_rep = logical_space_dummies.first().copied();
@@ -407,6 +399,12 @@ impl JpcmciPlus {
         scored.extend(sys_scored);
         scored = remap_dummy_block_links(scored, &space_ids_full, space_rep);
         scored = remap_dummy_block_links(scored, &time_ids_full, time_rep);
+        diagnostics.extend(crate::ci::fdr_resolution_diagnostic(
+            &*ci,
+            constraints.significance,
+            constraints.alpha,
+            crate::evidence::fdr_family_size(&scored, self.fdr),
+        ));
         scored = threshold_scored_links(scored, self.fdr, constraints.alpha);
         scored = symmetrize_contemporaneous_links(scored);
         // Exogenous → system: force directed (no undirected symmetrize residue).

@@ -19,12 +19,11 @@ use antecedent_core::{
 };
 use antecedent_graph::SelectionDiagram;
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use antecedent_expr::{
     Assignment, CausalExprArena, DistributionProvider, EvalContext, EvalError, FactorSpec,
-    FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
+    FunctionalProgram, ProgramError, ProgramLimits, ProgramSchema, ProgramVariable,
 };
 use antecedent_identify::lower_transport_formula;
 use antecedent_io::{
@@ -34,6 +33,7 @@ use antecedent_io::{
 
 use crate::graphs::Admg;
 use crate::response_api::build_functional;
+use crate::transport_common::{error, serialization_error};
 use crate::{CausalIdentifyError, columns_to_batch, detach_catch, py_err};
 
 #[pyclass(skip_from_py_object)]
@@ -161,7 +161,7 @@ impl CheckedTransportProgram {
 
     fn to_wire_json(&self) -> PyResult<String> {
         let wire = functional_program_to_wire(&self.program).map_err(py_err)?;
-        serde_json::to_string(&wire).map_err(|error| PyValueError::new_err(error.to_string()))
+        serde_json::to_string(&wire).map_err(error)
     }
 
     #[pyo3(signature=(catalog=None, laws=None, at=None, *, max_support_rows=100_000, max_operations=1_000_000))]
@@ -179,24 +179,24 @@ impl CheckedTransportProgram {
             &self.graph.names,
         )?;
         if max_operations == 0 {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "functional evaluation operation budget must be positive",
             ));
         }
         let catalog = catalog.ok_or_else(|| {
-            PyValueError::new_err("checked functional execution requires a provider catalog")
+            crate::value_err("checked functional execution requires a provider catalog")
         })?;
         let laws = laws.ok_or_else(|| {
-            PyValueError::new_err("checked functional execution requires provider laws")
+            crate::value_err("checked functional execution requires provider laws")
         })?;
         let catalog = crate::transport_interference_api::parse_catalog(catalog, &self.graph)?;
         let original_catalog = self.original_catalog.as_ref().ok_or_else(|| {
-            PyValueError::new_err(
+            crate::value_err(
                 "checked functional execution has no catalog bound during identification",
             )
         })?;
         if &catalog != original_catalog {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "provider catalog differs from the catalog bound during identification",
             ));
         }
@@ -217,26 +217,34 @@ impl CheckedTransportProgram {
         );
         let provider =
             FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
+        // An evaluation failure is a coded transport refusal; an exhausted
+        // operation or support budget surfaces as a resource error.
         let evaluator =
-            self.program.compile().map_err(|error| PyValueError::new_err(error.to_string()))?;
+            self.program.compile().map_err(|e| error(antecedent_estimate::refuse_eval(&e)))?;
         evaluator
             .evaluate_with(&provider, &EvalContext::default(), &request)
-            .map_err(|error| PyValueError::new_err(error.to_string()))
+            .map_err(|e| error(antecedent_estimate::refuse_eval(&e)))
     }
+}
+
+/// A reload of an identification that carries no positive transport proof.
+fn not_certified(message: &str) -> PyErr {
+    crate::refusal(antecedent_core::reason_code!("transport_not_certified"), message)
 }
 
 fn checked_program_from_identification(
     identification: &TransportIdentificationResult,
 ) -> PyResult<FunctionalProgram> {
-    let retained_arena = identification.identification_arena.as_ref().ok_or_else(|| {
-        PyValueError::new_err("identification has no lowered expression to reload")
-    })?;
+    let retained_arena = identification
+        .identification_arena
+        .as_ref()
+        .ok_or_else(|| not_certified("identification has no lowered expression to reload"))?;
     let retained_root = identification
         .expr_root
-        .ok_or_else(|| PyValueError::new_err("identification has no lowered expression root"))?;
+        .ok_or_else(|| not_certified("identification has no lowered expression root"))?;
     let (proof_arena, proof_root) = lower_identified_formula(&identification.identification)?;
     if &proof_arena != retained_arena || proof_root != retained_root {
-        return Err(PyValueError::new_err(
+        return Err(serialization_error(
             "lowered expression does not match its retained transport identification proof",
         ));
     }
@@ -247,24 +255,29 @@ fn checked_program_from_wire(
     identification: &TransportIdentificationResult,
     wire_json: &str,
 ) -> PyResult<FunctionalProgram> {
-    let wire: FunctionalProgramWire = serde_json::from_str(wire_json)
-        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let wire: FunctionalProgramWire = serde_json::from_str(wire_json).map_err(error)?;
     let expected = checked_program_from_identification(identification)?;
     let expected_wire = functional_program_to_wire(&expected).map_err(py_err)?;
     if wire != expected_wire {
-        return Err(PyValueError::new_err(
+        return Err(serialization_error(
             "checked functional program does not match its retained transport identification proof",
         ));
     }
-    functional_program_from_wire(&wire, ProgramLimits::default())
-        .map_err(|error| PyValueError::new_err(error.to_string()))
+    // A program limit is a resource refusal on this path too, as it is when the
+    // program is rebuilt from the proof.
+    functional_program_from_wire(&wire, ProgramLimits::default()).map_err(|e| match e {
+        antecedent_io::IoError::Convert(message) if message.ends_with("limit exceeded") => {
+            crate::CausalResourceError::new_err(message)
+        }
+        other => error(other),
+    })
 }
 
 fn lower_identified_formula(
     identification: &TransportIdentification,
 ) -> PyResult<(ExprArenaWire, u32)> {
     let TransportIdentification::Transportable { formula, certificate } = identification else {
-        return Err(PyValueError::new_err(
+        return Err(not_certified(
             "checked functional program requires a positive transport identification proof",
         ));
     };
@@ -303,7 +316,10 @@ fn checked_program_from_proof(
         antecedent_expr::ExprId::from_raw(root),
         ProgramLimits::default(),
     )
-    .map_err(|error| PyValueError::new_err(error.to_string()))
+    .map_err(|e| match e {
+        ProgramError::Limit(_) => crate::CausalResourceError::new_err(e.to_string()),
+        _ => serialization_error(e),
+    })
 }
 
 fn verify_program_matches_identification(
@@ -315,7 +331,7 @@ fn verify_program_matches_identification(
     if functional_program_to_wire(program).map_err(py_err)?
         != functional_program_to_wire(&expected).map_err(py_err)?
     {
-        return Err(PyValueError::new_err(
+        return Err(serialization_error(
             "checked functional program no longer matches its transport identification proof",
         ));
     }
@@ -636,21 +652,21 @@ pub(crate) fn interference_query(
                     antecedent_core::ExposurePropensityProvenance::ExternallyEstimated
                 }
                 _ => {
-                    return Err(PyValueError::new_err(
+                    return Err(crate::value_err(
                         "propensity_provenance must be known or externally_estimated",
                     ));
                 }
             },
             assume_network_exchangeability: args.assume_network_exchangeability,
         },
-        _ => return Err(PyValueError::new_err("unknown assignment design")),
+        _ => return Err(crate::value_err("unknown assignment design")),
     };
     let exposure = match args.exposure.as_str() {
         "own_treatment" => ExposureMapping::OwnTreatment,
         "neighbor_count" => ExposureMapping::NeighborCount,
         "neighbor_fraction" => ExposureMapping::NeighborFraction,
         "weighted_neighbor_exposure" => ExposureMapping::WeightedNeighborExposure,
-        _ => return Err(PyValueError::new_err("unknown exposure mapping")),
+        _ => return Err(crate::value_err("unknown exposure mapping")),
     };
     Ok(InterferenceQuery {
         assignment,
@@ -708,8 +724,7 @@ fn identify_transport(
     )?;
     let original_catalog = if let Some(catalog) = catalog {
         let parsed = parse_catalog(catalog, &graph)?;
-        query =
-            query.with_catalog(parsed.clone()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        query = query.with_catalog(parsed.clone()).map_err(error)?;
         Some(parsed)
     } else {
         None
@@ -751,7 +766,7 @@ pub(crate) fn parse_catalog(
                 "categorical" => VariableDomain::Categorical {
                     cardinality: coordinate.getattr("cardinality")?.extract()?,
                 },
-                _ => return Err(PyValueError::new_err("unknown variable domain")),
+                _ => return Err(crate::value_err("unknown variable domain")),
             };
             let unit: Option<String> = coordinate.getattr("unit")?.extract()?;
             coordinates.push(VariableCoordinate { variable, domain, unit: unit.map(Arc::from) });
@@ -762,7 +777,7 @@ pub(crate) fn parse_catalog(
                 coordinates,
                 names(&env, "selection_targets")?,
             )
-            .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            .map_err(error)?,
         );
     }
     let mut regimes = Vec::new();
@@ -778,22 +793,20 @@ pub(crate) fn parse_catalog(
         .collect::<PyResult<Vec<_>>>()?;
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     for (index, (name, regime)) in entries.into_iter().enumerate() {
-        let id = RegimeId::from_raw(
-            u32::try_from(index).map_err(|e| PyValueError::new_err(e.to_string()))?,
-        );
+        let id = RegimeId::from_raw(u32::try_from(index).map_err(error)?);
         if ids.insert(name.clone(), id).is_some() {
-            return Err(PyValueError::new_err("duplicate regime id"));
+            return Err(crate::value_err("duplicate regime id"));
         }
         let kind = match regime.getattr("kind")?.extract::<String>()?.as_str() {
             "observational" => RegimeKind::Observational,
             "experimental" => RegimeKind::Experimental,
-            _ => return Err(PyValueError::new_err("unknown regime kind")),
+            _ => return Err(crate::value_err("unknown regime kind")),
         };
         let evidence_kind = match regime.getattr("evidence_kind")?.extract::<String>()?.as_str() {
             "available" => EvidenceKind::Available,
             "manipulable" => EvidenceKind::Manipulable,
             "proposed" => EvidenceKind::Proposed,
-            _ => return Err(PyValueError::new_err("unknown evidence kind")),
+            _ => return Err(crate::value_err("unknown evidence kind")),
         };
         let measured = names(&regime, "measured")?;
         let distribution = match regime.getattr("distribution")?.extract::<String>()?.as_str() {
@@ -801,7 +814,7 @@ pub(crate) fn parse_catalog(
             "separate_marginals" => {
                 DistributionAvailability::SeparateMarginals { variables: Arc::clone(&measured) }
             }
-            _ => return Err(PyValueError::new_err("unknown distribution availability")),
+            _ => return Err(crate::value_err("unknown distribution availability")),
         };
         let values: std::collections::BTreeMap<String, f64> =
             regime.getattr("intervention_values")?.extract()?;
@@ -830,26 +843,25 @@ pub(crate) fn parse_catalog(
                 r.label = Some(Arc::from(name.as_str()));
                 r.project(antecedent_core::EvidenceProjection::Condition { on: conditioned_on })
             })
-            .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            .map_err(error)?,
         );
     }
     let mut bindings = Vec::new();
     for binding in catalog.getattr("bindings")?.try_iter()? {
         let binding = binding?;
         let name: String = binding.getattr("regime")?.extract()?;
-        let regime =
-            *ids.get(&name).ok_or_else(|| PyValueError::new_err("unknown bound regime"))?;
+        let regime = *ids.get(&name).ok_or_else(|| crate::value_err("unknown bound regime"))?;
         let sampling = match binding.getattr("sampling")?.extract::<String>()?.as_str() {
             "independent" => SamplingDesign::Independent,
             "clustered" => SamplingDesign::Clustered,
             "unknown" => SamplingDesign::Unknown,
-            _ => return Err(PyValueError::new_err("unknown sampling design")),
+            _ => return Err(crate::value_err("unknown sampling design")),
         };
         let dependence = match binding.getattr("dependence")?.extract::<String>()?.as_str() {
             "independent_studies" => DependenceGroup::IndependentStudies,
             "linked_units" => DependenceGroup::LinkedUnits,
             "unknown_dependence" => DependenceGroup::UnknownDependence,
-            _ => return Err(PyValueError::new_err("unknown dependence group")),
+            _ => return Err(crate::value_err("unknown dependence group")),
         };
         bindings.push(RegimeBinding {
             dataset_identity: binding
@@ -882,11 +894,11 @@ pub(crate) fn parse_catalog(
             Some("representative_sample") => Some(TargetSampling::RepresentativeSample),
             Some("licensed_weighted_design") => Some(TargetSampling::LicensedWeightedDesign),
             Some("convenience_sample") => Some(TargetSampling::ConvenienceSample),
-            _ => return Err(PyValueError::new_err("unknown target sampling")),
+            _ => return Err(crate::value_err("unknown target sampling")),
         };
     EvidenceCatalog::try_new(environments, regimes, bindings, target_sampling)
         .and_then(|catalog| catalog.canonicalized())
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+        .map_err(error)
 }
 
 fn resolve_names(graph: &Admg, names: &[String]) -> PyResult<Arc<[VariableId]>> {
@@ -903,14 +915,14 @@ fn parse_scale(value: &str) -> PyResult<DerivativeScale> {
         "log_treatment" => Ok(DerivativeScale::LogTreatment),
         "log_outcome" => Ok(DerivativeScale::LogOutcome),
         "log_log" => Ok(DerivativeScale::LogLog),
-        _ => Err(PyValueError::new_err("unknown derivative scale")),
+        _ => Err(crate::value_err("unknown derivative scale")),
     }
 }
 
 fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
     match value {
         "observed" => Ok(DerivativeWeighting::Observed),
-        _ => Err(PyValueError::new_err(
+        _ => Err(crate::value_err(
             "transport identification currently supports weighting='observed'",
         )),
     }
@@ -922,7 +934,7 @@ fn variable_names(ids: &[VariableId], names: &[String]) -> PyResult<Vec<String>>
             names
                 .get(id.as_usize())
                 .cloned()
-                .ok_or_else(|| PyValueError::new_err("transport formula contains unknown variable"))
+                .ok_or_else(|| serialization_error("transport formula contains unknown variable"))
         })
         .collect()
 }
@@ -1014,9 +1026,7 @@ fn transport_result(
             out.expr_root = Some(root.raw());
             let wire = expr_arena_to_wire(&arena).map_err(py_err)?;
             out.identification_arena = Some(wire.clone());
-            out.expr_wire_json = Some(
-                serde_json::to_string(&wire).map_err(|e| PyValueError::new_err(e.to_string()))?,
-            );
+            out.expr_wire_json = Some(serde_json::to_string(&wire).map_err(error)?);
         }
     }
     Ok(out)
@@ -1026,11 +1036,10 @@ type ReloadedExpression = (String, String, Vec<String>, Vec<Option<u32>>, Vec<u3
 
 #[pyfunction]
 fn roundtrip_expr_arena(wire_json: &str, root: u32) -> PyResult<ReloadedExpression> {
-    let wire: antecedent_io::ExprArenaWire =
-        serde_json::from_str(wire_json).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let wire: antecedent_io::ExprArenaWire = serde_json::from_str(wire_json).map_err(error)?;
     let arena = expr_arena_from_wire(&wire).map_err(py_err)?;
     if root as usize >= arena.len() {
-        return Err(PyValueError::new_err("expression root is out of range"));
+        return Err(serialization_error("expression root is out of range"));
     }
     let root = antecedent_expr::ExprId::from_raw(root);
     let pretty = arena.pretty(root);
@@ -1063,7 +1072,7 @@ fn estimate_trial_transport(
     mu1: Option<PyReadonlyArray1<'_, f64>>,
 ) -> PyResult<TrialTransportResult> {
     if mu0.is_some() != mu1.is_some() {
-        return Err(PyValueError::new_err("mu0 and mu1 must be supplied together"));
+        return Err(crate::value_err("mu0 and mu1 must be supplied together"));
     }
     // Gate on the certificate the `TransportIdentificationResult` was actually built from, not
     // on its `transportable` getter: estimating a transported contrast without a positive

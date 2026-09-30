@@ -35,8 +35,9 @@ pub use z_transport::{
     ZTransportProofInspection, ZTransportQuery, ZTransportResult, ZTransportSourceSpec,
     ZTransportTerminalRecord, bind_z_transport_catalog, decide_two_source_z_transport,
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_z_transport,
-    identify_z_transport_reporting, validate_z_experiment_family, validate_z_transport_query,
-    verify_z_transport_derivation, verify_z_transport_obstruction,
+    identify_z_transport_reporting, intervention_ancestral_treatments,
+    intervention_levels_conflict, intervention_mutilated_admg, validate_z_experiment_family,
+    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 
 /// Theoretical query under the classical family of all source experiments.

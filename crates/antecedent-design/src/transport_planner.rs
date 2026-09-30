@@ -338,7 +338,9 @@ pub enum TransportPlanningError {
 /// catalog. The caller's `base_catalog` and prepared evidence remain unchanged.
 ///
 /// # Errors
-/// The candidate catalog itself is malformed (including duplicate IDs or bad costs).
+/// The candidate catalog itself is malformed (including duplicate IDs or bad
+/// costs), or the plan is cancelled. A candidate whose identification exhausts
+/// its search limits is recorded as `Unresolved` and the plan continues.
 pub fn plan_transport_evidence(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -374,6 +376,9 @@ pub fn plan_transport_evidence(
     let count = spec.max_evaluated.min(spec.candidates.len());
     let mut assessments = Vec::with_capacity(count);
     for candidate in spec.candidates.iter().take(count) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_identify::IdentificationError::Cancelled.into());
+        }
         let preview = candidate.delta.preview_catalog(base_catalog)?;
         let outcome = match identify_catalog_transport(
             diagram,
@@ -397,6 +402,11 @@ pub fn plan_transport_evidence(
             }
             Ok(CatalogTransportResult::NotCertified { obligations, .. }) => {
                 TransportCandidateOutcome::NotCertified { obligations }
+            }
+            // Cancellation stops the whole plan: a partial ranking would look
+            // complete while later candidates were never assessed.
+            Err(antecedent_identify::IdentificationError::Cancelled) => {
+                return Err(antecedent_identify::IdentificationError::Cancelled.into());
             }
             Err(error) => {
                 TransportCandidateOutcome::Unresolved { reason: Arc::from(error.to_string()) }
@@ -599,6 +609,44 @@ mod tests {
         assert!(result.truncated);
         assert_eq!(result.search_limit, 1);
         assert_eq!(result.candidate_universe_size, 2);
+    }
+
+    #[test]
+    fn cancellation_stops_the_plan_and_exhausted_search_is_unresolved() {
+        let (diagram, query, catalog, x) = fixture();
+        let spec = TransportPlanSpec {
+            candidates: vec![candidate(&catalog, x, "repair", &[VariableId::from_raw(1)], 1.0)],
+            max_evaluated: 1,
+            identification_limits: SidLimits::default(),
+        };
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let cancelled = plan_transport_evidence(&diagram, &query, &catalog, &spec, &ctx);
+        assert!(
+            matches!(
+                &cancelled,
+                Err(TransportPlanningError::Identification(error)) if error.is_budget_or_cancel()
+            ),
+            "{cancelled:?}"
+        );
+        let exhausted = plan_transport_evidence(
+            &diagram,
+            &query,
+            &catalog,
+            &TransportPlanSpec { identification_limits: SidLimits { steps: 0, depth: 1 }, ..spec },
+            &antecedent_core::ExecutionContext::for_tests(1),
+        );
+        let exhausted = exhausted.unwrap();
+        assert!(
+            matches!(
+                exhausted.assessments.as_slice(),
+                [TransportCandidateAssessment {
+                    outcome: TransportCandidateOutcome::Unresolved { .. },
+                    ..
+                }]
+            ),
+            "{exhausted:?}"
+        );
     }
 
     #[test]

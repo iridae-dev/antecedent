@@ -205,6 +205,7 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
         let request = &prepared.bind_request(request);
         let n = request.nrows()?;
         let weights = self.weights_for(n)?;
+        super::residualize::ensure_valid_weights(weights)?;
         let policy = &ctx.kernel_policy;
         let mut results = Vec::with_capacity(request.queries.len());
         for q in request.queries {
@@ -879,47 +880,41 @@ mod tests {
         assert!(out.results[0].p_value > 0.01, "p={}", out.results[0].p_value);
     }
 
+    /// NaN, infinite or negative weights are refused, not silently zeroed: a zeroed row drops
+    /// out of the fit with nothing in the result saying so. Explicit zero weights still work.
     #[test]
-    fn weighted_nonfinite_weights_match_zeroed_weights() {
+    fn weighted_refuses_nonfinite_or_negative_weights() {
         let n = 80usize;
         let x: Vec<f64> = (0..n).map(|i| i as f64).collect();
-        let y: Vec<f64> = (0..n).map(|i| 2.0 * i as f64 + 1.0).collect();
-        let mut w_dirty = vec![1.0; n];
-        let mut w_clean = vec![1.0; n];
-        for i in (0..n).step_by(7) {
-            w_dirty[i] = f64::NAN;
-            w_clean[i] = 0.0;
-        }
-        for i in (3..n).step_by(11) {
-            w_dirty[i] = f64::NEG_INFINITY;
-            w_clean[i] = 0.0;
-        }
-        for i in (5..n).step_by(13) {
-            w_dirty[i] = -2.0;
-            w_clean[i] = 0.0;
-        }
-        let cols: [&[f64]; 2] = [&x, &y];
-        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 0 }];
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &[],
-            significance: SignificanceMethod::Analytic,
-            confidence: ConfidenceMethod::default(),
-        };
-        let mut ws = CiWorkspace::default();
+        let y: Vec<f64> = (0..n).map(|i| ((i * 7) % 11) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| ((i * 5) % 13) as f64).collect();
+        let cols: [&[f64]; 3] = [&x, &y, &z];
+        let z_flat = [2usize];
         let ctx = ExecutionContext::for_tests(8);
-        let dirty =
-            WeightedPartialCorrelation::new(w_dirty).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
-        let clean =
-            WeightedPartialCorrelation::new(w_clean).test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
-        assert!(
-            (dirty.results[0].statistic - clean.results[0].statistic).abs() < 1e-12,
-            "dirty={} clean={}",
-            dirty.results[0].statistic,
-            clean.results[0].statistic
-        );
-        assert!(dirty.results[0].statistic.is_finite());
+        let mut ws = CiWorkspace::default();
+        for z_len in [0usize, 1] {
+            let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
+            };
+            for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -2.0] {
+                let mut w = vec![1.0; n];
+                w[7] = bad;
+                let err = WeightedPartialCorrelation::new(w)
+                    .test_batch_adhoc(&req, &mut ws, &ctx)
+                    .unwrap_err();
+                assert!(matches!(err, StatsError::Shape { .. }), "{bad}: {err:?}");
+            }
+            let mut w = vec![1.0; n];
+            w[7] = 0.0;
+            assert!(
+                WeightedPartialCorrelation::new(w).test_batch_adhoc(&req, &mut ws, &ctx).is_ok()
+            );
+        }
     }
 
     #[test]

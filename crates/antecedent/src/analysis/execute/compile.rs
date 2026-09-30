@@ -696,30 +696,16 @@ impl super::Study {
                         message: "panel DiD metadata must align with table rows".into(),
                     });
                 }
+                let (plan_id, identifier, estimator) =
+                    super::checked_panel_did::panel_did_plan_ids(q.design);
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
-                        plan_id: Arc::from("quasi.panel_did"),
+                        plan_id: Arc::from(plan_id),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
-                        identifier: Some(Arc::from("quasi.parallel_trends")),
-                        estimator: Some(Arc::from(match q.design {
-                            antecedent_core::DidSamplingDesign::BalancedPanel => {
-                                "quasi.panel_change_score"
-                            }
-                            antecedent_core::DidSamplingDesign::RepeatedCrossSection => {
-                                "quasi.repeated_cross_section_four_cell"
-                            }
-                            antecedent_core::DidSamplingDesign::StaggeredGroupTime => {
-                                "quasi.staggered_group_time_never_treated"
-                            }
-                            antecedent_core::DidSamplingDesign::StaggeredEventStudy => {
-                                "quasi.staggered_event_study_never_treated"
-                            }
-                            antecedent_core::DidSamplingDesign::AugmentedPanel => {
-                                "quasi.augmented_panel_supplied_nuisance"
-                            }
-                        })),
+                        identifier: Some(Arc::from(identifier)),
+                        estimator: Some(Arc::from(estimator)),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },
@@ -738,35 +724,16 @@ impl super::Study {
                         message: "synthetic-control metadata must align with table rows".into(),
                     });
                 }
+                let (plan_id, identifier, estimator) =
+                    super::checked_synthetic_control::synthetic_panel_plan_ids(q.method);
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
-                        plan_id: Arc::from(match q.method {
-                            antecedent_core::SyntheticPanelMethod::Control => {
-                                "quasi.synthetic_control"
-                            }
-                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
-                                "quasi.synthetic_did"
-                            }
-                        }),
+                        plan_id: Arc::from(plan_id),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
-                        identifier: Some(Arc::from(match q.method {
-                            antecedent_core::SyntheticPanelMethod::Control => {
-                                "quasi.convex_donor_counterfactual"
-                            }
-                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
-                                "quasi.convex_unit_time_trends"
-                            }
-                        })),
-                        estimator: Some(Arc::from(match q.method {
-                            antecedent_core::SyntheticPanelMethod::Control => {
-                                "quasi.synthetic_control_simplex"
-                            }
-                            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
-                                "quasi.synthetic_did_simplex"
-                            }
-                        })),
+                        identifier: Some(Arc::from(identifier)),
+                        estimator: Some(Arc::from(estimator)),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome]),
                     },
@@ -814,17 +781,16 @@ impl super::Study {
                         .get(variable)
                         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                 }
-                let label = if q.kink { "regression_kink" } else { "fuzzy_rd" };
+                let (plan_id, identifier, estimator) =
+                    super::checked_local_polynomial_ratio::local_polynomial_ratio_plan_ids(q.kink);
                 Ok(LogicalAnalysisPlan {
                     record: antecedent_core::LogicalAnalysisPlanRecord {
-                        plan_id: Arc::from(format!("quasi.{label}")),
+                        plan_id: Arc::from(plan_id),
                         data_classification: antecedent_core::DataClassification::Tabular,
                         discovery_algorithm: None,
                         graph_review_required: false,
-                        identifier: Some(Arc::from(format!("quasi.{label}.local_ratio"))),
-                        estimator: Some(Arc::from(format!(
-                            "quasi.{label}.bias_corrected_local_polynomial"
-                        ))),
+                        identifier: Some(Arc::from(identifier)),
+                        estimator: Some(Arc::from(estimator)),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([q.outcome, q.treatment, q.running]),
                     },

@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("antecedent")
-
 _EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "python" / "dowhy_handoff.py"
 
 

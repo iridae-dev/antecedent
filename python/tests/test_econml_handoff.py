@@ -279,14 +279,20 @@ def test_identify_result_needs_names() -> None:
     assert spec.confounders == ("z",)
 
 
-@pytest.mark.parametrize("bad", [np.zeros(3), np.zeros((200, 1))])
-def test_handoff_rejects_misaligned_columns(bad) -> None:
+@pytest.mark.parametrize(
+    "bad, message",
+    [
+        (np.zeros(3), "must have the same number of rows"),
+        (np.zeros((200, 1)), "requires one-dimensional columns"),
+    ],
+)
+def test_handoff_rejects_misaligned_columns(bad, message) -> None:
     identified = antecedent.identify(
         graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
     )
     data = _backdoor_data()
     data["z"] = bad
-    with pytest.raises(antecedent.errors.CausalValueError):
+    with pytest.raises(antecedent.errors.CausalValueError, match=message):
         antecedent.handoff.econml(identified).columns(data)
 
 

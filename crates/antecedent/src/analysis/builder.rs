@@ -1064,8 +1064,11 @@ impl StudyBuilder {
                 Some(EstimatorId::BayesianGcomp | EstimatorId::BayesianBasisGcomp)
             )
         {
+            // Only an average effect keeps the Bayesian g-computation
+            // placeholder; a conditional effect resolves its own Bayesian
+            // default, matching the query-then-inference call order.
             match &q {
-                CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_) => {}
+                CausalQuery::AverageEffect(_) => {}
                 CausalQuery::TemporalEffect(_) => {
                     self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
                 }

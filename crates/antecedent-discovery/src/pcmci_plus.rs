@@ -199,6 +199,12 @@ impl PcmciPlus {
             sepsets.insert(k, v);
         }
 
+        let fdr_diagnostic = crate::ci::fdr_resolution_diagnostic(
+            &*self.engine.ci,
+            self.engine.constraints.significance,
+            alpha,
+            crate::evidence::fdr_family_size(&scored, self.fdr),
+        );
         let scored = threshold_scored_links(scored, self.fdr, alpha);
         let scored = symmetrize_contemporaneous_links(scored);
 
@@ -235,7 +241,7 @@ impl PcmciPlus {
         let evidence = cpdag_evidence_from_oriented(cpdag.clone(), scored, &sepsets);
         let review = TemporalCpdagReview::from_cpdag(cpdag, algorithm.id.clone());
         let links_retained = evidence.links.len();
-        let mut diagnostics = Vec::new();
+        let mut diagnostics: Vec<_> = fdr_diagnostic.into_iter().collect();
         debug_assert_eq!(truncated, 0, "truncated MCI is refused before a result is built");
         push_diagnostic(
             &mut diagnostics,

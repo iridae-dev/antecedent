@@ -61,6 +61,12 @@ fn invert_three(matrix: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     Some(inverse)
 }
 
+/// Whether a scaled distance from the cutoff falls in one side's kernel window. Rows at the
+/// cutoff belong to the right (treated) side, matching the `R >= cutoff` assignment rule.
+fn in_side_window(distance: f64, right_side: bool) -> bool {
+    distance.abs() < 1.0 && if right_side { distance >= 0.0 } else { distance < 0.0 }
+}
+
 fn local_quadratic_side(
     running: &[f64],
     outcome: &[f64],
@@ -75,11 +81,7 @@ fn local_quadratic_side(
     let mut count = 0usize;
     for index in 0..running.len() {
         let distance = (running[index] - cutoff) / bandwidth;
-        if distance == 0.0
-            || distance.abs() >= 1.0
-            || (right_side && distance < 0.0)
-            || (!right_side && distance > 0.0)
-        {
+        if !in_side_window(distance, right_side) {
             continue;
         }
         let basis = [1.0, distance, distance * distance];
@@ -230,11 +232,7 @@ fn local_quartic_slope_side(
     let mut rows = Vec::new();
     for index in 0..running.len() {
         let distance = (running[index] - cutoff) / bandwidth;
-        if distance == 0.0
-            || distance.abs() >= 1.0
-            || (right_side && distance < 0.0)
-            || (!right_side && distance > 0.0)
-        {
+        if !in_side_window(distance, right_side) {
             continue;
         }
         let basis = [1.0, distance, distance.powi(2), distance.powi(3), distance.powi(4)];
@@ -296,11 +294,7 @@ fn local_cubic_side(
     let mut rows = Vec::new();
     for index in 0..running.len() {
         let distance = (running[index] - cutoff) / bandwidth;
-        if distance == 0.0
-            || distance.abs() >= 1.0
-            || (right_side && distance < 0.0)
-            || (!right_side && distance > 0.0)
-        {
+        if !in_side_window(distance, right_side) {
             continue;
         }
         let basis = [1.0, distance, distance.powi(2), distance.powi(3)];
@@ -358,11 +352,7 @@ fn cubic_bias_projection(
     let mut cross = [0.0; 3];
     for value in running {
         let distance = (*value - cutoff) / bandwidth;
-        if distance == 0.0
-            || distance.abs() >= 1.0
-            || (right_side && distance < 0.0)
-            || (!right_side && distance > 0.0)
-        {
+        if !in_side_window(distance, right_side) {
             continue;
         }
         let basis = [1.0, distance, distance * distance];
@@ -451,11 +441,6 @@ pub fn fit_local_polynomial_ratio(
         right_t_p[coefficient] - right_projection[coefficient] * right_q.beta_t[3];
     let mut reduced_form = (corrected_y_right - corrected_y_left) * scale;
     let mut first_stage = (corrected_t_right - corrected_t_left) * scale;
-    if first_stage.abs() < 1e-10 {
-        return Err(String::from(
-            "local treatment discontinuity is too small to form a fuzzy design estimate",
-        ));
-    }
     let mut variance_y = (left_q.var_y[coefficient][coefficient]
         + right_q.var_y[coefficient][coefficient])
         * scale
@@ -489,6 +474,11 @@ pub fn fit_local_polynomial_ratio(
         variance_y = (left.var_y + right.var_y) / bandwidth.powi(2);
         variance_t = (left.var_t + right.var_t) / bandwidth.powi(2);
         covariance_yt = (left.cov_yt + right.cov_yt) / bandwidth.powi(2);
+    }
+    if first_stage.abs() < 1e-10 {
+        return Err(String::from(
+            "local treatment discontinuity is too small to form a fuzzy design estimate",
+        ));
     }
     let se_first = variance_t.max(0.0).sqrt();
     if first_stage.abs() <= 1.96 * se_first {
@@ -557,5 +547,29 @@ mod tests {
             .unwrap_err()
             .contains("full-rank support")
         );
+    }
+
+    #[test]
+    fn rows_at_the_cutoff_count_on_the_treated_side() {
+        let mut running = Vec::new();
+        let mut treatment = Vec::new();
+        let mut outcome = Vec::new();
+        for step in 0..80 {
+            for (sign, assignments) in [(-1.0, [1.0, 0.0, 0.0, 0.0]), (1.0, [1.0, 1.0, 1.0, 0.0])] {
+                if step == 0 && sign < 0.0 {
+                    continue;
+                }
+                let score = sign * f64::from(step) / 80.0;
+                for (assigned, noise) in assignments.into_iter().zip([-0.02, -0.01, 0.01, 0.02]) {
+                    running.push(score);
+                    treatment.push(assigned);
+                    outcome.push(1.0 + 2.0 * score + 0.5 * score * score + 3.0 * assigned + noise);
+                }
+            }
+        }
+        let fit =
+            fit_local_polynomial_ratio(&running, &outcome, &treatment, 0.0, 1.0, false).unwrap();
+        assert_eq!((fit.n_left, fit.n_right), (316, 320));
+        assert!((fit.estimate - 3.0).abs() < 1e-10);
     }
 }

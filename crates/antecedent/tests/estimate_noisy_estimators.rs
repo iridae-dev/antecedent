@@ -142,8 +142,6 @@ fn run_method(
 
     let atol_val = expected["atol_val"].as_f64().unwrap();
     let rtol_val = expected["rtol_val"].as_f64().unwrap();
-    let atol_se = expected["atol_se"].as_f64().unwrap();
-    let rtol_se = expected["rtol_se"].as_f64().unwrap();
 
     let assert_true = map["assert_against"].as_str() == Some("true_ate");
     let ref_val = if assert_true {
@@ -165,7 +163,16 @@ fn run_method(
         let se = result.estimate.se_analytic;
         assert!(se.is_finite() && se >= 0.0, "{method_id}: bad se_analytic={se}");
         if !assert_true {
-            if let Some(ref_se) = expected["methods"][method_id]["se"].as_f64() {
+            let row = &expected["methods"][method_id];
+            if let Some(ref_se) = row["se"].as_f64() {
+                // Each row carries its own SE band: relative for a reference of the same
+                // estimator family, with an absolute term only where it is not (IPW).
+                let atol_se = row["atol_se"].as_f64().expect("per-row atol_se");
+                let rtol_se = row["rtol_se"].as_f64().expect("per-row rtol_se");
+                assert!(
+                    atol_se + rtol_se * ref_se < 7.0 * ref_se,
+                    "{method_id}: band admits 8x SE"
+                );
                 assert!(
                     close(se, ref_se, atol_se, rtol_se),
                     "{method_id}: se={se} vs ref_se={ref_se} (atol={atol_se} rtol={rtol_se})"

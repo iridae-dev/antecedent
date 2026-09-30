@@ -209,6 +209,15 @@ fn refuse_unrepresentable_dag_edge_attrs(attrs: &HashMap<String, String>) -> Res
             )));
         }
     }
+    for (key, trivial) in [("arrowhead", "normal"), ("arrowtail", "none")] {
+        if let Some(shape) = attrs.get(key) {
+            if !shape.eq_ignore_ascii_case(trivial) {
+                return Err(IoError::Convert(format!(
+                    "DAG DOT cannot represent edge attribute {key}={shape}; use pag_from_dot"
+                )));
+            }
+        }
+    }
     if attrs.contains_key("mark_a") || attrs.contains_key("mark_b") {
         return Err(IoError::Convert(
             "DAG DOT cannot represent mark_a/mark_b edge attributes; use pag_from_dot".into(),

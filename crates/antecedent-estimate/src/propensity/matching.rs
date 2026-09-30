@@ -30,7 +30,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::se::{AnalyticSeKind, influence_se_kind};
+use crate::se::AnalyticSeKind;
 use crate::util::{sample_std, stats_err};
 
 /// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
@@ -84,7 +84,9 @@ pub struct PropensityMatching {
     /// Scale on which matching distance and `caliper` are computed. Defaults to
     /// [`CaliperScale::Logit`] — see the type-level docs.
     pub caliper_scale: CaliperScale,
-    /// Analytic SE kind (Abadie–Imbens / hetero / cluster).
+    /// Analytic SE kind. Only `Homoskedastic` (Abadie–Imbens) is supported: cluster,
+    /// multiway and HAC kinds are refused because donor outcomes belong to other
+    /// clusters and times than the matched unit.
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,
@@ -167,7 +169,7 @@ impl PropensityMatching {
         self
     }
 
-    /// Set the analytic SE kind (Abadie–Imbens / hetero / cluster).
+    /// Set the analytic SE kind (only `Homoskedastic`, Abadie–Imbens, is supported).
     #[must_use]
     pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
         self.se_kind = se_kind;
@@ -367,6 +369,7 @@ pub(crate) fn match_diffs(
     Ok((diffs, used_donors, used_queries))
 }
 
+#[derive(Debug)]
 pub(crate) struct MatchedEstimate {
     pub(crate) ate: f64,
     pub(crate) se_analytic: f64,
@@ -555,34 +558,24 @@ pub(crate) fn matching_contrast(
         },
         AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
             return Err(EstimationError::unsupported(
-                "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens) or Cluster",
+                "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens)",
             ));
         }
+        // A matched effect mixes the query unit's outcome with its donors' outcomes, and
+        // donors come from other clusters and time points. Charging the whole per-query
+        // residual to the query's cluster (or time) mis-assigns the donor noise, so a
+        // cluster, multiway or HAC sandwich over those contributions is not a valid
+        // variance for the matching estimator.
         AnalyticSeKind::Cluster
         | AnalyticSeKind::Multiway
         | AnalyticSeKind::NeweyWest { .. }
         | AnalyticSeKind::PanelClusterHac { .. } => {
-            let psi = matching_influence(
-                &per_unit_effects,
-                ate,
-                &donor_usage,
-                n_donors,
-                ate_form,
-                treatment.len(),
-                &treated_idx,
-                &control_idx,
-                &effect_rows,
-                weighted_coefficients.as_deref(),
-            );
-            influence_se_kind(
-                se_kind,
-                &psi,
-                treatment.len(),
-                cluster_ids,
-                multiway_ids.map(Vec::as_slice),
-                panel_times,
-                Some(&effect_rows),
-            )?
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("estimator_inference_mismatch"),
+                "matching has no valid cluster, multiway or HAC standard error (donor outcomes \
+                 belong to other clusters and times than the matched unit); use Homoskedastic \
+                 (Abadie–Imbens), or a weighting or AIPW estimator for clustered data",
+            ));
         }
     };
     Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: per_unit_effects.len() })
@@ -673,60 +666,6 @@ fn abadie_imbens_se(
     };
     let var = sigma2 * weight / (n as f64).powi(2);
     var.sqrt()
-}
-
-/// Influence contributions aligned with [`abadie_imbens_se`].
-///
-/// Residuals are scaled by `1/√2` so that under homoskedasticity they match `σ̂² = Var(τ̂)/2`.
-/// - **ATE**: `ψᵢ ∝ (τ̂ᵢ − τ̄) (1 + K_M(i))` with `K_M(i)` = times unit `i` is used as a donor.
-/// - **ATT/ATC**: `ψᵢ ∝ (τ̂ᵢ − τ̄) √(1 + K_{d(i)})` so `Σ wᵢ² = n + Σ Kⱼ²`.
-fn matching_influence(
-    effects: &[f64],
-    ate: f64,
-    donor_local: &[usize],
-    n_donors: usize,
-    ate_form: bool,
-    nrows: usize,
-    treated_idx: &[usize],
-    control_idx: &[usize],
-    effect_rows: &[usize],
-    weighted_coefficients: Option<&[f64]>,
-) -> Vec<f64> {
-    let k = donor_counts(donor_local, n_donors);
-    let scale = std::f64::consts::SQRT_2.recip();
-    let mut psi = Vec::with_capacity(effects.len());
-    if let Some(coefficients) = weighted_coefficients {
-        // `n · c_row` replaces `1 + K_M(row)`: the row's weight in the target-weighted mean.
-        let n = effects.len() as f64;
-        for (i, &eff) in effects.iter().enumerate() {
-            psi.push((eff - ate) * scale * n * coefficients[effect_rows[i]]);
-        }
-    } else if ate_form {
-        // Map each sample row to its donor-reuse count K_M (ATE donor pool = controls ‖ treated).
-        let n_control = control_idx.len();
-        let mut k_m_by_row = vec![0usize; nrows];
-        for (local, &row) in control_idx.iter().enumerate() {
-            if local < k.len() {
-                k_m_by_row[row] = k[local];
-            }
-        }
-        for (local, &row) in treated_idx.iter().enumerate() {
-            let d = local + n_control;
-            if d < k.len() {
-                k_m_by_row[row] = k[d];
-            }
-        }
-        for (i, &eff) in effects.iter().enumerate() {
-            let km = k_m_by_row.get(effect_rows[i]).copied().unwrap_or(0) as f64;
-            psi.push((eff - ate) * scale * (1.0 + km));
-        }
-    } else {
-        for (i, &d) in donor_local.iter().enumerate() {
-            let kd = k.get(d).copied().unwrap_or(0) as f64;
-            psi.push((effects[i] - ate) * scale * (1.0 + kd).sqrt());
-        }
-    }
-    psi
 }
 
 /// OLS of `y` on `[1, x]` (row-major `x` with `dim` columns). Returns `[intercept, β…]`.
@@ -961,54 +900,44 @@ mod tests {
         assert!(se_ate > se, "ATE form should exceed ATT form under reuse");
     }
 
-    /// Under iid (each unit its own cluster) the corrected IF cluster SE matches the
-    /// analytic ATE SE (finite-sample G/(G−1) cancels with the sample-variance df).
+    /// Donor outcomes belong to other clusters and times than the matched unit, so no
+    /// cluster, multiway or HAC variance is published for matching.
     #[test]
-    fn cluster_ate_influence_matches_analytic_under_iid() {
-        let effects = [1.0, 1.2, 0.8, 1.1];
-        let donors = vec![0usize, 1, 2, 3]; // K_M = [1,1,1,1]
-        let n_donors = 4;
-        let ate = effects.iter().sum::<f64>() / effects.len() as f64;
-        let se_ai = abadie_imbens_se(&effects, &donors, n_donors, true);
-        // Synthetic rows 0..3 with treated={0,1}, control={2,3} so ATE donor pool
-        // is controls‖treated → local [2,3,0,1] maps K onto rows via matching_influence.
-        // Direct construction with K_M(i)=1 for all units mirrors that geometry.
-        let scale = std::f64::consts::SQRT_2.recip();
-        let psi: Vec<f64> = effects.iter().map(|&e| (e - ate) * scale * (1.0 + 1.0)).collect();
-        let groups: Vec<u32> = (0..effects.len() as u32).collect();
-        let se_cl = crate::se::cluster_influence_se(&psi, &groups).unwrap();
-        assert!(
-            (se_cl - se_ai).abs() < 1e-12,
-            "cluster={se_cl} analytic={se_ai} (should agree under iid)"
-        );
-        // Old over-large IF: (τ−τ̄)(1+K) without 1/√2 is √2 too big here (K≡1).
-        let psi_old: Vec<f64> = effects.iter().map(|&e| (e - ate) * (1.0 + 1.0)).collect();
-        let se_old = crate::se::cluster_influence_se(&psi_old, &groups).unwrap();
-        assert!(
-            (se_old / se_ai - std::f64::consts::SQRT_2).abs() < 1e-12,
-            "old IF should be √2× analytic; ratio={}",
-            se_old / se_ai
-        );
-    }
-
-    #[test]
-    fn cluster_se_grows_with_donor_reuse() {
-        let effects = [1.0, 1.2, 0.8, 1.1];
-        let ate = effects.iter().sum::<f64>() / effects.len() as f64;
-        let groups = vec![0u32, 0, 1, 1];
-        let scale = std::f64::consts::SQRT_2.recip();
-        // Unit-level K_M for ATE-style IF (reuse vs unique).
-        let se = |k_m: &[f64]| {
-            let psi: Vec<f64> = effects
-                .iter()
-                .enumerate()
-                .map(|(i, &e)| (e - ate) * scale * (1.0 + k_m[i]))
-                .collect();
-            crate::se::cluster_influence_se(&psi, &groups).unwrap()
-        };
-        let se_reuse = se(&[2.0, 2.0, 0.0, 0.0]);
-        let se_unique = se(&[1.0, 1.0, 1.0, 1.0]);
-        assert!(se_reuse > se_unique, "cluster reuse={se_reuse} unique={se_unique}");
+    fn clustered_and_hac_matching_variance_is_refused() {
+        let t = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
+        let y = [2.0, 2.5, 3.0, 1.0, 1.4, 2.1];
+        let x = [0.1, 0.5, 0.9, 0.2, 0.6, 1.0];
+        let clusters = [0u32, 1, 2, 0, 1, 2];
+        let times = [0i64, 1, 2, 0, 1, 2];
+        let multiway = vec![clusters.to_vec(), clusters.to_vec()];
+        for kind in [
+            AnalyticSeKind::Cluster,
+            AnalyticSeKind::Multiway,
+            AnalyticSeKind::NeweyWest { lag: 1 },
+            AnalyticSeKind::PanelClusterHac { lag: 1 },
+        ] {
+            let mut ws = PropensityEstimationWorkspace::default();
+            let err = matching_contrast(
+                &t,
+                &y,
+                &x,
+                1,
+                MatchingDistance::Absolute,
+                &TargetPopulation::AllObserved,
+                None,
+                &mut ws,
+                kind,
+                Some(&clusters),
+                None,
+                Some(&multiway),
+                Some(&times),
+            )
+            .unwrap_err();
+            assert!(
+                err.to_string().contains("reason=estimator_inference_mismatch"),
+                "{kind:?}: {err}"
+            );
+        }
     }
 
     /// Short Monte Carlo: ATE analytic 95% Wald intervals should not sit near 89% coverage.

@@ -131,7 +131,8 @@ fn assert_validation(inference: &InferenceMode, suite: RefuteSuite) {
             result.refutations
         );
     }
-    if let Some(posterior) = &result.posterior {
+    if matches!(inference, InferenceMode::Bayesian(_)) {
+        let posterior = result.posterior.as_ref().expect("a Bayesian run must report a posterior");
         assert!((posterior.unidentified_mass - 0.2).abs() < 1e-12);
         assert!(!result.predictive_checks.is_empty());
         if suite == RefuteSuite::Full {
@@ -173,6 +174,7 @@ fn single_graph_full_validation_retains_both_lagged_actions() {
         InferenceMode::Frequentist,
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(128).prior_scale(10.0)),
     ] {
+        let bayesian = matches!(inference, InferenceMode::Bayesian(_));
         let result = Study::series(series.clone())
             .graph(graph.clone())
             .temporal_query(query.clone())
@@ -185,7 +187,9 @@ fn single_graph_full_validation_retains_both_lagged_actions() {
             .unwrap();
         assert!((result.estimate.ate - 5.0).abs() < 0.15, "{}", result.estimate.ate);
         assert!(result.refutations.iter().any(|r| r.replicates > 0));
-        if let Some(posterior) = result.posterior {
+        if bayesian {
+            let posterior =
+                result.posterior.as_ref().expect("a Bayesian run must report a posterior");
             assert!(!result.predictive_checks.is_empty());
             assert!(posterior.prior_sensitivity.is_some());
         }

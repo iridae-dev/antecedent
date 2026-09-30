@@ -76,7 +76,7 @@ result = identification.estimate(ant.transport.StatisticalTransportData(...))
 
 ## New in Antecedent 2.1
 
-2.1 keeps the same lifecycle and widens the questions it can carry. Design-family studies — randomized and factorial experiments, held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.factorial`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root.
+2.1 keeps the same lifecycle and widens the questions it can carry. Design-family studies — randomized experiments (including factorial randomization), held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root. `antecedent.factorial.estimate` is a separate point utility for 2×2 cell means.
 
 ```python
 design = ant.experiment.ExperimentDesign(

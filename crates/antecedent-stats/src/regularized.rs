@@ -61,14 +61,23 @@ pub struct LassoFit {
 /// `(XᵀX + λP)⁻¹` (row-major) for the ridge penalty `P = I`, with a leading constant column
 /// left unpenalized. It is both the ridge solve's matrix and the bread of the ridge
 /// estimator's sampling variance `A⁻¹ XᵀΣX A⁻¹` (`A` is not `XᵀX`, so an OLS bread misstates
-/// it). `None` when the penalized Gram matrix is singular.
-#[must_use]
+/// it). `Ok(None)` when the penalized Gram matrix is singular.
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] when `ncols == 0` or the buffer is shorter than `nrows · ncols`.
 pub fn ridge_gram_inverse(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     lambda: f64,
-) -> Option<Vec<f64>> {
+) -> Result<Option<Vec<f64>>, StatsError> {
+    if ncols == 0 {
+        return Err(StatsError::Shape { message: "ridge needs at least one column" });
+    }
+    if x_colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(StatsError::Shape { message: "X buffer too short" });
+    }
     let mut xtx = vec![0.0; ncols * ncols];
     form_xtx(x_colmajor, nrows, ncols, &mut xtx);
     let unpenalize0 = column_is_constant(x_colmajor, nrows, 0);
@@ -78,7 +87,7 @@ pub fn ridge_gram_inverse(
         }
         xtx[c * ncols + c] += lambda;
     }
-    invert_square(&xtx, ncols)
+    Ok(invert_square(&xtx, ncols))
 }
 
 /// Ridge regression: solve `(XᵀX + λ I)β = Xᵀy`, leaving a constant intercept column unpenalized.
@@ -117,7 +126,7 @@ pub fn fit_ridge(
         }
         xty[c] = s;
     }
-    let Some(inv) = ridge_gram_inverse(x_colmajor, nrows, ncols, lambda) else {
+    let Some(inv) = ridge_gram_inverse(x_colmajor, nrows, ncols, lambda)? else {
         return Err(StatsError::Backend("ridge: singular X'X+λI".into()));
     };
     let mut coefficients = vec![0.0; ncols];
@@ -428,6 +437,15 @@ pub fn first_col_is_exact_ones(x_colmajor: &[f64], nrows: usize) -> bool {
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
+
+    /// A public entry point must refuse malformed input, not panic on it.
+    #[test]
+    fn ridge_gram_inverse_refuses_bad_shapes() {
+        assert!(matches!(ridge_gram_inverse(&[], 3, 0, 1.0), Err(StatsError::Shape { .. })));
+        assert!(matches!(ridge_gram_inverse(&[1.0; 5], 3, 2, 1.0), Err(StatsError::Shape { .. })));
+        let x = [1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
+        assert!(ridge_gram_inverse(&x, 3, 2, 1.0).unwrap().is_some());
+    }
 
     #[test]
     fn ridge_shrinks_vs_ols() {

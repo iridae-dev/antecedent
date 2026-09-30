@@ -8,11 +8,9 @@ import sys
 import threading
 import time
 
+import antecedent
 import numpy as np
 import pytest
-
-pytest.importorskip("antecedent")
-import antecedent
 from antecedent import _native
 
 
@@ -57,7 +55,7 @@ def test_a_cancelled_token_stops_discovery_with_the_cancelled_error():
     names, columns = _series()
     token = _native.CancellationToken()
     token.cancel()
-    with pytest.raises(antecedent.errors.CausalCancelledError):
+    with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled during discover"):
         _native.discover_pcmci(names, columns, max_lag=2, seed=1, cancel=token)
 
 

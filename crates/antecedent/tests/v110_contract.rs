@@ -6344,8 +6344,24 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     // Every body field a verified consume reports is inside the claim id.
     let (decoded, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let section = antecedent_io::decode_analysis_result_contract(&decoded).unwrap().unwrap();
+    // A mixture publishes no scalar, so a forged standard error without an
+    // estimate is refused before any contract check.
+    assert!(body.estimate.is_none());
+    let mut forged_se = body.clone();
+    forged_se.standard_error = Some(0.01);
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &forged_se,
+            header.variable_names.clone(),
+            "tampered"
+        )
+        .is_err()
+    );
     let edits: [fn(&mut antecedent_io::AnalysisResultWire); 3] = [
-        |body| body.standard_error = Some(body.standard_error.unwrap_or(1.0) / 100.0),
+        |body| {
+            body.estimate = Some(0.0);
+            body.standard_error = Some(0.01);
+        },
         |body| body.estimate = Some(body.estimate.unwrap_or(0.0) + 1.0),
         // Search effort is execution detail the product excludes; only the
         // result digest inside the claim id covers it.

@@ -129,10 +129,50 @@ fn grid_robustness_value(explained_away_at: Option<f64>) -> f64 {
     explained_away_at.unwrap_or(f64::INFINITY)
 }
 
-/// Pass only when the robustness value is *strictly* above the caller's bar.
-/// Equality means a confounder at the threshold already kills the effect.
-fn robustness_passes(robustness_value: f64, pass_threshold: f64) -> bool {
-    robustness_value > pass_threshold
+/// Pass only when a probed strength at or above the caller's bar left the effect standing.
+///
+/// The true tipping point lies above the largest probed grid value that did *not* explain
+/// the effect away (every grid value below `robustness_value` — the first one that did).
+/// The verdict is sound only when that cleared value reaches the bar: comparing
+/// `robustness_value` itself with the bar would pass a threshold that falls strictly
+/// between two grid points although a confounder just above the lower point may already
+/// kill the effect, and would pass an untipped grid whose largest point is below the bar.
+/// When the bar is a grid point this equals `robustness_value > pass_threshold`, so
+/// equality at the bar fails.
+pub(crate) fn robustness_passes(
+    probed: impl IntoIterator<Item = f64>,
+    robustness_value: f64,
+    pass_threshold: f64,
+) -> bool {
+    probed
+        .into_iter()
+        .filter(|&g| g < robustness_value)
+        .fold(None, |cleared: Option<f64>, g| Some(cleared.map_or(g, |c| c.max(g))))
+        .is_some_and(|cleared| cleared >= pass_threshold)
+}
+
+/// Failure text for a grid verdict that did not pass, naming why: the effect tipped at or
+/// below the bar, it tipped above an off-grid bar the grid could not certify, or it never
+/// tipped but the grid stopped short of the bar.
+pub(crate) fn grid_failure_text(what: &str, axis: &str, value: f64, threshold: f64) -> String {
+    if value.is_infinite() {
+        format!(
+            "{what} never explained away on the probed grid, but its largest {axis} is below \
+             threshold {threshold}"
+        )
+    } else if value > threshold {
+        format!(
+            "{what} explained away at {axis}={value}; the largest probed {axis} that left it \
+             standing is below threshold {threshold}"
+        )
+    } else {
+        format!("{what} explained away at {axis}={value}, not strictly above threshold {threshold}")
+    }
+}
+
+/// Grid values as the sensitivity loops probe them (`r` clamped to `[0, 0.999]`).
+fn probed_partial_r2(grid: &[f64]) -> impl Iterator<Item = f64> + '_ {
+    grid.iter().map(|r| r.clamp(0.0, 0.999))
 }
 
 fn run_grid(
@@ -536,8 +576,9 @@ fn fill_bounded(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
 pub struct LinearSensitivity {
     /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value *strictly exceeds* this threshold (harder to explain away).
-    /// Equality fails: a confounder at the bar already kills the effect.
+    /// Pass only if a probed partial R² at or above this threshold left the effect standing
+    /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
+    /// fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -594,7 +635,11 @@ impl LinearSensitivity {
             0xA7E0_000A_0000_u64,
             false,
         )?;
-        let passed = robustness_passes(robustness_value, self.pass_threshold);
+        let passed = robustness_passes(
+            probed_partial_r2(&self.partial_r2_grid),
+            robustness_value,
+            self.pass_threshold,
+        );
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.linear"),
             original_ate: problem.original.ate,
@@ -605,9 +650,11 @@ impl LinearSensitivity {
             failure_condition: if passed {
                 None
             } else {
-                Some(Arc::from(format!(
-                    "effect explained away at partial R²={robustness_value}, not strictly above threshold {}",
-                    self.pass_threshold
+                Some(Arc::from(grid_failure_text(
+                    "effect",
+                    "partial R²",
+                    robustness_value,
+                    self.pass_threshold,
                 )))
             },
             replicates: self.partial_r2_grid.len() as u32,
@@ -625,8 +672,9 @@ impl LinearSensitivity {
 pub struct PartialLinearSensitivity {
     /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value *strictly exceeds* this threshold (harder to explain away).
-    /// Equality fails: a confounder at the bar already kills the effect.
+    /// Pass only if a probed partial R² at or above this threshold left the effect standing
+    /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
+    /// fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -683,7 +731,11 @@ impl PartialLinearSensitivity {
             0xA7E0_000B_0000_u64,
             true,
         )?;
-        let passed = robustness_passes(robustness_value, self.pass_threshold);
+        let passed = robustness_passes(
+            probed_partial_r2(&self.partial_r2_grid),
+            robustness_value,
+            self.pass_threshold,
+        );
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.partial_linear"),
             original_ate: problem.original.ate,
@@ -694,9 +746,11 @@ impl PartialLinearSensitivity {
             failure_condition: if passed {
                 None
             } else {
-                Some(Arc::from(format!(
-                    "effect explained away at partial R²={robustness_value}, not strictly above threshold {}",
-                    self.pass_threshold
+                Some(Arc::from(grid_failure_text(
+                    "effect",
+                    "partial R²",
+                    robustness_value,
+                    self.pass_threshold,
                 )))
             },
             replicates: self.partial_r2_grid.len() as u32,
@@ -937,8 +991,9 @@ const MAX_NONPARAMETRIC_ROWS: usize = 20_000;
 pub struct NonparametricSensitivity {
     /// Ascending grid of partial-R² values to test on residualized series.
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value *strictly exceeds* this threshold.
-    /// Equality fails: a confounder at the bar already kills the residual effect.
+    /// Pass only if a probed partial R² at or above this threshold left the effect standing
+    /// (for a threshold on the grid: the robustness value *strictly exceeds* it). Equality
+    /// fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Optional bandwidth override, in standard deviations of each (standardized) covariate;
     /// `None` uses Silverman's (1986) multivariate normal-reference rule.
@@ -1042,7 +1097,11 @@ impl NonparametricSensitivity {
             }
         }
         let robustness_value = grid_robustness_value(explained_away_at);
-        let passed = robustness_passes(robustness_value, self.pass_threshold);
+        let passed = robustness_passes(
+            probed_partial_r2(&self.partial_r2_grid),
+            robustness_value,
+            self.pass_threshold,
+        );
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.nonparametric"),
             original_ate: problem.original.ate,
@@ -1053,10 +1112,11 @@ impl NonparametricSensitivity {
             failure_condition: if passed {
                 None
             } else {
-                Some(Arc::from(format!(
-                    "nonparametric residual effect explained away at partial R²={robustness_value}, \
-                     not strictly above threshold {}",
-                    self.pass_threshold
+                Some(Arc::from(grid_failure_text(
+                    "nonparametric residual effect",
+                    "partial R²",
+                    robustness_value,
+                    self.pass_threshold,
                 )))
             },
             replicates: self.partial_r2_grid.len() as u32,
@@ -1420,9 +1480,22 @@ mod robustness_value {
     fn never_explained_away_is_infinite_not_last_grid_point() {
         assert!(grid_robustness_value(None).is_infinite());
         assert_eq!(grid_robustness_value(Some(0.2)), 0.2);
-        assert!(!robustness_passes(0.1, 0.1));
-        assert!(robustness_passes(0.2, 0.1));
-        assert!(robustness_passes(f64::INFINITY, 0.5));
+        let grid = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+        assert!(!robustness_passes(grid, 0.1, 0.1));
+        assert!(robustness_passes(grid, 0.2, 0.1));
+        assert!(robustness_passes(grid, f64::INFINITY, 0.5));
+    }
+
+    #[test]
+    fn off_grid_threshold_is_judged_by_the_last_cleared_grid_point() {
+        // Tipping lies in (0.05, 0.1]; a bar of 0.07 is not shown to be cleared.
+        assert!(!robustness_passes([0.05, 0.1], 0.1, 0.07));
+        assert!(robustness_passes([0.05, 0.1, 0.2], 0.2, 0.07));
+        // An untipped grid only certifies strengths up to its largest point.
+        assert!(!robustness_passes([0.01, 0.02], f64::INFINITY, 0.1));
+        assert!(robustness_passes([0.01, 0.02, 0.1], f64::INFINITY, 0.1));
+        // The first grid point already tips: nothing is cleared.
+        assert!(!robustness_passes([0.05, 0.1], 0.05, 0.0));
     }
 
     #[test]
@@ -1536,10 +1609,17 @@ mod robustness_value {
         .unwrap();
         assert!(!equal.passed);
 
-        let past =
-            PartialLinearSensitivity { partial_r2_grid: grid, pass_threshold: rv * 0.5, estimator }
-                .refute(&problem, &mut ws, &ctx)
-                .unwrap();
+        // The bar must be a cleared grid point: the one just below the tipping value.
+        let idx = grid.iter().position(|&r| r == rv).expect("RV must be a grid point");
+        assert!(idx > 0, "need a grid point before the tipping RV to set a lower bar");
+        let threshold = grid[idx - 1];
+        let past = PartialLinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: threshold,
+            estimator,
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
         assert!(past.passed);
     }
 
@@ -1575,9 +1655,12 @@ mod robustness_value {
         .unwrap();
         assert!(!equal.passed);
 
+        // The bar must be a cleared grid point: the one just below the tipping value.
+        let idx = grid.iter().position(|&r| r == rv).expect("RV must be a grid point");
+        assert!(idx > 0, "need a grid point before the tipping RV to set a lower bar");
         let past = NonparametricSensitivity {
-            partial_r2_grid: grid,
-            pass_threshold: rv * 0.5,
+            partial_r2_grid: grid.clone(),
+            pass_threshold: grid[idx - 1],
             bandwidth: Some(0.5),
         }
         .refute(&problem, &mut ws, &ctx)
@@ -1611,8 +1694,13 @@ mod robustness_value {
             "surviving the grid must report +∞, got {}",
             report.comparison
         );
-        assert!(report.passed);
-        assert!(report.failure_condition.is_none());
+        // Surviving a grid that stops at 1e-6 certifies nothing about a 0.1 bar.
+        assert!(!report.passed);
+        assert!(
+            report.failure_condition.as_deref().is_some_and(|f| f.contains("never explained away")),
+            "{:?}",
+            report.failure_condition
+        );
     }
 }
 

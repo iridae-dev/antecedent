@@ -249,11 +249,7 @@ mod tests {
         let mut state = rep as u64 + 0xD35A_7100_0000_0001;
         let mut order = (0..size).collect::<Vec<_>>();
         for i in (1..size).rev() {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut x = state;
-            x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            let j = ((x ^ (x >> 31)) % (i as u64 + 1)) as usize;
+            let j = (crate::splitmix::splitmix64(&mut state) % (i as u64 + 1)) as usize;
             order.swap(i, j);
         }
         order

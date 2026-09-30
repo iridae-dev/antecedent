@@ -175,7 +175,7 @@ def test_live_discovery_honours_cancellation(route):
     data, discovery, query = _live_route(route)
     token = antecedent.state.CancellationToken()
     token.cancel()
-    with pytest.raises(antecedent.errors.CausalCancelledError):
+    with pytest.raises(antecedent.errors.CausalCancelledError, match="cancelled before discovery"):
         antecedent.analyze(
             data,
             discovery=discovery,

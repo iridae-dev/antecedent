@@ -342,7 +342,10 @@ def test_admg_interventional_distribution_refuses_cheap_full(refute: str) -> Non
     data = _expand_contingency(_ADMG_DIST_PIN)
     graph = _admg_distribution(accepted=False)
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(
+        CausalUnsupportedError,
+        match="ADMG InterventionalDistribution is licensed at validation none",
+    ):
         antecedent.analyze(data, graph=graph, query=query, refute=refute)
 
 

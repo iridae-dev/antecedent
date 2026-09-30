@@ -549,16 +549,21 @@ mod tests {
             ..PropensityMatching::new()
         };
         let mut ws = PropensityEstimationWorkspace::default();
-        let fit = est
+        // The trimmed labels align with the retained rows (a misaligned gather fails as a
+        // length mismatch first); the multiway variance itself is then refused because
+        // matching has no valid clustered standard error.
+        let err = est
             .fit(
                 &est.prepare(&data, &estimand, &query).unwrap(),
                 &mut ws,
                 &ctx(),
                 AssumptionSet::new(),
             )
-            .unwrap();
-        assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0);
-        assert!(fit.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
+            .unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
+            "{err}"
+        );
     }
 
     #[test]
@@ -599,16 +604,21 @@ mod tests {
             ..DistanceMatching::new()
         };
         let mut ws = PropensityEstimationWorkspace::default();
-        let fit = est
+        // The trimmed labels align with the retained rows (a misaligned gather fails as a
+        // length mismatch first); the multiway variance itself is then refused because
+        // matching has no valid clustered standard error.
+        let err = est
             .fit(
                 &est.prepare(&data, &estimand, &query).unwrap(),
                 &mut ws,
                 &ctx(),
                 AssumptionSet::new(),
             )
-            .unwrap();
-        assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0);
-        assert!(fit.overlap_report.as_ref().unwrap().excluded_fraction > 0.0);
+            .unwrap_err();
+        assert!(
+            matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
+            "{err}"
+        );
     }
 
     #[test]

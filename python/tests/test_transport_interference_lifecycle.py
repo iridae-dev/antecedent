@@ -475,9 +475,13 @@ def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
     assert bayesian.evidence_status == "licensed"
     assert bayesian.posterior is not None
     assignment, data = _interference_design()
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(
+        CausalUnsupportedError, match="InterferenceQuery has no native refuter suite"
+    ):
         ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")
-    with pytest.raises(CausalUnsupportedError):
+    with pytest.raises(
+        CausalUnsupportedError, match="InterferenceQuery is licensed only for an explicit Dag"
+    ):
         ant.analyze(
             data,
             graph=ant.AcceptedGraph(ant.Dag.from_edges(["y"], [])),
@@ -501,9 +505,9 @@ def test_analyze_requires_the_design_facts():
             graph=[],
             query=_interference_query(assignment, network=None, realized_assignment=None),
         )
-    with pytest.raises(ant.errors.CausalValueError):
+    with pytest.raises(ant.errors.CausalValueError, match="supply all three"):
         _transport_query(treatment_probability=None)
-    with pytest.raises(ant.errors.CausalValueError):
+    with pytest.raises(ant.errors.CausalValueError, match="supply both"):
         _interference_query(assignment, network=None)
 
 

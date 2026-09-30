@@ -956,6 +956,57 @@ mod tests {
         assert!(!certificate.premises.iter().any(|p| p.contains("assumed")));
     }
 
+    /// A source experiment on the treatment that never measured the outcome cannot supply
+    /// `P(y | do(x))`; it must not divert a causally sufficient diagram away from the target
+    /// g-formula into a missing-evidence refusal.
+    #[test]
+    fn source_experiment_without_the_outcome_leaves_the_target_g_formula_route_open() {
+        use antecedent_core::{
+            DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeId,
+            RegimeKind,
+        };
+        let mut graph = Admg::with_variables(3);
+        let dense = |v: u32| DenseNodeId::from_raw(v);
+        graph.insert_directed(dense(1), dense(0)).unwrap();
+        graph.insert_directed(dense(1), dense(2)).unwrap();
+        graph.insert_directed(dense(0), dense(2)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let source_do_x = EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [VariableId::from_raw(0)],
+            [],
+            [VariableId::from_raw(0), VariableId::from_raw(1)],
+            "trial",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let target_observational = EvidenceRegime::try_new(
+            RegimeId::from_raw(2),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let catalog =
+            EvidenceCatalog::try_new([], [source_do_x, target_observational], [], None).unwrap();
+        let query = query().with_catalog(catalog).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query).unwrap();
+        let TransportIdentification::Transportable { formula, .. } = &result else {
+            panic!("the target g-formula identifies this query, got {result:?}");
+        };
+        let TransportFormula::RecursiveFactorization { factors, .. } = formula else {
+            panic!("expected the target g-formula, got {formula:?}");
+        };
+        assert!(factors.iter().all(|f| f.population.as_ref() == "target"));
+        assert!(factors.iter().all(|f| f.regime == Some(RegimeId::from_raw(2))));
+    }
+
     fn query_over(outcome: u32, treatment: u32) -> TransportQuery {
         TransportQuery::new(
             ResponseQuery::new(ResponseFunctional::MeanCurve {

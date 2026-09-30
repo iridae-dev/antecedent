@@ -22,6 +22,8 @@ from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
+from .._unset_license import unset_dose_license, unset_panel_license, unset_policy_license
+
 
 def _normalize(value: Any) -> Any:
     """JSON-native, order-stable form so live (tuples) and wire (lists) compare equal."""
@@ -48,7 +50,7 @@ class _FamilySpec:
     vs. parallel arrays) supplies ``live_fn`` / ``wire_fn`` callables instead.
     """
 
-    __slots__ = ("live_renames", "exclude", "live_fn", "wire_fn")
+    __slots__ = ("live_renames", "exclude", "live_fn", "wire_fn", "wire_defaults")
 
     def __init__(
         self,
@@ -57,6 +59,7 @@ class _FamilySpec:
         exclude: frozenset[str] = frozenset(),
         live_fn: Any = None,
         wire_fn: Any = None,
+        wire_defaults: Any = None,
     ) -> None:
         # live dataclass field name -> canonical (wire) name, for the twins whose
         # spellings differ across the FFI boundary.
@@ -66,6 +69,10 @@ class _FamilySpec:
         self.exclude = exclude
         self.live_fn = live_fn
         self.wire_fn = wire_fn
+        # wire -> {canonical name: value} for fields the live result always fills but
+        # the wire omits when unset (an unset license, derived from the wire's own
+        # numbers exactly as the live estimate derives it).
+        self.wire_defaults = wire_defaults
 
     def from_live(self, section: Any) -> dict[str, Any]:
         if self.live_fn is not None:
@@ -81,7 +88,11 @@ class _FamilySpec:
     def from_wire(self, wire: Mapping[str, Any]) -> dict[str, Any]:
         if self.wire_fn is not None:
             return _normalize(self.wire_fn(wire))
-        return _normalize({k: v for k, v in wire.items() if k not in self.exclude})
+        claim = _normalize({k: v for k, v in wire.items() if k not in self.exclude})
+        if self.wire_defaults is not None:
+            for key, value in self.wire_defaults(wire).items():
+                claim.setdefault(key, value)
+        return claim
 
 
 # --- panel_did: one slot, three decompositions (plain DiD, augmented, event study) ---
@@ -93,6 +104,11 @@ _PANEL_PLAIN = _FamilySpec(
         "support_status": "graphless_support_status",
     },
     exclude=frozenset({"assumptions", "cohort", "design", "period"}),
+    wire_defaults=lambda wire: {
+        "graphless_support_status": unset_panel_license(
+            has_interval=wire.get("interval_95") is not None
+        )
+    },
 )
 
 
@@ -175,6 +191,31 @@ def _panel_from_wire(wire: Mapping[str, Any]) -> dict[str, Any]:
     return {"event_time_effects": rows, "uncertainty": _event_study_uncertainty(any_interval)}
 
 
+def _policy_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
+    """The label the live policy estimate publishes when the wire leaves the license unset."""
+    return {
+        "graphless_support_status": unset_policy_license(
+            has_regret=wire.get("regret") is not None,
+            has_interval=wire.get("policy_interval_95") is not None
+            or any(row.get("interval_95") is not None for row in wire.get("uplift_bins") or ())
+            or any(
+                row.get("interval_95") is not None for row in wire.get("multi_action_cate") or ()
+            ),
+        )
+    }
+
+
+def _dose_unset_license(wire: Mapping[str, Any]) -> dict[str, str]:
+    """The label the live dose estimate publishes when the wire leaves the license unset."""
+    fixed = wire.get("fixed_policy")
+    interval = fixed.get("incremental_interval_95") if isinstance(fixed, Mapping) else None
+    return {
+        "graphless_support_status": unset_dose_license(
+            has_incremental_interval=interval is not None
+        )
+    }
+
+
 #: slot on :class:`AnalysisResult` -> its portable-claim projection.
 STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
     "policy_value": _FamilySpec(
@@ -188,6 +229,7 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             "support_status": "graphless_support_status",
         },
         exclude=frozenset({"assumptions", "diagnostics", "evaluation_method"}),
+        wire_defaults=_policy_unset_license,
     ),
     "panel_did": _FamilySpec(live_fn=_panel_from_live, wire_fn=_panel_from_wire),
     "survival": _FamilySpec(
@@ -226,7 +268,15 @@ STRUCTURED_FAMILIES: dict[str, _FamilySpec] = {
             }
         ),
     ),
-    "continuous_dose_response": _FamilySpec(),
+    "continuous_dose_response": _FamilySpec(
+        live_renames={"support_status": "graphless_support_status"},
+        # Live-only descriptive labels; the method and whether a policy value was
+        # estimated follow from ``fixed_policy``, which the claim carries.
+        exclude=frozenset(
+            {"assumptions", "diagnostics", "evaluation_method", "policy_value_estimated"}
+        ),
+        wire_defaults=_dose_unset_license,
+    ),
 }
 
 

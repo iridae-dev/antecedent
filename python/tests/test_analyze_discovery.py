@@ -72,21 +72,15 @@ def test_analyze_discovery_jpcmci_plus_two_env():
         for t in range(1, n):
             y[t] = 0.55 * x[t - 1] + 0.2 * rng.normal()
         envs.append({"x": x, "y": y})
-    # J-PCMCI+ discovery is CPDAG-shaped (`accept_temporal_cpdag_review` in
-    # `python/src/lib.rs`): accept_discovered=True (the default here) only
-    # auto-accepts already-directed pending edges, so a leftover undirected/circle
-    # mark on this 2-env system can still block with ReviewRequired
-    # (CausalReviewError); a downstream identification failure
-    # (CausalIdentifyError) and a compile-stage failure (CausalCompileError) are
-    # both legitimate fail-closed outcomes too. CausalUnsupportedError is the
-    # fourth: it is how a support-matrix refusal (`SupportRefusal::Refused` /
-    # `NotApplicable`, surfaced via `Support{id, message}` in
-    # `python/src/lib.rs`) reaches Python, and this discovery/query/graph
-    # combination can legitimately be one the matrix has not licensed. Only
-    # these four exceptions are acceptable — anything else is a real wiring
-    # break.
-    try:
-        result = antecedent.analyze(
+    # J-PCMCI+ discovery on this 2-env system returns a temporal equivalence class,
+    # and the prepared study licenses multi-environment temporal effects only on a
+    # TemporalDag, so the support matrix refuses the combination (fail closed with
+    # a registered reason code, never a silent number).
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError,
+        match="multi-environment TemporalEffect on a TemporalDag",
+    ) as caught:
+        antecedent.analyze(
             envs,
             discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),
             query=antecedent.PulseEffect(
@@ -100,17 +94,7 @@ def test_analyze_discovery_jpcmci_plus_two_env():
             seed=1,
             refute=False,
         )
-        assert np.isfinite(result.ate)
-    except (
-        antecedent.errors.CausalReviewError,
-        antecedent.errors.CausalIdentifyError,
-        antecedent.errors.CausalCompileError,
-        antecedent.errors.CausalUnsupportedError,
-    ) as exc:
-        assert str(exc)
-        if isinstance(exc, antecedent.errors.CausalReviewError):
-            assert exc.kind
-            assert exc.hint
+    assert caught.value.reason_code == "data_modality_not_licensed"
 
 
 def test_analyze_discovery_rpcmci_regimes():
@@ -127,7 +111,7 @@ def test_analyze_discovery_rpcmci_regimes():
     n = len(data["x"])
     regimes = [0] * (n // 2) + [1] * (n - n // 2)
     with pytest.raises(
-        (antecedent.errors.ReviewRequired, antecedent.errors.CausalIdentifyError),
+        antecedent.errors.ReviewRequired,
         match="a single accepted graph requires exactly one|not certified",
     ):
         antecedent.analyze(

@@ -1036,6 +1036,7 @@ fn run_lpcmci_on_frame(
             ),
         );
     }
+    diagnostics.extend(crate::rule_scheduling::pd_path_budget_diagnostic(&state, "lpcmci"));
     if state.conflicts > 0 || delta.conflicts > 0 {
         push_diagnostic(
             &mut diagnostics,

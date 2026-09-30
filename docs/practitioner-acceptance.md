@@ -1,6 +1,6 @@
 # Practitioner acceptance
 
-Workstream S is an additional cut requirement for this 2.0.0 tree. The independent suite lives in the sibling `../antecedent-practitioner-scenarios` repository. It exercises installed Python and public `antecedent` Rust APIs; its runner does not import library test helpers or read the parity inventory. The library's consuming regression tests remain in this repository. The 2026-09-19 evidence later in this page is a past 1.11 candidate, not a claim about the current tree.
+Workstream S is an additional cut requirement for each release. The independent suite lives in the sibling `../antecedent-practitioner-scenarios` repository. It exercises installed Python and public `antecedent` Rust APIs; its runner does not import library test helpers or read the parity inventory. The library's consuming regression tests remain in this repository. The 2026-09-19 evidence later in this page is a past 1.11 candidate, not a claim about the current tree.
 
 ## Run against a candidate
 
@@ -12,12 +12,12 @@ cd python
 uv run maturin build --release --out /tmp/antecedent-s-wheel
 cd ../../antecedent-practitioner-scenarios
 python3 run.py \
-  --wheel /tmp/antecedent-s-wheel/<antecedent-2.0.0-platform-wheel>.whl \
+  --wheel /tmp/antecedent-s-wheel/<antecedent-X.Y.Z-platform-wheel>.whl \
   --rust-checkout ../causal-library \
   --scale
 ```
 
-Without overrides, `python3 run.py --scale` installs `antecedent==2.0.0` and builds against the same exact crates.io version. This mode requires the release to have been published. Until the tag and publish, use the local wheel. The local override never makes an editable Python installation: the runner creates its own environment and checks that imports resolve inside it. Python artifacts are loaded in a fresh isolated interpreter; Rust artifacts are consumed by a fresh invocation of the consumer binary.
+Without overrides, `python3 run.py --scale` installs `antecedent==X.Y.Z` for the workspace version and builds against the same exact crates.io version. This mode requires the release to have been published. Until the tag and publish, use the local wheel. The local override never makes an editable Python installation: the runner creates its own environment and checks that imports resolve inside it. Python artifacts are loaded in a fresh isolated interpreter; Rust artifacts are consumed by a fresh invocation of the consumer binary.
 
 The suite owns its dependency locks, scenario inventory, known-truth generators,
 runner self-tests and `leftovers.json`. `reports/acceptance.json` records the

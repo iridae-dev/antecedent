@@ -18,7 +18,9 @@ Owner: `antecedent-estimate` / `PropensityWeighting::fit`
 - Bench target: `propensity_weighting_ipw_bootstrap50_n800` — n=800, 1 adjustment covariate,
   50 bootstrap replicates, `PropensityWeighting::fit` end to end (propensity fit + Hajek point
   estimate + bootstrap SE).
-- PR CI gate: `scripts/gate_estimate_reuse.sh`.
+- PR CI: the Rust job runs `bootstrap_reuses_propensity_workspace_buffers` and
+  `scripts/gate_named_tests.sh` fails if it is renamed away; `scripts/gate_estimate_reuse.sh`
+  runs it alone.
 
 ## Notes
 

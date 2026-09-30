@@ -349,7 +349,9 @@ impl Rpcmci {
             let masked = full_frame
                 .retain_effective(&keep)
                 .map_err(|e| DiscoveryError::data_msg(format!("regime mask: {e}")))?;
-            let result = self.pcmci_plus.run_on_frame(&masked, variables, workspace, ctx)?;
+            let mut result = self.pcmci_plus.run_on_frame(&masked, variables, workspace, ctx)?;
+            // Each regime graph assumes stationarity within its regime only.
+            result.assumptions = crate::result::discovery_assumptions("rpcmci", true);
             diagnostics.push(DiscoveryDiagnostic {
                 code: Arc::from("rpcmci.masked_ci"),
                 message: Arc::from(format!(

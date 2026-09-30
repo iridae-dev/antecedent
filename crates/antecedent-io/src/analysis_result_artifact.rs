@@ -3705,6 +3705,11 @@ fn validate_result(
             "analysis standard error must be finite and nonnegative".into(),
         ));
     }
+    if result.standard_error.is_some() && result.estimate.is_none() {
+        return Err(IoError::Convert(
+            "analysis standard error requires the estimate it describes".into(),
+        ));
+    }
     if let Some(response) = &result.response {
         validate_response_result(response, variable_names.len())?;
     }
@@ -3724,7 +3729,9 @@ fn validate_result(
     Ok(())
 }
 
-fn validate_interventional_distribution(result: &AnalysisResultWire) -> Result<(), IoError> {
+pub(crate) fn validate_interventional_distribution(
+    result: &AnalysisResultWire,
+) -> Result<(), IoError> {
     let query = match &result.query {
         CausalQueryWire::Distribution(query) => query,
         _ if result.interventional_distribution.is_some() => {
@@ -3804,17 +3811,21 @@ fn validate_interventional_distribution(result: &AnalysisResultWire) -> Result<(
                 .into(),
         ));
     }
-    if expected_conditioning.is_empty()
-        && groups.len() == 1
-        && expected_outcomes.len() == 1
-        && numeric_mean.is_finite()
-        && result.estimate.is_some_and(|estimate| {
-            (estimate - numeric_mean).abs() > 1e-9 * (1.0 + numeric_mean.abs())
-        })
-    {
-        return Err(IoError::Convert(
-            "interventional distribution atoms disagree with the reported mean".into(),
-        ));
+    // The estimator publishes a scalar mean only for one numeric outcome at one
+    // conditioning assignment; any other reported scalar has no atom meaning.
+    if let Some(estimate) = result.estimate {
+        let defines_mean =
+            groups.len() == 1 && expected_outcomes.len() == 1 && numeric_mean.is_finite();
+        if !defines_mean {
+            return Err(IoError::Convert(
+                "interventional distribution atoms define no mean for the reported estimate".into(),
+            ));
+        }
+        if (estimate - numeric_mean).abs() > 1e-9 * (1.0 + numeric_mean.abs()) {
+            return Err(IoError::Convert(
+                "interventional distribution atoms disagree with the reported mean".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -3826,18 +3837,18 @@ fn validate_structural_response(
     if let Some(interval) = &structural.identified_set_interval {
         identified_set_interval_from_wire(interval)?;
     }
-    if !(0.0..=1.0).contains(&structural.subsampled_out_mass) {
-        return Err(IoError::Convert(
-            "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
-        ));
-    }
-    let total = structural.identified_mass
-        + structural.unidentified_mass
-        + structural.unevaluable_mass
-        + structural.subsampled_out_mass;
-    if !total.is_finite() || (total - 1.0).abs() > 1e-9 {
-        return Err(IoError::Convert("structural masses must sum to one".into()));
-    }
+    // Each mass is a fraction in [0, 1] and together they sum to one, so an
+    // over-unit identified mass cannot be balanced by a negative one.
+    crate::contract_section::validate_mixture_masses_within(
+        [
+            structural.identified_mass,
+            structural.unidentified_mass,
+            structural.unevaluable_mass,
+            structural.subsampled_out_mass,
+        ],
+        1e-9,
+    )
+    .map_err(|e| IoError::Convert(format!("structural {e}")))?;
     if !structural.atoms.is_empty() {
         let weight: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
         if !weight.is_finite() || (weight - 1.0).abs() > 1e-9 {
@@ -4615,8 +4626,33 @@ mod tests {
         assert!(encode_analysis_result_artifact(&ok, names.clone(), "mass-ok").is_ok());
         let mut bad = ok;
         bad.structural_response.as_mut().unwrap().identified_mass = 0.5;
-        let err = encode_analysis_result_artifact(&bad, names, "mass-bad").unwrap_err();
-        assert!(err.to_string().contains("masses must sum to one"), "{err}");
+        let err = encode_analysis_result_artifact(&bad, names.clone(), "mass-bad").unwrap_err();
+        assert!(err.to_string().contains("masses must sum to 1"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_out_of_range_masses_that_sum_to_one() {
+        let names = vec!["a".into(), "y".into()];
+        let mut bad = with_structural(None);
+        let structural = bad.structural_response.as_mut().unwrap();
+        structural.identified_mass = 1.5;
+        structural.unidentified_mass = -0.5;
+        structural.unevaluable_mass = 0.0;
+        structural.subsampled_out_mass = 0.0;
+        let err = encode_analysis_result_artifact(&bad, names, "mass-range").unwrap_err();
+        assert!(err.to_string().contains("inside [0, 1]"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_standard_error_without_estimate() {
+        let names = vec!["a".into(), "y".into()];
+        let mut result = fixture();
+        assert!(result.estimate.is_some() && result.standard_error.is_some());
+        result.estimate = None;
+        let err = encode_analysis_result_artifact(&result, names.clone(), "se-only").unwrap_err();
+        assert!(err.to_string().contains("requires the estimate"), "{err}");
+        result.standard_error = None;
+        assert!(encode_analysis_result_artifact(&result, names, "se-none").is_ok());
     }
 
     #[test]

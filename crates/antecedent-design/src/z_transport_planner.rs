@@ -360,7 +360,11 @@ pub struct ZTransportPlanSpec {
     pub candidates: Vec<TransportEvidenceCandidate>,
     /// Maximum number of candidates to evaluate. Remaining items stay unevaluated.
     pub max_evaluated: usize,
-    /// Search limits under which the frozen formula's binding is checked.
+    /// Identification search limits carried with the plan specification.
+    /// Planning binds the formula frozen in the snapshot to each hypothetical
+    /// catalog without searching again, so these limits do not change which
+    /// candidates are sufficient; the search itself ran under the limits given
+    /// to [`snapshot_z_transport_failure`].
     pub identification_limits: SidLimits,
 }
 
@@ -681,8 +685,14 @@ fn validated_preview(
             }
             _ => false,
         };
+        // Experiments run in the source. A recursive formula may also cite the
+        // target's observational joint, so a measurement may be proposed in
+        // either population; binding decides whether it supplies a cited law.
+        let population_ok = regime.population.as_ref() == snapshot.query.source.as_ref()
+            || (regime.kind == RegimeKind::Observational
+                && regime.population.as_ref() == snapshot.query.target.as_ref());
         if !matches
-            || regime.population.as_ref() != snapshot.query.source.as_ref()
+            || !population_ok
             || regime.evidence_kind != EvidenceKind::Proposed
             || !regime.conditioned_on.is_empty()
             || regime.distribution != antecedent_core::DistributionAvailability::Joint
@@ -1452,6 +1462,105 @@ mod tests {
             dependence: DependenceGroup::IndependentStudies,
         };
         EvidenceCatalog::try_new([source], [regime], [binding], None).unwrap()
+    }
+
+    /// Z→X→Y with an observed confounder W→X, W→Y: the recursive `TRz` formula
+    /// cites the target's observational joint. A catalog that holds the source
+    /// experiment but not that joint is repaired by measuring the target
+    /// population; the same measurement in the source is not sufficient.
+    #[test]
+    fn measuring_the_missing_target_joint_is_a_sufficient_candidate() {
+        let mut graph = Admg::with_variables(5);
+        for (a, b) in [(1, 2), (2, 3), (0, 2), (0, 3)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (_, query) = fixture();
+        let coordinates = (0..5)
+            .map(|raw| VariableCoordinate {
+                variable: VariableId::from_raw(raw),
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect::<Vec<_>>();
+        let environment = |name: &str| {
+            Environment::try_new(name, coordinates.clone(), Arc::<[VariableId]>::from([])).unwrap()
+        };
+        let experiment = EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            RegimeKind::Experimental,
+            EvidenceKind::Available,
+            [VariableId::from_raw(1)],
+            [InterventionAssignment {
+                variable: VariableId::from_raw(1),
+                value: Value::Bool(false),
+            }],
+            [VariableId::from_raw(0), VariableId::from_raw(2), VariableId::from_raw(3)],
+            "source",
+            DistributionAvailability::Joint,
+        )
+        .unwrap();
+        let base = EvidenceCatalog::try_new(
+            [environment("source"), environment("target")],
+            [experiment],
+            [RegimeBinding {
+                dataset_identity: None,
+                regime: RegimeId::from_raw(1),
+                snapshot_identity: Arc::from("source-do-z0"),
+                schema_names: Arc::from([]),
+                sampling: SamplingDesign::Independent,
+                weights: None,
+                dependence: DependenceGroup::IndependentStudies,
+            }],
+            None,
+        )
+        .unwrap();
+        let snapshot = Arc::new(snapshot(&diagram, &query, &base));
+        assert_eq!(snapshot.status(), &ZTransportFailureStatus::MissingEvidence);
+        let measure = |id: &str, population: &str| {
+            let regime = EvidenceRegime::try_new(
+                RegimeId::from_raw(2),
+                RegimeKind::Observational,
+                EvidenceKind::Proposed,
+                [],
+                [],
+                (0..5).map(VariableId::from_raw).collect::<Vec<_>>(),
+                population,
+                DistributionAvailability::Joint,
+            )
+            .unwrap();
+            TransportEvidenceCandidate {
+                id: Arc::from(id),
+                delta: EvidenceCatalogDelta::try_new(&base, [regime]).unwrap(),
+                design: CandidateDesign::Measure(crate::MeasurementPlan {
+                    variables: (0..5).map(VariableId::from_raw).collect::<Vec<_>>().into(),
+                    cost: crate::DesignCost { amount: 2.0, sample_budget: 50 },
+                    tag: 1,
+                }),
+                recruitment_sampling: Arc::from(format!("{population} population")),
+                feasibility_constraints: Arc::from([]),
+                cost: crate::DesignCost { amount: 2.0, sample_budget: 50 },
+            }
+        };
+        let plan = plan_z_transport_evidence(
+            &snapshot,
+            &ZTransportPlanSpec {
+                candidates: vec![
+                    measure("measure-source", "source"),
+                    measure("measure-target", "target"),
+                ],
+                max_evaluated: 2,
+                identification_limits: SidLimits::default(),
+            },
+            &ctx(),
+        )
+        .unwrap();
+        assert_eq!(
+            plan.ranked_sufficient,
+            [Arc::<str>::from("measure-target")],
+            "assessments: {:?}",
+            plan.assessments
+        );
     }
 
     #[test]

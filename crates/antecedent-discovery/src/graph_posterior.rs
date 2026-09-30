@@ -142,6 +142,12 @@ impl GraphPosteriorAtomKind {
 /// Edge / orientation marginals are packed length `n_vars * n_vars` (row-major
 /// `from * n_vars + to`; diagonal unused / zero). Adjacency samples use packed
 /// directed-edge bitmasks ([`edge_bit`]).
+///
+/// When the search was restricted to a candidate set (for example
+/// [`crate::CiScreenedPosterior`], which proposes only pairs its CI screen kept), the
+/// marginals are conditional on that restriction: a pair outside it is never sampled, so
+/// its marginal reflects the screen, not the data. Such runs name the excluded pairs in
+/// [`InferenceDiagnostics::notes`].
 #[derive(Clone, Debug)]
 pub struct GraphPosterior {
     /// Number of variables.

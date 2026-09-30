@@ -182,6 +182,68 @@ fn a_continuous_outcome_is_not_disclosed() {
 }
 
 #[test]
+fn bayesian_bootstrap_routes_are_not_disclosed_as_gaussian_fits() {
+    // The robust ATE and the attribution posteriors reweight rows with
+    // Dirichlet draws; no Gaussian outcome likelihood is fitted.
+    std::thread::Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(bayesian_bootstrap_routes_body)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn bayesian_bootstrap_routes_body() {
+    let ctx = ExecutionContext::for_tests(13);
+    let inference = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(40));
+    let (table, _) = binary(300, 13);
+    let robust = Study::tabular(table.clone())
+        .graph(dag())
+        .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+        .estimator(antecedent::EstimatorId::BayesianRobustAte)
+        .inference(inference.clone())
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    assert_eq!(disclosed(&robust.run(&ctx).unwrap()), None, "one-shot robust ATE");
+    let prepared = robust.prepare(&ctx).unwrap();
+    assert_eq!(disclosed(&prepared.estimate(&table, &ctx).unwrap()), None, "prepared robust ATE");
+
+    // Integer-valued outcomes: a Gaussian fit to these would be disclosed.
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(d(0), d(1)).unwrap();
+    let x: Vec<_> = (0..80).map(|i| f64::from(i % 40)).collect();
+    let y: Vec<_> =
+        (0..80).map(|i| if i < 40 { 1.0 + 2.0 * x[i] } else { 6.0 + 2.0 * x[i] }).collect();
+    let counts = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+    for query in [
+        CausalQuery::AnomalyAttribution(antecedent_core::AnomalyAttributionQuery::new([v(1)], 100)),
+        CausalQuery::ChangeAttribution(antecedent_core::ChangeAttributionQuery::new(
+            v(1),
+            antecedent_core::PopulationSelector::TimeRange { start: 0, end: 40 },
+            antecedent_core::PopulationSelector::TimeRange { start: 40, end: 80 },
+        )),
+    ] {
+        let study = Study::tabular(counts.clone())
+            .graph(graph.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let result = study.run(&ctx).unwrap();
+        assert!(result.posterior.is_some());
+        assert_eq!(disclosed(&result), None, "one-shot {query:?}");
+        let prepared = study.prepare(&ctx).unwrap();
+        assert_eq!(
+            disclosed(&prepared.estimate(&counts, &ctx).unwrap()),
+            None,
+            "prepared {query:?}"
+        );
+    }
+}
+
+#[test]
 fn routes_that_cannot_fit_a_non_gaussian_likelihood_refuse_by_code() {
     let (table, _) = binary(200, 1);
     let logit = bayes(BayesLikelihood::BernoulliLogit);

@@ -1,8 +1,14 @@
-//! Prepared execution for the registered z-transport specialization.
+//! Prepared execution for checked z-transport formulas.
 //!
-//! This route intentionally has a separate state type from classical transport:
-//! its checked proof covers only one surrogate graph and is not a complete sIDz
-//! decision procedure.
+//! This route intentionally has a separate state type from classical transport.
+//! It evaluates whichever formula the bounded z-transport derivation checked and
+//! bound to the catalog: the registered surrogate formula, a direct source joint
+//! under the declared experiment, or a recursive TRz formula whose factors cite
+//! source experiments and the target's observational joint. The search runs
+//! under the z-transport contract's observed-variable and controllable bounds;
+//! it is not an unbounded sIDz decision procedure. Separately prepared factors
+//! from two sources combine only through the independent-component entry
+//! points.
 use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, TheoremScope};
 use antecedent_estimate::ReplicatePolicy;
@@ -22,7 +28,7 @@ use super::transport_common::{err, estimate_err};
 const PERCENTILE_FLOOR: ReplicatePolicy =
     ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
 
-/// Prepared exact or empirical evaluation of the registered zTR graph.
+/// Prepared exact or empirical evaluation of a checked z-transport formula.
 #[derive(Clone, Debug)]
 pub struct PreparedZTransport {
     diagram: SelectionDiagram,
@@ -268,8 +274,8 @@ impl PreparedZTransport {
                 == right.functional.derivation().query().source
             || !queries_factorize_under_intervention(
                 &left.diagram,
-                left.functional.derivation().query(),
-                right.functional.derivation().query(),
+                (left.functional.derivation().query(), &left.request),
+                (right.functional.derivation().query(), &right.request),
             )
         {
             return Err(err("z_transport.components_not_independent"));
@@ -510,20 +516,49 @@ fn queries_are_disconnected_components(
 
 /// Whether `P*_x(y_left, y_right) = P*_x(y_left)·P*_x(y_right)` on the shared
 /// graph: the two components' outcomes are m-separated given the union of their
-/// treatments in the `do`-mutilated ADMG. This licenses combining one connected
-/// factor per source without the outcomes being in disconnected graph
-/// components.
+/// treatments in the `do`-mutilated ADMG, a treatment both components fix is
+/// requested at the same level in each, and each component's own treatments
+/// include every union treatment that remains an ancestor of its outcomes
+/// after the intervention (so its factor is `P*_x(y_side)`, not a law that
+/// marginalizes a treatment the other side fixes). This licenses combining one
+/// connected factor per source without the outcomes being in disconnected
+/// graph components.
 fn queries_factorize_under_intervention(
     diagram: &SelectionDiagram,
-    left: &antecedent_identify::ZTransportQuery,
-    right: &antecedent_identify::ZTransportQuery,
+    (left, left_request): (&antecedent_identify::ZTransportQuery, &Assignment),
+    (right, right_request): (&antecedent_identify::ZTransportQuery, &Assignment),
 ) -> bool {
-    use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef};
+    use antecedent_graph::{DSeparationWorkspace, DenseNodeId, NodeRef};
+    // A treatment both components intervene on must be requested at one level;
+    // the identify-side factorization applies the same level rule.
+    let levels = |query: &antecedent_identify::ZTransportQuery, request: &Assignment| {
+        query
+            .treatments
+            .iter()
+            .filter_map(|variable| {
+                request.get(*variable).map(|value| antecedent_core::InterventionAssignment {
+                    variable: *variable,
+                    value: value.clone(),
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    let shared_levels_bound = left.treatments.iter().all(|treatment| {
+        !right.treatments.contains(treatment)
+            || (left_request.get(*treatment).is_some() && right_request.get(*treatment).is_some())
+    });
+    if !shared_levels_bound
+        || antecedent_identify::intervention_levels_conflict(
+            &[levels(left, left_request)],
+            &levels(right, right_request),
+        )
+    {
+        return false;
+    }
     let graph = diagram.causal_graph();
     if graph.nodes().iter().any(|node| !matches!(node, NodeRef::Static(_))) {
         return false;
     }
-    let n = graph.node_count();
     let dense = |variable: antecedent_core::VariableId| {
         graph
             .nodes()
@@ -531,34 +566,33 @@ fn queries_factorize_under_intervention(
             .position(|node| matches!(node, NodeRef::Static(v) if *v == variable))
             .map(|index| DenseNodeId::from_raw(u32::try_from(index).expect("graph bound")))
     };
-    let mut treated = vec![false; n];
+    let union = left.treatments.iter().chain(right.treatments.iter()).copied().collect::<Vec<_>>();
     let mut treated_ids = Vec::new();
-    for treatment in left.treatments.iter().chain(right.treatments.iter()).copied() {
-        let Some(id) = dense(treatment) else { return false };
-        if !treated[id.as_usize()] {
-            treated[id.as_usize()] = true;
+    for treatment in &union {
+        let Some(id) = dense(*treatment) else { return false };
+        if !treated_ids.contains(&id) {
             treated_ids.push(id);
         }
     }
-    // do(X)-mutilated ADMG: drop directed edges into treatments and bidirected
-    // edges incident to any treatment, so the treatments are exogenous roots.
-    let mut mutilated = Admg::with_variables(u32::try_from(n).expect("graph bound"));
-    for from_index in 0..n {
-        let from = DenseNodeId::from_raw(u32::try_from(from_index).expect("graph bound"));
-        for to in graph.children(from) {
-            if !treated[to.as_usize()] && mutilated.insert_directed(from, *to).is_err() {
-                return false;
-            }
-        }
-        for other in graph.bidirected_neighbors(from) {
-            if other.as_usize() > from_index
-                && !treated[from_index]
-                && !treated[other.as_usize()]
-                && mutilated.insert_bidirected(from, *other).is_err()
-            {
-                return false;
-            }
-        }
+    // do(X)-mutilated ADMG: the treatments are exogenous roots.
+    let Ok(mutilated) = antecedent_identify::intervention_mutilated_admg(graph, &union) else {
+        return false;
+    };
+    // Every union treatment that still reaches a component's outcomes must be
+    // one of that component's own treatments.
+    let covers_ancestral_treatments = |query: &antecedent_identify::ZTransportQuery| {
+        antecedent_identify::intervention_ancestral_treatments(
+            graph,
+            &mutilated,
+            &union,
+            &query.outcomes,
+        )
+        .is_ok_and(|ancestral| {
+            ancestral.iter().all(|treatment| query.treatments.contains(treatment))
+        })
+    };
+    if !covers_ancestral_treatments(left) || !covers_ancestral_treatments(right) {
+        return false;
     }
     let mut ws = DSeparationWorkspace::default();
     for left_outcome in left.outcomes.iter().copied() {
@@ -626,7 +660,7 @@ fn checked_program(functional: &BoundZTransportFunctional) -> Result<FunctionalP
 }
 
 impl StudyBuilder {
-    /// Prepare the registered graph-specific zTR point estimator.
+    /// Prepare a point estimator for a checked z-transport formula.
     ///
     /// This entry point accepts exact laws or empirical plugin tables. It does
     /// not license a general bounded sIDz search, interval estimates, or a
@@ -1335,6 +1369,68 @@ mod tests {
             .is_err(),
             "connected components are not disconnected graph components"
         );
+    }
+
+    #[test]
+    fn factorized_components_refuse_a_factor_that_omits_an_ancestral_treatment() {
+        // T→Y1←X→Y2. Under do(T, X), Y1 and Y2 are m-separated, but X still
+        // drives Y1: the left factor P*_t(y1) marginalizes X under the source's
+        // own law and is not P*_{t,x}(y1), so the product is not the target law.
+        let mut graph = Admg::with_variables(4);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // T→Y1
+        graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap(); // X→Y1
+        graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(3)).unwrap(); // X→Y2
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (t, y1, x, y2) = (
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        );
+        let left = independent_component(&diagram, "alpha", t, y1, false, 0.3, None);
+        let right = independent_component(&diagram, "beta", x, y2, false, 0.6, None);
+        let refused = PreparedZTransport::estimate_intervention_factorized_components(
+            &left,
+            &right,
+            4,
+            &ExecutionContext::for_tests(0),
+        );
+        assert!(
+            matches!(&refused, Err(error) if error.to_string().contains("z_transport.components_not_independent")),
+            "{refused:?}"
+        );
+    }
+
+    #[test]
+    fn factorized_components_refuse_a_shared_treatment_at_different_levels() {
+        // X→Z, X→Y. Z and Y factorize given X, but a Z factor at X=0 and a Y
+        // factor at X=1 describe two different interventions.
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // X→Z
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap(); // X→Y
+        let diagram = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([])).unwrap();
+        let (x, z, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let left = independent_component(&diagram, "alpha", x, z, false, 0.3, None);
+        let mixed = independent_component(&diagram, "beta", x, y, true, 0.6, None);
+        let refused = PreparedZTransport::estimate_intervention_factorized_components(
+            &left,
+            &mixed,
+            4,
+            &ExecutionContext::for_tests(0),
+        );
+        assert!(
+            matches!(&refused, Err(error) if error.to_string().contains("z_transport.components_not_independent")),
+            "{refused:?}"
+        );
+        let aligned = independent_component(&diagram, "beta", x, y, false, 0.6, None);
+        let combined = PreparedZTransport::estimate_intervention_factorized_components(
+            &left,
+            &aligned,
+            4,
+            &ExecutionContext::for_tests(0),
+        )
+        .unwrap();
+        assert_eq!(combined.distribution().outcomes.as_ref(), [z, y]);
     }
 
     #[test]

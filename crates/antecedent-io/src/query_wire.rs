@@ -31,6 +31,17 @@ use crate::error::IoError;
 fn is_false(value: &bool) -> bool {
     !*value
 }
+
+/// Deserialize a field that was present on the wire, keeping an explicit
+/// `null` distinct from an absent key (which `#[serde(default)]` maps to
+/// `None`).
+fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
 use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.
@@ -695,10 +706,12 @@ pub enum CausalQueryWire {
         unit_rows: Option<Vec<u64>>,
         /// Cap.
         max_units: u64,
-        /// Fixed IT-score reference `(center, scale)`; `None` = empirical
-        /// (default). Absent in older payloads.
-        #[serde(default)]
-        reference: Option<(f64, f64)>,
+        /// Fixed IT-score reference `(center, scale)`; an inner `None` is the
+        /// empirical default. The outer `None` records a 2.0.0 payload with
+        /// no `reference` key so it re-encodes to its original bytes; current
+        /// producers write `Some(None)` (an explicit `null`) for empirical.
+        #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+        reference: Option<Option<(f64, f64)>>,
     },
     /// Change attribution.
     ChangeAttribution {
@@ -1719,12 +1732,12 @@ pub fn causal_query_to_wire_with_registry(
                 })
                 .transpose()?,
             max_units: u64::try_from(q.max_units).unwrap_or(u64::MAX),
-            reference: match q.reference {
+            reference: Some(match q.reference {
                 AnomalyReference::Empirical => None,
                 AnomalyReference::Fixed { center, scale } => {
                     Some((center.to_f64(), scale.to_f64()))
                 }
-            },
+            }),
         },
         CausalQuery::ChangeAttribution(q) => CausalQueryWire::ChangeAttribution {
             outcome: q.outcome.raw(),
@@ -2154,9 +2167,9 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
                     .transpose()?
                     .map(Arc::from),
                 max_units: usize::try_from(*max_units).map_err(|_| IoError::TooLarge)?,
-                reference: match reference {
+                reference: match reference.flatten() {
                     None => AnomalyReference::Empirical,
-                    Some((center, scale)) => AnomalyReference::fixed(*center, *scale),
+                    Some((center, scale)) => AnomalyReference::fixed(center, scale),
                 },
             })
         }
@@ -3518,6 +3531,48 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn anomaly_attribution_reference_presence_survives_re_encoding() {
+        // 2.0.0 had no `reference` key; 2.1.0 wrote `reference: null` for an
+        // empirical reference. Both shapes must re-encode to their own bytes,
+        // or the digests they were sealed under stop matching.
+        #[derive(Serialize)]
+        #[serde(rename_all = "snake_case")]
+        enum V200 {
+            AnomalyAttribution { targets: Vec<u32>, unit_rows: Option<Vec<u64>>, max_units: u64 },
+        }
+        #[derive(Serialize)]
+        #[serde(rename_all = "snake_case")]
+        enum V210 {
+            AnomalyAttribution {
+                targets: Vec<u32>,
+                unit_rows: Option<Vec<u64>>,
+                max_units: u64,
+                reference: Option<(f64, f64)>,
+            },
+        }
+        let v200 = to_cbor(&V200::AnomalyAttribution {
+            targets: vec![1, 2],
+            unit_rows: Some(vec![0, 3]),
+            max_units: 64,
+        })
+        .unwrap();
+        let v210 = to_cbor(&V210::AnomalyAttribution {
+            targets: vec![1, 2],
+            unit_rows: Some(vec![0, 3]),
+            max_units: 64,
+            reference: None,
+        })
+        .unwrap();
+        for legacy in [v200, v210] {
+            let decoded: CausalQueryWire = from_cbor(&legacy).unwrap();
+            assert_eq!(to_cbor(&decoded).unwrap(), legacy, "re-encoding changed {decoded:?}");
+            let query = causal_query_from_wire(&decoded).unwrap();
+            let CausalQuery::AnomalyAttribution(query) = query else { panic!("{query:?}") };
+            assert_eq!(query.reference, AnomalyReference::Empirical);
         }
     }
 

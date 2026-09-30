@@ -9,7 +9,8 @@
 pub struct RegimeValueSummary {
     /// Horvitz--Thompson mean over all enrolled subjects.
     pub value: f64,
-    /// Effective sample size among observed matching trajectories.
+    /// Kish effective sample size of the matched-trajectory weights for inverse-probability
+    /// summaries; the enrolled subject count for g-formula and sequential doubly robust ones.
     pub effective_sample_size: f64,
     /// Fraction of subjects observed through the requested trajectory.
     pub matched_observed_fraction: f64,
@@ -483,13 +484,7 @@ mod tests {
         let n = 800;
         let simulations = 2_000;
         let mut state = 0x87A4_12CD_95EF_3B60_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let actions = vec![true; n * 3];
         let q = (0..n).flat_map(|_| [4.4, 4.7, 5.1]).collect::<Vec<_>>();
         let p = vec![0.5; n * 3];
@@ -541,13 +536,7 @@ mod tests {
         let simulations = 2_000;
         let truth = 5.0;
         let mut state = 0xA83D_91E4_57C0_2FB6_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let actions = vec![true; n * 3];
         let p = vec![0.5; n * 3];
         let c = vec![0.95; n * 3];
@@ -617,13 +606,7 @@ mod tests {
         let n = 300;
         let simulations = 2_000;
         let mut state = 0xD73A_94E1_2B6C_850F_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let actions = vec![true; n * 2];
         let q = (0..n).flat_map(|_| [3.5, 4.2]).collect::<Vec<_>>();
         let p = vec![0.5; n * 2];
@@ -696,13 +679,7 @@ mod tests {
         let simulations = 2_000;
         let truth = 4.0;
         let mut state = 0x149C_6F82_D30A_5BE7_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let actions = vec![true; n * 2];
         let p = vec![0.4; n * 2];
         let c = vec![0.85; n * 2];
@@ -789,13 +766,7 @@ mod tests {
         let n = 500;
         let simulations = 2_000;
         let mut state = 0x72B4_07D1_9C38_EF65_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let actions = vec![true; n * 2];
         let treatment_probabilities = vec![0.5; n * 2];
         let censoring_probabilities = vec![0.9; n * 2];
@@ -847,13 +818,7 @@ mod tests {
         let simulations = 2_000;
         let truth = 5.0;
         let mut state = 0x51ED_270B_C7A9_D341_u64;
-        let mut uniform = || {
-            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-            let mut z = state;
-            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-            ((z ^ (z >> 31)) >> 11) as f64 / ((1_u64 << 53) as f64)
-        };
+        let mut uniform = || crate::splitmix::splitmix64_unit(&mut state);
         let actions = vec![true; subjects * 2];
         let treatment_probabilities = vec![0.5; subjects * 2];
         let censoring_probabilities = vec![0.9; subjects * 2];

@@ -53,6 +53,27 @@ its refusal visible; do not silently broaden the release claim.
 | **2.3 A — Population and time uncertainty** | Carry a licensed transport claim across more graph/selection assumptions, model a source and target jointly where justified, and report uncertainty for temporal transport; evaluate a model-based binary ADMG provider. | **X2:** additional selection-diagram or enumerated class-completion rows with scenario-specific evidence and shared-data covariance. **X4:** one Bayesian transport provider with a joint source/target model and calibrated posterior decisions; pilot a binary nested-Markov likelihood on a separately licensed ADMG row. Add further sampling designs only as separate rows. **X5:** dependence-preserving inference, initial-state uncertainty, and explicit refresh/invalidation for new periods. **X8:** temporal fixed-population counterfactuals with shared unit histories; transported counterfactuals only where both underlying transport and counterfactual rows are already licensed. **X10:** sampled observation recovery only after the exact formula and whole-path uncertainty pass. |
 | **2.3 B — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** a prior-bank-compatible decision model and candidate signal feed the existing `ReduceDecisionRegret` objective, with an exact or Monte Carlo error receipt and source-overlap checks; retain verified structural/cost planning when that model is unavailable. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X9/X10:** additional mixed-source and observation-recovery rows only with complete evidence and provider contracts. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. |
 
+**Carried from the 2.1 line.** Known limitations recorded in 2.1.1 and
+scheduled for 2.2:
+
+- Prior hydration keeps only per-coefficient means and standard deviations, so
+  sequential updating can be overconfident against pooling; hydrate the full
+  coefficient covariance (dense `V0`).
+- Hydration from a posterior without a recorded residual variance plugs in
+  the target's estimate; record the source's known σ² as a constant
+  `ResidualVariance` quantity so hydration can use it instead.
+- The design ranker's entropy channel is not monotone in the design amount;
+  redefine the channel so zero reliability is the uninformative point, with a
+  regenerated external oracle for `conformance/design/expected_information_gain`.
+- Riesz robustness is centred on the clipped IPW estimate but reported under
+  the original estimate; decide the centring and add a magnitude check.
+- The multivariate Silverman bandwidth has two private implementations that
+  disagree; move one shared rule into `antecedent-stats`.
+- Block-bootstrap stability checks mask gap rows fully only under the default
+  CI mask; refuse or override other masks.
+- Transport grid support statuses do not distinguish missing evidence from a
+  support failure; extend the support vocabulary.
+
 **Accelerator lane (X7).** Benchmark a representative cross-fitted neural
 workload during 2.1. If end-to-end transfer and fold orchestration show a
 material gain, target one explicit, opt-in backend at milestone 2.2 B, with its device,

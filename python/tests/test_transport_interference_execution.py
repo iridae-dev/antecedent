@@ -104,7 +104,9 @@ def test_trial_transport_refuses_uncertified_identification() -> None:
     assert identification.outcome == "not_certified"
     assert isinstance(identification.certificate, transport.NonTransportableCertificate)
 
-    with pytest.raises(antecedent.errors.CausalEstimateError):
+    with pytest.raises(
+        antecedent.errors.CausalEstimateError, match="identification was not certified"
+    ):
         transport.estimate_trial_effect(
             identification,
             [False, True, False, False],

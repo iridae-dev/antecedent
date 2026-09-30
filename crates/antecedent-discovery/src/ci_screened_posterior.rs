@@ -183,6 +183,7 @@ impl CiScreenedPosterior {
                  combined with screening constraints, not overwritten",
             ));
         }
+        post.diagnostics.notes.extend(screened_out_note(data, variables, &pair_arc));
         apply_screened_out_floor(&mut post, &effective, variables, &pair_arc, prior.edge_inclusion);
         Ok(post)
     }
@@ -257,6 +258,41 @@ fn merge_screening_constraints(
         tiers,
         max_parents,
         ..screen.clone()
+    })
+}
+
+/// Note naming every pair the CI screen excluded from the MCMC proposal set.
+///
+/// Their marginals are conditional on the screen: without an explicit `edge_inclusion` prior
+/// they are exactly 0.0 because the sampler never proposes them, which is a bound on the
+/// search space, not posterior evidence that the edge is absent.
+fn screened_out_note(
+    data: &TabularData,
+    variables: &[VariableId],
+    screened_in: &[(u32, u32)],
+) -> Option<Arc<str>> {
+    use antecedent_data::TableView;
+    let name = |i: usize| {
+        data.schema()
+            .get(variables[i])
+            .map_or_else(|_| variables[i].raw().to_string(), |v| v.name.to_string())
+    };
+    let screened_in: HashSet<(u32, u32)> = screened_in.iter().copied().collect();
+    let n = variables.len();
+    let out: Vec<String> = (0..n)
+        .flat_map(|i| ((i + 1)..n).map(move |j| (i, j)))
+        .filter(|&(i, j)| {
+            !screened_in.contains(&(crate::indexing::dense_u32(i), crate::indexing::dense_u32(j)))
+        })
+        .map(|(i, j)| format!("{}-{}", name(i), name(j)))
+        .collect();
+    (!out.is_empty()).then(|| {
+        Arc::from(format!(
+            "ci_screened_out pairs=[{}]: never proposed by MCMC, so their edge marginals are \
+             conditional on the CI screen (0.0 unless an edge_inclusion prior sets a floor), \
+             not evidence the edges are absent",
+            out.join(", ")
+        ))
     })
 }
 
@@ -483,6 +519,29 @@ mod tests {
             .unwrap();
         assert!(post.n_graphs >= 1);
         assert!(post.diagnostics.notes.iter().any(|n| n.contains("ci_screened_pairs")));
+    }
+
+    /// With the default prior (no `edge_inclusion`), `a—c` is screened out and its marginal is
+    /// exactly 0.0 because MCMC never proposes it. The posterior must name that pair so the
+    /// 0.0 is not read as evidence of absence.
+    #[test]
+    fn screened_out_pairs_are_named_under_the_default_prior() {
+        let (data, vars) = chain_data(180);
+        let eng = CiScreenedPosterior::new()
+            .with_mcmc(StructureMcmc::new().with_schedule(4, 150, 1200, 1));
+        let ctx = ExecutionContext::for_tests(5);
+        let mut ws = DiscoveryWorkspace::default();
+        let post = eng
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
+            .unwrap();
+        let note = post
+            .diagnostics
+            .notes
+            .iter()
+            .find(|n| n.starts_with("ci_screened_out"))
+            .unwrap_or_else(|| panic!("{:?}", post.diagnostics.notes));
+        assert!(note.contains("a-c"), "{note}");
+        assert!(!note.contains("a-b") && !note.contains("b-c"), "{note}");
     }
 
     /// `a—c` is screened out of the PC skeleton by the `a ⊥ c | b` chain

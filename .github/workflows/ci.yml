@@ -8,13 +8,12 @@ on:
 permissions:
   contents: read
 
-# A newer push on the same ref replaces the run in flight. Main used to queue
-# every commit so a release tag could point at one whose CI had finished; that
-# queue left a rewritten-away run blocking every later commit. The commit that
-# is about to be tagged has to stay at the branch head until its CI finishes.
+# A newer push to a pull request replaces the run in flight. On main a run in
+# flight always finishes, so the commit about to be tagged keeps its CI run; a
+# newer push waits behind it (GitHub keeps only the newest pending run).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -112,6 +111,12 @@ jobs:
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
           cargo nextest run -p antecedent-model --features gaussian-process
           cargo test -p antecedent-model --features gaussian-process --doc
+
+      # The feature gates no longer re-run these suites; this lists the binaries
+      # the steps above built and fails when a filter they relied on selects nothing.
+      - name: Named tests still exist
+        if: matrix.os == 'ubuntu-latest'
+        run: bash scripts/gate_named_tests.sh
 
       - name: crates.io publish dry-run
         if: github.event_name == 'pull_request'
@@ -241,9 +246,9 @@ jobs:
           command: check
 
   # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
-  # schema check, the provenance schema check, and the ten feature gates
+  # schema check, the provenance schema check, and the feature gates
   # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
-  # upstream_names, response_calibration, causal_artifacts). Previously none of
+  # upstream_names, causal_artifacts, composition, transport). Previously none of
   # these ran on a PR, so numerical parity and the public-repo name check went
   # unenforced on PRs. Its first step fails the job when a committed coverage
   # record does not match the code (gate_calibration_attestation.sh): the

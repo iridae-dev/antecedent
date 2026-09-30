@@ -236,7 +236,7 @@ pub fn evaluate_bayesian_statistical_transport_grid(
     }
     if options.draws < 2
         || !options.coverage_level.is_finite()
-        || !(0.0..1.0).contains(&options.coverage_level)
+        || !(options.coverage_level > 0.0 && options.coverage_level < 1.0)
     {
         return Err(EstimationError::data_msg(
             "Bayesian transport requires at least two draws and coverage strictly between zero and one",
@@ -1124,7 +1124,7 @@ fn z_interval_over_draws(
     }
     if spec.replicates < 2
         || !spec.coverage_level.is_finite()
-        || !(0.0..1.0).contains(&spec.coverage_level)
+        || !(spec.coverage_level > 0.0 && spec.coverage_level < 1.0)
     {
         return Err(EstimationError::data_msg(
             "z-transport interval requires at least two replicates and coverage strictly between zero and one",

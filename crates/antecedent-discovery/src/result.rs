@@ -195,8 +195,10 @@ pub type PagGraphEvidence = GraphEvidence<TemporalPag>;
 /// Causal sufficiency is included only when the method assumes no latent
 /// confounders (PC, GES, NOTEARS, `LiNGAM`, PCMCI / PCMCI+ / J-PCMCI+). FCI,
 /// RFCI, and LPCMCI omit sufficiency but implement no selection-bias rules (Zhang R5–R7),
-/// so they record `NoSelectionBias`. `LiNGAM` additionally records non-Gaussian exogenous
-/// errors.
+/// so they record `NoSelectionBias`. The time-series methods (PCMCI, PCMCI+, LPCMCI,
+/// J-PCMCI+) record `Stationarity`; RPCMCI records `PiecewiseStationarity` instead. `LiNGAM`
+/// and NOTEARS record linear structural equations (a `ParametricRestriction` with id
+/// `linear_sem`), and `LiNGAM` additionally records non-Gaussian exogenous errors.
 #[must_use]
 pub(crate) fn discovery_assumptions(algorithm: &str, causal_sufficiency: bool) -> AssumptionSet {
     let mut set = AssumptionSet::new();
@@ -207,6 +209,24 @@ pub(crate) fn discovery_assumptions(algorithm: &str, causal_sufficiency: bool) -
     }
     if matches!(algorithm, "fci" | "rfci" | "lpcmci") {
         set.push(algorithm_default(algorithm, Assumption::NoSelectionBias));
+    }
+    if matches!(algorithm, "pcmci" | "pcmci_plus" | "lpcmci" | "jpcmci_plus") {
+        set.push(algorithm_default(algorithm, Assumption::Stationarity));
+    }
+    if algorithm == "rpcmci" {
+        set.push(algorithm_default(algorithm, Assumption::PiecewiseStationarity));
+    }
+    if matches!(algorithm, "direct_lingam" | "notears") {
+        set.push(algorithm_default(
+            algorithm,
+            Assumption::ParametricRestriction(ParametricAssumption {
+                id: Arc::from("linear_sem"),
+                description: Arc::from(
+                    "Linear structural equations: each variable is a linear function of its \
+                     parents plus an independent error",
+                ),
+            }),
+        ));
     }
     if algorithm == "direct_lingam" {
         set.push(algorithm_default(
@@ -228,5 +248,36 @@ fn algorithm_default(algorithm: &str, assumption: Assumption) -> AssumptionRecor
         source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from(algorithm) },
         scope: AssumptionScope::Discovery,
         status: AssumptionStatus::Declared,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn has(algorithm: &str, pred: impl Fn(&Assumption) -> bool) -> bool {
+        discovery_assumptions(algorithm, true).entries.iter().any(|e| pred(&e.assumption))
+    }
+
+    fn is_linear(a: &Assumption) -> bool {
+        matches!(a, Assumption::ParametricRestriction(p) if p.id.as_ref() == "linear_sem")
+    }
+
+    /// Time-series methods assume a stationary (or, for RPCMCI, piecewise-stationary) process;
+    /// `LiNGAM` and NOTEARS assume linear structural equations. Each result must say so.
+    #[test]
+    fn temporal_and_linear_methods_record_their_assumptions() {
+        for algorithm in ["pcmci", "pcmci_plus", "lpcmci", "jpcmci_plus"] {
+            assert!(has(algorithm, |a| matches!(a, Assumption::Stationarity)), "{algorithm}");
+        }
+        assert!(has("rpcmci", |a| matches!(a, Assumption::PiecewiseStationarity)));
+        assert!(!has("rpcmci", |a| matches!(a, Assumption::Stationarity)));
+        for algorithm in ["pc", "fci", "rfci", "ges", "direct_lingam", "notears"] {
+            assert!(!has(algorithm, |a| matches!(a, Assumption::Stationarity)), "{algorithm}");
+        }
+        for algorithm in ["direct_lingam", "notears"] {
+            assert!(has(algorithm, is_linear), "{algorithm}");
+        }
+        assert!(!has("pc", is_linear));
     }
 }

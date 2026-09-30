@@ -15,8 +15,9 @@ questions for the gates, the same way everywhere:
   the category directory plus the quoted name, parses it and asserts), and
   whether it exercises support-matrix axis values.
 
-Used by gate_support_matrix.sh (cited evidence), gate_evidence_reachability.sh,
-gate_parity_schema.sh and gate_metadata_consistency.sh (fixture consumers).
+Used by gate_support_matrix.sh and gate_graphless_support.sh (cited evidence),
+gate_evidence_reachability.sh, gate_parity_schema.sh and
+gate_metadata_consistency.sh (fixture consumers).
 
     python3 scripts/test_evidence.py consumers conformance/estimate/aipw
     python3 scripts/test_evidence.py closure crates/antecedent/tests/pag.rs lpcmci_chain
@@ -444,6 +445,22 @@ def module_path(path: Path, root_file: Path) -> str:
     return "".join(f"{p}::" for p in parts)
 
 
+def libtest_name(path: Path, name: str, root_file: Path) -> str:
+    """The full libtest name (`module::tests::name`) of fn `name` in `path`."""
+    _, items = rust_items(path)
+    fns = [it for it in items if it.kind == "fn" and it.name == name]
+    enclosing = (
+        [b for b in items if b.kind == "mod" and b.body[0] < fns[0].start < b.body[1]]
+        if fns
+        else []
+    )
+    return (
+        module_path(path, root_file)
+        + "".join(f"{b.name}::" for b in sorted(enclosing, key=lambda b: b.start))
+        + name
+    )
+
+
 def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | None, list[str]]:
     """Full libtest name of a cited Rust test, or the reasons it is not executing evidence."""
     problems = static_rust_test(path, name).problems
@@ -456,18 +473,7 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
         return None, problems + [
             f"`cargo test -p {crate} {' '.join(target)} -- --list` failed:\n{err}"
         ]
-    _, items = rust_items(path)
-    fns = [it for it in items if it.kind == "fn" and it.name == name]
-    enclosing = (
-        [b for b in items if b.kind == "mod" and b.body[0] < fns[0].start < b.body[1]]
-        if fns
-        else []
-    )
-    full = (
-        module_path(path, root_file)
-        + "".join(f"{b.name}::" for b in sorted(enclosing, key=lambda b: b.start))
-        + name
-    )
+    full = libtest_name(path, name, root_file)
     if full not in listed:
         return None, problems + [
             f"cargo does not list the test {full} in {crate} {' '.join(target)}"

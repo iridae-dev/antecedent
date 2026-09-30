@@ -51,7 +51,6 @@ def test_index_links_graph_uncertainty_doc():
 
 def test_vignette_unidentified_mass_matches_live_analyze():
     """Earn the doc's 50% claim against a compact marketing-style SCM."""
-    pytest.importorskip("antecedent")
     import antecedent
 
     seed = 7

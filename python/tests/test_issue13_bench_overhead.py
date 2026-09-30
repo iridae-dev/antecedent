@@ -11,10 +11,6 @@ import io
 from contextlib import redirect_stdout
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("antecedent")
-
 REPO = Path(__file__).resolve().parents[2]
 BENCH = REPO / "examples" / "python" / "bench_python_overhead.py"
 

@@ -53,6 +53,14 @@ impl std::fmt::Debug for CheckedTemporalClassEffectOperation {
 }
 
 impl CheckedTemporalClassEffectOperation {
+    /// Replace the caller validators; names are checked by the prepared handle.
+    pub(crate) fn set_custom_validators(
+        &mut self,
+        validators: Vec<Arc<dyn CustomEffectValidator>>,
+    ) {
+        self.custom_validators = validators;
+    }
+
     /// Check and freeze the full completion proof and selected temporal method.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(

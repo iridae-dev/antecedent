@@ -53,7 +53,7 @@ def test_binary_policy_evaluation_uses_heldout_randomized_rows_and_costs():
     ],
 )
 def test_binary_policy_constraints_and_support_fail_closed(policy, kwargs, message):
-    with pytest.raises((CausalValueError, ValueError), match=message):
+    with pytest.raises(ValueError, match=message):
         ant.policy.evaluate_policy(
             {"y": [1.0, 2.0, 3.0, 4.0]},
             outcome="y",

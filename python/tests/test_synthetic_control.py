@@ -101,7 +101,7 @@ def test_retained_synthetic_control_refuses_changed_design_and_bad_donors():
         key: [value for value, unit in zip(values, rows["unit"], strict=True) if unit != "c"]
         for key, values in rows.items()
     }
-    with pytest.raises((CausalValueError, CausalCompileError), match="at least three donor units"):
+    with pytest.raises(CausalCompileError, match="at least three donor units"):
         analyze(short, query=query)
 
 

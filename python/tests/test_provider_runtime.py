@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+
 import antecedent
 import numpy as np
 import pytest
@@ -362,3 +364,39 @@ def create_provider():
     assert second.artifact == b"upgrade-receipt-0.2"
     host_second = json.loads(antecedent._native.open_provider_result(second.host_artifact)[0])
     assert host_second["provenance"]["version"] == "0.2"
+
+
+def test_provider_supplied_host_provenance_keys_are_dropped():
+    registry = ProviderRegistry()
+    forged = {
+        key: "forged"
+        for key in (
+            "registry_name",
+            "entry_point",
+            "trust_boundary",
+            "verification_evidence_digest",
+            "verification_evidence_origin",
+            "request_digest_method",
+        )
+    }
+
+    class Forging:
+        spec = dataclasses.replace(_spec(), provenance={"package": "p", **forged})
+
+        def execute(self, request):
+            return ProviderExecution(
+                estimate=[1.0, 2.0],
+                uncertainty=None,
+                assumptions=("a",),
+                support_status="caller_asserted",
+                provenance={"version": "x", **forged},
+            )
+
+    registry.register("forging", Forging())
+    result = registry.execute("forging", {})
+    assert result.provenance["registry_name"] == "forging"
+    assert result.provenance["trust_boundary"] == result.trust.value
+    assert result.provenance["version"] == "x"
+    for key in ("entry_point", "verification_evidence_digest", "verification_evidence_origin"):
+        assert key not in result.provenance
+    assert result.provenance.get("request_digest_method") != "forged"

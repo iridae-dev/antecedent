@@ -199,7 +199,7 @@ def test_one_call_and_explicit_prepare_have_same_defaults(latency):
 def test_failed_refresh_retains_previous_binding_and_error_context():
     study = ant.prepare(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
     result = study.estimate()
-    with pytest.raises((ant.CausalError, ValueError)) as caught:
+    with pytest.raises(ant.errors.CausalEstimateError, match="rank deficient") as caught:
         study.refresh({"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)})
     assert caught.value.study is study
     assert caught.value.report.operation == "refresh"

@@ -238,6 +238,18 @@ pub fn compose_external_priors_with_alphas(
     for src in sources {
         src.validate()?;
     }
+    // Precisions add only on a common scale: an absolute-scale source (hydrated
+    // from a posterior without a residual variance) is resolved to V0 by the
+    // target fit, which a composed prior mixing it with V0 entries cannot express.
+    if baseline.absolute_coefficient_scale().is_some()
+        || sources.iter().any(|s| s.prior.absolute_coefficient_scale().is_some())
+    {
+        return Err(ProbError::InvalidPrior {
+            message: "compose_external_priors: a prior with absolute-scale coefficient \
+                      variances (source posterior without a residual variance) cannot be \
+                      composed with conjugate-V0 priors; supply it as the prior directly",
+        });
+    }
     validate_mixture_weights(sources)?;
 
     let base_coef = baseline.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
@@ -541,6 +553,22 @@ mod tests {
         ];
         let err = compose_external_priors(&sources, &baseline).unwrap_err();
         assert!(matches!(err, ProbError::InvalidPrior { .. }));
+    }
+
+    #[test]
+    fn refuses_to_compose_an_absolute_scale_source() {
+        // Absolute Var(β) and conjugate V0 are different units until the target fit
+        // plugs in its residual variance, so their precisions cannot be added here.
+        let mut absolute = gauss(1.0, 0.25);
+        absolute.mark_absolute_coefficient_scale(&[0]);
+        let sources = [ExternalPriorSource {
+            id: Arc::from("abs"),
+            prior: absolute,
+            weight: ExternalPriorWeight::power(0.5).unwrap(),
+            ess: None,
+        }];
+        let err = compose_external_priors(&sources, &gauss(0.0, 4.0)).unwrap_err();
+        assert!(matches!(err, ProbError::InvalidPrior { .. }), "{err:?}");
     }
 
     #[test]

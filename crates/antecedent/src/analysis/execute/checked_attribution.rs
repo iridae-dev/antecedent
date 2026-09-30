@@ -372,7 +372,7 @@ impl CheckedAttributionOperation {
             columns,
             identification.required_assumptions,
             identification.status,
-            "gcm.attribution.shared_dirichlet_row_weights",
+            super::ANOMALY_DIRICHLET_BACKEND,
             false,
         )?))
     }
@@ -449,7 +449,7 @@ impl CheckedAttributionOperation {
             posterior_columns,
             identification.required_assumptions,
             identification.status,
-            "gcm.attribution.shared_population_dirichlet_row_weights",
+            super::CHANGE_DIRICHLET_BACKEND,
             true,
         )?))
     }

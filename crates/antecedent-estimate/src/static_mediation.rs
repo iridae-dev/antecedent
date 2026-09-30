@@ -795,13 +795,15 @@ mod tests {
         let mapping = HydrateMapping::NamedParameters {
             pairs: vec![("source_treatment_slope".into(), "coef_t".into())],
         };
-        let quantities =
-            [PosteriorQuantityKind::Scalar { name: Arc::from("source_treatment_slope") }];
+        let quantities = [
+            PosteriorQuantityKind::Scalar { name: Arc::from("source_treatment_slope") },
+            PosteriorQuantityKind::ResidualVariance,
+        ];
         let bridge = MediationPriorBridge {
             mapping: &mapping,
             quantities: &quantities,
-            mean: &[1.8],
-            sd: &[0.05],
+            mean: &[1.8, 1.0],
+            sd: &[0.05, 0.1],
             source_contrast: None,
         };
         let estimator = crate::BayesianGComputationAte { n_draws: 512, ..Default::default() };

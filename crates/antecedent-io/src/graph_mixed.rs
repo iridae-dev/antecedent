@@ -13,7 +13,7 @@ use crate::convert::{
 };
 use crate::error::IoError;
 use crate::graph_dot::{self, Lexer};
-use crate::graph_gml::{self, Tok};
+use crate::graph_gml;
 use crate::graph_networkx::{NetworkXNode, NodeIdKinds};
 use crate::wire::{AdmgWire, CpdagWire, EndpointWire, MarkedEdgeWire, PagWire};
 
@@ -285,7 +285,8 @@ pub fn cpdag_to_dot(cpdag: &Cpdag, names: Option<&[String]>) -> Result<String, I
 /// Parse DOT into a [`Pag`].
 ///
 /// Plain `->` is tail→arrow; `--` is undirected; `dir=both` is bidirected;
-/// otherwise `mark_a` / `mark_b` attributes.
+/// `dir=back` / `dir=none` and `arrowhead` / `arrowtail` shapes (`normal`,
+/// `odot`, `none`) follow Graphviz; otherwise `mark_a` / `mark_b` attributes.
 ///
 /// # Errors
 ///
@@ -297,7 +298,8 @@ pub fn pag_from_dot(dot: &str) -> Result<Pag, IoError> {
 /// Parse DOT into a [`Pag`] plus its node labels, in dense-id order.
 ///
 /// Plain `->` is tail→arrow; `--` is undirected; `dir=both` is bidirected;
-/// otherwise `mark_a` / `mark_b` attributes.
+/// `dir=back` / `dir=none` and `arrowhead` / `arrowtail` shapes (`normal`,
+/// `odot`, `none`) follow Graphviz; otherwise `mark_a` / `mark_b` attributes.
 ///
 /// # Errors
 ///
@@ -532,7 +534,9 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
         let _ = lexer.eat_char(';');
         let fi = graph_dot::intern(&from, &mut order, &mut index)?;
         let ti = graph_dot::intern(&to, &mut order, &mut index)?;
-        edges.push(DotEdge { from: fi, to: ti, kind: classify_edge(directed, &attrs)? });
+        let (kind, swapped) = classify_edge(directed, &attrs)?;
+        let (fi, ti) = if swapped { (ti, fi) } else { (fi, ti) };
+        edges.push(DotEdge { from: fi, to: ti, kind });
     }
     if order.is_empty() {
         return Err(IoError::Convert("DOT graph has no nodes".into()));
@@ -564,14 +568,70 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
     Ok(DotGraph { node_count, edges, names: order })
 }
 
-fn classify_edge(directed: bool, attrs: &HashMap<String, String>) -> Result<DotKind, IoError> {
-    if let (Some(a), Some(b)) = (attrs.get("mark_a"), attrs.get("mark_b")) {
-        return Ok(DotKind::Marked { at_a: parse_endpoint(a)?, at_b: parse_endpoint(b)? });
-    }
-    if attrs.get("dir").is_some_and(|d| d.eq_ignore_ascii_case("both")) {
-        return Ok(DotKind::Bidirected);
-    }
-    Ok(if directed { DotKind::Directed } else { DotKind::Undirected })
+/// Read the endpoint marks of one DOT edge `from <op> to [attrs]`.
+///
+/// Explicit `mark_a` / `mark_b` must come as a pair. Otherwise the marks
+/// follow Graphviz: `dir` (`forward` default for `->`, `none` for `--`;
+/// also `back` / `both`) decides which ends are drawn, and a drawn end takes
+/// its `arrowhead` / `arrowtail` shape (`normal` → arrow, `odot` → circle,
+/// `none` → tail). The result is `(mark at from, mark at to, swapped)`,
+/// normalised so a single arrowhead always points at `to`.
+fn classify_edge(
+    directed: bool,
+    attrs: &HashMap<String, String>,
+) -> Result<(DotKind, bool), IoError> {
+    let (at_a, at_b) = match (attrs.get("mark_a"), attrs.get("mark_b")) {
+        (Some(a), Some(b)) => {
+            if ["dir", "arrowhead", "arrowtail"].iter().any(|k| attrs.contains_key(*k)) {
+                return Err(IoError::Convert(
+                    "DOT edge mixes mark_a/mark_b with dir/arrowhead/arrowtail".into(),
+                ));
+            }
+            (parse_endpoint(a)?, parse_endpoint(b)?)
+        }
+        (None, None) => dot_drawn_marks(directed, attrs)?,
+        _ => {
+            return Err(IoError::Convert(
+                "DOT edge sets only one of mark_a / mark_b; both are required".into(),
+            ));
+        }
+    };
+    Ok(match (at_a, at_b) {
+        (EndpointWire::Tail, EndpointWire::Arrow) => (DotKind::Directed, false),
+        (EndpointWire::Arrow, EndpointWire::Tail) => (DotKind::Directed, true),
+        (EndpointWire::Tail, EndpointWire::Tail) => (DotKind::Undirected, false),
+        (EndpointWire::Arrow, EndpointWire::Arrow) => (DotKind::Bidirected, false),
+        (at_a, at_b) => (DotKind::Marked { at_a, at_b }, false),
+    })
+}
+
+fn dot_drawn_marks(
+    directed: bool,
+    attrs: &HashMap<String, String>,
+) -> Result<(EndpointWire, EndpointWire), IoError> {
+    let dir = attrs.get("dir").map_or(if directed { "forward" } else { "none" }, String::as_str);
+    let (tail_drawn, head_drawn) = match dir.to_ascii_lowercase().as_str() {
+        "forward" => (false, true),
+        "back" => (true, false),
+        "both" => (true, true),
+        "none" => (false, false),
+        other => return Err(IoError::Convert(format!("unsupported DOT edge dir={other}"))),
+    };
+    let end = |key: &str, drawn: bool| -> Result<EndpointWire, IoError> {
+        match (attrs.get(key), drawn) {
+            (None, drawn) => Ok(if drawn { EndpointWire::Arrow } else { EndpointWire::Tail }),
+            (Some(_), false) => Err(IoError::Convert(format!(
+                "DOT edge sets {key} on an end that dir={dir} does not draw"
+            ))),
+            (Some(shape), true) => match shape.to_ascii_lowercase().as_str() {
+                "normal" => Ok(EndpointWire::Arrow),
+                "odot" => Ok(EndpointWire::Circle),
+                "none" => Ok(EndpointWire::Tail),
+                other => Err(IoError::Convert(format!("unsupported DOT {key}={other}"))),
+            },
+        }
+    };
+    Ok((end("arrowtail", tail_drawn)?, end("arrowhead", head_drawn)?))
 }
 
 // ── GML ─────────────────────────────────────────────────────────────────────
@@ -712,40 +772,6 @@ struct GmlGraph {
     names: Vec<String>,
 }
 
-struct GmlParseState {
-    /// Node `id` values in first-seen order (edges bind against these).
-    id_order: Vec<String>,
-    id_index: HashMap<String, u32>,
-    /// Display names (`label`, else `id`) parallel to dense ids.
-    names: Vec<String>,
-    directed: Vec<(u32, u32)>,
-    undirected: Vec<(u32, u32)>,
-    bidirected: Vec<(u32, u32)>,
-    marked: Vec<MarkedEdgeWire>,
-}
-
-impl GmlParseState {
-    fn into_graph(self) -> Result<GmlGraph, IoError> {
-        Ok(GmlGraph {
-            node_count: u32::try_from(self.names.len()).map_err(|_| IoError::TooLarge)?,
-            directed: self.directed,
-            undirected: self.undirected,
-            bidirected: self.bidirected,
-            marked: self.marked,
-            names: self.names,
-        })
-    }
-
-    fn bind_id(&mut self, id: &str) -> Result<u32, IoError> {
-        if let Some(&d) = self.id_index.get(id) {
-            return Ok(d);
-        }
-        let d = graph_dot::intern(id, &mut self.id_order, &mut self.id_index)?;
-        self.names.push(id.to_string());
-        Ok(d)
-    }
-}
-
 enum GmlEdge {
     Dir(u32, u32),
     Undir(u32, u32),
@@ -768,120 +794,36 @@ impl GmlEdge {
     }
 }
 
-fn parse_gml_node(state: &mut GmlParseState, tokens: &[Tok], i: &mut usize) -> Result<(), IoError> {
-    *i += 1;
-    graph_gml::expect_char(tokens, i, '[')?;
-    let mut id = None;
-    let mut label = None;
-    while *i < tokens.len() && !matches!(&tokens[*i], Tok::Char(']')) {
-        let key = graph_gml::expect_any_ident(tokens, i)?.to_ascii_lowercase();
-        let val = graph_gml::expect_value(tokens, i)?;
-        match key.as_str() {
-            "id" => id = Some(val),
-            "label" => label = Some(val),
-            _ => {}
-        }
-    }
-    graph_gml::expect_char(tokens, i, ']')?;
-    let id = id.ok_or_else(|| IoError::Convert("node missing id".into()))?;
-    let display = label.unwrap_or_else(|| id.clone());
-    let dense = graph_dot::intern(&id, &mut state.id_order, &mut state.id_index)?;
-    if dense as usize == state.names.len() {
-        state.names.push(display);
-    }
-    Ok(())
-}
-
-fn parse_gml_edge(state: &mut GmlParseState, tokens: &[Tok], i: &mut usize) -> Result<(), IoError> {
-    *i += 1;
-    graph_gml::expect_char(tokens, i, '[')?;
-    let mut source = None;
-    let mut target = None;
-    let mut is_undirected = false;
-    let mut is_bidirected = false;
-    let mut mark_a = None;
-    let mut mark_b = None;
-    while *i < tokens.len() && !matches!(&tokens[*i], Tok::Char(']')) {
-        let key = graph_gml::expect_any_ident(tokens, i)?.to_ascii_lowercase();
-        let val = graph_gml::expect_value(tokens, i)?;
-        match key.as_str() {
-            "source" => source = Some(val),
-            "target" => target = Some(val),
-            "undirected" => is_undirected = val != "0",
-            "bidirected" => is_bidirected = val != "0",
-            "mark_a" => mark_a = Some(val),
-            "mark_b" => mark_b = Some(val),
-            _ => {}
-        }
-    }
-    graph_gml::expect_char(tokens, i, ']')?;
-    let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
-    let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-    let from = state.bind_id(&s)?;
-    let to = state.bind_id(&t)?;
-    if let (Some(a), Some(b)) = (mark_a, mark_b) {
-        state.marked.push(MarkedEdgeWire {
-            a: from,
-            b: to,
-            at_a: parse_endpoint(&a)?,
-            at_b: parse_endpoint(&b)?,
-        });
-    } else if is_bidirected {
-        state.bidirected.push(canon(from, to));
-    } else if is_undirected {
-        state.undirected.push(canon(from, to));
-    } else {
-        state.directed.push((from, to));
-    }
-    Ok(())
-}
-
 fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
-    let tokens = graph_gml::tokenize(gml)?;
-    let mut i = 0;
-    graph_gml::expect_ident(&tokens, &mut i, "graph")?;
-    graph_gml::expect_char(&tokens, &mut i, '[')?;
-    let mut directed_flag = None;
-    let mut state = GmlParseState {
-        id_order: Vec::new(),
-        id_index: HashMap::new(),
-        names: Vec::new(),
+    let doc = graph_gml::parse_gml_document(gml)?;
+    let mut g = GmlGraph {
+        node_count: u32::try_from(doc.names.len()).map_err(|_| IoError::TooLarge)?,
         directed: Vec::new(),
         undirected: Vec::new(),
         bidirected: Vec::new(),
         marked: Vec::new(),
+        names: doc.names,
     };
-    while i < tokens.len() {
-        if matches!(&tokens[i], Tok::Char(']')) {
-            break;
-        }
-        match &tokens[i] {
-            Tok::Ident(k) if k.eq_ignore_ascii_case("directed") => {
-                i += 1;
-                directed_flag = Some(graph_gml::expect_number(&tokens, &mut i)? != 0.0);
+    for e in doc.edges {
+        let flag = |k: &str| e.attrs.get(k).is_some_and(|v| v != "0");
+        match (e.attrs.get("mark_a"), e.attrs.get("mark_b")) {
+            (Some(a), Some(b)) => g.marked.push(MarkedEdgeWire {
+                a: e.from,
+                b: e.to,
+                at_a: parse_endpoint(a)?,
+                at_b: parse_endpoint(b)?,
+            }),
+            (None, None) if flag("bidirected") => g.bidirected.push(canon(e.from, e.to)),
+            (None, None) if flag("undirected") => g.undirected.push(canon(e.from, e.to)),
+            (None, None) => g.directed.push((e.from, e.to)),
+            _ => {
+                return Err(IoError::Convert(
+                    "GML edge sets only one of mark_a / mark_b; both are required".into(),
+                ));
             }
-            Tok::Ident(k) if k.eq_ignore_ascii_case("node") => {
-                parse_gml_node(&mut state, &tokens, &mut i)?;
-            }
-            Tok::Ident(k) if k.eq_ignore_ascii_case("edge") => {
-                parse_gml_edge(&mut state, &tokens, &mut i)?;
-            }
-            Tok::Ident(_) => {
-                i += 1;
-                if i < tokens.len() {
-                    let _ = graph_gml::expect_value(&tokens, &mut i);
-                }
-            }
-            other => return Err(IoError::Convert(format!("unexpected GML token {other:?}"))),
         }
     }
-    if directed_flag != Some(true) {
-        return Err(IoError::Convert("GML graph must be directed 1".into()));
-    }
-    if state.names.is_empty() {
-        return Err(IoError::Convert("empty GML graph".into()));
-    }
-    state.into_graph()
+    Ok(g)
 }
 
 fn emit_gml(
@@ -1464,6 +1406,66 @@ mod tests {
         )
         .unwrap();
         assert_eq!(back, names);
+    }
+
+    fn pag_marks(dot: &str) -> Vec<(u32, u32, EndpointWire, EndpointWire)> {
+        let wire = pag_to_wire(&pag_from_dot(dot).unwrap()).unwrap();
+        wire.edges.iter().map(|e| (e.a, e.b, e.at_a, e.at_b)).collect()
+    }
+
+    #[test]
+    fn dot_arrowhead_arrowtail_map_to_pag_marks() {
+        // causal-learn writes `a o-> b` as dir=both with odot / normal shapes.
+        let marks = pag_marks("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=normal]; }");
+        assert_eq!(marks, vec![(0, 1, EndpointWire::Circle, EndpointWire::Arrow)]);
+        let marks = pag_marks("digraph { a -> b [dir=both, arrowtail=none, arrowhead=normal]; }");
+        assert_eq!(marks, vec![(0, 1, EndpointWire::Tail, EndpointWire::Arrow)]);
+        let marks = pag_marks("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=odot]; }");
+        assert_eq!(marks, vec![(0, 1, EndpointWire::Circle, EndpointWire::Circle)]);
+        // An o-> edge must not load into an ADMG as <->.
+        assert!(
+            admg_from_dot("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=normal]; }")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn dot_dir_back_and_none_are_honoured() {
+        assert_eq!(
+            pag_marks("digraph { a -> b [dir=back]; }"),
+            vec![(0, 1, EndpointWire::Arrow, EndpointWire::Tail)]
+        );
+        assert_eq!(
+            pag_marks("digraph { a -> b [dir=none]; }"),
+            vec![(0, 1, EndpointWire::Tail, EndpointWire::Tail)]
+        );
+        let admg = admg_from_dot("digraph { a -> b [dir=back]; }").unwrap();
+        let wire = admg_to_wire(&admg).unwrap();
+        assert_eq!(wire.directed, vec![(1, 0)]);
+        assert!(admg_from_dot("digraph { a -> b [dir=none]; }").is_err());
+    }
+
+    #[test]
+    fn dot_half_marks_and_unknown_shapes_are_refused() {
+        for dot in [
+            "digraph { a -> b [mark_a=circle]; }",
+            "digraph { a -> b [mark_b=arrow]; }",
+            "digraph { a -> b [dir=sideways]; }",
+            "digraph { a -> b [arrowhead=diamond]; }",
+            "digraph { a -> b [arrowtail=odot]; }",
+            "digraph { a -> b [mark_a=tail, mark_b=arrow, dir=both]; }",
+        ] {
+            assert!(pag_from_dot(dot).is_err(), "{dot}");
+            assert!(admg_from_dot(dot).is_err(), "{dot}");
+        }
+    }
+
+    #[test]
+    fn dag_dot_refuses_non_trivial_arrow_shapes() {
+        use crate::graph_dot::dag_from_dot;
+        assert!(dag_from_dot("digraph { a -> b [arrowhead=odot]; }").is_err());
+        assert!(dag_from_dot("digraph { a -> b [arrowtail=odot]; }").is_err());
+        assert!(dag_from_dot("digraph { a -> b [arrowhead=normal, arrowtail=none]; }").is_ok());
     }
 
     #[test]

@@ -105,6 +105,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/v110_contract.rs"
 evidence_assertion = "composition_prior_transfer_keeps_identification_and_refuses_mismatch"
+limitations = "The test checks that a same-design transfer keeps the identification and that a mismatch is refused; no numerical truth backs the transferred prior or the posterior it produces."
 notes = "Does not inherit bayes.prior_bank.temporal_transfer known-truth. Catalog/lag/NamedParameters mismatch stays a conflict diagnostic."
 
 [[capabilities]]
@@ -152,6 +153,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_pulse_uses_completion_masses"
+limitations = "The tests check that completion masses are published, that the point estimate lands within 0.08 of the simulated effect 0.8 on one seeded panel, and that the unit bootstrap resamples fresh clusters. No coverage record measures the cluster-by-unit SE, its G-1 df interval or the unit cluster bootstrap."
 composition_filter = "panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_uses_completion_masses|panel_class_multi_step_sustained_uses_completion_masses|panel_class_pulse_unit_bootstrap_resamples_fresh_clusters"
 notes = "Per-completion pooled panel fit with the Arellano cluster-by-unit SE at G-1 df and a unit cluster bootstrap, mixed by class mass. Does not complete the class onto the DAG executor."
 
@@ -164,6 +166,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "bayesian_panel_response_uses_unit_cluster_bands"
+limitations = "The test checks only that the unit-average surface is finite and its pulse contrast lands within 0.25 of the simulated effect 0.8 on one seeded panel; no coverage record measures the posterior bands."
 notes = "Per-unit Bayesian temporal response under the caller-resolved prior, equal-weight average. Not the stacked series likelihood."
 
 [[capabilities]]
@@ -175,6 +178,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "bayesian_panel_class_pulse_uses_completion_masses"
+limitations = "The test checks the class-prior contract (NaN plus atoms without a class prior, mixed draws with one) and that the mixed mean lands within 0.15 of the simulated effect 0.8 on one seeded panel; no coverage record measures the mixed posterior's credible intervals."
 notes = "Per-completion panel hierarchical GLS with unit ids; draws mixed only under a caller class prior, NaN plus atoms otherwise."
 
 [[capabilities]]
@@ -186,6 +190,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_response_uses_completion_surfaces"
+limitations = "The test checks the envelope's structure (lower <= upper, a singleton identified set when one completion identifies, published masses); no numerical truth backs the surface values or a pointwise band."
 notes = "Per-completion unit-average surfaces published as the pointwise completion envelope through the shared class-response assembly, at every requested horizon. Does not stack units."
 
 [[capabilities]]
@@ -197,6 +202,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "multi_env_pulse_pools_every_environment"
+limitations = "The test checks that the pooled effect is order-independent, differs from either environment alone, and has a finite analytic SE; no numerical truth or coverage record backs the environment-clustered SE."
 notes = "Pooled common-coefficient fit clustered by environment, order-independent. Reading environment 0 alone is gone."
 
 [[capabilities]]
@@ -208,6 +214,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_multi_step_sustained_uses_completion_masses"
+limitations = "The test checks only that the multi-step class effect is finite and publishes completion masses; no numerical truth backs the per-completion sequential g-computation values."
 notes = "Per-unit sequential g-comp on each directed completion, equal-weight units, mixed by class mass; bidirected completions reported as unevaluable mass."
 [[capabilities]]
 id = "compiler.contract_section"

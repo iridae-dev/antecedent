@@ -184,7 +184,7 @@ impl TransportGridResult {
     pub fn reasoning(&self) -> antecedent_core::ReasoningView {
         let unavailable =
             self.points.iter().filter(|p| matches!(p, TransportGridPoint::Unavailable(_))).count();
-        grid_reasoning_view(self.points.len(), unavailable, self.wire.statistical)
+        grid_reasoning_view(Some((self.points.len(), unavailable, self.wire.statistical)))
     }
     /// Complete family, evidence, provider and inference identity.
     #[must_use]
@@ -268,13 +268,11 @@ impl TransportGridResult {
     }
 }
 
-/// The one author of a grid's reasoning slots: the in-memory view and the portable section
-/// both derive from it, so the two can never disagree.
-fn grid_reasoning_view(
-    total: usize,
-    unavailable: usize,
-    statistical: bool,
-) -> antecedent_core::ReasoningView {
+/// The one author of a grid's reasoning slots: the in-memory view, the portable section and
+/// the pre-execution inspection all derive from it, so they can never disagree.
+/// `execution` is `(points, unavailable points, statistical)` once the grid has run; before
+/// that, support and uncertainty are execution-specific.
+fn grid_reasoning_view(execution: Option<(usize, usize, bool)>) -> antecedent_core::ReasoningView {
     use antecedent_core::{
         AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
         IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
@@ -284,18 +282,23 @@ fn grid_reasoning_view(
         SlotAvailability::Available(IdentificationSlot::identified_singleton(
             IdentificationStatus::NonparametricallyIdentified,
         )),
-        SlotAvailability::Available(SupportSlot::new(
-            "stage_contract",
-            Some(Arc::from("transport.response_grid")),
-            SlotAvailability::Available(Arc::from(format!(
-                "{} executable; {unavailable} unavailable; population positivity assumed",
-                total - unavailable
-            ))),
-        )),
-        SlotAvailability::unavailable(if statistical {
-            "pointwise_components_in_retained_points; calibration_not_bound"
-        } else {
-            "exact_supplied_law_no_sampling_uncertainty"
+        execution.map_or_else(
+            || SlotAvailability::unavailable("execution_specific"),
+            |(total, unavailable, _)| {
+                SlotAvailability::Available(SupportSlot::new(
+                    "stage_contract",
+                    Some(Arc::from("transport.response_grid")),
+                    SlotAvailability::Available(Arc::from(format!(
+                        "{} executable; {unavailable} unavailable; population positivity assumed",
+                        total - unavailable
+                    ))),
+                ))
+            },
+        ),
+        SlotAvailability::unavailable(match execution {
+            None => "execution_specific",
+            Some((_, _, true)) => "pointwise_components_in_retained_points; calibration_not_bound",
+            Some((_, _, false)) => "exact_supplied_law_no_sampling_uncertainty",
         }),
         SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
             "transport.population_selection_graph",
@@ -312,7 +315,11 @@ fn grid_reasoning(
     statistical: bool,
 ) -> antecedent_io::contract_section::ReasoningSectionWire {
     let unavailable = points.iter().filter(|p| matches!(p, GridPointWire::Unavailable(_))).count();
-    super::contract::reasoning_section(&grid_reasoning_view(points.len(), unavailable, statistical))
+    super::contract::reasoning_section(&grid_reasoning_view(Some((
+        points.len(),
+        unavailable,
+        statistical,
+    ))))
 }
 fn validate_grid(
     functional: &BoundTransportFunctional,
@@ -555,6 +562,13 @@ impl PreparedStudy<TransportGridState> {
     #[must_use]
     pub fn query(&self) -> &TransportGridQuery {
         &self.state.query
+    }
+    /// Reasoning before any point has executed: identification is a structural
+    /// property of the accepted proof and the assumptions are declared; support
+    /// and uncertainty stay execution-specific until the grid runs.
+    #[must_use]
+    pub fn inspect(&self) -> antecedent_core::ReasoningView {
+        grid_reasoning_view(None)
     }
     /// Whether the retained native providers permit estimator replay without refresh.
     #[must_use]
@@ -1153,6 +1167,18 @@ mod tests {
         assert_eq!(support.matrix_status, "stage_contract");
         assert_eq!(support.matrix_coordinate.as_deref(), Some("transport.response_grid"));
         assert_eq!(support.empirical, "1 executable; 1 unavailable; population positivity assumed");
+    }
+
+    #[test]
+    fn prepared_grid_inspection_shares_the_executed_identification_and_assumptions() {
+        let ctx = ExecutionContext::for_tests(0);
+        let study = fixture();
+        let before = study.inspect();
+        let after = study.estimate(&ctx).unwrap().reasoning();
+        assert_eq!(before.identification, after.identification);
+        assert_eq!(before.assumptions, after.assumptions);
+        assert!(!before.support.is_available() && after.support.is_available());
+        assert!(!before.uncertainty.is_available());
     }
 
     #[test]

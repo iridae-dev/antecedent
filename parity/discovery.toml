@@ -387,6 +387,7 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-validate/src/stability/pcmci_grid.rs"
 evidence_assertion = "true_link_is_stable"
+limitations = "The test checks only that a true link appears in at least one of 8 block-bootstrap replicates on one seeded series; link frequencies are not calibrated against a known selection probability, and the block length is not validated."
 owner = "discovery"
 notes = "antecedent-validate BlockBootstrapStability; DiscoveryStabilityReport"
 
