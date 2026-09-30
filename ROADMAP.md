@@ -83,46 +83,6 @@ scheduled for 2.2:
   `oracle.kind`; label each one (frozen external oracle, closed-form truth,
   enumerated SCM, or behavioral parity) so the evidence kind is checkable.
 
-**Carried from 2.2.** Limits recorded while scoping and building 2.2, each
-deliberately outside a 2.2 cell and scheduled for 2.3 unless it fails its gate
-earlier:
-
-- **X1/X9 completeness.** General identifiability and transportability from
-  arbitrary surrogate experiments (gID, g-transportability: thickets and
-  hedgelets) would give X9 a complete oracle for multi-study queries, which 2.2
-  measures only against enumerated truth, and would extend X1 beyond the
-  power-set experiment family. Target-population experiments (supported by the
-  TR^mz theory, refused by the 2.2 route) stay refused until a row licenses them.
-  X9's rule search is sound and incomplete: measured against complete ID it is
-  exact through four nodes and 97.4% on a five-node sample, with the napkin
-  family, the three-treatment intervention bound, and the six-node operation
-  budget as the named gaps.
-- **X2 selection.** Soft-intervention transport and selection-bias recovery use
-  different selection-node semantics and are separate rows. The 2.2 conditional
-  ADMG row's completeness is inherited from the literature until the theorem text
-  is verified in the repository's own evidence.
-- **X3 sensitivity.** The fixed-graph joint conditional-mechanism problem (a
-  bilinear program over products of simplices), parent-mechanism perturbation
-  against supplied target evidence, budget-coupled constraints, and more than
-  three jointly varying factors need a real optimizer with a stated tolerance.
-- **X4 dose-response.** Estimating the treatment density from observational
-  doses, boundary kernels, bandwidth selection, simultaneous bands, and
-  derivative or CATE targets are separate estimands.
-- **X6 planning.** New populations or environments in a hypothetical catalog
-  delta, and non-additive cost.
-- **X8 counterfactuals.** Path-specific effects on ADMGs (the recanting-district
-  criterion), joint potential outcomes, more than two worlds, and more than one
-  treatment in the ADMG cell. The 2.2 fixed-DAG cell's premises (model adequacy,
-  consistency, Markovianity) remain named assumptions that no check verifies.
-- **X10 recovery.** Selection nodes, response-indicator edges (the colluder
-  case), non-binary variables, and any sampled provider.
-- **X7 accelerator.** Carried forward; the 2.1 baseline is CPU-only and records
-  no accelerator measurement.
-- **X11 calibration.** 2.2 measures its own coverage records once, at the cut,
-  because milestone B changes the estimator and transport code that milestone A
-  would otherwise have measured; the 44 cells 2.0 licensed without a measurement
-  are taken fixed-graph first and never block a cut.
-
 **Accelerator lane (X7).** Benchmark a representative cross-fitted neural
 workload during 2.1. If end-to-end transfer and fold orchestration show a
 material gain, target one explicit, opt-in backend at milestone 2.2 B, with its device,
