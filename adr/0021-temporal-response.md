@@ -169,3 +169,22 @@ static responses.
   artifact round trips, and a hot-path bench are merge requirements for
   every newly licensed cell.
 - Package version is 0.7.0.
+
+## 2.2A X5 note: reuse by the two-step temporal transport sequence
+
+The two-step transport sequence (`antecedent_identify::sid::temporal_sequence`, 2.2A
+X5) reuses this ADR's finite temporal machinery in exactly one place:
+`unroll_two_slice` builds the explicit two-slice diagram from a lagged `TemporalDag`
+template through `TemporalDag::unfold` under a `TemporalIndexer`, so parents before
+the first slice are dropped and the initial state is fixed rather than modelled. That
+route is exercised end to end by an executed test (identify, prepare, evaluate,
+export, independently consume against the enumerated truth of a known model whose
+period-1 outcome is a step-2 covariate). It is Rust-only; Python supplies the
+unrolled diagram directly, so no new public route was added.
+
+What X5 does not reuse: the response-curve functionals, temporal artifact format 0.4
+and the `TemporalDag` attachment of a response query. The sequence is a fixed-horizon
+(2), hard-sequence transport claim on an explicit diagram, decided by the classical
+sID route with a discrete exact provider; temporal sampling intervals, initial-state
+uncertainty and new-period refresh are 2.3A. Its artifact is its own format
+(`temporal_transport_sequence_v1`), not the 0.4 response format.
