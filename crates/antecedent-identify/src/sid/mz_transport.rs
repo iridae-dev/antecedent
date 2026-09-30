@@ -32,8 +32,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, RegimeId, RegimeKind, SearchBudget, SearchLimits,
-    SearchReceipt, VariableId,
+    DEFAULT_SEARCH_MEMORY_BYTES, EvidenceCatalog, ExecutionContext, RegimeId, RegimeKind,
+    SearchBudget, SearchLimits, SearchReceipt, VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::SelectionDiagram;
@@ -44,7 +44,7 @@ use super::z_transport::{
     ZTransportQuery, ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog,
     cited_regimes, decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
 };
-use super::{IdentificationError, SharedSearch, SidLimits, SidMeter};
+use super::{IdentificationError, SearchCharge, SharedSearch, SidLimits, SidMeter};
 
 /// Observed variables in the shared graph.
 pub const MZ_TRANSPORT_MAX_OBSERVED: usize = Z_TRANSPORT_MAX_OBSERVED;
@@ -58,6 +58,10 @@ pub const MZ_TRANSPORT_MAX_CANDIDATE_REGIMES: usize = 64;
 /// recursion depth. They are the defaults and also the maxima; larger limits
 /// refuse. Memory and cancellation come from the execution context on every charge.
 pub const MZ_TRANSPORT_DEFAULT_LIMITS: SearchLimits = SearchLimits { operations: 4096, depth: 24 };
+/// Memory cap (estimated live-state bytes, cumulative across every stage of one
+/// decision) of the search: the default and the maximum. The effective cap is the
+/// smaller of this and the execution context's hard limit, so it is never absent.
+pub const MZ_TRANSPORT_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A request outside a declared bound: source count, observed variables,
 /// controllables per source, candidate regimes, or search limits.
@@ -76,6 +80,44 @@ const BUDGET: &str = "mz_transport.budget";
 const INVALID_DERIVATION: &str = "mz_transport.invalid_derivation";
 /// An obstruction does not check.
 const INVALID_OBSTRUCTION: &str = "mz_transport.invalid_obstruction";
+
+/// The frozen `(reason code, mz_transport.* detail)` pair of an error raised by
+/// the mz-transport route, as the X1 promotion record declares them:
+/// `route_not_supported` for a bound, `invalid_argument` for an invalid query or
+/// catalog, `transport_not_certified` for a derivation, leaf or obstruction that
+/// does not check, `transport_missing_evidence` for an unbound cited regime and
+/// `transport_budget_cancel` for a stop. `None` for an error the route does not own.
+#[must_use]
+pub fn mz_transport_refusal(error: &IdentificationError) -> Option<(&'static str, &'static str)> {
+    use antecedent_core::reason_code;
+    match error {
+        IdentificationError::UnsupportedInput { code } if *code == BOUNDS_EXCEEDED => {
+            Some((reason_code!("route_not_supported"), BOUNDS_EXCEEDED))
+        }
+        IdentificationError::InvalidInput { message }
+            if message.starts_with("mz_transport.invalid_query") =>
+        {
+            Some((reason_code!("invalid_argument"), "mz_transport.invalid_query"))
+        }
+        IdentificationError::InvalidCatalog { message }
+            if message.starts_with("mz_transport.invalid_catalog") =>
+        {
+            Some((reason_code!("invalid_argument"), "mz_transport.invalid_catalog"))
+        }
+        IdentificationError::InvalidDerivation { code }
+            if [INVALID_DERIVATION, INVALID_OBSTRUCTION, FABRICATED_JOINT].contains(code) =>
+        {
+            Some((reason_code!("transport_not_certified"), code))
+        }
+        IdentificationError::MissingEvidence { .. } => {
+            Some((reason_code!("transport_missing_evidence"), MISSING_JOINT_REGIME))
+        }
+        IdentificationError::Cancelled | IdentificationError::Budget { .. } => {
+            Some((reason_code!("transport_budget_cancel"), BUDGET))
+        }
+        _ => None,
+    }
+}
 
 const fn bounds_exceeded() -> IdentificationError {
     IdentificationError::UnsupportedInput { code: BOUNDS_EXCEEDED }
@@ -277,6 +319,32 @@ pub struct MzTransportDerivation {
     single: Option<Box<ZTransportDerivation>>,
     /// Stages evaluated before the identifying one, in order.
     stages: Vec<MzStageRecord>,
+    /// The success-path search receipt of the decision that produced it.
+    search: MzSearchRecord,
+}
+
+/// The search receipt of a decision that identified: the limits it ran under
+/// and what it consumed. Operations and depth are deterministic for a given
+/// graph, query, catalog and limits, so a consumer replays the decision under
+/// these stored limits (never above its own maxima) and compares the record
+/// exactly.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MzSearchRecord {
+    /// Operation limit in force.
+    pub operations_limit: usize,
+    /// Depth limit in force.
+    pub depth_limit: usize,
+    /// Effective memory cap in force, in bytes; never absent.
+    pub memory_limit_bytes: u64,
+    /// Operations this decision charged, across every stage it ran.
+    pub operations_consumed: usize,
+    /// Deepest recursion level any stage of this decision reached.
+    pub depth_reached: usize,
+    /// `stage:<name>` of every stage run, up to and including the identifying one.
+    pub explored: Vec<String>,
+    /// `stage:<name>` of every later stage the identification made unnecessary.
+    pub unevaluated: Vec<String>,
 }
 
 /// Portable premises of an mz derivation. The expression arena travels
@@ -297,6 +365,8 @@ pub struct MzTransportDerivationRecord {
     pub rules: Vec<String>,
     /// `(stage, outcome)` of every stage evaluated before identification.
     pub stages: Vec<(String, String)>,
+    /// Search limits in force, what was consumed and the stages explored.
+    pub search: MzSearchRecord,
 }
 
 impl MzTransportDerivation {
@@ -335,10 +405,16 @@ impl MzTransportDerivation {
     pub fn single_source(&self) -> Option<&ZTransportDerivation> {
         self.single.as_deref()
     }
-    /// Search receipt: every stage evaluated before the identifying one.
+    /// Every stage evaluated before the identifying one.
     #[must_use]
     pub fn stages(&self) -> &[MzStageRecord] {
         &self.stages
+    }
+    /// Success-path search receipt: limits in force, operations and depth
+    /// consumed, and the stages explored and left unevaluated.
+    #[must_use]
+    pub const fn search_record(&self) -> &MzSearchRecord {
+        &self.search
     }
 
     /// Export the proof premises for an independently checked artifact.
@@ -360,15 +436,21 @@ impl MzTransportDerivation {
             root: self.root.raw(),
             rules: self.rules.clone(),
             stages: self.stages.iter().map(|s| (s.stage.clone(), s.outcome.to_owned())).collect(),
+            search: self.search.clone(),
         }
     }
 
     /// Reconstruct a derivation from an untrusted record: the bounded decision is
-    /// re-run on `graph`, `query` and `catalog` under the caller's limits, and the
-    /// record and arena must equal the derivation it produces.
+    /// re-run on `graph`, `query` and `catalog` under the limits the record
+    /// stores, which must lie within the caller's `limits` and memory cap (the
+    /// smaller of [`MZ_TRANSPORT_MEMORY_BYTES`] and the context's hard limit);
+    /// the record, including its search receipt, and the arena must equal the
+    /// derivation the replay produces.
     ///
     /// # Errors
-    /// The decision does not identify, or any recorded premise or expression differs.
+    /// `mz_transport.bounds_exceeded` when the stored limits exceed the caller's;
+    /// the decision does not identify; or any recorded premise, receipt field or
+    /// expression differs.
     pub fn from_record_checked(
         graph: &antecedent_graph::Admg,
         query: &MzTransportQuery,
@@ -378,8 +460,28 @@ impl MzTransportDerivation {
         limits: SearchLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IdentificationError> {
-        let MzTransportDecision::Identified { derivation, .. } =
-            decide_mz_transport(graph, query, catalog, limits, ctx)?
+        let stored = SearchLimits {
+            operations: record.search.operations_limit,
+            depth: record.search.depth_limit,
+        };
+        let memory_cap = ctx
+            .memory
+            .hard_limit_bytes
+            .map_or(MZ_TRANSPORT_MEMORY_BYTES, |h| h.min(MZ_TRANSPORT_MEMORY_BYTES));
+        if stored.operations > limits.operations
+            || stored.depth > limits.depth
+            || record.search.memory_limit_bytes > memory_cap
+        {
+            return Err(bounds_exceeded());
+        }
+        let MzTransportDecision::Identified { derivation, .. } = decide_bounded(
+            graph,
+            query,
+            catalog,
+            stored,
+            record.search.memory_limit_bytes,
+            ctx,
+        )?
         else {
             return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
         };
@@ -535,8 +637,22 @@ pub fn decide_mz_transport(
     limits: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportDecision, IdentificationError> {
+    decide_bounded(graph, query, catalog, limits, MZ_TRANSPORT_MEMORY_BYTES, ctx)
+}
+
+/// [`decide_mz_transport`] under an explicit memory cap (at most
+/// [`MZ_TRANSPORT_MEMORY_BYTES`]).
+fn decide_bounded(
+    graph: &antecedent_graph::Admg,
+    query: &MzTransportQuery,
+    catalog: &EvidenceCatalog,
+    limits: SearchLimits,
+    memory_limit_bytes: u64,
+    ctx: &ExecutionContext,
+) -> Result<MzTransportDecision, IdentificationError> {
     if limits.operations > MZ_TRANSPORT_DEFAULT_LIMITS.operations
         || limits.depth > MZ_TRANSPORT_DEFAULT_LIMITS.depth
+        || memory_limit_bytes > MZ_TRANSPORT_MEMORY_BYTES
     {
         return Err(bounds_exceeded());
     }
@@ -544,7 +660,7 @@ pub fn decide_mz_transport(
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
     })?;
-    match SearchBudget::new(limits, ctx) {
+    match SearchBudget::with_memory(limits, memory_limit_bytes, ctx) {
         Ok(budget) => {
             decide_charged(graph, validated, catalog, &mut SharedSearch::new(budget), ctx)
         }
@@ -556,6 +672,28 @@ pub fn decide_mz_transport(
             ..receipt
         })),
     }
+}
+
+/// [`decide_mz_transport`] charging a budget an enclosing decision already
+/// shares (the mixed-source search runs this route as one of its named stages).
+/// Bounds, validation and the outcomes are exactly those of the public route;
+/// the caller owns the limits.
+///
+/// # Errors
+///
+/// As [`decide_mz_transport`], except the limits.
+pub(super) fn decide_mz_transport_shared(
+    graph: &antecedent_graph::Admg,
+    query: &MzTransportQuery,
+    catalog: &EvidenceCatalog,
+    search: &mut SharedSearch<'_>,
+    ctx: &ExecutionContext,
+) -> Result<MzTransportDecision, IdentificationError> {
+    let validated = validate_mz_transport_query(graph, query, catalog)?;
+    catalog.validate().map_err(|error| {
+        IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
+    })?;
+    decide_charged(graph, validated, catalog, search, ctx)
 }
 
 /// Stage names in evaluation order.
@@ -582,6 +720,21 @@ fn decide_charged(
     let signature = super::graph_signature(&shared);
     let mut stages = Vec::new();
     let mut missing: Option<(Option<Box<MzTransportDerivation>>, String)> = None;
+    // The success-path receipt covers this decision only, even when it charges a
+    // budget an enclosing decision shares.
+    let start_operations = search.operations();
+    search.mark_decision();
+    let limits_in_force = search.limits();
+    let memory_limit_bytes = search.memory_limit_bytes();
+    let receipt = |search: &SharedSearch<'_>, identifying: usize| MzSearchRecord {
+        operations_limit: limits_in_force.operations,
+        depth_limit: limits_in_force.depth,
+        memory_limit_bytes,
+        operations_consumed: search.operations() - start_operations,
+        depth_reached: search.decision_depth(),
+        explored: stage_names[..=identifying].iter().map(|s| format!("stage:{s}")).collect(),
+        unevaluated: stage_names[identifying + 1..].iter().map(|s| format!("stage:{s}")).collect(),
+    };
     // Explored regions are `stage:<name>` for each finished stage, then
     // `rule:<rule>` for the rules of the stopped one; unevaluated regions are
     // the stopped and later stages, then every untried line-10 source branch.
@@ -605,6 +758,7 @@ fn decide_charged(
 
     // Stage 1: the target alone, before any source experiment is consumed.
     let target_call = recursion_call(&query, &validated.diagrams, false);
+    search.begin_stage();
     let mut stopped = None;
     match search_trz_call(&shared, &target_call, search.meter(), ctx, &mut stopped) {
         Ok(result) => {
@@ -617,6 +771,7 @@ fn decide_charged(
                     root,
                     trace,
                     &stages,
+                    receipt(search, 0),
                 )?;
                 match bind(&derivation, catalog, &query) {
                     Ok(cited) => {
@@ -642,9 +797,11 @@ fn decide_charged(
         }
         Err(error) => return Err(error),
     }
+    search.end_stage();
 
     // Stage 2: each source's own z route, in canonical source order.
-    for (source, diagram) in query.sources.iter().zip(&validated.diagrams) {
+    for (index, (source, diagram)) in query.sources.iter().zip(&validated.diagrams).enumerate() {
+        search.begin_stage();
         let stage = format!("source:{}", source.population);
         let single = query.source_query(source);
         let mut stopped = None;
@@ -676,6 +833,7 @@ fn decide_charged(
                     rules: z.to_record().rules,
                     single: Some(z),
                     stages: stages.clone(),
+                    search: receipt(search, 1 + index),
                 };
                 check_leaves(&derivation)?;
                 return Ok(MzTransportDecision::Identified {
@@ -704,10 +862,12 @@ fn decide_charged(
                 stages.push(MzStageRecord { stage, outcome: "not_certified" });
             }
         }
+        search.end_stage();
     }
 
     // Stage 3: the combined search, where line 10 may exchange into any source.
     let call = recursion_call(&query, &validated.diagrams, true);
+    search.begin_stage();
     let mut stopped = None;
     let result = match search_trz_call(&shared, &call, search.meter(), ctx, &mut stopped) {
         Ok(result) => result,
@@ -719,8 +879,16 @@ fn decide_charged(
     if let Some((arena, root, trace)) = result.identified {
         let populations = leaf_sources(&arena, root, &query)?;
         let route = MzTransportRoute::Combined { populations: populations.into() };
-        let derivation =
-            recursive_derivation(&query, &signature, route, arena, root, trace, &stages)?;
+        let derivation = recursive_derivation(
+            &query,
+            &signature,
+            route,
+            arena,
+            root,
+            trace,
+            &stages,
+            receipt(search, stage_names.len() - 1),
+        )?;
         return match bind(&derivation, catalog, &query) {
             Ok(cited) => {
                 Ok(MzTransportDecision::Identified { derivation: Box::new(derivation), cited })
@@ -787,6 +955,7 @@ fn recursion_call<'q>(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // The derivation's premises, each passed once.
 fn recursive_derivation(
     query: &MzTransportQuery,
     signature: &str,
@@ -795,6 +964,7 @@ fn recursive_derivation(
     root: ExprId,
     trace: Vec<String>,
     stages: &[MzStageRecord],
+    search: MzSearchRecord,
 ) -> Result<MzTransportDerivation, IdentificationError> {
     let derivation = MzTransportDerivation {
         query: query.clone(),
@@ -805,6 +975,7 @@ fn recursive_derivation(
         rules: std::iter::once("mztr.recursive_reduction".to_owned()).chain(trace).collect(),
         single: None,
         stages: stages.to_vec(),
+        search,
     };
     check_leaves(&derivation)?;
     Ok(derivation)
@@ -1312,6 +1483,15 @@ mod tests {
             rules: Vec::new(),
             single: None,
             stages: Vec::new(),
+            search: MzSearchRecord {
+                operations_limit: 1,
+                depth_limit: 1,
+                memory_limit_bytes: 1,
+                operations_consumed: 0,
+                depth_reached: 0,
+                explored: Vec::new(),
+                unevaluated: Vec::new(),
+            },
         }
     }
 

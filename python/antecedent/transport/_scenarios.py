@@ -156,16 +156,28 @@ def prepare_transport_scenarios(
     the identified scenarios, and a declared-weight report when weights were
     given. ``max_steps`` and ``max_depth`` are one search budget shared by the
     whole set: each scenario entered costs one operation at depth one, and each
-    scenario's search and proof replay charge the same budget, together with
-    live bytes against ``memory_bytes`` and observing ``cancel``. When it stops,
+    scenario's search, s-hedge check and proof replay charge the same budget,
+    together with live bytes against ``memory_bytes`` and observing ``cancel``.
+    Memory is cumulative: a decided scenario keeps holding its engine's peak
+    live state, which every later charge sits on top of. When the budget stops,
     the scenario being decided and every later one are reported
     ``unevaluated`` (detail ``scenarios.unevaluated_budget: search.<stop>``)
-    with one receipt.
+    with one receipt whose ``explored`` (scenarios fully decided) and
+    ``unevaluated`` lists are disjoint.
 
     ``laws`` are supplied exact laws (``ExactTransportData`` or a sequence), or
     ``StatisticalTransportData`` whose samples are fitted once by the empirical
-    plug-in: per-scenario points only, never an interval. Laws, samples and
-    ``at`` are checked against the shared coordinate schema (``schema_mismatch``).
+    plug-in: per-scenario points only (the bootstrap is fixed at zero), never an
+    interval; the tables are fitted once for the whole set and each scenario
+    compiles against them. Laws, sample rows and interventions, and ``at`` are
+    checked against the shared coordinate schema (``schema_mismatch``): a value
+    must be a finite number inside its declared domain (a non-finite value
+    belongs to no domain, even an unspecified one). Units are compared between
+    the schema declarations and the catalog's environments; laws, samples and
+    ``at`` carry no units, so a value's unit is never checked. A report
+    truncated by an operation, depth or memory bound exports (the limits are
+    recorded and the consumer replays the same prefix); one truncated by
+    cancellation does not export, because no consumer could reproduce it.
     ``aggregate_interval()`` always refuses.
     """
     if not isinstance(scenarios, TransportScenarioSet):
@@ -218,7 +230,10 @@ def consume_transport_scenarios_artifact(
     Every scenario is re-decided under the producer's recorded limits (refused if
     they exceed the consumer's), recompiled and re-evaluated, and the report must
     match exactly, including failed and unevaluated scenarios. The variable names
-    the report is read with are bound into the artifact's identity.
+    the report is read with are bound into the artifact's scientific identity;
+    the catalog, laws, provider and sample summaries are bound by a separate
+    data-identity digest, so a changed snapshot label is refused as a data
+    identity mismatch.
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

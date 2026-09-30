@@ -1,21 +1,31 @@
 //! Independent point-result artifacts for multi-source limited-experiment transport.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. It re-runs the
-//! bounded `TR^mz` decision on the stored graph, query and catalog under its own
-//! search limits and accepts only the identical derivation, including the search
-//! receipt of the stages that preceded it; re-binds every leaf to the regime of
-//! its own population and compares the source-specific bindings; re-validates the
-//! laws; recomputes every request's point and every contrast bit for bit; and
-//! re-derives the interval bookkeeping. The verified identity is two digests: the
-//! premises digest (graph, query, proof, expression, search and evaluation
-//! limits, requests and the variable-name mapping) and the data-identity digest
-//! (catalog snapshot and dataset ids and every law's snapshot, which a refresh
-//! may replace). A stored interval carries its seed and replicate spec and is
-//! recomputed bit for bit. The public multi-source interval route is closed
-//! (`cell_not_licensed`) until its coverage records exist, so public producers
-//! store no interval and public consumers refuse one
-//! ([`refuse_unlicensed_interval`]). Limits an artifact records are provenance;
-//! a stored limit larger than the consumer's refuses.
+//! bounded `TR^mz` decision on the stored graph, query and catalog under the
+//! search limits the proof stores (which must lie within its own maxima) and
+//! accepts only the identical derivation, including the search receipt: limits
+//! in force, operations consumed, depth reached and the stages explored; re-binds
+//! every leaf to the regime of its own population and compares the
+//! source-specific bindings; re-validates the laws; recomputes every request's
+//! point and every contrast bit for bit; and re-derives the interval
+//! bookkeeping. The verified identity is two digests: the premises digest
+//! (graph, query, proof with its search receipt, expression, search and
+//! evaluation limits, requests and the variable-name mapping) and the
+//! data-identity digest (the whole evidence catalog, including every sampling
+//! design, weight and dependence declaration and the snapshot and dataset ids,
+//! and every law's snapshot, which a refresh may replace).
+//!
+//! The multi-source interval route is closed (`cell_not_licensed`) until its
+//! coverage records exist. No public constructor yields an interval and no
+//! public consumer accepts one: [`MzTransportArtifactWire::checked`] and
+//! [`MzTransportArtifactWire::consume_with_limits`] refuse an artifact carrying
+//! an internal estimator run with `cell_not_licensed` and detail
+//! `mz_transport.interval_withheld`. Interval-bearing construction
+//! (`MzUncertaintyWire::from_bootstrap`, `checked_with_interval`) and its
+//! bit-for-bit recompute (`consume_with_interval`) exist only under the
+//! `calibration-internal` feature, which only the facade's dev-dependencies
+//! enable, and in this crate's unit tests. Limits an artifact records are
+//! provenance; a stored limit larger than the consumer's refuses.
 
 use crate::{
     IoError, admg_from_wire, admg_to_wire,
@@ -98,6 +108,37 @@ pub enum MzTransportArtifactError {
     NamesMismatch,
 }
 
+impl MzTransportArtifactError {
+    /// The frozen `(reason code, mz_transport.* detail)` pair of this failure, when
+    /// the X1 promotion record declares one: a proof or binding failure carries the
+    /// pair of the identification error it wraps. Other consumer checks are typed
+    /// kinds without a record row.
+    #[must_use]
+    pub fn refusal(&self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::ProofMismatch(inner) | Self::CatalogBinding(inner) => {
+                antecedent_identify::mz_transport_refusal(inner)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// An mz-route identification error as the io error a caller sees: the record's
+/// `reason=<code>: <detail>: ...` refusal when the route owns it, else the
+/// generic conversion.
+#[must_use]
+pub fn mz_identification_error(error: IdentificationError) -> IoError {
+    match antecedent_identify::mz_transport_refusal(&error) {
+        Some((code, detail)) => {
+            let text = error.to_string();
+            let message = if text.starts_with(detail) { text } else { format!("{detail}: {text}") };
+            IoError::Refused { code, message }
+        }
+        None => error.into(),
+    }
+}
+
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct MzTransportConsumeLimits {
@@ -115,6 +156,8 @@ pub struct MzTransportConsumeLimits {
     pub max_requests: usize,
     /// Most bootstrap replicates a stored interval may ask the consumer to recompute.
     pub max_bootstrap_replicates: u32,
+    /// Largest search memory cap (bytes) a stored proof may have been decided under.
+    pub search_memory_bytes: u64,
 }
 
 impl Default for MzTransportConsumeLimits {
@@ -127,6 +170,7 @@ impl Default for MzTransportConsumeLimits {
             max_law_cells: 1_000_000,
             max_requests: 64,
             max_bootstrap_replicates: 10_000,
+            search_memory_bytes: antecedent_identify::MZ_TRANSPORT_MEMORY_BYTES,
         }
     }
 }
@@ -358,7 +402,9 @@ impl MzUncertaintyWire {
         }
     }
 
-    /// Bookkeeping of one internal joint-bootstrap run under `seed`.
+    /// Bookkeeping of one internal joint-bootstrap run under `seed`. Internal:
+    /// no public route yields an interval while the route is closed.
+    #[cfg(any(test, feature = "calibration-internal"))]
     #[must_use]
     pub fn from_bootstrap(
         run: &Result<antecedent_estimate::MzTransportIntervals, &'static str>,
@@ -510,21 +556,25 @@ impl MzTransportArtifactWire {
     }
 }
 
-/// `(regime, snapshot, dataset)` of every catalog binding and
-/// `(population, regime, snapshot)` of every law, sorted.
+/// Every CBOR-encoded element of `items`, sorted: an order-independent view.
+fn sorted_cbor<T: Serialize>(items: &[T]) -> Result<Vec<Vec<u8>>, IoError> {
+    let mut out = items.iter().map(crate::to_cbor).collect::<Result<Vec<_>, _>>()?;
+    out.sort();
+    Ok(out)
+}
+
+/// The whole evidence catalog (environments, regimes, and every binding with its
+/// snapshot and dataset identity, sampling design, weights, schema names and
+/// dependence declaration, and the target sampling contract), each list sorted,
+/// and `(population, regime, snapshot)` of every law, sorted.
 fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<String, IoError> {
-    let mut bindings = catalog
-        .bindings
-        .iter()
-        .map(|b| {
-            (
-                b.regime.raw(),
-                b.snapshot_identity.to_string(),
-                b.dataset_identity.as_deref().map(str::to_owned),
-            )
-        })
-        .collect::<Vec<_>>();
-    bindings.sort();
+    let wire = EvidenceCatalogWire::from_catalog(catalog);
+    let bindings = (
+        sorted_cbor(&wire.environments)?,
+        sorted_cbor(&wire.regimes)?,
+        sorted_cbor(&wire.bindings)?,
+        wire.target_sampling,
+    );
     let mut snapshots = laws
         .iter()
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
@@ -532,7 +582,7 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
     snapshots.sort();
     Ok(crate::identity::digest_wire(
         IdentityDomain::TransportCertificate,
-        &("mz_transport_data_v1", bindings, snapshots),
+        &("mz_transport_data_v2", bindings, snapshots),
     )?
     .to_hex())
 }
@@ -599,11 +649,41 @@ impl MzTransportArtifactWire {
     /// Build an artifact from checked premises, points and bookkeeping.
     ///
     /// # Errors
-    /// The premises do not encode, or the results or bookkeeping are inconsistent.
+    /// The premises do not encode, or the results or bookkeeping are inconsistent;
+    /// bookkeeping that carries an interval is refused with `cell_not_licensed`
+    /// (`mz_transport.interval_withheld`) while the interval route is closed.
     pub fn checked(
         input: MzTransportArtifactInput<'_>,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        Self::build(input, ctx, false)
+    }
+
+    /// [`Self::checked`] that also accepts bookkeeping carrying an internal
+    /// estimator run, which it recomputes bit for bit. Calibration harness and
+    /// test use only; no released build carries it.
+    ///
+    /// # Errors
+    /// As [`Self::checked`], except a carried interval that recomputes.
+    #[cfg(any(test, feature = "calibration-internal"))]
+    pub fn checked_with_interval(
+        input: MzTransportArtifactInput<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        Self::build(input, ctx, true)
+    }
+
+    fn build(
+        input: MzTransportArtifactInput<'_>,
+        ctx: &ExecutionContext,
+        allow_interval: bool,
+    ) -> Result<Self, IoError> {
+        if input.search != derivation_limits(input.functional.derivation()) {
+            return Err(MzTransportArtifactError::UnsupportedSemantics(
+                "search limits differ from the derivation's search receipt",
+            )
+            .into());
+        }
         let graph = admg_to_wire(input.graph)?;
         let derivation = input.functional.derivation();
         let laws = canonical_laws(input.data)?;
@@ -639,6 +719,7 @@ impl MzTransportArtifactWire {
             input.limits,
             &wire.uncertainty,
             &wire.results,
+            allow_interval,
             ctx,
         )?;
         Ok(wire)
@@ -737,6 +818,9 @@ impl MzTransportArtifactWire {
         if self.search_depth > limits.search.depth {
             return Err(exceeded("search depth limit"));
         }
+        if self.proof.search.memory_limit_bytes > limits.search_memory_bytes {
+            return Err(exceeded("search memory limit"));
+        }
         if self.operation_limit > limits.evaluation.operations {
             return Err(exceeded("operation limit"));
         }
@@ -765,17 +849,40 @@ impl MzTransportArtifactWire {
     }
 
     /// Decode and recheck everything under the consumer's limits, then recompute
-    /// every point and contrast and any stored interval. No external provider is
-    /// accessed.
+    /// every point and contrast. No external provider is accessed.
     ///
     /// # Errors
-    /// Any reconstruction failure, an evaluation refusal, a point, contrast or
-    /// interval that does not replay, or bookkeeping that contradicts the
-    /// licensing decision.
+    /// Any reconstruction failure, an evaluation refusal, a point or contrast that
+    /// does not replay, bookkeeping that contradicts the licensing decision, or
+    /// an artifact carrying an interval, which is refused with `cell_not_licensed`
+    /// (`mz_transport.interval_withheld`) while the interval route is closed.
     pub fn consume_with_limits(
         bytes: &[u8],
         limits: MzTransportConsumeLimits,
         ctx: &ExecutionContext,
+    ) -> Result<ConsumedMzTransport, IoError> {
+        Self::consume_checked(bytes, limits, ctx, false)
+    }
+
+    /// [`Self::consume_with_limits`] that also accepts and recomputes a stored
+    /// internal estimator run. Calibration harness and test use only.
+    ///
+    /// # Errors
+    /// As [`Self::consume_with_limits`], except a carried interval that recomputes.
+    #[cfg(any(test, feature = "calibration-internal"))]
+    pub fn consume_with_interval(
+        bytes: &[u8],
+        limits: MzTransportConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<ConsumedMzTransport, IoError> {
+        Self::consume_checked(bytes, limits, ctx, true)
+    }
+
+    fn consume_checked(
+        bytes: &[u8],
+        limits: MzTransportConsumeLimits,
+        ctx: &ExecutionContext,
+        allow_interval: bool,
     ) -> Result<ConsumedMzTransport, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
@@ -785,6 +892,15 @@ impl MzTransportArtifactWire {
         let catalog = wire.catalog.to_catalog()?;
         if data_digest(&catalog, &wire.laws)? != wire.data_digest {
             return Err(MzTransportArtifactError::DataIdentityMismatch.into());
+        }
+        // The stored limits and the proof's search receipt are one fact.
+        if wire.search_operations != wire.proof.search.operations_limit
+            || wire.search_depth != wire.proof.search.depth_limit
+        {
+            return Err(MzTransportArtifactError::UnsupportedSemantics(
+                "search limits differ from the proof's search receipt",
+            )
+            .into());
         }
         let graph = admg_from_wire(&wire.graph)?;
         let query = wire.query.to_query();
@@ -841,6 +957,7 @@ impl MzTransportArtifactWire {
             producer_limits,
             &wire.uncertainty,
             &wire.results,
+            allow_interval,
             ctx,
         )?;
         Ok(ConsumedMzTransport { functional, data, requests, distributions, contrasts, wire })
@@ -875,13 +992,21 @@ pub fn refuse_unlicensed_interval(uncertainty: &MzUncertaintyWire) -> Result<(),
     Ok(())
 }
 
+/// The search limits a derivation's own receipt records.
+fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
+    let receipt = derivation.search_record();
+    SearchLimits { operations: receipt.operations_limit, depth: receipt.depth_limit }
+}
+
 /// Re-derive the interval bookkeeping and check the stored one against it.
 ///
 /// Exact laws are point-only. Counted laws without an estimator run carry the
 /// closed-route bookkeeping ([`MzUncertaintyWire::not_licensed`]) with the
 /// declared-sampling reason recomputed from the catalog and laws. An internal
 /// estimator run carries its seed and replicate spec and must recompute bit
-/// for bit.
+/// for bit, but only when `allow_interval` (calibration and tests): otherwise
+/// any carried interval is refused before anything else is decided.
+#[allow(clippy::too_many_arguments)]
 fn check_uncertainty(
     functional: &BoundMzTransportFunctional,
     data: &ExactTransportData,
@@ -889,8 +1014,12 @@ fn check_uncertainty(
     limits: ExactEvaluationLimits,
     stored: &MzUncertaintyWire,
     results: &[MzTransportPointWire],
+    allow_interval: bool,
     ctx: &ExecutionContext,
 ) -> Result<(), IoError> {
+    if !allow_interval {
+        refuse_unlicensed_interval(stored)?;
+    }
     let bad = |what| Err(MzTransportArtifactError::UncertaintyMismatch(what).into());
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return if *stored == MzUncertaintyWire::point_only() {
@@ -907,6 +1036,40 @@ fn check_uncertainty(
             bad("closed interval route bookkeeping")
         };
     };
+    recompute_interval(functional, data, requests, limits, stored, seed, results, ctx)
+}
+
+/// Recompute a stored internal estimator run bit for bit. Without the
+/// `calibration-internal` feature the estimator is not linked and the interval
+/// route stays refused.
+#[cfg(not(any(test, feature = "calibration-internal")))]
+#[allow(clippy::too_many_arguments)]
+fn recompute_interval(
+    _: &BoundMzTransportFunctional,
+    _: &ExactTransportData,
+    _: &[Assignment],
+    _: ExactEvaluationLimits,
+    stored: &MzUncertaintyWire,
+    _: u64,
+    _: &[MzTransportPointWire],
+    _: &ExecutionContext,
+) -> Result<(), IoError> {
+    refuse_unlicensed_interval(stored)
+}
+
+#[cfg(any(test, feature = "calibration-internal"))]
+#[allow(clippy::too_many_arguments)]
+fn recompute_interval(
+    functional: &BoundMzTransportFunctional,
+    data: &ExactTransportData,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    stored: &MzUncertaintyWire,
+    seed: u64,
+    results: &[MzTransportPointWire],
+    ctx: &ExecutionContext,
+) -> Result<(), IoError> {
+    let bad = |what| Err(MzTransportArtifactError::UncertaintyMismatch(what).into());
     let (Some(coverage), true) = (
         stored.coverage_target,
         stored.method.as_deref() == Some(antecedent_estimate::PERCENTILE_BOOTSTRAP),

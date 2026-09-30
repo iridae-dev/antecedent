@@ -15,7 +15,9 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 use antecedent_expr::ExactDistribution;
-use antecedent_identify::sid::scenarios::{ScenarioOutcome, ScenarioSetDecision};
+use antecedent_identify::sid::scenarios::{
+    SCENARIO_WEIGHT_TOLERANCE, ScenarioOutcome, ScenarioSetDecision, mass_sum, unaccounted_after,
+};
 
 use crate::error::EstimationError;
 
@@ -150,7 +152,14 @@ pub fn weighted_scenario_report(
     outcomes: &[(VariableId, Option<(f64, f64)>)],
     unaccounted_mass: f64,
 ) -> Result<WeightedScenarioReport, EstimationError> {
-    let identified_mass: f64 = points.iter().map(|(_, w, _)| *w).sum();
+    let identified_mass = mass_sum(points.iter().map(|(_, w, _)| *w));
+    // Mass within the declared-weight tolerance of zero is zero, the same
+    // tolerance `TransportScenarioSet::try_new` accepts weights under.
+    let unaccounted_mass = if (0.0..=SCENARIO_WEIGHT_TOLERANCE).contains(&unaccounted_mass) {
+        0.0
+    } else {
+        unaccounted_mass
+    };
     if !unaccounted_mass.is_finite()
         || unaccounted_mass < 0.0
         || (identified_mass + unaccounted_mass - 1.0).abs() > 1e-9
@@ -159,15 +168,18 @@ pub fn weighted_scenario_report(
     }
     let named = points.iter().map(|(n, _, d)| (Arc::clone(n), *d)).collect::<Vec<_>>();
     check_outcomes(&named)?;
-    let mut sums = outcomes.iter().map(|(o, _)| (*o, 0.0)).collect::<Vec<_>>();
+    // Each sum is order independent, so renaming scenarios cannot move it.
+    let mut terms = vec![Vec::with_capacity(points.len()); outcomes.len()];
     for (_, weight, distribution) in points {
         for (k, mean) in means(distribution)?.into_iter().enumerate() {
-            sums[k].1 += weight * mean;
+            terms[k].push(weight * mean);
         }
     }
+    let sums =
+        outcomes.iter().zip(terms).map(|((o, _), terms)| (*o, mass_sum(terms))).collect::<Vec<_>>();
     let ranges = if points.is_empty() {
         None
-    } else if unaccounted_mass == 0.0 {
+    } else if unaccounted_mass <= 0.0 {
         Some(sums.iter().map(|(o, sum)| (*o, *sum, *sum)).collect())
     } else {
         outcomes
@@ -362,6 +374,47 @@ fn compile_all(
 /// Provider identity of supplied exact laws.
 pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
 
+#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+fn refuse_scenario(
+    refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal,
+) -> EstimationError {
+    EstimationError::refused(refusal.code, format!("{}: {}", refusal.detail, refusal.message))
+}
+
+/// Check every sample row and intervention against the set's shared coordinate
+/// schema: each column is a declared variable and each present value lies in its
+/// declared domain (a missing entry is a missingness matter, not a value).
+fn check_samples(
+    decision: &ScenarioSetDecision,
+    input: &crate::StatisticalTransportInput,
+) -> Result<(), EstimationError> {
+    let set = &decision.set;
+    for sample in &input.samples {
+        let context = format!("the {} sample of regime {}", sample.population, sample.regime.raw());
+        for assignment in sample.interventions.iter() {
+            set.check_value(assignment.variable, &assignment.value, &context)
+                .map_err(refuse_scenario)?;
+        }
+        for (variable, column) in &sample.columns {
+            if set.coordinate(*variable).is_none() {
+                return Err(refuse_scenario(
+                    antecedent_identify::sid::scenarios::ScenarioSetRefusal::coordinate_mismatch(
+                        format!(
+                            "{context} has a column for variable {} outside the shared schema",
+                            variable.raw()
+                        ),
+                    ),
+                ));
+            }
+            for value in column.iter().flatten() {
+                set.check_value(*variable, &antecedent_core::Value::f64(*value), &context)
+                    .map_err(refuse_scenario)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Check every law and the request against the set's shared coordinate schema.
 fn check_schema(
     decision: &ScenarioSetDecision,
@@ -369,9 +422,7 @@ fn check_schema(
     request: &antecedent_expr::Assignment,
 ) -> Result<(), EstimationError> {
     let set = &decision.set;
-    let refuse = |refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal| {
-        EstimationError::refused(refusal.code, format!("{}: {}", refusal.detail, refusal.message))
-    };
+    let refuse = refuse_scenario;
     for law in data.laws() {
         let context = format!("the {} law of regime {}", law.population(), law.regime().raw());
         for axis in law.axes() {
@@ -410,11 +461,16 @@ pub fn prepare_transport_scenarios(
 
 /// Compile each identified scenario against empirical plug-in frequency tables
 /// fitted once from finite samples (with any supplied exact laws), through the
-/// same plan as supplied laws. Points only: no interval is computed, and the
-/// envelope stays a structural range over identified scenarios.
+/// same plan as supplied laws. Points only: the bootstrap is fixed at zero
+/// replicates, so no interval is computed, and the envelope stays a structural
+/// range over identified scenarios. The tables are fitted once for the whole
+/// set, not per scenario; each scenario then compiles against them, so
+/// provider coverage is per scenario. Every sample row and intervention is
+/// checked against the shared coordinate schema first.
 ///
 /// # Errors
-/// As [`prepare_transport_scenarios`], plus a sample the plug-in cannot fit.
+/// As [`prepare_transport_scenarios`], plus a sample outside the shared schema
+/// (`schema_mismatch`) or one the plug-in cannot fit.
 pub fn prepare_empirical_transport_scenarios(
     decision: ScenarioSetDecision,
     input: crate::StatisticalTransportInput,
@@ -423,6 +479,7 @@ pub fn prepare_empirical_transport_scenarios(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
+    check_samples(&decision, &input)?;
     let options = crate::EmpiricalTableOptions {
         estimator: crate::EmpiricalTableEstimator::Plugin,
         bootstrap_replicates: 0,
@@ -629,7 +686,7 @@ fn report(
             StatusMass {
                 status,
                 count: members.clone().count(),
-                mass: weighted.then(|| members.filter_map(|s| s.weight).sum()),
+                mass: weighted.then(|| mass_sum(members.filter_map(|s| s.weight))),
             }
         })
         .collect::<Vec<_>>();
@@ -645,7 +702,7 @@ fn report(
             .iter()
             .map(|(n, w, d)| (Arc::clone(n), w.unwrap_or(0.0), *d))
             .collect::<Vec<_>>();
-        let identified_mass: f64 = points.iter().map(|(_, w, _)| *w).sum();
+        let identified_mass = mass_sum(points.iter().map(|(_, w, _)| *w));
         let outcomes = decision
             .decisions
             .iter()
@@ -664,7 +721,7 @@ fn report(
                 )
             })
             .collect::<Vec<_>>();
-        Some(weighted_scenario_report(&points, &outcomes, (1.0 - identified_mass).max(0.0))?)
+        Some(weighted_scenario_report(&points, &outcomes, unaccounted_after(identified_mass))?)
     } else {
         None
     };

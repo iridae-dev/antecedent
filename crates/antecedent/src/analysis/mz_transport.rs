@@ -161,12 +161,15 @@ impl StudyBuilder {
             &graph,
             functional.derivation(),
             functional.catalog(),
-        )?;
+        )
+        .map_err(|error| match error {
+            // The functional is already a checked derivation: it fails to rebind
+            // only against a graph it was not decided on.
+            antecedent_identify::IdentificationError::InvalidDerivation { .. } => graph_mismatch(),
+            other => antecedent_io::mz_transport_artifact::mz_identification_error(other),
+        })?;
         if rebound.root() != functional.root() || rebound.arena() != functional.arena() {
-            return Err(IoError::Refused {
-                code: antecedent_core::reason_code!("invalid_argument"),
-                message: "mz_transport.functional_graph_mismatch: the functional was not decided on this graph".into(),
-            });
+            return Err(graph_mismatch());
         }
         let plans = compile(&functional, &data, &requests, limits, ctx)?;
         Ok(PreparedMzTransport {
@@ -199,6 +202,14 @@ impl StudyBuilder {
             Self::mz_transport(graph, functional, search, data, requests, limits, ctx)?;
         prepared.empirical = true;
         Ok(prepared)
+    }
+}
+
+/// The refusal of preparing a functional that was decided on another graph.
+fn graph_mismatch() -> IoError {
+    IoError::Refused {
+        code: antecedent_core::reason_code!("invalid_argument"),
+        message: "mz_transport.functional_graph_mismatch: the functional was not decided on this graph".into(),
     }
 }
 

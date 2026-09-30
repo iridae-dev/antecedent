@@ -1426,6 +1426,12 @@ pub fn mz_transport_bootstrap_law_draws(
 ///
 /// This is the internal estimator the calibration harness measures; the public
 /// prepared route does not publish it until its coverage records exist.
+///
+/// Unlike the X4 learned-continuous interval, this stays an ungated `pub`, hidden from
+/// the docs: `antecedent-io`'s artifact code (built in its own unit tests too, where this
+/// crate's `calibration-internal` feature is off), this crate's integration tests and the
+/// calibration harness call it, so it cannot be feature-gated here. The public prepared
+/// route is what withholds the interval; calling this function directly is unsupported.
 /// Exact laws, undeclared or unsupported dependence (including shared datasets
 /// that are not one table or a recorded margin of it), and a bootstrap that
 /// fails too often withhold the interval with a stable reason; the point
@@ -1434,6 +1440,7 @@ pub fn mz_transport_bootstrap_law_draws(
 /// # Errors
 /// Empty requests, invalid interval settings, a provider/catalog disagreement,
 /// or cancellation.
+#[doc(hidden)]
 pub fn mz_transport_bootstrap_interval(
     functional: &antecedent_identify::BoundMzTransportFunctional,
     data: &antecedent_expr::ExactTransportData,

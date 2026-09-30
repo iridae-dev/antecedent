@@ -34,10 +34,40 @@ pub const SCENARIO_MAX_OBSERVED: usize = 12;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 
+/// Sum of masses independent of their order: the values are sorted, then added
+/// with Neumaier compensation, so any renaming or reordering of scenarios gives
+/// the same bits. Every declared-mass total of a scenario set uses this sum.
+#[must_use]
+pub fn mass_sum(values: impl IntoIterator<Item = f64>) -> f64 {
+    let mut values = values.into_iter().collect::<Vec<_>>();
+    values.sort_by(f64::total_cmp);
+    let (mut sum, mut compensation) = (0.0_f64, 0.0_f64);
+    for value in values {
+        let next = sum + value;
+        compensation +=
+            if sum.abs() >= value.abs() { (sum - next) + value } else { (value - next) + sum };
+        sum = next;
+    }
+    sum + compensation
+}
+
+/// Mass left over once `identified` mass is accounted for: one minus it, zero
+/// when it is within [`SCENARIO_WEIGHT_TOLERANCE`] of one (the tolerance
+/// `try_new` accepts weights under), never negative.
+#[must_use]
+pub fn unaccounted_after(identified: f64) -> f64 {
+    let rest = 1.0 - identified;
+    if rest <= SCENARIO_WEIGHT_TOLERANCE { 0.0 } else { rest }
+}
+
 /// Detail of a scenario that a budget stop or cancellation left unevaluated.
 /// The stop itself (`search.operations`, `search.depth`, `search.memory` or
 /// `search.cancelled`) is carried beside it.
 pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
+/// Registered runtime-refusal code of an unevaluated scenario: the same
+/// `transport_budget_cancel` every 2.2 transport search reports for a budget
+/// or cancellation stop, never a verdict about the scenario.
+pub const SCENARIO_UNEVALUATED_CODE: &str = reason_code!("transport_budget_cancel");
 
 /// A refused scenario set: a registered top-level reason code and a stable
 /// `scenarios.*` detail.
@@ -93,14 +123,19 @@ pub struct ScenarioCoordinate {
 }
 
 impl ScenarioCoordinate {
-    /// Whether `value` lies in the declared domain.
+    /// Whether `value` lies in the declared domain. An unspecified domain makes
+    /// no claim about which numbers occur, but every domain is numeric, so a
+    /// non-finite or non-numeric value belongs to no domain and is refused.
     #[must_use]
     #[allow(clippy::float_cmp)] // Domain membership is exact, not approximate equality.
     pub fn accepts(&self, value: &Value) -> bool {
         let value = value.as_f64();
         match self.domain {
-            VariableDomain::Unspecified => true,
-            VariableDomain::Continuous => value.is_some_and(f64::is_finite),
+            // An unspecified domain claims nothing about which finite numbers
+            // occur, but a non-finite or non-numeric value is in no domain.
+            VariableDomain::Unspecified | VariableDomain::Continuous => {
+                value.is_some_and(f64::is_finite)
+            }
             VariableDomain::Binary => value.is_some_and(|v| v == 0.0 || v == 1.0),
             VariableDomain::Count => value.is_some_and(|v| v >= 0.0 && v.fract() == 0.0),
             VariableDomain::Categorical { cardinality } => {
@@ -276,7 +311,7 @@ impl TransportScenarioSet {
         }
         if weighted {
             let weights = scenarios.iter().filter_map(|s| s.weight).collect::<Vec<_>>();
-            let total: f64 = weights.iter().sum();
+            let total = mass_sum(weights.iter().copied());
             if weights.iter().any(|w| !w.is_finite() || *w < 0.0)
                 || total > 1.0 + SCENARIO_WEIGHT_TOLERANCE
             {
@@ -304,7 +339,9 @@ impl TransportScenarioSet {
         self.schema.iter().find(|c| c.variable == variable)
     }
 
-    /// Check that `value` is a declared value of `variable`.
+    /// Check that `value` is a declared value of `variable`: numeric, finite
+    /// and inside the declared domain (an unspecified domain still refuses a
+    /// non-finite or non-numeric value). No unit is checked; values carry none.
     ///
     /// # Errors
     /// `schema_mismatch` / `scenarios.coordinate_mismatch` for an undeclared
@@ -330,8 +367,13 @@ impl TransportScenarioSet {
 
     /// Check the shared catalog against the set. Its environment coordinates
     /// agree with the shared schema: a declared domain equals the schema's
-    /// unless either is unspecified, and a declared unit equals the schema's
-    /// when both are given. Selection targets belong to each scenario, so no
+    /// unless either is unspecified (an unspecified domain makes no claim, so it
+    /// cannot disagree), and a declared unit equals the schema's when both
+    /// declare one. Units are therefore compared only between schema
+    /// declarations and catalog environments; laws, samples and the request
+    /// carry no units, so a value's unit is never checked, only its numeric
+    /// membership in the declared domain
+    /// ([`Self::check_value`]). Selection targets belong to each scenario, so no
     /// environment of the shared catalog declares any; each scenario's decision
     /// binds the catalog with that scenario's selections on the source
     /// environment.
@@ -409,7 +451,7 @@ impl TransportScenarioSet {
     #[must_use]
     pub fn residual_mass(&self) -> Option<f64> {
         self.weighted
-            .then(|| (1.0 - self.scenarios.iter().filter_map(|s| s.weight).sum::<f64>()).max(0.0))
+            .then(|| unaccounted_after(mass_sum(self.scenarios.iter().filter_map(|s| s.weight))))
     }
 
     /// The shared observed variables.
@@ -418,13 +460,12 @@ impl TransportScenarioSet {
         self.schema.iter().map(|c| c.variable).collect()
     }
 
-    /// Live bytes the decision holds once `decided` scenarios are entered: each
-    /// retained scenario's graph with quadratic coordinate storage, the same
-    /// per-state shape the sID engine charges.
-    fn live_bytes(&self, decided: usize) -> u64 {
+    /// Live bytes one entered scenario holds: its graph with quadratic
+    /// coordinate storage, the same per-state shape the sID engine charges.
+    fn scenario_bytes(&self) -> u64 {
         let n = self.schema.len();
         let per = n.saturating_mul(n).saturating_mul(64).saturating_add(512);
-        u64::try_from(per.saturating_mul(decided)).unwrap_or(u64::MAX)
+        u64::try_from(per).unwrap_or(u64::MAX)
     }
 }
 
@@ -456,6 +497,17 @@ pub enum ScenarioOutcome {
 }
 
 impl ScenarioOutcome {
+    /// The registered runtime-refusal code of an outcome that is a budget or
+    /// cancellation stop ([`SCENARIO_UNEVALUATED_CODE`]); `None` for a decided
+    /// outcome.
+    #[must_use]
+    pub const fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Unevaluated { .. } => Some(SCENARIO_UNEVALUATED_CODE),
+            _ => None,
+        }
+    }
+
     /// Stable status name.
     #[must_use]
     pub const fn status(&self) -> &'static str {
@@ -506,16 +558,21 @@ pub struct ScenarioSetDecision {
 /// Decide every scenario independently against the same question and catalog.
 ///
 /// One [`SearchBudget`] bounds the whole set. Each scenario entered is charged
-/// one operation at depth one with the decision's live-state bytes, and its
-/// catalog-aware search, the classical s-hedge check, and every verification
-/// replay charge the same budget at their own recursion depth and live bytes.
-/// The operation, depth and memory limits and cancellation therefore bound the
-/// set as a whole: when any charge stops, the scenario being decided and every
-/// later one are recorded [`ScenarioOutcome::Unevaluated`] with one cumulative
-/// receipt, never dropped. (The pretreatment-standardization subset search of
-/// the catalog route keeps its own count of `budget.operations` separation
-/// tests, whose exhaustion is an obligation of that scenario.) Progress is
-/// reported to the context's sink after each scenario.
+/// one operation at depth one with its own graph bytes on top of the memory the
+/// scenarios already decided keep holding, and its catalog-aware search, the
+/// classical s-hedge check (the witness construction and its independent
+/// verification, one operation each), every pretreatment-subset separation test
+/// and every verification replay charge the same budget at their own recursion
+/// depth and live bytes. Memory is cumulative: a decided scenario keeps holding
+/// its engine's peak live state (an upper bound on what its derivation
+/// retains), which every later charge sits on top of. The operation, depth and
+/// memory limits and cancellation therefore bound the set as a whole: when any
+/// charge stops, the scenario being decided and every later one are recorded
+/// [`ScenarioOutcome::Unevaluated`] with one cumulative receipt, never dropped.
+/// The receipt's `explored` lists the scenarios fully decided, in order, and
+/// `unevaluated` the scenario being decided when the stop came and every later
+/// one: the two are disjoint. Progress is reported to the context's sink after
+/// each scenario.
 ///
 /// # Errors
 /// An invalid query or catalog, or a catalog or question disagreeing with the
@@ -546,18 +603,23 @@ pub fn decide_transport_scenarios(
         }
     };
     let mut explored = Vec::new();
+    let (entry_bytes, mut retained) = (set.scenario_bytes(), 0_u64);
     for (index, scenario) in set.scenarios().iter().enumerate() {
         if let Some(active) = search.as_mut() {
-            if let Err(stop) = active.charge(1, set.live_bytes(index + 1)) {
+            active.begin(retained);
+            if let Err(stop) = active.charge(1, entry_bytes) {
                 receipt = Some(active.receipt(stop, explored.clone(), remaining(index)));
                 search = None;
             }
         }
         let outcome = if let Some(active) = search.as_mut() {
-            explored.push(scenario.name.to_string());
             let bound = scenario_catalog(catalog, scenario, query);
             match decide_one(&scenario.diagram, query, &bound, active, ctx) {
-                Ok(outcome) => outcome,
+                Ok(outcome) => {
+                    explored.push(scenario.name.to_string());
+                    retained = retained.saturating_add(active.peak_bytes());
+                    outcome
+                }
                 Err(error) if error.is_budget_or_cancel() => {
                     let stop = active.stop_of(&error);
                     receipt = Some(active.receipt(stop, explored.clone(), remaining(index)));
@@ -635,6 +697,7 @@ fn decide_one(
 
 #[cfg(test)]
 mod tests {
+    use super::super::Engine;
     use super::*;
     use antecedent_graph::{Admg, DenseNodeId};
 
@@ -778,5 +841,122 @@ mod tests {
         let outside = set.check_value(VariableId::from_raw(1), &Value::f64(2.0), "law");
         assert_eq!(outside.unwrap_err().detail, "scenarios.coordinate_mismatch");
         assert!(set.check_value(VariableId::from_raw(7), &Value::f64(0.0), "law").is_err());
+    }
+
+    #[test]
+    fn an_unspecified_domain_refuses_values_that_belong_to_no_domain() {
+        let mut open = scenario("a", 2, &[], None);
+        let mut coordinates = open.coordinates.to_vec();
+        coordinates[1].domain = VariableDomain::Unspecified;
+        open.coordinates = coordinates.into();
+        let set = TransportScenarioSet::try_new(vec![open]).unwrap();
+        let y = VariableId::from_raw(1);
+        // Any finite number may occur under an unspecified domain ...
+        assert!(set.check_value(y, &Value::f64(-7.5), "law").is_ok());
+        assert!(set.check_value(y, &Value::Int64(3), "law").is_ok());
+        // ... but a non-finite or non-numeric value belongs to no domain.
+        for value in [
+            Value::f64(f64::NAN),
+            Value::f64(f64::INFINITY),
+            Value::f64(f64::NEG_INFINITY),
+            Value::Label(Arc::from("high")),
+        ] {
+            let refused = set.check_value(y, &value, "law").unwrap_err();
+            assert_eq!(
+                (refused.code, refused.detail),
+                ("schema_mismatch", "scenarios.coordinate_mismatch"),
+                "{value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn masses_sum_independently_of_order_and_snap_within_the_tolerance() {
+        // 0.7 + 0.2 + 0.1 is 0.9999999999999999 left to right and 1.0 right to left.
+        let orders = [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7], [0.2, 0.7, 0.1], [0.1, 0.7, 0.2]];
+        let sums = orders.map(mass_sum);
+        assert!(sums.iter().all(|s| s.to_bits() == sums[0].to_bits()), "{sums:?}");
+        assert!(unaccounted_after(sums[0]).abs() == 0.0);
+        assert!(unaccounted_after(0.999_999_999_999_9).abs() == 0.0);
+        assert!((unaccounted_after(0.9) - 0.1).abs() < 1e-15);
+        assert!(unaccounted_after(1.5).abs() == 0.0);
+        // Declared weights are accepted and leave no residual in either order.
+        for weights in [[0.7, 0.2, 0.1], [0.1, 0.2, 0.7]] {
+            let set = TransportScenarioSet::try_new(vec![
+                scenario("a", 2, &[], Some(weights[0])),
+                scenario("b", 2, &[1], Some(weights[1])),
+                scenario("c", 2, &[0], Some(weights[2])),
+            ])
+            .unwrap();
+            assert_eq!(set.residual_mass(), Some(0.0), "{weights:?}");
+        }
+    }
+
+    /// The obstruction check of the classical route charges the shared budget:
+    /// the witness construction and its independent verification cost one
+    /// operation each, so a cancellation raised on either is observed.
+    #[test]
+    fn the_obstruction_check_is_charged_to_the_shared_budget() {
+        // z -> x, z -> y, x -> y, x <-> y with selection on y: an s-hedge.
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        graph.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let diagram =
+            SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from([VariableId::from_raw(2)]))
+                .unwrap();
+        let query = ClassicalTransportQuery {
+            outcomes: Arc::from([VariableId::from_raw(2)]),
+            treatments: Arc::from([VariableId::from_raw(1)]),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let run = |cancel_after: Option<usize>| {
+            let ctx = ExecutionContext::for_tests(1);
+            let budget =
+                SearchBudget::new(SearchLimits { operations: 100_000, depth: 256 }, &ctx).unwrap();
+            let mut search = SharedSearch::new(budget);
+            search.cancel_after = cancel_after.map(|n| (n, ctx.cancellation.clone()));
+            let result =
+                identify_classical_transport_metered(&diagram, &query, search.meter(), &ctx);
+            let consumed = search
+                .receipt(SearchStop::Operations, Vec::new(), Vec::new())
+                .operations_consumed
+                .unwrap();
+            (
+                result.map(|r| matches!(r, ClassicalTransportResult::ProvenNonTransportable(_))),
+                consumed,
+            )
+        };
+        let (proven, total) = run(None);
+        assert!(proven.unwrap());
+        // The search alone (no obstruction check) charges two operations fewer:
+        // the witness construction and its independent verification.
+        let searched = {
+            let ctx = ExecutionContext::for_tests(1);
+            let budget =
+                SearchBudget::new(SearchLimits { operations: 100_000, depth: 256 }, &ctx).unwrap();
+            let mut search = SharedSearch::new(budget);
+            let mut engine = Engine::new_metered(&diagram, &query, search.meter(), &ctx).unwrap();
+            let state = engine.initial().unwrap();
+            let mut found = engine.solve(state.clone(), false, 0).unwrap();
+            if found.is_none() {
+                found = engine.solve(state, true, 0).unwrap();
+            }
+            assert!(found.is_none(), "the s-hedge graph has no derivation");
+            drop(engine);
+            search.receipt(SearchStop::Operations, Vec::new(), Vec::new()).operations_consumed
+        };
+        assert_eq!(Some(total), searched.map(|s| s + 2));
+        // Cancelled before the last charge, no charge remains to observe it unless
+        // the witness construction and verification are themselves charged.
+        for after in [total - 2, total - 1] {
+            assert!(
+                matches!(run(Some(after)).0, Err(IdentificationError::Cancelled)),
+                "cancel after {after} of {total} operations"
+            );
+        }
+        assert!(run(Some(total)).0.unwrap());
     }
 }

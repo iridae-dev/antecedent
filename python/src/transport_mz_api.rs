@@ -43,12 +43,24 @@ fn regime_label(catalog: &EvidenceCatalog, id: antecedent_core::RegimeId) -> Str
         .map_or_else(|| id.raw().to_string(), ToString::to_string)
 }
 
+/// The success-path search receipt an identified decision (and its artifact) stores.
+fn search_receipt(record: &antecedent_identify::MzSearchRecord) -> serde_json::Value {
+    serde_json::json!({
+        "operations_limit": record.operations_limit,
+        "depth_limit": record.depth_limit,
+        "memory_limit_bytes": record.memory_limit_bytes,
+        "operations_consumed": record.operations_consumed,
+        "depth_reached": record.depth_reached,
+        "explored": record.explored,
+        "unevaluated": record.unevaluated,
+    })
+}
+
 /// JSON for one decision, spelled in variable names and catalog regime ids.
 fn decision_json(
     decision: &MzTransportDecision,
     catalog: &EvidenceCatalog,
     names: &[String],
-    memory_bytes: Option<u64>,
 ) -> serde_json::Value {
     let stages = |stages: &[antecedent_identify::MzStageRecord]| {
         stages
@@ -74,6 +86,7 @@ fn decision_json(
                 "cited_regimes": cited.iter().map(|id| regime_label(catalog, *id)).collect::<Vec<_>>(),
                 "rules": derivation.rules(),
                 "stages": stages(derivation.stages()),
+                "search_receipt": search_receipt(derivation.search_record()),
             })
         }
         MzTransportDecision::ProvenNonTransportable(obstruction) => serde_json::json!({
@@ -107,7 +120,7 @@ fn decision_json(
                 "stop": receipt.stop.code(),
                 "operations_limit": receipt.operations_limit,
                 "depth_limit": receipt.depth_limit,
-                "memory_limit_bytes": memory_bytes,
+                "memory_limit_bytes": receipt.memory_limit_bytes,
                 "operations_consumed": receipt.operations_consumed,
                 "depth_reached": receipt.depth_reached,
                 "explored": receipt.explored,
@@ -227,14 +240,22 @@ fn not_identified(decision: &MzTransportDecision) -> PyErr {
     )
 }
 
-/// A decision error: a declared bound the query exceeds is `route_not_supported`
-/// naming the bound; anything else keeps its identification mapping.
+/// An identification error of the mz route as the record's frozen
+/// `(reason code, mz_transport.* detail)` refusal: a bound is
+/// `route_not_supported`, an invalid query or catalog `invalid_argument`, a
+/// derivation, leaf or obstruction that does not check `transport_not_certified`.
+/// Budgets and errors the route does not own keep the shared identification mapping.
 fn decision_error(e: antecedent_identify::IdentificationError) -> PyErr {
-    match e {
-        antecedent_identify::IdentificationError::UnsupportedInput { code } => {
-            crate::refusal(antecedent_core::reason_code!("route_not_supported"), code)
+    if e.is_budget_or_cancel() {
+        return error(e);
+    }
+    match antecedent_identify::mz_transport_refusal(&e) {
+        Some((code, detail)) => {
+            let text = e.to_string();
+            let message = if text.starts_with(detail) { text } else { format!("{detail}: {text}") };
+            crate::refusal(code, message)
         }
-        other => error(other),
+        None => error(e),
     }
 }
 
@@ -284,7 +305,7 @@ impl MultiSourceZTransportStage {
         let inner = crate::detach_catch(py, move || {
             let ctx = execution_context(seed, memory_bytes, cancel);
             let functional =
-                bind_mz_transport_catalog(&shared, &derivation, &catalog).map_err(error)?;
+                bind_mz_transport_catalog(&shared, &derivation, &catalog).map_err(decision_error)?;
             let limits = ExactEvaluationLimits { operations: max_operations, depth: max_depth };
             let build = if empirical {
                 antecedent::StudyBuilder::mz_transport_empirical
@@ -324,7 +345,7 @@ impl MultiSourceZTransportStage {
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         to_py_json(
             py,
-            &decision_json(&self.decision, &self.catalog, &self.graph.names, self.memory_bytes),
+            &decision_json(&self.decision, &self.catalog, &self.graph.names),
         )
     }
 

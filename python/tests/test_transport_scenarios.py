@@ -288,6 +288,24 @@ def test_semantic_artifact_mutations_fail_consume_with_typed_errors():
         transport.consume_transport_scenarios_artifact(_frame(names, reweighted))
 
 
+def test_data_identity_binds_law_snapshots_and_the_provider():
+    prepared = prepare(scenarios((0.3, 0.2, 0.4)))
+    prepared.estimate()
+    names, inner = _unframe(prepared.export())
+    # A snapshot label no report shows: its edit is a data-identity failure, not
+    # a scientific-premises one (the premises digest is untouched).
+    relabelled = bytes(inner).replace(b"\x65trial", b"\x65other", 1)
+    assert relabelled != bytes(inner)
+    with pytest.raises(CausalSerializationError, match="data identity"):
+        transport.consume_transport_scenarios_artifact(_frame(names, relabelled))
+    provider = bytes(inner).replace(
+        b"transport.exact_supplied_laws", b"transport.exact_supplied_lawz", 1
+    )
+    assert provider != bytes(inner)
+    with pytest.raises(CausalSerializationError, match="data identity"):
+        transport.consume_transport_scenarios_artifact(_frame(names, provider))
+
+
 def test_cross_scenario_inference_and_equivalence_classes_are_refused():
     prepared = prepare()
     with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate") as refused:
@@ -437,7 +455,9 @@ def test_a_support_failure_is_scenario_local():
 def test_the_shared_budget_observes_memory_depth_and_cancellation():
     memory = json.loads(prepare(memory_bytes=1500).estimate(memory_bytes=None))
     assert memory["receipt"]["stop"] == "search.memory"
-    assert memory["receipt"]["explored"] == ["direct"]
+    # The first scenario entered stops mid-search: it is unevaluated, not explored.
+    assert memory["receipt"]["explored"] == []
+    assert memory["receipt"]["unevaluated"] == ["direct", "outcome_shift", "standardize"]
     depth = json.loads(prepare(max_depth=0).estimate())
     assert depth["receipt"]["stop"] == "search.depth"
     assert {s["status"] for s in depth["scenarios"]} == {"unevaluated"}
@@ -449,6 +469,30 @@ def test_the_shared_budget_observes_memory_depth_and_cancellation():
     assert {s["detail"] for s in cancelled["scenarios"]} == {
         "scenarios.unevaluated_budget: search.cancelled"
     }
+
+
+def test_a_memory_truncated_report_replays_but_a_cancelled_one_is_not_exported():
+    # A recorded memory bound is reproduced by the consumer, which replays the
+    # identical prefix even though its own context sets no limit.
+    prepared = prepare(memory_bytes=1500)
+    live = json.loads(prepared.estimate())
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    assert consumed["receipt"] == live["receipt"]
+    assert consumed["scenarios"] == live["scenarios"]
+    # An operation bound is recorded and replays too.
+    prepared = prepare(max_steps=25)
+    live = json.loads(prepared.estimate())
+    assert live["receipt"]["stop"] == "search.operations"
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(prepared.export()))
+    assert consumed["receipt"] == live["receipt"]
+    # Cancellation falls where nothing recorded lets a consumer reproduce, so the
+    # exporter refuses rather than write an artifact that can only fail replay.
+    token = antecedent.state.CancellationToken()
+    token.cancel()
+    cancelled = prepare(cancel=token)
+    cancelled.estimate()
+    with pytest.raises(CausalSerializationError, match="cancellation"):
+        cancelled.export()
 
 
 def test_the_frozen_scenario_bound_refuses_65_scenarios():

@@ -600,3 +600,220 @@ fn outcomes_carry_the_frozen_detail_codes() {
     .unwrap();
     assert_eq!(stopped.detail_code(), Some("mz_transport.budget"));
 }
+
+fn identified(decision: MzTransportDecision) -> Box<antecedent_identify::MzTransportDerivation> {
+    let MzTransportDecision::Identified { derivation, .. } = decision else {
+        panic!("expected identification, got {decision:?}");
+    };
+    derivation
+}
+
+#[test]
+fn the_success_path_receipt_is_deterministic_and_matches_the_operations_charged() {
+    let q = query(vec![source_a(), source_b()]);
+    let derivation = identified(decide(&q, &complementary_catalog()));
+    let receipt = derivation.search_record();
+    assert_eq!(
+        (receipt.operations_limit, receipt.depth_limit),
+        (MZ_TRANSPORT_DEFAULT_LIMITS.operations, MZ_TRANSPORT_DEFAULT_LIMITS.depth)
+    );
+    // The memory bound is never absent: the default cap when the context sets none.
+    assert_eq!(receipt.memory_limit_bytes, antecedent_identify::MZ_TRANSPORT_MEMORY_BYTES);
+    // Every stage ran up to the identifying combined search.
+    assert_eq!(
+        receipt.explored,
+        ["stage:target_only", "stage:source:a", "stage:source:b", "stage:multi_source"]
+    );
+    assert!(receipt.unevaluated.is_empty());
+    // The smallest limit under which the decision still identifies is exactly
+    // what the receipt reports as consumed: one budget across all stages.
+    assert_eq!(receipt.operations_consumed, operations_needed(&figure_1_graph(), &q));
+    assert!(receipt.depth_reached >= 1);
+    // Deterministic: another context and the other declaration order agree.
+    let again = identified(decide_mz_transport(
+        &figure_1_graph(),
+        &query(vec![source_b(), source_a()]),
+        &complementary_catalog(),
+        MZ_TRANSPORT_DEFAULT_LIMITS,
+        &ExecutionContext::for_tests(4),
+    )
+    .unwrap());
+    assert_eq!(again.search_record(), receipt);
+    // A stage that identifies early leaves later stages unevaluated.
+    let mut g = Admg::with_variables(4);
+    for (a, b) in [(Z1, X), (X, Z2), (Z2, Y)] {
+        g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let early = identified(
+        decide_mz_transport(
+            &g,
+            &q,
+            &complementary_catalog(),
+            MZ_TRANSPORT_DEFAULT_LIMITS,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap(),
+    );
+    assert_eq!(early.search_record().explored, ["stage:target_only"]);
+    assert_eq!(early.search_record().unevaluated.len(), 3);
+    assert!(early.search_record().operations_consumed < receipt.operations_consumed);
+}
+
+type Edit = Box<dyn Fn(&mut antecedent_identify::MzTransportDerivationRecord)>;
+
+#[test]
+fn a_checked_replay_reproduces_the_stored_search_receipt_and_refuses_any_edit() {
+    use antecedent_identify::MzTransportDerivation;
+    let (graph, q, catalog) =
+        (figure_1_graph(), query(vec![source_a(), source_b()]), complementary_catalog());
+    let derivation = identified(decide(&q, &catalog));
+    let record = derivation.to_record();
+    let ctx = ExecutionContext::for_tests(1);
+    let replay = |record: &antecedent_identify::MzTransportDerivationRecord,
+                  limits: SearchLimits,
+                  ctx: &ExecutionContext| {
+        MzTransportDerivation::from_record_checked(
+            &graph,
+            &q,
+            &catalog,
+            record,
+            derivation.arena(),
+            limits,
+            ctx,
+        )
+    };
+    replay(&record, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
+    let invalid = |e: IdentificationError| e.to_string();
+    let bounds = IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
+    let edits: Vec<(&str, Edit)> = vec![
+        ("operations consumed", Box::new(|r| r.search.operations_consumed += 1)),
+        ("depth reached", Box::new(|r| r.search.depth_reached += 1)),
+        ("explored", Box::new(|r| r.search.explored.pop().map(drop).unwrap_or_default())),
+        ("unevaluated", Box::new(|r| r.search.unevaluated.push("stage:x".into()))),
+        // The replay runs under the stored limits, so a limit the decision cannot
+        // fit inside never replays to the stored receipt.
+        (
+            "operation limit",
+            Box::new(|r| r.search.operations_limit = r.search.operations_consumed - 1),
+        ),
+        ("depth limit", Box::new(|r| r.search.depth_limit = r.search.depth_reached - 1)),
+        ("memory limit", Box::new(|r| r.search.memory_limit_bytes = 1)),
+    ];
+    for (name, edit) in &edits {
+        let mut edited = record.clone();
+        edit(&mut edited);
+        let error = replay(&edited, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx)
+            .expect_err(&format!("the edited {name} must not replay"));
+        assert!(
+            matches!(error, IdentificationError::InvalidDerivation { .. }),
+            "{name}: {}",
+            invalid(error)
+        );
+    }
+    // A lower stored limit that still suffices replays to its own, consistent
+    // receipt (the artifact binds these limits into its premises digest).
+    let mut lower = record.clone();
+    lower.search.operations_limit -= 1;
+    replay(&lower, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
+    // A stored limit above the consumer's own maximum refuses, never replays.
+    let mut wide = record.clone();
+    wide.search.memory_limit_bytes += 1;
+    assert_eq!(replay(&wide, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap_err(), bounds);
+    let tight = SearchLimits { operations: record.search.operations_limit - 1, depth: 24 };
+    assert_eq!(replay(&record, tight, &ctx).unwrap_err(), bounds);
+    let mut limited = ExecutionContext::for_tests(1);
+    limited.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1 << 20) };
+    assert_eq!(replay(&record, MZ_TRANSPORT_DEFAULT_LIMITS, &limited).unwrap_err(), bounds);
+}
+
+#[test]
+fn every_identification_detail_pairs_with_its_recorded_reason_code() {
+    use antecedent_identify::{mz_transport_refusal, validate_mz_transport_query};
+    let ctx = ExecutionContext::for_tests(1);
+    let (graph, q, full) =
+        (figure_1_graph(), query(vec![source_a(), source_b()]), complementary_catalog());
+    let pair = |error: &IdentificationError| mz_transport_refusal(error).unwrap();
+    // A bound: `route_not_supported`.
+    let bound = decide_mz_transport(
+        &graph,
+        &q,
+        &full,
+        SearchLimits { operations: MZ_TRANSPORT_DEFAULT_LIMITS.operations + 1, depth: 24 },
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(pair(&bound), ("route_not_supported", "mz_transport.bounds_exceeded"));
+    // An invalid query: `invalid_argument`.
+    let same_population = query(vec![source("target", &[Z2], &[Z1]), source_b()]);
+    let invalid_query = decide_mz_transport(
+        &graph,
+        &same_population,
+        &full,
+        MZ_TRANSPORT_DEFAULT_LIMITS,
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(pair(&invalid_query), ("invalid_argument", "mz_transport.invalid_query"));
+    // An invalid catalog (the target supplies an experiment): `invalid_argument`.
+    let experimental_target = catalog(vec![regime(0, "target", &[Z2])]);
+    let invalid_catalog = validate_mz_transport_query(&graph, &q, &experimental_target).unwrap_err();
+    assert_eq!(pair(&invalid_catalog), ("invalid_argument", "mz_transport.invalid_catalog"));
+    // An obstruction that does not verify: `transport_not_certified`.
+    let MzTransportDecision::ProvenNonTransportable(obstruction) =
+        decide(&query(vec![source_a(), unhelpful()]), &full)
+    else {
+        panic!("expected an obstruction");
+    };
+    let mut other_graph = figure_1_graph();
+    other_graph.insert_directed(DenseNodeId::from_raw(Z1), DenseNodeId::from_raw(Y)).unwrap();
+    let invalid_obstruction =
+        verify_mz_transport_obstruction(&other_graph, &obstruction, SidLimits::default(), &ctx)
+            .unwrap_err();
+    assert_eq!(
+        pair(&invalid_obstruction),
+        ("transport_not_certified", "mz_transport.invalid_obstruction")
+    );
+    // A derivation that does not replay: `transport_not_certified`.
+    let derivation = identified(decide(&q, &full));
+    let mut record = derivation.to_record();
+    record.search.operations_consumed += 1;
+    let invalid_derivation = antecedent_identify::MzTransportDerivation::from_record_checked(
+        &graph,
+        &q,
+        &full,
+        &record,
+        derivation.arena(),
+        MZ_TRANSPORT_DEFAULT_LIMITS,
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(
+        pair(&invalid_derivation),
+        ("transport_not_certified", "mz_transport.invalid_derivation")
+    );
+    // A cited regime the catalog lacks: `transport_missing_evidence`.
+    let missing = antecedent_identify::bind_mz_transport_catalog(
+        &graph,
+        &derivation,
+        &catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])]),
+    )
+    .unwrap_err();
+    assert_eq!(pair(&missing), ("transport_missing_evidence", "mz_transport.missing_joint_regime"));
+    // A stop: `transport_budget_cancel`.
+    assert_eq!(
+        pair(&IdentificationError::Cancelled),
+        ("transport_budget_cancel", "mz_transport.budget")
+    );
+    // Errors the route does not own carry no pair.
+    assert_eq!(mz_transport_refusal(&IdentificationError::msg("other")), None);
+    // Every decision outcome carries its own frozen pair.
+    for (decision, expected) in [
+        (decide(&query(vec![source_a(), unhelpful()]), &full), "mz_transport.checked_obstruction"),
+        (
+            decide(&q, &catalog(vec![regime(0, "target", &[]), regime(1, "a", &[Z2])])),
+            "mz_transport.missing_joint_regime",
+        ),
+    ] {
+        assert_eq!(decision.detail_code(), Some(expected));
+    }
+}

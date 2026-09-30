@@ -50,9 +50,10 @@ impl StudyBuilder {
     /// compile each identified scenario against supplied exact laws.
     ///
     /// `budget` is the one shared search budget of the set: each scenario
-    /// entered is charged at depth one with the decision's live bytes, and each
-    /// scenario's search and verification replay charge it too, against the
-    /// context's hard memory limit and cancellation.
+    /// entered is charged at depth one on top of the memory the scenarios
+    /// already decided keep holding, and each scenario's search, s-hedge check
+    /// and verification replay charge it too, against the context's hard memory
+    /// limit and cancellation.
     ///
     /// # Errors
     /// `schema_mismatch` for a catalog, law or request outside the shared
@@ -167,10 +168,12 @@ impl PreparedTransportScenarios {
         &self.inner
     }
 
-    /// Export a report with every premise needed for independent replay.
+    /// Export a report with every premise needed for independent replay. A
+    /// report truncated by an operation, depth or memory bound exports with its
+    /// recorded limits; one truncated by cancellation does not.
     ///
     /// # Errors
-    /// The premises do not encode.
+    /// The premises do not encode, or the report was truncated by cancellation.
     pub fn export(&self, report: &ScenarioSetReport) -> Result<Vec<u8>, IoError> {
         TransportScenarioArtifactWire::checked(&self.inner, &self.query, &self.catalog, report)?
             .export()

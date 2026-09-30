@@ -1,8 +1,11 @@
 //! The bounded-search contract every new 2.2 search runs under.
 //!
 //! A search cannot be built without operation and depth limits, and every
-//! charge also observes the [`ExecutionContext`]'s cancellation token and hard
-//! memory limit, so none of the four bounds is optional. A stopped search
+//! charge also observes the [`ExecutionContext`]'s cancellation token and a
+//! memory cap that is never absent: the effective cap is the smaller of the
+//! context's hard limit (when set) and the budget's own cap, which is
+//! [`DEFAULT_SEARCH_MEMORY_BYTES`] unless [`SearchBudget::with_memory`] sets
+//! another. None of the four bounds is optional. A stopped search
 //! returns a [`SearchReceipt`] recording the limits in force, what was
 //! consumed, and the explored and unevaluated regions; running out of budget is
 //! a resource outcome, never an impossibility or non-identification claim.
@@ -12,8 +15,13 @@
 
 use crate::execution::ExecutionContext;
 
-/// Operation and depth limits. Memory and cancellation come from the
-/// [`ExecutionContext`] the search is charged against.
+/// Default memory cap of a search budget: 512 MiB of estimated live state.
+pub const DEFAULT_SEARCH_MEMORY_BYTES: u64 = 512 * 1024 * 1024;
+
+/// Operation and depth limits. Cancellation and the hard memory limit come from
+/// the [`ExecutionContext`] the search is charged against; the memory cap
+/// itself defaults to [`DEFAULT_SEARCH_MEMORY_BYTES`] (see
+/// [`SearchBudget::with_memory`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SearchLimits {
     /// Maximum operations (rule applications, states or subproblems) charged.
@@ -61,7 +69,8 @@ pub struct SearchReceipt {
     pub operations_limit: usize,
     /// Depth limit in force.
     pub depth_limit: usize,
-    /// Hard memory limit in force, if the context set one.
+    /// Effective memory cap in force: always `Some`, the smaller of the
+    /// context's hard limit and the budget's cap.
     pub memory_limit_bytes: Option<u64>,
     /// Operations charged when the search stopped, if measured.
     pub operations_consumed: Option<usize>,
@@ -78,20 +87,46 @@ pub struct SearchReceipt {
 pub struct SearchBudget<'a> {
     limits: SearchLimits,
     ctx: &'a ExecutionContext,
+    memory_limit_bytes: u64,
     operations: usize,
     depth_reached: usize,
     entered: bool,
 }
 
 impl<'a> SearchBudget<'a> {
-    /// Start a budget. A zero limit or an already cancelled context stops
-    /// before the search is entered.
+    /// Start a budget under the default memory cap
+    /// ([`DEFAULT_SEARCH_MEMORY_BYTES`], further limited by the context's hard
+    /// limit). A zero limit or an already cancelled context stops before the
+    /// search is entered.
     ///
     /// # Errors
     ///
     /// Returns the receipt of that pre-search stop.
     pub fn new(limits: SearchLimits, ctx: &'a ExecutionContext) -> Result<Self, SearchReceipt> {
-        let budget = Self { limits, ctx, operations: 0, depth_reached: 0, entered: false };
+        Self::with_memory(limits, DEFAULT_SEARCH_MEMORY_BYTES, ctx)
+    }
+
+    /// [`Self::new`] under an explicit memory cap. The effective cap is the
+    /// smaller of `memory_limit_bytes` and the context's hard limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns the receipt of a pre-search stop.
+    pub fn with_memory(
+        limits: SearchLimits,
+        memory_limit_bytes: u64,
+        ctx: &'a ExecutionContext,
+    ) -> Result<Self, SearchReceipt> {
+        let memory_limit_bytes =
+            ctx.memory.hard_limit_bytes.map_or(memory_limit_bytes, |h| h.min(memory_limit_bytes));
+        let budget = Self {
+            limits,
+            ctx,
+            memory_limit_bytes,
+            operations: 0,
+            depth_reached: 0,
+            entered: false,
+        };
         let stop = if ctx.cancellation.is_cancelled() {
             Some(SearchStop::Cancelled)
         } else if limits.operations == 0 {
@@ -120,7 +155,7 @@ impl<'a> SearchBudget<'a> {
         if self.ctx.cancellation.is_cancelled() {
             return Err(SearchStop::Cancelled);
         }
-        if self.ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
+        if bytes > self.memory_limit_bytes {
             return Err(SearchStop::Memory);
         }
         if self.operations >= self.limits.operations {
@@ -145,6 +180,18 @@ impl<'a> SearchBudget<'a> {
         self.operations
     }
 
+    /// Deepest level charged so far.
+    #[must_use]
+    pub const fn depth_reached(&self) -> usize {
+        self.depth_reached
+    }
+
+    /// Effective memory cap in force.
+    #[must_use]
+    pub const fn memory_limit_bytes(&self) -> u64 {
+        self.memory_limit_bytes
+    }
+
     /// Record why and where the search stopped.
     #[must_use]
     pub fn receipt(
@@ -157,7 +204,7 @@ impl<'a> SearchBudget<'a> {
             stop,
             operations_limit: self.limits.operations,
             depth_limit: self.limits.depth,
-            memory_limit_bytes: self.ctx.memory.hard_limit_bytes,
+            memory_limit_bytes: Some(self.memory_limit_bytes),
             operations_consumed: self.entered.then_some(self.operations),
             depth_reached: self.entered.then_some(self.depth_reached),
             explored,
@@ -221,5 +268,30 @@ mod tests {
         );
         ctx.cancellation.cancel();
         assert_eq!(budget.charge(0, 0), Err(SearchStop::Cancelled));
+    }
+
+    #[test]
+    fn the_memory_bound_is_never_absent_and_is_the_smaller_of_cap_and_context() {
+        // No context limit: the default cap applies and is reported.
+        let ctx = ExecutionContext::for_tests(1);
+        assert_eq!(ctx.memory.hard_limit_bytes, None);
+        let mut budget = SearchBudget::new(LIMITS, &ctx).unwrap();
+        assert_eq!(budget.memory_limit_bytes(), DEFAULT_SEARCH_MEMORY_BYTES);
+        budget.charge(0, DEFAULT_SEARCH_MEMORY_BYTES).unwrap();
+        assert_eq!(budget.charge(0, DEFAULT_SEARCH_MEMORY_BYTES + 1), Err(SearchStop::Memory));
+        let receipt = budget.receipt(SearchStop::Memory, Vec::new(), Vec::new());
+        assert_eq!(receipt.memory_limit_bytes, Some(DEFAULT_SEARCH_MEMORY_BYTES));
+        // An explicit cap and the context limit: the smaller wins, either way round.
+        let mut small = SearchBudget::with_memory(LIMITS, 100, &ctx).unwrap();
+        assert_eq!(small.charge(0, 101), Err(SearchStop::Memory));
+        let mut limited = ExecutionContext::for_tests(1);
+        limited.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(50) };
+        let capped = SearchBudget::with_memory(LIMITS, 100, &limited).unwrap();
+        assert_eq!(capped.memory_limit_bytes(), 50);
+        let wider = SearchBudget::with_memory(LIMITS, 10, &limited).unwrap();
+        assert_eq!(wider.memory_limit_bytes(), 10);
+        // Pre-entry stops report the bound too.
+        let zero = SearchBudget::new(SearchLimits { operations: 0, depth: 1 }, &ctx).unwrap_err();
+        assert_eq!(zero.memory_limit_bytes, Some(DEFAULT_SEARCH_MEMORY_BYTES));
     }
 }

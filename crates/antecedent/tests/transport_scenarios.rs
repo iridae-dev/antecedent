@@ -467,9 +467,22 @@ fn artifact_keeps_every_scenario_and_fails_on_mutation() {
             antecedent_io::query_wire::ValueWire::from_value(&Value::f64(0.0))),
         TransportScenarioArtifactError::PremisesMismatch
     );
+    // The provider label is bound by the data identity; a consistent rewrite of
+    // that digest still has to agree with the laws and samples it names.
     assert_eq!(
         refused(&|w| w.provider = "transport.empirical_table_plugin".into()),
+        TransportScenarioArtifactError::DataIdentityMismatch
+    );
+    assert_eq!(
+        refused(&|w| {
+            w.provider = "transport.empirical_table_plugin".into();
+            w.data_digest = w.expected_data_digest().unwrap();
+        }),
         TransportScenarioArtifactError::ProviderMismatch("an empirical provider needs a sample")
+    );
+    assert_eq!(
+        refused(&|w| w.scenario_memory_bytes = Some(1 << 40)),
+        TransportScenarioArtifactError::PremisesMismatch
     );
     let small = TransportScenarioConsumeLimits {
         scenario_budget: SearchLimits { operations: 2, depth: 1 },
@@ -676,9 +689,11 @@ fn the_shared_budget_observes_depth_and_memory() {
     assert_eq!(receipt.operations_consumed, None);
     assert_eq!(receipt.unevaluated.len(), 3);
     assert!(report.scenarios.iter().all(|s| s.status == "unevaluated"));
-    // Each entered scenario is charged the decision's live bytes (three nodes:
-    // 9 * 64 + 512 = 1088 bytes per retained scenario): the first fits a
-    // 1500-byte hard limit, the second (2176 bytes live) does not.
+    // A scenario's engine holds 1088 bytes of live state per charged step (three
+    // nodes: 9 * 64 + 512): the 1500-byte hard limit fits one step, so the first
+    // scenario entered stops mid-search on its second charge. It is unevaluated,
+    // not decided, so it is not `explored`; the entry charge on a later scenario
+    // and the cumulative memory of the set are pinned in their own tests.
     let mut tight = ExecutionContext::for_tests(1);
     tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(1500) };
     let report = try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &tight)
@@ -688,7 +703,7 @@ fn the_shared_budget_observes_depth_and_memory() {
     let receipt = report.receipt.as_ref().unwrap();
     assert_eq!(receipt.stop, SearchStop::Memory);
     assert_eq!(receipt.memory_limit_bytes, Some(1500));
-    assert_eq!(receipt.explored, ["direct"]);
+    assert!(receipt.explored.is_empty());
     assert_eq!(receipt.unevaluated, ["direct", "outcome_shift", "standardize"]);
     assert!(report.scenarios.iter().all(|s| s.status == "unevaluated"));
 }
@@ -759,8 +774,9 @@ fn sample(
     }
 }
 
-#[test]
-fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
+/// The empirical fixture: a catalog with binary environments, and one trial and
+/// one target sample.
+fn empirical_fixture() -> (EvidenceCatalog, StatisticalTransportInput) {
     let regimes = catalog(true).regimes.to_vec();
     let catalog = EvidenceCatalog::try_new(
         vec![binary_environment("source"), binary_environment("target")],
@@ -786,6 +802,12 @@ fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
         &[(Z, &[0.0, 0.0, 0.0, 1.0]), (X, &[0.0, 1.0, 0.0, 1.0]), (Y, &[0.0, 1.0, 1.0, 0.0])],
     );
     let input = StatisticalTransportInput { supplied: Vec::new(), samples: vec![target, trial] };
+    (catalog, input)
+}
+
+#[test]
+fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
+    let (catalog, input) = empirical_fixture();
     let set = TransportScenarioSet::try_new(three(None)).unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let prepared = StudyBuilder::transport_scenarios_empirical(
@@ -817,12 +839,578 @@ fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
     assert!(close(status(&consumed, "standardize").1, 0.75 * 0.5 + 0.25 * (2.0 / 3.0)));
     let mut wire = TransportScenarioArtifactWire::decode(&bytes).unwrap();
     wire.samples[0].n += 1;
+    let consume = |wire: &TransportScenarioArtifactWire| match consume_transport_scenarios_artifact(
+        &wire.export().unwrap(),
+        TransportScenarioConsumeLimits::default(),
+        &ctx,
+    ) {
+        Err(IoError::TransportScenario(error)) => error,
+        other => panic!("expected a typed refusal, got {:?}", other.map(|r| r.scenarios.len())),
+    };
+    // The sample summary is bound by the data identity ...
+    assert_eq!(consume(&wire), TransportScenarioArtifactError::DataIdentityMismatch);
+    // ... and a consistent rewrite of the digest still has to match the fitted table.
+    wire.data_digest = wire.expected_data_digest().unwrap();
+    assert!(matches!(consume(&wire), TransportScenarioArtifactError::ProviderMismatch(_)));
+    // Bootstrap is fixed at zero: the plug-in tables are points, and they are
+    // fitted once for the whole set (one table per sample), not per scenario.
+    assert_eq!(prepared.prepared().data().laws().len(), 2);
+    let plan = prepared.prepared().plan_summary();
+    assert_eq!(plan.iter().filter(|(_, kind)| kind == "compiled").count(), 2);
+    // A snapshot label the report never shows cannot be edited, consistently in
+    // the fitted law and its sample summary, without breaking the data identity.
+    let mut relabelled = TransportScenarioArtifactWire::decode(&bytes).unwrap();
+    let old = relabelled.samples[0].snapshot.clone();
+    relabelled.samples[0].snapshot = "forged".into();
+    for law in relabelled.laws.iter_mut().filter(|law| law.snapshot == old) {
+        law.snapshot = "forged".into();
+    }
+    assert_eq!(consume(&relabelled), TransportScenarioArtifactError::DataIdentityMismatch);
+    let mut altered = TransportScenarioArtifactWire::decode(&bytes).unwrap();
+    altered.samples[0].content_digest = "0".repeat(altered.samples[0].content_digest.len());
+    assert_eq!(consume(&altered), TransportScenarioArtifactError::DataIdentityMismatch);
+}
+
+// ---------------------------------------------------------------------------
+// Data identity (D1)
+// ---------------------------------------------------------------------------
+
+/// `catalog(true)` with snapshot bindings for its two regimes.
+fn bound_catalog() -> EvidenceCatalog {
+    let binding = |regime: u32, snapshot: &str| antecedent_core::RegimeBinding {
+        dataset_identity: None,
+        regime: RegimeId::from_raw(regime),
+        snapshot_identity: Arc::from(snapshot),
+        schema_names: Arc::from([Arc::from("z"), Arc::from("x"), Arc::from("y")]),
+        sampling: antecedent_core::SamplingDesign::Independent,
+        weights: None,
+        dependence: antecedent_core::DependenceGroup::IndependentStudies,
+    };
+    EvidenceCatalog::try_new(
+        [],
+        catalog(true).regimes.to_vec(),
+        [binding(1, "trial"), binding(0, "target")],
+        None,
+    )
+    .unwrap()
+}
+
+fn consume_error(wire: &TransportScenarioArtifactWire) -> TransportScenarioArtifactError {
+    match consume_transport_scenarios_artifact(
+        &wire.export().unwrap(),
+        TransportScenarioConsumeLimits::default(),
+        &ExecutionContext::for_tests(1),
+    ) {
+        Err(IoError::TransportScenario(error)) => error,
+        other => panic!("expected a typed refusal, got {:?}", other.map(|r| r.scenarios.len())),
+    }
+}
+
+#[test]
+fn the_data_identity_binds_the_catalog_laws_provider_and_samples() {
+    let prepared = prepare(three(None), bound_catalog(), laws(SOURCE, true), BUDGET);
+    let ctx = ExecutionContext::for_tests(1);
+    let bytes = prepared.export(&prepared.estimate(&ctx).unwrap()).unwrap();
+    let original = TransportScenarioArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(original.data_digest, original.expected_data_digest().unwrap());
+    // A catalog binding's snapshot is data identity the report never shows.
+    let mut catalog = original.clone();
+    let mut edited = catalog.catalog.to_catalog().unwrap();
+    let mut bindings = edited.bindings.to_vec();
+    bindings[0].snapshot_identity = Arc::from("other");
+    edited.bindings = bindings.into();
+    catalog.catalog =
+        antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&edited);
+    assert_eq!(consume_error(&catalog), TransportScenarioArtifactError::DataIdentityMismatch);
+    // A law's snapshot label.
+    let mut law = original.clone();
+    law.laws[0].snapshot = "other".into();
+    assert_eq!(consume_error(&law), TransportScenarioArtifactError::DataIdentityMismatch);
+    // The provider.
+    let mut provider = original.clone();
+    provider.provider = antecedent_estimate::EMPIRICAL_TABLE_PLUGIN.into();
+    assert_eq!(consume_error(&provider), TransportScenarioArtifactError::DataIdentityMismatch);
+    // A sample summary an exact provider never had.
+    let mut samples = original.clone();
+    samples.samples = TransportScenarioArtifactWire::decode(&{
+        let (catalog, input) = empirical_fixture();
+        let set = TransportScenarioSet::try_new(three(None)).unwrap();
+        let empirical = StudyBuilder::transport_scenarios_empirical(
+            &set,
+            query(),
+            catalog,
+            BUDGET,
+            input,
+            1000,
+            request(),
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        empirical.export(&empirical.estimate(&ctx).unwrap()).unwrap()
+    })
+    .unwrap()
+    .samples;
+    assert_eq!(consume_error(&samples), TransportScenarioArtifactError::DataIdentityMismatch);
+    // The memory limit the set was decided under is a scientific premise.
+    let mut memory = original.clone();
+    memory.scenario_memory_bytes = Some(1 << 40);
+    assert_eq!(consume_error(&memory), TransportScenarioArtifactError::PremisesMismatch);
+    // Premises and data identity are separate digests: data can be replaced
+    // (refresh) without touching the premises.
+    let refreshed = prepared.refresh(laws([0.1, 0.3, 0.3, 0.3], true), &ctx).unwrap();
+    let after = TransportScenarioArtifactWire::decode(
+        &refreshed.export(&refreshed.estimate(&ctx).unwrap()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(after.premises_digest, original.premises_digest);
+    assert_ne!(after.data_digest, original.data_digest);
+}
+
+// ---------------------------------------------------------------------------
+// Coordinate schema on sample rows (D2)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sample_rows_are_validated_against_the_shared_schema() {
+    let ctx = ExecutionContext::for_tests(1);
+    let set = TransportScenarioSet::try_new(three(None)).unwrap();
+    let attempt = |edit: &dyn Fn(&mut StatisticalTransportInput)| {
+        let (catalog, mut input) = empirical_fixture();
+        edit(&mut input);
+        StudyBuilder::transport_scenarios_empirical(
+            &set,
+            query(),
+            catalog,
+            BUDGET,
+            input,
+            1000,
+            request(),
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+    };
+    // A binary outcome that takes the value 2, or a non-finite value.
+    for bad in [2.0, f64::NAN, -1.0] {
+        let (code, message) = refused_code(attempt(&|input| {
+            input.samples[1].columns.get_mut(&v(Y)).unwrap()[0] = Some(bad);
+        }));
+        assert_eq!(code, "schema_mismatch", "{bad}");
+        assert!(message.starts_with("scenarios.coordinate_mismatch"), "{message}");
+    }
+    // A column for a variable the schema does not declare.
+    let (code, _) = refused_code(attempt(&|input| {
+        input.samples[0].columns.insert(v(9), vec![Some(0.0); 5]);
+    }));
+    assert_eq!(code, "schema_mismatch");
+    // A concrete intervention outside the declared domain of its variable.
+    let (code, _) = refused_code(attempt(&|input| {
+        input.samples[1].interventions =
+            Arc::from([InterventionAssignment::concrete(v(X), Value::f64(3.0))]);
+    }));
+    assert_eq!(code, "schema_mismatch");
+    // A missing entry is not a value: it is refused or handled by missingness
+    // elsewhere, never as a domain violation of the schema.
+    assert!(attempt(&|_| {}).is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// Shared budget (D3)
+// ---------------------------------------------------------------------------
+
+/// Bytes an engine holds per charged step on the three-variable schema.
+const PER: u64 = 3 * 3 * 64 + 512;
+
+fn decided_with(
+    scenarios: Vec<TransportScenario>,
+    budget: SearchLimits,
+    memory: Option<u64>,
+) -> ScenarioSetDecision {
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: memory };
+    antecedent_identify::sid::scenarios::decide_transport_scenarios(
+        &TransportScenarioSet::try_new(scenarios).unwrap(),
+        &query(),
+        &catalog(true),
+        budget,
+        &ctx,
+    )
+    .unwrap()
+}
+
+/// The smallest hard memory limit (a multiple of one engine step) under which
+/// `scenarios` decide completely.
+fn memory_to_decide(scenarios: impl Fn() -> Vec<TransportScenario>) -> u64 {
+    (1..400u64)
+        .map(|k| k * PER)
+        .find(|limit| decided_with(scenarios(), BUDGET, Some(*limit)).receipt.is_none())
+        .expect("a small graph decides within 400 engine steps of memory")
+}
+
+fn only(name: &'static str) -> impl Fn() -> Vec<TransportScenario> {
+    move || three(None).into_iter().filter(|s| &*s.name == name).collect()
+}
+
+#[test]
+fn memory_is_cumulative_across_the_scenarios_of_a_set() {
+    // `outcome_shift` alone decides within its own peak; after `direct` has been
+    // decided, the memory `direct` keeps holding counts against it too.
+    let alone = memory_to_decide(only("outcome_shift"));
+    assert!(decided_with(only("outcome_shift")(), BUDGET, Some(alone)).receipt.is_none());
+    let set = decided_with(three(None), BUDGET, Some(alone));
+    let receipt = set.receipt.as_ref().expect("the set does not fit where one scenario does");
+    assert_eq!(receipt.stop, SearchStop::Memory);
+    assert_eq!(receipt.memory_limit_bytes, Some(alone));
+    assert_eq!(receipt.explored, ["direct"]);
+    assert_eq!(receipt.unevaluated, ["outcome_shift", "standardize"]);
+    // The whole set needs more than any one scenario, and decides at that limit.
+    let total = memory_to_decide(|| three(None));
+    assert!(total > alone, "{total} vs {alone}");
+}
+
+#[test]
+fn the_entry_charge_stops_a_later_scenario_before_its_search_starts() {
+    // `direct` is decided first (canonical order). Under exactly the memory it
+    // needs, the second scenario's entry charge (its graph on top of what
+    // `direct` holds) is the first charge to exceed the limit.
+    let direct_ops = operations_to_decide(|| vec![scenario("direct", &[], None)]);
+    let limit = memory_to_decide(only("direct"));
+    let at_entry = decided_with(three(None), BUDGET, Some(limit));
+    let receipt = at_entry.receipt.as_ref().unwrap();
+    assert_eq!(receipt.stop, SearchStop::Memory);
+    assert_eq!(
+        receipt.operations_consumed,
+        Some(direct_ops),
+        "no operation of the second scenario"
+    );
+    assert_eq!(receipt.explored, ["direct"]);
+    assert_eq!(receipt.unevaluated, ["outcome_shift", "standardize"]);
+    let statuses = at_entry.decisions.iter().map(|d| d.outcome.status()).collect::<Vec<_>>();
+    assert_eq!(statuses, ["identified", "unevaluated", "unevaluated"]);
+    // One more graph of room lets the second scenario enter and search; the
+    // limit then stops it in the middle of its search, after further operations.
+    let mid = decided_with(three(None), BUDGET, Some(limit + PER));
+    let receipt = mid.receipt.as_ref().unwrap();
+    assert_eq!(receipt.stop, SearchStop::Memory);
+    assert!(receipt.operations_consumed.unwrap() > direct_ops);
+    assert_eq!(receipt.explored, ["direct"]);
+    assert_eq!(receipt.unevaluated, ["outcome_shift", "standardize"]);
+}
+
+#[test]
+fn the_depth_limit_stops_a_scenario_in_the_middle_of_its_search() {
+    let decides = |depth: usize| {
+        decided_with(three(None), SearchLimits { operations: 100_000, depth }, None)
+            .receipt
+            .is_none()
+    };
+    let needed = (1..256).find(|d| decides(*d)).unwrap();
+    assert!(needed > 1, "the entry charge is at depth one; searches go deeper");
+    let stopped =
+        decided_with(three(None), SearchLimits { operations: 100_000, depth: needed - 1 }, None);
+    let receipt = stopped.receipt.as_ref().unwrap();
+    assert_eq!(receipt.stop, SearchStop::Depth);
+    // The stop came after the scenario was entered, not at the door.
+    assert!(receipt.operations_consumed.unwrap() > 1, "{receipt:?}");
+    assert!(receipt.depth_reached.unwrap() >= needed);
+    assert!(stopped.decisions.iter().any(|d| d.outcome.status() == "unevaluated"));
+}
+
+#[test]
+fn explored_and_unevaluated_scenarios_are_disjoint_and_cover_the_set() {
+    let total = operations_to_decide(|| three(None));
+    for operations in 1..total {
+        let decision = decided_under(three(None), operations);
+        let receipt = decision.receipt.as_ref().unwrap();
+        for name in &receipt.explored {
+            assert!(
+                !receipt.unevaluated.contains(name),
+                "{name} is both explored and unevaluated after {operations} operations"
+            );
+        }
+        let mut all = receipt.explored.iter().chain(&receipt.unevaluated).collect::<Vec<_>>();
+        all.sort();
+        assert_eq!(all, ["direct", "outcome_shift", "standardize"], "{operations}");
+        // Explored is exactly the scenarios that were decided.
+        let decided = decision
+            .decisions
+            .iter()
+            .filter(|d| d.outcome.status() != "unevaluated")
+            .map(|d| d.scenario.name.to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(receipt.explored, decided, "{operations}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Truncated reports and artifacts (D3e)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_report_truncated_by_cancellation_is_not_exported() {
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.progress = Some(Arc::new(CancelAfterFirst(ctx.cancellation.clone())));
+    let prepared =
+        try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &ctx).unwrap();
+    let report = prepared.estimate(&ExecutionContext::for_tests(1)).unwrap();
+    assert_eq!(report.receipt.as_ref().unwrap().stop, SearchStop::Cancelled);
+    // No consumer can reproduce where the interruption fell, so the exporter
+    // refuses instead of writing an artifact that can only fail replay.
     assert!(matches!(
-        consume_transport_scenarios_artifact(
-            &wire.export().unwrap(),
-            TransportScenarioConsumeLimits::default(),
-            &ctx
-        ),
-        Err(IoError::TransportScenario(TransportScenarioArtifactError::ProviderMismatch(_)))
+        prepared.export(&report),
+        Err(IoError::TransportScenario(TransportScenarioArtifactError::CancelledNotReplayable))
     ));
+}
+
+#[test]
+fn a_report_truncated_by_a_recorded_bound_replays_to_the_identical_prefix() {
+    let consume = |bytes: &[u8]| {
+        consume_transport_scenarios_artifact(
+            bytes,
+            TransportScenarioConsumeLimits::default(),
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap()
+    };
+    let same = |a: &ScenarioSetReport, b: &ScenarioSetReport| {
+        let statuses =
+            |r: &ScenarioSetReport| r.scenarios.iter().map(|s| s.status).collect::<Vec<_>>();
+        assert_eq!(statuses(a), statuses(b));
+        let (ra, rb) = (a.receipt.as_ref().unwrap(), b.receipt.as_ref().unwrap());
+        assert_eq!(
+            (ra.stop, &ra.explored, &ra.unevaluated),
+            (rb.stop, &rb.explored, &rb.unevaluated)
+        );
+        assert_eq!(ra.operations_consumed, rb.operations_consumed);
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    // Operation count.
+    let direct = operations_to_decide(|| vec![scenario("direct", &[], None)]);
+    for operations in [direct, direct + 5] {
+        let prepared = prepare(
+            three(None),
+            catalog(true),
+            laws(SOURCE, true),
+            SearchLimits { operations, depth: 256 },
+        );
+        let report = prepared.estimate(&ctx).unwrap();
+        same(&report, &consume(&prepared.export(&report).unwrap()));
+    }
+    // Memory: the producer's hard limit is recorded, and the consumer replays
+    // under it even though its own context has no limit.
+    for limit in [memory_to_decide(only("direct")), memory_to_decide(only("direct")) + PER] {
+        let mut tight = ExecutionContext::for_tests(1);
+        tight.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(limit) };
+        let prepared =
+            try_prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET, &tight).unwrap();
+        let report = prepared.estimate(&ctx).unwrap();
+        assert_eq!(report.receipt.as_ref().unwrap().stop, SearchStop::Memory);
+        same(&report, &consume(&prepared.export(&report).unwrap()));
+    }
+    // Depth.
+    let prepared = prepare(
+        three(None),
+        catalog(true),
+        laws(SOURCE, true),
+        SearchLimits { operations: 100_000, depth: 2 },
+    );
+    let report = prepared.estimate(&ctx).unwrap();
+    assert_eq!(report.receipt.as_ref().unwrap().stop, SearchStop::Depth);
+    same(&report, &consume(&prepared.export(&report).unwrap()));
+}
+
+// ---------------------------------------------------------------------------
+// Empirical path (D4)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn empirical_tables_are_fitted_once_and_coverage_is_per_scenario() {
+    let (catalog, input) = empirical_fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let set = TransportScenarioSet::try_new(three(None)).unwrap();
+    let prepare = |input: StatisticalTransportInput| {
+        StudyBuilder::transport_scenarios_empirical(
+            &set,
+            query(),
+            catalog.clone(),
+            BUDGET,
+            input,
+            1000,
+            request(),
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap()
+    };
+    let full = prepare(input.clone());
+    // Two identified scenarios, two samples, two fitted tables: fitted once for
+    // the set, never once per scenario.
+    let data = full.prepared().data();
+    assert_eq!(data.laws().len(), input.samples.len());
+    assert!(
+        data.laws()
+            .iter()
+            .all(|law| { law.origin() == antecedent_expr::LawOrigin::EmpiricalPlugin })
+    );
+    assert_eq!(full.prepared().plan_summary().iter().filter(|(_, k)| k == "compiled").count(), 2);
+    // Without the target sample, `standardize` (whose derivation cites the
+    // target law) has no provider while `direct` (source only) still compiles:
+    // coverage is decided per scenario against the one set of fitted tables.
+    let trial_only =
+        StatisticalTransportInput { supplied: Vec::new(), samples: vec![input.samples[1].clone()] };
+    let partial = prepare(trial_only);
+    assert_eq!(partial.prepared().data().laws().len(), 1);
+    let report = partial.estimate(&ctx).unwrap();
+    assert_eq!(status(&report, "standardize").0, "unsupported_provider");
+    assert_eq!(status(&report, "direct").0, "identified");
+    assert!(close(status(&report, "direct").1, 0.6));
+}
+
+// ---------------------------------------------------------------------------
+// Order-independent masses (D5)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn weights_that_sum_to_one_leave_no_unaccounted_mass_whatever_the_names() {
+    // 0.7 + 0.2 + 0.1 is 0.9999999999999999 added left to right and 1.0 right to
+    // left: the result must not depend on which order the names put them in.
+    let selections: [&[u32]; 3] = [&[], &[Z], &[X]];
+    let weights = [0.7, 0.2, 0.1];
+    let mut sums = Vec::new();
+    for names in [["a", "b", "c"], ["c", "b", "a"], ["b", "c", "a"]] {
+        let scenarios =
+            (0..3).map(|k| scenario(names[k], selections[k], Some(weights[k]))).collect();
+        let report = prepare(scenarios, catalog(true), laws(SOURCE, true), BUDGET)
+            .estimate(&ExecutionContext::for_tests(1))
+            .unwrap();
+        assert!(report.scenarios.iter().all(|s| s.status == "identified"), "{names:?}");
+        let weighted = report.weighted.as_ref().unwrap();
+        assert_eq!(weighted.unaccounted_mass, 0.0, "{names:?}");
+        assert_eq!(report.residual_mass, Some(0.0), "{names:?}");
+        let (_, lo, hi) = weighted.ranges.as_ref().unwrap()[0];
+        assert_eq!(lo.to_bits(), hi.to_bits(), "a point once every unit of mass is accounted for");
+        sums.push((
+            weighted.identified_mass.to_bits(),
+            weighted.identified_weighted_sums[0].1.to_bits(),
+        ));
+    }
+    assert!(sums.iter().all(|s| *s == sums[0]), "{sums:?}");
+}
+
+// ---------------------------------------------------------------------------
+// Classical route scope (D6, D7)
+// ---------------------------------------------------------------------------
+
+/// The classical row's own limits say only single-outcome four-node families are
+/// enumerated against a latent-SCM oracle; the route itself is a sound checker
+/// (a derivation or an s-hedge, each independently verified) for any selection
+/// ADMG. This sweep looks for a real input on which the scenario path returns
+/// `not_certified`: random ADMGs of five to nine variables, several outcomes and
+/// treatments, random selections. None is found, so the route's `not_certified`
+/// status stays exercised only by a supplied decision (see the test above).
+#[test]
+fn no_random_admg_makes_the_classical_route_return_not_certified() {
+    let ctx = ExecutionContext::for_tests(1);
+    let mut seed = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    let mut statuses = std::collections::BTreeMap::<&str, usize>::new();
+    for _ in 0..1500 {
+        let n = 5 + (next() % 5) as u32;
+        let mut graph = Admg::with_variables(n);
+        for a in 0..n {
+            for b in (a + 1)..n {
+                if next() % 3 == 0 {
+                    graph
+                        .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                        .unwrap();
+                }
+                if next() % 4 == 0 {
+                    let _ =
+                        graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b));
+                }
+            }
+        }
+        let selections = (0..n).filter(|_| next() % 3 == 0).map(v).collect::<Vec<_>>();
+        let Ok(diagram) = SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections))
+        else {
+            continue;
+        };
+        let (mut outcomes, mut treatments) = (Vec::new(), Vec::new());
+        for i in 0..n {
+            match next() % 3 {
+                0 => outcomes.push(v(i)),
+                1 => treatments.push(v(i)),
+                _ => {}
+            }
+        }
+        if outcomes.is_empty() || treatments.is_empty() {
+            continue;
+        }
+        let coordinates = (0..n)
+            .map(|i| ScenarioCoordinate {
+                variable: v(i),
+                name: Arc::from(format!("v{i}")),
+                domain: VariableDomain::Binary,
+                unit: None,
+            })
+            .collect();
+        let Ok(set) = TransportScenarioSet::try_new(vec![TransportScenario {
+            name: Arc::from("only"),
+            diagram,
+            weight: None,
+            coordinates,
+        }]) else {
+            continue;
+        };
+        let everything = (0..n).map(v).collect::<Vec<_>>();
+        let measured = everything.iter().copied().filter(|x| !treatments.contains(x));
+        let regimes = vec![
+            regime_over(1, "source", &treatments, measured.collect()),
+            regime_over(0, "target", &[], everything),
+        ];
+        let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
+        let query = ClassicalTransportQuery {
+            outcomes: outcomes.into(),
+            treatments: treatments.into(),
+            source: Arc::from("source"),
+            target: Arc::from("target"),
+        };
+        let decision = antecedent_identify::sid::scenarios::decide_transport_scenarios(
+            &set,
+            &query,
+            &catalog,
+            SearchLimits { operations: 200_000, depth: 256 },
+            &ctx,
+        )
+        .unwrap();
+        *statuses.entry(decision.decisions[0].outcome.status()).or_default() += 1;
+    }
+    assert!(statuses.get("identified").copied().unwrap_or(0) > 100, "{statuses:?}");
+    assert!(statuses.get("structurally_unidentified").copied().unwrap_or(0) > 10, "{statuses:?}");
+    assert_eq!(statuses.get("not_certified"), None, "{statuses:?}");
+    assert_eq!(statuses.get("unevaluated"), None, "{statuses:?}");
+}
+
+fn regime_over(
+    id: u32,
+    population: &str,
+    interventions: &[VariableId],
+    measured: Vec<VariableId>,
+) -> EvidenceRegime {
+    EvidenceRegime::try_new(
+        RegimeId::from_raw(id),
+        if interventions.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental },
+        EvidenceKind::Available,
+        interventions.to_vec(),
+        [],
+        measured,
+        population,
+        DistributionAvailability::Joint,
+    )
+    .unwrap()
 }

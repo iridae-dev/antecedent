@@ -8,7 +8,12 @@
 //! and it needs them to reproduce any budget truncation), recompiles and
 //! re-evaluates, and accepts
 //! only a report identical to the stored one: statuses, proofs, points, masses,
-//! envelope, weighted report and receipt.
+//! envelope, weighted report and receipt. Two digests guard the stored
+//! premises: the scientific premises digest (scenarios, weights, schema,
+//! question, request, budgets) and a separate data-identity digest (catalog,
+//! laws, provider, sample summaries), so refreshed data replaces only the
+//! latter. A report cut short by cancellation is never exported: nothing
+//! recorded lets a consumer reproduce where the interruption fell.
 
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
@@ -57,6 +62,14 @@ pub enum TransportScenarioArtifactError {
     /// The stored laws disagree with the recorded provider or its samples.
     #[error("scenario provider mismatch: {0}")]
     ProviderMismatch(&'static str),
+    /// The stored catalog, laws, provider or sample summaries do not match the
+    /// data-identity digest.
+    #[error("scenario data identity mismatch")]
+    DataIdentityMismatch,
+    /// The report was truncated by cancellation, which no consumer can
+    /// reproduce: it is never exported.
+    #[error("a report truncated by cancellation cannot be independently verified")]
+    CancelledNotReplayable,
 }
 
 /// A refused scenario set, schema or law as a reason-coded refusal.
@@ -400,6 +413,28 @@ pub struct TransportScenarioArtifactWire {
     /// Digest of the scenario set, weights, schema, question, request and
     /// budgets: its scientific identity.
     pub premises_digest: String,
+    /// Digest of the data identity: the catalog (regimes, environments and
+    /// snapshot bindings), every law, the provider and the fitted-sample
+    /// summaries. Separate from the premises so refreshed data replaces it.
+    pub data_digest: String,
+}
+
+/// Data identity of a scenario-set execution: the evidence catalog with its
+/// regimes, environments and snapshot bindings, every stored law (its
+/// population, regime, interventions, axes, snapshot, tolerances, origin and
+/// masses), the provider identity and the fitted-sample summaries (population,
+/// regime, snapshot, interventions, size and content digest). Deliberately not
+/// part of [`scenario_set_identity`]: refresh replaces data and keeps the
+/// scientific premises.
+///
+/// # Errors
+/// Encoding failure.
+pub fn scenario_data_identity(wire: &TransportScenarioArtifactWire) -> Result<String, IoError> {
+    Ok(crate::identity::digest_wire(
+        IdentityDomain::TransportCertificate,
+        &("transport_scenarios_data_v1", &wire.provider, &wire.catalog, &wire.laws, &wire.samples),
+    )?
+    .to_hex())
 }
 
 /// Scientific identity of a scenario-set execution: canonical scenarios (sorted
@@ -541,14 +576,24 @@ impl TransportScenarioArtifactWire {
     /// Build an artifact from a prepared set and the report it produced. The
     /// limits recorded are the ones the decision ran under.
     ///
+    /// A report truncated by an operation, depth or memory bound exports: the
+    /// limits are recorded and the consumer reproduces the identical prefix. A
+    /// report truncated by cancellation does not, because nothing recorded lets
+    /// a consumer reproduce where the interruption fell.
+    ///
     /// # Errors
-    /// The premises do not encode.
+    /// The premises do not encode, or the report was truncated by cancellation
+    /// ([`TransportScenarioArtifactError::CancelledNotReplayable`]).
     pub fn checked(
         prepared: &PreparedScenarioSet,
         query: &ClassicalTransportQuery,
         catalog: &antecedent_core::EvidenceCatalog,
         report: &ScenarioSetReport,
     ) -> Result<Self, IoError> {
+        if report.receipt.as_ref().is_some_and(|r| r.stop == antecedent_core::SearchStop::Cancelled)
+        {
+            return Err(TransportScenarioArtifactError::CancelledNotReplayable.into());
+        }
         let decision = prepared.decision();
         let decided = decision.limits;
         let limits = prepared.limits();
@@ -586,9 +631,19 @@ impl TransportScenarioArtifactWire {
             depth_limit: limits.depth,
             report: ScenarioReportWire::from_report(prepared, report),
             premises_digest: String::new(),
+            data_digest: String::new(),
         };
         wire.premises_digest = scenario_set_identity(&wire)?;
+        wire.data_digest = scenario_data_identity(&wire)?;
         Ok(wire)
+    }
+
+    /// The data-identity digest these stored data would carry.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn expected_data_digest(&self) -> Result<String, IoError> {
+        scenario_data_identity(self)
     }
 
     /// Encode as CBOR.
@@ -662,6 +717,9 @@ impl TransportScenarioArtifactWire {
         wire.check_limits(&limits, ctx)?;
         if scenario_set_identity(&wire)? != wire.premises_digest {
             return Err(TransportScenarioArtifactError::PremisesMismatch.into());
+        }
+        if scenario_data_identity(&wire)? != wire.data_digest {
+            return Err(TransportScenarioArtifactError::DataIdentityMismatch.into());
         }
         let coordinates = wire
             .coordinates

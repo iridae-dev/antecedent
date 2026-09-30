@@ -128,6 +128,12 @@ def identify_multi_source_z_transport(
     always). Counted laws return the point with the interval withheld as
     ``cell_not_licensed``: the multi-source interval route stays closed until its
     coverage records are measured, so ``interval["available"]`` is ``False``.
+    The search memory bound is never absent: ``memory_bytes`` (default ``None``)
+    tightens the 512 MiB default cap, it cannot remove it, and the live-state
+    estimate is cumulative across every stage of the one decision. An identified
+    decision reports its ``search_receipt`` (limits in force, operations consumed,
+    depth reached, stages explored and left unevaluated), which the exported
+    artifact stores and a consumer replays and compares exactly.
     Preparing a decision that did not identify raises its typed reason
     (``transport_missing_evidence``, ``transport_budget_cancel``,
     ``transport_proven_non_transportable`` or ``transport_not_certified``).
@@ -177,7 +183,9 @@ def consume_multi_source_z_transport_artifact(
     """Independently verify an exported multi-source result and recompute its point.
 
     The consumer re-runs the bounded decision on the stored graph, query and
-    catalog under its own search limits, re-binds every factor to its source,
+    catalog under the search limits the proof stores (refused when they exceed
+    the consumer's own maxima), compares the stored search receipt exactly,
+    re-binds every factor to its source,
     recomputes every point and contrast bit for bit and rechecks the interval
     bookkeeping. The search and evaluation limits, requests and variable names
     are bound by the premises digest and the snapshot ids by the data-identity

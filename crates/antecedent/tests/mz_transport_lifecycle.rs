@@ -162,6 +162,7 @@ fn refused(bytes: &[u8]) -> MzTransportArtifactError {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)] // One artifact, every mutation of it.
 fn a_mutated_artifact_fails_independent_consumption() {
     let (catalog, data) = evidence();
     let prepared = prepare(&catalog, data, false);
@@ -230,9 +231,77 @@ fn a_mutated_artifact_fails_independent_consumption() {
         consume_mz_transport_artifact(&rebound, MzTransportConsumeLimits::default(), &ctx),
         Err(IoError::Refused { .. })
     ));
+    // Catalog contents beyond the snapshot ids are bound by the data digest too:
+    // the sampling design, the dependence declaration and the target sampling.
+    let sampling = mutate(&|w| {
+        let mut catalog = w.catalog.to_catalog().unwrap();
+        let mut bindings = catalog.bindings.to_vec();
+        bindings[0].sampling = antecedent_core::SamplingDesign::Clustered;
+        bindings[0].dependence = antecedent_core::DependenceGroup::UnknownDependence;
+        catalog.bindings = bindings.into();
+        w.catalog =
+            antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&catalog);
+    });
+    assert_ne!(MzTransportArtifactWire::decode(&sampling).unwrap().catalog, original.catalog);
+    assert!(matches!(refused(&sampling), MzTransportArtifactError::DataIdentityMismatch));
+    let target = mutate(&|w| {
+        w.catalog.target_sampling = Some("convenience_sample".into());
+    });
+    assert!(matches!(refused(&target), MzTransportArtifactError::DataIdentityMismatch));
+    // The search receipt is part of the checked proof: the consumer replays under
+    // the stored limits and compares every field it can reproduce exactly.
+    let consistent = |edit: &dyn Fn(&mut MzTransportArtifactWire)| {
+        mutate(&|w| {
+            edit(w);
+            w.premises_digest = w.expected_premises_digest().unwrap();
+        })
+    };
+    assert!(original.proof.search.operations_consumed > 0);
+    for edit in [
+        (&|w: &mut MzTransportArtifactWire| w.proof.search.operations_consumed += 1)
+            as &dyn Fn(&mut MzTransportArtifactWire),
+        &|w| w.proof.search.depth_reached += 1,
+        &|w| w.proof.search.explored.pop().map(|_| ()).unwrap(),
+        &|w| w.proof.search.unevaluated.push("stage:extra".into()),
+        // Limits the decision cannot fit inside never replay to the stored receipt.
+        &|w| {
+            w.proof.search.operations_limit = w.proof.search.operations_consumed - 1;
+            w.search_operations = w.proof.search.operations_limit;
+        },
+        &|w| w.proof.search.memory_limit_bytes = 1,
+    ] {
+        let edited = consistent(edit);
+        assert!(matches!(refused(&edited), MzTransportArtifactError::ProofMismatch(_)));
+    }
+    // The stored limits and the proof's receipt must agree.
+    let split = consistent(&|w| w.search_operations -= 1);
+    assert!(matches!(refused(&split), MzTransportArtifactError::UnsupportedSemantics(_)));
+    // A stored memory cap above the consumer's maximum refuses.
+    let wide = consistent(&|w| w.proof.search.memory_limit_bytes += 1);
+    assert!(matches!(refused(&wide), MzTransportArtifactError::LimitsExceeded(_)));
+    // Every record pairing is `(code, detail)`: a proof that does not replay is
+    // `transport_not_certified` / `mz_transport.invalid_derivation`.
+    let forged = consistent(&|w| w.proof.search.operations_consumed += 1);
+    let MzTransportArtifactError::ProofMismatch(inner) = refused(&forged) else { unreachable!() };
+    assert_eq!(
+        antecedent_identify::mz_transport_refusal(&inner),
+        Some(("transport_not_certified", "mz_transport.invalid_derivation"))
+    );
+    assert_eq!(
+        MzTransportArtifactError::ProofMismatch(inner).refusal(),
+        Some(("transport_not_certified", "mz_transport.invalid_derivation"))
+    );
     // Uncertainty bookkeeping cannot claim an interval exact laws do not have.
     let claimed = mutate(&|w| w.uncertainty.status = MZ_NOMINAL_INTERVAL.into());
-    assert!(matches!(refused(&claimed), MzTransportArtifactError::UncertaintyMismatch(_)));
+    assert_interval_refused(
+        consume_mz_transport_artifact(&claimed, MzTransportConsumeLimits::default(), &ctx)
+            .map(|_| ()),
+    );
+    let relabelled_reason = mutate(&|w| w.uncertainty.reason = "estimator_grid_not_measured".into());
+    assert!(matches!(
+        refused(&relabelled_reason),
+        MzTransportArtifactError::UncertaintyMismatch(_)
+    ));
     // A consumer with smaller search limits than the producer refuses.
     let small = MzTransportConsumeLimits {
         search: antecedent_core::SearchLimits { operations: 10, depth: 24 },
@@ -261,6 +330,71 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
     assert!(!uncertainty.available());
     assert!(uncertainty.mean_intervals.is_empty() && uncertainty.seed.is_none());
     assert_eq!(uncertainty.dependence_reason, None);
+    // No public accessor yields an interval: only the bookkeeping, which is empty.
+    assert!(
+        uncertainty.contrast_intervals.is_empty()
+            && uncertainty.method.is_none()
+            && uncertainty.coverage_target.is_none()
+            && uncertainty.replicates_requested == 0
+    );
+    // Every public route that could yield or accept an interval refuses it. A
+    // struct-literal nominal interval is refused by the producer ...
+    let forged_run = MzUncertaintyWire {
+        status: MZ_NOMINAL_INTERVAL.into(),
+        seed: Some(1),
+        method: Some(antecedent_estimate::PERCENTILE_BOOTSTRAP.into()),
+        coverage_target: Some(0.95),
+        replicates_requested: 39,
+        ..uncertainty.clone()
+    };
+    assert!(forged_run.available());
+    let shared_graph = graph();
+    let input = |uncertainty: MzUncertaintyWire| MzTransportArtifactInput {
+        graph: &shared_graph,
+        functional: prepared.functional(),
+        search: MZ_TRANSPORT_DEFAULT_LIMITS,
+        data: prepared.data(),
+        requests: prepared.requests(),
+        limits: ExactEvaluationLimits::default(),
+        variable_names: &[],
+        results: result.distributions(),
+        uncertainty,
+    };
+    assert_interval_refused(MzTransportArtifactWire::checked(input(forged_run), &ctx).map(|_| ()));
+    // ... and an interval-carrying artifact, built by the internal constructor the
+    // calibration harness uses, is refused by every public consumer.
+    let run = antecedent_estimate::mz_transport_bootstrap_interval(
+        prepared.functional(),
+        prepared.data(),
+        prepared.requests(),
+        ExactEvaluationLimits::default(),
+        39,
+        0.95,
+        &ctx,
+    )
+    .unwrap();
+    let carrying = MzTransportArtifactWire::checked_with_interval(
+        input(MzUncertaintyWire::from_bootstrap(&run, 39, 0.95, 5)),
+        &ctx,
+    )
+    .unwrap()
+    .export()
+    .unwrap();
+    assert_interval_refused(
+        MzTransportArtifactWire::consume(&carrying, &ctx).map(|_| ()),
+    );
+    assert_interval_refused(
+        MzTransportArtifactWire::consume_with_limits(
+            &carrying,
+            MzTransportConsumeLimits::default(),
+            &ctx,
+        )
+        .map(|_| ()),
+    );
+    assert_interval_refused(
+        consume_mz_transport_artifact(&carrying, MzTransportConsumeLimits::default(), &ctx)
+            .map(|_| ()),
+    );
     // The artifact carries the same refusal and a consumer rechecks it.
     let bytes = result.export(&prepared, &ctx).unwrap();
     let consumed =
@@ -303,33 +437,58 @@ fn an_internal_interval_is_recomputed_bit_for_bit_and_refused_by_public_consumer
     .unwrap();
     assert!(run.is_ok());
     let uncertainty = MzUncertaintyWire::from_bootstrap(&run, 39, 0.95, 9);
-    let bytes = MzTransportArtifactWire::checked(
-        MzTransportArtifactInput {
-            graph: &graph(),
-            functional: prepared.functional(),
-            search: MZ_TRANSPORT_DEFAULT_LIMITS,
-            data: &data,
-            requests: prepared.requests(),
-            limits: ExactEvaluationLimits::default(),
-            variable_names: &[],
-            results: result.distributions(),
-            uncertainty,
-        },
-        &ctx,
+    let shared_graph = graph();
+    let input = || MzTransportArtifactInput {
+        graph: &shared_graph,
+        functional: prepared.functional(),
+        search: MZ_TRANSPORT_DEFAULT_LIMITS,
+        data: &data,
+        requests: prepared.requests(),
+        limits: ExactEvaluationLimits::default(),
+        variable_names: &[],
+        results: result.distributions(),
+        uncertainty: uncertainty.clone(),
+    };
+    // No public producer builds an interval artifact: the closed route refuses.
+    assert_interval_refused(MzTransportArtifactWire::checked(input(), &ctx).map(|_| ()));
+    let bytes = MzTransportArtifactWire::checked_with_interval(input(), &ctx)
+        .unwrap()
+        .export()
+        .unwrap();
+    // No public io consumer accepts one either, however it is called.
+    assert_interval_refused(
+        MzTransportArtifactWire::consume(&bytes, &ExecutionContext::for_tests(0)).map(|_| ()),
+    );
+    assert_interval_refused(
+        MzTransportArtifactWire::consume_with_limits(
+            &bytes,
+            MzTransportConsumeLimits::default(),
+            &ExecutionContext::for_tests(0),
+        )
+        .map(|_| ()),
+    );
+    // The internal (calibration-only) consumer recomputes the stored interval from its seed ...
+    let consumed = MzTransportArtifactWire::consume_with_interval(
+        &bytes,
+        MzTransportConsumeLimits::default(),
+        &ExecutionContext::for_tests(0),
     )
-    .unwrap()
-    .export()
     .unwrap();
-    // The io consumer recomputes the stored interval from its seed ...
-    let consumed =
-        MzTransportArtifactWire::consume(&bytes, &ExecutionContext::for_tests(0)).unwrap();
     assert_eq!(consumed.wire.uncertainty.status, MZ_NOMINAL_INTERVAL);
     // ... and refuses moved bounds, a moved contrast bound, or another seed.
     let original = MzTransportArtifactWire::decode(&bytes).unwrap();
     let refuse = |edit: &dyn Fn(&mut MzUncertaintyWire)| {
         let mut wire = original.clone();
         edit(&mut wire.uncertainty);
-        match MzTransportArtifactWire::consume(&wire.export().unwrap(), &ctx) {
+        let bytes = wire.export().unwrap();
+        // The public consumer refuses every variant as the closed route first ...
+        assert_interval_refused(MzTransportArtifactWire::consume(&bytes, &ctx).map(|_| ()));
+        // ... and the recompute rejects the edited bookkeeping.
+        match MzTransportArtifactWire::consume_with_interval(
+            &bytes,
+            MzTransportConsumeLimits::default(),
+            &ctx,
+        ) {
             Err(IoError::MzTransport(MzTransportArtifactError::UncertaintyMismatch(_))) => {}
             other => panic!("expected an uncertainty mismatch, got {:?}", other.map(|_| ())),
         }
@@ -339,13 +498,24 @@ fn an_internal_interval_is_recomputed_bit_for_bit_and_refused_by_public_consumer
     refuse(&|u| u.contrast_intervals[0].2 -= 1e-12);
     refuse(&|u| u.seed = Some(10));
     refuse(&|u| u.replicates_requested = 41);
-    // A public consumer refuses any carried interval while the route is closed.
-    match consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx) {
-        Err(IoError::Refused { code, message }) => {
+    // The facade consumer refuses any carried interval while the route is closed.
+    assert_interval_refused(
+        consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx)
+            .map(|_| ()),
+    );
+}
+
+/// The one refusal every public route gives an interval-bearing artifact: the
+/// `(code, detail)` pair `cell_not_licensed` / `mz_transport.interval_withheld`.
+fn assert_interval_refused(result: Result<(), IoError>) {
+    match result {
+        Err(error @ IoError::Refused { .. }) => {
+            assert_eq!(error.reason_code(), Some("cell_not_licensed"));
+            let IoError::Refused { code, message } = error else { unreachable!() };
             assert_eq!(code, "cell_not_licensed");
-            assert!(message.starts_with("mz_transport.interval_withheld"));
+            assert!(message.starts_with("mz_transport.interval_withheld"), "{message}");
         }
-        other => panic!("expected cell_not_licensed, got {:?}", other.map(|_| ())),
+        other => panic!("expected cell_not_licensed, got {other:?}"),
     }
 }
 
@@ -439,4 +609,86 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     assert!(exact_prepared.refresh(foreign, &ctx).is_err());
     // An empirical preparation refuses tables without counts.
     assert!(prepared.refresh(exact_prepared.data().clone(), &ctx).is_err());
+}
+
+#[test]
+fn preparation_refusals_carry_their_recorded_code_and_detail() {
+    let (catalog, exact) = evidence();
+    let ctx = ExecutionContext::for_tests(11);
+    let MzTransportDecision::Identified { derivation, .. } = decide_mz_transport(
+        &graph(),
+        &query(sources()),
+        &catalog,
+        MZ_TRANSPORT_DEFAULT_LIMITS,
+        &ctx,
+    )
+    .unwrap() else {
+        panic!("the complementary catalog identifies");
+    };
+    let functional = bind_mz_transport_catalog(&graph(), &derivation, &catalog).unwrap();
+    let pair = |error: IoError| match error {
+        IoError::Refused { code, message } => {
+            let detail = message.split(':').next().unwrap().to_owned();
+            assert_eq!(IoError::Refused { code, message }.reason_code(), Some(code));
+            (code, detail)
+        }
+        other => panic!("expected a coded refusal, got {other:?}"),
+    };
+    // A functional decided on another graph.
+    let mut other_graph = graph();
+    other_graph
+        .insert_directed(
+            antecedent_graph::DenseNodeId::from_raw(0),
+            antecedent_graph::DenseNodeId::from_raw(3),
+        )
+        .unwrap();
+    let mismatch = StudyBuilder::mz_transport(
+        other_graph,
+        functional.clone(),
+        MZ_TRANSPORT_DEFAULT_LIMITS,
+        exact.clone(),
+        vec![request(true)],
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(
+        pair(mismatch),
+        ("invalid_argument", "mz_transport.functional_graph_mismatch".to_owned())
+    );
+    // An empirical preparation over laws without counts.
+    let counts = StudyBuilder::mz_transport_empirical(
+        graph(),
+        functional,
+        MZ_TRANSPORT_DEFAULT_LIMITS,
+        exact,
+        vec![request(true)],
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(
+        pair(counts),
+        ("transport_missing_provider", "mz_transport.empirical_counts_required".to_owned())
+    );
+}
+
+#[test]
+fn the_facade_error_reports_the_recorded_top_level_code() {
+    use antecedent::CausalError;
+    use antecedent_identify::IdentificationError;
+    let proof = CausalError::Serialization(IoError::MzTransport(
+        MzTransportArtifactError::ProofMismatch(IdentificationError::invalid_derivation(
+            "mz_transport.invalid_derivation",
+        )),
+    ));
+    assert_eq!(proof.reason_code(), Some("transport_not_certified"));
+    let bound = CausalError::Identify(IdentificationError::UnsupportedInput {
+        code: "mz_transport.bounds_exceeded",
+    });
+    assert_eq!(bound.reason_code(), Some("route_not_supported"));
+    let invalid = CausalError::Identify(IdentificationError::invalid_input(
+        "mz_transport.invalid_query: source populations must be distinct",
+    ));
+    assert_eq!(invalid.reason_code(), Some("invalid_argument"));
 }

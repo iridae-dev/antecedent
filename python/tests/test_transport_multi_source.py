@@ -302,6 +302,29 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     assert withheld["interval"]["reason"] == "cell_not_licensed"
     assert withheld["interval"]["dependence_reason"] == "sampling_dependence_unknown"
     assert risk(withheld) == pytest.approx(risk(result))
+    # No public Python route builds or yields an interval.
+    for owner in (with_studies, transport):
+        assert not [
+            name
+            for name in dir(owner)
+            if "bootstrap" in name.lower() or name.lower().startswith("interval")
+        ]
+    # An artifact that claims an interval is refused as the closed route by the
+    # consumer: `cell_not_licensed` with the `mz_transport.interval_withheld` detail.
+    exact = identified_stage().prepare_exact(laws(), {"x": 1.0})
+    exact.estimate()
+    artifact = exact.export()
+    claimed = _edit_inner(
+        artifact,
+        lambda inner: _replace_once(
+            inner, b"\x6apoint_only", b"\x70nominal_interval"
+        ),
+    )
+    assert claimed != artifact
+    with pytest.raises(CausalUnsupportedError) as refused:
+        transport.consume_multi_source_z_transport_artifact(claimed)
+    assert refused.value.reason_code == "cell_not_licensed"
+    assert "mz_transport.interval_withheld" in str(refused.value)
 
 
 def test_refresh_keeps_the_proof_and_refuses_other_snapshots():
@@ -413,6 +436,61 @@ def test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan():
         prepared.export()
 
 
+_MZ_PREFIX = b"ANTECEDENT-MZ-TRANSPORT\x01"
+
+
+def _cbor_head(buf, i):
+    initial = buf[i]
+    major, info = initial >> 5, initial & 31
+    i += 1
+    if info < 24:
+        return major, info, i
+    width = {24: 1, 25: 2, 26: 4, 27: 8}[info]
+    return major, int.from_bytes(buf[i : i + width], "big"), i + width
+
+
+def _edit_inner(artifact, edit):
+    """Apply ``edit`` to the inner CBOR bytes of a framed artifact and re-frame.
+
+    The frame is the magic prefix and the CBOR array ``[names, [byte, ...]]``.
+    """
+    assert artifact.startswith(_MZ_PREFIX)
+    body = artifact[len(_MZ_PREFIX) :]
+    _, _, i = _cbor_head(body, 0)  # the two-element frame
+    _, count, i = _cbor_head(body, i)  # names
+    for _ in range(count):
+        _, length, i = _cbor_head(body, i)
+        i += length
+    names_end = i
+    _, n, i = _cbor_head(body, i)
+    inner = bytearray()
+    for _ in range(n):
+        _, value, i = _cbor_head(body, i)
+        inner.append(value)
+    assert i == len(body)
+    edited = bytes(edit(bytes(inner)))
+    out = bytearray(_MZ_PREFIX) + body[:names_end]
+    out += _cbor_uint(4, len(edited))
+    for byte in edited:
+        out += _cbor_uint(0, byte)
+    return bytes(out)
+
+
+def _cbor_uint(major, value):
+    if value < 24:
+        return bytes([major << 5 | value])
+    if value < 256:
+        return bytes([major << 5 | 24, value])
+    if value < 65536:
+        return bytes([major << 5 | 25]) + value.to_bytes(2, "big")
+    return bytes([major << 5 | 26]) + value.to_bytes(4, "big")
+
+
+def _replace_once(inner, old, new):
+    assert inner.count(old) == 1, (old, inner.count(old))
+    return inner.replace(old, new)
+
+
 def _swap_first(data, a, b):
     i, j = data.index(a), data.index(b)
     out = bytearray(data)
@@ -445,9 +523,49 @@ def test_export_binds_names_limits_and_snapshots_into_the_verified_identity():
     assert renamed != artifact
     with pytest.raises(CausalSerializationError, match="data identity digest mismatch"):
         transport.consume_multi_source_z_transport_artifact(renamed)
-    # A consumer with smaller limits than the producer refuses.
+    # A consumer with smaller limits than the producer refuses ...
     with pytest.raises(CausalResourceError):
         transport.consume_multi_source_z_transport_artifact(artifact, max_search_operations=10)
+    # ... and the limits the artifact itself stores are bound too: editing the
+    # stored search limits in the frame (not just the consumer's argument) is refused.
+    ops = _cbor_uint(0, 4096)
+    stored_ops = _edit_inner(
+        artifact,
+        lambda inner: _replace_once(
+            inner, b"search_operations" + ops, b"search_operations" + _cbor_uint(0, 4095)
+        ),
+    )
+    assert stored_ops != artifact
+    with pytest.raises(CausalSerializationError, match="premises digest mismatch"):
+        transport.consume_multi_source_z_transport_artifact(stored_ops)
+    stored_depth = _edit_inner(
+        artifact,
+        lambda inner: _replace_once(
+            inner, b"search_depth" + _cbor_uint(0, 24), b"search_depth" + _cbor_uint(0, 23)
+        ),
+    )
+    with pytest.raises(CausalSerializationError, match="premises digest mismatch"):
+        transport.consume_multi_source_z_transport_artifact(stored_depth)
+    # The operation and evaluation limits are bound the same way.
+    stored_eval = _edit_inner(
+        artifact,
+        lambda inner: _replace_once(
+            inner, b"depth_limit" + _cbor_uint(0, 256), b"depth_limit" + _cbor_uint(0, 255)
+        ),
+    )
+    with pytest.raises(CausalSerializationError, match="premises digest mismatch"):
+        transport.consume_multi_source_z_transport_artifact(stored_eval)
+    # The search receipt is stored with the proof and reported on consumption.
+    receipt = consumed["proof"]["search"]
+    assert receipt["operations_limit"] == 4096 and receipt["depth_limit"] == 24
+    assert receipt["memory_limit_bytes"] == 512 * 1024 * 1024
+    assert receipt["operations_consumed"] > 0 and receipt["depth_reached"] > 0
+    assert receipt["explored"][-1] == "stage:multi_source" and receipt["unevaluated"] == []
+    # A consumer whose own memory limit is below the stored cap refuses.
+    with pytest.raises(CausalSerializationError) as refused:
+        transport.consume_multi_source_z_transport_artifact(artifact, memory_bytes=1 << 20)
+    assert refused.value.reason_code == "route_not_supported"
+    assert "mz_transport.bounds_exceeded" in str(refused.value)
 
 
 def test_consumer_recomputes_points_and_contrasts_after_builder_disposal():
@@ -521,8 +639,9 @@ def test_a_fabricated_cross_source_joint_is_refused():
     decision = stage.decision()
     assert decision["reason"] == "transport_not_certified"
     assert {"stage": "multi_source", "outcome": "not_certified"} in decision["stages"]
-    with pytest.raises(CausalUnsupportedError, match="transport_not_certified"):
+    with pytest.raises(CausalUnsupportedError, match="transport_not_certified") as raised:
         stage.prepare_exact((), {"x": 1.0})
+    assert _pair(raised) == ("transport_not_certified", "mz_transport.fabricated_joint")
 
 
 def test_model_artifact_and_selected_sample_regimes_never_satisfy_a_factor():
@@ -548,3 +667,74 @@ def test_distinct_studies_are_the_declared_independence_the_interval_reports():
     interval = json.loads(same_study.estimate())["interval"]
     assert interval["dependence_reason"] == "sampling_dependence_unknown"
     assert interval["reason"] == "cell_not_licensed"
+
+
+def _pair(exc):
+    """The (reason code, mz_transport detail) pair a raised refusal carries."""
+    message = str(exc.value)
+    detail = next(w.strip(":") for w in message.split() if w.startswith("mz_transport."))
+    return exc.value.reason_code, detail
+
+
+def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
+    # Non-identified decisions refuse preparation with their own frozen pair.
+    missing = transport.identify_multi_source_z_transport(
+        graph=graph(), query=query(source_a(), source_b()), catalog=catalog(omit=("b_z1_0",))
+    )
+    with pytest.raises(CausalUnsupportedError) as raised:
+        missing.prepare_exact(laws(omit=("b_z1_0",)), {"x": 1.0})
+    assert _pair(raised) == ("transport_missing_evidence", "mz_transport.missing_joint_regime")
+    obstruction = transport.identify_multi_source_z_transport(
+        graph=graph(), query=query(source_a(), unhelpful()), catalog=catalog()
+    )
+    with pytest.raises(CausalUnsupportedError) as raised:
+        obstruction.prepare_exact(laws(), {"x": 1.0})
+    assert _pair(raised) == (
+        "transport_proven_non_transportable",
+        "mz_transport.checked_obstruction",
+    )
+    exhausted = transport.identify_multi_source_z_transport(
+        graph=graph(), query=query(source_a(), source_b()), catalog=catalog(), max_operations=3
+    )
+    with pytest.raises(Exception, match="mz_transport.budget") as raised:
+        exhausted.prepare_exact(laws(), {"x": 1.0})
+    assert raised.value.reason_code == "transport_budget_cancel"
+    # A bound: route_not_supported.
+    with pytest.raises(CausalUnsupportedError) as raised:
+        transport.identify_multi_source_z_transport(
+            graph=graph(),
+            query=query(source_a(), source_b()),
+            catalog=catalog(),
+            max_operations=4097,
+        )
+    assert _pair(raised) == ("route_not_supported", "mz_transport.bounds_exceeded")
+    # An invalid catalog (the target supplies an experiment): invalid_argument.
+    bad = catalog()
+    experimental = transport.EvidenceRegime(
+        "target_do",
+        "target",
+        kind="experimental",
+        interventions=["z1"],
+        intervention_values={"z1": 0.0},
+        measured=["x", "z2", "y"],
+    )
+    bad = transport.EvidenceCatalog(
+        environments=bad.environments,
+        regimes=(*bad.regimes, experimental),
+        bindings=(
+            *bad.bindings,
+            transport.RegimeBinding(
+                "target_do", "snap-target_do", sampling="independent",
+                dependence="independent_studies",
+            ),
+        ),
+    )
+    with pytest.raises(Exception) as raised:
+        transport.identify_multi_source_z_transport(
+            graph=graph(), query=query(source_a(), source_b()), catalog=bad
+        )
+    assert _pair(raised) == ("invalid_argument", "mz_transport.invalid_catalog")
+    # Empirical preparation over laws without counts.
+    with pytest.raises(Exception, match="mz_transport.empirical_counts_required") as raised:
+        identified_stage().prepare_empirical(laws(), {"x": 1.0})
+    assert raised.value.reason_code == "transport_missing_provider"
