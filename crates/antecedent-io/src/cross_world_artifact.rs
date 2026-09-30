@@ -19,10 +19,15 @@
 //! What replay protects against: corruption and any edit that is not re-sealed,
 //! and an edit that is re-sealed but changes the derivation or the point. What it
 //! does not protect against: a producer that seals a wrong table or query on
-//! purpose (the consumer replays whatever premises it is given), and an
-//! evaluator bug (the same evaluator recomputes the point; for the
-//! linear-Gaussian family the facade additionally cross-checks the point with a
-//! separate closed-form OLS implementation).
+//! purpose (the consumer replays whatever premises it is given), and a bug shared
+//! by the fitter and the evaluator (the same code recomputes the point). For that
+//! last case the facade additionally recomputes the point for both mechanism
+//! families by a separate implementation that shares no code with them
+//! (ordinary least squares for the linear-Gaussian family, a Givens-QR
+//! ridge-stabilized basis regression for the non-separable one) and refuses on
+//! disagreement; a singular or ill-conditioned design is replay-verified only.
+//! Model adequacy, consistency and Markovianity remain named premises that no
+//! check verifies.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -79,8 +84,8 @@ pub enum CrossWorldArtifactError {
     /// The recomputed point differs from the stored point.
     #[error("point does not replay")]
     PointMismatch,
-    /// A separate closed-form recomputation of the point (linear-Gaussian family)
-    /// disagrees with the replayed point.
+    /// A separate closed-form recomputation of the point (either mechanism
+    /// family) disagrees with the replayed point.
     #[error("independent closed-form check disagrees with the replayed point")]
     IndependentCheckMismatch,
     /// The replay itself refused or failed.

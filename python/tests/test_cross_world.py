@@ -270,13 +270,14 @@ def test_the_artifact_binds_its_data_and_reports_the_closed_form_cross_check():
         path_specific_effect(mediation_dag(), other, intervention([("x", "y")])).data_digest
         != result.data_digest
     )
-    # The non-separable family replays but has no closed form to cross-check.
+    # The non-separable family is cross-checked by its own independent regression.
     ns, _ = non_separable_data(400, outcome_noise=1.0)
     produced = path_specific_effect(
         mediation_dag(), ns, intervention([("x", "y")]), mechanism="non_separable_basis"
     )
     replayed = consume_cross_world_artifact(produced.artifact)
-    assert replayed.point == produced.point and not replayed.independently_verified
+    assert replayed.point == produced.point
+    assert not produced.independently_verified and replayed.independently_verified
 
 
 @pytest.mark.parametrize("mechanism", ["linear_gaussian", "non_separable_basis"])

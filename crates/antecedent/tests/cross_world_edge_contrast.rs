@@ -722,8 +722,9 @@ fn artifact_bytes() -> (Vec<u8>, f64) {
 }
 
 /// The artifact round-trips and the consumer replays the same point, witness and
-/// query: same evaluator, plus a separate closed-form OLS recomputation for the
-/// linear-Gaussian family (not applicable to the non-separable basis).
+/// query: same evaluator, plus a separate closed-form recomputation for both
+/// mechanism families (ordinary least squares for the linear-Gaussian family, a
+/// Givens-QR basis regression for the non-separable one).
 #[test]
 fn artifact_round_trip_is_replayed_by_the_consumer() {
     let (bytes, point) = artifact_bytes();
@@ -756,25 +757,28 @@ fn artifact_round_trip_is_replayed_by_the_consumer() {
     let replayed = consume_cross_world_artifact(&noisy.export_artifact().unwrap(), &ctx).unwrap();
     assert!(replayed.independently_verified);
     assert!((replayed.point - 4.0 * 0.8 * 3.0).abs() < 1e-9);
-    // The non-separable basis has no closed form here: replayed, not cross-checked.
+    // The non-separable basis is cross-checked by its own independent regression,
+    // for every edge set (natural direct, natural indirect and the total).
     let table = NonSeparable::with_outcome_noise(300, 1.0).table();
     let options = CrossWorldOptions {
         mechanism: NestedOutcomeMechanism::NonSeparableBasis,
         interval_requested: false,
     };
-    let produced = evaluate_cross_world_effect(
-        mediation_dag(),
-        &table,
-        &edge_query(-1.0, 2.0, &[(X, Y)]),
-        options,
-        &ctx,
-    )
-    .unwrap();
-    assert!(!produced.independently_verified);
-    let replayed =
-        consume_cross_world_artifact(&produced.export_artifact().unwrap(), &ctx).unwrap();
-    assert_eq!(replayed.point.to_bits(), produced.point.to_bits());
-    assert!(!replayed.independently_verified);
+    for intervened in [&[(X, Y)][..], &[(X, M), (M, Y)], &EDGES, &[(X, M)]] {
+        let produced = evaluate_cross_world_effect(
+            mediation_dag(),
+            &table,
+            &edge_query(-1.0, 2.0, intervened),
+            options,
+            &ctx,
+        )
+        .unwrap();
+        assert!(!produced.independently_verified, "a fresh effect is not yet verified");
+        let replayed =
+            consume_cross_world_artifact(&produced.export_artifact().unwrap(), &ctx).unwrap();
+        assert_eq!(replayed.point.to_bits(), produced.point.to_bits());
+        assert!(replayed.independently_verified, "{intervened:?}");
+    }
 }
 
 /// The artifact is bound to its data: a caller's own digest of the table accepts

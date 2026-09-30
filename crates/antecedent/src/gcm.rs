@@ -371,24 +371,46 @@ impl NestedCounterfactualOperation {
 /// Fit every mechanism of the nested route's model under `mechanism`.
 ///
 /// Shared by the natural-direct-effect operation and the cross-world edge
-/// contrast, so both read the same fitted structural model.
+/// contrast, so both read the same fitted structural model. The natural direct
+/// effect route calls this unpolled form, so its behavior is unchanged.
 pub(crate) fn fit_nested_mechanisms(
     compiled: &CompiledCausalModel,
     data: &TabularData,
     mechanism: NestedOutcomeMechanism,
     outcome: VariableId,
 ) -> Result<CompiledMechanismStore, CausalError> {
+    fit_nested_mechanisms_polled(compiled, data, mechanism, outcome, "", &|| false)
+}
+
+/// [`fit_nested_mechanisms`] that asks `cancelled` before every node, every
+/// candidate family and every cross-validation fold fit of the model crate's
+/// fitting loops, and stops with [`CausalError::Cancelled`] (`stage`, no partial
+/// store) when it answers `true`. The fitted mechanisms are identical to the
+/// unpolled form's: polling only reads the token.
+pub(crate) fn fit_nested_mechanisms_polled(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    mechanism: NestedOutcomeMechanism,
+    outcome: VariableId,
+    stage: &'static str,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<CompiledMechanismStore, CausalError> {
+    let map = |error: ModelError| match error {
+        ModelError::Cancelled => CausalError::Cancelled { stage },
+        other => map_model(other),
+    };
     match mechanism {
         NestedOutcomeMechanism::LinearGaussian => Ok(MechanismRegistry::standard()
-            .assign_and_fit(
+            .assign_and_fit_polled(
                 compiled,
                 data,
                 SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+                cancelled,
             )
-            .map_err(map_model)?
+            .map_err(map)?
             .0),
         NestedOutcomeMechanism::NonSeparableBasis => {
-            fit_non_separable_nested_outcome(compiled, data, outcome)
+            fit_non_separable_nested_outcome_polled(compiled, data, outcome, stage, cancelled)
         }
     }
 }
@@ -402,19 +424,36 @@ pub(crate) fn fit_nested_mechanisms(
 /// expansion and cross-parent products make the outcome a non-additive function
 /// of treatment and mediator. The disturbance stays additive, so abduction
 /// inverts it and the counterfactual replay round-trips.
+#[cfg(test)]
 fn fit_non_separable_nested_outcome(
     compiled: &CompiledCausalModel,
     data: &TabularData,
     outcome: VariableId,
 ) -> Result<CompiledMechanismStore, CausalError> {
+    fit_non_separable_nested_outcome_polled(compiled, data, outcome, "", &|| false)
+}
+
+/// [`fit_non_separable_nested_outcome`] that polls `cancelled` (see
+/// [`fit_nested_mechanisms_polled`]).
+fn fit_non_separable_nested_outcome_polled(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    outcome: VariableId,
+    stage: &'static str,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<CompiledMechanismStore, CausalError> {
     let registry = MechanismRegistry::standard();
     let (_, mut assignments) = registry
-        .assign_and_fit(
+        .assign_and_fit_polled(
             compiled,
             data,
             SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+            cancelled,
         )
-        .map_err(map_model)?;
+        .map_err(|e| match e {
+            ModelError::Cancelled => CausalError::Cancelled { stage },
+            other => map_model(other),
+        })?;
     let mut retargeted = false;
     for assignment in &mut assignments {
         if assignment.variable == outcome {
@@ -429,7 +468,12 @@ fn fit_non_separable_nested_outcome(
         });
     }
     let weights = vec![1.0_f64; data.row_count()];
-    registry.refit_weighted(compiled, data, &assignments, &weights).map_err(map_mechanism_fit)
+    registry.refit_weighted_polled(compiled, data, &assignments, &weights, cancelled).map_err(|e| {
+        match e {
+            ModelError::Cancelled => CausalError::Cancelled { stage },
+            other => map_mechanism_fit(other),
+        }
+    })
 }
 
 /// Map a mechanism-fit failure, turning non-convergence into a reason-coded

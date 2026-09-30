@@ -13,7 +13,7 @@ identification: an edge set with a recanting witness is refused with
 ``cross_world_not_identified``, and the artifact stores the derivation
 (assumptions, rerouted edges, the counterfactual nodes the estimand needs) that
 a consumer replays from the stored graph, query and table (same evaluator, plus a
-closed-form cross-check for the linear-Gaussian family).
+separate closed-form recomputation for both mechanism families).
 """
 
 from __future__ import annotations
@@ -124,9 +124,11 @@ class CrossWorldEffect:
     ``unit_effects`` holds one contrast per unit (row order), each computed from
     that unit's own abduced exogenous terms in both worlds; the point is their
     mean. ``data_digest`` identifies the factual table the point was computed on.
-    ``independently_verified`` is true on a consumed artifact of the
-    ``linear_gaussian`` family whose point a separate closed-form least-squares
-    recomputation reproduced. Consistency (a unit's observed values are its values
+    ``independently_verified`` is true on a consumed artifact (either mechanism
+    family) whose point a separate implementation (ordinary least squares for
+    ``linear_gaussian``, a QR basis regression for ``non_separable_basis``)
+    reproduced; it stays false for a singular or ill-conditioned design, which is
+    replay-verified only. Consistency (a unit's observed values are its values
     under the treatment received) is a named assumption that holds by construction
     of abduction; it is not checked from the data.
     """
@@ -210,8 +212,8 @@ def path_specific_effect(
 def consume_cross_world_artifact(artifact: bytes, *, seed: int = 1) -> CrossWorldEffect:
     """Replay an exported artifact from its stored premises and accept only an identical one.
 
-    The replay uses the same evaluator (plus, for ``linear_gaussian``, a separate
-    closed-form least-squares cross-check). It detects corruption and re-sealed
+    The replay uses the same evaluator plus a separate closed-form recomputation
+    of the point for both mechanism families. It detects corruption and re-sealed
     edits that change the derivation or the point; it does not detect a producer
     that seals a wrong table or query on purpose.
     """

@@ -316,6 +316,22 @@ impl MechanismRegistry {
         assignments: &[MechanismAssignment],
         weights: &[f64],
     ) -> Result<CompiledMechanismStore, ModelError> {
+        self.refit_weighted_polled(model, data, assignments, weights, &|| false)
+    }
+
+    /// [`Self::refit_weighted`] that asks `cancelled` before every node and stops
+    /// with [`ModelError::Cancelled`] (no partial store) when it answers `true`.
+    ///
+    /// # Errors
+    /// As [`Self::refit_weighted`], and [`ModelError::Cancelled`].
+    pub fn refit_weighted_polled(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        assignments: &[MechanismAssignment],
+        weights: &[f64],
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<CompiledMechanismStore, ModelError> {
         let total: f64 = weights.iter().sum();
         if weights.len() != data.row_count()
             || weights.iter().any(|w| !w.is_finite() || *w <= 0.0)
@@ -332,6 +348,7 @@ impl MechanismRegistry {
         let mut slots = vec![MechanismSlot::Vacant; model.n_nodes()];
         let mut ws = LeastSquaresWorkspace::default();
         for gather in model.parent_gathers.iter() {
+            poll(cancelled)?;
             let assignment =
                 assignments.iter().find(|a| a.node == gather.child).ok_or_else(|| {
                     ModelError::Shape { message: "missing mechanism assignment".into() }
@@ -377,6 +394,24 @@ impl MechanismRegistry {
         data: &TabularData,
         policy: SelectionPolicy,
     ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
+        self.assign_and_fit_polled(model, data, policy, &|| false)
+    }
+
+    /// [`Self::assign_and_fit`] that asks `cancelled` before every node, before
+    /// every candidate family and before every cross-validation fold fit, and
+    /// stops with [`ModelError::Cancelled`] (no partial store) when it answers
+    /// `true`. With `|| false` it is exactly [`Self::assign_and_fit`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::assign_and_fit`], and [`ModelError::Cancelled`].
+    pub fn assign_and_fit_polled(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        policy: SelectionPolicy,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(CompiledMechanismStore, Vec<MechanismAssignment>), ModelError> {
         let n = model.n_nodes();
         let nrows = data.row_count();
         if nrows == 0 {
@@ -388,6 +423,7 @@ impl MechanismRegistry {
         let mut ls_ws = LeastSquaresWorkspace::default();
 
         for gather in model.parent_gathers.iter() {
+            poll(cancelled)?;
             let node = gather.child;
             let var = model.output_layout.variables[node.as_usize()];
             let y = data.float64_cow(var).map_err(ModelError::from)?;
@@ -403,7 +439,8 @@ impl MechanismRegistry {
             let mut fits: Vec<(MechanismFamily, MechanismSlot)> = Vec::new();
             let mut failed = Vec::new();
             for &family in families {
-                match score_family(family, &frame, &y, backend, &mut ls_ws) {
+                poll(cancelled)?;
+                match score_family(family, &frame, &y, backend, &mut ls_ws, cancelled) {
                     // A non-finite score is not a low score: it is the family's own admissibility
                     // gate (see `CONSTANT_FAMILY_MAX_VARIANCE` above) reporting that the fit is
                     // not a candidate at all. Treat it exactly like an `Err` from the fit itself —
@@ -415,6 +452,8 @@ impl MechanismRegistry {
                         candidates.push(c);
                         fits.push((family, slot));
                     }
+                    // Cancellation is not a family failure: it must stop the whole fit.
+                    Err(ModelError::Cancelled) => return Err(ModelError::Cancelled),
                     Err(e) => failed.push((family, e.to_string())),
                 }
             }
@@ -668,6 +707,7 @@ fn oof_mean_loglik(
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<f64, ModelError> {
     let n = y.len();
     let categorical = family_is_categorical(family);
@@ -679,6 +719,7 @@ fn oof_mean_loglik(
     let mut scored = 0usize;
     let mut last_fold_error: Option<ModelError> = None;
     for k in 0..folds {
+        poll(cancelled)?;
         let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
         if train.len() < 2 || test.is_empty() {
             continue;
@@ -729,12 +770,14 @@ fn oof_linear_residuals(
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<f64>, ModelError> {
     let n = y.len();
     let fold = cv_fold_plan(n, None)?;
     let folds = fold.iter().copied().max().map_or(0, |m| m + 1);
     let mut residual = vec![0.0; n];
     for k in 0..folds {
+        poll(cancelled)?;
         let (train, test): (Vec<usize>, Vec<usize>) = (0..n).partition(|&r| fold[r] != k);
         if train.len() < 2 || test.is_empty() {
             continue;
@@ -804,12 +847,18 @@ fn parameter_count(slot: &MechanismSlot, n_parents: usize) -> f64 {
     count as f64
 }
 
+/// Cooperative cancellation point of the polled fitting entry points.
+fn poll(cancelled: &dyn Fn() -> bool) -> Result<(), ModelError> {
+    if cancelled() { Err(ModelError::Cancelled) } else { Ok(()) }
+}
+
 fn score_family(
     family: MechanismFamily,
     frame: &FitFrame<'_>,
     y: &[f64],
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<(MechanismCandidate, MechanismSlot), ModelError> {
     let fitted = fit_frame_family(family, frame, y, backend, ls_ws, None)?;
     let n = y.len();
@@ -853,7 +902,7 @@ fn score_family(
             let residual = if matches!(fitted, MechanismSlot::LinearGaussianStateSpace { .. }) {
                 y.to_vec()
             } else {
-                oof_linear_residuals(frame, y, backend, ls_ws)?
+                oof_linear_residuals(frame, y, backend, ls_ws, cancelled)?
             };
             let state = MechanismSlot::LinearGaussianStateSpace {
                 a: *a,
@@ -865,7 +914,7 @@ fn score_family(
             log_prob_column(&state, &residual, ParentBatch::empty(n), &mut lp)?;
             lp.iter().sum::<f64>() / n.max(1) as f64 - penalty
         }
-        _ => oof_mean_loglik(family, frame, y, backend, ls_ws)? - penalty,
+        _ => oof_mean_loglik(family, frame, y, backend, ls_ws, cancelled)? - penalty,
     };
     Ok((
         MechanismCandidate { family, score, fit_cost: 1.0 + p as f64, eval_cost: 1.0 + p as f64 },
