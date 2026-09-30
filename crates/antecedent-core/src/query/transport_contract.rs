@@ -316,7 +316,12 @@ impl TheoremScope {
     /// variables, 2–4 sources, 4 controllables per source and 64 candidate
     /// regimes, so it is sound and incomplete; a failure is an obstruction only
     /// when evaluated over the declared controllable sets, and budget exhaustion
-    /// is never one.
+    /// is never one. Checked against R-443: Theorem 5 (`TR^mz` complete) rests on
+    /// Theorem 4 (a line-12 failure yields an mz*-shedge) and Theorem 3 (a shedge
+    /// precludes transportability). This contract certifies an obstruction only
+    /// at a failure reached with no active experiment where no source can
+    /// exchange, a strict subset of the paper's failures; a failure after an
+    /// exchange (e.g. Fig. 1(e,f) split across two sources) is `not_certified`.
     #[must_use]
     pub fn mz_transportability() -> Self {
         Self {

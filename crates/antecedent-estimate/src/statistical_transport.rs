@@ -1255,6 +1255,7 @@ fn bootstrap_draw(
     true
 }
 
+#[cfg(feature = "calibration-internal")]
 /// Joint percentile-bootstrap intervals for a multi-source mz functional.
 ///
 /// Every replicate draws all cited tables once under one replicate id and
@@ -1283,6 +1284,7 @@ pub struct MzTransportIntervals {
     pub replicates_failed: u32,
 }
 
+#[cfg(feature = "calibration-internal")]
 /// Pointwise intervals of one request of a joint mz bootstrap.
 #[derive(Clone, Debug)]
 pub struct MzRequestInterval {
@@ -1341,6 +1343,7 @@ pub fn mz_sampling_dependence(
     Ok(())
 }
 
+#[cfg(feature = "calibration-internal")]
 /// The spec of the internal mz joint bootstrap: one row bootstrap per cited
 /// dataset and replicate on the classical bootstrap stream, with counts kept.
 const fn mz_bootstrap_spec(replicates: u32, coverage_level: f64) -> ZDrawSpec {
@@ -1391,6 +1394,7 @@ pub fn mz_interval_withheld_reason(
     Ok(mz_tables(functional, data)?.err())
 }
 
+#[cfg(feature = "calibration-internal")]
 /// The law sets the internal mz joint bootstrap evaluates, one per replicate
 /// (`None` for a replicate whose draw failed), for inspection: laws sharing a
 /// forwarded dataset are drawn from one resampled table in every replicate.
@@ -1422,16 +1426,17 @@ pub fn mz_transport_bootstrap_law_draws(
     Ok(Ok(out))
 }
 
+#[cfg(feature = "calibration-internal")]
 /// Joint percentile bootstrap of a multi-source mz functional over `requests`.
 ///
 /// This is the internal estimator the calibration harness measures; the public
 /// prepared route does not publish it until its coverage records exist.
 ///
-/// Unlike the X4 learned-continuous interval, this stays an ungated `pub`, hidden from
-/// the docs: `antecedent-io`'s artifact code (built in its own unit tests too, where this
-/// crate's `calibration-internal` feature is off), this crate's integration tests and the
-/// calibration harness call it, so it cannot be feature-gated here. The public prepared
-/// route is what withholds the interval; calling this function directly is unsupported.
+/// Like the X4 learned-continuous interval, this is compiled only with the
+/// `calibration-internal` feature, which only dev-dependencies (this crate's integration
+/// tests, `antecedent-io`'s interval tests and the facade's calibration harness) enable;
+/// no released build links it. The public prepared route withholds the interval, and
+/// [`mz_interval_withheld_reason`] / [`mz_sampling_dependence`] stay public to report why.
 /// Exact laws, undeclared or unsupported dependence (including shared datasets
 /// that are not one table or a recorded margin of it), and a bootstrap that
 /// fails too often withhold the interval with a stable reason; the point

@@ -11,7 +11,8 @@
 //! until its coverage records are measured: an estimate on counted laws returns
 //! the point and withholds the interval with that reason, never a nominal one.
 //! The internal joint bootstrap the calibration harness measures is
-//! [`antecedent_estimate::mz_transport_bootstrap_interval`].
+//! `antecedent_estimate::mz_transport_bootstrap_interval`, which exists only under that
+//! crate's `calibration-internal` feature (dev-dependencies alone; no normal or Python build).
 use super::StudyBuilder;
 use super::transport_common::{err, estimate_err};
 use antecedent_core::{ExecutionContext, SearchLimits, TheoremScope};

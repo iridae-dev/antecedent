@@ -23,8 +23,8 @@
 //! `mz_transport.interval_withheld`. Interval-bearing construction
 //! (`MzUncertaintyWire::from_bootstrap`, `checked_with_interval`) and its
 //! bit-for-bit recompute (`consume_with_interval`) exist only under the
-//! `calibration-internal` feature, which only the facade's dev-dependencies
-//! enable, and in this crate's unit tests. Limits an artifact records are
+//! `calibration-internal` feature (which also compiles the estimator itself in
+//! `antecedent-estimate`), which only dev-dependencies enable, and in this crate's unit tests. Limits an artifact records are
 //! provenance; a stored limit larger than the consumer's refuses.
 
 use crate::{

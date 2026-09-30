@@ -44,3 +44,5 @@ thiserror = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
+# The io interval tests recompute the closed X1 mz bootstrap, compiled only under this feature.
+antecedent-estimate = { version = "2.1.1", path = "../antecedent-estimate", features = ["calibration-internal"] }

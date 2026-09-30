@@ -10,12 +10,23 @@
 //! ever mixes sources, so a joint over several sources' interventions is never
 //! fabricated.
 //!
-//! Completeness holds for the theorem's own information family: for every
-//! source, experiments on every subset of its declared controllable set with all
-//! observed variables measured. A formula bound to a supplied catalog is sound
+//! Checked against R-443: Theorem 4 (a `TR^mz` failure at line 12 yields
+//! C-forests spanning an mz*-shedge), Theorem 5 (`TR^mz` is complete) and
+//! Corollary 1 (`P_x(y)` is mz-transportable iff no mz*-shedge exists), with
+//! Theorem 3 (a shedge precludes transportability). Completeness holds for the
+//! paper's own information family (Def. 2): for every source, experiments on
+//! every subset of its declared controllable set with all observed variables
+//! measured, a passive target. A formula bound to a supplied catalog is sound
 //! but incomplete; a failure is an obstruction only when it is evaluated
 //! structurally over the declared controllable sets, never because a catalog
-//! lacks a regime. When several sources certify the same factor, the paper
+//! lacks a regime. The obstruction here is a strict subset of the paper's
+//! FAILs: only a line-11 terminal reached with no active experiment where no
+//! source can exchange. A failure after an exchange (e.g. R-443 Fig. 1(e,f)
+//! split across two sources, which the paper calls not transportable) is
+//! reported `not_certified`. Fig. 3 line 10 fires only with no active
+//! experiment (one exchange per branch); this search may also exchange the
+//! active source's later-activated controllables, which never touches the
+//! obstruction because that is certified only with no active experiment. When several sources certify the same factor, the paper
 //! returns a weighted combination; for exact laws each is a valid formula, so
 //! this contract returns the first certifying source in canonical source order
 //! and does not retain the others, which makes the result invariant to source
