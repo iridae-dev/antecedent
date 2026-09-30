@@ -10,6 +10,39 @@
 //! bounds the whole set. Declared weights are carried beside the structural
 //! set and never renormalized over the scenarios that survive.
 //!
+//! # When `not_certified` is reachable
+//!
+//! [`ScenarioOutcome::NotCertified`] needs the catalog search to return
+//! `NotCertified` (no derivation from any of its three stages) *and* the
+//! classical identifier to return `NotCertified` (no verified s-hedge). The
+//! catalog search's first stage is exactly the classical search (target-first,
+//! then source-enabled with no declared sources), so if that stage finds a
+//! derivation the search has `had_derivation` set and reports `Identified` or
+//! `MissingEvidence`; the later stages (pretreatment standardization, capped or
+//! not, and the catalog source-first search) can only add derivations. Hence the
+//! status needs the classical search to fail, and a failed classical search
+//! always records an obstruction (the only `None` leaf is the line-11 branch
+//! with a source-admissibility failure). The witness built from that state then
+//! has one c-component over the state's nodes and over its unintervened nodes
+//! (line 11 and the single-district check), every node reaching the outcomes by
+//! a directed path inside its own node set (ancestor closure and empty
+//! non-ancestor remainder), a selection target among the unintervened nodes
+//! (the mutilated selection graph skips targets that are intervened or outside
+//! the state, so an admissibility failure implies one), and roots that are the
+//! state's outcomes. So the checked `verify_s_hedge` accepts it. The conditions
+//! that this argument does not derive from the code alone (an original treatment
+//! stays in the obstruction state's node set, and its outcomes stay among the
+//! original query's non-treatment ancestors) are the s-hedge existence theorem
+//! for sID and are backed by a randomized check (`the_classical_route_is_never_not_certified_on_random_admgs`,
+//! plus a one-off run of 2.15 million random ADMGs with 4 to 11 variables, about
+//! 913 thousand verified s-hedges, zero not-certified). A tight pretreatment
+//! subset budget records an inconclusive obligation but cannot produce the
+//! status: without a derivation the s-hedge is what gets reported. So the
+//! status is defined and tested with a supplied decision, but no admissible
+//! input of the classical catalog route reaches it today; it is kept for routes
+//! that can return an undecided scenario (for example the later bounded ADMG
+//! rows of 2.2B).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
@@ -960,5 +993,81 @@ mod tests {
             );
         }
         assert!(run(Some(total)).0.unwrap());
+    }
+
+    /// Random ADMGs of four to eleven variables with random selections, outcomes
+    /// and treatments (2.15 million of them in a one-off release run, no seed
+    /// hit): the classical route is `Identified` or `ProvenNonTransportable`,
+    /// never `NotCertified`, which is the precondition of a scenario's
+    /// `not_certified` status (see the module docs).
+    #[test]
+    fn the_classical_route_is_never_not_certified_on_random_admgs() {
+        let ctx = ExecutionContext::for_tests(1);
+        let mut seed = 0xDEAD_BEEF_1357_9BDF_u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let mut counts = [0usize; 2];
+        for _ in 0..40_000 {
+            let n = 4 + (next() % 8) as u32;
+            let (directed, bidirected) = (1 + next() % 4, 2 + next() % 4);
+            let mut graph = Admg::with_variables(n);
+            for a in 0..n {
+                for b in (a + 1)..n {
+                    if next() % directed == 0 {
+                        let (a, b) = (DenseNodeId::from_raw(a), DenseNodeId::from_raw(b));
+                        graph.insert_directed(a, b).unwrap();
+                    }
+                    if next() % bidirected == 0 {
+                        let (a, b) = (DenseNodeId::from_raw(a), DenseNodeId::from_raw(b));
+                        let _ = graph.insert_bidirected(a, b);
+                    }
+                }
+            }
+            let density = 1 + next() % 3;
+            let selections: Vec<VariableId> =
+                (0..n).filter(|_| next() % density == 0).map(VariableId::from_raw).collect();
+            let Ok(diagram) =
+                SelectionDiagram::try_new(graph, Arc::<[VariableId]>::from(selections.clone()))
+            else {
+                continue;
+            };
+            let (mut outcomes, mut treatments) = (Vec::new(), Vec::new());
+            for i in 0..n {
+                match next() % 3 {
+                    0 => outcomes.push(VariableId::from_raw(i)),
+                    1 => treatments.push(VariableId::from_raw(i)),
+                    _ => {}
+                }
+            }
+            if outcomes.is_empty() || treatments.is_empty() {
+                continue;
+            }
+            let query = ClassicalTransportQuery {
+                outcomes: outcomes.into(),
+                treatments: treatments.into(),
+                source: Arc::from("source"),
+                target: Arc::from("target"),
+            };
+            let limits = super::super::SidLimits { steps: 200_000, depth: 256 };
+            match identify_classical_transport_metered(
+                &diagram,
+                &query,
+                super::super::SidMeter::Limits(limits),
+                &ctx,
+            )
+            .unwrap()
+            {
+                ClassicalTransportResult::Identified(_) => counts[0] += 1,
+                ClassicalTransportResult::ProvenNonTransportable(_) => counts[1] += 1,
+                ClassicalTransportResult::NotCertified => {
+                    panic!("not certified: selections {selections:?}, query {query:?}")
+                }
+            }
+        }
+        assert!(counts[0] > 1_000 && counts[1] > 1_000, "{counts:?}");
     }
 }

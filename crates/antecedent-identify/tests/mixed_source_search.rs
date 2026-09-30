@@ -930,3 +930,36 @@ fn rule_three_insertion_is_refused_when_the_action_is_an_ancestor_of_the_observe
     let decision = decide(&g, &q, &c);
     assert!(matches!(decision, MixedSourceDecision::NotCertified(_)), "{decision:?}");
 }
+
+/// The rule search alone is incomplete against ID on a single fully observed study
+/// (module docs of `sid::mixed_source`: the napkin family and the three-intervention
+/// bound are `not_certified` there), but the decision as a whole is not: the named
+/// target-first sID route runs first and solves both, so the incompleteness never
+/// reaches a caller who supplies the whole joint.
+#[test]
+fn a_query_the_rule_search_alone_misses_is_solved_by_the_named_route_on_a_full_joint() {
+    let napkin = graph(4, &[(0, 1), (1, 2), (2, 3)], &[(0, 2), (0, 3)]);
+    let napkin_query = MixedSourceQuery {
+        outcomes: Arc::from([v(3)]),
+        treatments: Arc::from([v(2)]),
+        target: Arc::from("target"),
+        sources: Arc::from([]),
+    };
+    let four_treatments = graph(5, &[], &[]);
+    let four_query = MixedSourceQuery {
+        outcomes: Arc::from([v(0)]),
+        treatments: Arc::from([v(1), v(2), v(3), v(4)]),
+        target: Arc::from("target"),
+        sources: Arc::from([]),
+    };
+    for (g, q, measured) in [
+        (&napkin, &napkin_query, vec![0, 1, 2, 3]),
+        (&four_treatments, &four_query, vec![0, 1, 2, 3, 4]),
+    ] {
+        let evidence = catalog(vec![regime(1, "study", &[], &measured)]);
+        match decide(g, q, &evidence) {
+            MixedSourceDecision::NamedRoute { route, .. } => assert_eq!(route, "target_first_sid"),
+            other => panic!("expected the named sID route, got {other:?}"),
+        }
+    }
+}

@@ -21,6 +21,51 @@
 //! replayed every step; running out of rules or budget is `NotCertified` or
 //! `Exhausted`, never a non-identification claim.
 //!
+//! # How incomplete
+//!
+//! Measured against the complete Shpitser-Pearl ID algorithm on a single
+//! observational study of the whole joint (the generic rule search run alone, the
+//! named routes bypassed), over every query with any non-empty disjoint outcome and
+//! treatment sets (module `tests::reference`; the figures are reproduced by its
+//! ignored `measure` test). Soundness held on all 230,468 queries measured: the
+//! search never identified a query ID refutes.
+//!
+//! | ADMG nodes | queries | ID-identifiable | search identifies |
+//! |---|---|---|---|
+//! | 3, every ADMG | 768 | 612 | 612 (100%) |
+//! | 4, every ADMG | 204,800 | 142,827 | 142,826 (99.9993%) |
+//! | 5, 8,000 random ADMGs x 3 queries | 24,000 | 16,676 | 16,238 (97.4%) |
+//! | 6, 300 random ADMGs x 3 queries (outside the claim) | 900 | 534 | 190 (35.6%) |
+//!
+//! The known gap classes, one minimal pinned example each
+//! (`known_incomplete_queries_stay_not_certified_until_deliberately_fixed`):
+//!
+//! 1. **The napkin family** (ID's ratio of a marginalised C-factor). The four-node
+//!    napkin `W -> Z -> X -> Y`, `W <-> X`, `W <-> Y` with `do(X)` on `Y` is the
+//!    only four-node miss; 108 of the 109 four-node queries whose ID formula is a
+//!    ratio are found, so the frozen rules do reach ratio forms, just not this
+//!    one. Five-node napkin embeddings account for 1 of 16,239 five-node queries
+//!    with at most three treatments (99.994%). `NotCertified`.
+//! 2. **The intervention bound** [`MIXED_SOURCE_MAX_DO`] = 3: a derived quantity
+//!    carries at most three actions, so a query with four or more treatments is
+//!    unreachable even when its effect is trivially `P(y)`. Five nodes: 437 of the
+//!    438 misses, every one of the 437 ID-identifiable queries with four
+//!    treatments. `NotCertified`.
+//! 3. **The operation budget**: at six nodes the default 20,000 operations run out
+//!    before the closure does in about two thirds of the ID-identifiable queries
+//!    (344 of 534 in the sample), even for trivial effects. `Exhausted`, a receipt.
+//!    Up to five nodes no measured query exhausted the budget.
+//!
+//! So "sound, incomplete" here means: up to five nodes and three treatments the
+//! search is complete on the single-study reference except for the napkin family;
+//! it is not a decision procedure, and a `NotCertified` or `Exhausted` result on a
+//! single fully observed study is not evidence of non-identification (the named
+//! sID route, which runs first, decides those exactly). No complete oracle exists
+//! for the several-study case in this repository (the generalized identification
+//! algorithm of Lee, Correa and Bareinboim is not implemented), so there is no
+//! multi-study completeness figure; the multi-study claim stays soundness against
+//! enumerated structural models only.
+//!
 //! The two deletion rules (rule 1 and rule 3 deletion) belong to the frozen set
 //! and the independent checker accepts a proof that uses one, but the search
 //! does not attempt them: within this rule set they never contribute to
@@ -3433,5 +3478,467 @@ mod tests {
                 .unwrap_err(),
             invalid_derivation()
         );
+    }
+
+    /// Completeness against the complete ID algorithm (single observational study).
+    mod reference {
+        use super::*;
+        use crate::{IdIdentifier, IdentificationWorkspace, result::IdentificationStatus};
+        use antecedent_core::{
+            CausalQuery, Intervention, InterventionalDistributionQuery, SearchBudget, Value,
+        };
+        use antecedent_expr::ExprNode;
+
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(super) enum Verdict {
+            Identified,
+            NotCertified,
+            Exhausted,
+        }
+
+        /// Whether ID's formula contains a ratio (a conditional of a marginalised
+        /// C-factor: the napkin family).
+        fn has_ratio(result: &crate::IdentificationResult) -> bool {
+            fn walk(arena: &antecedent_expr::CausalExprArena, id: ExprId) -> bool {
+                match arena.node(id) {
+                    ExprNode::Ratio { .. } => true,
+                    ExprNode::Product(list) => arena.list(*list).iter().any(|&e| walk(arena, e)),
+                    ExprNode::SumOut { expr, .. } => walk(arena, *expr),
+                    _ => false,
+                }
+            }
+            result.estimands.first().is_some_and(|e| walk(&result.arena, e.functional))
+        }
+
+        /// Shpitser-Pearl ID on `P(outcomes | do(treatments))`: `None` when not
+        /// identifiable, else whether the formula needs a ratio.
+        pub(super) fn id_identifiable(
+            graph: &Admg,
+            outcomes: &[u32],
+            treatments: &[u32],
+        ) -> Option<bool> {
+            let id = IdIdentifier::new();
+            let prepared = id.prepare(graph).unwrap();
+            let query = CausalQuery::Distribution(
+                InterventionalDistributionQuery::new(
+                    v(outcomes[0]),
+                    treatments
+                        .iter()
+                        .map(|t| Intervention::set(v(*t), Value::f64(1.0)))
+                        .collect::<Vec<_>>(),
+                )
+                .with_outcomes(outcomes.iter().map(|o| v(*o)).collect::<Vec<_>>()),
+            );
+            let result =
+                id.identify(&prepared, &query, &mut IdentificationWorkspace::default()).unwrap();
+            match result.status {
+                IdentificationStatus::NonparametricallyIdentified => Some(has_ratio(&result)),
+                IdentificationStatus::NotIdentified => None,
+                other => panic!("unexpected ID status {other:?}"),
+            }
+        }
+
+        /// The generic rule search alone over one observational study of every
+        /// variable (the named routes are not run).
+        pub(super) fn search_only(graph: &Admg, outcomes: &[u32], treatments: &[u32]) -> Verdict {
+            let n = u32::try_from(graph.node_count()).unwrap();
+            let all = (0..n).collect::<Vec<_>>();
+            let evidence = catalog(&[(1, &all)]);
+            let q = MixedSourceQuery {
+                outcomes: outcomes.iter().map(|o| v(*o)).collect(),
+                treatments: treatments.iter().map(|t| v(*t)).collect(),
+                target: Arc::from("target"),
+                sources: Arc::from([]),
+            };
+            let validated = validate_mixed_source_query(graph, &q, &evidence).unwrap();
+            let ctx = ExecutionContext::for_tests(1);
+            let budget = SearchBudget::new(MIXED_SOURCE_DEFAULT_LIMITS, &ctx).unwrap();
+            match rule_search(
+                graph,
+                &validated,
+                &evidence,
+                &mut SharedSearch::new(budget),
+                Vec::new(),
+            )
+            .unwrap()
+            {
+                MixedSourceDecision::Identified { .. } => Verdict::Identified,
+                MixedSourceDecision::NotCertified(_) => Verdict::NotCertified,
+                MixedSourceDecision::Exhausted(_) => Verdict::Exhausted,
+                other => panic!("unexpected {other:?}"),
+            }
+        }
+
+        type Edges = Vec<(u32, u32)>;
+
+        /// Outcome counts of a sweep, by query shape `(|Y|, |X|)`.
+        #[derive(Default, Debug)]
+        pub(super) struct Tally {
+            pub(super) queries: usize,
+            /// ID-identifiable queries whose ID formula is a ratio, and how many the search identified.
+            pub(super) ratio: [usize; 2],
+            /// Per shape: (ID-identifiable, identified, not certified, exhausted, non-identifiable).
+            pub(super) shapes: BTreeMap<(usize, usize), [usize; 5]>,
+            /// Search identified a query ID refutes (must stay empty).
+            pub(super) unsound: Vec<String>,
+            /// ID-identifiable queries the search did not identify: (edge count, |X|, description).
+            pub(super) gaps: Vec<(usize, usize, String)>,
+        }
+
+        impl Tally {
+            pub(super) fn totals(&self) -> [usize; 5] {
+                let mut t = [0; 5];
+                for c in self.shapes.values() {
+                    for (a, b) in t.iter_mut().zip(c) {
+                        *a += b;
+                    }
+                }
+                t
+            }
+        }
+
+        /// Run both procedures on one query and record the outcome.
+        pub(super) fn record(
+            tally: &mut Tally,
+            graph: &Admg,
+            d: &[(u32, u32)],
+            b: &[(u32, u32)],
+            ys: &[u32],
+            xs: &[u32],
+        ) {
+            let ratio = id_identifiable(graph, ys, xs);
+            let verdict = search_only(graph, ys, xs);
+            let cell = tally.shapes.entry((ys.len(), xs.len())).or_default();
+            tally.queries += 1;
+            let text = format!("directed={d:?} bidirected={b:?} y={ys:?} do={xs:?}");
+            let Some(ratio) = ratio else {
+                cell[4] += 1;
+                if verdict == Verdict::Identified {
+                    tally.unsound.push(text);
+                }
+                return;
+            };
+            cell[0] += 1;
+            if ratio {
+                tally.ratio[0] += 1;
+                tally.ratio[1] += usize::from(verdict == Verdict::Identified);
+            }
+            match verdict {
+                Verdict::Identified => cell[1] += 1,
+                Verdict::NotCertified => cell[2] += 1,
+                Verdict::Exhausted => cell[3] += 1,
+            }
+            if verdict != Verdict::Identified {
+                tally.gaps.push((d.len() + b.len(), xs.len(), format!("{verdict:?} {text}")));
+            }
+        }
+
+        /// Every non-empty disjoint (outcomes, treatments) pair over `n` nodes.
+        pub(super) fn all_queries(n: usize) -> Vec<(Vec<u32>, Vec<u32>)> {
+            let mut out = Vec::new();
+            for code in 0..3usize.pow(u32::try_from(n).unwrap()) {
+                let (mut ys, mut xs) = (Vec::new(), Vec::new());
+                let mut rest = code;
+                for i in 0..n {
+                    match rest % 3 {
+                        1 => ys.push(u32::try_from(i).unwrap()),
+                        2 => xs.push(u32::try_from(i).unwrap()),
+                        _ => {}
+                    }
+                    rest /= 3;
+                }
+                if !ys.is_empty() && !xs.is_empty() {
+                    out.push((ys, xs));
+                }
+            }
+            out
+        }
+
+        /// The ADMG of `code` over the `n(n-1)/2` ordered pairs: two bits per pair
+        /// (bit 0 directed `a -> b`, bit 1 bidirected `a <-> b`), so `code`
+        /// ranges over every ADMG up to relabelling.
+        pub(super) fn graph_of(n: usize, code: usize) -> (Admg, Edges, Edges) {
+            let (mut d, mut b) = (Vec::new(), Vec::new());
+            let mut k = 0;
+            for x in 0..u32::try_from(n).unwrap() {
+                for y in x + 1..u32::try_from(n).unwrap() {
+                    if (code >> (2 * k)) & 1 == 1 {
+                        d.push((x, y));
+                    }
+                    if (code >> (2 * k)) & 2 == 2 {
+                        b.push((x, y));
+                    }
+                    k += 1;
+                }
+            }
+            (admg(u32::try_from(n).unwrap(), &d, &b), d, b)
+        }
+
+        pub(super) fn pairs(n: usize) -> u32 {
+            u32::try_from(n * (n - 1) / 2).unwrap()
+        }
+
+        pub(super) fn report(name: &str, tally: &Tally) {
+            let [idn, found, nc, ex, non] = tally.totals();
+            eprintln!(
+                "{name}: queries={} id_identifiable={idn} identified={found} not_certified={nc} exhausted={ex} id_not_identifiable={non} ratio_form={:?} unsound={}",
+                tally.queries,
+                tally.ratio,
+                tally.unsound.len()
+            );
+            for ((y, x), c) in &tally.shapes {
+                eprintln!(
+                    "  |Y|={y} |X|={x}: id={} found={} nc={} ex={} non={}",
+                    c[0], c[1], c[2], c[3], c[4]
+                );
+            }
+        }
+
+        /// Seeded generator of the sampled sweeps (a 64-bit LCG; deterministic).
+        pub(super) struct Lcg(pub(super) u64);
+
+        impl Lcg {
+            pub(super) fn next(&mut self) -> u64 {
+                self.0 = self
+                    .0
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                self.0 >> 33
+            }
+        }
+
+        /// `graphs` random ADMGs over `n` nodes (edge density varied per graph so the
+        /// sample holds sparse and dense graphs), `per_graph` random queries each.
+        pub(super) fn sample(n: usize, graphs: usize, per_graph: usize, seed: u64) -> Tally {
+            let mut rng = Lcg(seed);
+            let mut tally = Tally::default();
+            let queries = all_queries(n);
+            let nodes = u32::try_from(n).unwrap();
+            for _ in 0..graphs {
+                let density = 1 + rng.next() % 3;
+                let (mut d, mut b) = (Vec::new(), Vec::new());
+                for x in 0..nodes {
+                    for y in x + 1..nodes {
+                        if rng.next() % 6 < density + 1 {
+                            d.push((x, y));
+                        }
+                        if rng.next() % 6 < density {
+                            b.push((x, y));
+                        }
+                    }
+                }
+                let g = admg(nodes, &d, &b);
+                for _ in 0..per_graph {
+                    let (ys, xs) = &queries[usize::try_from(rng.next()).unwrap() % queries.len()];
+                    record(&mut tally, &g, &d, &b, ys, xs);
+                }
+            }
+            tally
+        }
+
+        /// Figures behind the documented completeness rates. Run with
+        /// `N=<nodes> CASES=<graphs> cargo test -p antecedent-identify --lib --release
+        /// measure -- --ignored --nocapture`; `CASES=0` is the exhaustive sweep over every
+        /// ADMG (n=3: 768 queries; n=4: 204,800 queries, about 80 s in release).
+        #[test]
+        #[ignore = "measurement: minutes in release"]
+        fn measure() {
+            let var = |name: &str, default: usize| {
+                std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+            };
+            let (n, cases) = (var("N", 3), var("CASES", 0));
+            let start = std::time::Instant::now();
+            let tally = if cases == 0 {
+                let mut tally = Tally::default();
+                let queries = all_queries(n);
+                for code in 0..4usize.pow(pairs(n)) {
+                    let (g, d, b) = graph_of(n, code);
+                    for (ys, xs) in &queries {
+                        record(&mut tally, &g, &d, &b, ys, xs);
+                    }
+                }
+                tally
+            } else {
+                sample(n, cases, 3, 0xC0FF_EE00 + n as u64)
+            };
+            report(&format!("n={n} cases={cases} t={:?}", start.elapsed()), &tally);
+            let mut gaps = tally.gaps.clone();
+            gaps.sort();
+            for (_, _, g) in gaps.iter().filter(|g| g.1 <= MIXED_SOURCE_MAX_DO).take(40) {
+                eprintln!("  GAP {g}");
+            }
+            for u in &tally.unsound {
+                eprintln!("  UNSOUND {u}");
+            }
+        }
+
+        /// Every ADMG on three nodes, every query: the rule search identifies
+        /// exactly what ID identifies (612 of 768 queries), and nothing ID refutes.
+        #[test]
+        fn three_node_sweep_matches_id_exactly() {
+            let mut tally = Tally::default();
+            let queries = all_queries(3);
+            for code in 0..4usize.pow(pairs(3)) {
+                let (g, d, b) = graph_of(3, code);
+                for (ys, xs) in &queries {
+                    record(&mut tally, &g, &d, &b, ys, xs);
+                }
+            }
+            report("three-node sweep", &tally);
+            assert!(tally.unsound.is_empty(), "{:?}", tally.unsound);
+            assert_eq!(tally.queries, 64 * 12);
+            // [ID-identifiable, identified, not certified, exhausted, not identifiable]
+            assert_eq!(tally.totals(), [612, 612, 0, 0, 156]);
+        }
+
+        /// Four- and five-node samples: never identified where ID refutes; every
+        /// ID-identifiable query with at most `MIXED_SOURCE_MAX_DO` treatments is
+        /// identified except the pinned napkin-family gaps; a larger treatment set is
+        /// `NotCertified`, never exhausted. The rate floors are the measured rates
+        /// (exhaustive four-node sweep 142,826 of 142,827; five-node sample 97.3%)
+        /// rounded down.
+        #[test]
+        fn four_and_five_node_samples_are_sound_and_meet_the_completeness_floor() {
+            let four = {
+                // A stride coprime to 4^6 visits 57 graphs spread over the whole code space.
+                let mut tally = Tally::default();
+                let queries = all_queries(4);
+                for code in (0..4usize.pow(pairs(4))).step_by(73) {
+                    let (g, d, b) = graph_of(4, code);
+                    for (ys, xs) in &queries {
+                        record(&mut tally, &g, &d, &b, ys, xs);
+                    }
+                }
+                tally
+            };
+            let five = sample(5, 100, 3, 0x5EED_0005);
+            for (name, tally) in [("four-node stride sample", &four), ("five-node sample", &five)] {
+                report(name, tally);
+                assert!(tally.unsound.is_empty(), "{name}: {:?}", tally.unsound);
+                let [identifiable, identified, _, exhausted, _] = tally.totals();
+                assert_eq!(exhausted, 0, "{name}: budget never runs out up to five nodes");
+                let within_do = tally.gaps.iter().filter(|g| g.1 <= MIXED_SOURCE_MAX_DO).count();
+                let beyond_do = tally.gaps.iter().filter(|g| g.1 > MIXED_SOURCE_MAX_DO).count();
+                assert_eq!(identifiable - identified, within_do + beyond_do);
+                // Gaps within the intervention bound are the napkin family: rare.
+                assert!(within_do <= 1, "{name}: {:?}", tally.gaps);
+                assert!(
+                    beyond_do == 0 || tally.gaps.iter().all(|g| g.2.starts_with("NotCertified"))
+                );
+            }
+            let [identifiable, identified, ..] = four.totals();
+            assert!(identifiable > 1_500, "{identifiable}");
+            assert!(identified * 1000 >= identifiable * 999, "{identified}/{identifiable}");
+            let [identifiable, identified, ..] = five.totals();
+            assert!(identifiable > 150, "{identifiable}");
+            assert!(identified * 100 >= identifiable * 95, "{identified}/{identifiable}");
+        }
+
+        /// One known-incomplete query: ID identifies it, the rule search does not.
+        struct Gap {
+            name: &'static str,
+            nodes: u32,
+            directed: &'static [(u32, u32)],
+            bidirected: &'static [(u32, u32)],
+            outcomes: &'static [u32],
+            treatments: &'static [u32],
+            verdict: Verdict,
+        }
+
+        /// The known gaps of the rule search against ID, one minimal example per class.
+        /// A future improvement flips an entry deliberately: update the entry, the
+        /// class list in the module docs and the record's `inference_notes` together.
+        const KNOWN_GAPS: &[Gap] = &[
+            // Class 1, the napkin: `W -> Z -> X -> Y` with `W <-> X` and `W <-> Y`.
+            // ID identifies it through a ratio of a marginalised C-factor
+            // (`P(y | do(x)) = sum_w P(y, x | z, w) P(w) / sum_w P(x | z, w) P(w)`),
+            // a form the frozen rules reach from the joint only by a chain the
+            // search's two-variable moves and forward closure do not find.
+            Gap {
+                name: "napkin",
+                nodes: 4,
+                directed: &[(0, 1), (1, 2), (2, 3)],
+                bidirected: &[(0, 2), (0, 3)],
+                outcomes: &[3],
+                treatments: &[2],
+                verdict: Verdict::NotCertified,
+            },
+            // Class 1 in a five-node graph (the only such gap in the seeded sample).
+            Gap {
+                name: "napkin_family_five_nodes",
+                nodes: 5,
+                directed: &[(0, 1), (0, 3), (1, 2), (1, 3), (2, 3), (2, 4), (3, 4)],
+                bidirected: &[(0, 2), (0, 4)],
+                outcomes: &[4],
+                treatments: &[2, 3],
+                verdict: Verdict::NotCertified,
+            },
+            // Class 1 with two outcomes: the napkin `0 -> 1 -> 2 -> 4`, `0 <-> 2`, `0 <-> 4`
+            // plus a second outcome `3` confounded with `4`.
+            Gap {
+                name: "napkin_family_two_outcomes",
+                nodes: 5,
+                directed: &[(0, 1), (1, 2), (2, 4), (3, 4)],
+                bidirected: &[(0, 2), (0, 4), (3, 4)],
+                outcomes: &[3, 4],
+                treatments: &[2],
+                verdict: Verdict::NotCertified,
+            },
+            // Class 2, the intervention bound: a derived quantity carries at most
+            // `MIXED_SOURCE_MAX_DO` = 3 actions, so a fourth treatment is unreachable
+            // even when the effect is trivially `P(y)`.
+            Gap {
+                name: "four_treatments_edgeless",
+                nodes: 5,
+                directed: &[],
+                bidirected: &[],
+                outcomes: &[0],
+                treatments: &[1, 2, 3, 4],
+                verdict: Verdict::NotCertified,
+            },
+            Gap {
+                name: "four_treatments_confounded_chain",
+                nodes: 5,
+                directed: &[(0, 1), (1, 2)],
+                bidirected: &[(1, 3)],
+                outcomes: &[4],
+                treatments: &[0, 1, 2, 3],
+                verdict: Verdict::NotCertified,
+            },
+            // Class 3, the budget: with six nodes the default 20,000 operations run out
+            // before the closure does, even for a trivial effect. A receipt, not a verdict.
+            Gap {
+                name: "six_nodes_exhaust_the_default_budget",
+                nodes: 6,
+                directed: &[(2, 3)],
+                bidirected: &[],
+                outcomes: &[5],
+                treatments: &[0, 1, 2],
+                verdict: Verdict::Exhausted,
+            },
+        ];
+
+        #[test]
+        fn known_incomplete_queries_stay_not_certified_until_deliberately_fixed() {
+            for gap in KNOWN_GAPS {
+                let g = admg(gap.nodes, gap.directed, gap.bidirected);
+                assert!(
+                    id_identifiable(&g, gap.outcomes, gap.treatments).is_some(),
+                    "{}: ID must identify the pinned gap",
+                    gap.name
+                );
+                assert_eq!(
+                    search_only(&g, gap.outcomes, gap.treatments),
+                    gap.verdict,
+                    "{}: the rule search's verdict on a known gap changed",
+                    gap.name
+                );
+            }
+            // The one-treatment-fewer twins are identified: the bound is the whole reason.
+            let three = admg(4, &[], &[]);
+            assert_eq!(search_only(&three, &[0], &[1, 2, 3]), Verdict::Identified);
+            let chain = admg(5, &[(0, 1), (1, 2)], &[(1, 3)]);
+            assert_eq!(search_only(&chain, &[4], &[0, 1, 2]), Verdict::Identified);
+        }
     }
 }
