@@ -23,7 +23,8 @@ ml-forest = ["antecedent-learn/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-learn/ml-neural"]
 # Exposes the closed interval estimators (X4 `learned_continuous_interval_internal`, X1
-# `mz_transport_bootstrap_interval` and its draw machinery) to the
+# `mz_transport_bootstrap_interval` and its draw machinery, the Frequentist plug-in
+# gradient band `ContinuousResponseEstimator::plugin_gradient_interval_internal`) to the
 # calibration harness. Enabled only by dev-dependencies (resolver 2 keeps it out of normal
 # builds); no released build carries it.
 calibration-internal = []

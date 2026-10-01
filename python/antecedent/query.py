@@ -675,7 +675,15 @@ class SemiElasticity:
 
 @dataclass(frozen=True, slots=True)
 class DirectionalDerivative:
-    """Plug-in response derivative along a supplied direction (not renormalized)."""
+    """Plug-in response derivative along a supplied direction (not renormalized).
+
+    The additive-GAM plug-in gradient (at most two treatments) dotted with
+    ``direction``. Frequentist results are point-only: ``uncertainty`` is empty
+    and the warning ``response.derivative_interval_withheld`` explains that its
+    coefficient-sandwich band is wired for calibration but stays closed until
+    its coverage is measured. Bayesian inference publishes a pointwise credible
+    band.
+    """
 
     treatments: Sequence[str]
     outcomes: Sequence[str]
@@ -704,7 +712,16 @@ class DirectionalDerivative:
 
 @dataclass(frozen=True, slots=True)
 class ResponseJacobian:
-    """Low-dimensional Jacobian of outcomes with respect to treatments."""
+    """Low-dimensional Jacobian of outcomes with respect to treatments.
+
+    Row-major outcomes x treatments from the additive-GAM plug-in gradient (at
+    most two treatments). Frequentist results are point-only: ``uncertainty``
+    is empty and the warning ``response.derivative_interval_withheld`` explains
+    that its coefficient-sandwich band is wired for calibration but stays closed
+    until its coverage is measured. Bayesian inference publishes a pointwise
+    credible band. The scalar :class:`Elasticity` query is a different
+    estimator and publishes a Frequentist Fieller interval.
+    """
 
     treatments: Sequence[str]
     outcomes: Sequence[str]

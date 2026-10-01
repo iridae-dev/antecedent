@@ -408,6 +408,11 @@ run_ignored_derivative elasticity_dag_accepted_frequentist_nominal_95_coverage
 # replicates on the gate's seeds; the band covers 0.892-0.897 over 10 000 designs.
 run_ignored_derivative response_jacobian_bayesian_boundary_within_band
 run_ignored_derivative directional_derivative_bayesian_nominal_90_coverage
+# Closed Frequentist GAM-gradient band (the public route publishes the point only
+# until these records exist): the internal coefficient-sandwich band on the same
+# gam_data replicates as the two Bayesian cells above.
+run_ignored_derivative response_jacobian_dag_frequentist_nominal_90_coverage
+run_ignored_derivative directional_derivative_dag_frequentist_nominal_90_coverage
 
 echo "== Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
 run_ignored_bayes_temporal() {

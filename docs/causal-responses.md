@@ -546,9 +546,25 @@ sampling coverage of every published derivative interval is gated in
   regression spline on the nuisance basis: a roughness penalty shrinks the
   published gradient at first order (with quantile knots, even a linear
   component), so `nuisance_lambda` regularizes nuisances only. They are not
-  doubly robust, and the Frequentist result publishes no interval. A Jacobian
-  is row-major outcomes × treatments. A directional query is the unnormalized
-  inner product `∇m · d`. Differential missingness across outcomes is refused.
+  doubly robust. A Jacobian is row-major outcomes × treatments. A directional
+  query is the unnormalized inner product `∇m · d`. Differential missingness
+  across outcomes is refused.
+
+  The Frequentist result is point-only: `uncertainty` is empty and the warning
+  `response.derivative_interval_withheld` says why. Each gradient coordinate
+  is a linear functional of the target fit's coefficients, so a
+  coefficient-sandwich confidence band exists. It is the analytic counterpart
+  of the Bayesian band below, with the same `n / (n − edf)` leverage factor.
+  Its coverage has not been measured yet. The gate wires it as
+  `response_jacobian_dag_frequentist_nominal_90_coverage` and
+  `directional_derivative_dag_frequentist_nominal_90_coverage` in
+  `v19_derivative_calibration.rs`, and the public route stays closed until
+  those records exist. For an interval today, run the query with Bayesian
+  inference. A Rust `Jacobian` on a transformed
+  `DerivativeScale` (for example an elasticity Jacobian) has no interval
+  construction at all, wired or published. The scalar `Elasticity` query is a
+  different route (a Kennedy-DR point derivative) and does publish a calibrated
+  Fieller interval.
 
 Bayesian derivatives keep the Frequentist estimator identities and replace
 the analytic interval with a Rubin Dirichlet(1,…,1) row-weight posterior in
