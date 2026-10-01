@@ -3,16 +3,17 @@
 This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
 states what it claims and what it does not. It also records the one sampling
-composition that was designed for the range. That composition is **not offered
-in 2.2**: its record is carried forward and every route to it refuses.
+composition that was designed for the range. That composition is **wired, not
+measured**: every route to it refuses until its coverage is measured at the 2.2
+cut.
 
 Two records in `parity/promotion_2_2.toml` cover this page:
 
 - `2.2B.X3.joint_mechanism_sensitivity` (promoted): the exact assumption range
   only. It offers no sampling uncertainty.
-- `2.2B.X3.joint_sensitivity_uncertainty` (carried forward): the conservative
-  endpoint bootstrap, its closed routes and its two coverage ids, which are not
-  measured at the 2.2 cut.
+- `2.2B.X3.joint_sensitivity_uncertainty` (in progress): the conservative
+  endpoint bootstrap, its closed routes and its two coverage ids. Their tests
+  are registered in the calibration gate and are measured at the 2.2 cut.
 
 The derivation is our own; it is not taken from a source.
 
@@ -45,7 +46,7 @@ Refused by design, each with a `joint_sensitivity.*` detail:
 At most 2 factors declared (the outcome kernel and the shared parent marginal), 64 parent levels, 32 outcome categories,
 a frontier grid of 1 to 33 points, at most 100000 search operations, a bisection depth of
 64 iterations per frontier line, and a declared memory cap of at most 512 MiB (default
-64 MiB). The internal estimator of the carried-forward uncertainty record has a
+64 MiB). The internal estimator of the uncertainty record has a
 bootstrap request cap of 2000 (no public route reaches it). A request above a bound refuses as
 `joint_sensitivity.bounds_exceeded`.
 
@@ -186,16 +187,16 @@ cancelled frontier is not exported, because it does not replay.
 - The claim is conditional on the 2.1 checked z derivation and catalog binding,
   which the existing route verifies.
 - The guarantee `exact_range_complete_within_declared_contamination_class`
-  covers the range only. Sampling uncertainty is not offered in 2.2, and the
-  sampling method below is paper-inherited.
+  covers the range only. Sampling uncertainty is not offered by the range
+  record, and the sampling method below is paper-inherited.
 
-## Sampling uncertainty (not offered in 2.2; record carried forward)
+## Sampling uncertainty (wired, not measured)
 
-Record `2.2B.X3.joint_sensitivity_uncertainty` is carried forward. Every route
-to this composition refuses. Its two coverage ids are allocated, but its tests
-are not registered in `scripts/gate_calibration.sh`, so nothing is measured at
-the 2.2 cut. This section records what the composition is and why it cannot be
-opened yet.
+Record `2.2B.X3.joint_sensitivity_uncertainty` is in progress. Every route to
+this composition refuses with `cell_not_licensed` until its two coverage
+records are measured. Its tests are registered in `scripts/gate_calibration.sh`
+(`run_js`, over the sample-size grid) and are measured once at the 2.2 cut.
+This section records what the composition is and how its coverage is measured.
 
 There is one composition: the percentile bootstrap of the exact endpoints,
 
@@ -227,28 +228,37 @@ under the `calibration-internal` feature. Every public route refuses the
 interval with `cell_not_licensed` / `joint_sensitivity.interval_withheld`, and a
 consumer refuses an artifact that carries one.
 
-**Why the cell is carried forward.** Opening it is blocked on two things.
+**How the coverage is measured.** Two records, both measured at the
+extremal-vertex truth:
 
-1. **A one-sided coverage role in the harness.** Today no layer can express a
-   one-sided target:
-   - `crates/antecedent/tests/common/calibration.rs` gates a two-sided band,
-     level +- 3 MCSE;
-   - `scripts/gate_parity_schema.sh` fails over-coverage;
-   - `scripts/collect_coverage_records.py` knows only the `gated` and
-     `named_boundary` roles.
+1. **Zero box** (`z_joint_sensitivity_zero_box`). Here the composition is
+   exactly the percentile bootstrap, so this is an ordinary two-sided `gated`
+   record: level +- 3 MCSE, with the precision floor and ceiling.
+2. **Positive box** (`z_joint_sensitivity_positive_box`). This is a
+   `one_sided` record with side `upper`. Its truth is `psi(delta0)` at the
+   vertex that attains `U` on the true law: the true upper extremal bound, not
+   the interior point `delta0 = 0`, which every box contains and which is the
+   easiest point to cover. Coverage is scored as containment in the interval,
+   whose upper endpoint `q_{(1+a)/2}(U*)` binds. The acceptance is one-sided:
+   at least `level - 3 MCSE`, and from 1000 replicates at least the precision
+   floor `level - 2 MCSE`. It has no upper band and no ceiling, because
+   over-coverage is what a conservative interval claims.
 
-   An interval that is conservative by design over-covers, so it fails that
-   band.
-2. **A truth at the extremal vertex.** The tight side of the target is
-   `psi(delta0)` at the vertex that attains `U`, not the interior point
-   `delta0 = 0`, which every box contains and which is the easiest point to
-   cover.
+The `one_sided` role is defined in three places:
 
-The calibration tests in `crates/antecedent/tests/joint_sensitivity_calibration.rs`
-now use the extremal-vertex truth. The non-ignored test
-`the_calibration_truths_are_the_extremal_vertex_of_the_true_law` checks that
-truth against the exact range on the true law. The two coverage tests stay
-`#[ignore]`d and unregistered until the harness has a one-sided role.
+- `CoverageTally::assert_one_sided` in
+  `crates/antecedent/tests/common/calibration.rs`;
+- `scripts/gate_parity_schema.sh`, which requires each `one_sided` record to
+  state `one_sided = { side, target }` and checks each grid point against the
+  floor;
+- `scripts/collect_coverage_records.py`, which keeps the side and target when
+  it merges a record over its grid points.
+
+The non-ignored test
+`the_calibration_truths_are_the_extremal_vertex_of_the_true_law` checks the
+truth against the exact range on the true law.
+`the_one_sided_role_accepts_over_coverage_and_refuses_a_shortfall` checks the
+acceptance rule.
 
 ## Artifact (version 3)
 

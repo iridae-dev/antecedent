@@ -114,8 +114,8 @@ key estimator.transport_smoothed_dose estimator transport.smoothed_dose_transpor
 
 # Joint mechanism deviations (2.2B X3): the exact joint range and the conservative
 # endpoint percentile bootstrap over its per-replicate endpoints. Record
-# 2.2B.X3.joint_sensitivity_uncertainty is carried forward and its suite is not registered in
-# gate_calibration.sh, so no record carries these facets at the 2.2 cut.
+# 2.2B.X3.joint_sensitivity_uncertainty is in progress: its suite is registered in
+# gate_calibration.sh (run_js) and its two records carry these facets once measured at the cut.
 estimator.transport_joint_sensitivity crates/antecedent-validate/src/joint_mechanism_sensitivity.rs
 key estimator.transport_joint_sensitivity estimator transport.z_joint_sensitivity_endpoint_bootstrap
 

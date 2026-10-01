@@ -2661,7 +2661,7 @@ notes = "Closed until cov.classical_transport.admg.frequentist.percentile_bootst
 
 # 2.2B B3 (X3) joint mechanism deviations (record 2.2B.X3.joint_mechanism_sensitivity: the exact
 # assumption range only). The three closed uncertainty rows below belong to record
-# 2.2B.X3.joint_sensitivity_uncertainty (carried forward; sampling uncertainty is not offered in 2.2).
+# 2.2B.X3.joint_sensitivity_uncertainty (in progress; interval route closed until its coverage is measured at the 2.2 cut).
 
 [[routes]]
 route = "antecedent_validate.z_transport_joint_mechanism_sensitivity"
@@ -2759,21 +2759,21 @@ route = "antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "Record 2.2B.X3.joint_sensitivity_uncertainty (carried forward). Rust facade of the closed interval route; always refuses (joint_sensitivity.interval_withheld). Runtime refusal: crates/antecedent/tests/joint_sensitivity_lifecycle.rs::the_unmeasured_interval_route_refuses_with_cell_not_licensed."
+notes = "Record 2.2B.X3.joint_sensitivity_uncertainty (in progress). Rust facade of the closed interval route; always refuses (joint_sensitivity.interval_withheld). Runtime refusal: crates/antecedent/tests/joint_sensitivity_lifecycle.rs::the_unmeasured_interval_route_refuses_with_cell_not_licensed."
 
 [[routes]]
 route = "antecedent.transport.advanced.joint_mechanism_sensitivity_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "Record 2.2B.X3.joint_sensitivity_uncertainty (carried forward). Python surface of the closed interval route; always refuses (joint_sensitivity.interval_withheld). Runtime refusal: python/tests/test_transport_joint_sensitivity.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed."
+notes = "Record 2.2B.X3.joint_sensitivity_uncertainty (in progress). Python surface of the closed interval route; always refuses (joint_sensitivity.interval_withheld). Runtime refusal: python/tests/test_transport_joint_sensitivity.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed."
 
 [[routes]]
 route = "antecedent.transport.joint_sensitivity.uncertainty_conservative_endpoint_bootstrap"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "Record 2.2B.X3.joint_sensitivity_uncertainty (carried forward). The one declared composition (conservative endpoint percentile bootstrap, one-sided coverage target), closed for the 2.2 release. The internal estimator is antecedent_validate::joint_sensitivity_bootstrap_interval_internal (calibration-internal only); its harness crates/antecedent/tests/joint_sensitivity_calibration.rs is NOT registered in gate_calibration.sh (nothing is measured at the cut) until the coverage harness has a one-sided role."
+notes = "Record 2.2B.X3.joint_sensitivity_uncertainty (in progress). The one declared composition (conservative endpoint percentile bootstrap, one-sided coverage target), closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box (gated) and ...z_joint_sensitivity_positive_box (one_sided, side upper) are measured (crates/antecedent/tests/joint_sensitivity_calibration.rs, gate_calibration.sh run_js). The internal estimator is antecedent_validate::joint_sensitivity_bootstrap_interval_internal (calibration-internal only)."
 
 # 2.2B B5 (X8) bounded ADMG counterfactual identification, effect of treatment on the treated
 # (record 2.2B.X8.admg_counterfactual_id). A counterfactual stage API with no Study query, so it uses this registry.

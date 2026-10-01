@@ -57,10 +57,16 @@ its typed refusal (mirror `crates/antecedent/tests/a_exit_gate.rs`).
    `bash scripts/measure_calibration.sh --dry-run` to size it, then
    `bash scripts/measure_calibration.sh`. Only owed groups run: the X1 and X4 coverage records
    (`crates/antecedent/tests/mz_transport_calibration.rs`, `learned_continuous_calibration.rs`),
-   any B interval records, and any old coordinates taken on.
+   the B interval records, and any old coordinates taken on. The B interval records are the
+   2.2B X4 smoothed dose-response records (`smoothed_dose_calibration.rs`, `run_sd`) and the
+   2.2B X3 joint-sensitivity records (`joint_sensitivity_calibration.rs`, `run_js`). X3's
+   zero-box record is `gated`. Its positive-box record is `one_sided` (side `upper`): coverage of
+   the true upper extremal bound must be at least nominal, with no upper band or ceiling,
+   because the endpoint bootstrap is conservative by design.
 3. **Regenerate and commit** `parity/coverage_records.toml` and
    `crates/antecedent-io/src/coverage_records_data.rs` (the collector writes both).
-4. **Open the measured routes and promote.** For X1, X4 and each B interval record, flip the
+4. **Open the measured routes and promote.** For X1, X4 and each B interval record (2.2B X4
+   smoothed dose response, 2.2B X3 joint-sensitivity uncertainty), flip the
    uncertainty route from `closed` (`cell_not_licensed`) to `licensed` together with its row in
    the owning registry (`parity/transport_stages.toml`, `parity/support_licensed.toml`), move the
    record to `promoted`, and remove the `calibration-internal` gating only where the record says

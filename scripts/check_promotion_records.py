@@ -484,6 +484,18 @@ namespaces_in_use = {
     if "." in refusal.get("detail", "")
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
+# Details each namespace's implemented records declare between them. Sibling records
+# of one workstream may share a namespace (2.2B.X3's range record and its sampling
+# uncertainty record both use `joint_sensitivity`): a literal in the namespace is
+# declared when ANY implemented record declares it, while each record still emits
+# every detail it declares itself (refusal_detail_missing).
+namespace_declared: dict[str, set[str]] = {}
+for _rec in records:
+    if _rec.get("status") in IMPLEMENTED:
+        for _refusal in _rec.get("refusals") or []:
+            _detail = _refusal.get("detail", "")
+            if "." in _detail:
+                namespace_declared.setdefault(_detail.split(".")[0], set()).add(_detail)
 
 
 def check_evidence_body(who: str, path: str, assertion: str) -> bool:
@@ -625,7 +637,7 @@ for rec in records:
                 f"{rid}: refusal detail {detail} is not emitted by non-test source "
                 f"(no \"{detail}\" or \"{detail}: ...\" literal in {', '.join(SOURCE_GLOBS)})",
             )
-        for detail in sorted(set(in_code) - details):
+        for detail in sorted(set(in_code) - details - namespace_declared.get(ns, set())):
             places = ", ".join(f"{rel(p)}:{lit.line}" for p, _, lit in in_code[detail])
             fail(
                 "refusal_detail_undeclared",

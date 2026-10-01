@@ -183,13 +183,14 @@ or conditional-mechanism perturbations, the treatment mechanism, more than two
 factors and source-target discrepancy diagnostics refuse with typed
 `joint_sensitivity.*` details. Declared bounds: at most 2 factors declared (the outcome kernel and the shared parent marginal), 64 parent levels, 32 outcome categories, a frontier grid of 1 to 33
 points, at most 100000 search operations, a bisection depth of 64 iterations per
-frontier line and a declared memory cap of at most 512 MiB; the carried-forward
-uncertainty record's internal estimator has a bootstrap request cap of 2000. The range is
+frontier line and a declared memory cap of at most 512 MiB; the uncertainty
+record's internal estimator has a bootstrap request cap of 2000. The range is
 never a confidence interval, and its guarantee (exact within the declared contamination
-class) covers the range only: sampling uncertainty is not offered in 2.2. The one
-declared sampling composition (conservative endpoint percentile bootstrap, paper-inherited)
-is record `2.2B.X3.joint_sensitivity_uncertainty`, carried forward; its routes refuse with
-`cell_not_licensed` and nothing is measured for it at the cut. Export and consume use a
+class) covers the range only. The one declared sampling composition (conservative endpoint
+percentile bootstrap, paper-inherited) is record `2.2B.X3.joint_sensitivity_uncertainty`,
+in progress: wired, not measured. Its routes refuse with `cell_not_licensed` until its two
+coverage records (a gated zero-box record and a `one_sided` positive-box record) are
+measured at the cut. Export and consume use a
 separate version 3 artifact. Derivation and scope: [joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
 
 ## Learned continuous-outcome transport (2.2A X4)

@@ -1,10 +1,11 @@
-"""Sampling uncertainty of the joint mechanism sensitivity range: closed in 2.2.
+"""Sampling uncertainty of the joint mechanism sensitivity range: closed until measured.
 
-Record ``2.2B.X3.joint_sensitivity_uncertainty`` (carried forward). The one
+Record ``2.2B.X3.joint_sensitivity_uncertainty`` (in progress). The one
 declared composition, the conservative endpoint percentile bootstrap, has a
-one-sided coverage target that the coverage harness cannot measure yet, so the
-interval is not offered and :func:`joint_mechanism_sensitivity_interval` always
-refuses with ``cell_not_licensed``. The joint assumption range itself is
+one-sided coverage target. Its coverage is wired but not measured until the
+2.2 cut, so the interval is not offered and
+:func:`joint_mechanism_sensitivity_interval` always refuses with
+``cell_not_licensed``. The joint assumption range itself is
 ``joint_mechanism_sensitivity`` (``_joint_sensitivity``).
 """
 

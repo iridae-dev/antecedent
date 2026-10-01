@@ -41,8 +41,12 @@
 //! `calibration-record` line (boundary `false`), [`CoverageTally::assert_boundary_at`]
 //! one flagged boundary, and [`CoverageTally::emit`] one for an
 //! [`CoverageTally::unasserted`] second level scored on the same replicates
-//! (boundary when it misses the nominal band). `scripts/collect_coverage_records.py`
-//! turns those lines into the registry.
+//! (boundary when it misses the nominal band). [`CoverageTally::assert_one_sided`]
+//! prints a `one_sided` record for a conservative interval whose target is
+//! at least nominal coverage of a true extremal bound: it states the `side`
+//! and `target`, and its acceptance is a floor with no upper band or ceiling
+//! ([`passes_one_sided`]). `scripts/collect_coverage_records.py` turns those
+//! lines into the registry.
 //!
 //! **Sample-size grid.** A record's scope is a measured range, not one row
 //! count. Every record-keyed design draws its sample size through a
@@ -480,6 +484,51 @@ pub fn passes_precision(n_sim: u32, level: f64, rate: f64) -> bool {
         return false;
     }
     true
+}
+
+/// Which true extremal bound a one-sided coverage record targets.
+///
+/// A conservative interval (e.g. the endpoint percentile bootstrap of an
+/// assumption range) is built to cover a value at the edge of a set at least
+/// at the level. Its record names the side of the set whose true bound is the
+/// truth (and so the conservative endpoint that binds), and its acceptance is
+/// a floor only ([`passes_one_sided`]): over-coverage is the claim, not a
+/// failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoverageSide {
+    /// The true lower extremal bound, covered by the conservative lower endpoint.
+    Lower,
+    /// The true upper extremal bound, covered by the conservative upper endpoint.
+    Upper,
+}
+
+impl CoverageSide {
+    /// The `side` written into a `one_sided` record.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Lower => "lower",
+            Self::Upper => "upper",
+        }
+    }
+}
+
+/// Whether `rate` passes a one-sided (at least nominal) target: at or above
+/// `level − 3·MCSE`, and from [`PRECISION_N_SIM`] at or above the precision
+/// floor `level − 2·MCSE`. There is no upper band and no ceiling. Mirrors the
+/// `one_sided` role check in `scripts/gate_parity_schema.sh`.
+#[must_use]
+pub fn passes_one_sided(n_sim: u32, level: f64, rate: f64) -> bool {
+    let (lo, _) = coverage_band(n_sim, level);
+    rate >= lo && precision_floor(n_sim, level).is_none_or(|floor| rate >= floor)
+}
+
+/// Whether a one-sided rate asks for a recheck: more than
+/// [`RECHECK_SHORTFALL`] BELOW the level at fewer than [`PRECISION_N_SIM`]
+/// replicates (over-coverage never does).
+#[must_use]
+pub fn needs_one_sided_recheck(n_sim: u32, level: f64, rate: f64) -> bool {
+    n_sim < PRECISION_N_SIM && rate < level - RECHECK_SHORTFALL
 }
 
 /// Provenance of a record-keyed tally: which test measured it, on which data
@@ -972,6 +1021,12 @@ impl CoverageTally {
     }
 
     fn emit_record(&self, boundary: bool, role: &str) {
+        self.emit_record_as(boundary, role, None);
+    }
+
+    /// [`Self::emit_record`] with the `one_sided` side and target of a
+    /// `one_sided` record ([`Self::assert_one_sided`]); `None` for every other role.
+    fn emit_record_as(&self, boundary: bool, role: &str, one_sided: Option<(CoverageSide, &str)>) {
         let Some(record) = self.record.as_ref() else {
             return;
         };
@@ -1037,6 +1092,9 @@ impl CoverageTally {
                 "dgp": dgp,
                 "test": format!("{file}::{}", record.key.test),
         });
+        if let Some((side, target)) = one_sided {
+            payload["one_sided"] = serde_json::json!({ "side": side.as_str(), "target": target });
+        }
         if smoke() {
             payload["smoke"] = serde_json::Value::Bool(true);
         }
@@ -1256,8 +1314,84 @@ impl CoverageTally {
         }
     }
 
+    /// Assert a one-sided (at least nominal) coverage target and emit a
+    /// `one_sided` record stating `side` and `target`.
+    ///
+    /// For a conservative interval built to cover the true `side` extremal
+    /// bound of a set (the truth recorded per replicate) at least at the
+    /// level: the acceptance is [`passes_one_sided`], a floor with no upper
+    /// band and no ceiling, so over-coverage passes. Below
+    /// [`PRECISION_N_SIM`] a shortfall of more than [`RECHECK_SHORTFALL`]
+    /// prints `calibration-recheck` and defers to the gate's recheck, as
+    /// [`Self::assert`] does; over-coverage never rechecks. A pass records
+    /// boundary `false`, like a gated record; the coverage is scored as
+    /// [`Self::record`] scores it (containment of the truth in the interval,
+    /// which implies coverage by the binding `side` endpoint).
+    ///
+    /// # Panics
+    ///
+    /// When coverage falls below `level − 3·MCSE`, below the precision floor,
+    /// too many replicates were skipped, `target` is empty, or on an
+    /// unasserted tally or one without a record.
+    pub fn assert_one_sided(&self, side: CoverageSide, target: &str) {
+        assert!(
+            self.record.as_ref().is_some_and(|record| !record.unasserted),
+            "{}: assert_one_sided needs an asserted record tally",
+            self.name
+        );
+        assert!(!target.trim().is_empty(), "{}: a one-sided record states its target", self.name);
+        self.finish();
+        let attempts = self.attempts();
+        let rate = self.rate();
+        let one_sided = Some((side, target));
+        if smoke() {
+            self.emit_smoke_as(
+                !passes_one_sided(attempts, self.level, rate),
+                "one_sided",
+                one_sided,
+            );
+            return;
+        }
+        self.check_skips();
+        let (lo, _) = coverage_band(attempts, self.level);
+        let floor = precision_floor(attempts, self.level);
+        eprintln!(
+            "calibration {} (one-sided {} target {target}): nominal={:.2} coverage={rate:.3} \
+             mcse={:.4} lower_band={lo:.3}{} mean_length={:.4} ({}/{} covered, {} skipped)",
+            self.name,
+            side.as_str(),
+            self.level,
+            coverage_mcse(attempts, self.level),
+            floor.map_or(String::new(), |f| format!(" floor={f:.3}")),
+            self.mean_length(),
+            self.covered,
+            attempts,
+            self.skipped
+        );
+        if needs_one_sided_recheck(attempts, self.level, rate) {
+            self.print_recheck(attempts, rate);
+            self.emit_record_as(false, "one_sided", one_sided);
+            return;
+        }
+        assert!(
+            passes_one_sided(attempts, self.level, rate),
+            "{} {:.0}% one-sided ({}) coverage={rate:.3} below [{lo:.3}{}] ({}/{})",
+            self.name,
+            self.level * 100.0,
+            side.as_str(),
+            floor.map_or(String::new(), |f| format!(", floor {f:.3}")),
+            self.covered,
+            attempts
+        );
+        self.emit_record_as(false, "one_sided", one_sided);
+    }
+
     /// A smoke run's line: never gated, flagged `"smoke": true` (see [`SMOKE_ENV`]).
     fn emit_smoke(&self, boundary: bool, role: &str) {
+        self.emit_smoke_as(boundary, role, None);
+    }
+
+    fn emit_smoke_as(&self, boundary: bool, role: &str, one_sided: Option<(CoverageSide, &str)>) {
         let attempts = self.attempts();
         eprintln!(
             "calibration-smoke {} (grid point {}; not gated): nominal={:.2} coverage={:.3} \
@@ -1271,7 +1405,7 @@ impl CoverageTally {
             self.skipped
         );
         if self.record.is_some() {
-            self.emit_record(boundary, role);
+            self.emit_record_as(boundary, role, one_sided);
         }
     }
 

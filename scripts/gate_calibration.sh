@@ -63,8 +63,8 @@ grid_group() {
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
     # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
-    # 2.2B X3 joint sensitivity: not registered (see run_js below); restore
-    # `joint_sensitivity_calibration:*) return 0 ;;` when it is re-registered.
+    # 2.2B X3 joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
+    joint_sensitivity_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -780,14 +780,19 @@ run_sd smoothed_dose_transport_independent_samples_psi_h
 run_sd smoothed_dose_transport_grid_points
 run_sd smoothed_dose_transport_weak_overlap_boundary
 
-# 2.2B X3 joint mechanism sensitivity (conservative endpoint percentile bootstrap):
-# deliberately NOT measured at the 2.2 cut. Its record, 2.2B.X3.joint_sensitivity_uncertainty,
-# is carried forward: the positive-box target is one-sided, which the harness (two-sided band,
-# over-coverage failure, gated/named_boundary roles only) cannot express. The two ignored tests
-# stay in crates/antecedent/tests/joint_sensitivity_calibration.rs. Re-register them here, as
-#   run_js() { cargo test --release -p antecedent --test joint_sensitivity_calibration "$1" -- --ignored --exact --nocapture; }
-# over both of that file's coverage tests (and the grid_group / calibration_groups.py grid
-# entries), once the harness has a one-sided coverage role.
+echo "== 2.2B joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
+# Record 2.2B.X3.joint_sensitivity_uncertainty. The zero box is a two-sided gated record;
+# the positive box is a `one_sided` record (CoverageTally::assert_one_sided, side upper):
+# coverage of the true upper extremal bound at least nominal, no upper band or ceiling.
+run_js() {
+  local filter="$1"
+  echo "== antecedent: joint_sensitivity_calibration ${filter} =="
+  check "joint_sensitivity_calibration: ${filter}" \
+    cargo test --release -p antecedent --test joint_sensitivity_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_js z_joint_sensitivity_zero_box
+run_js z_joint_sensitivity_positive_box
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

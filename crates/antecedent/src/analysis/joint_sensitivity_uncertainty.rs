@@ -1,11 +1,12 @@
 //! The closed sampling-uncertainty route of the joint mechanism sensitivity
 //! range on the prepared z stage (record `2.2B.X3.joint_sensitivity_uncertainty`,
-//! carried forward from 2.2).
+//! in progress).
 //!
-//! Sampling uncertainty is not offered in 2.2. The one declared composition,
-//! the conservative endpoint percentile bootstrap, has a one-sided coverage
-//! target that the shared coverage harness cannot measure yet, so this route
-//! always refuses with `cell_not_licensed`.
+//! The one declared composition, the conservative endpoint percentile
+//! bootstrap, has a one-sided coverage target. Its coverage harness
+//! (`crates/antecedent/tests/joint_sensitivity_calibration.rs`, a `one_sided`
+//! record) is wired but not measured until the 2.2 cut, so this route always
+//! refuses with `cell_not_licensed`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

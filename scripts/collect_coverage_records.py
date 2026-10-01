@@ -137,6 +137,19 @@ FIELDS = (
     "surface_list_blob",
 )
 
+# Fields only some records carry, written after `role` when present: a
+# `one_sided` record (CoverageTally::assert_one_sided in
+# crates/antecedent/tests/common/calibration.rs) states the side whose true
+# extremal bound it covers and its target, `{ side = "lower"|"upper", target }`.
+OPTIONAL_FIELDS = ("one_sided",)
+# Coverage roles a grid point may carry. `gated` passes the two-sided band and
+# precision floor/ceiling; `named_boundary` is a documented under-coverage;
+# `reported_level` is an unasserted second level; `one_sided` passes a floor at
+# the level with no upper band or ceiling (a conservative interval's
+# at-least-nominal target).
+ROLES = ("gated", "named_boundary", "reported_level", "one_sided")
+ONE_SIDED_SIDES = ("lower", "upper")
+
 # Estimator rows of parity/estimate.toml and the resolved plan estimators whose
 # records back them.
 ESTIMATOR_ROW_IDS = {
@@ -299,6 +312,25 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
                 "its sample size with the grid (SampleGrid in tests/common/calibration.rs)"
             )
     roles = {str(p["role"]) for p in ordered}
+    unknown = sorted(roles - set(ROLES))
+    if unknown:
+        raise SystemExit(f"record {rid}: unknown coverage role(s) {unknown}")
+    one_sided = first.get("one_sided")
+    if ("one_sided" in roles) != (one_sided is not None):
+        raise SystemExit(
+            f"record {rid}: a one_sided record, and only one, states one_sided "
+            "{ side, target } (CoverageTally::assert_one_sided)"
+        )
+    if one_sided is not None and (
+        not isinstance(one_sided, dict)
+        or sorted(one_sided) != ["side", "target"]
+        or one_sided["side"] not in ONE_SIDED_SIDES
+        or not str(one_sided["target"]).strip()
+    ):
+        raise SystemExit(
+            f"record {rid}: one_sided must be {{ side = lower|upper, target = <non-empty> }}, "
+            f"got {one_sided!r}"
+        )
     if len(roles) == 1:
         role = roles.pop()
     elif roles == {"gated", "named_boundary"}:
@@ -520,6 +552,12 @@ def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = T
             if key not in rec:
                 raise SystemExit(f"record {rid} is missing {key}; re-run the coverage tests")
             lines.append(f"{key} = {toml_value(key, rec[key])}")
+            if key == "role":
+                lines += [
+                    f"{opt} = {toml_value(opt, rec[opt])}"
+                    for opt in OPTIONAL_FIELDS
+                    if rec.get(opt) is not None
+                ]
         lines.append("")
     out.write_text("\n".join(lines))
 

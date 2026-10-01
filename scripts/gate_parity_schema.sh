@@ -675,6 +675,19 @@ if cr.is_file():
                 return False
             return lo <= observed <= hi
 
+        def one_sided_pass(point: dict) -> bool:
+            # A one-sided (at least nominal) target: the lower edge of the band and,
+            # from PRECISION_N_SIM, the precision floor; no upper band and no ceiling,
+            # since over-coverage is what a conservative interval claims
+            # (passes_one_sided in crates/antecedent/tests/common/calibration.rs).
+            lo, _, floor, _ = _band(nominal, int(point["replicates"]))
+            observed = float(point["observed"])
+            if int(point["replicates"]) < 1000 and observed < nominal - 0.02:
+                return False
+            if floor is not None and observed < floor:
+                return False
+            return observed >= lo
+
         # The measured range is the sample-size grid: every point present, in
         # order, strictly growing, and the row's summary exactly what
         # scripts/collect_coverage_records.py::merge_grid derives from it.
@@ -738,6 +751,14 @@ if cr.is_file():
             elif point_role == "named_boundary":
                 if not point["boundary"]:
                     problems.append(f"{where}: a named boundary point must be boundary = true")
+            elif point_role == "one_sided":
+                if point["boundary"]:
+                    problems.append(f"{where}: a one-sided point cannot be a boundary")
+                if not one_sided_pass(point):
+                    problems.append(
+                        f"{where}: one-sided coverage {point['observed']} is below the {nominal} "
+                        "floor"
+                    )
             elif point_role == "reported_level":
                 if bool(point["boundary"]) == passes:
                     problems.append(
@@ -746,6 +767,23 @@ if cr.is_file():
                     )
             else:
                 problems.append(f"{where}: unknown role {point_role}")
+        # A one-sided record states the side whose true extremal bound it covers and
+        # its target (CoverageTally::assert_one_sided); no other role carries one.
+        one_sided = rec.get("one_sided")
+        if role == "one_sided":
+            if (
+                not isinstance(one_sided, dict)
+                or sorted(one_sided) != ["side", "target"]
+                or one_sided.get("side") not in ("lower", "upper")
+                or not isinstance(one_sided.get("target"), str)
+                or not one_sided["target"].strip()
+            ):
+                problems.append(
+                    f"{label}: a one_sided record must state one_sided = {{ side = "
+                    '"lower"|"upper", target = "<non-empty>" }'
+                )
+        elif one_sided is not None:
+            problems.append(f"{label}: one_sided on a {role} record")
         roles = {str(p["role"]) for p in grid}
         if len(roles) > 1 and roles != {"gated", "named_boundary"}:
             problems.append(f"{label}: grid points carry incompatible roles {sorted(roles)}")

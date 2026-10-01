@@ -1,5 +1,5 @@
 //! Coverage of the 2.2B X3 conservative endpoint percentile bootstrap (record
-//! `2.2B.X3.joint_sensitivity_uncertainty`, carried forward from 2.2).
+//! `2.2B.X3.joint_sensitivity_uncertainty`).
 //!
 //! The registered surrogate formula's cited joint is `P(W) P(X) P(Y | W, X)`
 //! under `do(Z = 0)` with a W-dependent effect. The truth is `psi(delta0)` at
@@ -9,19 +9,18 @@
 //! point and would not test it). At the zero box that vertex is `delta0 = 0`.
 //!
 //! * `z_joint_sensitivity_zero_box`: the zero box, where the composition is
-//!   exactly the ordinary percentile bootstrap; a two-sided nominal record.
+//!   exactly the ordinary percentile bootstrap; a two-sided gated record.
 //! * `z_joint_sensitivity_positive_box`: a positive box, where the target is
-//!   one-sided (coverage at least nominal). The shared harness gates a
-//!   two-sided band with a precision ceiling, so this record is emitted as a
-//!   named boundary and the one-sided floor is asserted here; it never counts
-//!   as a nominal pass.
+//!   one-sided: coverage of the true upper extremal bound `U` at least nominal,
+//!   bound by the conservative upper endpoint `q_{(1+a)/2}(U*)`. It is a
+//!   `one_sided` record (`CoverageTally::assert_one_sided`, side `upper`): a
+//!   floor at the level with no upper band or ceiling, so the interval's
+//!   designed over-coverage passes.
 //!
-//! NOT REGISTERED: neither test is in `scripts/gate_calibration.sh`, so nothing
-//! is measured at the 2.2 cut. Re-register them (`run_js`, and the
-//! `grid_group`/`calibration_groups.py` grid entries) once the harness has a
-//! one-sided coverage role (`crates/antecedent/tests/common/calibration.rs`,
-//! `scripts/gate_parity_schema.sh`, `scripts/collect_coverage_records.py`).
-//! The estimator is compiled only under `calibration-internal`.
+//! Both are registered in `scripts/gate_calibration.sh` (`run_js`, measured over
+//! the sample-size grid) and are measured once at the release cut; until then
+//! the interval route stays closed (`cell_not_licensed`). The estimator is
+//! compiled only under `calibration-internal`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -47,12 +46,16 @@ use antecedent_validate::{
     joint_sensitivity_bootstrap_interval_internal,
 };
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, coverage_mcse, grid_n,
-    map_replicates, n_sim, smoke, stream_seed, unit_uniform,
+    Construction, CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts,
+    coverage_mcse, grid_n, map_replicates, n_sim, needs_one_sided_recheck, passes_one_sided,
+    passes_precision, stream_seed, unit_uniform,
 };
 
 const INTERVAL: &str = "percentile_bootstrap";
 const REPLICATES: u32 = 199;
+/// The positive-box record's one-sided target.
+const UPPER_TARGET: &str = "true upper extremal bound U (psi at the maximizing vertex of the true \
+                            law) covered by the conservative upper endpoint q_{(1+a)/2}(U*)";
 const W: VariableId = VariableId::from_raw(0);
 const Z: VariableId = VariableId::from_raw(1);
 const X: VariableId = VariableId::from_raw(2);
@@ -307,8 +310,73 @@ fn the_calibration_truths_are_the_extremal_vertex_of_the_true_law() {
     }
 }
 
+/// The positive-box record's acceptance is one-sided: a floor at the level and
+/// no ceiling, so the conservative interval's over-coverage passes and a
+/// shortfall fails, and a short run that shortfalls by more than the recheck
+/// margin is rechecked rather than passed.
 #[test]
-#[ignore = "coverage: not registered in gate_calibration.sh until the harness has a one-sided role"]
+fn the_one_sided_role_accepts_over_coverage_and_refuses_a_shortfall() {
+    let level = REPORTED_LEVEL;
+    // Over-coverage that the two-sided gate refuses passes one-sided.
+    assert!(!passes_precision(2000, level, 0.995));
+    assert!(passes_one_sided(2000, level, 0.995));
+    assert!(passes_one_sided(400, level, 1.0));
+    assert!(!needs_one_sided_recheck(400, level, 1.0));
+    // A shortfall below the floor fails at either count.
+    let mcse = coverage_mcse(2000, level);
+    assert!(!passes_one_sided(2000, level, level - 2.5 * mcse));
+    assert!(passes_one_sided(2000, level, level - 1.5 * mcse));
+    assert!(!passes_one_sided(400, level, level - 3.5 * coverage_mcse(400, level)));
+    // A short run under the level by more than the recheck margin is rechecked.
+    assert!(needs_one_sided_recheck(400, level, level - 0.025));
+    assert!(!needs_one_sided_recheck(2000, level, level - 0.025));
+    assert_eq!(CoverageSide::Upper.as_str(), "upper");
+    assert_eq!(CoverageSide::Lower.as_str(), "lower");
+}
+
+/// A record tally of `covered` out of `n` synthetic replicates of the
+/// positive-box construction, for the role's own acceptance tests.
+fn synthetic_one_sided_tally(test: &'static str, n: u32, covered: u32) -> CoverageTally {
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp: "z_joint_surrogate_counts", interval: INTERVAL },
+        REPORTED_LEVEL,
+    );
+    for rep in 0..n {
+        tally.bind(
+            &construction(),
+            ScopeFacts {
+                row_count: 400,
+                replicates_ok: Some(REPLICATES),
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        let truth = if rep < covered { 0.5 } else { 2.0 };
+        tally.record(Some((0.0, 1.0)), truth);
+    }
+    tally
+}
+
+/// The conservative interval's over-coverage (1000 of 1000) passes the
+/// one-sided assertion, where the two-sided gate's ceiling would refuse it.
+#[test]
+fn assert_one_sided_accepts_the_over_coverage_of_a_conservative_interval() {
+    let tally = synthetic_one_sided_tally("synthetic_one_sided_over_coverage", 1000, 1000);
+    assert!(!passes_precision(tally.attempts(), REPORTED_LEVEL, tally.rate()));
+    tally.assert_one_sided(CoverageSide::Upper, UPPER_TARGET);
+}
+
+/// A shortfall (900 of 1000, below the precision floor) fails the one-sided
+/// assertion.
+#[test]
+#[should_panic(expected = "one-sided (upper) coverage=0.900")]
+fn assert_one_sided_refuses_a_shortfall() {
+    synthetic_one_sided_tally("synthetic_one_sided_shortfall", 1000, 900)
+        .assert_one_sided(CoverageSide::Upper, UPPER_TARGET);
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn z_joint_sensitivity_zero_box() {
     let n = grid_n(400);
     let mut tally = CoverageTally::for_record(
@@ -324,7 +392,7 @@ fn z_joint_sensitivity_zero_box() {
 }
 
 #[test]
-#[ignore = "coverage: not registered in gate_calibration.sh until the harness has a one-sided role"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn z_joint_sensitivity_positive_box() {
     let n = grid_n(400);
     let mut tally = CoverageTally::for_record(
@@ -336,10 +404,5 @@ fn z_joint_sensitivity_positive_box() {
         REPORTED_LEVEL,
     );
     measure(&mut tally, 0.05, n);
-    if !smoke() {
-        // The one-sided target: at least nominal, within three Monte Carlo errors.
-        let floor = REPORTED_LEVEL - 3.0 * coverage_mcse(tally.attempts(), REPORTED_LEVEL);
-        assert!(tally.rate() >= floor, "one-sided coverage {} below {floor}", tally.rate());
-    }
-    tally.emit_named_boundary();
+    tally.assert_one_sided(CoverageSide::Upper, UPPER_TARGET);
 }

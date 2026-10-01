@@ -163,8 +163,7 @@ def is_grid(label: str) -> bool:
             "v110_",
             "v20_",
             "mz_transport_calibration:",
-            # 2.2B X3 joint_sensitivity_calibration is not registered in the gate
-            # (record carried forward); add its prefix back when it is.
+            "joint_sensitivity_calibration:",  # 2.2B X3: both tests emit records
         )
     )
 
