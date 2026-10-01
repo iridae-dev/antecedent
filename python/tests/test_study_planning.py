@@ -401,3 +401,20 @@ def test_a_multi_level_mz_plan_receives_by_level_labels_and_replays():
     replayed = json.loads(transport.replay_study_plan(artifact))
     for key in ("route", "failure", "subsets", "proposals", "minimal", "operations_consumed"):
         assert replayed[key] == live[key], key
+
+
+def test_a_cancelled_plan_is_a_budget_stop_never_a_verdict():
+    from antecedent.errors import CausalError
+    from antecedent.state import CancellationToken
+
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalError, match="study_plan.budget") as refused:
+        transport.plan_studies(
+            graph=graph(),
+            query=query(),
+            catalog=catalog(BASE),
+            candidates=CANDIDATES,
+            cancel=token,
+        )
+    assert refused.value.reason_code == "transport_budget_cancel"

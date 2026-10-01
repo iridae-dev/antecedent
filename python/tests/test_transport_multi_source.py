@@ -747,3 +747,18 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
     with pytest.raises(Exception, match="mz_transport.empirical_counts_required") as raised:
         identified_stage().prepare_empirical(laws(), {"x": 1.0})
     assert raised.value.reason_code == "transport_missing_provider"
+
+
+def test_a_cancelled_search_returns_a_receipt_never_a_verdict():
+    from antecedent.state import CancellationToken
+
+    token = CancellationToken()
+    token.cancel()
+    stage = transport.identify_multi_source_z_transport(
+        graph=graph(), query=query(source_a(), source_b()), catalog=catalog(), cancel=token
+    )
+    assert stage.outcome == "exhausted"
+    assert stage.identification_status == "budget_cancel"
+    assert stage.decision()["limits_receipt"]["stop"] == "search.cancelled"
+    with pytest.raises(Exception, match="transport_budget_cancel"):
+        stage.prepare_exact(laws(), {"x": 1.0})

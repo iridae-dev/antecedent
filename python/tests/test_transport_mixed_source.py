@@ -456,3 +456,16 @@ def test_consumer_recomputes_points_after_builder_disposal():
     assert consumed["requests"] == live["requests"]
     assert [s["source"]["regime"] for s in plan["steps"] if s["source"]] == ["s1", "s2"]
     assert {c["study"] for c in consumed["cited_sources"]} == {"study-1", "study-2"}
+
+
+def test_a_cancelled_search_stays_unresolved_with_a_receipt():
+    from antecedent.state import CancellationToken
+
+    token = CancellationToken()
+    token.cancel()
+    stage = decide(chain_graph(), CHAIN_STUDIES, cancel=token)
+    assert stage.outcome == "exhausted"
+    assert stage.identification_status == "budget_cancel"
+    assert stage.decision()["limits_receipt"]["stop"] == "search.cancelled"
+    with pytest.raises(Exception, match="transport_budget_cancel"):
+        stage.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
