@@ -61,6 +61,12 @@ pub enum CrossWorldArtifactError {
     /// The feature marker or version is not this format's.
     #[error("unsupported semantics: {0}")]
     UnsupportedSemantics(&'static str),
+    /// Another format version, refused before the payload is interpreted.
+    #[error("unsupported artifact version {version}")]
+    UnsupportedVersion {
+        /// The stored version.
+        version: u32,
+    },
     /// A stored collection exceeds the consumer's bound.
     #[error("consumer limit exceeded: {0}")]
     LimitsExceeded(&'static str),
@@ -329,7 +335,7 @@ impl CrossWorldArtifactWire {
     pub fn decode(bytes: &[u8]) -> Result<Self, CrossWorldArtifactError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
         if peek.version != CROSS_WORLD_ARTIFACT_VERSION {
-            return Err(CrossWorldArtifactError::UnsupportedSemantics("artifact version"));
+            return Err(CrossWorldArtifactError::UnsupportedVersion { version: peek.version });
         }
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.required_features != [CROSS_WORLD_ARTIFACT_FEATURE] {

@@ -764,6 +764,13 @@ fn another_format_version_or_an_unknown_required_feature_is_refused() {
     assert!(
         consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).is_ok()
     );
+    // Cross-format: the 2.2 mz artifact (version 1) is refused by the 2.1
+    // z-transport reader (version 2) by version, before its payload is read.
+    assert!(matches!(
+        antecedent_io::z_transport_artifact::ZTransportArtifactWire::decode(&bytes),
+        Err(IoError::UnsupportedVersion { version: 1 })
+    ));
+    assert!(antecedent::consume_z_transport_artifact(&bytes, &ctx).is_err());
 }
 
 /// Re-sealed mutations of source identity and of the result body: every digest

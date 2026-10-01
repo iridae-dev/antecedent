@@ -326,4 +326,32 @@ mod tests {
         bad.version = 2;
         assert!(bad.verify().is_err());
     }
+
+    /// Cross-format: a 2.1 learned-trial artifact is never read as a 2.2
+    /// learned-continuous or smoothed-dose artifact (each checks its own
+    /// version and feature marker first).
+    #[test]
+    fn a_learned_trial_artifact_is_refused_by_the_2_2_continuous_consumers() {
+        let (diagram, query, input, options) = fixture();
+        let ctx = ExecutionContext::for_tests(8);
+        let study =
+            StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx).unwrap();
+        let bytes = study.estimate(&ctx).unwrap().export().unwrap();
+        assert!(
+            crate::consume_learned_continuous_artifact(
+                &bytes,
+                antecedent_io::learned_continuous_artifact::LearnedContinuousConsumeLimits::default(
+                )
+            )
+            .is_err()
+        );
+        assert!(
+            crate::consume_smoothed_dose_artifact(
+                &bytes,
+                antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits::default(),
+                &ctx
+            )
+            .is_err()
+        );
+    }
 }

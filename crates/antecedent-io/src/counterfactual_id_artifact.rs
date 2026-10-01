@@ -57,6 +57,12 @@ pub enum CounterfactualIdArtifactError {
     /// The feature marker, version, estimand or contract is not this format's.
     #[error("unsupported semantics: {0}")]
     UnsupportedSemantics(&'static str),
+    /// Another format version, refused before the payload is interpreted.
+    #[error("unsupported artifact version {version}")]
+    UnsupportedVersion {
+        /// The stored version.
+        version: u32,
+    },
     /// A stored collection or limit exceeds the consumer's bound; refused before
     /// any work. Retry with larger limits; this is not a claim the artifact is
     /// invalid.
@@ -415,7 +421,7 @@ impl CounterfactualIdArtifactWire {
     pub fn decode(bytes: &[u8]) -> Result<Self, CounterfactualIdArtifactError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
         if peek.version != COUNTERFACTUAL_ID_ARTIFACT_VERSION {
-            return Err(CounterfactualIdArtifactError::UnsupportedSemantics("artifact version"));
+            return Err(CounterfactualIdArtifactError::UnsupportedVersion { version: peek.version });
         }
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.required_features != [COUNTERFACTUAL_ID_ARTIFACT_FEATURE] {

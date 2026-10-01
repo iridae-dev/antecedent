@@ -1417,3 +1417,44 @@ fn regime_over(
     )
     .unwrap()
 }
+
+/// Compatibility of the version 1 format: any version other than 1 and 2 is
+/// refused before the payload is read, a version 1 artifact relabelled 2 is
+/// refused for its content, and an unknown or missing feature is refused.
+#[test]
+fn a_version_one_artifact_refuses_other_versions_and_unknown_features() {
+    let prepared = prepare(three(None), bound_catalog(), laws(SOURCE, true), BUDGET);
+    let ctx = ExecutionContext::for_tests(1);
+    let bytes = prepared.export(&prepared.estimate(&ctx).unwrap()).unwrap();
+    let original = TransportScenarioArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(
+        original.version,
+        antecedent_io::transport_scenario_artifact::TRANSPORT_SCENARIO_ARTIFACT_VERSION
+    );
+    for version in [0, 3] {
+        let mut wire = original.clone();
+        wire.version = version;
+        assert!(matches!(
+            consume_transport_scenarios_artifact(
+                &wire.export().unwrap(),
+                TransportScenarioConsumeLimits::default(),
+                &ctx
+            ),
+            Err(IoError::UnsupportedVersion { version: v }) if v == version
+        ));
+    }
+    let mut relabelled = original.clone();
+    relabelled.version = 2;
+    assert!(matches!(
+        consume_error(&relabelled),
+        TransportScenarioArtifactError::UnsupportedSemantics(_)
+    ));
+    for features in [vec!["future_semantics_v9".to_owned()], Vec::new()] {
+        let mut wire = original.clone();
+        wire.required_features = features;
+        assert_eq!(
+            consume_error(&wire),
+            TransportScenarioArtifactError::UnsupportedSemantics("required features")
+        );
+    }
+}

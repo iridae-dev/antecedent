@@ -876,7 +876,7 @@ fn a_mutated_artifact_fails_consumption_with_a_typed_error() {
     assert_eq!(consume(&w), CrossWorldArtifactError::PremisesMismatch);
     let mut w = base.clone();
     w.version += 1;
-    assert!(matches!(consume(&w), CrossWorldArtifactError::UnsupportedSemantics(_)));
+    assert_eq!(consume(&w), CrossWorldArtifactError::UnsupportedVersion { version: w.version });
     let mut w = base.clone();
     w.required_features = vec!["other".into()];
     assert!(matches!(consume(&w), CrossWorldArtifactError::UnsupportedSemantics(_)));

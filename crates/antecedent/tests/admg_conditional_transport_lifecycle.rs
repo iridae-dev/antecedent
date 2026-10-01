@@ -378,9 +378,7 @@ fn a_mutated_artifact_fails_consumption() {
     wire.version = 2;
     assert!(matches!(
         AdmgConditionalArtifactWire::decode(&wire.export().unwrap()),
-        Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
-            "version"
-        )))
+        Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion { .. }))
     ));
     // The unmutated artifact still replays; every refusal carries its code.
     assert!(
@@ -584,9 +582,7 @@ fn an_unknown_required_feature_or_another_version_is_refused() {
         wire.version = version;
         assert!(matches!(
             AdmgConditionalArtifactWire::decode(&wire.export().unwrap()),
-            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
-                "version"
-            )))
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion { .. }))
         ));
     }
 }
@@ -671,11 +667,40 @@ fn a_proven_obstruction_is_reverified_by_the_artifact_consumer() {
     w.graph.node_count = 7;
     w.variable_names.clear();
     assert_eq!(refusal(&w), ("route_not_supported", "admg_transport.consumer_limits"));
-    // Another version or feature.
-    let mut w = wire.clone();
-    w.version = 2;
-    assert!(consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx).is_err());
-    let mut w = wire;
-    w.required_features = vec!["checked_admg_conditional_point_v1".into()];
-    assert!(consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx).is_err());
+    // Another version or feature: refused by version before the payload, and by
+    // feature marker (the point format's marker included).
+    for version in [0, 2] {
+        let mut w = wire.clone();
+        w.version = version;
+        assert!(matches!(
+            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedVersion {
+                version: v
+            })) if v == version
+        ));
+    }
+    for features in [vec!["checked_admg_conditional_point_v1".to_owned()], Vec::new()] {
+        let mut w = wire.clone();
+        w.required_features = features;
+        assert!(matches!(
+            consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
+                "required features"
+            )))
+        ));
+    }
+    // Cross-format: a point artifact is never read as an obstruction, nor the
+    // reverse.
+    let point = export(&prepare(&scm(0)));
+    assert!(consume_admg_conditional_obstruction_artifact(&point, &ctx).is_err());
+    assert!(AdmgConditionalObstructionWire::decode(&point).is_err());
+    assert!(AdmgConditionalArtifactWire::decode(&bytes).is_err());
+    assert!(
+        antecedent::consume_admg_conditional_transport_artifact(
+            &bytes,
+            AdmgConditionalConsumeLimits::default(),
+            &ctx
+        )
+        .is_err()
+    );
 }

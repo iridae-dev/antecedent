@@ -74,6 +74,12 @@ pub enum AdmgConditionalArtifactError {
     /// The feature marker, result shape or name mapping is not this format's.
     #[error("admg_transport.invalid_artifact: unsupported semantics: {0}")]
     UnsupportedSemantics(&'static str),
+    /// Another format version, refused before the payload is interpreted.
+    #[error("admg_transport.invalid_artifact: unsupported artifact version {version}")]
+    UnsupportedVersion {
+        /// The stored version.
+        version: u32,
+    },
     /// The artifact claims an interval or carries counted laws.
     #[error("admg_transport.interval_withheld: the route publishes exact points only")]
     IntervalWithheld,
@@ -106,7 +112,10 @@ impl AdmgConditionalArtifactError {
     pub fn refusal(&self) -> (&'static str, &'static str) {
         use antecedent_core::reason_code;
         match self {
-            Self::UnsupportedSemantics(_) | Self::LawInvalid(_) | Self::NamesMismatch => {
+            Self::UnsupportedSemantics(_)
+            | Self::UnsupportedVersion { .. }
+            | Self::LawInvalid(_)
+            | Self::NamesMismatch => {
                 (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
             }
             Self::IntervalWithheld => {
@@ -572,12 +581,12 @@ impl AdmgConditionalArtifactWire {
     /// Decode, refusing any other version before the payload is interpreted.
     ///
     /// # Errors
-    /// [`AdmgConditionalArtifactError::UnsupportedSemantics`] for another
+    /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
         if peek.version != ADMG_CONDITIONAL_ARTIFACT_VERSION {
-            return Err(AdmgConditionalArtifactError::UnsupportedSemantics("version").into());
+            return Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into());
         }
         let wire: Self = crate::from_cbor(bytes)?;
         wire.validate_shape()?;
@@ -907,12 +916,12 @@ impl AdmgConditionalObstructionWire {
     /// Decode, refusing any other version before the payload is interpreted.
     ///
     /// # Errors
-    /// [`AdmgConditionalArtifactError::UnsupportedSemantics`] for another
+    /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
         if peek.version != ADMG_CONDITIONAL_OBSTRUCTION_VERSION {
-            return Err(AdmgConditionalArtifactError::UnsupportedSemantics("version").into());
+            return Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into());
         }
         let wire: Self = crate::from_cbor(bytes)?;
         wire.validate_shape()?;

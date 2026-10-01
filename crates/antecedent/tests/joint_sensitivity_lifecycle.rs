@@ -760,3 +760,20 @@ fn the_v2_sensitivity_artifact_is_unchanged_and_rejects_v3() {
         v2.tipping_fraction.map(f64::to_bits)
     );
 }
+
+/// Cross-format: a 2.1 z-transport point artifact (version 2) is refused by the
+/// 2.2 mz-transport consumer (version 1) by version, before its payload is read.
+#[test]
+fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
+    let built = builder();
+    let bytes = baseline_bytes(&prepare(&built));
+    let ctx = ExecutionContext::for_tests(1);
+    assert!(matches!(
+        antecedent::consume_mz_transport_artifact(
+            &bytes,
+            antecedent_io::mz_transport_artifact::MzTransportConsumeLimits::default(),
+            &ctx
+        ),
+        Err(IoError::UnsupportedVersion { version: 2 })
+    ));
+}

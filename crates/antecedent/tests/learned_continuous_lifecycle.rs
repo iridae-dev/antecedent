@@ -984,3 +984,19 @@ fn a_resealed_source_relabel_changes_the_consumed_identity() {
         Err(error) => panic!("unexpected: {error:?}"),
     }
 }
+
+/// Cross-format: a 2.2 learned-continuous artifact is never read as a 2.1
+/// learned-trial artifact or as a smoothed-dose grid, nor the reverse.
+#[test]
+fn a_learned_continuous_artifact_is_refused_by_other_trial_consumers() {
+    let (bytes, _) = exported(Design::NestedCohort);
+    assert!(antecedent::LearnedTrialResult::consume(&bytes).is_err());
+    assert!(
+        antecedent::consume_smoothed_dose_artifact(
+            &bytes,
+            antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits::default(),
+            &ExecutionContext::for_tests(0)
+        )
+        .is_err()
+    );
+}

@@ -386,10 +386,10 @@ fn a_mutated_artifact_fails_consumption_with_a_typed_error() {
     ));
     let mut version = base.clone();
     version.version = 2;
-    assert!(matches!(
-        consume_wire(&version),
-        Err(CounterfactualIdArtifactError::UnsupportedSemantics(_))
-    ));
+    assert_eq!(
+        consume_wire(&version).unwrap_err(),
+        CounterfactualIdArtifactError::UnsupportedVersion { version: 2 }
+    );
     let mut feature = base.clone();
     feature.required_features = vec!["cross_world_edge_contrast_v1".into()];
     assert!(matches!(
