@@ -240,9 +240,10 @@ All in `crates/antecedent/tests/smoothed_dose_lifecycle.rs`, on the structural m
     (target `X ~ N(0.8, 1)`, 105,000 rows) and a fit linear in the dose. The fit's error
     is `(1 + X)` times the missed curvature, which varies with `X`. The estimator lands
     within tolerance; the plug-in misses by more than 2.5 tolerances at three or more
-    doses; the smoothing-bias diagnostic is exactly zero. A constant odds weight
-    (membership ignored) or a constant dose density in the residual weight fails this
-    case (mutation-checked).
+    doses; the smoothing-bias diagnostic is exactly zero. On the same fitted nuisances,
+    the point with a constant odds weight `n_0/n_1` (membership ignored) leaves the
+    tolerance at three or more doses, and the point with a constant (uniform) dose
+    density in the residual weight leaves it at one or more; the test asserts both.
   - Membership wrong, outcome right: the same outcome, target `X ~ N(0.5, 1.4^2)` (log odds
     quadratic in `X`) against a linear logistic. The estimator lands within tolerance
     while the weighting-only estimator with the same fitted odds is more than two
@@ -264,8 +265,11 @@ All in `crates/antecedent/tests/smoothed_dose_lifecycle.rs`, on the structural m
 ## Bounds
 
 At most 16 grid doses, 20 cross-fitting folds, 200,000 rows, 256 covariates, basis degree 1 to 3,
-at most 8 knots, and a bootstrap request of 199 to 2000 replicates; a violation refuses as
-`dose_response.bounds_exceeded`. Each cap is tested at its value and one above (the
+at most 8 knots, and an interval bootstrap request of 199 to 2000 replicates (or none). A
+request above a cap refuses as `dose_response.bounds_exceeded`; a request of 1 to 198
+replicates is below the floor, which is not a bounds refusal: the point is kept and the
+interval status is withheld (`estimator_inference_mismatch`,
+`dose_response.bootstrap_below_floor`). Each cap is tested at its value and one above (the
 covariate cap on a certificate that standardizes over 256 covariates).
 
 **Memory.** A mandatory cap of 512 MiB (536,870,912 bytes) on the estimated workspace, lowered (never raised)

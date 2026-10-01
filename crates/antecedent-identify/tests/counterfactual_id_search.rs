@@ -493,7 +493,7 @@ fn every_identified_ett_on_wider_shuffled_admgs_matches_the_enumerated_truth() {
 // ---------------------------------------------------------------- negatives
 
 /// A model on `X`, `Y` (both binary) and optionally `Z`, with one binary latent
-/// `U` (`P(U = 1) = 1/2`) on `X <-> Y`.
+/// `U` (`P(U = 1) = 1/2`) on `X <-> Y` and the given response types.
 fn two_level_scm(
     cards: Vec<usize>,
     parents: Vec<Vec<usize>>,
@@ -526,7 +526,9 @@ fn assert_two_models_agree_on_p_v_and_differ_on_the_ett(
     for (p, q) in a.iter().zip(&b) {
         assert!((p - q).abs() <= 1e-15, "the models disagree on P(V): {a:?} vs {b:?}");
     }
-    assert!(a.iter().all(|p| *p > 0.0) || a.iter().any(|p| *p > 0.0));
+    // Positive: the witness holds among positive observational laws, not only
+    // through a structural zero of P(V).
+    assert!(a.iter().all(|p| *p > 0.0), "the shared P(V) is not positive: {a:?}");
     let (t1, t2) = (first.ett(x, 1, 0, y, 1), second.ett(x, 1, 0, y, 1));
     assert!((t1 - t2).abs() > 0.1, "the models agree on the ETT: {t1} vs {t2}");
 }
@@ -551,22 +553,30 @@ fn the_bow_arc_refuses_with_conflicting_subscripts() {
 
 #[test]
 fn two_models_on_the_bow_arc_agree_on_p_v_and_differ_on_the_ett() {
-    // X = U; model one: Y = X; model two: Y = U. Same observational law (X = Y
-    // = U), but among the untreated (U = 0) Y_{x=1} is 1 in one and 0 in the other.
+    // X = U, U ~ Bern(1/2). Y has two equally likely response types over its
+    // inputs (X, U); P(V) only reads them at X = U. Model one: Y = X or
+    // Y = 1 - X; model two: the same tables except at (X, U) = (1, 0), the
+    // input only the treated counterfactual of an untreated unit reads, where
+    // both are 0. P(X, Y) is uniform (positive) in both; among the untreated
+    // (U = 0), P(Y_{x=1} = 1) is 1/2 in one and 0 in the other.
     let parents = vec![vec![], vec![0]];
     let latents = vec![(0, 1, 0.5)];
-    // X's table: inputs (U); Y's table: inputs (X, U).
+    // X's table: inputs (U); Y's tables: inputs (X, U), index 2x + u.
     let x_table = vec![(1.0, vec![0, 1])];
     let first = two_level_scm(
         vec![2, 2],
         parents.clone(),
         latents.clone(),
-        vec![x_table.clone(), vec![(1.0, vec![0, 0, 1, 1])]],
+        vec![x_table.clone(), vec![(0.5, vec![0, 0, 1, 1]), (0.5, vec![1, 1, 0, 0])]],
     );
-    let second =
-        two_level_scm(vec![2, 2], parents, latents, vec![x_table, vec![(1.0, vec![0, 1, 0, 1])]]);
+    let second = two_level_scm(
+        vec![2, 2],
+        parents,
+        latents,
+        vec![x_table, vec![(0.5, vec![0, 0, 0, 1]), (0.5, vec![1, 1, 0, 0])]],
+    );
     assert_two_models_agree_on_p_v_and_differ_on_the_ett(&first, &second, 0, 1);
-    assert!((first.ett(0, 1, 0, 1, 1) - 1.0).abs() < 1e-15);
+    assert!((first.ett(0, 1, 0, 1, 1) - 0.5).abs() < 1e-15);
     assert!(second.ett(0, 1, 0, 1, 1).abs() < 1e-15);
 }
 
@@ -582,23 +592,34 @@ fn the_instrument_graph_refuses_with_conflicting_subscripts() {
 
 #[test]
 fn two_models_on_the_instrument_graph_agree_on_p_v_and_differ_on_the_ett() {
-    // Z ~ Bern(1/2), U ~ Bern(1/2), X = Z and U; Y = X in one model and
-    // Y = X and U in the other. X = 1 forces U = 1, so both give Y = X on
-    // every observed state; among X = 0 with U = 0, Y_{x=1} is 1 or 0.
+    // Z ~ Bern(1/2), U ~ Bern(1/2) on X <-> Y. X is `Z and U` or `U` (equally
+    // likely), so Z moves X (P(X = 1 | Z) is 1/4 or 1/2) and X = 1 forces
+    // U = 1: the input (X, U) = (1, 0) of Y is never observed. Y's two equally
+    // likely types are Y = X and Y = 1 - X in model one; model two changes only
+    // their value at (1, 0) to 0. P(Z, X, Y) is the same and positive; the ETT
+    // P(Y_{x=1} = 1 | X = 0) is 1/2 in model one and P(U = 1 | X = 0) / 2 = 1/10
+    // in model two.
     let parents = vec![vec![], vec![0], vec![1]];
     let latents = vec![(1, 2, 0.5)];
     let z = vec![(0.5, vec![0]), (0.5, vec![1])];
-    // X inputs (Z, U): and.
-    let x = vec![(1.0, vec![0, 0, 0, 1])];
+    // X inputs (Z, U), index 2z + u: `Z and U`, or `U`.
+    let x = vec![(0.5, vec![0, 0, 0, 1]), (0.5, vec![0, 1, 0, 1])];
+    // Y inputs (X, U), index 2x + u.
     let first = two_level_scm(
         vec![2, 2, 2],
         parents.clone(),
         latents.clone(),
-        vec![z.clone(), x.clone(), vec![(1.0, vec![0, 0, 1, 1])]],
+        vec![z.clone(), x.clone(), vec![(0.5, vec![0, 0, 1, 1]), (0.5, vec![1, 1, 0, 0])]],
     );
-    let second =
-        two_level_scm(vec![2, 2, 2], parents, latents, vec![z, x, vec![(1.0, vec![0, 0, 0, 1])]]);
+    let second = two_level_scm(
+        vec![2, 2, 2],
+        parents,
+        latents,
+        vec![z, x, vec![(0.5, vec![0, 0, 0, 1]), (0.5, vec![1, 1, 0, 0])]],
+    );
     assert_two_models_agree_on_p_v_and_differ_on_the_ett(&first, &second, 1, 2);
+    assert!((first.ett(1, 1, 0, 2, 1) - 0.5).abs() < 1e-12);
+    assert!((second.ett(1, 1, 0, 2, 1) - 0.1).abs() < 1e-12);
 }
 
 #[test]

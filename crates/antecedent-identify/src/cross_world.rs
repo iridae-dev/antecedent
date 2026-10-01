@@ -444,6 +444,19 @@ mod tests {
         let refusal = check_cross_world_edges(3, &MEDIATION, &query).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.detail, "cross_world.query_outside_contract");
+        // The 2.2B X8 latent coupling (marginalized, not abducted) is outside
+        // this fixed-DAG contract too: refused as a shape, never as a verdict.
+        let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
+        let latent = CrossWorldQuery::new(
+            direct.worlds().to_vec(),
+            ExogenousCoupling::SharedLatentExogenous,
+            direct.plus(),
+            direct.minus(),
+        )
+        .unwrap();
+        let refusal = check_cross_world_edges(3, &MEDIATION, &latent).unwrap_err();
+        assert_eq!(refusal.code, "route_not_supported");
+        assert_eq!(refusal.detail, "cross_world.query_outside_contract");
     }
 
     /// A contrast that reads different outcomes per world is another shape, not

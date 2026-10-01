@@ -61,6 +61,17 @@ Each declared factor `i` is box-independently contaminated,
 
 and `R_Y` is free separately in each `(w, x)` stratum.
 
+**Factor normalization is enforced, not repaired.** The class is defined only on
+distributions. Each kernel row is a conditional of the law, normalized by its
+stratum mass and re-checked by the 2.1 evaluator (`|sum - 1| <= 1e-10`). The
+shared parent marginal is the law's own mass, which a caller's loose
+`LawTolerance` can leave far from one; it must have unit mass within `1e-10`, or
+the route refuses (`transport_support_failure` /
+`joint_sensitivity.incomplete_kernel`). It is then used as read, not
+renormalized, so the range, the frontier and both axis values share one scale.
+Replacements are simplex vertices, so every `Q_i` is a distribution
+(`factor_normalization_is_enforced_and_every_stage_reads_one_scale`).
+
 The outcome values `y` are the numeric values of the law's `Y` axis, the
 outcome levels the cited joint lists. They are not a declared outcome domain.
 So `y_max - y_min` below is the spread of those listed levels: a replacement
@@ -93,7 +104,8 @@ kernel stage with the unchanged 2.1 `DiscreteKernelSensitivity` evaluator, which
 gives `A = sum_w P_W(w) D+(w)`, and then `U = A + e_W max(max_w D+(w) - A, 0)`.
 The clamp only removes rounding, since `max >= average` holds exactly. At
 `e_W = 0` the kernel stage is returned unchanged, so a single kernel factor is
-bit-equal to the 2.1 output.
+bit-equal to the 2.1 output on every law the route accepts (the 2.1 route also
+evaluates a law whose parent mass is far from one, which this route refuses).
 
 **Numerical check (not a proof).** The rule was checked in a throwaway script
 before it was relied on: 200 random models, with up to 3 parent levels and 3

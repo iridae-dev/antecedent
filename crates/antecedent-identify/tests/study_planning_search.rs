@@ -615,6 +615,43 @@ fn a_base_that_already_identifies_has_no_failure_to_repair() {
 }
 
 #[test]
+fn a_base_regime_without_provider_lineage_is_refused_before_any_work() {
+    let candidates = |base: &EvidenceCatalog| fig_1_candidates(base);
+    // Even a cancelled context reports the missing lineage, not a stop.
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let refuse = |base: EvidenceCatalog| {
+        let refusal =
+            plan(&mz(fig_1_sources()), &base, &candidates(&base), StudyPlanLimits::default(), &ctx)
+                .unwrap_err();
+        assert!(refusal.message.contains("lineage"), "{}", refusal.message);
+        (refusal.code, refusal.detail)
+    };
+    let invalid = ("invalid_argument", "study_plan.invalid_query");
+    // An available base regime with no provider binding has no lineage.
+    let bound = base();
+    let unbound = EvidenceCatalog::try_new(
+        Arc::clone(&bound.environments),
+        bound.regimes.to_vec(),
+        Vec::<RegimeBinding>::new(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(refuse(unbound), invalid);
+    // A base regime bound only to a planning placeholder snapshot has none either.
+    let mut bindings = bound.bindings.to_vec();
+    bindings[0].snapshot_identity = Arc::from("hypothetical:0");
+    let placeholder = EvidenceCatalog::try_new(
+        Arc::clone(&bound.environments),
+        bound.regimes.to_vec(),
+        bindings,
+        None,
+    )
+    .unwrap();
+    assert_eq!(refuse(placeholder), invalid);
+}
+
+#[test]
 fn equal_cost_proposals_rank_by_sample_budget_before_ids() {
     let base = base();
     let mut candidates = fig_1_candidates(&base);

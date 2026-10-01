@@ -115,8 +115,10 @@ def plan_studies(
     ``export()`` yields an artifact :func:`replay_study_plan` replays.
 
     Refusals carry their reason code: ``invalid_argument`` for an invalid
-    candidate (including a level label ``id#k`` a base regime already uses) or
-    a base that already identifies, ``route_not_supported`` for a bound
+    candidate (including a level label ``id#k`` a base regime already uses), a
+    base regime without provider lineage (no binding outside the
+    ``hypothetical:`` namespace) or a base that already identifies,
+    ``route_not_supported`` for a bound
     (checked before any candidate compiles),
     ``transport_proven_non_transportable`` when the base is a checked
     obstruction over the declared controllable sets (a new population or a
@@ -195,8 +197,11 @@ def replay_study_plan(
     against a producer that states another base catalog or candidate universe
     and re-seals honestly: the artifact is then a correct plan of those stated
     inputs. Lineage (the base catalog's bindings and snapshots) is stored and
-    digested, but replay does not exercise it: an artifact re-sealed with every
-    base binding cleared replays. Only ``receive`` checks lineage.
+    digested; a plan refuses a base regime without a provider binding outside
+    the ``hypothetical:`` namespace, so an artifact re-sealed with its base
+    bindings cleared no longer replays. A binding renamed to another real
+    snapshot is not detectable by replay; ``receive`` requires the arriving
+    catalog to keep every stored base binding exactly.
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

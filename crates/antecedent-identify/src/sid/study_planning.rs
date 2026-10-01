@@ -51,8 +51,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DEFAULT_SEARCH_MEMORY_BYTES, DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta,
-    ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection, SearchBudget,
-    SearchLimits, SearchReceipt, SearchStop, VariableId, reason_code,
+    EvidenceKind, ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection,
+    SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId, reason_code,
 };
 use antecedent_expr::{CausalExprArena, ExprId, ExprNode};
 use antecedent_graph::{Admg, SelectionDiagram};
@@ -508,8 +508,10 @@ pub struct StudyPlan {
     pub proposals: Vec<StudyProposal>,
     /// Why the plan ended early, if it did.
     pub stop: Option<StudyPlanStop>,
-    /// Whether the top proposal is certified cost-minimal (every strictly
-    /// cheaper feasible subset decided without a stop).
+    /// Whether the top proposal is certified cost-minimal among the feasible
+    /// subsets of at most [`STUDY_PLAN_MAX_SUBSET`] candidates (every strictly
+    /// cheaper one decided without a stop or an over-cap decision); a cheaper
+    /// subset of four or more candidates is never examined.
     pub minimal: bool,
     /// Operations the plan budget charged in total.
     pub operations_consumed: usize,
@@ -706,6 +708,32 @@ fn infeasible(candidates: &[StudyPlanCandidate], members: &[usize]) -> Option<&'
     None
 }
 
+/// The snapshot namespace of the planner's placeholder bindings
+/// ([`EvidenceCatalogDelta::with_placeholder_bindings`]).
+const PLACEHOLDER_SNAPSHOT_PREFIX: &str = "hypothetical:";
+
+/// Every available base regime carries source/snapshot lineage: a provider
+/// binding whose snapshot is non-empty and outside the placeholder namespace.
+/// A plan (and so an artifact replay) never runs on a base without it, so an
+/// artifact cannot be re-sealed with its lineage stripped.
+fn require_base_lineage(catalog: &EvidenceCatalog) -> Result<(), StudyPlanRefusal> {
+    for regime in catalog.regimes.iter().filter(|r| r.evidence_kind == EvidenceKind::Available) {
+        let traced = catalog.bindings.iter().any(|binding| {
+            binding.regime == regime.id
+                && !binding.snapshot_identity.trim().is_empty()
+                && !binding.snapshot_identity.starts_with(PLACEHOLDER_SNAPSHOT_PREFIX)
+        });
+        if !traced {
+            return Err(StudyPlanRefusal::invalid_query(format!(
+                "available base regime {} has no provider binding outside the \
+                 {PLACEHOLDER_SNAPSHOT_PREFIX} namespace: a plan needs its source/snapshot lineage",
+                regime.id.raw()
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Live bytes of one subset's preview catalog, charged on entry.
 fn preview_bytes(catalog: &EvidenceCatalog) -> u64 {
     let regimes = catalog.regimes.len() as u64;
@@ -768,6 +796,7 @@ fn plan_with_caps(
     let counts = candidates.iter().map(|c| c.delta.proposed_regimes.len()).collect::<Vec<_>>();
     limits.check_bounds(route, &counts)?;
     catalog.validate().map_err(|e| StudyPlanRefusal::invalid_query(e.to_string()))?;
+    require_base_lineage(catalog)?;
     let route = route.canonical();
     let candidates = validate_candidates(&route, catalog, candidates)?;
     let order = subsets(&candidates);

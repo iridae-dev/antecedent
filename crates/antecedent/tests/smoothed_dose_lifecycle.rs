@@ -368,15 +368,37 @@ fn weighting_only(input: &SmoothedDoseInput, membership: &[f64], a: f64, h: f64)
         / n0
 }
 
+/// The point under two mutants of the residual weight, from the same out-of-fold
+/// nuisances: `(constant odds n_0/n_1, constant density 1/4 = uniform on [0, 4])`.
+fn mutant_estimates(
+    input: &SmoothedDoseInput,
+    membership: &[f64],
+    mu_observed: &[f64],
+    point: &antecedent_estimate::smoothed_dose::SmoothedDoseGridPoint,
+) -> (f64, f64) {
+    let n0 = input.source.iter().filter(|s| !**s).count() as f64;
+    let n1 = input.source.len() as f64 - n0;
+    let (mut odds, mut density) = (0.0, 0.0);
+    for i in (0..input.source.len()).filter(|i| input.source[*i]) {
+        let u = (input.dose[i] - point.dose) / H;
+        let k = if u.abs() <= 1.0 { 0.75 * (1.0 - u * u) / H } else { 0.0 };
+        let residual = input.outcome[i] - mu_observed[i];
+        odds += n0 / n1 * k / input.dose_density[i] * residual;
+        density += (1.0 - membership[i]) / membership[i] * k / 0.25 * residual;
+    }
+    (point.plug_in + odds / n0, point.plug_in + density / n0)
+}
+
 /// What this shows: model double robustness, one nuisance wrong at a time, at off-centre
 /// grid doses where both the covariate shift and the dose-density tilt matter, with a
 /// tolerance of four influence-function standard errors.
 ///
 /// * Outcome wrong, membership right (`Robust`: the truth has a `z a^2` term, the fit is
 ///   linear in the dose with interactions, so the fit's error `(1 + z) r(t)` varies with
-///   `z`). The composed estimator is within tolerance; the plug-in is not. Here a
-///   constant odds weight (membership ignored) or a constant dose density in the
-///   residual weight misses by several standard errors, so this case sees both.
+///   `z`). The composed estimator is within tolerance; the plug-in is not. On the same
+///   fitted nuisances, a constant odds weight (membership ignored) leaves the tolerance
+///   at three or more doses and a constant dose density in the residual weight at one or
+///   more (asserted), so this case sees both.
 /// * Membership wrong, outcome right (`RobustVarianceShift`: a linear logistic against
 ///   log odds quadratic in `z`). The composed estimator is within tolerance while the
 ///   weighting-only estimator that uses the same fitted odds is visibly wrong, so the
@@ -402,7 +424,16 @@ fn misspecified_nuisance_cases_match_only_the_claimed_robustness() {
         let result =
             antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &wrong_outcome, &ctx)
                 .unwrap();
-        let mut plug_in_misses = 0;
+        let fitted = evaluate_smoothed_dose_models(
+            &q,
+            &input,
+            &wrong_outcome,
+            &result.folds.assignment,
+            &result.models,
+            &ctx,
+        )
+        .unwrap();
+        let (mut plug_in_misses, mut constant_odds_misses, mut constant_density_misses) = (0, 0, 0);
         for point in &result.grid {
             let truth = scenario.truth(point.dose, H);
             let se = point.influence_se_diagnostic;
@@ -423,11 +454,29 @@ fn misspecified_nuisance_cases_match_only_the_claimed_robustness() {
             if (point.plug_in - truth).abs() > 2.5 * tolerance {
                 plug_in_misses += 1;
             }
+            // The two mutants of the residual weight, on the same fitted nuisances: a
+            // constant odds weight (membership ignored) and a constant (uniform) dose
+            // density in place of the known pi.
+            let (constant_odds, constant_density) =
+                mutant_estimates(&input, &fitted.membership, &fitted.mu_observed, point);
+            if (constant_odds - truth).abs() > tolerance {
+                constant_odds_misses += 1;
+            }
+            if (constant_density - truth).abs() > tolerance {
+                constant_density_misses += 1;
+            }
             // The smoothing-bias diagnostic sees only the fitted curve: it is exactly zero
             // for a fit linear in the dose although the true curve bends ((1 + z) a^2).
             assert!(point.smoothing_bias.half_bandwidth_difference.abs() < 1e-9);
         }
         assert!(plug_in_misses >= 3, "{design:?}: the outcome plug-in is visibly wrong");
+        // Each mutant fails this case (leaves the tolerance at some dose), so the case
+        // sees both the membership weight and the known density.
+        assert!(constant_odds_misses >= 3, "{design:?}: constant odds {constant_odds_misses}");
+        assert!(
+            constant_density_misses >= 1,
+            "{design:?}: constant density {constant_density_misses}"
+        );
 
         // Membership family wrong, outcome right.
         let scenario = Scenario::RobustVarianceShift;

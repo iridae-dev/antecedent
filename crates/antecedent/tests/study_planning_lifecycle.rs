@@ -423,14 +423,27 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     };
     let error = original.consume_with_limits(small, &cancelled).unwrap_err();
     assert_eq!((error.code, error.detail), ("route_not_supported", "study_plan.bounds_exceeded"));
-    // What replay does NOT protect: lineage. Re-sealed with every base binding
-    // (snapshot) cleared, the plan replays identically and is accepted; only
-    // `receive` compares an arrival against the stored bindings.
+    // Lineage: re-sealed with every base binding (snapshot) cleared, or with a
+    // base regime bound only to a planning placeholder, the plan no longer
+    // replays (a plan needs provider lineage for every available base regime).
     let mut unbound = original.clone();
     unbound.data.catalog.bindings.clear();
     let unbound = unbound.sealed().unwrap();
     assert_ne!(unbound.data_digest, original.data_digest);
-    assert!(consume(&unbound).is_ok(), "replay does not exercise lineage");
+    let (code, detail, message) = {
+        let error = consume(&unbound).unwrap_err();
+        (error.code, error.detail, error.message)
+    };
+    assert_eq!((code, detail), invalid);
+    assert!(message.contains("does not replay") && message.contains("lineage"), "{message}");
+    let (code, detail, message) = resealed(&|w| {
+        w.data.catalog.bindings[0].snapshot_identity = "hypothetical:0".into();
+    });
+    assert_eq!((code, detail), invalid);
+    assert!(message.contains("lineage"), "{message}");
+    // What replay cannot tell: a base binding renamed to another real snapshot
+    // is a correct plan of that stated lineage; `receive` then requires the
+    // arriving catalog to keep exactly that binding.
 }
 
 #[test]

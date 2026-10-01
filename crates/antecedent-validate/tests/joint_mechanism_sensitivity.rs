@@ -1175,6 +1175,73 @@ fn factor_and_stratum_order_do_not_change_the_result() {
     );
 }
 
+/// The model's law with every cell scaled by `scale`, accepted under `tolerance`.
+fn scaled_data(model: &Model, scale: f64, tolerance: LawTolerance) -> ExactTransportData {
+    let exact = data(model, "snapshot-0");
+    let law = &exact.laws()[0];
+    let law = ExactDiscreteLaw::try_new(
+        law.population(),
+        law.regime(),
+        law.interventions().to_vec(),
+        law.axes().to_vec(),
+        law.probabilities().iter().map(|p| p * scale).collect::<Vec<_>>(),
+        law.snapshot_identity(),
+        tolerance,
+    )
+    .unwrap();
+    ExactTransportData::try_new([law], 1 << 20).unwrap()
+}
+
+#[test]
+fn factor_normalization_is_enforced_and_every_stage_reads_one_scale() {
+    let model = fixed_model();
+    let run_on = |data: &ExactTransportData, declared: &JointDeviationSpec| {
+        z_transport_joint_mechanism_sensitivity(
+            &diagram(),
+            &functional(),
+            data,
+            declared,
+            &ExecutionContext::for_tests(1),
+        )
+    };
+    // A law the caller's own loose tolerance accepts, whose shared parent
+    // marginal is not a distribution (mass 0.8): the contamination class is
+    // undefined on it, so the route refuses instead of mixing scales.
+    let loose = LawTolerance { absolute: 0.0, relative: 0.25 };
+    for scale in [0.8, 1.2, 1.0 + 2e-10] {
+        let unnormalized = scaled_data(&model, scale, loose);
+        for declared in [spec(Some(0.2), Some(0.3)), spec(Some(0.2), None), spec(None, Some(0.3))] {
+            assert_eq!(
+                refusal(run_on(&unnormalized, &declared)),
+                ("transport_support_failure", "joint_sensitivity.incomplete_kernel"),
+                "parent marginal of mass {scale}"
+            );
+        }
+    }
+    // A law within the unit-mass tolerance (1e-10) is evaluated as read: the
+    // range, the frontier brackets and both axis values share its one scale,
+    // so each analytic axis value lies inside its certified bracket.
+    let near = scaled_data(&model, 1.0 + 9e-11, LawTolerance::default());
+    let baseline = run_on(&near, &spec(Some(0.0), None)).unwrap().baseline;
+    for threshold in [baseline + 0.15, baseline - 0.15] {
+        let mut declared = spec(Some(0.6), Some(0.7)).with_threshold(threshold);
+        declared.tolerance = 1e-12;
+        let result = run_on(&near, &declared).unwrap();
+        for axis in &result.axis_tipping {
+            let analytic = axis.analytic.expect("reached on each axis");
+            let bracket = axis.bracket.expect("resolved");
+            assert_eq!(axis.status, TippingStatus::Bracketed, "{:?}", axis.factor);
+            assert!(
+                bracket.lower - 1e-12 <= analytic && analytic <= bracket.upper + 1e-12,
+                "{:?}: analytic {analytic} outside [{}, {}]",
+                axis.factor,
+                bracket.lower,
+                bracket.upper
+            );
+        }
+    }
+}
+
 #[test]
 fn the_range_is_an_assumption_range_and_the_interval_is_withheld() {
     let result = run(&fixed_model(), &spec(Some(0.2), Some(0.2))).unwrap();

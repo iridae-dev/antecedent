@@ -70,6 +70,9 @@ pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = 1e-12;
 /// Largest admitted bracketing tolerance.
 pub const JOINT_SENSITIVITY_MAX_TOLERANCE: f64 = 1e-2;
+/// Largest admitted `|sum - 1|` of the shared parent marginal (the 2.1
+/// evaluator's kernel-row tolerance).
+const JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
 /// Optimization method recorded in every receipt.
 pub const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (2.1 kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
 /// Interpretation of the reported range.
@@ -690,7 +693,7 @@ pub(crate) struct JointFactors {
     kernels: ZSurrogateKernels,
     /// `Delta(w) = m(w, 1) - m(w, 0)` under the source kernel.
     deltas: Vec<f64>,
-    /// Normalized shared parent marginal.
+    /// Shared parent marginal as read (unit mass checked, not renormalized).
     parent: Vec<f64>,
     /// `y_max - y_min` over the numeric values of the law's `Y` axis (the
     /// listed outcome levels, not a declared outcome domain).
@@ -712,15 +715,26 @@ impl JointFactors {
         let deltas = (0..levels)
             .map(|w| mean(&kernels.kernels[2 * w + 1]) - mean(&kernels.kernels[2 * w]))
             .collect();
+        // Factor normalization is enforced, not repaired. Kernel rows are the
+        // law's conditionals and are re-checked by the 2.1 evaluator; the
+        // shared parent marginal is the law's own mass, which a caller's loose
+        // `LawTolerance` can leave far from one. The contamination class is
+        // defined only on distributions, so the marginal must have unit mass
+        // within the 2.1 evaluator's row tolerance (the same sum it checks). It
+        // is then used as read, never renormalized: the kernel stage weights it
+        // as read, so the range, the frontier and both axis values share one
+        // scale.
         let total = kernels.parent_marginal.iter().sum::<f64>();
-        if !(total.is_finite() && total > 0.0) {
+        if !(total.is_finite() && (total - 1.0).abs() <= JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE) {
             return Err(refuse(
                 reason_code!("transport_support_failure"),
                 "joint_sensitivity.incomplete_kernel",
-                "the shared parent marginal has no mass",
+                format!(
+                    "the shared parent marginal has mass {total}, not 1 within {JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE:e}"
+                ),
             ));
         }
-        let parent = kernels.parent_marginal.iter().map(|p| p / total).collect();
+        let parent = kernels.parent_marginal.clone();
         let high = kernels.outcome_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let low = kernels.outcome_values.iter().copied().fold(f64::INFINITY, f64::min);
         Ok(Self { kernels, deltas, parent, spread: high - low })

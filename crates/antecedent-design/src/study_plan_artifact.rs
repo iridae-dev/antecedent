@@ -17,11 +17,14 @@
 //! artifact is then a correct plan of those stated inputs), and it does not
 //! check that the arriving studies will deliver the declared regimes.
 //!
-//! Lineage is stored and digested, but replay does not exercise it: the plan
-//! reads the base catalog's regimes, not its bindings, so a re-sealed artifact
-//! with every base binding (snapshot) cleared replays to the same plan and is
-//! accepted. Only [`StudyPlanProposal::receive`](crate::StudyPlanProposal::receive)
-//! checks lineage: the arriving catalog must keep every stored base binding.
+//! Lineage (every base binding's provider snapshot) is stored and digested, and
+//! the planner refuses a base whose available regime has no provider binding
+//! outside the `hypothetical:` placeholder namespace, so a re-sealed artifact
+//! with its base bindings cleared or replaced by placeholders no longer
+//! replays. Replay cannot tell a base binding renamed to another real snapshot
+//! (the artifact is then a correct plan of that stated lineage);
+//! [`StudyPlanProposal::receive`](crate::StudyPlanProposal::receive) requires
+//! the arriving catalog to keep every stored base binding exactly.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -268,7 +271,9 @@ pub struct StudyPlanOutcomeWire {
     pub proposals: Vec<StudyProposalWire>,
     /// Early end.
     pub stop: Option<StudyPlanStopWire>,
-    /// Top proposal certified cost-minimal.
+    /// Top proposal certified cost-minimal among the subsets of at most three
+    /// candidates (every strictly cheaper one decided without a stop or an
+    /// over-cap decision; subsets of four or more are never examined).
     pub minimal: bool,
     /// Plan status `(code, detail)` when no proposal exists.
     pub status: Option<(String, String)>,

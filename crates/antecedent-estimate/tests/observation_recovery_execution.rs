@@ -17,7 +17,7 @@ use antecedent_expr::{
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     RecoveredEffectQuery, RecoveryDecision, RecoveryDerivation, RecoveryDetail, RecoveryLimits,
-    decide_observation_recovery, verify_recovery_witness,
+    WitnessMechanism, decide_observation_recovery, verify_recovery_witness,
 };
 use support::recovery_scm::{MModel, POPULATION, Rng, dags, v};
 
@@ -446,6 +446,26 @@ fn the_colluder_archetype_has_a_recoverable_target() {
     assert_eq!(error.detail, RecoveryDetail::UnsupportedMechanism);
 }
 
+/// The test SCM with a witness model's mechanisms (`k / 60`, graph parent order),
+/// checked to be positive and one mechanism per non-proxy node on its graph parents.
+fn witness_model(model: &MModel, mechanisms: &[WitnessMechanism]) -> MModel {
+    let mut out = model.clone();
+    assert_eq!(mechanisms.len(), (2 * model.k + model.m) as usize);
+    for mechanism in mechanisms {
+        let parents: Vec<u32> = model
+            .graph
+            .parents(DenseNodeId::from_raw(mechanism.node))
+            .iter()
+            .map(|p| p.raw())
+            .collect();
+        assert_eq!(mechanism.parents, parents, "a witness mechanism is not on its graph parents");
+        assert!(mechanism.numerators.iter().all(|k| *k > 0 && *k < 60), "non-positive witness");
+        let table = mechanism.numerators.iter().map(|k| f64::from(*k) / 60.0).collect();
+        assert!(out.mechanisms.insert(mechanism.node, table).is_some(), "not a non-proxy node");
+    }
+    out
+}
+
 /// Every graph of one (k, m) size, or a seeded sample of `limit` of them.
 fn sweep(k: u32, m: u32, limit: Option<usize>, seed: u64) -> (usize, usize, usize) {
     let s = k + m;
@@ -494,6 +514,20 @@ fn sweep(k: u32, m: u32, limit: Option<usize>, seed: u64) -> (usize, usize, usiz
             Ok(RecoveryDecision::NonRecoverable(w)) => {
                 assert!(violating, "a compliant graph was declared nonrecoverable");
                 verify_recovery_witness(&model.graph, &model.query(), &w).unwrap();
+                // Independently of the library's verifier: both witness models,
+                // enumerated by the test SCM, give the same observed pattern law
+                // and different targets.
+                assert_eq!(w.edge.1, model.r(w.edge.0), "the witness names a self-censoring edge");
+                let (a, b) = (witness_model(&model, &w.first), witness_model(&model, &w.second));
+                assert!(
+                    close(
+                        a.observed_law().probabilities(),
+                        b.observed_law().probabilities(),
+                        1e-12
+                    ),
+                    "witness models disagree on the observed law: {edges:?} {responses:?}"
+                );
+                assert!(!close(&a.truth(), &b.truth(), 1e-6), "witness targets agree: {edges:?}");
                 witnessed += 1;
             }
             Err(e) if e.detail == RecoveryDetail::WitnessUnavailable => gaps += 1,

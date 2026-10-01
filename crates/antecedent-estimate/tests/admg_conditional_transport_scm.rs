@@ -302,6 +302,60 @@ fn a_request_must_bind_exactly_the_treatments_and_conditioned_variables() {
     assert!(message.starts_with("admg_transport.invalid_request"), "{message}");
 }
 
+/// Counted laws would make the point an empirical plug-in, which this route does
+/// not license: the estimate-level preparation refuses them, as the facade and
+/// Python preparations do, before compiling anything.
+#[test]
+fn counted_laws_are_refused_by_the_estimate_level_preparation() {
+    let scm = Scm {
+        n: 3,
+        directed: vec![(0, 1), (1, 2)],
+        bidirected: vec![(0, 1)],
+        selected: vec![2],
+        params: 0,
+        target_zero: Vec::new(),
+    };
+    let ctx = ExecutionContext::for_tests(3);
+    let (catalog, data) = scm.catalog_and_laws();
+    let ConditionalTransportDecision::Identified(functional) = decide_admg_conditional_transport(
+        &scm.diagram(),
+        &query(&[1], &[0], &[2]),
+        &catalog,
+        ADMG_CONDITIONAL_DEFAULT_LIMITS,
+        &ctx,
+    )
+    .unwrap() else {
+        panic!("identified");
+    };
+    let mut laws = data.laws().to_vec();
+    let first = &laws[0];
+    let cells = first.probabilities().len();
+    laws[0] = antecedent_expr::ExactDiscreteLaw::try_new(
+        first.population(),
+        first.regime(),
+        first.interventions().to_vec(),
+        first.axes().to_vec(),
+        vec![1.0 / cells as f64; cells],
+        first.snapshot_identity(),
+        antecedent_expr::LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(vec![1; cells])
+    .unwrap();
+    let counted = ExactTransportData::try_new(laws, 1_000_000).unwrap();
+    let error = prepare_exact_admg_conditional_transport(
+        &functional,
+        counted,
+        &request(&[0], &[2], 0),
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { code, message } = error else { panic!("typed refusal") };
+    assert_eq!(code, "cell_not_licensed");
+    assert!(message.starts_with("admg_transport.interval_withheld"), "{message}");
+}
+
 #[test]
 fn query_coordinate_order_does_not_change_the_point() {
     // Two outcomes and two conditioned variables, declared in both orders.

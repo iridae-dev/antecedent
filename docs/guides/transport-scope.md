@@ -610,9 +610,10 @@ double robustness and the executed numerical checks are in
   the dose) is reported with its local-quadratic extrapolation; neither is added to the
   estimate. The analytic influence-function standard error is a diagnostic only.
 - **Bounds.** At most 16 grid doses, 20 cross-fitting folds, 200,000 rows, 256 covariates,
-  basis degree 1 to 3, at most 8 knots, and a bootstrap request of 199 to 2000 replicates;
-  a violation refuses as `dose_response.bounds_exceeded`. A mandatory 512 MiB cap on the
-  estimated workspace (lowered by a context hard memory limit) refuses before any fit or
+  basis degree 1 to 3, at most 8 knots, and a bootstrap request of 199 to 2000 replicates
+  (or none); a request above a cap refuses as `dose_response.bounds_exceeded`, while 1 to
+  198 replicates is below the floor: the point is kept and the interval withheld
+  (`dose_response.bootstrap_below_floor`). A mandatory 512 MiB cap on the estimated workspace (lowered by a context hard memory limit) refuses before any fit or
   replay as a resource refusal.
 - **Interval.** The pointwise joint outer refit percentile bootstrap of the whole
   composed estimator (`smoothed_dose_interval_internal`, `calibration-internal` only)
@@ -739,9 +740,11 @@ the declared regimes.
   cancelled plan cannot be exported. It cannot tell whether a producer stated another
   base catalog or candidate universe and re-sealed honestly, nor whether a study will
   deliver its declared regimes. The base catalog's bindings and snapshots (lineage) are
-  stored and digested, but replay does not exercise them: a re-sealed artifact with
-  every base binding cleared replays and is accepted. Only `receive` checks lineage
-  (the arriving catalog must keep every stored base binding).
+  stored and digested, and a plan refuses a base whose available regime has no
+  provider binding outside the `hypothetical:` namespace (`study_plan.invalid_query`),
+  so a re-sealed artifact with its base bindings cleared or replaced by placeholders
+  no longer replays. Replay cannot tell a binding renamed to another real snapshot;
+  `receive` requires the arriving catalog to keep every stored base binding exactly.
 
 ## Path-specific edge intervention (2.2A X8)
 
