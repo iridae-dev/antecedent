@@ -104,8 +104,8 @@
     "curve": {
       "estimator": "response.kennedy_dr",
       "mean": [
-        0.15043382257307414,
-        0.6494451618097798
+        0.15043397829577287,
+        0.649444965652819
       ],
       "absolute_tolerance": 1e-10,
       "contrast_tolerance": 0.08
