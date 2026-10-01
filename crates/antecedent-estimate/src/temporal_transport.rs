@@ -387,8 +387,12 @@ fn require_identified(
             reason_code!("transport_budget_cancel"),
             format!(
                 "{TEMPORAL_HISTORY_BUDGET}: {}; the decision is a receipt, not a \
-                 non-identification verdict",
-                stop.code()
+                 non-identification verdict{}",
+                stop.code(),
+                decision
+                    .receipt
+                    .as_ref()
+                    .map_or_else(String::new, |r| format!("; {}", r.summary()))
             ),
         )),
     }

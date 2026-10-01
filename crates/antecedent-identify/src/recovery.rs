@@ -218,7 +218,11 @@ impl RecoveryError {
 
 impl fmt::Display for RecoveryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.detail.detail(), self.message)
+        write!(f, "{}: {}", self.detail.detail(), self.message)?;
+        if let Some(receipt) = &self.receipt {
+            write!(f, "; {}", receipt.summary())?;
+        }
+        Ok(())
     }
 }
 

@@ -544,3 +544,11 @@ def test_a_refresh_that_moves_the_fixed_initial_state_needs_a_new_preparation():
     later[7] = 0.4
     prepared.refresh(laws(target_p=later))
     assert json.loads(prepared.estimate())["status"] == "available"
+
+
+def test_a_budget_stop_shows_its_receipt():
+    with pytest.raises(CausalResourceError) as stopped:
+        prepare(max_steps=3)
+    text = str(stopped.value)
+    assert "receipt: stop search.operations" in text
+    assert "explored [" in text and "unevaluated [" in text

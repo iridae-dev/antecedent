@@ -224,3 +224,21 @@ def test_prepare_decides_once_and_reports_the_search() -> None:
     second = prepared.evaluate(probabilities=observational(frontdoor_model(0.2)))
     assert first.derivation == second.derivation == prepared.derivation
     assert first.probability != second.probability
+
+
+def test_a_budget_stop_shows_its_receipt() -> None:
+    with pytest.raises(CausalError) as stopped:
+        prepare_effect_on_treated(
+            frontdoor(),
+            LEVELS,
+            treatment="x",
+            active=1.0,
+            observed=0.0,
+            outcome="y",
+            outcome_level=1.0,
+            operations=2,
+        )
+    text = str(stopped.value)
+    assert stopped.value.reason_code == "transport_budget_cancel"
+    assert "receipt: stop search.operations" in text
+    assert "unevaluated [" in text

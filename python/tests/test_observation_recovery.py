@@ -287,3 +287,21 @@ def test_python_values_are_validated():
         transport.identify_observation_recovery(
             graph=graph(), query=query(), catalog=catalog(), effect_outcomes=["y"]
         )
+
+
+def test_a_budget_or_cancellation_stop_shows_its_receipt():
+    from antecedent.errors import CausalError
+    from antecedent.state import CancellationToken
+
+    with pytest.raises(CausalError) as stopped:
+        decide(max_operations=3)
+    text = str(stopped.value)
+    assert stopped.value.reason_code == "transport_budget_cancel"
+    assert "receipt: stop search.operations" in text
+    assert "unevaluated [" in text
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalError) as cancelled:
+        decide(cancel=token)
+    assert cancelled.value.reason_code == "transport_budget_cancel"
+    assert "receipt: stop search.cancelled" in str(cancelled.value)

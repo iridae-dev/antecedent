@@ -726,6 +726,13 @@ fn operations_stop_inside_each_history_step_with_a_receipt_of_what_finished() {
         message.starts_with("temporal_transport.history_budget: search.operations"),
         "{message}"
     );
+    // The refusal text a binding surfaces carries the receipt: what finished and
+    // what the stop left unevaluated.
+    assert!(
+        message.contains("explored [identification, history_step_1]")
+            && message.contains("unevaluated [history_step_2]"),
+        "{message}"
+    );
 }
 
 /// The wide lattice decided under a hard memory limit.

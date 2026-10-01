@@ -1118,3 +1118,24 @@ fn the_answer_is_invariant_to_presentation() {
     .unwrap();
     assert_eq!(decide(&problem, &one).unwrap(), decide(&problem, &two).unwrap());
 }
+
+/// What a user sees of a budget stop (the error text a binding surfaces) names
+/// the stop and the outcome levels left unevaluated.
+#[test]
+fn a_budget_stop_displays_its_receipt() {
+    let (directed, bidirected) = frontdoor();
+    let problem = CounterfactualIdProblem::new(binary(3), &directed, &bidirected).unwrap();
+    let query = ett(0, 1.0, 0.0, 2, 1.0);
+    let total = decide(&problem, &query).unwrap().search.operations_consumed;
+    let short =
+        SearchLimits { operations: total - 1, depth: COUNTERFACTUAL_ID_DEFAULT_LIMITS.depth };
+    let refusal =
+        decide_counterfactual_id(&problem, &query, short, COUNTERFACTUAL_ID_MEMORY_BYTES, &ctx())
+            .unwrap_err();
+    let receipt = refusal.receipt.clone().unwrap();
+    let text = refusal.to_string();
+    assert!(text.contains("search.operations"), "{text}");
+    assert!(!receipt.unevaluated.is_empty());
+    assert!(receipt.unevaluated.iter().all(|r| text.contains(r.as_str())), "{text}");
+    assert!(receipt.explored.iter().all(|r| text.contains(r.as_str())), "{text}");
+}

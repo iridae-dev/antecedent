@@ -813,3 +813,28 @@ fn a_recovered_regime_is_excluded_from_the_mixed_source_search_as_a_recovered_la
         validated.exclusions.iter().map(|e| (e.regime.raw(), e.reason)).collect::<Vec<_>>();
     assert_eq!(reasons, vec![(2, "recovered_law"), (3, "recovered_law"), (4, "model_artifact")]);
 }
+
+/// What a user sees of a budget stop (the error text a binding surfaces) names
+/// the stop and the regions left unevaluated, never only the successes.
+#[test]
+fn a_budget_stop_displays_its_receipt() {
+    let model = two_partial();
+    let full = recovered(decide(&model).unwrap()).record().receipt.operations_consumed;
+    let limits = RecoveryLimits {
+        search: SearchLimits { operations: full - 1, depth: 32 },
+        ..RecoveryLimits::default()
+    };
+    let error = decide_observation_recovery(
+        &model.graph,
+        &model.query(),
+        &model.catalog(),
+        None,
+        limits,
+        &ctx(),
+    )
+    .unwrap_err();
+    let receipt = error.receipt.clone().unwrap();
+    let text = error.to_string();
+    assert!(text.contains("search.operations"), "{text}");
+    assert!(receipt.unevaluated.iter().all(|r| text.contains(r.as_str())), "{text}");
+}

@@ -143,7 +143,11 @@ pub struct CounterfactualIdRefusal {
 
 impl std::fmt::Display for CounterfactualIdRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}: {}", self.code, self.detail, self.message)
+        write!(f, "{}: {}: {}", self.code, self.detail, self.message)?;
+        if let Some(receipt) = &self.receipt {
+            write!(f, "; {}", receipt.summary())?;
+        }
+        Ok(())
     }
 }
 
