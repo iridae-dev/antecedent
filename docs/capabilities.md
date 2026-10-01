@@ -370,7 +370,13 @@ and publish the completion identified set when completions disagree. Frequentist
 TemporalCpdag/Pag cells retain completion identified sets; DAG-posterior cells
 retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
-license is that matrix, not this page.
+license is that matrix, not this page. The frequentist interaction regression
+(`conditional.linear.adjustment`) fits one modifier, and its calibration record
+covers that one-modifier coordinate only; over several modifiers it refuses and
+names, in the refusal's `remedy`, the routes that take a modifier set: the
+Bayesian conditional estimator (`conditional.bayesian`, Rust) and the EconML
+handoff (`antecedent.handoff.econml(result, modifiers=[...])`). The Python
+`ConditionalEffect` query carries one modifier column.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:

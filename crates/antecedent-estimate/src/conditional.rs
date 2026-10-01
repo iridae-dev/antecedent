@@ -30,6 +30,17 @@ use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
+/// Remedy named when the frequentist interaction regression is asked for more
+/// than one modifier. Its estimand, delta-method SE and calibration record are
+/// for one modifier; a joint-modifier frequentist interval would be an
+/// unmeasured coordinate, so the refusal points at the routes that take a
+/// modifier set instead.
+const MULTI_MODIFIER_REMEDY: &str = "the frequentist interaction regression fits one modifier; \
+for several modifiers use the Bayesian conditional estimator \
+(Rust: `.estimator(EstimatorId::BayesianConditional).inference(InferenceMode::Bayesian(..))`), \
+or hand the identified adjustment set to an external CATE learner with \
+`antecedent.handoff.econml(result, modifiers=[...])`, or fit one `ConditionalEffect` per modifier";
+
 /// Per-arm plugin scores for a conditional linear fit.
 ///
 /// `influence[a]` is aligned with [`Self::row_index`]. Means are
@@ -156,9 +167,16 @@ impl ConditionalLinearAdjustment {
         if query.inner.target_population != TargetPopulation::AllObserved
             || query.inner.effect_modifiers.len() != 1
         {
-            return Err(EstimationError::unsupported(
-                "conditional arm scores require AllObserved and exactly one modifier",
-            ));
+            let message = "conditional arm scores require AllObserved and exactly one modifier";
+            return Err(
+                if query.inner.target_population == TargetPopulation::AllObserved
+                    && query.inner.effect_modifiers.len() > 1
+                {
+                    EstimationError::unsupported_with_remedy(message, MULTI_MODIFIER_REMEDY)
+                } else {
+                    EstimationError::unsupported(message)
+                },
+            );
         }
         if !matches!(query.inner.outcome_functional, antecedent_core::OutcomeFunctional::Mean) {
             return Err(EstimationError::unsupported(
@@ -216,8 +234,9 @@ impl ConditionalLinearAdjustment {
             ));
         }
         if query.effect_modifiers.len() != 1 {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_with_remedy(
                 "ConditionalLinearAdjustment currently supports one effect modifier",
+                MULTI_MODIFIER_REMEDY,
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
@@ -771,6 +790,50 @@ mod tests {
             "coefficient-part SE {coefficient_part} vs statsmodels oracle"
         );
         assert!(actual.se_analytic > coefficient_part, "the modifier-mean term must be added");
+    }
+
+    /// Both one-modifier refusals keep their message and name the
+    /// multi-modifier routes only when several modifiers were asked for.
+    #[test]
+    fn multi_modifier_refusals_name_the_bayesian_and_handoff_routes() {
+        let column: Vec<f64> = (0..16).map(f64::from).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", column.as_slice()),
+            ("y", column.as_slice()),
+            ("w", column.as_slice()),
+            ("v", column.as_slice()),
+        ])
+        .unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        let two = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2), VariableId::from_raw(3)]);
+        let estimator =
+            ConditionalLinearAdjustment::new().with_overlap(OverlapPolicy::ExplicitOverride);
+        let error = estimator.estimate_ate(&data, &estimand, &two).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "ConditionalLinearAdjustment currently supports one effect modifier"
+        );
+        assert_eq!(error.remedy(), Some(MULTI_MODIFIER_REMEDY));
+        let error = estimator
+            .estimate_with_arm_scores(
+                &data,
+                &estimand,
+                &ConditionalEffectQuery::try_new(two.clone()).unwrap(),
+            )
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "conditional arm scores require AllObserved and exactly one modifier"
+        );
+        assert_eq!(error.remedy(), Some(MULTI_MODIFIER_REMEDY));
+        for remedy in ["EstimatorId::BayesianConditional", "antecedent.handoff.econml"] {
+            assert!(MULTI_MODIFIER_REMEDY.contains(remedy));
+        }
     }
 
     #[test]

@@ -71,3 +71,61 @@ fn three_treatment_derivatives_are_refused_with_a_remedy() {
         assert!(!error.to_string().contains(remedy), "the remedy is not in the message");
     }
 }
+
+/// The frequentist `ConditionalEffect` interaction regression fits one
+/// modifier. Over several it keeps its message and (absent) reason code and
+/// names the routes that take a modifier set: the Bayesian conditional
+/// estimator and the `EconML` handoff.
+#[test]
+fn multi_modifier_frequentist_conditional_effect_names_the_bayesian_and_handoff_routes() {
+    use antecedent::EstimatorId;
+    use antecedent_core::{AverageEffectQuery, ConditionalEffectQuery};
+
+    let n = 400usize;
+    let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let w: Vec<f64> = (0..n).map(|i| (i % 5) as f64).collect();
+    let v: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+    let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 0.5 * t[i] * w[i] + 0.2 * v[i]).collect();
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("w", w.as_slice()),
+        ("v", v.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(4);
+    for (from, to) in [(0, 1), (2, 1), (3, 1)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2), VariableId::from_raw(3)]),
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(11);
+    for estimator in [None, Some(EstimatorId::ConditionalLinearAdjustment)] {
+        let mut study = Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::ConditionalEffect(query.clone()));
+        if let Some(estimator) = estimator {
+            study = study.estimator(estimator);
+        }
+        let study = study.build().unwrap();
+        let one_shot = study.run(&ctx).expect_err("two modifiers are refused");
+        let prepared = study
+            .prepare(&ctx)
+            .and_then(|prepared| prepared.estimate(&data, &ctx))
+            .expect_err("two modifiers are refused");
+        for error in [one_shot, prepared] {
+            assert_eq!(
+                error.to_string(),
+                "ConditionalLinearAdjustment currently supports one effect modifier"
+            );
+            assert_eq!(error.reason_code(), None, "no reason code is added or changed");
+            let remedy = error.remedy().expect("the refusal names the multi-modifier routes");
+            assert!(remedy.contains("EstimatorId::BayesianConditional"), "{remedy}");
+            assert!(remedy.contains("handoff.econml"), "{remedy}");
+            assert!(!error.to_string().contains(remedy), "the remedy is not in the message");
+        }
+    }
+}

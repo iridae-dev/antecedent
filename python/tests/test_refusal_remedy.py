@@ -93,3 +93,19 @@ def test_python_refusal_accepts_a_remedy_without_changing_its_message():
     assert remedied.remedy == "do this instead"
     assert str(remedied) == str(plain)
     assert remedied.reason_code == plain.reason_code
+
+
+def test_conditional_effect_over_several_modifiers_names_the_multi_modifier_routes():
+    # The frequentist interaction regression fits one modifier; a modifier set
+    # is refused up front, with the routes that take one in ``remedy``.
+    with pytest.raises(CausalUnsupportedError) as raised:
+        antecedent.ConditionalEffect("t", "y", ["w", "v"])
+    err = raised.value
+    assert str(err) == "ConditionalEffect takes one modifier column"
+    assert err.reason_code is None
+    assert err.remedy is not None
+    assert "antecedent.handoff.econml(result, modifiers=[...])" in err.remedy
+    assert "BayesianConditional" in err.remedy
+    assert err.remedy not in str(err)
+    # A single column name is unchanged.
+    assert antecedent.ConditionalEffect("t", "y", "w").modifier == "w"
