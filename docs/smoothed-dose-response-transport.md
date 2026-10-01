@@ -8,10 +8,13 @@ refusal details live in the `dose_response` namespace. The scope summary is in
 
 This page states the estimand, derives the estimator's score and its robustness, and
 lists the numerical checks that verify the derivation. The derivation was written for
-this cell. The kernel-smoothed doubly robust form follows Kennedy, Ma, McHugh and Small
-(arXiv:1507.00747) and Colangelo and Lee (arXiv:2004.03036), but only their abstracts
-were read. The transported composition is not taken from any paper, so every claim below
-is marked `paper-inherited` or is checked by an executed test.
+this cell. The kernel-smoothed doubly robust form is related to Kennedy, Ma, McHugh and
+Small (arXiv:1507.00747) and Colangelo and Lee (arXiv:2004.03036), but only their abstracts
+were read, and it is not theirs: Kennedy et al. target the unsmoothed curve, whose
+pseudo-outcome needs the marginal dose density `m(A)`, while the smoothed target here needs
+no `m(A)` because `pi` is known and the kernel is part of the estimand. The transported
+composition is not taken from any paper, so every claim below is marked `paper-inherited`
+or is checked by an executed test.
 
 ## Setting
 
@@ -140,27 +143,41 @@ This is the whole claim. Both families wrong at once is outside it. No rate,
 asymptotic normality or efficiency is claimed.
 
 The argument needs `nu_bar` to be the exact integral of `mu_bar`. With quadrature, the
-limit is off by at most the largest quadrature error over the rows. That is why numerical
-error is measured and bounded separately (next section).
+limit is off by at most the largest quadrature error over the rows. For a linear-family
+fit that error is zero up to rounding (the windows are split at the knots, next section);
+for any other fit it is estimated, not bounded, and reported separately.
 
 ## Numerical error and smoothing bias, kept apart
 
 ### Quadrature
 
-`nu_hat(x; a) = sum_q v_q K(u_q) mu_hat(a + h u_q, x)` over the Gauss-Legendre nodes and
-weights `(u_q, v_q)` on `[-1, 1]` (`antecedent_stats::special::gauss_legendre`).
+`nu_hat(x; a) = sum_q v_q K(u_q) mu_hat(a + h u_q, x)` over Gauss-Legendre nodes and
+weights `(u_q, v_q)` (`antecedent_stats::special::gauss_legendre`).
 
-- **Exactness.** The rule is exact whenever the fitted curve is a polynomial in the dose
-  of degree at most `2Q - 3`. That covers every linear-family learner on the polynomial
-  dose basis.
-- **What each grid dose records.**
-  - `estimate_error = |psi_hat_Q - psi_hat_2Q|`, an estimate of the `Q`-node rule's
-    error, not a bound.
-  - `max_row_error`.
+- **Splitting at the knots.** The basis knots are declared, so every window
+  `[a - h, a + h]` (and every half-bandwidth window of the bias diagnostic) is split at
+  the knots strictly inside it, and the `Q`-node rule is applied on each piece
+  (`QuadratureRecord::pieces`).
+- **Exactness.** A linear-family learner (linear, ridge, elastic net) on the dose basis
+  fits a curve that is a polynomial of degree at most 3 in the dose on every piece; times
+  the quadratic kernel that is degree at most 5, which a 16-node rule integrates exactly.
+  So both rules are exact up to rounding, the record says `exact = true`, and no
+  tolerance is gated. A hinge basis is covered: the kink sits on a piece boundary.
+- **Other fitted curves.** A tree learner's curve is a step function whose steps are
+  not at the knots, so no rule is exact. Each grid dose then compares the `Q`-node and
+  `2Q`-node rules on every target row and records:
+  - `max_row_error`, the largest `|nu_hat_Q - nu_hat_2Q|` over target rows (the gated
+    quantity);
+  - `estimate_error = |psi_hat_Q - psi_hat_2Q|`, its grid average.
+  Both are **estimates**, not bounds: a sweep of 20,000 hinge-knot positions over an
+  unsplit window (`splitting_at_the_knot_makes_the_hinge_exact_where_the_doubling_estimate_misses`)
+  finds `|I_Q - I_2Q|` below the `2Q` rule's own true error at about 7% of positions
+  (1440 of 20,000 at `Q = 16`, 1368 at `Q = 32`), and passing a `1e-6` tolerance while
+  the true error exceeds it at 56 and 76 positions. That is why a polynomial fit is split
+  rather than gated.
 - **Which rule the point uses.** The `2Q` rule.
-- **Refusal.** A grid dose whose `estimate_error` exceeds the declared tolerance is
-  refused (`dose_response.quadrature_tolerance`). This happens, for example, with a
-  kinked hinge-basis curve or a tree learner at small `Q`.
+- **Refusal.** A non-exact grid dose whose `max_row_error` exceeds the declared
+  tolerance is refused (`dose_response.quadrature_tolerance`).
 - **Relation to sampling error.** Numerical error is never mixed into sampling error.
 
 ### Smoothing bias
@@ -174,6 +191,11 @@ Delta = mean_T nu_hat_h - mean_T nu_hat_{h/2}
 When the fitted curve is locally quadratic, `Delta = (3/4)(h^2/10) E[mu'']`, so
 `(4/3) Delta` estimates `psi_h - psi_0`. Both are reported, and neither is ever added to
 the estimate or to an interval.
+
+The diagnostic is computed from the fitted curve alone, so it inherits the fit's
+misspecification. For a fit linear in the dose it is exactly zero, because
+`integral K_h(a - t) t dt = a` for every `h`, whatever the true curvature (asserted in
+the misspecification test). It says how much the *fitted* curve bends, not the true one.
 
 ### Diagnostic standard error
 
@@ -198,8 +220,11 @@ All in `crates/antecedent/tests/smoothed_dose_lifecycle.rs`, on the structural m
   - The closed form matches independent numerical integration of the model (a midpoint
     rule in the dose, Gauss-Hermite in `X`) to `1e-7`.
   - The estimator's quadrature of every stored fold model equals that model's
-    closed-form kernel integral to `1e-10`, for degree-2 and degree-3 bases, including
-    the `h/2` diagnostic. The kernel moments are `1, a, a^2 + h^2/5, a^3 + 3 a h^2/5`.
+    closed-form kernel integral to `1e-10`, for degree-2 and degree-3 bases and for hinge
+    bases with one or two knots inside every window (split into that many pieces plus
+    one), including the `h/2` diagnostic, at a tolerance of `1e-300` that is never
+    gated. The kernel moments are `1, a, a^2 + h^2/5, a^3 + 3 a h^2/5` and the hinge
+    moment is given below.
   - The oracle score (true `mu`, true membership odds, known `pi`) on 70,000 rows is
     within four standard errors of `psi_h` at every grid dose.
 - **`known_truth_curve_under_both_designs`**: the grid matches the closed form under both
@@ -207,19 +232,57 @@ All in `crates/antecedent/tests/smoothed_dose_lifecycle.rs`, on the structural m
 - **`smoothing_bias_is_reported_apart_and_the_estimate_targets_psi_h`**: with `h = 1.2`,
   the estimate is within 0.08 of `psi_h` and more than 0.2 from `psi_0`. The diagnostic
   matches `3h^2/20`, and `(4/3)` of it matches `h^2/5`.
-- **`misspecified_nuisance_cases_match_only_the_claimed_robustness`**: one family is wrong
-  at a time, with a real target shift. The outcome plug-in and a trial-only comparator
-  land more than 2.5 tolerances away; the composed estimator lands within tolerance.
+- **`misspecified_nuisance_cases_match_only_the_claimed_robustness`**: one family wrong at a
+  time, at the off-centre grid doses `0.75, 1.5, 2.5, 3.25` (where both the covariate
+  shift and the dose-density tilt act), with a tolerance of four influence-function
+  standard errors, under both designs.
+  - Outcome wrong, membership right: the truth `Y = A^2 + X(1 + A/2) + X A^2 + e`
+    (target `X ~ N(0.8, 1)`, 105,000 rows) and a fit linear in the dose. The fit's error
+    is `(1 + X)` times the missed curvature, which varies with `X`. The estimator lands
+    within tolerance; the plug-in misses by more than 2.5 tolerances at three or more
+    doses; the smoothing-bias diagnostic is exactly zero. A constant odds weight
+    (membership ignored) or a constant dose density in the residual weight fails this
+    case (mutation-checked).
+  - Membership wrong, outcome right: the same outcome, target `X ~ N(0.5, 1.4^2)` (log odds
+    quadratic in `X`) against a linear logistic. The estimator lands within tolerance
+    while the weighting-only estimator with the same fitted odds is more than two
+    tolerances off at every dose, so the odds really are wrong.
+- **`known_truth_curve_under_both_designs`** also recomputes the augmentation from the
+  fitted out-of-fold nuisances and the design's density function and matches it to
+  `1e-9`.
 - **`a_kinked_fitted_curve_surfaces_its_quadrature_error_and_refuses_at_a_tight_tolerance`**:
-  the hinge moment has the closed form `h * 0.75 (1/4 - 2d/3 + d^2/2 - d^4/12)`, with
-  `d = (c - a)/h`. The error falls from 32 to 64 nodes, the recorded error dominates the
-  32-node rule's true error, and a tight tolerance refuses.
+  a linear fit on a hinge basis with its kink inside the window is integrated exactly
+  (two pieces, point equal to the closed-form hinge moment
+  `h * 0.75 (1/4 - 2d/3 + d^2/2 - d^4/12)`, `d = (c - a)/h`, at a tolerance of `1e-300`);
+  a step-shaped tree fit is gated on the largest row difference, refused at a tolerance
+  between the grid-averaged and the largest row difference, and accepted at the largest.
+- **`a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_clears_it`**:
+  overlap is gated on target rows too.
+- **`a_bootstrap_replicate_reuses_the_point_run_fold_of_every_drawn_row`**: a replicate keeps
+  each drawn row's point-run fold (a duplicated row stays in one fold).
 
 ## Bounds
 
 At most 16 grid doses, 20 cross-fitting folds, 200,000 rows, 256 covariates, basis degree 1 to 3,
 at most 8 knots, and a bootstrap request of 199 to 2000 replicates; a violation refuses as
-`dose_response.bounds_exceeded`. A consumer refuses stored bounds that differ from its own.
+`dose_response.bounds_exceeded`. Each cap is tested at its value and one above (the
+covariate cap on a certificate that standardizes over 256 covariates).
+
+**Memory.** A mandatory cap of 512 MiB (536,870,912 bytes) on the estimated workspace, lowered (never raised)
+by a context hard memory limit, is checked before any fit (`transport_budget_cancel`, a
+resource refusal). The estimate adds up the stored rows, every design the producer
+actually allocates (membership and outcome designs, one training-design copy and normal
+matrix per concurrently fitted fold, the per-fold evaluation designs) and one quadrature
+chunk (at most 8 MiB of design) per concurrently integrated grid dose. Learner internals
+beyond that copy (tree storage, boosting state) are not modelled. A request at every cap
+at once (width 3084) is far above the cap and is refused. The calibration-internal
+bootstrap multiplies the estimate by the number of concurrent replicates.
+
+**Stored bounds.** The bounds are stored in the artifact and bound into its premises
+digest. A consumer compares them with its own field by field and refuses only a looser
+stored bound (a larger cap, a lower replicate floor, or a node count it does not offer),
+naming it, as a limits refusal. An equal or tighter stored bound is accepted, so a v1
+artifact stays readable when a later build raises a cap.
 
 ## Inference
 
@@ -260,15 +323,18 @@ It has no interval field.
 
 A consumer never fits. In order, it:
 
-1. refuses stored bounds that differ from its own compiled bounds, and requests above its
-   row and covariate limits, before any other work;
+1. refuses stored bounds looser than its own compiled bounds, a request above the stored
+   bounds or above its own row and covariate limits, and a replay workspace estimate above
+   its memory limit (the 512 MiB cap, lowered by its own limit or context), before any
+   other work;
 2. re-derives the certificate;
 3. re-validates the request;
 4. recomputes the folds;
 5. checks the models against the learner specs;
 6. re-predicts every nuisance from the stored models;
 7. re-integrates the quadrature;
-8. replays every recorded number bit for bit.
+8. replays every recorded number bit for bit, polling its cancellation token before every
+   quadrature chunk.
 
 ### What replay does not establish
 
@@ -278,6 +344,19 @@ digests produces an artifact that consumes; a test asserts exactly this.
 
 The consumer also uses the producer's evaluator. Replay is therefore an integrity check,
 and the evaluator's correctness rests on the verification tests above.
+
+Some stored premises do not enter the replayed point, so a re-sealed edit of them
+consumes (a test asserts each):
+
+- the master **seed**: the fold assignment is deterministic in the source flags, and the
+  seed reaches only the fits, which are not replayed;
+- the **sampling design**: it only groups the bootstrap, which is not replayed;
+- the **support thresholds** (`min_local_ess`, `min_distinct_doses`, `min_dose_density`,
+  `min_membership_probability`): they are re-validated against the stored rows, so a
+  re-sealed threshold the rows fail is refused, but one they still pass consumes.
+
+The premises digest binds all of them against unsealed edits only. The replayed
+smoothing-bias diagnostic is only as good as the fitted curve (see above).
 
 ## Not in this cell
 

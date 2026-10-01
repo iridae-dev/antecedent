@@ -177,16 +177,20 @@ perturbs the surrogate formula's outcome kernel and shared parent marginal toget
 each within its own fraction bound (a box; a coupled total budget refuses with
 `joint_sensitivity.budget_coupling`). It reports the exact joint assumption range,
 the axis tipping points (equal to the 2.1 one-factor values) and a tipping frontier
-of certified bisection brackets under one shared search budget. Fixed-graph parent
-or conditional-mechanism perturbations, the treatment mechanism, more than three
+of bisection brackets (certified against the floating-point evaluation of the range)
+under one shared search budget. Fixed-graph parent
+or conditional-mechanism perturbations, the treatment mechanism, more than two
 factors and source-target discrepancy diagnostics refuse with typed
-`joint_sensitivity.*` details. Declared bounds: at most 3 factors declared (only 2
-are supported), 64 parent levels, 32 outcome categories, a frontier grid of 1 to 33
+`joint_sensitivity.*` details. Declared bounds: at most 2 factors declared (the outcome kernel and the shared parent marginal), 64 parent levels, 32 outcome categories, a frontier grid of 1 to 33
 points, at most 100000 search operations, a bisection depth of 64 iterations per
-frontier line, and a bootstrap request cap of 2000 (internal). The range is never a confidence interval; the one
-declared sampling composition (conservative endpoint percentile bootstrap) is
-closed (`cell_not_licensed`). Export and consume use a separate version 3
-artifact. Derivation and scope: [joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
+frontier line and a declared memory cap of at most 512 MiB; the carried-forward
+uncertainty record's internal estimator has a bootstrap request cap of 2000. The range is
+never a confidence interval, and its guarantee (exact within the declared contamination
+class) covers the range only: sampling uncertainty is not offered in 2.2. The one
+declared sampling composition (conservative endpoint percentile bootstrap, paper-inherited)
+is record `2.2B.X3.joint_sensitivity_uncertainty`, carried forward; its routes refuse with
+`cell_not_licensed` and nothing is measured for it at the cut. Export and consume use a
+separate version 3 artifact. Derivation and scope: [joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
 
 ## Learned continuous-outcome transport (2.2A X4)
 
@@ -521,31 +525,46 @@ it is not a second transport engine.
 - **Reduction.** Rule 2 of the do-calculus, applied in the target population,
   moves a conditioned `w` into the intervention set when `Y` is m-separated from
   `w` given `X` and the other conditioned variables in the graph with edges into
-  `X` and out of `w` removed (IDC line 1; the moved set equals the one the repo's
-  `IdcIdentifier` moves on every tested graph). The classical sID engine then
+  `X` and out of `w` removed (IDC line 1). The moved set equals the one the repo's
+  `IdcIdentifier` moves on every three-node ADMG under every selection pattern and
+  on a stride of four-node ADMGs with a single selection; it does not depend on
+  the selection targets at all (selection nodes are parentless and conditioned on
+  in the target, so they neither open nor keep open a path), which a paired sweep
+  with and without selection pins. The classical sID engine then
   decides the reduced joint `P*(y, w'' | do(x, w'))`, and the answer is that joint
   normalized over `y` at the requested `w''`. A zero-mass conditioning event is
   `transport_support_failure` (`admg_transport.support_failure`).
-- **Guarantee.** Sound and incomplete. Every move is re-checked by an independent
-  augmented-graph separation test (including maximality of the moved set), the
-  joint by the classical sID checker, and the conditional values are compared with
-  enumerated latent SCMs on every three-node ADMG and a seeded four-node sample.
+- **Guarantee.** Sound and incomplete. Every decision re-checks its own reduction
+  before it returns: each move's rule-2 premise and the maximality of the moved
+  set are replayed by an independent augmented-graph separation test (distinct
+  code from the search's path test), charged to the same budget; the reduced joint
+  is built only through the sID engine's verified-derivation path. A stored
+  derivation re-runs both checks when it is prepared (`StudyBuilder`, Python
+  `prepare_exact`) and when an artifact is consumed. The conditional values are
+  compared with enumerated latent SCMs on every three-node ADMG and a seeded
+  four-node sample.
   Whether a reduced-joint s-hedge makes the conditional non-transportable is the
   transport analogue of IDC completeness; its theorem text was not read, so the
   claim is paper-inherited and such a case is `not_certified`
   (`admg_transport.not_certified`) with an inspection-only
   `ConditionalObstructionCandidate` (`"proof": false` in Python).
 - **Budget.** One `SearchBudget` (at most 4096 operations, depth 24, a memory cap
-  that is never absent) is charged by every rule-2 separation test, every sID step
-  and the catalog binding. A stop is `exhausted` with a receipt of explored and
-  unevaluated stages, never a verdict.
+  that is never absent) is charged by every rule-2 separation test of the search
+  and of its re-check, every sID step and the catalog binding. Live-state memory
+  is cumulative: each finished stage's peak is retained by every later charge. A
+  stop is `exhausted` with a receipt of explored and unevaluated stages, never a
+  verdict.
 - **Artifact.** `checked_admg_conditional_point_v1`: the consumer refuses stored
-  limits above its own before any work, checks a premises digest and a separate
-  data-identity digest, re-checks the proof and re-decides the query under the
-  producer's stored limits, re-binds the leaves and recomputes every point bit for
-  bit. It does not authenticate the laws (the data digest names snapshots), and it
-  cannot detect a wrong causal graph or a consistently re-sealed forgery (the
-  digests are integrity checks, not signatures).
+  limits above its own, and a graph or query above the route's size bounds,
+  before any work (before either digest is hashed), checks a premises digest and
+  a separate data-identity digest, re-checks the proof and re-decides the query
+  under the producer's stored limits, re-binds the leaves and recomputes every
+  point bit for bit. The consumer is independent of the artifact, not of the
+  implementation: it re-runs the producer's search and evaluator, and only the
+  proof check is distinct code, so a bug shared by producer and consumer replays
+  identically. It does not authenticate the laws (the data digest names
+  snapshots), and it cannot detect a wrong causal graph or a consistently
+  re-sealed forgery (the digests are integrity checks, not signatures).
 - **Not licensed.** Counted laws, an empirical plug-in and any interval
   (`cell_not_licensed`, `admg_transport.interval_withheld`); selection-bias
   (`S = 1` sampling) semantics; soft interventions; gID / g-transportability with
@@ -582,22 +601,30 @@ double robustness and the executed numerical checks are in
   membership (BinaryProbability) through `LearnerSpec`, cross-fitted on one shared fold
   assignment; every fold model is kept as a portable predictor, so a learner without one
   is refused (`dose_response.learner_not_portable`).
-- **Errors kept apart.** Each grid dose records the quadrature error
-  `|psi_Q - psi_2Q|` (refused above the declared tolerance,
-  `dose_response.quadrature_tolerance`) and the smoothing-bias diagnostic
-  `psi_h - psi_{h/2}` (plug-in) with its local-quadratic extrapolation; neither is added
-  to the estimate. The analytic influence-function standard error is a diagnostic only.
+- **Errors kept apart.** Every window is split at the basis knots inside it, so a
+  linear-family fit is integrated exactly; for any other fitted curve (a tree learner)
+  each grid dose records the estimated quadrature error (the largest target-row
+  `|nu_Q - nu_2Q|`, an estimate rather than a bound, refused above the declared
+  tolerance, `dose_response.quadrature_tolerance`). The smoothing-bias diagnostic
+  `psi_h - psi_{h/2}` (plug-in, from the fitted curve only, so zero for a fit linear in
+  the dose) is reported with its local-quadratic extrapolation; neither is added to the
+  estimate. The analytic influence-function standard error is a diagnostic only.
 - **Bounds.** At most 16 grid doses, 20 cross-fitting folds, 200,000 rows, 256 covariates,
   basis degree 1 to 3, at most 8 knots, and a bootstrap request of 199 to 2000 replicates;
-  a violation refuses as `dose_response.bounds_exceeded`.
+  a violation refuses as `dose_response.bounds_exceeded`. A mandatory 512 MiB cap on the
+  estimated workspace (lowered by a context hard memory limit) refuses before any fit or
+  replay as a resource refusal.
 - **Interval.** The pointwise joint outer refit percentile bootstrap of the whole
   composed estimator (`smoothed_dose_interval_internal`, `calibration-internal` only)
   is wired in `crates/antecedent/tests/smoothed_dose_calibration.rs`; its route is closed
   (`cell_not_licensed`) until its two coverage records are measured.
 - **Artifact.** `checked_smoothed_dose_transport_v1`: a consumer re-derives the
   certificate, re-predicts every nuisance from the stored fold models and re-integrates
-  every quadrature bit for bit, without fitting; it cannot establish that the stored
-  models were fitted as recorded.
+  every quadrature bit for bit, without fitting, under its own row, covariate, memory and
+  cancellation limits; it refuses stored bounds looser than its own (tighter ones are
+  accepted). It cannot establish that the stored models were fitted as recorded, and a
+  re-sealed seed, sampling design or support threshold the rows still pass consumes,
+  since none of them enters the replayed point.
 
 ## Exact binary observation recovery (2.2B X10)
 
@@ -615,23 +642,43 @@ then feeds it to the ordinary target ID stage of sID for a causal effect.
   `P(R = 1, X* = x, O = o) / prod_i p(R_i = 1 | pa(R_i))`, each propensity a ratio
   of observed pattern margins, is derived in the module docs, lowered to the
   expression IR with every leaf bound to a margin of the named catalog distribution,
-  and checked by an independent checker. A self-censoring edge is proved
-  nonrecoverable by an exact-integer witness (`recovery.nonrecoverable_witness`).
-  In this class both directions are proved in the repo; the general Nabi,
-  Bhattacharya and Shpitser (2020) criterion (with colluders) is paper-inherited.
+  and checked by an independent checker. A self-censoring edge is refused as not
+  recoverable for every model Markov to the m-graph, shown by an exact-integer
+  witness (`recovery.nonrecoverable_witness`, reason code
+  `transport_proven_non_transportable`). The witness models are degenerate (every
+  other mechanism an independent fair coin), so nothing is claimed under faithful
+  or generic parameters: there, some self-censoring graphs are generically
+  identified (for example a shadow-variable graph `Z -> X -> R_X` with `Z` not a
+  parent of `R_X`), an assumption this route does not make. In this class both
+  directions are proved in the repo over all models Markov to the m-graph; the
+  general Nabi, Bhattacharya and Shpitser (2020) criterion (with colluders) is
+  paper-inherited.
 - **Evidence.** One joint law over exactly `R`, `X*`, `O`; separate marginals refuse as
   `recovery.missing_margin`. No complete-case fallback and no MAR or IPCW
   substitution: the missingness assumption lives in the graph and is checked.
-- **Recovered law.** A derived law with `LawOrigin::Recovered` provenance, never an
-  observed table; it never satisfies a catalog-route factor. The effect handoff
+- **Recovered law.** A derived law. Its catalog descriptor carries
+  `LawOrigin::Recovered` provenance, so it never supplies a population law
+  (`supplies_population_law` requires a measured origin) and satisfies no
+  catalog-route factor; the X9 mixed-source search excludes it as `recovered_law`.
+  The catalog wire carries it in an additive `recovered_derivation` field (absent
+  for every other origin, so 2.1 catalogs are byte-identical; a 2.1 reader refuses
+  it) and round-trips its identity exactly. The exact table's snapshot identity is
+  `recovered:<derivation identity>`, never the observed snapshot, so it is refused
+  if offered back as the observed law; the table itself keeps the observed regime
+  id it was derived from and the `supplied_exact` provider tag. The effect handoff
   requires the same population, the variables `X ∪ O`, the m-graph's causal
   restriction as the effect graph (`recovery.handoff_mismatch` otherwise) and
   strictly positive support.
 - **Budget.** One `SearchBudget` (at most 50000 operations, depth 32) bounds every stage;
-  a stop is `recovery.budget` with a receipt, never a verdict.
+  a stop is `recovery.budget` with a receipt, never a verdict. The receipt's
+  `explored` lists the stages completed and `unevaluated` the stage the stop reached
+  (`class_check`, `formula`, `witness` or `downstream_effect`) and those left. The
+  standalone witness verifier is uncharged; the role bounds cap it at 8 non-proxy
+  nodes.
 - **Artifact.** `checked_observation_recovery_point_v1`: a consumer re-decides under
   the stored limits, re-checks the formula and recomputes the recovered law and every
-  effect point bit for bit. It cannot establish that the observed table describes real
+  effect point bit for bit. The data digest binds the whole catalog, the snapshot
+  bindings and every observed cell. It cannot establish that the observed table describes real
   data, nor the m-graph's untestable premises. Exact laws only: point-only, and counted
   laws refuse as `cell_not_licensed`.
 
@@ -669,21 +716,32 @@ the declared regimes.
 - **Claims.** No sufficient subset is `study_plan.none_certified` within the universe,
   never an impossibility claim. The only theorem-limited refusal is a base X1 decision
   that is a replayed checked obstruction over the declared controllable sets
-  (`study_plan.theorem_limited`). The top proposal is marked minimal only when every
-  strictly cheaper subset was decided without a stop: cost-minimal among
-  verified-derivable subsets of this universe under this search and rule set. Supersets
-  of a sufficient subset are listed `dominated`, for ranking only.
+  (`study_plan.theorem_limited`); a new population or a wider controllable set is
+  outside this universe. The top proposal is marked minimal only when every strictly
+  cheaper subset was decided without a stop or an over-cap decision: cost-minimal among
+  the verified-derivable subsets of at most three candidates of this declared universe,
+  under this search and rule set. A cheaper subset of four or more candidates is never
+  examined, and a cheaper subset the route refuses (for example over the X9
+  usable-distribution bound) keeps the claim: it is only not sufficient under this
+  search. Supersets of a sufficient subset are listed `dominated`, for ranking only.
 - **Arrival.** `receive` requires the frozen base unchanged and every proposed regime
   present as available evidence of exactly the proposed shape, bound to the provider's
-  snapshot (`study_plan.arrival_mismatch`), then decides the real catalog through the
-  public route. Positivity is a premise: a law without mass at a level the formula
-  reads passes `receive` and is refused by the ordinary evaluator.
+  snapshot (`study_plan.arrival_mismatch`; a `hypothetical:` snapshot is a planning
+  preview and is refused), then decides the real catalog through the public route; a
+  stop or cancellation there is `study_plan.budget`, never "not identified".
+  Positivity is a premise: a law without mass at a level the formula reads passes
+  `receive` and is refused by the ordinary evaluator.
 - **Artifact.** `study_plan_v1` carries the premises, the base catalog lineage and the
   whole plan under premises, data and plan digests. A consumer refuses stored limits
-  above its own before any work and accepts only a plan its full replay reproduces
-  (`study_plan.invalid_artifact`). It cannot tell whether a producer stated another
+  (operations, depth, memory cap) above its own or its context's hard memory limit
+  before any work and accepts only a plan its full replay reproduces
+  (`study_plan.invalid_artifact`); a cancelled replay is `study_plan.budget`, and a
+  cancelled plan cannot be exported. It cannot tell whether a producer stated another
   base catalog or candidate universe and re-sealed honestly, nor whether a study will
-  deliver its declared regimes.
+  deliver its declared regimes. The base catalog's bindings and snapshots (lineage) are
+  stored and digested, but replay does not exercise them: a re-sealed artifact with
+  every base binding cleared replays and is accepted. Only `receive` checks lineage
+  (the arriving catalog must keep every stored base binding).
 
 ## Path-specific edge intervention (2.2A X8)
 
@@ -703,10 +761,20 @@ most 4 levels each, from the observational joint (exact law or empirical counts)
 on the conjunction `{Y_x = y, X = x'}` identifies each district term by ID under one
 `SearchBudget` (at most 100000 operations, depth 64); Python
 `antecedent.counterfactual_id.prepare_effect_on_treated`, record
-`2.2B.X8.admg_counterfactual_id`. A query that is not identified refuses with
-`cross_world_not_identified`; the claim is a point and never carries an interval;
+`2.2B.X8.admg_counterfactual_id`. When ID* stops and the treatment is binary, the
+consistency identity `P(Y_x = y, X = x') = P_x(y) - P(y, X = x)` answers wherever ID
+identifies `P_x(y)`. A query ID* does not identify (conflicting
+subscripts, or an ID hedge on a district term) and the binary complement does not
+answer refuses with `route_not_supported` and a checkable obstruction: it is not
+identified by ID*, which is NOT a proof of non-identifiability (ID* composed with ID
+is not complete from `P(V)`; a graph whose ETT is identified through `P(y | do(x))`
+was refused by ID* alone). The claim is a point and never carries an interval;
 path-specific queries on ADMGs are deferred to 2.3. The consumer refuses stored limits
-above its own before any work.
+above its own before any work; replay does not protect against a producer sealing a
+wrong graph, query or law, nor against a bug shared by the engine and the consumer
+(the consumer re-derives with the same engine). The recorded y0 0.2.11 differential
+agrees on the verdict on 237 of 257 graphs, and on the 171 both identify y0's recorded
+expression evaluates to the same numerator.
 
 ## Estimation assumptions
 
