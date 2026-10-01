@@ -776,7 +776,7 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         let seeded = Self::crossfit_problem(problem, ctx);
         let problem = &seeded;
-        let table = self.crossfit_table(problem)?;
+        let table = self.crossfit_table(problem, true)?;
         let summary = table.summarize(weights)?;
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
         let iid_se = matches!(self.se_kind, AnalyticSeKind::Homoskedastic);
@@ -834,11 +834,19 @@ impl AipwAte {
         seeded
     }
 
+    /// `share`: whether a batch's shared nuisance cache may serve this table (the
+    /// point fit) or not (bootstrap replicates).
     fn crossfit_table(
         &self,
         p: &PreparedPropensityProblem,
+        share: bool,
     ) -> Result<crate::scores::ScoreTable, EstimationError> {
-        crate::crossfit_aipw::build_binary_scores(
+        let build = if share {
+            crate::crossfit_aipw::build_binary_scores
+        } else {
+            crate::crossfit_aipw::build_binary_scores_unshared
+        };
+        build(
             p,
             p.treatment_id,
             &[None],
@@ -881,7 +889,7 @@ impl AipwAte {
             if let Some(w) = weights {
                 p.target_weights = Some(gather(w, idx).into());
             }
-            let Ok(t) = self.crossfit_table(&p) else {
+            let Ok(t) = self.crossfit_table(&p, false) else {
                 return Ok(None);
             };
             let ss = t.summarize(p.target_weights.as_deref())?;

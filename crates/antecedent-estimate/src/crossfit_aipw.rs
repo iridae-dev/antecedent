@@ -72,6 +72,10 @@ pub fn crossfit_binary_scores(
 /// # Errors
 ///
 /// Empty folds or nuisance failure.
+///
+/// Inside a [`crate::CrossfitNuisanceCache::scope`], a propensity or outcome fit whose
+/// every input matches an earlier fit in the same cache is reused instead of refit; the
+/// table is bit-identical either way.
 pub fn build_binary_scores(
     problem: &PreparedPropensityProblem,
     treatment: VariableId,
@@ -79,6 +83,31 @@ pub fn build_binary_scores(
     folds: usize,
     glm_options: &GlmOptions,
     backend: FaerBackend,
+) -> Result<ScoreTable, EstimationError> {
+    build_binary_scores_impl(problem, treatment, thresholds, folds, glm_options, backend, true)
+}
+
+/// [`build_binary_scores`] that never reads or fills a shared nuisance cache (bootstrap
+/// replicates: their resampled inputs are never shared and would only fill the cache).
+pub(crate) fn build_binary_scores_unshared(
+    problem: &PreparedPropensityProblem,
+    treatment: VariableId,
+    thresholds: &[Option<f64>],
+    folds: usize,
+    glm_options: &GlmOptions,
+    backend: FaerBackend,
+) -> Result<ScoreTable, EstimationError> {
+    build_binary_scores_impl(problem, treatment, thresholds, folds, glm_options, backend, false)
+}
+
+fn build_binary_scores_impl(
+    problem: &PreparedPropensityProblem,
+    treatment: VariableId,
+    thresholds: &[Option<f64>],
+    folds: usize,
+    glm_options: &GlmOptions,
+    backend: FaerBackend,
+    share: bool,
 ) -> Result<ScoreTable, EstimationError> {
     if folds < 2 {
         return Err(EstimationError::unsupported("AIPW cross-fitting requires at least two folds"));
@@ -127,6 +156,49 @@ pub fn build_binary_scores(
     let mut prop_ws = PropensityWorkspace::default();
     let mut out_ws = AipwWorkspace::default();
 
+    // Shared nuisance slots (batch scope only). The propensity lease is held until the
+    // table is built, so a query with the same key waits and then reuses the finished fit;
+    // outcome slots are only ever locked under their propensity slot, so leases cannot
+    // deadlock. A failed build leaves every slot empty.
+    let fold_ids: Arc<[u32]> = Arc::from(fold_ids);
+    let lease = if share {
+        crate::crossfit_cache::PropensityLease::acquire(|| crate::crossfit_cache::PropensityKey {
+            design: Arc::clone(&problem.design_matrix),
+            nrows: n,
+            ncols,
+            treatment: Arc::clone(&problem.treatment),
+            fold_ids: Arc::clone(&fold_ids),
+            folds,
+            glm_options: *glm_options,
+        })
+    } else {
+        None
+    };
+    let mut prop_slot =
+        lease.as_ref().map(crate::crossfit_cache::PropensityLease::lock).transpose()?;
+    let shared_e: Option<Arc<[f64]>> = prop_slot.as_ref().and_then(|slot| slot.as_ref().cloned());
+    let mut fitted_e: Option<Vec<f64>> =
+        (lease.is_some() && shared_e.is_none()).then(|| vec![0.0; n]);
+    let y_sources: Vec<Arc<[f64]>> =
+        thresholds.iter().map(|&c| Arc::from(transform_outcome(&problem.outcome, c))).collect();
+    let outcome_leases: Vec<Option<crate::crossfit_cache::OutcomeLease>> = y_sources
+        .iter()
+        .map(|y| lease.as_ref().and_then(|l| l.outcome(|| Arc::clone(y))))
+        .collect();
+    let mut outcome_slots = outcome_leases
+        .iter()
+        .map(|l| l.as_ref().map(crate::crossfit_cache::OutcomeLease::lock).transpose())
+        .collect::<Result<Vec<_>, _>>()?;
+    let shared_mu: Vec<crate::crossfit_cache::OutcomeSlot> =
+        outcome_slots.iter().map(|slot| slot.as_ref().and_then(|s| s.as_ref().cloned())).collect();
+    let mut fitted_mu: Vec<Option<(Vec<f64>, Vec<f64>)>> = outcome_slots
+        .iter()
+        .zip(&shared_mu)
+        .map(|(slot, shared)| {
+            (slot.is_some() && shared.is_none()).then(|| (vec![0.0; n], vec![0.0; n]))
+        })
+        .collect();
+
     for fold in 0..folds {
         let train: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize != fold).collect();
         let valid: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize == fold).collect();
@@ -142,23 +214,33 @@ pub fn build_binary_scores(
                 "AIPW cross-fit fold is missing a treatment arm",
             ));
         }
-        let fit = fit_propensity(
-            &design_train,
-            train.len(),
-            ncols,
-            &t_train,
-            &backend,
-            &mut prop_ws,
-            glm_options,
-        )
-        .map_err(stats_err)?;
-
-        fit.glm.require_ok().map_err(stats_err)?;
         let mut design_valid = Vec::new();
         select_rows_colmajor(&problem.design_matrix, n, ncols, &valid, &mut design_valid);
-        let mut e_valid = vec![0.0; valid.len()];
-        predict_propensity(&design_valid, valid.len(), ncols, &fit.coefficients, &mut e_valid)
+        let mut e_valid = if let Some(shared) = shared_e.as_deref() {
+            gather(shared, &valid)
+        } else {
+            let fit = fit_propensity(
+                &design_train,
+                train.len(),
+                ncols,
+                &t_train,
+                &backend,
+                &mut prop_ws,
+                glm_options,
+            )
             .map_err(stats_err)?;
+
+            fit.glm.require_ok().map_err(stats_err)?;
+            let mut e_valid = vec![0.0; valid.len()];
+            predict_propensity(&design_valid, valid.len(), ncols, &fit.coefficients, &mut e_valid)
+                .map_err(stats_err)?;
+            if let Some(out) = fitted_e.as_mut() {
+                for (k, &i) in valid.iter().enumerate() {
+                    out[i] = e_valid[k];
+                }
+            }
+            e_valid
+        };
         let raw_e = e_valid.clone();
         if let Some(clip_at) = clip {
             clamp_scores(&mut e_valid, clip_at);
@@ -167,21 +249,32 @@ pub fn build_binary_scores(
         // exactly 0 or 1 (infinite weight) is refused rather than silently floored.
         require_interior_propensities(&e_valid)?;
 
-        for (t_idx, &threshold) in thresholds.iter().enumerate() {
-            let y_source = transform_outcome(&problem.outcome, threshold);
-            let y_train = gather(&y_source, &train);
-            let y_valid = gather(&y_source, &valid);
-            let (beta0, beta1) = fit_outcome_models(
-                &design_train,
-                train.len(),
-                ncols,
-                &t_train,
-                &y_train,
-                backend,
-                &mut out_ws,
-            )?;
-            predict_colmajor(&design_valid, valid.len(), ncols, &beta0, &mut out_ws.mu0);
-            predict_colmajor(&design_valid, valid.len(), ncols, &beta1, &mut out_ws.mu1);
+        for t_idx in 0..thresholds.len() {
+            let y_source = &y_sources[t_idx];
+            let y_valid = gather(y_source, &valid);
+            if let Some((mu0, mu1)) = shared_mu[t_idx].as_ref() {
+                out_ws.mu0 = gather(mu0, &valid);
+                out_ws.mu1 = gather(mu1, &valid);
+            } else {
+                let y_train = gather(y_source, &train);
+                let (beta0, beta1) = fit_outcome_models(
+                    &design_train,
+                    train.len(),
+                    ncols,
+                    &t_train,
+                    &y_train,
+                    backend,
+                    &mut out_ws,
+                )?;
+                predict_colmajor(&design_valid, valid.len(), ncols, &beta0, &mut out_ws.mu0);
+                predict_colmajor(&design_valid, valid.len(), ncols, &beta1, &mut out_ws.mu1);
+                if let Some((mu0, mu1)) = fitted_mu[t_idx].as_mut() {
+                    for (k, &i) in valid.iter().enumerate() {
+                        mu0[i] = out_ws.mu0[k];
+                        mu1[i] = out_ws.mu1[k];
+                    }
+                }
+            }
 
             let col0 = t_idx * 2;
             let col1 = col0 + 1;
@@ -199,6 +292,26 @@ pub fn build_binary_scores(
         }
     }
 
+    // Every fold succeeded: publish fresh fits and count each lease once.
+    if let (Some(lease), Some(slot)) = (lease.as_ref(), prop_slot.as_mut()) {
+        lease.record(fitted_e.is_none());
+        if let Some(fitted) = fitted_e.take() {
+            **slot = Some(Arc::from(fitted));
+        }
+    }
+    for ((lease, slot), fitted) in
+        outcome_leases.iter().zip(outcome_slots.iter_mut()).zip(fitted_mu)
+    {
+        if let (Some(lease), Some(slot)) = (lease.as_ref(), slot.as_mut()) {
+            lease.record(fitted.is_none());
+            if let Some((mu0, mu1)) = fitted {
+                **slot = Some((Arc::from(mu0), Arc::from(mu1)));
+            }
+        }
+    }
+    drop(outcome_slots);
+    drop(prop_slot);
+
     Ok(ScoreTable {
         observed_arm: problem
             .treatment
@@ -210,7 +323,7 @@ pub fn build_binary_scores(
         observed_outcome: Arc::clone(&problem.outcome),
         n_rows: n,
         row_index: Arc::clone(&problem.row_index),
-        fold_ids: Arc::from(fold_ids),
+        fold_ids,
         n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
         scores: Arc::from(scores),
         columns: Arc::from(columns),
@@ -392,6 +505,65 @@ mod tests {
         assert!((ate - 2.0).abs() < 0.35, "crossfit ate={ate}");
         assert_eq!(table.n_folds, 5);
         assert_eq!(table.columns.len(), 2);
+    }
+
+    fn table_bits(table: &ScoreTable) -> (Vec<u64>, Vec<u64>) {
+        (
+            table.scores.iter().map(|v| v.to_bits()).collect(),
+            table.propensities.iter().map(|v| v.to_bits()).collect(),
+        )
+    }
+
+    #[test]
+    fn shared_nuisances_reuse_only_identical_fits_and_match_unshared_bits() {
+        use crate::crossfit_cache::CrossfitNuisanceCache;
+        let (data, estimand) = confounded(400, 61);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = AipwAte::new();
+        let base = est.prepare(&data, &estimand, &query).unwrap();
+        let build = |p: &PreparedPropensityProblem, glm: &GlmOptions| {
+            crossfit_binary_scores(p, &query, 5, glm, est.backend).unwrap()
+        };
+        let solo = build(&base, &est.glm_options);
+        // Same treatment, design and folds but another outcome: shares only e(Z).
+        let mut other_outcome = base.clone();
+        other_outcome.outcome = base.outcome.iter().map(|y| 0.5 * y + 1.0).collect();
+        let solo_other = build(&other_outcome, &est.glm_options);
+        // Another fold seed (fold plan), and other GLM options: share nothing.
+        let mut other_seed = base.clone();
+        other_seed.fold_seed = base.fold_seed.wrapping_add(1);
+        let solo_seed = build(&other_seed, &est.glm_options);
+        let other_glm = GlmOptions { max_iter: est.glm_options.max_iter + 1, ..est.glm_options };
+        let solo_glm = build(&base, &other_glm);
+
+        let cache = CrossfitNuisanceCache::new();
+        let (first, a) = cache.scope(|| build(&base, &est.glm_options));
+        let (again, b) = cache.scope(|| build(&base, &est.glm_options));
+        let (outcome, c) = cache.scope(|| build(&other_outcome, &est.glm_options));
+        let (seeded, d) = cache.scope(|| build(&other_seed, &est.glm_options));
+        let (glm, e) = cache.scope(|| build(&base, &other_glm));
+        assert_eq!(table_bits(&first), table_bits(&solo));
+        assert_eq!(table_bits(&again), table_bits(&solo));
+        assert_eq!(table_bits(&outcome), table_bits(&solo_other));
+        assert_eq!(table_bits(&seeded), table_bits(&solo_seed));
+        assert_eq!(table_bits(&glm), table_bits(&solo_glm));
+
+        let stats = cache.stats();
+        // base (fit), repeat (reuse both), other outcome (reuse e, fit mu),
+        // other seed (fit both), other GLM options (fit both).
+        assert_eq!((stats.propensity_fits, stats.propensity_reuses), (3, 2));
+        assert_eq!((stats.outcome_fits, stats.outcome_reuses), (4, 1));
+        assert_eq!(cache.shared_with_another_scope(&a), (true, true));
+        assert_eq!(cache.shared_with_another_scope(&b), (true, true));
+        assert_eq!(cache.shared_with_another_scope(&c), (true, false));
+        assert_eq!(cache.shared_with_another_scope(&d), (false, false));
+        assert_eq!(cache.shared_with_another_scope(&e), (false, false));
+
+        // Outside a scope nothing is read or recorded.
+        let unscoped = build(&base, &est.glm_options);
+        assert_eq!(table_bits(&unscoped), table_bits(&solo));
+        assert_eq!(cache.stats(), stats);
     }
 
     #[test]

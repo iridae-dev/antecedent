@@ -30,6 +30,7 @@ pub mod cell_aipw;
 pub mod conditional;
 pub mod continuous_dose;
 pub mod crossfit_aipw;
+pub mod crossfit_cache;
 pub mod design_compile;
 pub mod dml;
 pub mod dr;
@@ -159,6 +160,7 @@ pub use crossfit_aipw::{
     AIPW_CROSSFIT_PROVENANCE, DEFAULT_AIPW_FOLDS, WeightedSupport, build_binary_scores,
     crossfit_binary_scores, thresholds_of, weighted_support,
 };
+pub use crossfit_cache::{CrossfitCacheStats, CrossfitNuisanceCache, NuisanceScopeUse};
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};

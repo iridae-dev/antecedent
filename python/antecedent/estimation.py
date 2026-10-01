@@ -1639,6 +1639,18 @@ def analyze_many(
 ) -> list[AnalysisResult]:
     """Estimate many average effects on one shared table ingest.
 
+    Queries that would fit the identical cross-fitted AIPW nuisance (same
+    treatment coding, adjustment set, complete-case rows, fold plan and
+    learner options) share one fit; each result is bit-identical to the
+    query's own ``analyze`` fit. The ``batch.shared_design`` diagnostic
+    records, per result, whether its propensity / outcome fit was shared.
+
+    Only ``AverageEffect`` queries batch here; discrete joint
+    ``InterventionResponse`` cells batch through
+    :meth:`PreparedBatch.prepare_cells`. Any other query is refused with
+    ``reason_code="route_not_supported"`` and a ``remedy`` naming
+    :func:`antecedent.analyze`, which estimates it one query at a time.
+
     Parameters
     ----------
     data:
@@ -1658,7 +1670,7 @@ def analyze_many(
     if not queries:
         raise CausalValueError("analyze_many requires at least one query")
     if not all(isinstance(q, AverageEffect) for q in queries):
-        raise CausalTypeError("analyze_many currently supports AverageEffect queries only")
+        raise _batch_route_refusal("analyze_many", "AverageEffect queries")
     resolved_refute = None if refute is None else coerce_refute(refute)
     names, columns = ingest_columns(data)
     from .query import coerce_outcome_functional
@@ -1700,6 +1712,22 @@ def analyze_many(
     return [_wrap_ate(r, query=q) for r, q in zip(raws, queries, strict=True)]
 
 
+_BATCH_ROUTE_REMEDY = (
+    "estimate it with antecedent.analyze(data, graph=..., query=...), one query at a "
+    "time; the batch routes cover AverageEffect (analyze_many, PreparedBatch.prepare) "
+    "and discrete joint InterventionResponse cells (PreparedBatch.prepare_cells)"
+)
+
+
+def _batch_route_refusal(entry: str, covered: str) -> CausalUnsupportedError:
+    """Typed refusal for a query outside a batch route, naming ``analyze``."""
+    return _refused_with_remedy(
+        "route_not_supported",
+        f"{entry} covers {covered} only; use analyze for any other query",
+        _BATCH_ROUTE_REMEDY,
+    )
+
+
 @dataclass(frozen=True)
 class CandidateScreen:
     """Declared screen/estimate split for a batch family."""
@@ -1730,8 +1758,8 @@ def _joint_cell_batch_specs(
     specs: list[tuple[str, list[str], list[str], list[list[float]], dict[str, Any] | None]] = []
     for query in queries:
         if getattr(query, "is_temporal", False):
-            raise CausalUnsupportedError(
-                "PreparedBatch.prepare_cells is licensed for static joint InterventionResponse"
+            raise _batch_route_refusal(
+                "PreparedBatch.prepare_cells", "static discrete joint InterventionResponse cells"
             )
         supplied = query.intervention
         interventions = (
@@ -1740,13 +1768,17 @@ def _joint_cell_batch_specs(
             else [supplied]
         )
         if len(interventions) < 2:
-            raise CausalUnsupportedError("prepare_cells requires joint InterventionResponse")
+            raise _batch_route_refusal(
+                "PreparedBatch.prepare_cells", "joint InterventionResponse cells (two or more Set)"
+            )
         treatments: list[str] = []
         kinds: list[str] = []
         parameters: list[list[float]] = []
         for spec in interventions:
             if not isinstance(spec, intervention_specs.Set):
-                raise CausalUnsupportedError("prepare_cells requires binary Set interventions")
+                raise _batch_route_refusal(
+                    "PreparedBatch.prepare_cells", "discrete joint cells of Set interventions"
+                )
             treatments.append(spec.variable)
             kinds.append("set")
             parameters.append([spec.value])
@@ -1767,7 +1799,11 @@ class SharedBatchDesign:
     """Fold assignment and covariate design frozen on a prepared batch.
 
     Folds and, when adjustment sets agree, the ``[1 | Z]`` matrix are shared.
-    Propensity and outcome residualization remain per-query fits on that design.
+    The frozen design holds no nuisance fit, so ``shares_propensity`` and
+    ``shares_outcome_residualization`` stay ``False`` here. Each
+    :meth:`PreparedBatch.estimate` shares identical cross-fitted AIPW
+    propensity / outcome fits across its queries and records that per result
+    in the ``batch.shared_design`` diagnostic.
     """
 
     n_folds: int
@@ -1784,7 +1820,12 @@ class PreparedBatch:
 
     ``prepare`` and ``prepare_cells`` freeze one fold-assignment object and,
     when every query shares a certified adjustment set, one covariate design.
-    Propensity and outcome residualization are still fit per query.     A family of two or more average-effect claims attaches joint IF covariance
+    Average-effect queries that would fit the identical cross-fitted AIPW
+    propensity or outcome model share one fit (bit-identical to the per-query
+    fit); joint-cell nuisances are fit per query. Other query types are
+    refused with ``reason_code="route_not_supported"`` and a ``remedy``
+    naming :func:`antecedent.analyze`.
+    A family of two or more average-effect claims attaches joint IF covariance
     and max-t / BH / BY on those contrasts. Joint-cell families keep
     ``simultaneous_interval`` on cell levels and, unless ``family_contrast``
     is ``None``, test a declared score-difference contrast (default
@@ -1829,10 +1870,7 @@ class PreparedBatch:
         if not queries:
             raise CausalValueError("PreparedBatch.prepare requires at least one query")
         if not all(isinstance(q, AverageEffect) for q in queries):
-            raise CausalTypeError(
-                "PreparedBatch.prepare supports AverageEffect queries only; "
-                "use prepare_cells for joint InterventionResponse"
-            )
+            raise _batch_route_refusal("PreparedBatch.prepare", "AverageEffect queries")
         resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         from .query import coerce_outcome_functional
@@ -1905,7 +1943,9 @@ class PreparedBatch:
         if not queries:
             raise CausalValueError("PreparedBatch.prepare_cells requires at least one query")
         if not all(isinstance(q, InterventionResponse) for q in queries):
-            raise CausalTypeError("PreparedBatch.prepare_cells supports InterventionResponse only")
+            raise _batch_route_refusal(
+                "PreparedBatch.prepare_cells", "discrete joint InterventionResponse cells"
+            )
         if isinstance(graph, TieredBackground):
             if identifier not in (None, "generalized.adjustment"):
                 raise CausalUnsupportedError(
@@ -1914,8 +1954,8 @@ class PreparedBatch:
             if estimator not in (None, "cell.aipw"):
                 raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
         resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
-        names, columns = ingest_columns(data)
         specs = _joint_cell_batch_specs(queries)
+        names, columns = ingest_columns(data)
         kwargs: dict[str, Any] = dict(
             identifier=None if isinstance(graph, TieredBackground) else identifier,
             estimator=estimator,
@@ -2279,6 +2319,10 @@ _UNSET: Any = object()
 
 def _refused(reason_code: str, message: str) -> CausalUnsupportedError:
     return CausalUnsupportedError(message, reason_code=reason_code)
+
+
+def _refused_with_remedy(reason_code: str, message: str, remedy: str) -> CausalUnsupportedError:
+    return CausalUnsupportedError(message, reason_code=reason_code, remedy=remedy)
 
 
 def _not_applicable(option: str, route: str) -> CausalUnsupportedError:

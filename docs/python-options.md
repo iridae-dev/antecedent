@@ -109,6 +109,17 @@ order. `antecedent.estimation.PreparedBatch.prepare` freezes the same batch for
 - **One seed for the family.** Every query cross-fits with the batch's `seed`
   and fold count, so it draws the same fold plan as the same query passed to
   `ant.analyze(..., seed=seed)` and returns the same estimate.
+- **Shared nuisance fits.** Queries that would fit the identical cross-fitted
+  AIPW nuisance share one fit. The propensity model is shared when the
+  treatment coding, adjustment set, complete-case rows, fold plan and learner
+  options all match (for example, one treatment against several outcomes); the
+  outcome regressions are shared when the outcome column matches as well. A
+  fit is reused only on bit-identical inputs, so a shared result is
+  bit-identical to the query's own `ant.analyze` fit, and different data,
+  seeds, folds or learners never share. Each result's `batch.shared_design`
+  diagnostic says whether its propensity (`shares_propensity`) and outcome
+  regressions (`shares_outcome_residualization`) were shared. Bootstrap
+  replicates and joint-cell (`cell.aipw`) nuisances are fit per query.
 - **Simultaneous intervals (max-t).** With two or more queries on the
   all-observed population, the batch stacks each query's influence function
   on the shared rows into one covariance (`result.estimate.joint_covariance`)
@@ -135,6 +146,17 @@ the p-values remain and each result carries `batch.joint_if.max_t_unavailable`.
 For joint cells, `simultaneous_interval` is on the cell levels, and the
 p-values test the declared `family_contrast` (default `cell_minus_control`;
 `None` publishes no p-values).
+
+**What a batch covers.** `analyze_many` and `PreparedBatch.prepare` take
+`AverageEffect` queries; `PreparedBatch.prepare_cells` takes static discrete
+joint `InterventionResponse` cells (two or more `Set` interventions). Any other
+query (a single-variable or temporal `InterventionResponse`, a
+`ResponseCurve`, a `ConditionalEffect`, and so on) is refused before any data is
+read with `CausalUnsupportedError`, `reason_code="route_not_supported"`, and a
+`remedy` naming `ant.analyze`, which estimates it one query at a time. The Rust
+`BatchStudy` has the same boundary: `estimate_many` and `prepare` take
+`AverageEffectQuery`, and `prepare_cells` refuses any other response query with
+`route_not_supported`.
 
 ## Configure response estimates
 
