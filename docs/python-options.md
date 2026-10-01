@@ -73,6 +73,69 @@ average effect, prepare the all-observed AIPW or cell-AIPW study and `retarget`
 its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
 query's own population.
 
+## Read counterfactual unit effects
+
+A `Counterfactual` result (a two-world GCM ITE; see
+[interventions and counterfactuals](capabilities.md#interventions-and-counterfactuals))
+carries its per-unit output on the result itself, aligned row for row:
+
+- `result.unit_effects`: one effect per unit.
+- `result.unit_effect_intervals`: per-unit `(lower, upper)` pairs, with
+  `unit_effect_intervals_level` and `unit_effect_intervals_method`. They are
+  published under `inference=ant.Bayesian()`, as posterior quantiles of each
+  unit's draws (`unit_posterior_quantile`). On the frequentist path all three
+  are `None`; the `gcm.counterfactual.uncertainty_unavailable` diagnostic says
+  why. Rust callers read the same fields on `IteResult`.
+- `result.unit_extrapolative`: support flags, `True` where the unit's
+  prediction into the arm it did not receive leaves that arm's observed
+  support (its covariate cell or its abducted disturbance). The
+  `gcm.counterfactual.support` diagnostic counts each kind.
+- `result.estimate.unit_effects_homogeneous`: `True` when no
+  effect-modifying mechanism family was fit, so equal unit effects hold by
+  construction rather than as a finding.
+
+A unit ITE is not a conditional average effect. For a pointwise interval on
+the CATE `tau(x)` at prespecified covariate profiles, use the Rust
+[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md).
+
+## Estimate a family of average effects
+
+`antecedent.estimation.analyze_many(data, graph=..., queries=[...])` ingests
+the table once and returns one result per `AverageEffect` query, in query
+order. `antecedent.estimation.PreparedBatch.prepare` freezes the same batch for
+`estimate(new_data)`, and `PreparedBatch.prepare_cells` batches discrete joint
+`InterventionResponse` cells. Run any other query through `ant.analyze`.
+
+- **One seed for the family.** Every query cross-fits with the batch's `seed`
+  and fold count, so it draws the same fold plan as the same query passed to
+  `ant.analyze(..., seed=seed)` and returns the same estimate.
+- **Simultaneous intervals (max-t).** With two or more queries on the
+  all-observed population, the batch stacks each query's influence function
+  on the shared rows into one covariance (`result.estimate.joint_covariance`)
+  and sets `result.estimate.simultaneous_interval` to `(lower, upper, 0.95)`.
+  The critical value is the 95% quantile of `max_j |Z_j|` for Gaussian `Z`
+  with the family's correlation, so the intervals hold jointly across the
+  family instead of one query at a time.
+- **Multiplicity-adjusted p-values (BH/BY).** `result.estimate.adjusted_p_values`
+  is `(bh, by)`: Benjamini–Hochberg and Benjamini–Yekutieli adjustments of
+  each query's two-sided Wald test of a zero effect across the family. BY
+  allows arbitrary dependence among the estimates; BH assumes positive
+  dependence. A degenerate standard error gives `NaN`, which is never ranked
+  as a discovery.
+- **Screen, then estimate.** `candidate_screen=CandidateScreen(screen_id,
+  procedure, screen_rows, estimate_rows)` records a screen/estimate split, with
+  `procedure` one of `"max_t"`, `"bh"`, `"by"` or `"unrecorded"`;
+  `result.estimate.candidate_selection` reports the winning index, the family
+  size and whether the two row sets are disjoint.
+
+When the family cannot be formed (a declared target population, or a query
+without an influence function), the joint fields stay `None` and each result
+carries `batch.joint_if.unavailable`. If only the max-t critical value fails,
+the p-values remain and each result carries `batch.joint_if.max_t_unavailable`.
+For joint cells, `simultaneous_interval` is on the cell levels, and the
+p-values test the declared `family_contrast` (default `cell_minus_control`;
+`None` publishes no p-values).
+
 ## Configure response estimates
 
 `PulseEffect` and `SustainedEffect` take `control_level` as well as

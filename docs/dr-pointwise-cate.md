@@ -18,3 +18,15 @@ the profile result.
 The exact-support restriction is useful for categorical or otherwise repeated covariate
 profiles. Continuous profiles with no exact repeated tuple are refused. A future support rule
 for continuous profiles requires separately specified joint-support semantics and validation.
+
+## Related outputs
+
+- `fit_pointwise_profiles` is a Rust API on `antecedent_estimate::DrLearner`; Python has no
+  binding for it. A Python result exposes the rowwise `result.estimate.cate` and `cate_se`
+  instead, which are not profile intervals.
+- A unit-level counterfactual effect is a different estimand. Its per-unit intervals
+  (`IteResult::unit_effect_intervals`, Python `result.unit_effect_intervals`) and per-unit
+  support flags (`unit_extrapolative`) are described in
+  [Read counterfactual unit effects](python-options.md#read-counterfactual-unit-effects).
+- To compare several average effects with simultaneous (max-t) intervals and BH/BY-adjusted
+  p-values, see [Estimate a family of average effects](python-options.md#estimate-a-family-of-average-effects).
