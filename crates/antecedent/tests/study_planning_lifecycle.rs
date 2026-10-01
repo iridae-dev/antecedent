@@ -900,3 +900,27 @@ fn a_consumer_refuses_a_stored_memory_cap_above_its_own_or_the_context_s_before_
         wire.consume_with_limits(StudyPlanConsumeLimits::default(), &cancelled()).unwrap_err();
     assert_eq!((error.code, error.detail), BUDGET);
 }
+
+/// Compatibility: another artifact kind or format version is refused, sealed or
+/// not, so a reader never replays a plan whose format it does not know.
+#[test]
+fn another_artifact_kind_or_version_is_refused_even_when_resealed() {
+    let original = mz_plan().to_artifact().unwrap();
+    let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
+    let mut kind = original.clone();
+    kind.kind = "study_plan_v2".into();
+    assert_eq!(detail(consume(&kind)), invalid);
+    let mut version = original.clone();
+    version.version += 1;
+    assert_eq!(detail(consume(&version)), invalid);
+    for edit in [
+        &(|w: &mut StudyPlanArtifactWire| w.kind = "study_plan_v2".into())
+            as &dyn Fn(&mut StudyPlanArtifactWire),
+        &|w: &mut StudyPlanArtifactWire| w.version += 1,
+    ] {
+        let mut wire = original.clone();
+        edit(&mut wire);
+        let refused = wire.sealed().map_or_else(|e| (e.code, e.detail), |w| detail(consume(&w)));
+        assert_eq!(refused, invalid);
+    }
+}

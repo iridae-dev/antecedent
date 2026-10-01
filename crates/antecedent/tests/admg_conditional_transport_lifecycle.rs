@@ -557,3 +557,36 @@ fn a_reordered_but_valid_proof_is_not_the_replayed_decision() {
         AdmgConditionalArtifactError::ReplayMismatch("the derivation")
     );
 }
+
+/// Compatibility: an unknown required feature (or none) is refused, and so is
+/// any other format version, before the payload is interpreted.
+#[test]
+fn an_unknown_required_feature_or_another_version_is_refused() {
+    let bytes = export(&prepare(&scm(0)));
+    let original = AdmgConditionalArtifactWire::decode(&bytes).unwrap();
+    let mut wire = original.clone();
+    wire.required_features.push("future_semantics_v9".into());
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::UnsupportedSemantics("required features")
+    );
+    let mut wire = original.clone();
+    wire.required_features.clear();
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::UnsupportedSemantics("required features")
+    );
+    for version in [
+        0,
+        antecedent_io::admg_conditional_transport_artifact::ADMG_CONDITIONAL_ARTIFACT_VERSION + 1,
+    ] {
+        let mut wire = original.clone();
+        wire.version = version;
+        assert!(matches!(
+            AdmgConditionalArtifactWire::decode(&wire.export().unwrap()),
+            Err(IoError::AdmgConditional(AdmgConditionalArtifactError::UnsupportedSemantics(
+                "version"
+            )))
+        ));
+    }
+}

@@ -333,3 +333,37 @@ fn prepare_requires_a_request() {
         .is_err()
     );
 }
+
+/// Compatibility: an unknown required feature (or none) is refused, as is any
+/// other format version, so an older reader never accepts a newer artifact.
+#[test]
+fn an_unknown_required_feature_or_another_version_is_refused() {
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, vec![request(X, true)]);
+    let ctx = ExecutionContext::for_tests(4);
+    let names = ["x", "z", "y"].map(String::from);
+    let bytes = prepared.estimate(&ctx).unwrap().export_named(&prepared, &names).unwrap();
+    let original = MixedSourceArtifactWire::decode(&bytes).unwrap();
+    let mut wire = original.clone();
+    wire.required_features.push("future_semantics_v9".into());
+    assert_eq!(
+        refused(&wire.export().unwrap()),
+        MixedSourceArtifactError::UnsupportedSemantics("required features")
+    );
+    let mut wire = original.clone();
+    wire.required_features.clear();
+    assert_eq!(
+        refused(&wire.export().unwrap()),
+        MixedSourceArtifactError::UnsupportedSemantics("required features")
+    );
+    let mut wire = original;
+    wire.version = antecedent_io::mixed_source_artifact::MIXED_SOURCE_ARTIFACT_VERSION + 1;
+    assert!(matches!(
+        consume_mixed_source_artifact(
+            &wire.export().unwrap(),
+            MixedSourceConsumeLimits::default(),
+            &ctx
+        ),
+        Err(IoError::UnsupportedVersion { .. })
+    ));
+}

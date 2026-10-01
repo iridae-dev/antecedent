@@ -354,3 +354,45 @@ fn wire_structs_deny_unknown_fields() {
         serde_json::from_value::<antecedent_identify::RecoveryDerivationRecord>(extra).is_err()
     );
 }
+
+/// Compatibility: any other format version is refused before the payload is
+/// read, and an unknown required feature (or none) is refused.
+#[test]
+fn another_format_version_or_an_unknown_required_feature_is_refused() {
+    let model = model();
+    let (bytes, _) = exported(&model);
+    let original = RecoveryArtifactWire::decode(&bytes).unwrap();
+    for version in [0, antecedent_io::recovery_artifact::RECOVERY_ARTIFACT_VERSION + 1] {
+        let mut wire = original.clone();
+        wire.version = version;
+        assert!(matches!(
+            RecoveryArtifactWire::decode(&wire.export().unwrap()),
+            Err(antecedent_io::IoError::UnsupportedVersion { version: v }) if v == version
+        ));
+        assert!(
+            consume_observation_recovery_artifact(
+                &wire.export().unwrap(),
+                RecoveryConsumeLimits::default(),
+                &ctx()
+            )
+            .is_err()
+        );
+    }
+    for features in [vec!["future_semantics_v9".to_owned()], Vec::new()] {
+        let mut wire = original.clone();
+        wire.required_features.clone_from(&features);
+        assert!(matches!(
+            consume(&wire).unwrap_err(),
+            RecoveryArtifactError::UnsupportedSemantics(_)
+        ));
+        let Err(error) = consume_observation_recovery_artifact(
+            &wire.export().unwrap(),
+            RecoveryConsumeLimits::default(),
+            &ctx(),
+        ) else {
+            panic!("an unknown feature set must be refused");
+        };
+        // The refusal is typed; the decoder reports it as an unsupported shape.
+        assert_eq!(error.reason_code(), Some("transport_not_certified"));
+    }
+}

@@ -725,3 +725,43 @@ fn the_facade_error_reports_the_recorded_top_level_code() {
     ));
     assert_eq!(invalid.reason_code(), Some("invalid_argument"));
 }
+
+/// Compatibility: a reader refuses any other format version before reading the
+/// payload (so a 2.2 reader never half-reads a newer artifact, and an older
+/// one never reads this), and refuses a required feature it does not know.
+#[test]
+fn another_format_version_or_an_unknown_required_feature_is_refused() {
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, false);
+    let ctx = ExecutionContext::for_tests(4);
+    let names = ["z1", "x", "z2", "y"].map(String::from);
+    let bytes = prepared.estimate(&ctx).unwrap().export_named(&prepared, &names, &ctx).unwrap();
+    let original = MzTransportArtifactWire::decode(&bytes).unwrap();
+    for version in [0, antecedent_io::mz_transport_artifact::MZ_TRANSPORT_ARTIFACT_VERSION + 1] {
+        let mut wire = original.clone();
+        wire.version = version;
+        assert!(matches!(
+            consume_mz_transport_artifact(
+                &wire.export().unwrap(),
+                MzTransportConsumeLimits::default(),
+                &ctx
+            ),
+            Err(IoError::UnsupportedVersion { version: v }) if v == version
+        ));
+    }
+    let mut wire = original.clone();
+    wire.required_features.push("future_semantics_v9".into());
+    assert_eq!(
+        refused(&wire.export().unwrap()),
+        MzTransportArtifactError::UnsupportedSemantics("required features")
+    );
+    let mut wire = original;
+    wire.required_features.clear();
+    assert_eq!(
+        refused(&wire.export().unwrap()),
+        MzTransportArtifactError::UnsupportedSemantics("required features")
+    );
+    assert!(
+        consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).is_ok()
+    );
+}
