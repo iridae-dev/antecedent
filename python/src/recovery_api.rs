@@ -310,7 +310,7 @@ impl ObservationRecoveryStage {
             return Err(recovery_err(&RecoveryError::new(
                 RecoveryDetail::NonrecoverableWitness,
                 format!(
-                    "self-censoring edge {} -> {}: a verified witness shows the target is not recoverable; see decision()",
+                    "self-censoring edge {} -> {}: a verified witness shows the target is not recoverable for every model Markov to the m-graph; see decision()",
                     name(&self.graph.names, VariableId::from_raw(witness.edge.0)),
                     name(&self.graph.names, VariableId::from_raw(witness.edge.1)),
                 ),

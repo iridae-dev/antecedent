@@ -7,8 +7,10 @@
 //! against its catalog distribution (population, regime, snapshot, axes and
 //! levels), against the deterministic proxy model (no mass on `R_i = 1, X*_i = ?`
 //! or `R_i = 0, X*_i ∈ {0, 1}`), and for positivity of every complete-case cell.
-//! The result is a derived law with [`antecedent_core::LawOrigin::Recovered`]
-//! provenance, never an observed table. This is graph-licensed recovery, not
+//! The result is a derived law: its descriptor carries
+//! [`antecedent_core::LawOrigin::Recovered`] provenance and its exact table's
+//! snapshot identity is `recovered:<derivation identity>` (see [`RecoveredLaw`]
+//! for exactly where the provenance lives). This is graph-licensed recovery, not
 //! MAR or inverse-probability weighting: no complete-case fallback exists, and
 //! `ObservationAssumption` is not consulted. Exact laws only; counted laws are
 //! refused as `cell_not_licensed`.
@@ -29,6 +31,18 @@ use antecedent_identify::{
 };
 
 /// A recovered full law `P(X(1), O)`: a derived law with provenance.
+///
+/// Where the provenance lives, precisely: [`Self::descriptor`] carries
+/// [`antecedent_core::LawOrigin::Recovered`] with the derivation identity, so no
+/// catalog route treats it as measured. The exact table [`Self::law`] is the
+/// evaluator's input for the downstream effect; its snapshot identity is
+/// `recovered:<derivation identity>` (never the observed table's snapshot), its
+/// population is the recovered population (it is that population's law), and
+/// its regime id is the observed pattern law's regime it was derived from (as
+/// the descriptor's `source_regime` is). Its `SuppliedExact` origin is the
+/// exact-law provider tag of `antecedent_expr`, which has no derived-law origin:
+/// read on its own, the table does not say it was recovered; the snapshot label
+/// and the descriptor do.
 #[derive(Clone, Debug)]
 pub struct RecoveredLaw {
     law: ExactDiscreteLaw,
@@ -37,7 +51,8 @@ pub struct RecoveredLaw {
 }
 
 impl RecoveredLaw {
-    /// The recovered law over `X ∪ O` (axes sorted by variable, last fastest).
+    /// The recovered law over `X ∪ O` (axes sorted by variable, last fastest),
+    /// with snapshot identity `recovered:<derivation identity>`.
     #[must_use]
     pub const fn law(&self) -> &ExactDiscreteLaw {
         &self.law
@@ -294,7 +309,8 @@ pub fn evaluate_exact_recovery(
         Vec::new(),
         recovered_axes,
         probabilities,
-        format!("recovered:{}", observed.snapshot_identity()),
+        // Provenance from the derivation, never the observed table's snapshot.
+        format!("recovered:{derivation_identity}"),
         tolerance,
     )
     .map_err(|e| refuse(RecoveryDetail::InvalidObservedLaw, e.to_string()))?;

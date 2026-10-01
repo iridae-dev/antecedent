@@ -9,8 +9,13 @@ is recovered from one named observed pattern law ``P(R, X*, O)`` exactly when
 no response indicator depends on its own variable (no self-censoring edge
 ``X -> R``): each response's propensity is then a ratio of observed pattern
 margins, and the recovered law is the complete-case cell divided by their
-product. A self-censoring edge is proved nonrecoverable by an exactly verified
-witness (two models that agree on the observed law and differ on the target).
+product. A self-censoring edge is refused as not recoverable for every model
+Markov to the m-graph, shown by an exactly verified witness (two models that
+agree on the observed law and differ on the target). The witness models are
+degenerate (every other mechanism an independent fair coin), so nothing is
+claimed under faithful or generic parameters: there, some self-censoring graphs
+(for example a shadow-variable graph ``Z -> X -> R`` with ``Z`` not a parent of
+``R``) are generically identified, which this route does not assume.
 
 The assumption lives in the graph and is checked: there is no complete-case
 fallback and no missing-at-random or inverse-probability-weighting substitution.

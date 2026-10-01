@@ -809,10 +809,7 @@ fn a_recovered_regime_is_excluded_from_the_mixed_source_search_as_a_recovered_la
         vec![1],
         "only the measured law is an input"
     );
-    let reasons = validated
-        .exclusions
-        .iter()
-        .map(|e| (e.regime.raw(), e.reason))
-        .collect::<Vec<_>>();
+    let reasons =
+        validated.exclusions.iter().map(|e| (e.regime.raw(), e.reason)).collect::<Vec<_>>();
     assert_eq!(reasons, vec![(2, "recovered_law"), (3, "recovered_law"), (4, "model_artifact")]);
 }

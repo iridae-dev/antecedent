@@ -245,6 +245,17 @@ fn a_mutated_artifact_fails_independent_consumption() {
     let mut data = original.clone();
     data.data_digest = "00".into();
     assert_eq!(consume(&data).unwrap_err(), RecoveryArtifactError::DataIdentityMismatch);
+    // A regime the derivation never cites, added or edited without resealing: the
+    // whole catalog is bound into the data digest, not only the observed regime.
+    let mut unrelated = original.clone();
+    let mut extra = unrelated.catalog.regimes[0].clone();
+    extra.id = 8;
+    extra.label = None;
+    unrelated.catalog.regimes.push(extra);
+    assert_eq!(consume(&unrelated).unwrap_err(), RecoveryArtifactError::DataIdentityMismatch);
+    let mut relabelled = original.clone();
+    relabelled.catalog.regimes[0].label = Some("renamed".into());
+    assert_eq!(consume(&relabelled).unwrap_err(), RecoveryArtifactError::DataIdentityMismatch);
     // The observed table swapped without resealing: data identity, not replay.
     let mut swapped = original.clone();
     let cells = &swapped.observed_law.probabilities;

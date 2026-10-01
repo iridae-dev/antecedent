@@ -148,7 +148,7 @@ impl StudyBuilder {
                 return Err(refused(&RecoveryError::new(
                     RecoveryDetail::NonrecoverableWitness,
                     format!(
-                        "self-censoring edge {:?} -> {:?}: a verified witness shows the target is not recoverable",
+                        "self-censoring edge {:?} -> {:?}: a verified witness shows the target is not recoverable for every model Markov to the m-graph",
                         witness.edge.0, witness.edge.1
                     ),
                 )));

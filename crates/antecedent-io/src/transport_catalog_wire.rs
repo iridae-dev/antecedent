@@ -141,6 +141,13 @@ pub struct EvidenceRegimeWire {
     /// Identity of the model artifact the law came from. Absent means a measured law.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_artifact: Option<String>,
+    /// Derivation identity of a recovered law (2.2B X10,
+    /// `LawOrigin::Recovered`). Additive and omitted for every other origin, so
+    /// no 2.1 regime's bytes or digest change; a 2.1 reader (`deny_unknown_fields`)
+    /// refuses a regime carrying it rather than reading it as measured. Never
+    /// present together with `model_artifact`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovered_derivation: Option<String>,
 }
 
 /// Concrete table provenance.
@@ -228,14 +235,14 @@ impl EvidenceCatalogWire {
                         SamplingSelection::SelectedOn { variables } => Some(ids(variables)),
                     },
                     model_artifact: match &r.origin {
-                        LawOrigin::Measured => None,
                         LawOrigin::ModelArtifact { artifact } => Some(artifact.to_string()),
-                        // The 2.1 wire has no recovered-law field; a recovered law is
-                        // encoded fail-closed as a model artifact, so it can never
-                        // round-trip into a measured law (2.2B X10).
-                        LawOrigin::Recovered { derivation } => {
-                            Some(format!("recovered:{derivation}"))
-                        }
+                        LawOrigin::Measured | LawOrigin::Recovered { .. } => None,
+                    },
+                    // Additive (2.2B X10): a recovered law keeps its own origin kind
+                    // and derivation identity across the wire.
+                    recovered_derivation: match &r.origin {
+                        LawOrigin::Recovered { derivation } => Some(derivation.to_string()),
+                        LawOrigin::Measured | LawOrigin::ModelArtifact { .. } => None,
                     },
                 })
                 .collect(),
@@ -329,9 +336,20 @@ impl EvidenceCatalogWire {
                 regime.selection =
                     SamplingSelection::SelectedOn { variables: ids(variables).into() };
             }
-            if let Some(artifact) = &r.model_artifact {
-                regime.origin = LawOrigin::ModelArtifact { artifact: Arc::from(artifact.as_str()) };
-            }
+            regime.origin = match (&r.model_artifact, &r.recovered_derivation) {
+                (None, None) => LawOrigin::Measured,
+                (Some(artifact), None) => {
+                    LawOrigin::ModelArtifact { artifact: Arc::from(artifact.as_str()) }
+                }
+                (None, Some(derivation)) => {
+                    LawOrigin::Recovered { derivation: Arc::from(derivation.as_str()) }
+                }
+                (Some(_), Some(_)) => {
+                    return Err(IoError::Convert(
+                        "a regime is either a model artifact or a recovered law, not both".into(),
+                    ));
+                }
+            };
             regime = regime
                 .project(EvidenceProjection::Condition { on: ids(&r.conditioned_on).into() })
                 .map_err(convert)?;
@@ -443,7 +461,7 @@ mod tests {
         let plain = EvidenceCatalog::try_new([], [observational(1)], [], None).unwrap();
         let json = serde_json::to_string(&EvidenceCatalogWire::from_catalog(&plain)).unwrap();
         // Default semantics add no keys, so existing catalog digests are unchanged.
-        for key in ["study", "selected_on", "model_artifact"] {
+        for key in ["study", "selected_on", "model_artifact", "recovered_derivation"] {
             assert!(!json.contains(key), "{key} serialized at its default");
         }
         let mut described = observational(2);
@@ -456,6 +474,82 @@ mod tests {
         let bytes = serde_json::to_vec(&EvidenceCatalogWire::from_catalog(&catalog)).unwrap();
         let wire: EvidenceCatalogWire = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(wire.to_catalog().unwrap(), catalog);
+    }
+
+    /// The 2.1 regime wire shape, as a 2.1 reader decodes it.
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    #[allow(dead_code)] // Decoded only to show which bytes a 2.1 reader accepts.
+    struct LegacyRegimeWire {
+        id: u32,
+        #[serde(default)]
+        label: Option<String>,
+        kind: String,
+        evidence_kind: String,
+        interventions: Vec<u32>,
+        intervention_values: Vec<(u32, ValueWire)>,
+        measured: Vec<u32>,
+        #[serde(default)]
+        conditioned_on: Vec<u32>,
+        population: String,
+        separate_marginals: Option<Vec<u32>>,
+        #[serde(default)]
+        study: Option<String>,
+        #[serde(default)]
+        selected_on: Option<Vec<u32>>,
+        #[serde(default)]
+        model_artifact: Option<String>,
+    }
+
+    #[test]
+    fn a_recovered_law_round_trips_exactly_and_never_decodes_as_measured() {
+        // 2.2B X10 (B6 audit D2): the origin kind and derivation survive the wire,
+        // so the canonical identity is preserved and differs from a model artifact
+        // named "recovered:...".
+        let mut recovered = observational(2);
+        recovered.origin = LawOrigin::Recovered { derivation: Arc::from("x10.recovery.v1|d") };
+        let mut lookalike = observational(3);
+        lookalike.origin =
+            LawOrigin::ModelArtifact { artifact: Arc::from("recovered:x10.recovery.v1|d") };
+        let catalog =
+            EvidenceCatalog::try_new([], [observational(1), recovered, lookalike], [], None)
+                .unwrap();
+        let wire = EvidenceCatalogWire::from_catalog(&catalog);
+        assert_eq!(wire.regimes[1].model_artifact, None);
+        assert_eq!(wire.regimes[1].recovered_derivation.as_deref(), Some("x10.recovery.v1|d"));
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded =
+            serde_json::from_slice::<EvidenceCatalogWire>(&bytes).unwrap().to_catalog().unwrap();
+        assert_eq!(decoded, catalog);
+        let identity = |c: &EvidenceCatalog, id: u32| {
+            c.distribution(RegimeId::from_raw(id)).unwrap().canonical_identity()
+        };
+        for id in 1..=3 {
+            assert_eq!(identity(&decoded, id), identity(&catalog, id));
+        }
+        assert!(identity(&decoded, 2).contains("|origin=recovered:x10.recovery.v1"));
+        assert_ne!(identity(&decoded, 2), identity(&decoded, 3));
+        assert!(!matches!(decoded.regimes[1].origin, LawOrigin::Measured));
+        assert!(!decoded.regimes[1].supplies_population_law());
+        // CBOR, the artifact encoding, round-trips the same way.
+        let cbor = crate::to_cbor(&wire).unwrap();
+        let from_cbor: EvidenceCatalogWire = crate::from_cbor(&cbor).unwrap();
+        assert_eq!(from_cbor.to_catalog().unwrap(), catalog);
+        // A 2.1 reader refuses the recovered regime instead of reading it as
+        // measured, and still reads the measured and model-artifact regimes.
+        let regimes = serde_json::to_value(&wire).unwrap()["regimes"].clone();
+        assert!(serde_json::from_value::<LegacyRegimeWire>(regimes[0].clone()).is_ok());
+        assert!(serde_json::from_value::<LegacyRegimeWire>(regimes[2].clone()).is_ok());
+        let refused = serde_json::from_value::<LegacyRegimeWire>(regimes[1].clone());
+        assert!(refused.is_err_and(|e| e.to_string().contains("recovered_derivation")));
+        // Both origins at once is malformed.
+        let mut both = wire;
+        both.regimes[1].model_artifact = Some("fit".into());
+        assert!(both.to_catalog().is_err());
+        // An empty derivation is refused by the catalog's descriptor check.
+        let mut blank = EvidenceCatalogWire::from_catalog(&catalog);
+        blank.regimes[1].recovered_derivation = Some(" ".into());
+        assert!(blank.to_catalog().is_err());
     }
 
     #[test]

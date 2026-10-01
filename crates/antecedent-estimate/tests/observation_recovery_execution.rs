@@ -93,7 +93,20 @@ fn k1_recovery_matches_the_enumerated_truth() {
     assert!(
         matches!(&recovered.descriptor().origin, LawOrigin::Recovered { derivation: d } if d.as_ref() == derivation.identity())
     );
-    assert_eq!(recovered.law().snapshot_identity(), "recovered:snap-observed");
+    // The table's own provenance comes from the derivation, never the observed
+    // snapshot, so it cannot pose as the observed pattern law: offered back as the
+    // observed law, it is refused on its snapshot before anything is evaluated.
+    assert_eq!(recovered.law().snapshot_identity(), format!("recovered:{}", derivation.identity()));
+    assert_ne!(recovered.law().snapshot_identity(), model.observed_law().snapshot_identity());
+    assert_eq!(
+        recovered.law().snapshot_identity(),
+        format!("recovered:{}", recovered.derivation_identity())
+    );
+    let posed = evaluate_exact_recovery(&derivation, recovered.law(), &ctx()).unwrap_err();
+    assert_eq!(posed.detail, antecedent_identify::RecoveryDetail::InvalidObservedLaw);
+    assert!(posed.message.contains("snapshot"), "{posed}");
+    // The descriptor never supplies a population law to a catalog route.
+    assert!(recovered.descriptor().origin != LawOrigin::Measured);
     // Closed form P(x | o, R = 1) P(o) straight from the table.
     let law = model.observed_law();
     let p = law.probabilities(); // axes O, R, X* (levels 0, 1, ?)

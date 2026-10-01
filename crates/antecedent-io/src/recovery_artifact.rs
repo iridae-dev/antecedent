@@ -11,9 +11,9 @@
 //! and compares them bit for bit. The verified identity is two digests: the
 //! premises digest (m-graph, roles, effect query, derivation record, both
 //! expression arenas, evaluation limits, requests and the variable-name
-//! mapping) and the data-identity digest (the catalog's snapshot bindings and
-//! the observed law's population, regime, snapshot, axes and every cell bit for
-//! bit).
+//! mapping) and the data-identity digest (the whole evidence catalog, canonically
+//! re-encoded, its snapshot bindings, and the observed law's population, regime,
+//! snapshot, axes and every cell bit for bit).
 //!
 //! What replay does not protect against: a producer that supplies a fabricated
 //! observed pattern law consistently (the consumer checks the derivation and the
@@ -417,6 +417,9 @@ fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, 
         &(
             "observation_recovery_data_v1",
             bindings,
+            // The whole catalog (every regime, environment and binding), canonically
+            // re-encoded from the decoded catalog: no regime can be edited unseen.
+            EvidenceCatalogWire::from_catalog(catalog),
             (&law.population, law.regime, &law.snapshot),
             // The table's content, bit for bit: data identity is never left to replay.
             (&law.axes, law.probabilities.iter().map(|p| p.to_bits()).collect::<Vec<u64>>()),

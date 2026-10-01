@@ -908,10 +908,16 @@ impl At {
     fn regions(self) -> (Vec<String>, Vec<String>) {
         let effect = self.effect.then_some("downstream_effect");
         let (explored, unevaluated): (&[&str], Vec<&str>) = match self.stage {
-            Stage::ClassCheck => {
-                (&[], [Some("class_check"), Some("formula_or_witness"), effect].into_iter().flatten().collect())
+            Stage::ClassCheck => (
+                &[],
+                [Some("class_check"), Some("formula_or_witness"), effect]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+            ),
+            Stage::Formula => {
+                (&["class_check"], [Some("formula"), effect].into_iter().flatten().collect())
             }
-            Stage::Formula => (&["class_check"], [Some("formula"), effect].into_iter().flatten().collect()),
             // A verified witness ends the decision: no effect stage follows.
             Stage::Witness => (&["class_check"], vec!["witness"]),
             Stage::Effect => (&["class_check", "formula"], vec!["downstream_effect"]),
@@ -1886,7 +1892,7 @@ mod tests {
         };
         let good = leaf_of("p", DomainRef::Observational, &[]);
         let foreign = leaf_of("q", DomainRef::Observational, &[]);
-        let interventional = leaf_of("p", DomainRef::Interventional, &[v(1)]);
+        let interventional = leaf_of("p", DomainRef::Interventional, &[]);
         let assigned = leaf_of("p", DomainRef::Observational, &[v(1)]);
         assert!(cites_only_target_observational(&arena, good, "p"));
         assert!(!cites_only_target_observational(&arena, good, "q"));
