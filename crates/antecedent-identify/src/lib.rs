@@ -103,6 +103,12 @@ pub use sid::{
     verify_mz_transport_obstruction, verify_z_transport_derivation, verify_z_transport_obstruction,
 };
 pub use sid::{
+    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, CONDITIONAL_WITNESS_MAX_WORK,
+    ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord,
+    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessKernelRecord, WitnessLatentRecord,
+    WitnessModelRecord, WitnessSearch, search_conditional_witness, verify_conditional_witness,
+};
+pub use sid::{
     STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
     STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
     STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan,

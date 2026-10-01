@@ -9,12 +9,13 @@ use antecedent_core::{EvidenceCatalog, SearchLimits, SearchReceipt, Value, Varia
 use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    ClassicalTransportQuery, ConditionalTransportDecision, ConditionalTransportQuery,
-    IdentificationError, admg_conditional_refusal, decide_admg_conditional_transport,
+    ClassicalTransportQuery, ConditionalObstructionCandidate, ConditionalTransportDecision,
+    ConditionalTransportQuery, ConditionalWitnessRecord, IdentificationError,
+    admg_conditional_refusal, decide_admg_conditional_transport,
 };
 use antecedent_io::IoError;
 use antecedent_io::admg_conditional_transport_artifact::{
-    AdmgConditionalArtifactWire, AdmgConditionalConsumeLimits,
+    AdmgConditionalArtifactWire, AdmgConditionalConsumeLimits, AdmgConditionalObstructionWire,
 };
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
@@ -23,6 +24,8 @@ use std::sync::Arc;
 /// Magic prefix of a portable conditional artifact: the io crate's versioned
 /// CBOR wire, framed with the variable names it was built under.
 const PREFIX: &[u8] = b"ANTECEDENT-ADMG-CONDITIONAL\x01";
+/// Magic prefix of a portable proven obstruction, framed the same way.
+const OBSTRUCTION_PREFIX: &[u8] = b"ANTECEDENT-ADMG-CONDITIONAL-OBSTRUCTION\x01";
 
 /// Sound, incomplete conditional transport over the classical complete-source family.
 const SCOPE: &str = "admg_conditional_transport_sound_incomplete";
@@ -44,6 +47,69 @@ fn receipt_json(receipt: &SearchReceipt) -> serde_json::Value {
         "depth_reached": receipt.depth_reached,
         "explored": receipt.explored,
         "unevaluated": receipt.unevaluated,
+    })
+}
+
+/// The reduced joint's s-hedge in variable names; `proof` says whether a
+/// verified witness accompanies it.
+fn candidate_json(
+    candidate: &ConditionalObstructionCandidate,
+    names: &[String],
+    proof: bool,
+) -> serde_json::Value {
+    let record = candidate.s_hedge().to_record();
+    let pair = |(a, b): &(u32, u32)| {
+        [names_of(names, &[VariableId::from_raw(*a)]), names_of(names, &[VariableId::from_raw(*b)])]
+            .concat()
+    };
+    let forest = |forest: &antecedent_identify::sid::SelectionForestRecord| {
+        serde_json::json!({
+            "nodes": names_of(names, &forest.nodes.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()),
+            "directed": forest.directed.iter().map(pair).collect::<Vec<_>>(),
+            "bidirected": forest.bidirected.iter().map(pair).collect::<Vec<_>>(),
+        })
+    };
+    let reduced = candidate.reduced_query();
+    serde_json::json!({
+        "reduced_query": {
+            "outcomes": names_of(names, &reduced.outcomes),
+            "treatments": names_of(names, &reduced.treatments),
+        },
+        "larger": forest(&record.larger),
+        "smaller": forest(&record.smaller),
+        "proof": proof,
+    })
+}
+
+/// A verified two-model witness in variable names; probabilities are exact
+/// rationals `"p/q"`.
+fn witness_json(witness: &ConditionalWitnessRecord, names: &[String]) -> serde_json::Value {
+    let name = |v: u32| names_of(names, &[VariableId::from_raw(v)]).remove(0);
+    let edge = |e: &[u32; 2]| [name(e[0]), name(e[1])];
+    let kernel = |k: &antecedent_identify::WitnessKernelRecord| {
+        serde_json::json!({
+            "node": name(k.node),
+            "parents": k.parents.iter().map(|p| name(*p)).collect::<Vec<_>>(),
+            "latents": k.latents.iter().map(edge).collect::<Vec<_>>(),
+            "p_one": k.ones,
+        })
+    };
+    let model = |m: &antecedent_identify::WitnessModelRecord| {
+        serde_json::json!({
+            "latents": m.latents.iter().map(|l| serde_json::json!({"edge": edge(&l.edge), "probabilities": l.probabilities})).collect::<Vec<_>>(),
+            "source": m.source.iter().map(kernel).collect::<Vec<_>>(),
+            "target": m.target.iter().map(kernel).collect::<Vec<_>>(),
+        })
+    };
+    serde_json::json!({
+        "first_model": model(&witness.first),
+        "second_model": model(&witness.second),
+        "treatment_level": witness.treatment_level,
+        "conditioned_level": witness.conditioned_level,
+        "outcome_level": witness.outcome_level,
+        "first_value": witness.first_value,
+        "second_value": witness.second_value,
+        "verified": true,
     })
 }
 
@@ -83,6 +149,16 @@ fn decision_json(decision: &ConditionalTransportDecision, names: &[String]) -> s
                     .collect::<Vec<_>>(),
             })
         }
+        ConditionalTransportDecision::ProvenNonTransportable(proof) => serde_json::json!({
+            "outcome": "proven_non_transportable",
+            "moved": names_of(names, proof.moves()),
+            "remaining": names_of(names, proof.remaining()),
+            // The reduced joint's s-hedge explains the obstruction; the proof is
+            // the exactly verified two-model witness.
+            "candidate": proof.candidate().map(|candidate| candidate_json(candidate, names, true)),
+            "witness": witness_json(proof.witness(), names),
+            "record": serde_json::to_value(proof.to_record()).unwrap_or_default(),
+        }),
         ConditionalTransportDecision::NotCertified(inspection) => serde_json::json!({
             "outcome": "not_certified",
             "moved": names_of(names, &inspection.moves),
@@ -92,24 +168,12 @@ fn decision_json(decision: &ConditionalTransportDecision, names: &[String]) -> s
                 .iter()
                 .map(|s| serde_json::json!({"stage": s.stage, "outcome": s.outcome}))
                 .collect::<Vec<_>>(),
-            // Inspection only: the reduced joint's verified s-hedge. Lifting it to
-            // the conditional query is paper-inherited, so it is no impossibility claim.
-            "candidate": inspection.candidate.as_ref().map(|candidate| {
-                let record = candidate.s_hedge().to_record();
-                let forest = |forest: &antecedent_identify::sid::SelectionForestRecord| {
-                    serde_json::json!({
-                        "nodes": names_of(names, &forest.nodes.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>()),
-                        "directed": forest.directed.iter().map(|(a, b)| [names_of(names, &[VariableId::from_raw(*a)]), names_of(names, &[VariableId::from_raw(*b)])].concat()).collect::<Vec<_>>(),
-                        "bidirected": forest.bidirected.iter().map(|(a, b)| [names_of(names, &[VariableId::from_raw(*a)]), names_of(names, &[VariableId::from_raw(*b)])].concat()).collect::<Vec<_>>(),
-                    })
-                };
-                serde_json::json!({
-                    "reduced_query": reduced(candidate.reduced_query()),
-                    "larger": forest(&record.larger),
-                    "smaller": forest(&record.smaller),
-                    "proof": false,
-                })
-            }),
+            // Inspection only: the reduced joint's verified s-hedge, without a
+            // verified two-model witness, is no impossibility claim.
+            "candidate": inspection
+                .candidate
+                .as_ref()
+                .map(|candidate| candidate_json(candidate, names, false)),
         }),
         ConditionalTransportDecision::Exhausted(receipt) => serde_json::json!({
             "outcome": "exhausted",
@@ -235,12 +299,14 @@ impl AdmgConditionalTransportStage {
         self.decision.identification_status().as_str()
     }
     /// Legacy spelling (deprecated; read `identification_status`): `identified`,
-    /// `missing_evidence`, `not_certified` or `exhausted`.
+    /// `proven_non_transportable`, `missing_evidence`, `not_certified` or
+    /// `exhausted`.
     #[getter]
     #[doc(hidden)]
     fn outcome(&self) -> &'static str {
         match &self.decision {
             ConditionalTransportDecision::Identified(_) => "identified",
+            ConditionalTransportDecision::ProvenNonTransportable(_) => "proven_non_transportable",
             ConditionalTransportDecision::MissingEvidence { .. } => "missing_evidence",
             ConditionalTransportDecision::NotCertified(_) => "not_certified",
             ConditionalTransportDecision::Exhausted(_) => "exhausted",
@@ -307,6 +373,34 @@ impl AdmgConditionalTransportStage {
             memory_bytes: self.memory_bytes,
             seed,
         })
+    }
+
+    /// A proven obstruction as a framed artifact: the proof record with its
+    /// two-model witness, re-verified by
+    /// `consume_admg_conditional_obstruction_artifact`. Any other outcome refuses
+    /// with its own reason code.
+    fn export_obstruction(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
+        let ConditionalTransportDecision::ProvenNonTransportable(proof) = &self.decision else {
+            let code = self
+                .decision
+                .reason_code()
+                .unwrap_or(antecedent_core::reason_code!("transport_not_certified"));
+            let detail = self.decision.detail_code().unwrap_or_default();
+            return Err(crate::refusal(
+                code,
+                format!("{detail}: only a proven obstruction exports as an obstruction artifact"),
+            ));
+        };
+        let (diagram, proof, names) =
+            (self.diagram.clone(), proof.as_ref().clone(), self.graph.names.clone());
+        let raw = crate::detach_catch(py, move || {
+            let ctx = execution_context(0, None, None);
+            AdmgConditionalObstructionWire::checked(&diagram, &proof, &names, &ctx)
+                .and_then(|wire| wire.export())
+                .map_err(io_error)
+        })?;
+        let framed = frame_named_artifact(OBSTRUCTION_PREFIX, &self.graph.names, raw)?;
+        Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
 
     /// Counted laws are not licensed on this route (no coverage record exists),
@@ -556,10 +650,51 @@ fn consume_admg_conditional_transport_artifact(
     })
 }
 
+/// Re-verify a framed proven-obstruction artifact: the two-model witness by
+/// exact enumeration, the rule-2 moves and the reduced joint's s-hedge.
+#[pyfunction]
+#[pyo3(signature=(artifact, *, cancel=None))]
+fn consume_admg_conditional_obstruction_artifact(
+    py: Python<'_>,
+    artifact: &[u8],
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    let (names, bytes) =
+        unframe_named_artifact(OBSTRUCTION_PREFIX, artifact, "admg conditional obstruction")?;
+    crate::detach_catch(py, move || {
+        let ctx = execution_context(0, None, cancel);
+        let consumed = AdmgConditionalObstructionWire::consume(&bytes, &ctx).map_err(io_error)?;
+        crate::transport_exact_api::validate_artifact_names(
+            &names,
+            consumed.diagram.causal_graph(),
+        )?;
+        consumed
+            .wire
+            .check_variable_names(&names)
+            .map_err(|e| io_error(IoError::AdmgConditional(e)))?;
+        let proof = &consumed.proof;
+        let payload = serde_json::json!({
+            "identification_status": "proven_non_transportable",
+            "reason_code": "transport_proven_non_transportable",
+            "detail": "admg_transport.proven_non_transportable",
+            "outcomes": names_of(&names, &proof.query().base.outcomes),
+            "treatments": names_of(&names, &proof.query().base.treatments),
+            "conditioned_on": names_of(&names, &proof.query().conditioned_on),
+            "moved": names_of(&names, proof.moves()),
+            "remaining": names_of(&names, proof.remaining()),
+            "witness": witness_json(proof.witness(), &names),
+            "premises_digest": consumed.wire.premises_digest,
+        });
+        Ok(payload.to_string())
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<AdmgConditionalTransportStage>()?;
     module.add_class::<PreparedAdmgConditionalTransportStage>()?;
     module.add_function(wrap_pyfunction!(identify_admg_conditional_transport_stage, module)?)?;
     module.add_function(wrap_pyfunction!(consume_admg_conditional_transport_artifact, module)?)?;
+    module
+        .add_function(wrap_pyfunction!(consume_admg_conditional_obstruction_artifact, module)?)?;
     Ok(())
 }

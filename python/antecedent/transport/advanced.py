@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ._admg_conditional import (
     ConditionalTransportQuery,
+    consume_admg_conditional_obstruction_artifact,
     consume_admg_conditional_transport_artifact,
     identify_admg_conditional_transport,
 )
@@ -212,6 +213,7 @@ __all__ = [
     "TrialTransportEstimate",
     "VariableCoordinate",
     "ZTransportSource",
+    "consume_admg_conditional_obstruction_artifact",
     "consume_admg_conditional_transport_artifact",
     "consume_exact",
     "consume_mixed_source_artifact",

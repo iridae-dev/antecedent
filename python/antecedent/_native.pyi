@@ -4729,6 +4729,7 @@ class AdmgConditionalTransportStage:
         seed: int = 0,
         cancel: CancellationToken | None = None,
     ) -> PreparedAdmgConditionalTransportStage: ...
+    def export_obstruction(self) -> bytes: ...
 
 class PreparedAdmgConditionalTransportStage:
     def estimate(
@@ -4777,6 +4778,11 @@ def consume_admg_conditional_transport_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def consume_admg_conditional_obstruction_artifact(
+    artifact: bytes,
+    *,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 

@@ -21,6 +21,11 @@
 //! consumer path only polls cancellation; it is at most a few separation
 //! tests over a graph already refused above the route's size bounds.
 //!
+//! Proven obstructions travel in a separate format
+//! (`checked_admg_conditional_obstruction_v1`,
+//! [`AdmgConditionalObstructionWire`]): the proof record and its exactly
+//! re-verified two-model witness, with no catalog or law.
+//!
 //! What replay does NOT protect against: laws that are not the populations'
 //! real laws (the data digest names snapshots, it does not authenticate them),
 //! a causal graph or selection diagram that is wrong about the world (the
@@ -45,9 +50,11 @@ use antecedent_core::{
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    BoundConditionalTransportFunctional, ClassicalTransportQuery, ConditionalTransportDecision,
-    ConditionalTransportDerivation, ConditionalTransportQuery, ConditionalTransportRecord,
-    IdentificationError, admg_conditional_refusal, decide_admg_conditional_transport,
+    BoundConditionalTransportFunctional, ClassicalTransportQuery,
+    ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord,
+    ConditionalTransportDecision, ConditionalTransportDerivation, ConditionalTransportQuery,
+    ConditionalTransportRecord, IdentificationError, admg_conditional_refusal,
+    decide_admg_conditional_transport,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -714,5 +721,250 @@ impl AdmgConditionalArtifactWire {
             distributions.push(distribution);
         }
         Ok(ConsumedAdmgConditional { functional, diagram, data, requests, distributions, wire })
+    }
+}
+
+/// The obstruction format this reader writes and accepts.
+pub const ADMG_CONDITIONAL_OBSTRUCTION_VERSION: u32 = 1;
+/// The feature marker of the accepted obstruction format.
+pub const ADMG_CONDITIONAL_OBSTRUCTION_FEATURE: &str = "checked_admg_conditional_obstruction_v1";
+
+/// Versioned proven obstruction: the diagram, the query and the proof record
+/// (moves, remaining set, the reduced joint's s-hedge and the two-model
+/// witness). A consumer re-verifies the witness by exact enumeration and
+/// re-checks the moves and the s-hedge; it trusts nothing stored.
+///
+/// The witness is self-certifying, so no decision is replayed and no catalog
+/// or law is stored: two models that agree on every source experimental law
+/// and on the target observational law, and differ on the query, refute every
+/// formula over any catalog of those laws. The consumer runs the same verifier
+/// code as the producer (independent of the artifact, not of the
+/// implementation); the test suites re-check witnesses with separate code.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AdmgConditionalObstructionWire {
+    /// Independent format version.
+    pub version: u32,
+    /// Required feature marker.
+    pub required_features: Vec<String>,
+    /// Causal graph.
+    pub graph: AdmgWire,
+    /// Selection targets of the diagram, sorted.
+    pub selections: Vec<u32>,
+    /// The conditional query.
+    pub query: AdmgConditionalQueryWire,
+    /// The proof record.
+    pub proof: ConditionalNonTransportabilityRecord,
+    /// Variable name of every graph coordinate, or empty.
+    pub variable_names: Vec<String>,
+    /// Digest of the canonical premises (graph, selections, query, proof, names).
+    pub premises_digest: String,
+}
+
+/// A consumed obstruction: the re-verified proof and its diagram.
+pub struct ConsumedAdmgConditionalObstruction {
+    /// The re-verified proof.
+    pub proof: ConditionalNonTransportabilityProof,
+    /// The rebuilt selection diagram.
+    pub diagram: SelectionDiagram,
+    /// The decoded artifact.
+    pub wire: AdmgConditionalObstructionWire,
+}
+
+#[derive(Serialize)]
+struct ObstructionPremisesView<'a> {
+    tag: &'static str,
+    graph: AdmgWire,
+    selections: &'a [u32],
+    query: &'a AdmgConditionalQueryWire,
+    proof: &'a ConditionalNonTransportabilityRecord,
+    variable_names: &'a [String],
+}
+
+impl AdmgConditionalObstructionWire {
+    /// Build an obstruction artifact from a proof decided on `diagram`; the
+    /// proof is re-checked before it is written.
+    ///
+    /// # Errors
+    /// The proof does not re-check on `diagram`, or the premises do not encode.
+    pub fn checked(
+        diagram: &SelectionDiagram,
+        proof: &ConditionalNonTransportabilityProof,
+        variable_names: &[String],
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        proof
+            .recheck(diagram, proof.query(), ctx)
+            .map_err(AdmgConditionalArtifactError::ProofMismatch)?;
+        let mut selections =
+            diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>();
+        selections.sort_unstable();
+        let mut wire = Self {
+            version: ADMG_CONDITIONAL_OBSTRUCTION_VERSION,
+            required_features: vec![ADMG_CONDITIONAL_OBSTRUCTION_FEATURE.into()],
+            graph: admg_to_wire(diagram.causal_graph())?,
+            selections,
+            query: AdmgConditionalQueryWire::from_query(proof.query()),
+            proof: proof.to_record(),
+            variable_names: variable_names.to_vec(),
+            premises_digest: String::new(),
+        };
+        wire.premises_digest = wire.expected_premises_digest()?;
+        wire.validate_shape()?;
+        Ok(wire)
+    }
+
+    /// The digest the stored premises should carry. Recomputing it grants
+    /// nothing: a consumer still re-verifies the witness.
+    ///
+    /// # Errors
+    /// The premises do not encode.
+    pub fn expected_premises_digest(&self) -> Result<String, IoError> {
+        let mut graph = self.graph.clone();
+        graph.directed.sort_unstable();
+        graph.bidirected.sort_unstable();
+        Ok(crate::identity::digest_wire(
+            IdentityDomain::TransportCertificate,
+            &ObstructionPremisesView {
+                tag: "admg_conditional_obstruction_v1",
+                graph,
+                selections: &self.selections,
+                query: &self.query,
+                proof: &self.proof,
+                variable_names: &self.variable_names,
+            },
+        )?
+        .to_hex())
+    }
+
+    fn validate_shape(&self) -> Result<(), AdmgConditionalArtifactError> {
+        let unsupported = AdmgConditionalArtifactError::UnsupportedSemantics;
+        if self.required_features != [ADMG_CONDITIONAL_OBSTRUCTION_FEATURE] {
+            return Err(unsupported("required features"));
+        }
+        let nodes = self.graph.node_count;
+        if !self.variable_names.is_empty()
+            && (u32::try_from(self.variable_names.len()).ok() != Some(nodes)
+                || self.variable_names.iter().any(|name| name.trim().is_empty())
+                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len()
+                    != self.variable_names.len())
+        {
+            return Err(unsupported("variable names"));
+        }
+        Ok(())
+    }
+
+    /// The route's size bounds, checked before any digest is hashed.
+    fn check_bounds(&self) -> Result<(), AdmgConditionalArtifactError> {
+        use antecedent_identify::{
+            ADMG_CONDITIONAL_MAX_CONDITIONED, ADMG_CONDITIONAL_MAX_OBSERVED,
+            ADMG_CONDITIONAL_MAX_TREATMENTS, CONDITIONAL_WITNESS_MAX_LATENT_LEVELS,
+        };
+        let exceeded = AdmgConditionalArtifactError::LimitsExceeded;
+        let nodes = usize::try_from(self.graph.node_count).unwrap_or(usize::MAX);
+        let max_edges = nodes.saturating_mul(nodes.saturating_sub(1));
+        if nodes > ADMG_CONDITIONAL_MAX_OBSERVED
+            || self.graph.directed.len() > max_edges
+            || self.graph.bidirected.len() > max_edges
+            || self.selections.len() > nodes
+        {
+            return Err(exceeded("graph size"));
+        }
+        if self.query.outcomes.len() > nodes
+            || self.query.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
+            || self.query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.proof.moves.len() + self.proof.remaining.len()
+                > ADMG_CONDITIONAL_MAX_CONDITIONED
+        {
+            return Err(exceeded("query size"));
+        }
+        // Witness shape bounds; the verifier also refuses any model whose
+        // enumeration exceeds its work bound before any arithmetic.
+        let witness = &self.proof.witness;
+        for model in [&witness.first, &witness.second] {
+            if model.latents.len() > max_edges
+                || model.source.len() > nodes
+                || model.target.len() > nodes
+                || model
+                    .latents
+                    .iter()
+                    .any(|l| l.probabilities.len() > CONDITIONAL_WITNESS_MAX_LATENT_LEVELS)
+            {
+                return Err(exceeded("witness size"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Encode as CBOR.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        crate::to_cbor(self)
+    }
+
+    /// Decode, refusing any other version before the payload is interpreted.
+    ///
+    /// # Errors
+    /// [`AdmgConditionalArtifactError::UnsupportedSemantics`] for another
+    /// version, or a decoding or shape failure.
+    pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
+        let peek: VersionPeek = crate::from_cbor(bytes)?;
+        if peek.version != ADMG_CONDITIONAL_OBSTRUCTION_VERSION {
+            return Err(AdmgConditionalArtifactError::UnsupportedSemantics("version").into());
+        }
+        let wire: Self = crate::from_cbor(bytes)?;
+        wire.validate_shape()?;
+        Ok(wire)
+    }
+
+    /// Check a caller's variable names against the verified name mapping.
+    ///
+    /// # Errors
+    /// [`AdmgConditionalArtifactError::NamesMismatch`] unless `names` equals the
+    /// stored mapping.
+    pub fn check_variable_names(
+        &self,
+        names: &[String],
+    ) -> Result<(), AdmgConditionalArtifactError> {
+        if self.variable_names.as_slice() == names {
+            Ok(())
+        } else {
+            Err(AdmgConditionalArtifactError::NamesMismatch)
+        }
+    }
+
+    /// Decode and re-verify: size bounds before any digest, the premises digest,
+    /// then the proof from its record (the witness by exact enumeration, the
+    /// moves and their maximality, the reduced joint's s-hedge).
+    ///
+    /// # Errors
+    /// A typed [`AdmgConditionalArtifactError`]: consumer limits, premises
+    /// mismatch, or a proof that does not verify (`invalid_derivation`).
+    pub fn consume(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+    ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
+        let wire = Self::decode(bytes)?;
+        wire.check_bounds()?;
+        if wire.expected_premises_digest()? != wire.premises_digest {
+            return Err(AdmgConditionalArtifactError::PremisesMismatch.into());
+        }
+        let graph = admg_from_wire(&wire.graph)?;
+        let diagram = SelectionDiagram::try_new(
+            graph,
+            wire.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+        )
+        .map_err(|_| AdmgConditionalArtifactError::UnsupportedSemantics("selection diagram"))?;
+        let query = wire.query.to_query();
+        let proof = ConditionalNonTransportabilityProof::from_record_checked(
+            wire.proof.clone(),
+            &diagram,
+            &query,
+            ctx,
+        )
+        .map_err(AdmgConditionalArtifactError::ProofMismatch)?;
+        Ok(ConsumedAdmgConditionalObstruction { proof, diagram, wire })
     }
 }

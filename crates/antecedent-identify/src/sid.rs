@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 mod conditional;
+mod conditional_witness;
 mod meta;
 mod mixed_source;
 mod mz_transport;
@@ -35,6 +36,12 @@ pub use conditional::{
     ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
     ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
     ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
+};
+pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
+pub use conditional_witness::{
+    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, CONDITIONAL_WITNESS_MAX_WORK, ConditionalWitnessCheck,
+    ConditionalWitnessRecord, WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord,
+    WitnessSearch, search_conditional_witness, verify_conditional_witness,
 };
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{

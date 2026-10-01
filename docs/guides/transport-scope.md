@@ -18,7 +18,7 @@ per family:
 | Limited / z-experiment | sound and incomplete within 12 observed and 4 controllable variables; positives use cited joints; a line-11 obstruction is structural in the declared controllable set; two sources are searched separately, and complementary factors combine under two registered factorizations (disconnected graph components and, on one connected graph, intervention-separated outcome groups); a single connected c-factor that would need one fabricated joint over both sources' interventions is refused with reason code `transport_not_certified` whose message names `z_transport.multi_source_combination_not_searched` | `antecedent.transport.advanced.identify_z_transport` and `antecedent_identify.decide_two_source_z_transport` → Bareinboim and Pearl, *Causal Transportability with Limited Experiments* (AAAI 2013, [R-408](https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf)) and *Transportability from Multiple Environments with Limited Experiments* (mz-transportability, NeurIPS 2014); the c-factor step and the completeness result are Lee and Honavar's [arXiv:1309.6842](https://arxiv.org/abs/1309.6842), which this implementation does not claim |
 | Finite scenario envelope (X2) | no new theorem: each scenario of an explicitly supplied list of one to 64 fixed selection ADMGs (at most 12 observed variables) is decided independently by the classical catalog route; the envelope is a report over those decisions, not an identification claim | `antecedent.transport.advanced.prepare_transport_scenarios` → see [Finite scenario envelopes](#finite-scenario-envelopes) |
 | Two-step temporal sequence (X5) | classical sID on the explicit two-slice unrolled selection diagram, deciding `do(A_1=a_1, A_2=a_2)` as one joint intervention; sound and incomplete; exact and point-only | `antecedent.transport.advanced.prepare_temporal_transport_sequence` → see [Two-step temporal sequences](#two-step-temporal-sequences-22a-x5) |
-| ADMG conditional transport (2.2B X2) | sound and incomplete: rule 2 moves every conditioned variable it can into the intervention set (the IDC reduction), classical sID decides the reduced joint over the complete source family, and the conditional is that joint normalized at the remaining conditioned levels; a reduced-joint s-hedge is `not_certified`, never proven (the conditional completeness step is paper-inherited); at most 6 observed variables; exact and point-only | `antecedent.transport.advanced.identify_admg_conditional_transport` → see [ADMG conditional transport](#admg-conditional-transport-22b-x2) |
+| ADMG conditional transport (2.2B X2) | sound and incomplete: rule 2 moves every conditioned variable it can into the intervention set (the IDC reduction), classical sID decides the reduced joint over the complete source family, and the conditional is that joint normalized at the remaining conditioned levels; when sID does not certify the reduced joint, an exactly verified two-model witness makes the query `proven_non_transportable` (every three-node case has one), and otherwise it is `not_certified`, never proven; at most 6 observed variables; exact and point-only | `antecedent.transport.advanced.identify_admg_conditional_transport` → see [ADMG conditional transport](#admg-conditional-transport-22b-x2) |
 
 Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent. The static checker in
 `scripts/check_transport_stages.py` refuses a completeness guarantee that
@@ -544,14 +544,38 @@ it is not a second transport engine.
   `prepare_exact`) and when an artifact is consumed. The conditional values are
   compared with enumerated latent SCMs on every three-node ADMG and a seeded
   four-node sample.
-  Whether a reduced-joint s-hedge makes the conditional non-transportable is the
-  transport analogue of IDC completeness; its theorem text was not read, so the
-  claim is paper-inherited and such a case is `not_certified`
-  (`admg_transport.not_certified`) with an inspection-only
-  `ConditionalObstructionCandidate` (`"proof": false` in Python).
+- **Obstruction.** When sID does not certify the reduced joint (an s-hedge, or
+  no derivation), a bounded search looks for a *two-model witness*: two finite
+  latent models compatible with the selection diagram (binary observed
+  variables, one discrete latent per bidirected edge; source and target share
+  every latent law and every mechanism except the selection targets'; every
+  parameter an exact rational strictly inside (0, 1), so every law is positive)
+  that agree on every source experimental law `P(v \ z | do(z))` and on the
+  target observational law `P*(v)`, yet give different `P*(y | do(x), w)` at a
+  recorded level. `verify_conditional_witness` checks all of this by exact
+  enumeration and trusts no theorem; such a pair refutes every formula over those
+  laws, which is non-transportability by definition (Lee, Correa and Bareinboim,
+  *General Transportability*, AAAI 2020, Definition 3 and Lemma 2). A verified
+  pair is `proven_non_transportable` (`transport_proven_non_transportable`,
+  `admg_transport.proven_non_transportable`) with a
+  `ConditionalNonTransportabilityProof` carrying the witness, the moves and the
+  reduced joint's s-hedge (`"proof": true` in Python, with a `witness`). The
+  search perturbs one mechanism block of a seeded positive base model inside the
+  null space of that block's linear law map (found modulo a prime, lifted by
+  rational reconstruction); only the exact verifier certifies. It is incomplete:
+  with no verified pair, or above its work bound, the decision stays
+  `not_certified` (`admg_transport.not_certified`, stage `conditional_witness`:
+  `no_witness`, `out_of_scope` or `stopped`) with the inspection-only
+  `ConditionalObstructionCandidate` (`"proof": false`). On every three-node
+  selection ADMG and query, all 984 reduced-joint s-hedges carry a verified
+  witness, each re-checked by an independent verifier in the tests. The paper's
+  Theorem 1 (under conditional minimality the conditional is transportable iff
+  the joint is) is the completeness statement for this class; its proof was read
+  but is not used, so the row stays sound and incomplete.
 - **Budget.** One `SearchBudget` (at most 4096 operations, depth 24, a memory cap
   that is never absent) is charged by every rule-2 separation test of the search
-  and of its re-check, every sID step and the catalog binding. Live-state memory
+  and of its re-check, every sID step, the catalog binding and each witness-search
+  attempt (a stop inside the witness search leaves the decision `not_certified`). Live-state memory
   is cumulative: each finished stage's peak is retained by every later charge. A
   stop is `exhausted` with a receipt of explored and unevaluated stages, never a
   verdict.
@@ -566,6 +590,13 @@ it is not a second transport engine.
   identically. It does not authenticate the laws (the data digest names
   snapshots), and it cannot detect a wrong causal graph or a consistently
   re-sealed forgery (the digests are integrity checks, not signatures).
+  A proven obstruction exports as `checked_admg_conditional_obstruction_v1`
+  (Python `export_obstruction()`, `consume_admg_conditional_obstruction_artifact`;
+  Rust `export_admg_conditional_obstruction`): the graph, selections, query, the
+  proof record and the names under a premises digest, with no catalog or law. The
+  consumer refuses an oversized graph, query or witness before hashing, then
+  re-verifies the witness exactly and re-checks the moves and the s-hedge; any
+  edit is refused (`premises_mismatch` unsealed, `invalid_derivation` re-sealed).
 - **Not licensed.** Counted laws, an empirical plug-in and any interval
   (`cell_not_licensed`, `admg_transport.interval_withheld`); selection-bias
   (`S = 1` sampling) semantics; soft interventions; gID / g-transportability with
@@ -573,9 +604,8 @@ it is not a second transport engine.
 - **Witness extension note.** `ConditionalObstructionCandidate` is additive: it
   pairs the unchanged `SHedgeCertificate` of the reduced joint with the rule-2 moves
   and the non-movable remainder (`ConditionalObstructionRecord`). The hedge and
-  s-hedge certificate shapes are unchanged, so the ADMG counterfactual work (2.2B
-  B5) can converge on this record for a conditional-obstruction witness and upgrade
-  it to a proof once the conditional completeness theorem is verified.
+  s-hedge certificate shapes are unchanged. The proof is the separate two-model
+  witness (`ConditionalWitnessRecord`), not an upgrade of the candidate.
 
 ## Smoothed dose-response transport (2.2B X4)
 

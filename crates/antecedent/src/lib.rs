@@ -84,7 +84,8 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
-    consume_admg_conditional_transport_artifact,
+    consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
+    export_admg_conditional_obstruction,
 };
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,

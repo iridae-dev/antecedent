@@ -293,19 +293,105 @@ def test_counted_laws_are_not_licensed_on_the_conditional_route():
     assert info.value.reason_code == "cell_not_licensed"
 
 
-def test_not_certified_bounds_and_invalid_queries_carry_reason_codes():
-    # Selection on the confounded outcome: the reduced joint has an s-hedge.
+def witness_holds(witness, names):
+    """Independent exact check of a two-model witness (fractions, names): both
+    models agree on every source experiment and the target observational law,
+    and ``P*(y | do(x), w)`` differs at the recorded level."""
+    from fractions import Fraction
+
+    def mass(model, target, do, values):
+        cards = [len(latent["probabilities"]) for latent in model["latents"]]
+        total = Fraction(0)
+        for levels in itertools.product(*(range(c) for c in cards)):
+            m = Fraction(1)
+            for latent, level in zip(model["latents"], levels, strict=True):
+                m *= Fraction(latent["probabilities"][level])
+            for name in names:
+                if name in do:
+                    continue
+                kernels = {k["node"]: k for k in model["source"]}
+                if target:
+                    kernels.update({k["node"]: k for k in model["target"]})
+                kernel = kernels[name]
+                row = 0
+                for parent in kernel["parents"]:
+                    row = row * 2 + values[parent]
+                for edge in kernel["latents"]:
+                    e = [latent["edge"] for latent in model["latents"]].index(edge)
+                    row = row * cards[e] + levels[e]
+                p = Fraction(kernel["p_one"][row])
+                m *= p if values[name] else 1 - p
+            total += m
+        return total
+
+    first, second = witness["first_model"], witness["second_model"]
+    for do in subsets():
+        for bits in itertools.product((0, 1), repeat=len(names)):
+            values = dict(zip(names, bits, strict=True))
+            if mass(first, False, do, values) != mass(second, False, do, values):
+                return False
+    for bits in itertools.product((0, 1), repeat=len(names)):
+        values = dict(zip(names, bits, strict=True))
+        if mass(first, True, (), values) != mass(second, True, (), values):
+            return False
+
+    def value(model):
+        x, w, y = (
+            witness["treatment_level"][0],
+            witness["conditioned_level"][0],
+            witness["outcome_level"][0],
+        )
+        num = den = Fraction(0)
+        for bits in itertools.product((0, 1), repeat=len(names)):
+            values = dict(zip(names, bits, strict=True))
+            if values["x"] != x or values["w"] != w:
+                continue
+            p = mass(model, True, ("x",), values)
+            den += p
+            if values["y"] == y:
+                num += p
+        return num / den
+
+    a, b = value(first), value(second)
+    return (
+        a != b and a == Fraction(witness["first_value"]) and b == Fraction(witness["second_value"])
+    )
+
+
+def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
+    # Selection on the confounded outcome: the reduced joint has an s-hedge and
+    # an exactly verified two-model witness proves the query non-transportable.
     stage = decide(selected=("y",))
-    assert stage.outcome == "not_certified"
+    assert stage.outcome == "proven_non_transportable"
+    assert stage.identification_status == "proven_non_transportable"
     decision = stage.decision()
-    assert decision["reason_code"] == "transport_not_certified"
-    assert decision["detail"] == "admg_transport.not_certified"
+    assert decision["reason_code"] == "transport_proven_non_transportable"
+    assert decision["detail"] == "admg_transport.proven_non_transportable"
     candidate = decision["candidate"]
-    assert candidate["proof"] is False
+    assert candidate["proof"] is True
     assert candidate["reduced_query"] == {"outcomes": ["y", "w"], "treatments": ["x"]}
-    with pytest.raises(CausalUnsupportedError, match="admg_transport.not_certified") as info:
+    witness = decision["witness"]
+    assert witness["verified"] is True
+    assert witness["first_value"] != witness["second_value"]
+    assert witness_holds(witness, NAMES)
+    with pytest.raises(
+        CausalUnsupportedError, match="admg_transport.proven_non_transportable"
+    ) as info:
         stage.prepare_exact(laws(), REQUESTS)
-    assert info.value.reason_code == "transport_not_certified"
+    assert info.value.reason_code == "transport_proven_non_transportable"
+    # The obstruction exports and the consumer re-verifies the witness.
+    artifact = stage.export_obstruction()
+    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    assert consumed["identification_status"] == "proven_non_transportable"
+    assert consumed["witness"] == witness
+    assert consumed["remaining"] == ["w"]
+    tampered = bytearray(artifact)
+    tampered[-10] ^= 0xFF
+    with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
+        transport.consume_admg_conditional_obstruction_artifact(bytes(tampered))
+    # An identified stage has no obstruction to export.
+    with pytest.raises(CausalUnsupportedError):
+        decide().export_obstruction()
     # A budget stop is a receipt, never a verdict.
     exhausted = decide(max_operations=2)
     assert exhausted.outcome == "exhausted"
@@ -329,6 +415,55 @@ def test_not_certified_bounds_and_invalid_queries_carry_reason_codes():
         transport.identify_admg_conditional_transport(
             graph=graph(), query="P(y|do(x),w)", catalog=catalog()
         )
+
+
+def test_an_s_hedge_without_a_witness_stays_not_certified():
+    # x -> y -> w, x <-> y, selection on y, plus a district over w, a, b, c
+    # whose six bidirected edges put every witness model above the search
+    # bound: the reduced joint's s-hedge is an inspection-only candidate.
+    names = ["x", "y", "w", "a", "b", "c"]
+    district = [("w", "a"), ("w", "b"), ("w", "c"), ("a", "b"), ("a", "c"), ("b", "c")]
+    wide = Admg.from_edges(names, [("x", "y"), ("y", "w")], [("x", "y"), *district])
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in names)
+    regimes = [
+        transport.EvidenceRegime(
+            "s-" + ("".join(do) or "obs"),
+            "source",
+            kind="experimental" if do else "observational",
+            interventions=list(do),
+            measured=[n for n in names if n not in do],
+            distribution="joint",
+        )
+        for r in range(len(names) + 1)
+        for do in itertools.combinations(names, r)
+    ]
+    regimes.append(
+        transport.EvidenceRegime(
+            "t-obs", "target", kind="observational", measured=names, distribution="joint"
+        )
+    )
+    wide_catalog = transport.EvidenceCatalog(
+        environments=(
+            transport.Environment("source", coordinates, selection_targets=("y",)),
+            transport.Environment("target", coordinates),
+        ),
+        regimes=tuple(regimes),
+        bindings=tuple(
+            transport.RegimeBinding(r.id, f"snap-{r.id}", sampling="independent") for r in regimes
+        ),
+    )
+    stage = transport.identify_admg_conditional_transport(
+        graph=wide, query=query(("y",)), catalog=wide_catalog
+    )
+    assert stage.outcome == "not_certified"
+    decision = stage.decision()
+    assert decision["reason_code"] == "transport_not_certified"
+    assert decision["detail"] == "admg_transport.not_certified"
+    assert decision["stages"][-1] == {"stage": "conditional_witness", "outcome": "out_of_scope"}
+    assert decision["candidate"]["proof"] is False
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.not_certified") as info:
+        stage.prepare_exact(laws(), REQUESTS)
+    assert info.value.reason_code == "transport_not_certified"
 
 
 def test_an_unknown_variable_reaches_native_code_as_an_invalid_query():
@@ -430,3 +565,4 @@ def test_consumer_mismatches_carry_their_reason_codes():
     # The unedited artifact still replays.
     consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
     assert consumed["probabilities"] == produced["probabilities"]
+

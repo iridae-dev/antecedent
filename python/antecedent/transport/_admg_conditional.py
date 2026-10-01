@@ -7,10 +7,13 @@ source that can run every experiment plus the target's observational law.
 Rule 2 of the do-calculus first moves every conditioned variable it can into the
 intervention set (the IDC reduction); the classical sID engine then decides the
 remaining joint ``P*(outcomes, w'' | do(treatments, w'))``, and the answer is that
-joint normalized at the requested ``w''``. The route is sound and incomplete: a
-reduced joint that sID cannot certify is ``not_certified``, never a
-non-transportability claim (the conditional completeness step is
-paper-inherited and unverified). Exact laws only; points only.
+joint normalized at the requested ``w''``. The route is sound and incomplete.
+When sID does not certify the reduced joint, a bounded search looks for two
+latent models that agree on every source experimental law and on the target
+observational law but differ on the query; a pair the exact verifier accepts is
+a proof (``proven_non_transportable``, with the witness), and otherwise the
+decision is ``not_certified``, never a non-transportability claim. Exact laws
+only; points only.
 """
 
 from __future__ import annotations
@@ -19,6 +22,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._native import (
+    consume_admg_conditional_obstruction_artifact as _consume_admg_conditional_obstruction,
+)
 from .._native import (
     consume_admg_conditional_transport_artifact as _consume_admg_conditional_artifact,
 )
@@ -75,13 +81,19 @@ def identify_admg_conditional_transport(
 ) -> Any:
     """Decide a bounded ADMG conditional transport query once.
 
-    The returned stage's ``outcome`` is ``identified``, ``missing_evidence`` (the
-    certified formula's leaves are not all in the catalog), ``not_certified`` or
-    ``exhausted`` (a limit or cancellation stopped the one shared budget; the
-    receipt lists explored and unevaluated stages). ``decision()`` explains it:
-    the rule-2 moves, the remaining conditioned set, the reduced joint and, for
-    ``not_certified``, the reduced joint's verified s-hedge as an inspection-only
-    candidate (``"proof": false``). An identified stage offers ``prepare_exact``;
+    The returned stage's ``outcome`` is ``identified``,
+    ``proven_non_transportable`` (an exactly verified two-model witness),
+    ``missing_evidence`` (the certified formula's leaves are not all in the
+    catalog), ``not_certified`` or ``exhausted`` (a limit or cancellation stopped
+    the one shared budget; the receipt lists explored and unevaluated stages).
+    ``decision()`` explains it: the rule-2 moves, the remaining conditioned set,
+    the reduced joint and, when sID did not certify it, the reduced joint's
+    verified s-hedge (``"proof": true`` only alongside a verified ``witness``:
+    two models, exact rational parameters, that agree on every source
+    experiment and the target law and differ on the query at the recorded
+    level). A proven stage offers ``export_obstruction()``, re-verified by
+    :func:`consume_admg_conditional_obstruction_artifact`. An identified stage
+    offers ``prepare_exact``;
     counted laws (``prepare_empirical``) are refused as ``cell_not_licensed``.
     Limits above 4096 operations / depth 24, more than 6 observed variables, 3
     treatments or 3 conditioned variables refuse as ``route_not_supported``.
@@ -150,8 +162,23 @@ def consume_admg_conditional_transport_artifact(
     )
 
 
+def consume_admg_conditional_obstruction_artifact(artifact: bytes, *, cancel: Any = None) -> str:
+    """Re-verify an exported proven obstruction and return it as JSON.
+
+    The consumer trusts nothing stored: it checks the premises digest, then
+    re-verifies the two-model witness by exact enumeration (both models agree on
+    every source experimental law and the target observational law and differ
+    on the query) and re-checks the rule-2 moves and the reduced joint's
+    s-hedge. Any edit is refused with a typed ``reason_code``.
+    """
+    if not isinstance(artifact, bytes):
+        raise CausalTypeError("artifact must be bytes")
+    return _consume_admg_conditional_obstruction(artifact, cancel=cancel)
+
+
 __all__ = [
     "ConditionalTransportQuery",
+    "consume_admg_conditional_obstruction_artifact",
     "consume_admg_conditional_transport_artifact",
     "identify_admg_conditional_transport",
 ]

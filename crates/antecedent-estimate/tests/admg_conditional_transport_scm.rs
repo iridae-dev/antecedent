@@ -23,12 +23,145 @@ use antecedent_estimate::{EstimationError, prepare_exact_admg_conditional_transp
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, BoundConditionalTransportFunctional,
-    ConditionalTransportDecision, ConditionalTransportQuery, decide_admg_conditional_transport,
+    ConditionalTransportDecision, ConditionalTransportQuery, WitnessSearch,
+    decide_admg_conditional_transport, search_conditional_witness,
 };
 
 enum Outcome {
     Identified,
+    Proven,
     NotCertified,
+}
+
+/// Exact fraction for the independent witness check (separate code from the
+/// library's verifier: different representation and enumeration order).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Frac(i128, i128);
+
+fn gcd(a: i128, b: i128) -> i128 {
+    if b == 0 { a.abs() } else { gcd(b, a % b) }
+}
+
+impl Frac {
+    fn norm(n: i128, d: i128) -> Self {
+        let g = gcd(n, d).max(1) * d.signum();
+        Self(n / g, d / g)
+    }
+    fn parse(text: &str) -> Self {
+        let (n, d) = text.split_once('/').expect("p/q");
+        Self::norm(n.parse().unwrap(), d.parse().unwrap())
+    }
+    fn add(self, o: Self) -> Self {
+        Self::norm(self.0 * o.1 + o.0 * self.1, self.1 * o.1)
+    }
+    fn mul(self, o: Self) -> Self {
+        let (g1, g2) = (gcd(self.0, o.1).max(1), gcd(o.0, self.1).max(1));
+        Self::norm((self.0 / g1) * (o.0 / g2), (self.1 / g2) * (o.1 / g1))
+    }
+    fn complement(self) -> Self {
+        Self::norm(self.1 - self.0, self.1)
+    }
+}
+
+/// One witness model as lookup tables keyed by node / edge, over `n` nodes.
+struct WitnessScm<'a> {
+    n: usize,
+    model: &'a antecedent_identify::WitnessModelRecord,
+}
+
+impl WitnessScm<'_> {
+    /// Joint mass of `world` (the intervened nodes' bits fixed) in one population,
+    /// summed over every latent configuration (first latent varies slowest).
+    fn mass(&self, target: bool, intervened: usize, world: usize) -> Frac {
+        let cards: Vec<usize> = self.model.latents.iter().map(|l| l.probabilities.len()).collect();
+        let configs: usize = cards.iter().product();
+        let mut total = Frac(0, 1);
+        for code in 0..configs {
+            // Decode the mixed-radix latent configuration.
+            let mut u = vec![0usize; cards.len()];
+            let mut rest = code;
+            for e in (0..cards.len()).rev() {
+                u[e] = rest % cards[e];
+                rest /= cards[e];
+            }
+            let mut m = Frac(1, 1);
+            for (e, latent) in self.model.latents.iter().enumerate() {
+                m = m.mul(Frac::parse(&latent.probabilities[u[e]]));
+            }
+            for node in 0..self.n {
+                if intervened & (1 << node) != 0 {
+                    continue;
+                }
+                let kernel = self
+                    .model
+                    .target
+                    .iter()
+                    .find(|k| target && k.node as usize == node)
+                    .unwrap_or_else(|| {
+                        self.model.source.iter().find(|k| k.node as usize == node).unwrap()
+                    });
+                let mut row = 0usize;
+                for p in &kernel.parents {
+                    row = row * 2 + ((world >> *p) & 1);
+                }
+                for edge in &kernel.latents {
+                    let e = self.model.latents.iter().position(|l| l.edge == *edge).unwrap();
+                    row = row * cards[e] + u[e];
+                }
+                let p = Frac::parse(&kernel.ones[row]);
+                m = m.mul(if (world >> node) & 1 == 1 { p } else { p.complement() });
+            }
+            total = total.add(m);
+        }
+        total
+    }
+}
+
+/// Independent re-check of a verified witness on the three-node test class
+/// (node `i` is variable `i`): both models agree on every source experiment and
+/// the target observational law, and the conditional differs at the level.
+fn independently_verified(
+    n: usize,
+    w: &antecedent_identify::ConditionalWitnessRecord,
+    y: &[usize],
+    x: &[usize],
+    c: &[usize],
+) -> bool {
+    let (a, b) = (WitnessScm { n, model: &w.first }, WitnessScm { n, model: &w.second });
+    for mask in 0..(1usize << n) {
+        for world in 0..(1usize << n) {
+            if a.mass(false, mask, world) != b.mass(false, mask, world) {
+                return false;
+            }
+        }
+    }
+    for world in 0..(1usize << n) {
+        if a.mass(true, 0, world) != b.mass(true, 0, world) {
+            return false;
+        }
+    }
+    let bits = |vs: &[usize], levels: &[u8]| {
+        vs.iter()
+            .zip(levels)
+            .fold((0usize, 0usize), |(m, s), (v, l)| (m | (1 << v), s | (usize::from(*l) << v)))
+    };
+    let (xm, xs) = bits(x, &w.treatment_level);
+    let (cm, cs) = bits(c, &w.conditioned_level);
+    let (ym, ys) = bits(y, &w.outcome_level);
+    let value = |m: &WitnessScm<'_>| {
+        let (mut num, mut den) = (Frac(0, 1), Frac(0, 1));
+        for world in (0..(1usize << n)).filter(|wd| wd & xm == xs && wd & cm == cs) {
+            let p = m.mass(true, xm, world);
+            den = den.add(p);
+            if world & ym == ys {
+                num = num.add(p);
+            }
+        }
+        assert!(den.0 > 0, "positive conditioning mass");
+        Frac::norm(num.0 * den.1, num.1 * den.0)
+    };
+    let (va, vb) = (value(&a), value(&b));
+    va != vb && Frac::parse(&w.first_value) == va && Frac::parse(&w.second_value) == vb
 }
 
 /// Decide, and when identified compare the point at every level of `x ∪ w`.
@@ -45,6 +178,19 @@ fn check(scm: &Scm, y: &[usize], x: &[usize], w: &[usize]) -> Outcome {
     .unwrap();
     let functional = match decision {
         ConditionalTransportDecision::Identified(bound) => bound,
+        ConditionalTransportDecision::ProvenNonTransportable(proof) => {
+            // Every verified witness is re-checked by the independent verifier
+            // above and by the library verifier from its record.
+            assert!(
+                independently_verified(scm.n, proof.witness(), y, x, w),
+                "directed={:?} bidirected={:?} selected={:?}",
+                scm.directed,
+                scm.bidirected,
+                scm.selected
+            );
+            proof.recheck(&scm.diagram(), &query(y, x, w), &ctx).unwrap();
+            return Outcome::Proven;
+        }
         ConditionalTransportDecision::NotCertified(_) => return Outcome::NotCertified,
         other => panic!("a full catalog is never missing evidence or exhausted: {other:?}"),
     };
@@ -93,7 +239,8 @@ fn evaluate(
 #[test]
 fn every_three_node_conditional_query_matches_the_enumerated_truth() {
     let pairs = [(0usize, 1usize), (0, 2), (1, 2)];
-    let (mut identified, mut not_certified) = (0usize, 0usize);
+    let (mut identified, mut proven, mut not_certified, mut cross_checked) =
+        (0usize, 0usize, 0usize, 0usize);
     for directed in 0..8usize {
         for bidirected in 0..8usize {
             for selected in 0..8usize {
@@ -121,7 +268,26 @@ fn every_three_node_conditional_query_matches_the_enumerated_truth() {
                             let x = 3 - y - w;
                             for treatments in [vec![x], vec![]] {
                                 match check(&scm, &[y], &treatments, &[w]) {
-                                    Outcome::Identified => identified += 1,
+                                    Outcome::Identified => {
+                                        identified += 1;
+                                        // Cross-check on a sample: no witness search
+                                        // ever verifies on an identified query.
+                                        if params == 0
+                                            && (directed + bidirected + selected + y) % 7 == 0
+                                        {
+                                            let ctx = ExecutionContext::for_tests(3);
+                                            let search = search_conditional_witness(
+                                                &scm.diagram(),
+                                                &query(&[y], &treatments, &[w]),
+                                                &mut || Ok(()),
+                                                &ctx,
+                                            )
+                                            .unwrap();
+                                            assert_eq!(search, WitnessSearch::NotFound);
+                                            cross_checked += 1;
+                                        }
+                                    }
+                                    Outcome::Proven => proven += 1,
                                     Outcome::NotCertified => not_certified += 1,
                                 }
                             }
@@ -131,11 +297,17 @@ fn every_three_node_conditional_query_matches_the_enumerated_truth() {
             }
         }
     }
-    eprintln!("three-node sweep: identified {identified}, not certified {not_certified}");
+    eprintln!(
+        "three-node sweep: identified {identified}, proven {proven}, not certified {not_certified}, identified cross-checked {cross_checked}"
+    );
     // 64 graphs x 8 selections x 12 query shapes x 2 parameterizations.
-    assert_eq!(identified + not_certified, 64 * 8 * 12 * 2);
-    assert!(identified > 11_000, "identified {identified}");
-    assert!(not_certified > 900, "not certified {not_certified}");
+    assert_eq!(identified + proven + not_certified, 64 * 8 * 12 * 2);
+    assert_eq!(identified, 11_304, "identified {identified}");
+    // Every reduced-joint s-hedge on three nodes (984 before the witness stage)
+    // now carries an exactly verified two-model witness.
+    assert_eq!(proven, 984, "proven {proven}");
+    assert_eq!(not_certified, 0, "not certified {not_certified}");
+    assert!(cross_checked > 100, "cross-checked {cross_checked}");
 }
 
 /// Deterministic 64-bit generator (splitmix64).
@@ -157,7 +329,8 @@ impl Rng {
 fn a_seeded_four_node_sample_matches_the_enumerated_truth() {
     let pairs: Vec<(usize, usize)> = (0..4).flat_map(|a| (a + 1..4).map(move |b| (a, b))).collect();
     let mut rng = Rng(0x2A2B_B1C0);
-    let (mut identified, mut not_certified, mut multi) = (0usize, 0usize, 0usize);
+    let (mut identified, mut proven, mut not_certified, mut multi) =
+        (0usize, 0usize, 0usize, 0usize);
     for _ in 0..400 {
         let directed = rng.below(64);
         let bidirected = rng.below(64);
@@ -195,14 +368,15 @@ fn a_seeded_four_node_sample_matches_the_enumerated_truth() {
         multi += usize::from(y.len() > 1 || w.len() > 1);
         match check(&scm, &y, &x, &w) {
             Outcome::Identified => identified += 1,
+            Outcome::Proven => proven += 1,
             Outcome::NotCertified => not_certified += 1,
         }
     }
     eprintln!(
-        "four-node sample: identified {identified}, not certified {not_certified}, multi {multi}"
+        "four-node sample: identified {identified}, proven {proven}, not certified {not_certified}, multi {multi}"
     );
     assert!(identified > 150, "identified {identified}");
-    assert!(not_certified > 15, "not certified {not_certified}");
+    assert!(proven + not_certified > 15, "proven {proven}, not certified {not_certified}");
     assert!(multi > 100, "multi-variable outcomes or conditioned sets {multi}");
 }
 

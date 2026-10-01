@@ -590,3 +590,92 @@ fn an_unknown_required_feature_or_another_version_is_refused() {
         ));
     }
 }
+
+/// A proven obstruction (selection on the confounded outcome `Y`) exports with
+/// its two-model witness and is re-verified by the consumer; an unsealed edit
+/// is a premises mismatch, a re-sealed witness mutation fails the exact
+/// verifier, and an oversized graph refuses before any digest.
+#[test]
+fn a_proven_obstruction_is_reverified_by_the_artifact_consumer() {
+    use antecedent::{
+        consume_admg_conditional_obstruction_artifact, export_admg_conditional_obstruction,
+    };
+    use antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire;
+    let blocked = Scm { selected: vec![1], ..scm(0) };
+    let (catalog, _) = blocked.catalog_and_laws();
+    let ctx = ExecutionContext::for_tests(5);
+    let diagram = blocked.diagram();
+    let q = query(&[1], &[0], &[2]);
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) =
+        decide_admg_conditional_transport(
+            &diagram,
+            &q,
+            &catalog,
+            ADMG_CONDITIONAL_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap()
+    else {
+        panic!("proven");
+    };
+    let names: Vec<String> = ["x", "y", "w"].map(String::from).to_vec();
+    let bytes = export_admg_conditional_obstruction(&diagram, &proof, &names, &ctx).unwrap();
+    let consumed = consume_admg_conditional_obstruction_artifact(&bytes, &ctx).unwrap();
+    assert_eq!(consumed.to_record(), proof.to_record());
+    assert_eq!(consumed.query(), &q);
+    let wire = AdmgConditionalObstructionWire::decode(&bytes).unwrap();
+    wire.check_variable_names(&names).unwrap();
+    assert_eq!(
+        wire.check_variable_names(&["a".into(), "b".into(), "c".into()]),
+        Err(AdmgConditionalArtifactError::NamesMismatch)
+    );
+    // The same proof on another diagram does not export.
+    let unselected = scm(0).diagram();
+    assert!(export_admg_conditional_obstruction(&unselected, &proof, &names, &ctx).is_err());
+
+    let refusal = |wire: &AdmgConditionalObstructionWire| -> (&'static str, &'static str) {
+        match consume_admg_conditional_obstruction_artifact(&wire.export().unwrap(), &ctx) {
+            Err(IoError::AdmgConditional(inner)) => inner.refusal(),
+            other => panic!("typed refusal: {:?}", other.map(|p| p.to_record())),
+        }
+    };
+    let reseal = |mut w: AdmgConditionalObstructionWire| {
+        w.premises_digest = w.expected_premises_digest().unwrap();
+        w
+    };
+    // Unsealed: a changed query value is a premises mismatch.
+    let mut w = wire.clone();
+    w.proof.witness.first_value = w.proof.witness.second_value.clone();
+    assert_eq!(refusal(&w), ("transport_not_certified", "admg_transport.premises_mismatch"));
+    // Re-sealed witness mutations fail the exact verifier.
+    let invalid = ("transport_not_certified", "admg_transport.invalid_derivation");
+    assert_eq!(refusal(&reseal(w)), invalid);
+    let mut w = wire.clone();
+    w.proof.witness.second.source[1].ones[0] = "1/7".into();
+    assert_eq!(refusal(&reseal(w)), invalid);
+    let mut w = wire.clone();
+    w.proof.witness.second = w.proof.witness.first.clone();
+    w.proof.witness.second_value = w.proof.witness.first_value.clone();
+    assert_eq!(refusal(&reseal(w)), invalid);
+    // A re-sealed premise change: the witness no longer fits the diagram.
+    let mut w = wire.clone();
+    w.selections.clear();
+    assert_eq!(refusal(&reseal(w)), invalid);
+    // A forged move fails the reduction check.
+    let mut w = wire.clone();
+    w.proof.moves = vec![2];
+    w.proof.remaining.clear();
+    assert_eq!(refusal(&reseal(w)), invalid);
+    // Oversized graph: refused before any digest, sealed or not.
+    let mut w = wire.clone();
+    w.graph.node_count = 7;
+    w.variable_names.clear();
+    assert_eq!(refusal(&w), ("route_not_supported", "admg_transport.consumer_limits"));
+    // Another version or feature.
+    let mut w = wire.clone();
+    w.version = 2;
+    assert!(consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx).is_err());
+    let mut w = wire;
+    w.required_features = vec!["checked_admg_conditional_point_v1".into()];
+    assert!(consume_admg_conditional_obstruction_artifact(&w.export().unwrap(), &ctx).is_err());
+}

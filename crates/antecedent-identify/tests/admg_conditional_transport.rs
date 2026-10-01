@@ -12,10 +12,11 @@ use antecedent_core::{
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ClassicalTransportQuery, ClassicalTransportResult,
-    ConditionalObstructionCandidate, ConditionalTransportDecision, ConditionalTransportDerivation,
-    ConditionalTransportQuery, IdcIdentifier, IdentificationError, IdentificationWorkspace,
+    ConditionalNonTransportabilityProof, ConditionalObstructionCandidate,
+    ConditionalTransportDecision, ConditionalTransportDerivation, ConditionalTransportQuery,
+    ConditionalWitnessRecord, IdcIdentifier, IdentificationError, IdentificationWorkspace,
     SidLimits, admg_conditional_refusal, decide_admg_conditional_transport,
-    identify_classical_transport,
+    identify_classical_transport, verify_conditional_witness,
 };
 use std::sync::Arc;
 
@@ -155,24 +156,78 @@ fn a_non_movable_conditioning_variable_is_normalized_out_of_the_joint() {
 }
 
 /// X(0) -> Y(1) -> W(2), X <-> Y, selection on Y: the reduced joint has an
-/// s-hedge. It is `not_certified` with a verified candidate, never proven.
+/// s-hedge, and an exactly verified two-model witness proves the conditional
+/// query non-transportable. The witness is the proof; the s-hedge and the moves
+/// are re-checked explanations.
 #[test]
-fn a_reduced_joint_s_hedge_is_not_certified_never_proven() {
+fn a_reduced_joint_s_hedge_is_proven_by_a_verified_witness() {
     let diagram =
         SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), [v(1)]).unwrap();
     let q = query(&[1], &[0], &[2]);
     let decision = decide(&diagram, &q, &full_catalog(3, &[]));
+    assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
+    assert_eq!(decision.detail_code(), Some("admg_transport.proven_non_transportable"));
+    assert_eq!(
+        decision.identification_status(),
+        antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+    );
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) = decision else {
+        panic!("proven");
+    };
+    assert_eq!(proof.remaining(), [v(2)]);
+    let candidate = proof.candidate().expect("the reduced joint's s-hedge is kept");
+    assert_eq!(*candidate.reduced_query().outcomes, [v(1), v(2)]);
+    let ctx = ExecutionContext::for_tests(1);
+    candidate.recheck(&diagram, &q, &ctx).unwrap();
+    proof.recheck(&diagram, &q, &ctx).unwrap();
+    let check = verify_conditional_witness(&diagram, &q, proof.witness(), &ctx).unwrap();
+    assert_ne!(check.first_value, check.second_value);
+    // Every source experiment's cells (8 masks x 8 worlds) and the target's 8.
+    assert_eq!(check.cells_compared, 72);
+    // It round-trips as data and re-checks from the record alone.
+    let json = serde_json::to_vec(&proof.to_record()).unwrap();
+    let back = ConditionalNonTransportabilityProof::from_record_checked(
+        serde_json::from_slice(&json).unwrap(),
+        &diagram,
+        &q,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(back.witness(), proof.witness());
+    // The decision is deterministic.
+    let ConditionalTransportDecision::ProvenNonTransportable(again) =
+        decide(&diagram, &q, &full_catalog(3, &[]))
+    else {
+        panic!("proven");
+    };
+    assert_eq!(again.to_record(), proof.to_record());
+}
+
+/// A reduced-joint s-hedge on a diagram too large for the bounded witness
+/// search stays `not_certified` with the inspection-only candidate: no witness
+/// is no claim.
+#[test]
+fn a_reduced_joint_s_hedge_without_a_witness_is_not_certified_never_proven() {
+    // X(0) -> Y(1) -> W(2), X <-> Y, selection on Y, plus a district over
+    // 2..=5 whose six bidirected edges put every witness model above the bound.
+    let bidirected = [(0, 1), (2, 3), (2, 4), (2, 5), (3, 4), (3, 5), (4, 5)];
+    let diagram =
+        SelectionDiagram::try_new(graph(6, &[(0, 1), (1, 2)], &bidirected), [v(1)]).unwrap();
+    let q = query(&[1], &[0], &[2]);
+    let decision = decide(&diagram, &q, &full_catalog(6, &[]));
     assert_eq!(decision.reason_code(), Some("transport_not_certified"));
     assert_eq!(decision.detail_code(), Some("admg_transport.not_certified"));
     let ConditionalTransportDecision::NotCertified(inspection) = decision else {
         panic!("not certified");
     };
     assert_eq!(inspection.remaining, [v(2)]);
+    assert_eq!(
+        inspection.stages.last().map(|s| (s.stage, s.outcome)),
+        Some(("conditional_witness", "out_of_scope"))
+    );
     let candidate = inspection.candidate.expect("the reduced joint's s-hedge is kept");
-    assert_eq!(*candidate.reduced_query().outcomes, [v(1), v(2)]);
     let ctx = ExecutionContext::for_tests(1);
     candidate.recheck(&diagram, &q, &ctx).unwrap();
-    // It round-trips as data and re-checks from the record alone.
     let json = serde_json::to_vec(&candidate.to_record()).unwrap();
     ConditionalObstructionCandidate::from_record_checked(
         serde_json::from_slice(&json).unwrap(),
@@ -183,17 +238,114 @@ fn a_reduced_joint_s_hedge_is_not_certified_never_proven() {
     .unwrap();
 }
 
+/// Every mutation of a verified witness fails the exact verifier: a changed
+/// probability (re-normalized or not), a swapped or edited query value, another
+/// level, a missing latent, a relabelled edge, a mechanism over other parents,
+/// a dropped target mechanism, another query and another selection premise.
+#[test]
+fn witness_mutations_fail_verification() {
+    let diagram =
+        SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), [v(1)]).unwrap();
+    let q = query(&[1], &[0], &[2]);
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) =
+        decide(&diagram, &q, &full_catalog(3, &[]))
+    else {
+        panic!("proven");
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    let witness = proof.witness().clone();
+    let refused =
+        |w: &ConditionalWitnessRecord, d: &SelectionDiagram, q: &ConditionalTransportQuery| {
+            let error = verify_conditional_witness(d, q, w, &ctx).expect_err("mutated witness");
+            assert_eq!(
+                admg_conditional_refusal(&error),
+                Some(("transport_not_certified", "admg_transport.invalid_derivation")),
+                "{error:?}"
+            );
+        };
+    let mutate = |f: &dyn Fn(&mut ConditionalWitnessRecord)| {
+        let mut w = witness.clone();
+        f(&mut w);
+        refused(&w, &diagram, &q);
+    };
+    // A mechanism probability moved: some law or the query value changes.
+    for model in 0..2 {
+        for node in 0..3 {
+            mutate(&|w| {
+                let m = if model == 0 { &mut w.first } else { &mut w.second };
+                m.source[node].ones[0] = "1/7".into();
+            });
+        }
+        mutate(&|w| {
+            let m = if model == 0 { &mut w.first } else { &mut w.second };
+            m.target[0].ones[0] = "1/7".into();
+        });
+    }
+    // A latent law re-normalized differently, or not summing to one.
+    mutate(&|w| {
+        let law = &mut w.second.latents[0].probabilities;
+        law.reverse();
+    });
+    mutate(&|w| w.first.latents[0].probabilities[0] = "1/1000".into());
+    // Non-canonical or out-of-range spelling.
+    mutate(&|w| w.first.source[0].ones[0] = format!("2{}", &w.first.source[0].ones[0]));
+    mutate(&|w| w.first.source[2].ones[0] = "1/1".into());
+    // Query values swapped, edited, or claimed for another level.
+    mutate(&|w| std::mem::swap(&mut w.first_value, &mut w.second_value));
+    mutate(&|w| w.first_value = w.second_value.clone());
+    mutate(&|w| w.outcome_level[0] ^= 1);
+    mutate(&|w| w.treatment_level.clear());
+    // The second model replaced by the first: the models agree on the query.
+    mutate(&|w| {
+        w.second = w.first.clone();
+        w.second_value = w.first_value.clone();
+    });
+    // Structure: a dropped latent, a relabelled edge, other parents, a dropped
+    // target mechanism, an extra one.
+    mutate(&|w| {
+        w.first.latents.clear();
+    });
+    mutate(&|w| w.second.latents[0].edge = [1, 2]);
+    mutate(&|w| w.first.source[2].parents = vec![0]);
+    mutate(&|w| {
+        w.second.target.clear();
+    });
+    mutate(&|w| {
+        let extra = w.first.source[0].clone();
+        w.first.target.push(extra);
+    });
+    // Another query, and the same witness on a diagram without the selection.
+    refused(&witness, &diagram, &query(&[2], &[0], &[1]));
+    let unselected = SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), []).unwrap();
+    refused(&witness, &unselected, &q);
+    // The record path refuses a mutated witness, and a mutated s-hedge, too.
+    let mut record = proof.to_record();
+    record.witness.second_value = record.witness.first_value.clone();
+    assert!(
+        ConditionalNonTransportabilityProof::from_record_checked(record, &diagram, &q, &ctx)
+            .is_err()
+    );
+    let mut record = proof.to_record();
+    record.s_hedge.as_mut().unwrap().larger.bidirected.clear();
+    assert!(
+        ConditionalNonTransportabilityProof::from_record_checked(record, &diagram, &q, &ctx)
+            .is_err()
+    );
+    // The unmutated witness still verifies.
+    verify_conditional_witness(&diagram, &q, &witness, &ctx).unwrap();
+}
+
 #[test]
 fn candidate_mutations_fail_verification() {
     let diagram =
         SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), [v(1)]).unwrap();
     let q = query(&[1], &[0], &[2]);
-    let ConditionalTransportDecision::NotCertified(inspection) =
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) =
         decide(&diagram, &q, &full_catalog(3, &[]))
     else {
-        panic!("not certified");
+        panic!("proven");
     };
-    let candidate = inspection.candidate.unwrap();
+    let candidate = proof.candidate().unwrap().clone();
     let ctx = ExecutionContext::for_tests(1);
     let check = |record| {
         ConditionalObstructionCandidate::from_record_checked(record, &diagram, &q, &ctx)
@@ -516,6 +668,9 @@ fn reduction_of(decision: ConditionalTransportDecision) -> (Vec<VariableId>, Vec
         ConditionalTransportDecision::MissingEvidence { derivation, .. } => {
             (derivation.moves().to_vec(), derivation.remaining().to_vec())
         }
+        ConditionalTransportDecision::ProvenNonTransportable(proof) => {
+            (proof.moves().to_vec(), proof.remaining().to_vec())
+        }
         ConditionalTransportDecision::NotCertified(inspection) => {
             (inspection.moves, inspection.remaining)
         }
@@ -534,7 +689,7 @@ fn every_decided_reduction_passes_the_independent_checker() {
     let ctx = ExecutionContext::for_tests(1);
     let limits = ADMG_CONDITIONAL_DEFAULT_LIMITS;
     let catalog = full_catalog(3, &[]);
-    let (mut identified, mut candidates, mut moved) = (0usize, 0usize, 0usize);
+    let (mut identified, mut candidates, mut moved, mut proven) = (0usize, 0usize, 0usize, 0usize);
     for (directed, bidirected) in three_node_admgs() {
         for selections in three_node_selections() {
             let diagram =
@@ -560,6 +715,15 @@ fn every_decided_reduction_passes_the_independent_checker() {
                     ConditionalTransportDecision::MissingEvidence { derivation, .. } => {
                         derivation.recheck(&diagram, limits, &ctx).unwrap();
                     }
+                    ConditionalTransportDecision::ProvenNonTransportable(proof) => {
+                        // The proof (witness and explanation) re-checks from its record.
+                        proof.recheck(&diagram, &q, &ctx).unwrap();
+                        if let Some(candidate) = proof.candidate() {
+                            candidate.recheck(&diagram, &q, &ctx).unwrap();
+                            candidates += 1;
+                        }
+                        proven += 1;
+                    }
                     ConditionalTransportDecision::NotCertified(inspection) => {
                         if let Some(candidate) = inspection.candidate {
                             candidate.recheck(&diagram, &q, &ctx).unwrap();
@@ -573,10 +737,12 @@ fn every_decided_reduction_passes_the_independent_checker() {
             }
         }
     }
-    eprintln!("checked: {identified} identified ({moved} with moves), {candidates} candidates");
+    eprintln!(
+        "checked: {identified} identified ({moved} with moves), {candidates} candidates, {proven} proven"
+    );
     assert!(
-        identified > 5_000 && moved > 1_000 && candidates > 100,
-        "{identified} {moved} {candidates}"
+        identified > 5_000 && moved > 1_000 && candidates > 100 && proven == candidates,
+        "{identified} {moved} {candidates} {proven}"
     );
 }
 

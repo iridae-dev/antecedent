@@ -13,11 +13,13 @@ use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_estimate::AdmgConditionalExactPlan;
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
-use antecedent_identify::BoundConditionalTransportFunctional;
+use antecedent_identify::{
+    BoundConditionalTransportFunctional, ConditionalNonTransportabilityProof,
+};
 use antecedent_io::IoError;
 use antecedent_io::admg_conditional_transport_artifact::{
     AdmgConditionalArtifactInput, AdmgConditionalArtifactWire, AdmgConditionalConsumeLimits,
-    admg_conditional_identification_error,
+    AdmgConditionalObstructionWire, admg_conditional_identification_error,
 };
 
 /// A prepared conditional formula: frozen proof, bound catalog, laws and plans.
@@ -85,6 +87,34 @@ pub fn consume_admg_conditional_transport_artifact(
 ) -> Result<AdmgConditionalResult, IoError> {
     let consumed = AdmgConditionalArtifactWire::consume_with_limits(bytes, limits, ctx)?;
     Ok(AdmgConditionalResult { distributions: consumed.distributions })
+}
+
+/// Export a proven obstruction (the proof record with its two-model witness)
+/// decided on `diagram`; the proof is re-checked before it is written and
+/// `variable_names` (or empty) is bound into the verified identity.
+///
+/// # Errors
+/// The proof does not re-check on `diagram`, or the premises do not encode.
+pub fn export_admg_conditional_obstruction(
+    diagram: &SelectionDiagram,
+    proof: &ConditionalNonTransportabilityProof,
+    variable_names: &[String],
+    ctx: &ExecutionContext,
+) -> Result<Vec<u8>, IoError> {
+    AdmgConditionalObstructionWire::checked(diagram, proof, variable_names, ctx)?.export()
+}
+
+/// Verify an exported proven obstruction: re-verify the two-model witness by
+/// exact enumeration and re-check the moves and the s-hedge. Nothing stored is
+/// trusted; no data is fetched.
+///
+/// # Errors
+/// Any decoding, bound, digest or verification failure, as a typed refusal.
+pub fn consume_admg_conditional_obstruction_artifact(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+) -> Result<ConditionalNonTransportabilityProof, IoError> {
+    Ok(AdmgConditionalObstructionWire::consume(bytes, ctx)?.proof)
 }
 
 /// Counted laws have no sampling theory on this route: refused before compiling.

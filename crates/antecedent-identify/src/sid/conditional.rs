@@ -32,12 +32,22 @@
 //! checker replays it under the same budget. A stored record re-runs both
 //! checks in [`ConditionalTransportDerivation::from_record_checked`] (the
 //! preparation and artifact consumer paths). The conditional truth is
-//! enumerated from latent SCMs in the test suites. That an s-hedge for
-//! the reduced joint (with a maximal moved set) makes the conditional
-//! non-transportable is the transport analogue of IDC completeness and is
-//! paper-inherited (not verified here), so such a case is
-//! [`ConditionalTransportDecision::NotCertified`] with an inspection-only
-//! [`ConditionalObstructionCandidate`], never an impossibility claim.
+//! enumerated from latent SCMs in the test suites.
+//!
+//! # Obstruction
+//!
+//! When sID does not certify the reduced joint, stage 4 searches for a
+//! two-model witness ([`super::conditional_witness`]): two latent models
+//! compatible with the diagram that agree on every source experimental law and
+//! the target observational law but differ on the conditional query. A pair the
+//! exact verifier accepts is [`ConditionalTransportDecision::ProvenNonTransportable`];
+//! the witness is the whole proof, no completeness theorem is used. Otherwise
+//! the decision is [`ConditionalTransportDecision::NotCertified`] with an
+//! inspection-only [`ConditionalObstructionCandidate`] (the reduced joint's
+//! s-hedge), never an impossibility claim. That an s-hedge for the reduced
+//! joint with a maximal moved set always makes the conditional
+//! non-transportable is Theorem 1 of Lee, Correa and Bareinboim (AAAI 2020),
+//! read but not relied on.
 //!
 //! # Selection does not change the moves
 //!
@@ -58,12 +68,16 @@
 //! [`SHedgeCertificate`] of the reduced joint with the rule-2 moves that produced
 //! the reduced query and the non-movable remainder. It is deliberately not a
 //! variant of `SHedgeCertificate`/`HedgeCertificate`, whose shapes are unchanged.
-//! A later shared conditional-obstruction witness can adopt its record
-//! ([`ConditionalObstructionRecord`]: moves, remaining set, s-hedge record) and
-//! upgrade it to a proof once the conditional completeness theorem is verified.
+//! A proof is the separate two-model witness carried by
+//! [`ConditionalNonTransportabilityProof`], which keeps the candidate as its
+//! explanation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::conditional_witness::{
+    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessSearch, search_conditional_witness,
+    verify_conditional_witness,
+};
 use super::mixed_source::{Checker, Set};
 use super::{
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportDerivation,
@@ -100,6 +114,8 @@ pub const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 const BOUNDS_EXCEEDED: &str = "admg_transport.bounds_exceeded";
 /// The reduced joint was not certified.
 const NOT_CERTIFIED: &str = "admg_transport.not_certified";
+/// An exactly verified two-model witness proves non-transportability.
+const PROVEN_NON_TRANSPORTABLE: &str = "admg_transport.proven_non_transportable";
 /// A certified joint whose searched formulas do not bind to the catalog.
 const MISSING_EVIDENCE: &str = "admg_transport.missing_evidence";
 /// A limit or cancellation stopped the decision.
@@ -109,6 +125,10 @@ const INVALID_DERIVATION: &str = "admg_transport.invalid_derivation";
 
 /// Stage names, in evaluation order.
 const STAGES: [&str; 3] = ["rule_two_reduction", "classical_sid", "catalog_binding"];
+/// The stage that runs instead of catalog binding when sID does not certify the
+/// reduced joint: the two-model witness search. It is not one of [`STAGES`]
+/// (receipts list the three identification stages).
+const WITNESS_STAGE: &str = "conditional_witness";
 
 /// The frozen `(reason code, admg_transport.* detail)` pair of an error the
 /// conditional route raises, as the B1 promotion record declares them. `None`
@@ -151,7 +171,7 @@ fn invalid_query(message: &str) -> IdentificationError {
     IdentificationError::invalid_input(format!("admg_transport.invalid_query: {message}"))
 }
 
-const fn invalid_derivation() -> IdentificationError {
+pub(super) const fn invalid_derivation() -> IdentificationError {
     IdentificationError::invalid_derivation(INVALID_DERIVATION)
 }
 
@@ -383,9 +403,9 @@ impl BoundConditionalTransportFunctional {
 /// Inspection-only candidate obstruction for a conditional query: the reduced
 /// joint's verified s-hedge together with the rule-2 moves that produced it.
 ///
-/// It is NOT a non-transportability proof: lifting the joint's s-hedge to the
-/// conditional query needs the conditional completeness theorem, which is
-/// paper-inherited. See the module's extension note.
+/// It is NOT a non-transportability proof by itself: lifting the joint's
+/// s-hedge to the conditional query is not relied on. A proof is a verified
+/// two-model witness ([`ConditionalNonTransportabilityProof`]).
 #[derive(Clone, Debug)]
 pub struct ConditionalObstructionCandidate {
     query: ConditionalTransportQuery,
@@ -493,6 +513,144 @@ impl ConditionalObstructionCandidate {
     }
 }
 
+/// A proven obstruction: an exactly verified two-model witness that the
+/// conditional query is not transportable, with the reduction (and the reduced
+/// joint's s-hedge, when the sID engine produced one) that led to it.
+///
+/// The proof is the witness alone ([`verify_conditional_witness`]): two models
+/// compatible with the selection diagram agree on every source experimental law
+/// and the target observational law and differ on `P*(y | do(x), w)`. No
+/// completeness theorem is used; the moves and s-hedge are re-checked
+/// explanations, not premises.
+#[derive(Clone, Debug)]
+pub struct ConditionalNonTransportabilityProof {
+    query: ConditionalTransportQuery,
+    moves: Arc<[VariableId]>,
+    remaining: Arc<[VariableId]>,
+    candidate: Option<ConditionalObstructionCandidate>,
+    witness: ConditionalWitnessRecord,
+    check: ConditionalWitnessCheck,
+}
+
+/// Untrusted portable obstruction: the reduction, the reduced joint's s-hedge
+/// (when present) and the two-model witness.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConditionalNonTransportabilityRecord {
+    /// Coordinates moved into the intervention set, in move order.
+    pub moves: Vec<u32>,
+    /// Coordinates still conditioned on, in query order.
+    pub remaining: Vec<u32>,
+    /// The reduced joint's s-hedge, when the sID engine produced one.
+    pub s_hedge: Option<SHedgeRecord>,
+    /// The two-model witness.
+    pub witness: ConditionalWitnessRecord,
+}
+
+impl ConditionalNonTransportabilityProof {
+    /// The conditional query.
+    #[must_use]
+    pub const fn query(&self) -> &ConditionalTransportQuery {
+        &self.query
+    }
+    /// Conditioned coordinates rule 2 moved into the intervention set.
+    #[must_use]
+    pub fn moves(&self) -> &[VariableId] {
+        &self.moves
+    }
+    /// Conditioned coordinates rule 2 cannot move.
+    #[must_use]
+    pub fn remaining(&self) -> &[VariableId] {
+        &self.remaining
+    }
+    /// The reduced joint's re-checked s-hedge, when the sID engine produced one.
+    #[must_use]
+    pub const fn candidate(&self) -> Option<&ConditionalObstructionCandidate> {
+        self.candidate.as_ref()
+    }
+    /// The verified two-model witness.
+    #[must_use]
+    pub const fn witness(&self) -> &ConditionalWitnessRecord {
+        &self.witness
+    }
+    /// What the witness's verification established.
+    #[must_use]
+    pub const fn check(&self) -> &ConditionalWitnessCheck {
+        &self.check
+    }
+    /// Export the proof.
+    #[must_use]
+    pub fn to_record(&self) -> ConditionalNonTransportabilityRecord {
+        let raw = |v: &[VariableId]| v.iter().map(|v| v.raw()).collect();
+        ConditionalNonTransportabilityRecord {
+            moves: raw(&self.moves),
+            remaining: raw(&self.remaining),
+            s_hedge: self.candidate.as_ref().map(|c| c.s_hedge().to_record()),
+            witness: self.witness.clone(),
+        }
+    }
+    /// Independently re-check an untrusted record: the witness by exact
+    /// enumeration (the proof), and the reduction and s-hedge (the explanation)
+    /// with the candidate's checkers.
+    ///
+    /// # Errors
+    /// `admg_transport.invalid_derivation` when any part does not check; an
+    /// invalid query; cancellation.
+    pub fn from_record_checked(
+        record: ConditionalNonTransportabilityRecord,
+        diagram: &SelectionDiagram,
+        query: &ConditionalTransportQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IdentificationError> {
+        validate(diagram, query)?;
+        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
+        let (moves, remaining) = check_reduction(
+            diagram,
+            query,
+            &ids(&record.moves),
+            &ids(&record.remaining),
+            &mut || poll_cancellation(ctx),
+        )?;
+        let candidate = match record.s_hedge {
+            Some(s_hedge) => Some(ConditionalObstructionCandidate::from_record_checked(
+                ConditionalObstructionRecord {
+                    moves: record.moves.clone(),
+                    remaining: record.remaining.clone(),
+                    s_hedge,
+                },
+                diagram,
+                query,
+                ctx,
+            )?),
+            None => None,
+        };
+        let check = verify_conditional_witness(diagram, query, &record.witness, ctx)?;
+        Ok(Self {
+            query: query.clone(),
+            moves: moves.into(),
+            remaining: remaining.into(),
+            candidate,
+            witness: record.witness,
+            check,
+        })
+    }
+    /// Re-check this proof against `diagram` and `query`.
+    ///
+    /// # Errors
+    /// As [`Self::from_record_checked`]; another query refuses.
+    pub fn recheck(
+        &self,
+        diagram: &SelectionDiagram,
+        query: &ConditionalTransportQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(), IdentificationError> {
+        if &self.query != query {
+            return Err(invalid_derivation());
+        }
+        Self::from_record_checked(self.to_record(), diagram, query, ctx).map(|_| ())
+    }
+}
+
 /// Stage outcomes of a finished (not stopped) decision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConditionalStageRecord {
@@ -518,12 +676,16 @@ pub struct ConditionalTransportInspection {
     pub candidate: Option<Box<ConditionalObstructionCandidate>>,
 }
 
-/// Outcome of a bounded conditional transport decision. No variant is an
-/// impossibility claim.
+/// Outcome of a bounded conditional transport decision. Only
+/// [`Self::ProvenNonTransportable`] is an impossibility claim, and it carries an
+/// exactly verified two-model witness.
 #[derive(Clone, Debug)]
 pub enum ConditionalTransportDecision {
     /// A checked derivation bound to the supplied catalog.
     Identified(Box<BoundConditionalTransportFunctional>),
+    /// An exactly verified two-model witness shows the query is not
+    /// transportable from the complete source family and the target law.
+    ProvenNonTransportable(Box<ConditionalNonTransportabilityProof>),
     /// The reduced joint is certified but no searched formula binds to the catalog.
     MissingEvidence {
         /// The certified derivation.
@@ -546,6 +708,9 @@ impl ConditionalTransportDecision {
     pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
         match self {
             Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::ProvenNonTransportable(_) => {
+                antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+            }
             Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
             Self::NotCertified(_) => antecedent_core::TransportOutcomeKind::NotCertified,
             Self::Exhausted(_) => antecedent_core::TransportOutcomeKind::BudgetCancel,
@@ -559,6 +724,7 @@ impl ConditionalTransportDecision {
     pub const fn reason_code(&self) -> Option<&'static str> {
         match self {
             Self::Identified(_) => None,
+            Self::ProvenNonTransportable(_) => Some("transport_proven_non_transportable"),
             Self::MissingEvidence { .. } => Some("transport_missing_evidence"),
             Self::NotCertified(_) => Some("transport_not_certified"),
             Self::Exhausted(_) => Some("transport_budget_cancel"),
@@ -569,6 +735,7 @@ impl ConditionalTransportDecision {
     pub const fn detail_code(&self) -> Option<&'static str> {
         match self {
             Self::Identified(_) => None,
+            Self::ProvenNonTransportable(_) => Some(PROVEN_NON_TRANSPORTABLE),
             Self::MissingEvidence { .. } => Some(MISSING_EVIDENCE),
             Self::NotCertified(inspection) => Some(inspection.detail),
             Self::Exhausted(_) => Some(BUDGET),
@@ -578,7 +745,7 @@ impl ConditionalTransportDecision {
 
 /// Validate the query against the diagram: coordinates, disjointness, populations
 /// and the declared bounds.
-fn validate(
+pub(super) fn validate(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
 ) -> Result<(), IdentificationError> {
@@ -619,7 +786,7 @@ fn validate(
 }
 
 /// Static variable of every dense node, in dense order.
-fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError> {
+pub(super) fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError> {
     graph
         .nodes()
         .iter()
@@ -762,7 +929,11 @@ fn check_reduction(
 /// the classical sID decision of the reduced
 /// joint (every engine step and the witness check), and the classical catalog
 /// search binding it. A stop anywhere is [`ConditionalTransportDecision::Exhausted`],
-/// never a verdict.
+/// never a verdict. When sID does not certify the reduced joint, the two-model
+/// witness search runs instead of the binding (one charge per attempt); a
+/// verified witness is [`ConditionalTransportDecision::ProvenNonTransportable`],
+/// and no witness or a stop inside that search is
+/// [`ConditionalTransportDecision::NotCertified`].
 ///
 /// # Errors
 /// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`] or a query outside the bounds
@@ -856,27 +1027,20 @@ fn decide_charged(
                 reduced,
                 s_hedge,
             };
-            return Ok(ConditionalTransportDecision::NotCertified(
-                ConditionalTransportInspection {
-                    detail: NOT_CERTIFIED,
-                    stages,
-                    moves,
-                    remaining,
-                    candidate: Some(Box::new(candidate)),
-                },
-            ));
+            return witness_stage(
+                diagram,
+                query,
+                moves,
+                remaining,
+                Some(candidate),
+                stages,
+                search,
+                ctx,
+            );
         }
         ClassicalTransportResult::NotCertified => {
             stages.push(ConditionalStageRecord { stage: STAGES[1], outcome: "not_certified" });
-            return Ok(ConditionalTransportDecision::NotCertified(
-                ConditionalTransportInspection {
-                    detail: NOT_CERTIFIED,
-                    stages,
-                    moves,
-                    remaining,
-                    candidate: None,
-                },
-            ));
+            return witness_stage(diagram, query, moves, remaining, None, stages, search, ctx);
         }
     };
     search.begin_stage();
@@ -911,6 +1075,61 @@ fn decide_charged(
             })
         }
     }
+}
+
+/// The witness stage of a decision whose reduced joint sID did not certify:
+/// search for an exactly verified two-model witness of the conditional query
+/// ([`super::conditional_witness`]), one charge of `search` per attempt. A
+/// verified witness is [`ConditionalTransportDecision::ProvenNonTransportable`];
+/// no witness, or a budget or cancellation stop inside this stage, keeps the
+/// decision `not_certified` (nothing is claimed either way) and names the stage
+/// outcome (`no_witness`, `out_of_scope` above the search bounds, or `stopped`).
+#[allow(clippy::too_many_arguments)] // The decision's state at the hand-off.
+fn witness_stage(
+    diagram: &SelectionDiagram,
+    query: &ConditionalTransportQuery,
+    moves: Vec<VariableId>,
+    remaining: Vec<VariableId>,
+    candidate: Option<ConditionalObstructionCandidate>,
+    mut stages: Vec<ConditionalStageRecord>,
+    search: &mut SharedSearch<'_>,
+    ctx: &ExecutionContext,
+) -> Result<ConditionalTransportDecision, IdentificationError> {
+    use super::SearchCharge;
+    let bytes = u64::try_from(sid_memory_bytes(diagram, 1)).unwrap_or(u64::MAX);
+    let found = search_conditional_witness(
+        diagram,
+        query,
+        &mut || search.charge(1, bytes).map_err(super::stop_error),
+        ctx,
+    );
+    let outcome = match found {
+        Ok(WitnessSearch::Found(witness, check)) => {
+            let witness = *witness;
+            return Ok(ConditionalTransportDecision::ProvenNonTransportable(Box::new(
+                ConditionalNonTransportabilityProof {
+                    query: query.clone(),
+                    moves: moves.into(),
+                    remaining: remaining.into(),
+                    candidate,
+                    witness,
+                    check,
+                },
+            )));
+        }
+        Ok(WitnessSearch::NotFound) => "no_witness",
+        Ok(WitnessSearch::OutOfScope) => "out_of_scope",
+        Err(error) if error.is_budget_or_cancel() => "stopped",
+        Err(error) => return Err(error),
+    };
+    stages.push(ConditionalStageRecord { stage: WITNESS_STAGE, outcome });
+    Ok(ConditionalTransportDecision::NotCertified(ConditionalTransportInspection {
+        detail: NOT_CERTIFIED,
+        stages,
+        moves,
+        remaining,
+        candidate: candidate.map(Box::new),
+    }))
 }
 
 /// Stage 1 as a decision runs it: the search's reduction, then its independent

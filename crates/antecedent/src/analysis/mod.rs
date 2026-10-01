@@ -41,7 +41,8 @@ mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub use admg_conditional_transport::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
-    consume_admg_conditional_transport_artifact,
+    consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
+    export_admg_conditional_obstruction,
 };
 pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
 pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
