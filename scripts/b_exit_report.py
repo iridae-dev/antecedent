@@ -3,9 +3,10 @@
 
 The per-package registry `B_PACKAGES` below is where each 2.2B package owner adds the
 end-to-end story tests of their package (Rust integration-test targets and Python test files,
-all of which must pass from clean preparation through independent artifact consumption). Nothing
-is registered yet: no story test exists for any B package, so every package is
-PENDING_IMPLEMENTATION until its record is past `frozen` AND its stories are registered and pass.
+all of which must pass from clean preparation through independent artifact consumption). Each of
+B1-B6 registers one story in `crates/antecedent/tests/b_exit_gate.rs`; a package is still
+PENDING_IMPLEMENTATION while its record is `frozen` or `in_progress`, and PASS only once it is
+`promoted` with its stories passing and any allocated coverage measured.
 
     python3 scripts/b_exit_report.py --list-tests                      # TSV of tests to run
     python3 scripts/b_exit_report.py --runs runs.tsv --intervals iv.json \\
@@ -16,7 +17,7 @@ PENDING_IMPLEMENTATION until its record is past `frozen` AND its stories are reg
 (kind is `rust` or `python`; `log` is a file holding the captured output). `iv.json` is the output
 of `scripts/check_interval_coordinates.py --json`.
 
-STORY RULES (strict, deterministic; the registry stays empty until package owners add stories):
+STORY RULES (strict, deterministic):
   * a package reads PASS only if its `B_PACKAGES` entry registers story files (non-empty `rust` or
     `python`) AND lists `evidence`: the route-evidence assertions the story covers, by test name;
   * every evidence name must be a test function (`fn name` / `def name`) in a registered story file,
@@ -91,44 +92,44 @@ B_PACKAGES: dict[str, dict] = {
     "B1": {
         "workstream": "X2",
         "title": "latent-confounded ADMG transport row",
-        "rust": [],
+        "rust": [("antecedent", "b_exit_gate")],
         "python": [],
-        "evidence": [],
+        "evidence": ["story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refusals"],
     },
     "B2": {
         "workstream": "X4",
         "title": "smoothed dose-response transport grid",
-        "rust": [],
+        "rust": [("antecedent", "b_exit_gate")],
         "python": [],
-        "evidence": [],
+        "evidence": ["story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval"],
     },
     "B3": {
         "workstream": "X3",
         "title": "joint mechanism deviations + sampling uncertainty",
-        "rust": [],
+        "rust": [("antecedent", "b_exit_gate")],
         "python": [],
-        "evidence": [],
+        "evidence": ["story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range"],
     },
     "B4": {
         "workstream": "X6",
         "title": "planning over restricted catalogs / competing designs",
-        "rust": [],
+        "rust": [("antecedent", "b_exit_gate")],
         "python": [],
-        "evidence": [],
+        "evidence": ["story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival"],
     },
     "B5": {
         "workstream": "X8",
         "title": "bounded ADMG counterfactual-ID cell",
-        "rust": [],
+        "rust": [("antecedent", "b_exit_gate")],
         "python": [],
-        "evidence": [],
+        "evidence": ["story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell"],
     },
     "B6": {
         "workstream": "X10",
         "title": "exact binary causal observation recovery",
-        "rust": [],
+        "rust": [("antecedent", "b_exit_gate")],
         "python": [],
-        "evidence": [],
+        "evidence": ["story_b6_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification"],
     },
 }
 

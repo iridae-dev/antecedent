@@ -11,8 +11,8 @@
 #
 # REGISTRY: each B package adds its end-to-end story test files to `B_PACKAGES` in
 # scripts/b_exit_report.py (the single registry; `rust` = (crate, integration-test target) pairs,
-# `python` = test files under python/). Nothing is registered yet, because no B story test exists:
-# every package then reports PENDING_IMPLEMENTATION. Do not register a test that does not exist.
+# `python` = test files under python/). B1-B6 each register one story in
+# crates/antecedent/tests/b_exit_gate.rs. Do not register a test that does not exist.
 # A package can read PASS only with registered story files AND an `evidence` list (route-evidence
 # test names that must be defined in a story file or an already-cited record fixture and must appear
 # as passed in the story's run log; pytest runs with -rA so passes are listed by name). An allocated
