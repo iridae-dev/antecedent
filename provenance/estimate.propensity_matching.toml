@@ -16,6 +16,7 @@ implementation_deviations = [
  "The bias correction regresses outcomes only on the one-dimensional matching score, rather than estimating conditional outcome means over the original covariates as in the general Abadie-Imbens bias adjustment.",
  "The function labelled Abadie-Imbens standard error is a simplified matched-effect variance and donor-reuse formula, not the paper's conditional-residual variance estimator.",
  "An ordinary row bootstrap is enabled by default despite the cited result that this bootstrap is inconsistent for fixed-match nearest-neighbor estimators.",
+ "Clustered, multiway and HAC standard errors are refused rather than derived: fixed-M nearest-neighbor matching has no per-observation influence function, and its martingale representation (Abadie and Imbens 2006, 2012) is proved for random samples only; a cluster sum of it would need per-unit residuals and conditional effects that the linear bias correction does not estimate consistently.",
 ]
 
 upstream_implementations_observed = [

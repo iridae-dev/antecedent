@@ -398,6 +398,12 @@ class PropensityMatching:
     probability scale compresses near 0 and 1, exactly where match quality matters
     most, so a caliper given on it behaves quite differently. Pass
     ``caliper_scale="raw"`` to match on the clipped propensity directly.
+
+    Only the homoskedastic Abadie–Imbens standard error is published.
+    ``se="cluster"``, ``"multiway"``, ``"newey_west"`` and ``"panel_cluster_hac"``
+    are accepted here but refused at fit (``estimator_inference_mismatch``): no
+    clustered influence function exists for fixed-match nearest-neighbour matching.
+    Use :class:`Aipw` for clustered or serially dependent data.
     """
 
     bootstrap: int | None = None
@@ -477,7 +483,12 @@ class PropensityStratification:
 
 @dataclass(frozen=True, slots=True)
 class DistanceMatching:
-    """``distance.matching`` — Mahalanobis/caliper covariate-distance matching."""
+    """``distance.matching`` — Mahalanobis/caliper covariate-distance matching.
+
+    Only the homoskedastic Abadie–Imbens standard error is published; clustered,
+    multiway and HAC ``se`` kinds are refused at fit (``estimator_inference_mismatch``),
+    as for :class:`PropensityMatching`.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None

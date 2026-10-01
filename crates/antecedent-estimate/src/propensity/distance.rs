@@ -52,7 +52,10 @@ pub struct DistanceMatching {
     pub glm_options: GlmOptions,
     /// Optional maximum Euclidean distance for an accepted match.
     pub caliper: Option<f64>,
-    /// Analytic SE kind.
+    /// Analytic SE kind. Only `Homoskedastic` (Abadie–Imbens) is supported: cluster,
+    /// multiway and HAC kinds are refused (`estimator_inference_mismatch`) because no
+    /// clustered influence function exists for fixed-M nearest-neighbour matching; see
+    /// [`super::matching::matching_contrast`].
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids aligned to prepared complete-case rows.
     pub cluster_ids: Option<Vec<u32>>,

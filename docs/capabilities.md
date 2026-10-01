@@ -419,6 +419,25 @@ at runtime:
 * **Propensity-matching standard errors** use a pooled homoskedastic variance
   proxy rather than the full Abadie–Imbens conditional variance estimator. Under
   heteroskedastic outcome variance the reported standard error is biased.
+  Clustered, multiway, and HAC (Newey–West and panel cluster-HAC) standard
+  errors for propensity and covariate-distance matching are refused with
+  `estimator_inference_mismatch`, because no clustered influence function
+  exists for this estimator. One-nearest-neighbour matching with a fixed number
+  of matches is not asymptotically linear in a per-observation influence
+  function. Its only linear form is the martingale representation of Abadie and
+  Imbens (2006, 2012), in which each unit's residual enters with weight
+  `1 + K_i` (how often it is reused as a donor), and that representation is
+  proved for random samples only. A cluster sum of it would need per-unit
+  residuals and per-unit conditional effects. The estimator's linear bias
+  correction on the match feature does not estimate those consistently, and
+  Abadie and Imbens recover only the per-unit variance from same-arm matches.
+  Matching on an estimated propensity also needs the Abadie–Imbens (2016)
+  estimated-score adjustment, which is not implemented. Resampling does not
+  close the gap: the bootstrap (including a cluster bootstrap) is inconsistent
+  for fixed-match matching (Abadie and Imbens 2008), and the wild bootstrap of
+  the martingale representation (Otsu and Rai 2017) is proved for independent
+  samples only. For clustered or serially dependent data use AIPW, which
+  implements cluster, multiway, and HAC standard errors.
 
 Applying the first two outside their assumed regime produces a biased estimate
 with no runtime signal.

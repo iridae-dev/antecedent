@@ -13,6 +13,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.errors import CausalUnsupportedError
 from antecedent.estimators import (
     DML,
     UNSET,
@@ -366,3 +367,38 @@ def test_propensity_matching_caliper_scale_reaches_the_wire():
 def test_propensity_matching_rejects_unknown_caliper_scale():
     with pytest.raises(ValueError, match="caliper_scale"):
         PropensityMatching(caliper=0.2, caliper_scale="probit")  # type: ignore[arg-type]
+
+
+# --- matching refuses clustered, multiway and HAC standard errors ----------------------------
+
+
+@pytest.mark.parametrize("cls", [PropensityMatching, DistanceMatching])
+@pytest.mark.parametrize("se", ["cluster", "multiway", "newey_west", "panel_cluster_hac"])
+def test_matching_refuses_clustered_multiway_and_hac_se(cls, se):
+    """No clustered influence function exists for fixed-M nearest-neighbour matching, so
+    every dependence-robust ``se`` is refused by Rust (``estimator_inference_mismatch``);
+    only the homoskedastic Abadie–Imbens SE is published. See ``docs/capabilities.md``."""
+    data, graph = _public_scm()
+    n = len(data["z"])
+    clusters = [i % 20 for i in range(n)]
+    kwargs: dict = {"se": se}
+    if se == "cluster":
+        kwargs["cluster_ids"] = clusters
+    elif se == "multiway":
+        kwargs["multiway_ids"] = [clusters, [i % 15 for i in range(n)]]
+    else:
+        kwargs["se_lag"] = 2
+        kwargs["panel_times"] = [i // 20 for i in range(n)]
+    cfg = cls(**kwargs)
+    with pytest.raises(CausalUnsupportedError) as refused:
+        antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            seed=1,
+            refute=False,
+            estimator=cfg.estimator_id,
+            estimator_config=cfg._wire(),
+        )
+    assert refused.value.reason_code == "estimator_inference_mismatch"
+    assert "matching has no valid cluster, multiway or HAC standard error" in str(refused.value)
