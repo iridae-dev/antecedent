@@ -123,6 +123,37 @@ class TransportGridPoint(_Record):
         return TransportUncertainty(raw) if raw is not None else None
 
     @property
+    def support_status(self) -> str:
+        """``supported``, ``missing_evidence`` or ``outside_empirical_support``.
+
+        Missing evidence (no supplied law, provider or declared domain for this
+        coordinate) is kept apart from a support failure in the evidence that was
+        supplied (an empty stratum or a zero denominator).
+        """
+        native = self._values.get("support_status")
+        return str(native) if native is not None else grid_support_status(self.status)
+
+    @property
     def support_failure(self) -> TransportSupport | None:
+        """The located diagnostic of an unavailable coordinate, whichever its kind.
+
+        Read :attr:`support_status` for whether it is missing evidence or a
+        support failure.
+        """
         raw = self._values.get("factor_diagnostic")
         return TransportSupport(raw) if raw is not None else None
+
+
+def grid_support_status(point_status: str) -> str:
+    """Support label of a grid point's native status.
+
+    ``available`` is ``supported``; ``missing_evidence`` stays ``missing_evidence``;
+    every other unavailable status (``support_failure``) is
+    ``outside_empirical_support``. Payloads written before grid points carried
+    ``support_status`` are read through this mapping.
+    """
+    if point_status == "available":
+        return "supported"
+    if point_status == "missing_evidence":
+        return "missing_evidence"
+    return "outside_empirical_support"

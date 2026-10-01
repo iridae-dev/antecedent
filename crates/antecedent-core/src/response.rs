@@ -29,6 +29,14 @@ pub enum SupportStatus {
     /// On a temporal surface this means no requested cell sits inside its
     /// horizon's lag-aligned treatment range.
     OutsideEmpiricalSupport,
+    /// At least one requested coordinate could not be assessed because evidence it
+    /// requires (a supplied law, provider, or declared domain) is absent.
+    ///
+    /// This is not a verdict about the supplied evidence: a support failure (an empty
+    /// stratum or a zero denominator in evidence that was supplied) stays
+    /// [`Self::OutsideEmpiricalSupport`]. As a summary it ranks below every other label,
+    /// since nothing can be said about support where the evidence is missing.
+    MissingEvidence,
 }
 
 impl SupportStatus {
@@ -40,6 +48,19 @@ impl SupportStatus {
             Self::WeakOverlap => "weak_overlap",
             Self::Extrapolative => "extrapolative",
             Self::OutsideEmpiricalSupport => "outside_empirical_support",
+            Self::MissingEvidence => "missing_evidence",
+        }
+    }
+
+    /// Order for a worst-over-points summary: larger is weaker support.
+    #[must_use]
+    pub const fn severity(self) -> u8 {
+        match self {
+            Self::Supported => 0,
+            Self::WeakOverlap => 1,
+            Self::Extrapolative => 2,
+            Self::OutsideEmpiricalSupport => 3,
+            Self::MissingEvidence => 4,
         }
     }
 }

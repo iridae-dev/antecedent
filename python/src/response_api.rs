@@ -937,12 +937,7 @@ fn support_status_name(status: SupportStatus) -> &'static str {
 }
 
 const fn support_rank(status: SupportStatus) -> u8 {
-    match status {
-        SupportStatus::Supported => 0,
-        SupportStatus::WeakOverlap => 1,
-        SupportStatus::Extrapolative => 2,
-        SupportStatus::OutsideEmpiricalSupport => 3,
-    }
+    status.severity()
 }
 
 type ValueParts = (Vec<Vec<f64>>, Vec<Vec<f64>>, Option<f64>, Option<Vec<Vec<f64>>>);

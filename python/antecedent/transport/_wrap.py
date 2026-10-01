@@ -551,6 +551,7 @@ def _unavailable_result(
     *,
     shape: str,
     stage: Mapping[str, Any] | None,
+    support_status: str = "outside_empirical_support",
 ) -> AnalysisResult | CausalResponseView:
     identified = None if stage is None else stage.get("identified")
     section = TransportSection(
@@ -566,7 +567,7 @@ def _unavailable_result(
             response=None,
             estimate=None,
             uncertainty=ResponseUncertainty(kind="none"),
-            support=SupportReport(status="outside_empirical_support", query_region={}),
+            support=SupportReport(status=support_status, query_region={}),
             identification=view,
             diagnostics=(detail,),
             transport=section,
@@ -644,11 +645,29 @@ def _replicates(specialist: Any) -> tuple[int, ...]:
 
 @dataclass(frozen=True, slots=True)
 class _GridRow:
-    """One grid point as the view builder sees it: a coordinate and a mean, or a reason."""
+    """One grid point as the view builder sees it: a coordinate and a mean, or a reason.
+
+    ``support`` is the point's support label: ``supported`` with a mean, otherwise
+    ``missing_evidence`` or ``outside_empirical_support`` (a support failure).
+    """
 
     coordinate: float
     mean: float | None
     detail: str | None = None
+    support: str = "outside_empirical_support"
+
+
+#: Worst-over-points order of the grid support labels.
+_SUPPORT_SEVERITY = {
+    "supported": 0,
+    "outside_empirical_support": 3,
+    "missing_evidence": 4,
+}
+
+
+def _surface_support(statuses: Sequence[str]) -> str:
+    """Worst label over the requested points; missing evidence ranks weakest."""
+    return max(statuses, key=_SUPPORT_SEVERITY.__getitem__, default="supported")
 
 
 def _grid_view(
@@ -671,7 +690,9 @@ def _grid_view(
     for index, row in enumerate(rows):
         if row.mean is None:
             detail = row.detail or "unavailable"
-            statuses.append("outside_empirical_support")
+            statuses.append(
+                row.support if row.support in _SUPPORT_SEVERITY else "outside_empirical_support"
+            )
             diagnostics.append(
                 SupportDiagnostic(id=f"grid:{index}", values=(row.coordinate,), detail=detail)
             )
@@ -687,12 +708,9 @@ def _grid_view(
             warnings[0] if warnings else "every requested grid point is unbound",
             shape="grid",
             stage=stage,
+            support_status=_surface_support(statuses) if statuses else "missing_evidence",
         )
-    support_status = (
-        "supported"
-        if all(item == "supported" for item in statuses)
-        else "outside_empirical_support"
-    )
+    support_status = _surface_support(statuses)
     region = {treatment: (min(p[0] for p in points), max(p[0] for p in points))}
     result = CausalResponseView(
         estimand=query.question,
@@ -769,6 +787,7 @@ def _wrap_restricted(
             coordinate=float(point.at.get(treatment, index)),
             mean=float(point.means[outcome]) if point.status == "available" else None,
             detail=None if point.status == "available" else point.status,
+            support=point.support_status,
         )
         for index, point in enumerate(points)
     ]
@@ -905,6 +924,7 @@ def _wrap_grid(
                 coordinate=float(at.get(treatment, index)),
                 mean=float(row["means"][outcome]) if available else None,
                 detail=None if available else str(row.get("detail") or row["status"]),
+                support=row.support_status,
             )
         )
     if stage.get("shape") == "contrast":
@@ -941,13 +961,17 @@ def unavailable_from_stage(study: Any) -> AnalysisResult | CausalResponseView:
                 f"{_inner_phrase(query)} is identified for {query.target}, "
                 "but a cited joint is unbound."
             )
-        else:
-            detail = not_certified_detail(identified, query=query)
+            return _unavailable_result(
+                study, query, detail, shape=shape, stage=stage, support_status="missing_evidence"
+            )
+        detail = not_certified_detail(identified, query=query)
         return _unavailable_result(study, query, detail, shape=shape, stage=stage)
     if identified.outcome in {"identified", "missing_evidence"}:
         if catalog is None:
             raise CausalUnsupportedError("transport study has no bound evidence catalog")
         detail = missing_evidence_detail(identified, catalog, query=query)
-    else:
-        detail = not_certified_detail(identified, query=query)
+        return _unavailable_result(
+            study, query, detail, shape=shape, stage=stage, support_status="missing_evidence"
+        )
+    detail = not_certified_detail(identified, query=query)
     return _unavailable_result(study, query, detail, shape=shape, stage=stage)

@@ -56,7 +56,14 @@ must enter through the ordinary prepare and refresh path.
 ## Local support / positivity
 
 A grid keeps unsupported coordinates. `result.support` locates the empty
-cell; it does not delete the point. See `transport_support_local` in
+cell; it does not delete the point. Each point's `support_status` (and the
+transported curve's `support.point_status`) keeps the two failures apart: a
+coordinate with no supplied law, provider or declared domain is
+`missing_evidence`; an empty stratum or zero denominator in supplied evidence is
+`outside_empirical_support`. The surface `support.status` is the weakest label
+over the points, with `missing_evidence` weakest. The grid's support slot counts
+them separately (`1 unavailable (1 missing evidence, 0 support failure)`);
+artifacts written with the earlier undifferentiated count still load. See `transport_support_local` in
 `parity/transport_stages.toml`. The neighboring success is a supported
 assignment on the same grid.
 

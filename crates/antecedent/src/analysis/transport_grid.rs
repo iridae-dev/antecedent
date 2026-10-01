@@ -134,6 +134,63 @@ impl TransportGridPoint {
             Self::Unavailable(_) => None,
         }
     }
+    /// This coordinate's support in the shared response vocabulary.
+    ///
+    /// An executable coordinate is [`SupportStatus::Supported`](antecedent_core::SupportStatus).
+    /// An unavailable one keeps its failure kind apart: absent evidence (no supplied law,
+    /// provider, or declared domain) is `MissingEvidence`, while a support failure in the
+    /// supplied evidence (an empty stratum, a zero denominator) is `OutsideEmpiricalSupport`.
+    #[must_use]
+    pub fn support_status(&self) -> antecedent_core::SupportStatus {
+        match self {
+            Self::Exact(..) | Self::Statistical(..) => antecedent_core::SupportStatus::Supported,
+            Self::Unavailable(failure) if failure.kind == "missing_evidence" => {
+                antecedent_core::SupportStatus::MissingEvidence
+            }
+            Self::Unavailable(_) => antecedent_core::SupportStatus::OutsideEmpiricalSupport,
+        }
+    }
+}
+/// Executed grid tally behind the support slot: points, missing-evidence points,
+/// support-failure points, and whether the provider is statistical.
+#[derive(Clone, Copy)]
+struct GridTally {
+    points: usize,
+    missing: usize,
+    failed: usize,
+    statistical: bool,
+}
+impl GridTally {
+    fn of<'a>(kinds: impl Iterator<Item = Option<&'a str>>, statistical: bool) -> Self {
+        let mut tally = Self { points: 0, missing: 0, failed: 0, statistical };
+        for kind in kinds {
+            tally.points += 1;
+            match kind {
+                Some("missing_evidence") => tally.missing += 1,
+                Some(_) => tally.failed += 1,
+                None => {}
+            }
+        }
+        tally
+    }
+    /// The support summary. A fully executable grid keeps the summary it always had; a
+    /// grid with unavailable points separates missing evidence from support failures.
+    /// `legacy` is the undifferentiated summary written before that split.
+    fn empirical(self, legacy: bool) -> String {
+        let unavailable = self.missing + self.failed;
+        let executable = self.points - unavailable;
+        if legacy || unavailable == 0 {
+            format!(
+                "{executable} executable; {unavailable} unavailable; population positivity assumed"
+            )
+        } else {
+            format!(
+                "{executable} executable; {unavailable} unavailable ({} missing evidence, {} \
+                 support failure); population positivity assumed",
+                self.missing, self.failed
+            )
+        }
+    }
 }
 fn point_evidence(point: &TransportGridPoint) -> Result<String, IoError> {
     match point {
@@ -182,9 +239,11 @@ impl TransportGridResult {
     /// All four durable reasoning slots; per-point inference is retained in each point.
     #[must_use]
     pub fn reasoning(&self) -> antecedent_core::ReasoningView {
-        let unavailable =
-            self.points.iter().filter(|p| matches!(p, TransportGridPoint::Unavailable(_))).count();
-        grid_reasoning_view(Some((self.points.len(), unavailable, self.wire.statistical)))
+        let kinds = self.points.iter().map(|point| match point {
+            TransportGridPoint::Unavailable(failure) => Some(failure.kind.as_str()),
+            _ => None,
+        });
+        grid_reasoning_view(Some(GridTally::of(kinds, self.wire.statistical)), false)
     }
     /// Complete family, evidence, provider and inference identity.
     #[must_use]
@@ -270,9 +329,13 @@ impl TransportGridResult {
 
 /// The one author of a grid's reasoning slots: the in-memory view, the portable section and
 /// the pre-execution inspection all derive from it, so they can never disagree.
-/// `execution` is `(points, unavailable points, statistical)` once the grid has run; before
-/// that, support and uncertainty are execution-specific.
-fn grid_reasoning_view(execution: Option<(usize, usize, bool)>) -> antecedent_core::ReasoningView {
+/// `execution` is the executed tally once the grid has run; before that, support and
+/// uncertainty are execution-specific. `legacy` writes the support summary as it was
+/// before missing evidence and support failures were counted apart.
+fn grid_reasoning_view(
+    execution: Option<GridTally>,
+    legacy: bool,
+) -> antecedent_core::ReasoningView {
     use antecedent_core::{
         AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
         IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
@@ -284,21 +347,22 @@ fn grid_reasoning_view(execution: Option<(usize, usize, bool)>) -> antecedent_co
         )),
         execution.map_or_else(
             || SlotAvailability::unavailable("execution_specific"),
-            |(total, unavailable, _)| {
+            |tally| {
                 SlotAvailability::Available(SupportSlot::new(
                     "stage_contract",
                     Some(Arc::from("transport.response_grid")),
-                    SlotAvailability::Available(Arc::from(format!(
-                        "{} executable; {unavailable} unavailable; population positivity assumed",
-                        total - unavailable
-                    ))),
+                    SlotAvailability::Available(Arc::from(tally.empirical(legacy))),
                 ))
             },
         ),
         SlotAvailability::unavailable(match execution {
             None => "execution_specific",
-            Some((_, _, true)) => "pointwise_components_in_retained_points; calibration_not_bound",
-            Some((_, _, false)) => "exact_supplied_law_no_sampling_uncertainty",
+            Some(GridTally { statistical: true, .. }) => {
+                "pointwise_components_in_retained_points; calibration_not_bound"
+            }
+            Some(GridTally { statistical: false, .. }) => {
+                "exact_supplied_law_no_sampling_uncertainty"
+            }
         }),
         SlotAvailability::Available(AssumptionSlot::new(vec![ObligationRecord::new(
             "transport.population_selection_graph",
@@ -313,13 +377,16 @@ fn grid_reasoning_view(execution: Option<(usize, usize, bool)>) -> antecedent_co
 fn grid_reasoning(
     points: &[GridPointWire],
     statistical: bool,
+    legacy: bool,
 ) -> antecedent_io::contract_section::ReasoningSectionWire {
-    let unavailable = points.iter().filter(|p| matches!(p, GridPointWire::Unavailable(_))).count();
-    super::contract::reasoning_section(&grid_reasoning_view(Some((
-        points.len(),
-        unavailable,
-        statistical,
-    ))))
+    let kinds = points.iter().map(|point| match point {
+        GridPointWire::Unavailable(failure) => Some(failure.kind.as_str()),
+        _ => None,
+    });
+    super::contract::reasoning_section(&grid_reasoning_view(
+        Some(GridTally::of(kinds, statistical)),
+        legacy,
+    ))
 }
 fn validate_grid(
     functional: &BoundTransportFunctional,
@@ -543,7 +610,11 @@ impl StudyBuilder {
             options,
             points: vec![],
             point_evidence: vec![],
-            reasoning: grid_reasoning(&[], matches!(input, TransportGridData::Statistical(..))),
+            reasoning: grid_reasoning(
+                &[],
+                matches!(input, TransportGridData::Statistical(..)),
+                false,
+            ),
         };
         Ok(PreparedStudy {
             state: TransportGridState {
@@ -568,7 +639,7 @@ impl PreparedStudy<TransportGridState> {
     /// and uncertainty stay execution-specific until the grid runs.
     #[must_use]
     pub fn inspect(&self) -> antecedent_core::ReasoningView {
-        grid_reasoning_view(None)
+        grid_reasoning_view(None, false)
     }
     /// Whether the retained native providers permit estimator replay without refresh.
     #[must_use]
@@ -690,7 +761,7 @@ impl PreparedStudy<TransportGridState> {
         if ctx.cancellation.is_cancelled() {
             return Err(err("transport.cancelled"));
         }
-        wire.reasoning = grid_reasoning(&wire.points, wire.statistical);
+        wire.reasoning = grid_reasoning(&wire.points, wire.statistical, false);
         wire.point_evidence = points.iter().map(point_evidence).collect::<Result<_, _>>()?;
         Ok(TransportGridResult {
             identity: antecedent_io::transport_grid_wire::grid_identity(&wire)?,
@@ -884,7 +955,11 @@ impl PreparedStudy<TransportGridState> {
         {
             return Err(err("unsupported transport grid features/version/limits"));
         }
-        if wire.reasoning != grid_reasoning(&wire.points, wire.statistical) {
+        // A grid written before the support summary separated missing evidence from
+        // support failures carries the undifferentiated summary; both are this grid's.
+        if wire.reasoning != grid_reasoning(&wire.points, wire.statistical, false)
+            && wire.reasoning != grid_reasoning(&wire.points, wire.statistical, true)
+        {
             return Err(err("grid reasoning mismatch"));
         }
         if antecedent_io::transport_grid_wire::grid_identity(&wire)?
@@ -1166,7 +1241,80 @@ mod tests {
         let support = result.wire.reasoning.support.value.as_ref().expect("support slot");
         assert_eq!(support.matrix_status, "stage_contract");
         assert_eq!(support.matrix_coordinate.as_deref(), Some("transport.response_grid"));
-        assert_eq!(support.empirical, "1 executable; 1 unavailable; population positivity assumed");
+        assert_eq!(
+            support.empirical,
+            "1 executable; 1 unavailable (1 missing evidence, 0 support failure); \
+             population positivity assumed"
+        );
+    }
+
+    #[test]
+    fn grid_support_distinguishes_missing_evidence_from_a_support_failure() {
+        use antecedent_core::SupportStatus;
+        let ctx = ExecutionContext::for_tests(0);
+        let result = fixture().estimate(&ctx).unwrap();
+        // No law is supplied under do(X = 0): that coordinate lacks evidence; it is not a
+        // support verdict about the evidence that was supplied.
+        let TransportGridPoint::Unavailable(missing) = &result.points()[0] else {
+            panic!("the unbound coordinate is retained as unavailable");
+        };
+        assert_eq!(missing.kind, "missing_evidence");
+        assert_eq!(result.points()[0].support_status(), SupportStatus::MissingEvidence);
+        assert_eq!(result.points()[1].support_status(), SupportStatus::Supported);
+        let mut failed = missing.clone();
+        failed.kind = "support_failure".into();
+        assert_eq!(
+            TransportGridPoint::Unavailable(failed).support_status(),
+            SupportStatus::OutsideEmpiricalSupport
+        );
+        let support = result.wire.reasoning.support.value.as_ref().expect("support slot");
+        assert_eq!(
+            support.empirical,
+            "1 executable; 1 unavailable (1 missing evidence, 0 support failure); \
+             population positivity assumed"
+        );
+    }
+
+    #[test]
+    fn grid_artifact_with_the_undifferentiated_support_summary_still_loads() {
+        // Artifacts written before the support summary split its unavailable count keep
+        // loading, and re-export byte for byte.
+        let ctx = ExecutionContext::for_tests(0);
+        let result = fixture().estimate(&ctx).unwrap();
+        let artifact = antecedent_io::transport_certificate::read_bounded_transport_artifact(
+            &result.export().unwrap(),
+            &ctx,
+        )
+        .unwrap();
+        let mut wire: GridWire = antecedent_io::from_cbor(&artifact.sections[0].data).unwrap();
+        let support = wire.reasoning.support.value.as_mut().expect("support slot");
+        support.empirical = "1 executable; 1 unavailable; population positivity assumed".into();
+        let id = antecedent_io::transport_grid_wire::grid_identity(&wire).unwrap();
+        let bytes = wire.export(&id).unwrap();
+        let (_, loaded) = PreparedStudy::<TransportGridState>::consume(
+            &bytes,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(loaded.identity(), id);
+        assert_eq!(loaded.export().unwrap(), bytes);
+        assert_eq!(
+            loaded.points()[0].support_status(),
+            antecedent_core::SupportStatus::MissingEvidence
+        );
+        // Any other summary is still a mismatch.
+        let support = wire.reasoning.support.value.as_mut().expect("support slot");
+        support.empirical = "2 executable; 0 unavailable; population positivity assumed".into();
+        let id = antecedent_io::transport_grid_wire::grid_identity(&wire).unwrap();
+        assert!(
+            PreparedStudy::<TransportGridState>::consume(
+                &wire.export(&id).unwrap(),
+                ExactEvaluationLimits::default(),
+                &ctx
+            )
+            .is_err()
+        );
     }
 
     #[test]
