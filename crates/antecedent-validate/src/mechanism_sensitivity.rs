@@ -284,7 +284,8 @@ pub enum ZTransportSensitivityError {
     ProviderMismatch,
     /// Outcome, treatment, or shared parent has unsupported finite numeric support.
     UnsupportedDomain,
-    /// Source law cannot supply every outcome kernel stratum.
+    /// Source law cannot supply every outcome kernel stratum, or its shared
+    /// parent marginal does not have unit mass.
     IncompleteKernel,
     /// Contamination fraction or response threshold is invalid.
     InvalidSensitivity(DiscreteKernelSensitivityError),
@@ -303,13 +304,19 @@ impl fmt::Display for ZTransportSensitivityError {
             Self::UnsupportedDomain => {
                 "z sensitivity requires finite numeric outcome and binary treatment domains"
             }
-            Self::IncompleteKernel => "source law has an empty outcome-kernel stratum",
+            Self::IncompleteKernel => {
+                "source law has an empty outcome-kernel stratum or a parent marginal without unit mass"
+            }
             Self::Cancelled => "z sensitivity cancelled",
             Self::InvalidSensitivity(error) => return write!(f, "{error}"),
         })
     }
 }
 impl std::error::Error for ZTransportSensitivityError {}
+
+/// Largest admitted `|sum - 1|` of the shared parent marginal (the
+/// evaluator's kernel-row tolerance).
+const Z_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
 
 /// Evaluate the checked z formula under a single coherent outcome-kernel contamination.
 ///
@@ -329,6 +336,13 @@ pub fn z_transport_mechanism_sensitivity(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportMechanismSensitivityResult, ZTransportSensitivityError> {
     let kernels = z_surrogate_kernels(diagram, functional, data, ctx)?;
+    // The stratum weights are the law's raw parent mass, which a caller's loose
+    // `LawTolerance` can leave far from one; the baseline and range would then
+    // be scaled by it. Unit mass is enforced, not repaired.
+    let total = kernels.parent_marginal.iter().sum::<f64>();
+    if !(total.is_finite() && (total - 1.0).abs() <= Z_SENSITIVITY_UNIT_MASS_TOLERANCE) {
+        return Err(ZTransportSensitivityError::IncompleteKernel);
+    }
     let response = DiscreteKernelSensitivity {
         source_kernel: kernels.kernels,
         outcome_values: kernels.outcome_values,

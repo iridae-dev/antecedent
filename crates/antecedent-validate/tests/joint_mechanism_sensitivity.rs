@@ -34,7 +34,7 @@ use antecedent_identify::{
 };
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
-    JointSensitivityError, JointSensitivityLimits, TippingStatus,
+    JointSensitivityError, JointSensitivityLimits, TippingStatus, ZTransportSensitivityError,
     z_transport_joint_mechanism_sensitivity, z_transport_mechanism_sensitivity,
 };
 
@@ -1240,6 +1240,47 @@ fn factor_normalization_is_enforced_and_every_stage_reads_one_scale() {
             );
         }
     }
+}
+
+#[test]
+fn the_2_1_route_enforces_unit_parent_mass_like_the_joint_route() {
+    let model = fixed_model();
+    let run_on = |data: &ExactTransportData| {
+        z_transport_mechanism_sensitivity(
+            &diagram(),
+            &functional(),
+            data,
+            0.2,
+            None,
+            &ExecutionContext::for_tests(1),
+        )
+    };
+    // The one-factor route weights strata by the law's raw parent mass, so a
+    // loose-tolerance law of mass 0.8 would scale the baseline and range by
+    // 0.8. It refuses as an incomplete kernel instead, as the joint route does.
+    let loose = LawTolerance { absolute: 0.0, relative: 0.25 };
+    for scale in [0.8, 1.2, 1.0 + 2e-10] {
+        assert_eq!(
+            run_on(&scaled_data(&model, scale, loose)).unwrap_err(),
+            ZTransportSensitivityError::IncompleteKernel,
+            "parent marginal of mass {scale}"
+        );
+    }
+    // Within the unit-mass tolerance the law is evaluated as read and agrees
+    // with the joint route's single kernel factor bit for bit.
+    let near = scaled_data(&model, 1.0 + 9e-11, LawTolerance::default());
+    let one_factor = run_on(&near).unwrap();
+    let joint = z_transport_joint_mechanism_sensitivity(
+        &diagram(),
+        &functional(),
+        &near,
+        &spec(Some(0.2), None),
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    assert_eq!(joint.baseline.to_bits(), one_factor.response.baseline.to_bits());
+    assert_eq!(joint.range.minimum.to_bits(), one_factor.response.minimum.to_bits());
+    assert_eq!(joint.range.maximum.to_bits(), one_factor.response.maximum.to_bits());
 }
 
 #[test]
