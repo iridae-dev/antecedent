@@ -26,6 +26,7 @@ mod contract_identity;
 mod exact;
 mod execute;
 mod joint_sensitivity;
+mod joint_sensitivity_uncertainty;
 mod learned_continuous;
 mod learned_trial;
 mod mixed_source;
@@ -67,9 +68,10 @@ pub use exact::{
 };
 pub use joint_sensitivity::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
-    JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
-    JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
+    JointProvenanceWire, JointReceiptWire, JointSensitivityArtifactWire, JointSensitivityBodyWire,
+    JointSensitivityConsumeLimits, JointTippingWire,
 };
+pub use joint_sensitivity_uncertainty::JointSamplingWire;
 pub use learned_continuous::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
 };

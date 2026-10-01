@@ -557,6 +557,58 @@ fn stored_limits_above_the_consumer_maxima_refuse_before_any_work() {
 }
 
 #[test]
+fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay() {
+    let wire = artifact();
+    let effective = wire.body.receipt.memory_limit_bytes;
+    assert_eq!(wire.body.perturbation.memory_bytes, 64 << 20);
+    assert_eq!(effective, 64 << 20, "a producer context without a hard limit");
+    let limited = ("route_not_supported", "joint_sensitivity.consumer_limits".to_owned());
+    let consume_under = |mutated: &JointSensitivityArtifactWire, max_memory_bytes: u64| {
+        JointSensitivityArtifactWire::consume_with_limits(
+            &mutated.export().unwrap(),
+            JointSensitivityConsumeLimits { max_memory_bytes, ..Default::default() },
+            &ExecutionContext::for_tests(1),
+        )
+    };
+    let declared = |cap: u64, sealed: bool| {
+        let mut mutated = wire.clone();
+        mutated.body.perturbation.memory_bytes = cap;
+        if sealed {
+            reseal(&mut mutated);
+        }
+        mutated
+    };
+    // Not re-sealed: the declared cap is a premise.
+    assert_eq!(
+        refused(&consume_under(&declared(128 << 20, false), 128 << 20).unwrap_err()),
+        ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned())
+    );
+    // Re-sealed and at or above the effective cap: accepted. This is the
+    // documented gap (what replay does not protect against): the numbers depend
+    // only on the effective cap, and a producer with a context hard limit writes
+    // effective < declared, so replay cannot re-derive the declared cap.
+    let raised = declared(128 << 20, true);
+    assert_eq!(consume_under(&raised, 128 << 20).unwrap(), raised);
+    // Re-sealed below the effective cap: refused before any work.
+    assert_eq!(
+        refused(&consume_under(&declared(effective - 1, true), 128 << 20).unwrap_err()),
+        limited
+    );
+    // Re-sealed above this consumer's maximum, or above the producer's 512 MiB
+    // ceiling (which no producer can declare) under any consumer maximum:
+    // refused before any work.
+    assert_eq!(refused(&consume_under(&raised, 64 << 20).unwrap_err()), limited);
+    assert_eq!(
+        refused(&consume_under(&declared((512 << 20) + 1, true), u64::MAX).unwrap_err()),
+        limited
+    );
+    assert_eq!(
+        consume_under(&declared(512 << 20, true), u64::MAX).unwrap().body.perturbation.memory_bytes,
+        512 << 20
+    );
+}
+
+#[test]
 fn unknown_wire_fields_are_refused() {
     use ciborium::value::Value as Cbor;
     let wire = artifact();

@@ -9,8 +9,9 @@ result is the exact assumption range over that box, the axis tipping points (the
 2.1 one-factor values), and a tipping frontier with certified brackets.
 
 The range is an assumption range, never a confidence interval. Sampling
-uncertainty has one declared composition (the conservative endpoint percentile
-bootstrap), and its interval route is closed: :func:`joint_mechanism_sensitivity_interval`
+uncertainty is not offered in 2.2: its one declared composition (the
+conservative endpoint percentile bootstrap) is closed, and
+``joint_mechanism_sensitivity_interval`` (in ``_joint_sensitivity_uncertainty``)
 always refuses with ``cell_not_licensed``.
 """
 
@@ -26,7 +27,6 @@ from .._native import (
 )
 from .._native import export_z_transport_joint_sensitivity as _export_joint
 from .._native import z_transport_joint_sensitivity as _joint
-from .._native import z_transport_joint_sensitivity_interval as _joint_interval
 from ..errors import CausalTypeError, CausalValueError
 from ._impl import _non_negative, _optional_non_negative
 
@@ -40,7 +40,10 @@ class JointDeviation:
     other names (``treatment_mechanism``, ``fixed_graph_parent``,
     ``fixed_graph_conditional``, ``source_target_discrepancy``) exist so that their requests refuse with a
     reason code instead of being ignored. ``total_budget`` (a coupled budget)
-    always refuses.
+    always refuses. At most two factors may be declared. ``max_memory_bytes``
+    (default 64 MiB) may not exceed 512 MiB (``joint_sensitivity.bounds_exceeded``).
+    A non-finite ``decision_threshold`` raises ``CausalValueError`` with
+    ``reason_code == "invalid_argument"`` (``joint_sensitivity.invalid_threshold``).
     """
 
     fractions: Mapping[str, float]
@@ -64,7 +67,10 @@ class JointDeviation:
                 raise CausalTypeError(f"fraction bound of {name!r} must be a number")
             pairs.append((name, float(value)))
         if self.decision_threshold is not None and not math.isfinite(self.decision_threshold):
-            raise CausalValueError("decision_threshold must be finite")
+            raise CausalValueError(
+                "joint_sensitivity.invalid_threshold: decision_threshold must be finite",
+                reason_code="invalid_argument",
+            )
         object.__setattr__(self, "_pairs", tuple(pairs))
 
     def _kwargs(self) -> dict[str, Any]:
@@ -171,28 +177,6 @@ def consume_joint_mechanism_sensitivity_artifact(
         max_search_operations=_non_negative("max_search_operations", max_search_operations),
         max_search_depth=_non_negative("max_search_depth", max_search_depth),
         max_memory_bytes=_non_negative("max_memory_bytes", max_memory_bytes),
-        memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
-        cancel=cancel,
-    )
-
-
-def joint_mechanism_sensitivity_interval(
-    stage: Any,
-    deviation: JointDeviation,
-    *,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
-) -> None:
-    """Sampling-uncertainty interval of the joint range: closed.
-
-    Always raises with ``reason_code == "cell_not_licensed"``; the assumption
-    range is not a confidence interval and its sampling interval is unmeasured.
-    """
-    deviation = _deviation(deviation)
-    _joint_interval(
-        _stage(stage),
-        list(deviation._pairs),
-        decision_threshold=deviation.decision_threshold,
         memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
         cancel=cancel,
     )

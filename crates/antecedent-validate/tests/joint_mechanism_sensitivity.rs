@@ -648,6 +648,52 @@ fn a_tied_argmax_parent_level_keeps_the_range_and_frontier_exact() {
         assert!(model.closed_form(b.lower, point.parent_fraction).1 <= threshold + 1e-12);
     }
     assert!(result.frontier.iter().any(|p| p.status == TippingStatus::Bracketed));
+    // A threshold the response attains exactly at the first bisection midpoint
+    // (kernel fraction 0.25 of the box's 0.5, on the parent-fraction-0 line):
+    // "reaches" is `>=` (upward) / `<=` (downward), so that midpoint is the
+    // bracket's upper end and the lower end strictly misses the threshold, both
+    // on the evaluator's own floating-point response and on the independent
+    // closed form.
+    let at_middle = run(&model, &spec(Some(0.25), None)).unwrap().range;
+    for (threshold, upward) in [(at_middle.maximum, true), (at_middle.minimum, false)] {
+        let result = run(&model, &spec(Some(0.5), Some(0.5)).with_threshold(threshold)).unwrap();
+        let line = result.frontier[0];
+        assert_eq!(line.parent_fraction, 0.0);
+        assert_eq!(line.status, TippingStatus::Bracketed);
+        let b = line.bracket.unwrap();
+        assert_eq!(b.upper, 0.25, "the attained midpoint is the upper end (upward {upward})");
+        assert!(b.lower < b.upper && b.upper - b.lower <= 1e-9);
+        let evaluated = run(&model, &spec(Some(b.lower), None)).unwrap().range;
+        let (independent_low, independent_high) = model.closed_form(b.lower, 0.0);
+        if upward {
+            assert!(evaluated.maximum < threshold, "U(lower) must miss the threshold");
+            assert!(independent_high < threshold);
+        } else {
+            assert!(evaluated.minimum > threshold, "L(lower) must miss the threshold");
+            assert!(independent_low > threshold);
+        }
+    }
+}
+
+#[test]
+fn the_parent_witness_is_absent_unless_the_parent_is_perturbed() {
+    let model = fixed_model();
+    // No parent factor, or a parent factor bounded at zero: no parent vertex.
+    for declared in [spec(Some(0.2), None), spec(Some(0.2), Some(0.0))] {
+        let range = run(&model, &declared).unwrap().range;
+        assert_eq!(range.maximizing_parent_level, None);
+        assert_eq!(range.minimizing_parent_level, None);
+        assert_eq!(range, run(&model, &spec(Some(0.2), None)).unwrap().range);
+    }
+    // A positive parent bound names the vertex: argmax / argmin of D+ / D-.
+    let range = run(&model, &spec(Some(0.2), Some(0.3))).unwrap().range;
+    let spread = 3.0;
+    let up = (0..3).map(|w| 0.8 * model.delta(w) + 0.2 * spread).collect::<Vec<_>>();
+    let down = (0..3).map(|w| 0.8 * model.delta(w) - 0.2 * spread).collect::<Vec<_>>();
+    let argmax = (0..3).max_by(|a, b| up[*a].total_cmp(&up[*b])).unwrap();
+    let argmin = (0..3).min_by(|a, b| down[*a].total_cmp(&down[*b])).unwrap();
+    assert_eq!(range.maximizing_parent_level, Some(argmax));
+    assert_eq!(range.minimizing_parent_level, Some(argmin));
 }
 
 fn refusal(
@@ -680,21 +726,32 @@ fn out_of_scope_factors_and_budget_coupling_refuse_by_detail() {
         refusal(run(&model, &none)),
         ("route_not_supported", "joint_sensitivity.factor_count")
     );
-    let mut four = spec(Some(0.1), Some(0.1));
-    four.factors.extend([
-        JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.1 },
-        JointFactorBound { factor: JointFactor::SharedParentMarginal, max_fraction: 0.1 },
-    ]);
-    assert_eq!(
-        refusal(run(&model, &four)),
-        ("route_not_supported", "joint_sensitivity.factor_count")
-    );
+    // The cap is two: both factors of the formula are admitted, and a third
+    // declaration of any kind (a duplicate or an out-of-scope factor) refuses
+    // by count before its kind is examined.
+    run(&model, &spec(Some(0.1), Some(0.1))).unwrap();
+    for third in [
+        JointFactor::OutcomeKernel,
+        JointFactor::SharedParentMarginal,
+        JointFactor::TreatmentMechanism,
+        JointFactor::FixedGraphParentMechanism,
+        JointFactor::FixedGraphConditionalMechanism,
+        JointFactor::SourceTargetDiscrepancy,
+    ] {
+        let mut three = spec(Some(0.1), Some(0.1));
+        three.factors.push(JointFactorBound { factor: third, max_fraction: 0.1 });
+        assert_eq!(
+            refusal(run(&model, &three)),
+            ("route_not_supported", "joint_sensitivity.factor_count"),
+            "third factor {third:?}"
+        );
+    }
 }
 
 #[test]
 fn invalid_fractions_thresholds_and_duplicates_refuse() {
     let model = fixed_model();
-    let mut duplicate = spec(Some(0.1), Some(0.1));
+    let mut duplicate = spec(Some(0.1), None);
     duplicate
         .factors
         .push(JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.2 });
@@ -759,12 +816,50 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
     assert_eq!(refusal(bounded(&|s| s.limits.operations = 100_001)), exceeded);
     bounded(&|s| s.limits.depth = 64).unwrap();
     assert_eq!(refusal(bounded(&|s| s.limits.depth = 65)), exceeded);
+    // The declared memory cap has a hard ceiling (512 MiB); a larger request is
+    // refused, not silently raised.
+    bounded(&|s| s.limits.memory_bytes = 512 << 20).unwrap();
+    assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = (512 << 20) + 1)), exceeded);
+    assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = u64::MAX)), exceeded);
     // 64 parent levels and 32 outcome categories are admitted; one more refuses.
     let mut rng = Rng(3);
     run(&rng.model(64, 2), &spec(Some(0.1), Some(0.1))).unwrap();
     assert_eq!(refusal(run(&rng.model(65, 2), &spec(Some(0.1), Some(0.1)))), exceeded);
     run(&rng.model(1, 32), &spec(Some(0.1), Some(0.1))).unwrap();
     assert_eq!(refusal(run(&rng.model(1, 33), &spec(Some(0.1), Some(0.1)))), exceeded);
+}
+
+#[test]
+fn law_bounds_refuse_before_the_charged_read_of_the_law() {
+    let mut rng = Rng(5);
+    // The read of the law is charged one operation per parent level: a
+    // one-operation budget stops a 64-level law on its second level ...
+    let mut one = spec(Some(0.1), Some(0.1));
+    one.limits.operations = 1;
+    match run(&rng.model(64, 2), &one) {
+        Err(JointSensitivityError::Budget(receipt)) => {
+            assert_eq!(receipt.stop, SearchStop::Operations);
+            assert_eq!(receipt.operations_consumed, Some(1));
+            assert_eq!(receipt.unevaluated, ["range"]);
+        }
+        other => panic!("expected the read to be charged, got {other:?}"),
+    }
+    // ... while a 65-level (or 33-category) law refuses on its shape, before any
+    // cell is read or charged.
+    for model in [rng.model(65, 2), rng.model(2, 33)] {
+        assert_eq!(
+            refusal(run(&model, &one)),
+            ("route_not_supported", "joint_sensitivity.bounds_exceeded")
+        );
+    }
+    // Cancellation is observed when the budget is created, before the shape is
+    // read, so a cancelled context is a budget stop even for an oversized law.
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    assert_eq!(
+        refusal(run_ctx(&rng.model(65, 2), &spec(Some(0.1), None), &ctx)).1,
+        "joint_sensitivity.budget"
+    );
 }
 
 #[test]
@@ -926,8 +1021,9 @@ fn an_operation_budget_leaves_the_frontier_unresolved_and_the_range_exact() {
     let full = run(&model, &spec(Some(0.5), Some(0.5)).with_threshold(baseline + 0.4)).unwrap();
     assert_eq!(full.unresolved_detail, None);
     assert_eq!(full.receipt.stop, None);
-    // The range stage charges one operation per parent level (3); the first
-    // frontier line needs more than two further operations.
+    // The read of the law charges one operation per parent level (3); the
+    // closed-form range is not charged; the first frontier line needs more
+    // than two further operations.
     let mut tight = spec(Some(0.5), Some(0.5)).with_threshold(baseline + 0.4);
     tight.limits.operations = 5;
     let stopped = run(&model, &tight).unwrap();
@@ -939,7 +1035,7 @@ fn an_operation_budget_leaves_the_frontier_unresolved_and_the_range_exact() {
     assert_eq!(stopped.receipt.unevaluated.len(), 18);
     assert!(stopped.frontier.iter().all(|p| p.status == TippingStatus::Unevaluated));
     assert!(stopped.axis_tipping.iter().all(|a| a.status == TippingStatus::Unevaluated));
-    // Fewer operations than the range stage needs refuse with the receipt.
+    // Fewer operations than the read of the law needs refuse with the receipt.
     tight.limits.operations = 2;
     match run(&model, &tight) {
         Err(JointSensitivityError::Budget(receipt)) => {
@@ -1142,6 +1238,11 @@ fn the_endpoint_bootstrap_runs_behind_calibration_internal_and_dominates_the_poi
     {
         let error = interval(&spec(Some(0.1), None), replicates).unwrap_err();
         assert_eq!((error.reason_code(), error.detail()), ("route_not_supported", detail));
+    }
+    for admitted in [2, 2000] {
+        let at_cap = interval(&spec(Some(0.1), None), admitted).unwrap().unwrap();
+        assert_eq!(at_cap.replicates_requested, admitted);
+        assert_eq!(at_cap.replicates_ok + at_cap.replicates_failed, admitted);
     }
     let exact = endpoint_bootstrap(
         &diagram(),

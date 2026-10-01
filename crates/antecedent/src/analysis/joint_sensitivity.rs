@@ -16,14 +16,17 @@
 //! producer's stored search limits and effective memory cap, compared bit for
 //! bit. What replay does NOT protect against: a producer that consistently
 //! forges the baseline laws themselves (the embedded point artifact's own
-//! consumer only checks that the laws reproduce its stored point), and a
-//! different but self-consistent choice of declared perturbation; the replay
-//! proves the numbers follow from the stored premises, not that the premises
-//! are the scientifically right ones.
+//! consumer only checks that the laws reproduce its stored point); a
+//! different but self-consistent choice of declared perturbation; and a
+//! re-sealed change of the declared memory cap that stays at or above the
+//! stored effective cap (and within the consumer's maxima). The numbers depend
+//! only on the effective cap, and an effective cap below the declared one is
+//! what any producer with a context hard limit writes, so replay can only
+//! enforce `effective <= declared`; the declared cap is bound by the premises
+//! digest, not by replay. The replay proves the numbers follow from the stored
+//! premises, not that the premises are the scientifically right ones.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-use std::convert::Infallible;
 
 use antecedent_core::{ExecutionContext, SearchStop, reason_code};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
@@ -36,6 +39,7 @@ use antecedent_validate::{
 use serde::{Deserialize, Serialize};
 
 use super::PreparedZTransport;
+use super::joint_sensitivity_uncertainty::JointSamplingWire;
 
 /// The joint sensitivity artifact format this reader writes and accepts.
 pub const JOINT_SENSITIVITY_ARTIFACT_VERSION: u32 = 3;
@@ -64,24 +68,6 @@ impl PreparedZTransport {
             ctx,
         )
         .map_err(|error| joint_error(&error))
-    }
-
-    /// The sampling-uncertainty interval of the joint range. Closed for the
-    /// 2.2 release: always refuses with `cell_not_licensed`.
-    ///
-    /// # Errors
-    ///
-    /// Always `cell_not_licensed` / `joint_sensitivity.interval_withheld`.
-    pub fn joint_mechanism_sensitivity_interval(
-        &self,
-        spec: &JointDeviationSpec,
-        ctx: &ExecutionContext,
-    ) -> Result<Infallible, IoError> {
-        let _ = (spec, ctx);
-        Err(IoError::Refused {
-            code: reason_code!("cell_not_licensed"),
-            message: "joint_sensitivity.interval_withheld: the conservative endpoint percentile bootstrap is not licensed; the assumption range is not a confidence interval".into(),
-        })
     }
 }
 
@@ -195,22 +181,6 @@ pub struct JointReceiptWire {
     pub explored: Vec<String>,
     /// Stages left unevaluated.
     pub unevaluated: Vec<String>,
-}
-
-/// The declared sampling method; the interval is withheld.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct JointSamplingWire {
-    /// The one declared composition.
-    pub method: String,
-    /// Its coverage target.
-    pub coverage_target: String,
-    /// `withheld`.
-    pub status: String,
-    /// `cell_not_licensed`.
-    pub reason_code: String,
-    /// Always `None` from a public producer; a consumer refuses a value.
-    pub interval: Option<[f64; 2]>,
 }
 
 /// Everything the replay recomputes and compares.
@@ -507,7 +477,8 @@ impl JointSensitivityArtifactWire {
     /// Independently verify an exported artifact and return the recomputed one.
     ///
     /// Order: version, decoding (unknown fields refused), stored limits against
-    /// the consumer's maxima and hard memory limit (before any work), premises
+    /// the consumer's maxima, the producer's 512 MiB memory ceiling and the
+    /// consumer's hard memory limit (before any work), premises
     /// and data digests, the interval and inference-claim labels, then the
     /// baseline replay and a bit-for-bit recomputation of the body under the
     /// stored limits and effective memory cap.
@@ -532,6 +503,8 @@ impl JointSensitivityArtifactWire {
         if declared.operations > limits.max_operations
             || declared.depth > limits.max_depth
             || declared.memory_bytes > limits.max_memory_bytes
+            || declared.memory_bytes
+                > antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_MEMORY_BYTES
             || effective > declared.memory_bytes
             || !affordable
         {
@@ -576,8 +549,11 @@ impl JointSensitivityArtifactWire {
         let recomputed =
             Self::checked_with_limits(wire.baseline_artifact.clone(), &spec, limits.baseline, ctx)?;
         let mut expected = recomputed.body;
-        // The declared cap is a premise; the replay ran under the stored
-        // effective cap, which the receipt comparison checks.
+        // The declared cap is a premise (premises digest) that replay cannot
+        // re-derive: the replay ran under the stored effective cap, which the
+        // receipt comparison checks, and only `effective <= declared` is
+        // enforced above. A re-sealed declared cap at or above the effective
+        // one is therefore accepted (see the module docs).
         expected.perturbation.memory_bytes = wire.body.perturbation.memory_bytes;
         if to_cbor(&expected)? != to_cbor(&wire.body)? {
             return Err(IoError::Refused {

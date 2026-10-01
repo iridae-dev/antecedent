@@ -19,11 +19,14 @@
 //!
 //! The kernel stage reuses the 2.1 [`DiscreteKernelSensitivity`] evaluator,
 //! so a single kernel factor is bit-equal to [`crate::z_transport_mechanism_sensitivity`].
-//! The range is computed first in closed form; the frontier's certified
-//! brackets are the only iterative work and run under one
-//! [`antecedent_core::SearchBudget`] shared with the range stage. The range is
-//! an assumption range, never a confidence interval; sampling uncertainty is a
-//! separate, closed route.
+//! The law's shape is checked against the declared bounds before its cells
+//! are read; the read itself is charged one operation per parent level to one
+//! [`antecedent_core::SearchBudget`], which the closed-form range and then the
+//! frontier's certified brackets (the only iterative work) share. The range is
+//! an assumption range, never a confidence interval. Sampling uncertainty is
+//! not offered by this record in 2.2: its conservative composition below is
+//! compiled only under `calibration-internal` and its route is closed (record
+//! `2.2B.X3.joint_sensitivity_uncertainty`, carried forward).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -39,12 +42,14 @@ use antecedent_graph::SelectionDiagram;
 use antecedent_identify::BoundZTransportFunctional;
 
 use crate::mechanism_sensitivity::{
-    DiscreteKernelSensitivity, DiscreteKernelSensitivityError, ZSurrogateKernels,
-    ZTransportSensitivityError, z_surrogate_kernels,
+    DiscreteKernelSensitivity, DiscreteKernelSensitivityError, ScanStop, ZSurrogateKernels,
+    ZTransportSensitivityError, z_surrogate_kernels_metered,
 };
 
-/// Hard cap on declared factors (the z route supports two of them).
-pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 3;
+/// Hard cap on declared factors: the two factors of the surrogate formula (a
+/// third declaration is always a duplicate or an out-of-scope factor, so it
+/// refuses by count).
+pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 2;
 /// Hard cap on shared-parent levels.
 pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 64;
 /// Hard cap on outcome categories.
@@ -57,6 +62,8 @@ pub const JOINT_SENSITIVITY_MAX_OPERATIONS: usize = 100_000;
 pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 /// Default memory cap of the shared budget.
 pub const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
+/// Hard ceiling on a declared memory cap (the shared search default).
+pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
 /// Hard cap on replicates of the (closed) endpoint bootstrap.
 pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 /// Smallest admitted bracketing tolerance.
@@ -146,7 +153,8 @@ pub struct JointSensitivityLimits {
     pub operations: usize,
     /// Depth limit: bisection iterations per bracket (hard cap [`JOINT_SENSITIVITY_MAX_DEPTH`]).
     pub depth: usize,
-    /// Memory cap; the effective cap is also bounded by the context's hard limit.
+    /// Memory cap (hard ceiling [`JOINT_SENSITIVITY_MAX_MEMORY_BYTES`]); the
+    /// effective cap is also bounded by the context's hard limit.
     pub memory_bytes: u64,
 }
 
@@ -311,7 +319,8 @@ impl TippingStatus {
 /// Certified bracket `[lower, upper]` of the smallest crossing fraction: the
 /// response does not reach the threshold at `lower` (unless `lower` is zero and
 /// the status is `ReachedAtOrigin`) and does at `upper`. The bracket is the
-/// unresolved region.
+/// unresolved region. It is certified against the floating-point evaluation of
+/// the closed-form range, not in exact arithmetic.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TippingBracket {
     /// Largest evaluated fraction that does not reach the threshold.
@@ -467,7 +476,7 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
         return Err(refuse(
             reason_code!("route_not_supported"),
             "joint_sensitivity.factor_count",
-            format!("{} factors declared; one to three are admitted", spec.factors.len()),
+            format!("{} factors declared; one or two are admitted", spec.factors.len()),
         ));
     }
     for bound in &spec.factors {
@@ -549,17 +558,92 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
         || spec.frontier_points > JOINT_SENSITIVITY_MAX_FRONTIER_POINTS
         || spec.limits.operations > JOINT_SENSITIVITY_MAX_OPERATIONS
         || spec.limits.depth > JOINT_SENSITIVITY_MAX_DEPTH
+        || spec.limits.memory_bytes > JOINT_SENSITIVITY_MAX_MEMORY_BYTES
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
             "joint_sensitivity.bounds_exceeded",
             format!(
-                "frontier grid {} (1-33), operations {} (<= 100000) or depth {} (<= 64) is outside the declared bounds",
-                spec.frontier_points, spec.limits.operations, spec.limits.depth
+                "frontier grid {} (1-33), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
+                spec.frontier_points,
+                spec.limits.operations,
+                spec.limits.depth,
+                spec.limits.memory_bytes
             ),
         ));
     }
     Ok(JointBox { kernel, parent })
+}
+
+/// Refuse a law larger than the declared bounds; runs on the law's shape,
+/// before any of its cells is read.
+fn check_shape(levels: usize, categories: usize) -> Result<(), JointSensitivityError> {
+    if levels > JOINT_SENSITIVITY_MAX_PARENT_LEVELS
+        || categories > JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES
+    {
+        return Err(refuse(
+            reason_code!("route_not_supported"),
+            "joint_sensitivity.bounds_exceeded",
+            format!("{levels} parent levels (<= 64) or {categories} outcome categories (<= 32)"),
+        ));
+    }
+    Ok(())
+}
+
+/// Live-state bytes of the factors the evaluator holds for a law of this
+/// shape: two kernel rows per level, their weights, three per-level
+/// quantities (`Delta`, the parent marginal and its normalization) and the
+/// outcome values. Known from the shape, so the scan is charged with it.
+fn factor_bytes(levels: usize, categories: usize) -> u64 {
+    let cells = 2 * levels * categories + 2 * levels + 3 * levels + categories;
+    (cells * std::mem::size_of::<f64>()) as u64
+}
+
+/// Read the surrogate factors with the bounds checked on the law's shape and
+/// the read charged one operation per parent level (at the factors' byte
+/// estimate) to `budget`, when one is given.
+fn read_factors(
+    diagram: &SelectionDiagram,
+    functional: &BoundZTransportFunctional,
+    data: &ExactTransportData,
+    ctx: &ExecutionContext,
+    mut budget: Option<&mut SearchBudget<'_>>,
+) -> Result<JointFactors, JointSensitivityError> {
+    let bytes = std::cell::Cell::new(0);
+    let read = z_surrogate_kernels_metered(
+        diagram,
+        functional,
+        data,
+        ctx,
+        &mut |levels, categories| {
+            check_shape(levels, categories)?;
+            bytes.set(factor_bytes(levels, categories));
+            Ok(())
+        },
+        &mut |_| match budget.as_deref_mut() {
+            Some(budget) => budget.charge(0, bytes.get()).map_err(|stop| {
+                JointSensitivityError::Budget(budget.receipt(
+                    stop,
+                    Vec::new(),
+                    vec!["range".into()],
+                ))
+            }),
+            None => Ok(()),
+        },
+    );
+    match read {
+        Ok(kernels) => JointFactors::new(kernels),
+        Err(ScanStop::Hook(error)) => Err(error),
+        Err(ScanStop::Kernel(ZTransportSensitivityError::Cancelled)) => match budget {
+            Some(budget) => Err(JointSensitivityError::Budget(budget.receipt(
+                SearchStop::Cancelled,
+                Vec::new(),
+                vec!["range".into()],
+            ))),
+            None => Err(kernel_error(&ZTransportSensitivityError::Cancelled)),
+        },
+        Err(ScanStop::Kernel(error)) => Err(kernel_error(&error)),
+    }
 }
 
 fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
@@ -608,25 +692,14 @@ pub(crate) struct JointFactors {
     deltas: Vec<f64>,
     /// Normalized shared parent marginal.
     parent: Vec<f64>,
-    /// `y_max - y_min`.
+    /// `y_max - y_min` over the numeric values of the law's `Y` axis (the
+    /// listed outcome levels, not a declared outcome domain).
     spread: f64,
 }
 
 impl JointFactors {
     fn new(kernels: ZSurrogateKernels) -> Result<Self, JointSensitivityError> {
         let levels = kernels.parent_marginal.len();
-        let categories = kernels.outcome_values.len();
-        if levels > JOINT_SENSITIVITY_MAX_PARENT_LEVELS
-            || categories > JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES
-        {
-            return Err(refuse(
-                reason_code!("route_not_supported"),
-                "joint_sensitivity.bounds_exceeded",
-                format!(
-                    "{levels} parent levels (<= 64) or {categories} outcome categories (<= 32)"
-                ),
-            ));
-        }
         if kernels.outcome_values.iter().any(|y| !y.is_finite()) {
             return Err(refuse(
                 reason_code!("route_not_supported"),
@@ -655,11 +728,7 @@ impl JointFactors {
 
     /// Live-state bytes of the factors held by the evaluator.
     fn bytes(&self) -> u64 {
-        let cells = self.kernels.kernels.iter().map(Vec::len).sum::<usize>()
-            + self.kernels.weights.len()
-            + self.deltas.len() * 3
-            + self.kernels.outcome_values.len();
-        (cells * std::mem::size_of::<f64>()) as u64
+        factor_bytes(self.deltas.len(), self.kernels.outcome_values.len())
     }
 
     /// The 2.1 kernel stage at `fraction`.
@@ -820,11 +889,15 @@ const LINE_BYTES: u64 = std::mem::size_of::<FrontierPoint>() as u64;
 /// Evaluate the registered surrogate z formula under a box-independent joint
 /// deviation of its outcome kernel and shared parent marginal.
 ///
-/// The exact range is computed first (charged per parent level); with a
-/// threshold, the axis tipping points and the frontier over the parent-fraction
-/// grid are then bracketed under the same budget. A budget stop before the
-/// range refuses with its receipt; a stop during bracketing keeps the exact
-/// range and reports the remaining lines unevaluated with the receipt.
+/// The declared spec is validated and the law's shape checked against the
+/// bounds before any cell of the law is read; the read (three passes over the
+/// law per parent level) is charged one operation per parent level. The exact
+/// range is then computed in closed form (uncharged, O(levels x categories));
+/// with a threshold, the axis tipping points and the frontier over the
+/// parent-fraction grid are bracketed under the same budget. A budget stop
+/// during the read refuses with its receipt; a stop during bracketing keeps
+/// the exact range and reports the remaining lines unevaluated with the
+/// receipt.
 ///
 /// # Errors
 ///
@@ -849,29 +922,9 @@ pub fn z_transport_joint_mechanism_sensitivity(
         ctx,
     )
     .map_err(JointSensitivityError::Budget)?;
-    let kernels = match z_surrogate_kernels(diagram, functional, data, ctx) {
-        Ok(kernels) => kernels,
-        Err(ZTransportSensitivityError::Cancelled) => {
-            return Err(JointSensitivityError::Budget(budget.receipt(
-                SearchStop::Cancelled,
-                Vec::new(),
-                vec!["range".into()],
-            )));
-        }
-        Err(error) => return Err(kernel_error(&error)),
-    };
-    let factors = JointFactors::new(kernels)?;
+    let factors = read_factors(diagram, functional, data, ctx, Some(&mut budget))?;
     let (kernel, parent) = (joint_box.kernel(), joint_box.parent());
     let bytes = factors.bytes();
-    for _ in 0..factors.deltas.len() {
-        if let Err(stop) = budget.charge(0, bytes) {
-            return Err(JointSensitivityError::Budget(budget.receipt(
-                stop,
-                Vec::new(),
-                vec!["range".into()],
-            )));
-        }
-    }
     let baseline = factors.kernel_stage(0.0, None)?.baseline;
     let range = factors.bounds_at(kernel, parent)?;
     let mut explored = vec!["range".to_owned()];
@@ -1062,9 +1115,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
             format!("{replicates} replicates (2-2000) or level {level} (strictly inside (0, 1))"),
         ));
     }
-    let observed = z_surrogate_kernels(diagram, functional, data, ctx)
-        .map_err(|error| kernel_error(&error))?;
-    JointFactors::new(observed)?;
+    read_factors(diagram, functional, data, ctx, None)?;
     let draws =
         antecedent_estimate::z_transport_bootstrap_law_draws(functional, data, replicates, ctx)
             .map_err(|error| {
@@ -1097,8 +1148,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
             ));
         }
         let evaluated = draw.and_then(|draw| {
-            let kernels = z_surrogate_kernels(diagram, functional, &draw, ctx).ok()?;
-            let factors = JointFactors::new(kernels).ok()?;
+            let factors = read_factors(diagram, functional, &draw, ctx, None).ok()?;
             let range = factors.bounds_at(joint_box.kernel(), joint_box.parent()).ok()?;
             let zero = factors.kernel_stage(0.0, None).ok()?.baseline;
             Some((range.minimum, range.maximum, zero))

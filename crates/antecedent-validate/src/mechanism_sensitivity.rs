@@ -367,17 +367,61 @@ pub(crate) struct ZSurrogateKernels {
     pub(crate) source_regime: RegimeId,
 }
 
-/// Check the proof, formula shape and provider binding of the registered
-/// surrogate z formula and read its source factors from the exact law.
-// Keep the checked binding and factor validation together so a sensitivity
-// result is built only after the complete proof/provider contract passes.
-#[allow(clippy::too_many_lines)]
+/// Why a metered read of the surrogate factors stopped.
+#[derive(Debug)]
+pub(crate) enum ScanStop<E> {
+    /// The proof, formula, provider, domain or kernel check refused.
+    Kernel(ZTransportSensitivityError),
+    /// A caller's hook refused (a declared bound or a budget charge).
+    Hook(E),
+}
+
+impl<E> From<ZTransportSensitivityError> for ScanStop<E> {
+    fn from(error: ZTransportSensitivityError) -> Self {
+        Self::Kernel(error)
+    }
+}
+
+/// [`z_surrogate_kernels_metered`] with no hooks: the 2.1 one-factor route.
 pub(crate) fn z_surrogate_kernels(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
     data: &ExactTransportData,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZSurrogateKernels, ZTransportSensitivityError> {
+    z_surrogate_kernels_metered::<std::convert::Infallible>(
+        diagram,
+        functional,
+        data,
+        ctx,
+        &mut |_, _| Ok(()),
+        &mut |_| Ok(()),
+    )
+    .map_err(|stop| match stop {
+        ScanStop::Kernel(error) => error,
+        ScanStop::Hook(never) => match never {},
+    })
+}
+
+/// Check the proof, formula shape and provider binding of the registered
+/// surrogate z formula and read its source factors from the exact law.
+///
+/// `shape(parent_levels, outcome_categories)` runs once the law's axes are
+/// read and before any pass over its cells, so a caller can refuse a declared
+/// bound before the scan; `level(w)` runs before the passes of each parent
+/// level (three passes over every cell), so a caller can charge the scan.
+/// Either hook's error stops the read as [`ScanStop::Hook`].
+// Keep the checked binding and factor validation together so a sensitivity
+// result is built only after the complete proof/provider contract passes.
+#[allow(clippy::too_many_lines)]
+pub(crate) fn z_surrogate_kernels_metered<E>(
+    diagram: &SelectionDiagram,
+    functional: &BoundZTransportFunctional,
+    data: &ExactTransportData,
+    ctx: &antecedent_core::ExecutionContext,
+    shape: &mut dyn FnMut(usize, usize) -> Result<(), E>,
+    level: &mut dyn FnMut(usize) -> Result<(), E>,
+) -> Result<ZSurrogateKernels, ScanStop<E>> {
     let cancelled = || {
         if ctx.cancellation.is_cancelled() {
             Err(ZTransportSensitivityError::Cancelled)
@@ -394,24 +438,24 @@ pub(crate) fn z_surrogate_kernels(
         .check_inputs(diagram, query)
         .map_err(|_| ZTransportSensitivityError::InvalidProof)?;
     let Some(confounder) = derivation.confounder() else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
 
     let arena = functional.arena();
     // The registered surrogate factorization cites exactly one source regime.
     let [regime] = functional.cited_regimes() else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
     let regime = *regime;
     let ExprNode::SumOut { expr, .. } = arena.node(functional.root()) else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
     let ExprNode::Product(factors) = arena.node(*expr) else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
     let leaves = arena.list(*factors);
     if leaves.len() != 2 {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     }
     let mut outcome_leaf = None;
     let mut parent_leaf = None;
@@ -425,7 +469,7 @@ pub(crate) fn z_surrogate_kernels(
             ..
         } = arena.node(*id)
         else {
-            return Err(ZTransportSensitivityError::IncompatibleFormula);
+            return Err(ZTransportSensitivityError::IncompatibleFormula.into());
         };
         let mut formula_interventions = arena.intervention_set(*intervention);
         let mut query_interventions =
@@ -436,7 +480,7 @@ pub(crate) fn z_surrogate_kernels(
             || arena.population(*population) != query.source.as_ref()
             || formula_interventions != query_interventions
         {
-            return Err(ZTransportSensitivityError::IncompatibleFormula);
+            return Err(ZTransportSensitivityError::IncompatibleFormula.into());
         }
         let vars = arena.var_set(*variables);
         let cond = arena.var_set(*conditioned_on);
@@ -448,7 +492,7 @@ pub(crate) fn z_surrogate_kernels(
         } else if vars == [confounder] && cond.is_empty() {
             parent_leaf = Some(*id);
         } else {
-            return Err(ZTransportSensitivityError::IncompatibleFormula);
+            return Err(ZTransportSensitivityError::IncompatibleFormula.into());
         }
     }
     if outcome_leaf.is_none()
@@ -456,7 +500,7 @@ pub(crate) fn z_surrogate_kernels(
         || query.outcomes.len() != 1
         || query.treatments.len() != 1
     {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     }
 
     let law = data
@@ -477,7 +521,7 @@ pub(crate) fn z_surrogate_kernels(
         binding.regime == law.regime()
             && binding.snapshot_identity.as_ref() == law.snapshot_identity()
     }) {
-        return Err(ZTransportSensitivityError::ProviderMismatch);
+        return Err(ZTransportSensitivityError::ProviderMismatch.into());
     }
     let y = query.outcomes[0];
     let x = query.treatments[0];
@@ -502,8 +546,9 @@ pub(crate) fn z_surrogate_kernels(
         || y_values.is_empty()
         || law.snapshot_identity().trim().is_empty()
     {
-        return Err(ZTransportSensitivityError::UnsupportedDomain);
+        return Err(ZTransportSensitivityError::UnsupportedDomain.into());
     }
+    shape(w_levels, y_values.len()).map_err(ScanStop::Hook)?;
     let dims: Vec<usize> = law.axes().iter().map(|a| a.values.len()).collect();
     let strides: Vec<usize> = (0..dims.len()).map(|i| dims[i + 1..].iter().product()).collect();
     let mut kernels = Vec::with_capacity(w_levels * 2);
@@ -511,6 +556,7 @@ pub(crate) fn z_surrogate_kernels(
     let mut parent_marginal = Vec::with_capacity(w_levels);
     for wl in 0..w_levels {
         cancelled()?;
+        level(wl).map_err(ScanStop::Hook)?;
         let mut parent_mass = 0.0;
         for row in 0..law.probabilities().len() {
             if (row / strides[wi]) % dims[wi] == wl {
@@ -528,7 +574,7 @@ pub(crate) fn z_surrogate_kernels(
                 }
             }
             if mass <= 0.0 {
-                return Err(ZTransportSensitivityError::IncompleteKernel);
+                return Err(ZTransportSensitivityError::IncompleteKernel.into());
             }
             kernels.push(joint.into_iter().map(|p| p / mass).collect());
             weights.push(parent_mass * if xl == 0 { -1.0 } else { 1.0 });
