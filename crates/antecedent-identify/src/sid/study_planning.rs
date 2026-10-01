@@ -23,11 +23,16 @@
 //!   and rule set, never an impossibility: X9 is sound but incomplete and X1's
 //!   obstruction decider is partial. The only theorem-limited refusal is a base
 //!   X1 decision that is a replayed checked obstruction, which concerns the
-//!   declared controllable sets, so no study inside them repairs it.
+//!   declared controllable sets, so no study inside them repairs it; a new
+//!   population or a wider controllable set is outside this universe.
 //! - Minimality is claimed only when every feasible subset strictly cheaper
 //!   than the top proposal was evaluated to a conclusive outcome without a stop:
-//!   "cost-minimal among verified-derivable subsets of this universe under this
-//!   search and rule set", never "minimal sufficient evidence".
+//!   "cost-minimal among the verified-derivable subsets of at most three
+//!   candidates of this declared universe, under this search and rule set",
+//!   never "minimal sufficient evidence". A cheaper subset of four or more
+//!   candidates is never examined, and a cheaper subset the route refuses (for
+//!   example over the X9 usable-distribution bound) or leaves underivable keeps
+//!   the claim: it is only not sufficient under this search.
 //! - Supersets of a sufficient subset are not evaluated and are listed
 //!   `dominated`, for ranking only; sufficiency is not claimed monotone.
 //! - A decision that spends more than its route's public per-decision
@@ -734,19 +739,19 @@ pub fn plan_study_additions(
     limits: StudyPlanLimits,
     ctx: &ExecutionContext,
 ) -> Result<StudyPlan, StudyPlanRefusal> {
-    let caps = PlanCaps {
-        decision_operations: route.decision_operations(),
-        max_proposals: STUDY_PLAN_MAX_PROPOSALS,
-    };
+    let caps = PlanCaps { decision_cap: |_, cap| cap, max_proposals: STUDY_PLAN_MAX_PROPOSALS };
     plan_with_caps(graph, route, catalog, candidates, limits, ctx, caps)
 }
 
 /// The per-decision operation cap and the proposal cap of one plan. Public
-/// plans use the route's public cap and [`STUDY_PLAN_MAX_PROPOSALS`]; unit
-/// tests lower them to reach both caps on small fixtures.
+/// plans use the route's public cap for every subset and
+/// [`STUDY_PLAN_MAX_PROPOSALS`]; unit tests lower them (per subset label) to
+/// reach both caps on small fixtures.
 #[derive(Clone, Copy, Debug)]
 struct PlanCaps {
-    decision_operations: usize,
+    /// The cap of the subset labelled by the first argument, given the route's
+    /// public cap.
+    decision_cap: fn(&str, usize) -> usize,
     max_proposals: usize,
 }
 
@@ -849,17 +854,13 @@ fn plan_with_caps(
             records.push(record(StudySubsetOutcome::Unevaluated));
             continue;
         }
+        let decision_cap = (caps.decision_cap)(&subset_label(&ids), route.decision_operations());
         let before = search.operations();
         let outcome = match decide_preview(graph, &route, &preview, &mut search, ctx, before) {
             Ok(Preview::Identified(found)) => {
                 let operations = found.operations;
                 let proposed = delta.proposed_regimes.iter().map(|r| r.id).collect::<BTreeSet<_>>();
-                match classify_identified(
-                    operations,
-                    caps.decision_operations,
-                    &found.cited,
-                    &proposed,
-                ) {
+                match classify_identified(operations, decision_cap, &found.cited, &proposed) {
                     Identified::OverCap => StudySubsetOutcome::OverDecisionCap { operations },
                     Identified::Sufficient => {
                         proposals.push(proposal(
@@ -880,7 +881,7 @@ fn plan_with_caps(
                 }
             }
             Ok(Preview::NotIdentified { code, detail, operations }) => {
-                if operations > caps.decision_operations {
+                if operations > decision_cap {
                     StudySubsetOutcome::OverDecisionCap { operations }
                 } else {
                     StudySubsetOutcome::Insufficient { code, detail }
@@ -1036,7 +1037,8 @@ fn base_failure(
                         detail: THEOREM_LIMITED,
                         message: format!(
                             "the base decision is a replayed checked obstruction at C0 = {:?} \
-                             over the declared controllable sets; no study inside them repairs it",
+                             over the declared controllable sets; no study inside them repairs it (a \
+                             new population or a wider controllable set is outside this universe)",
                             obstruction.c0()
                         ),
                         receipt: None,
@@ -1704,14 +1706,13 @@ mod tests {
         }
 
         pub(super) fn route() -> StudyPlanRoute {
-            let spec = |population: &str, controllable: u32, selection: [u32; 2]| {
-                ZTransportSourceSpec {
+            let spec =
+                |population: &str, controllable: u32, selection: [u32; 2]| ZTransportSourceSpec {
                     population: Arc::from(population),
                     controllable: Arc::from([v(controllable)]),
                     experiment_assignment: Arc::from([]),
                     selection_targets: selection.into_iter().map(v).collect::<Vec<_>>().into(),
-                }
-            };
+                };
             let mut b = spec("b", Z1, [Z1, Y]);
             b.experiment_assignment =
                 Arc::from([InterventionAssignment { variable: v(Z1), value: Value::Bool(false) }]);
@@ -1736,7 +1737,10 @@ mod tests {
                 kind,
                 intervened.iter().copied().map(v).collect::<Vec<_>>(),
                 on.iter()
-                    .map(|(x, l)| InterventionAssignment { variable: v(*x), value: Value::Bool(*l) })
+                    .map(|(x, l)| InterventionAssignment {
+                        variable: v(*x),
+                        value: Value::Bool(*l),
+                    })
                     .collect::<Vec<_>>(),
                 (0..4).filter(|i| !intervened.contains(i)).map(v).collect::<Vec<_>>(),
                 population,
@@ -1757,7 +1761,11 @@ mod tests {
                 dependence: DependenceGroup::IndependentStudies,
             }];
             let coordinates = (0..4)
-                .map(|i| VariableCoordinate { variable: v(i), domain: VariableDomain::Binary, unit: None })
+                .map(|i| VariableCoordinate {
+                    variable: v(i),
+                    domain: VariableDomain::Binary,
+                    unit: None,
+                })
                 .collect::<Vec<_>>();
             let environments = ["target", "a", "b"]
                 .into_iter()
@@ -1817,7 +1825,7 @@ mod tests {
         .unwrap()
     }
 
-    const PUBLIC: PlanCaps = PlanCaps { decision_operations: 4096, max_proposals: 32 };
+    const PUBLIC: PlanCaps = PlanCaps { decision_cap: |_, cap| cap, max_proposals: 32 };
 
     #[test]
     fn a_lowered_decision_cap_makes_decisions_inconclusive_and_withdraws_minimality() {
@@ -1825,46 +1833,55 @@ mod tests {
         assert_eq!(public.proposals.len(), 2);
         assert!(public.minimal);
         assert!(public.subsets.iter().all(|s| s.outcome.status() != "over_decision_cap"));
-        // Cap zero: every decided subset is over the cap, never sufficient.
-        let zero = fig1_plan(PlanCaps { decision_operations: 0, ..PUBLIC });
+        let top = &public.proposals[0];
+        assert!(top.decision_operations > 0);
+        // Cap zero everywhere: every decided subset is over the cap, never sufficient.
+        let zero = fig1_plan(PlanCaps { decision_cap: |_, _| 0, ..PUBLIC });
         assert!(zero.proposals.is_empty() && !zero.minimal);
-        let over = zero
-            .subsets
-            .iter()
-            .filter_map(|s| match s.outcome {
-                StudySubsetOutcome::OverDecisionCap { operations } => {
-                    Some((s.label(), s.cost_units, operations))
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert!(!over.is_empty());
+        assert_eq!(zero.status(), Some(("transport_not_certified", "study_plan.none_certified")));
         assert!(zero.subsets.iter().all(|s| matches!(
             s.outcome,
-            StudySubsetOutcome::OverDecisionCap { .. } | StudySubsetOutcome::Infeasible { .. }
+            StudySubsetOutcome::OverDecisionCap { operations } if operations > 0
+        ) || matches!(
+            s.outcome,
+            StudySubsetOutcome::Infeasible { .. }
         )));
-        // A cap between the top proposal's decision and a strictly cheaper
-        // subset's decision: the proposal stands, the cheaper subset is
-        // inconclusive, and minimality is withdrawn.
-        let top = &public.proposals[0];
-        let cheaper_over = over
-            .iter()
-            .filter(|(_, cost, ops)| *cost < top.cost_units && *ops > top.decision_operations)
-            .map(|(_, _, ops)| *ops)
-            .min();
-        let Some(cheaper_ops) = cheaper_over else {
-            panic!("fixture needs a cheaper decision costlier than the top one: {over:?} vs {}", top.decision_operations);
-        };
-        let lowered = fig1_plan(PlanCaps { decision_operations: cheaper_ops - 1, ..PUBLIC });
-        assert_eq!(lowered.proposals.first().map(|p| &p.candidates), Some(&top.candidates));
-        assert!(
-            lowered
-                .subsets
-                .iter()
-                .any(|s| s.cost_units < top.cost_units
-                    && matches!(s.outcome, StudySubsetOutcome::OverDecisionCap { .. }))
+        // The top pair's own decision one operation over its cap: never sufficient.
+        let pair = fig1_plan(PlanCaps {
+            decision_cap: |label, cap| if label == "subset:[a_do_z2,b_do_z1]" { 0 } else { cap },
+            ..PUBLIC
+        });
+        let record = pair.subsets.iter().find(|s| s.label() == "subset:[a_do_z2,b_do_z1]").unwrap();
+        assert!(matches!(record.outcome, StudySubsetOutcome::OverDecisionCap { .. }));
+        assert_eq!(
+            pair.proposals[0].candidates,
+            [Arc::from("a_do_z2"), Arc::from("b_do_z1_again")]
         );
-        assert!(!lowered.minimal, "an inconclusive cheaper subset withdraws minimality");
+        // An insufficient, strictly cheaper subset over its cap: the proposal
+        // stands, the cheaper subset is inconclusive, and minimality is withdrawn.
+        let cheaper = fig1_plan(PlanCaps {
+            decision_cap: |label, cap| if label == "subset:[b_observe]" { 0 } else { cap },
+            ..PUBLIC
+        });
+        assert_eq!(cheaper.proposals[0].candidates, top.candidates);
+        let record = cheaper.subsets.iter().find(|s| s.label() == "subset:[b_observe]").unwrap();
+        assert!(matches!(record.outcome, StudySubsetOutcome::OverDecisionCap { .. }));
+        assert!(!cheaper.minimal, "an inconclusive cheaper subset withdraws minimality");
+        // An over-cap subset of the top's own cost leaves the claim standing.
+        let tie = fig1_plan(PlanCaps {
+            decision_cap: |label, cap| {
+                if label == "subset:[b_do_z1,b_do_z1_again,b_observe]" { 0 } else { cap }
+            },
+            ..PUBLIC
+        });
+        let record = tie
+            .subsets
+            .iter()
+            .find(|s| s.label() == "subset:[b_do_z1,b_do_z1_again,b_observe]")
+            .unwrap();
+        assert_eq!(record.cost_units, top.cost_units);
+        assert!(matches!(record.outcome, StudySubsetOutcome::OverDecisionCap { .. }));
+        assert!(tie.minimal);
     }
 
     #[test]

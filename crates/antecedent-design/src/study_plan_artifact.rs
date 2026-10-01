@@ -17,13 +17,19 @@
 //! artifact is then a correct plan of those stated inputs), and it does not
 //! check that the arriving studies will deliver the declared regimes.
 //!
+//! Lineage is stored and digested, but replay does not exercise it: the plan
+//! reads the base catalog's regimes, not its bindings, so a re-sealed artifact
+//! with every base binding (snapshot) cleared replays to the same plan and is
+//! accepted. Only [`StudyPlanProposal::receive`](crate::StudyPlanProposal::receive)
+//! checks lineage: the arriving catalog must keep every stored base binding.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
 use antecedent_core::{
-    ExecutionContext, IdentityDomain, InterventionAssignment, RegimeId, SearchLimits, VariableId,
-    reason_code,
+    ExecutionContext, IdentityDomain, InterventionAssignment, RegimeId, SearchLimits, SearchStop,
+    VariableId, reason_code,
 };
 use antecedent_identify::{
     MIXED_SOURCE_RULE_SET, MixedSourceDerivationRecord, MixedSourceQuery,
@@ -562,10 +568,15 @@ impl StudyPlanArtifactWire {
     /// identical outcome.
     ///
     /// Stored limits above `limits` (or a stored memory cap above the smaller
-    /// of `limits` and the context's hard limit) refuse before any work.
+    /// of `limits` and the context's hard limit) refuse before any work. The
+    /// replay runs under exactly the stored limits, so only cancellation can
+    /// make it end differently from the producer's plan: a replay that the
+    /// budget stops before the base decision, or that cancellation stops, is
+    /// `study_plan.budget` (the artifact is neither accepted nor refuted).
     ///
     /// # Errors
     /// `study_plan.bounds_exceeded` for unaffordable stored limits;
+    /// `study_plan.budget` for a replay stopped as above;
     /// `study_plan.invalid_artifact` for another version or kind, a digest that
     /// does not match, undecodable premises or data, a replay the planner
     /// refuses, or a replayed outcome that differs.
@@ -619,10 +630,29 @@ impl StudyPlanArtifactWire {
             search: SearchLimits { operations: stored.operations, depth: stored.depth },
             memory_limit_bytes: stored.memory_limit_bytes,
         };
-        let replayed = plan_studies(&graph, &route, &catalog, &candidates, replay_limits, ctx)
-            .map_err(|e| {
-                StudyPlanError::invalid_artifact(format!("the plan does not replay: {e}"))
-            })?;
+        let replayed = match plan_studies(&graph, &route, &catalog, &candidates, replay_limits, ctx)
+        {
+            Ok(replayed) => replayed,
+            // A stop is never a verdict against the artifact.
+            Err(error) if error.code == reason_code!("transport_budget_cancel") => {
+                return Err(StudyPlanError {
+                    message: format!("the replay stopped: {}", error.message),
+                    ..error
+                });
+            }
+            Err(error) => {
+                return Err(StudyPlanError::invalid_artifact(format!(
+                    "the plan does not replay: {error}"
+                )));
+            }
+        };
+        if let Some(receipt) = replayed.plan().receipt().filter(|r| r.stop == SearchStop::Cancelled)
+        {
+            return Err(StudyPlanError::budget(
+                "the replay was cancelled before it finished",
+                Some(receipt.clone()),
+            ));
+        }
         let again = replayed.to_artifact()?;
         if again.premises != self.premises || again.data != self.data || again.plan != self.plan {
             return Err(StudyPlanError::invalid_artifact(
@@ -637,8 +667,15 @@ impl StudyPlanResult {
     /// Export the plan as a sealed `study_plan_v1` artifact.
     ///
     /// # Errors
-    /// Graph, catalog or digest encoding failure.
+    /// `study_plan.budget` for a plan that cancellation stopped (no consumer
+    /// could replay it); graph, catalog or digest encoding failure.
     pub fn to_artifact(&self) -> Result<StudyPlanArtifactWire, StudyPlanError> {
+        if self.plan.receipt().is_some_and(|r| r.stop == SearchStop::Cancelled) {
+            return Err(StudyPlanError::budget(
+                "a plan stopped by cancellation cannot be replayed; plan again to export it",
+                None,
+            ));
+        }
         let catalog = self
             .catalog
             .canonicalized()

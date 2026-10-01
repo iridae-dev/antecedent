@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, NodeRef, RegimeId, RegimeKind, VariableId,
-    reason_code,
+    ExecutionContext, InterventionAssignment, NodeRef, RegimeId, RegimeKind, SearchReceipt,
+    VariableId, reason_code,
 };
 use antecedent_graph::Admg;
 use antecedent_identify::{
@@ -120,6 +120,38 @@ impl StudyPlanError {
             message: message.into(),
             receipt: None,
         }
+    }
+
+    /// A budget stop or cancellation: never a verdict on the plan, the
+    /// artifact or the arriving catalog.
+    pub(crate) fn budget(message: impl Into<String>, receipt: Option<SearchReceipt>) -> Self {
+        Self {
+            code: reason_code!("transport_budget_cancel"),
+            detail: "study_plan.budget",
+            message: message.into(),
+            receipt: receipt.map(Box::new),
+        }
+    }
+}
+
+/// The snapshot namespace of the planner's placeholder bindings
+/// ([`EvidenceCatalogDelta::with_placeholder_bindings`]): a provider snapshot
+/// in it is a preview identity, never delivered data.
+const PLACEHOLDER_SNAPSHOT_PREFIX: &str = "hypothetical:";
+
+/// Map a public route's error on the arriving catalog: a budget stop or a
+/// cancellation is `study_plan.budget`, never "not identified". The public
+/// X1/X9 routes report their own stops as `Ok(Exhausted)` (handled in
+/// [`StudyPlanProposal::receive`]), so no known input reaches the budget arm
+/// here; it is kept as a guard and unit-tested.
+fn arrival_stop(route: &str, error: &antecedent_identify::IdentificationError) -> StudyPlanError {
+    if error.is_budget_or_cancel() {
+        StudyPlanError::budget(
+            format!("the {route} route stopped on the arriving catalog: {error}"),
+            None,
+        )
+    } else {
+        StudyPlanError::arrival_not_identified(error.to_string())
     }
 }
 
@@ -226,12 +258,16 @@ impl StudyPlanProposal {
     /// public route (`decide_mz_transport` or `decide_mixed_source` under its
     /// default limits) decides the real catalog from scratch. Support
     /// (positivity) is not checked here: the ordinary evaluator refuses a law
-    /// without mass at a level the formula reads.
+    /// without mass at a level the formula reads. A provider snapshot in the
+    /// planner's placeholder namespace (`hypothetical:`), or a proposed regime
+    /// bound to one, is a preview identity and is refused.
     ///
     /// # Errors
     /// `study_plan.arrival_mismatch` for a catalog that does not match the
-    /// proposal; `study_plan.arrival_not_identified` when the public route does
-    /// not identify the arriving catalog.
+    /// proposal or a placeholder snapshot; `study_plan.budget` when the public
+    /// route stops (budget or cancellation; never a verdict);
+    /// `study_plan.arrival_not_identified` when the public route does not
+    /// identify the arriving catalog.
     pub fn receive(
         &self,
         actual: &EvidenceCatalog,
@@ -247,6 +283,18 @@ impl StudyPlanProposal {
             .map_err(StudyPlanError::arrival_mismatch)?;
         validate_actual_delta(&self.delta, actual).map_err(StudyPlanError::arrival_mismatch)?;
         let provider_snapshot = provider_snapshot.into();
+        let proposed =
+            |regime: RegimeId| self.delta.proposed_regimes.iter().any(|r| r.id == regime);
+        if provider_snapshot.starts_with(PLACEHOLDER_SNAPSHOT_PREFIX)
+            || actual.bindings.iter().any(|binding| {
+                proposed(binding.regime)
+                    && binding.snapshot_identity.starts_with(PLACEHOLDER_SNAPSHOT_PREFIX)
+            })
+        {
+            return Err(StudyPlanError::arrival_mismatch(format!(
+                "a {PLACEHOLDER_SNAPSHOT_PREFIX} snapshot is a planning preview, never delivered data"
+            )));
+        }
         if provider_snapshot.trim().is_empty()
             || !self.delta.proposed_regimes.iter().all(|regime| {
                 actual.bindings.iter().any(|binding| {
@@ -271,15 +319,19 @@ impl StudyPlanProposal {
                     Ok(decision @ MzTransportDecision::Identified { .. }) => {
                         StudyArrivalDecision::Mz(Box::new(decision))
                     }
+                    Ok(MzTransportDecision::Exhausted(receipt)) => {
+                        return Err(StudyPlanError::budget(
+                            "the mz route stopped on the arriving catalog",
+                            Some(receipt),
+                        ));
+                    }
                     Ok(other) => {
                         return Err(StudyPlanError::arrival_not_identified(format!(
                             "the mz route does not identify the arriving catalog ({})",
                             other.detail_code().unwrap_or_default()
                         )));
                     }
-                    Err(error) => {
-                        return Err(StudyPlanError::arrival_not_identified(error.to_string()));
-                    }
+                    Err(error) => return Err(arrival_stop("mz", &error)),
                 }
             }
             StudyPlanRoute::Mixed(query) => {
@@ -294,15 +346,19 @@ impl StudyPlanProposal {
                         decision @ (MixedSourceDecision::Identified { .. }
                         | MixedSourceDecision::NamedRoute { .. }),
                     ) => StudyArrivalDecision::Mixed(Box::new(decision)),
+                    Ok(MixedSourceDecision::Exhausted(receipt)) => {
+                        return Err(StudyPlanError::budget(
+                            "the mixed route stopped on the arriving catalog",
+                            Some(receipt),
+                        ));
+                    }
                     Ok(other) => {
                         return Err(StudyPlanError::arrival_not_identified(format!(
                             "the mixed route does not identify the arriving catalog ({})",
                             other.detail_code().unwrap_or_default()
                         )));
                     }
-                    Err(error) => {
-                        return Err(StudyPlanError::arrival_not_identified(error.to_string()));
-                    }
+                    Err(error) => return Err(arrival_stop("mixed", &error)),
                 }
             }
         };
@@ -330,6 +386,8 @@ fn compile(
     candidates: &[StudyCandidate],
 ) -> Result<Vec<StudyPlanCandidate>, StudyPlanError> {
     let variables = graph_variables(graph);
+    let base_labels =
+        catalog.regimes.iter().filter_map(|r| r.label.as_deref()).collect::<BTreeSet<_>>();
     let mut next = catalog.regimes.iter().map(|r| r.id.raw()).max().map_or(0, |m| m + 1);
     let mut out = Vec::with_capacity(candidates.len());
     for candidate in candidates {
@@ -384,7 +442,14 @@ fn compile(
                 DistributionAvailability::Joint,
             )
             .map_err(|e| StudyPlanError::invalid_candidate(format!("candidate {who}: {e}")))?;
-            regime.label = Some(Arc::from(format!("{who}#{k}")));
+            let label = format!("{who}#{k}");
+            if base_labels.contains(label.as_str()) {
+                return Err(StudyPlanError::invalid_candidate(format!(
+                    "candidate {who} level {k} would be labelled {label}, which a base regime \
+                     already uses"
+                )));
+            }
+            regime.label = Some(Arc::from(label));
             regime.study = Some(Arc::clone(who));
             if !level.is_empty() && !valid_intervention_values(catalog, &regime) {
                 return Err(StudyPlanError::invalid_candidate(format!(
@@ -413,12 +478,15 @@ fn compile(
 /// shared search budget (see `antecedent_identify::plan_study_additions`).
 /// The result is invariant to candidate and source declaration order.
 ///
+/// The declared bounds (plan limits, at most 16 candidates, at most 8 level
+/// combinations per candidate) are checked before any candidate is compiled.
+///
 /// # Errors
 /// Every [`StudyPlanRefusal`] of the planner, plus
 /// `study_plan.invalid_candidate` for a declaration that does not compile
 /// (empty or overlapping margin, a variable outside the graph, levels that do
 /// not assign every intervention or leave the declared domain, no recruitment
-/// declaration).
+/// declaration, or a level label `id#k` that a base regime already uses).
 pub fn plan_studies(
     graph: &Admg,
     route: &StudyPlanRoute,
@@ -427,6 +495,11 @@ pub fn plan_studies(
     limits: StudyPlanLimits,
     ctx: &ExecutionContext,
 ) -> Result<StudyPlanResult, StudyPlanError> {
+    let counts = candidates
+        .iter()
+        .map(|c| c.levels.as_ref().map_or(1, |levels| levels.len()))
+        .collect::<Vec<_>>();
+    limits.check_bounds(route, &counts)?;
     let mut sorted = candidates.to_vec();
     sorted.sort_by(|a, b| a.id.cmp(&b.id));
     let compiled = compile(graph, catalog, &sorted)?;
@@ -438,4 +511,29 @@ pub fn plan_studies(
         compiled,
         plan,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_identify::{IdentificationBudget, IdentificationError};
+
+    #[test]
+    fn a_route_error_on_arrival_is_a_budget_stop_only_for_budget_or_cancel() {
+        for error in [
+            IdentificationError::Cancelled,
+            IdentificationError::budget(IdentificationBudget::Steps),
+        ] {
+            let mapped = arrival_stop("mz", &error);
+            assert_eq!(
+                (mapped.code, mapped.detail),
+                ("transport_budget_cancel", "study_plan.budget")
+            );
+        }
+        let mapped = arrival_stop("mixed", &IdentificationError::invalid_input("bad"));
+        assert_eq!(
+            (mapped.code, mapped.detail),
+            ("transport_not_certified", "study_plan.arrival_not_identified")
+        );
+    }
 }

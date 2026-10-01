@@ -613,3 +613,142 @@ fn a_base_that_already_identifies_has_no_failure_to_repair() {
         ("invalid_argument", "study_plan.no_failure_to_repair")
     );
 }
+
+#[test]
+fn equal_cost_proposals_rank_by_sample_budget_before_ids() {
+    let base = base();
+    let mut candidates = fig_1_candidates(&base);
+    // Two equal-cost sufficient pairs; the one with the smaller sample budget
+    // ranks first although its ids sort later.
+    candidates[1].sample_budget = 10;
+    candidates.push(candidate(&base, "b_do_z1_again", 2, vec![proposed(5, "b", &[(Z1, false)])]));
+    let ctx = ExecutionContext::for_tests(1);
+    let plan =
+        plan(&mz(fig_1_sources()), &base, &candidates, StudyPlanLimits::default(), &ctx).unwrap();
+    let ranked = plan
+        .proposals
+        .iter()
+        .map(|p| (p.candidates.clone(), p.cost_units, p.sample_budget))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ranked,
+        [
+            (vec![Arc::from("a_do_z2"), Arc::from("b_do_z1_again")], 5, 0),
+            (vec![Arc::from("a_do_z2"), Arc::from("b_do_z1")], 5, 10),
+        ]
+    );
+    assert!(plan.minimal);
+}
+
+#[test]
+fn thirty_two_sufficient_pairs_reach_the_proposal_cap() {
+    // Eight copies of a's two-level do(Z2) trial and eight of b's do(Z1 = 0)
+    // trial: no single study and no same-source pair repairs the failure, and
+    // each of the 64 cross pairs does, so the plan stops at 32 proposals.
+    let base = base();
+    let mut candidates = Vec::new();
+    for i in 0..8u32 {
+        candidates.push(candidate(
+            &base,
+            &format!("a{i}"),
+            3,
+            vec![
+                proposed(10 + 2 * i, "a", &[(Z2, false)]),
+                proposed(11 + 2 * i, "a", &[(Z2, true)]),
+            ],
+        ));
+        candidates.push(candidate(
+            &base,
+            &format!("b{i}"),
+            2,
+            vec![proposed(30 + i, "b", &[(Z1, false)])],
+        ));
+    }
+    let ctx = ExecutionContext::for_tests(1);
+    let plan =
+        plan(&mz(fig_1_sources()), &base, &candidates, StudyPlanLimits::default(), &ctx).unwrap();
+    assert_eq!(plan.stop, Some(StudyPlanStop::ProposalCap));
+    assert_eq!(plan.proposals.len(), 32);
+    assert_eq!(plan.status(), None);
+    assert!(plan.receipt().is_none());
+    // The pairs rank by ids: a0..a3 with every b; the 33rd pair is never decided.
+    assert_eq!(plan.proposals[31].candidates, [Arc::from("a3"), Arc::from("b7")]);
+    let next = plan.subsets.iter().find(|s| s.label() == "subset:[a4,b0]").unwrap();
+    assert_eq!(next.outcome, StudySubsetOutcome::Unevaluated);
+    // Every strictly cheaper subset was decided before the cap: the claim stands.
+    assert!(plan.minimal);
+    assert!(plan.subsets.iter().filter(|s| s.cost_units < 5).all(|s| s.outcome.conclusive()));
+}
+
+fn memory_plan(
+    candidates: &[StudyPlanCandidate],
+    memory_limit_bytes: u64,
+) -> Result<StudyPlan, StudyPlanRefusal> {
+    let base = base();
+    let ctx = ExecutionContext::for_tests(1);
+    let limits = StudyPlanLimits { memory_limit_bytes, ..StudyPlanLimits::default() };
+    plan(&mz(fig_1_sources()), &base, candidates, limits, &ctx)
+}
+
+/// The smallest memory cap under which the plan finishes without a stop.
+fn smallest_completing_cap(candidates: &[StudyPlanCandidate]) -> u64 {
+    let completes = |cap| memory_plan(candidates, cap).is_ok_and(|p: StudyPlan| p.stop.is_none());
+    let (mut lo, mut hi) = (1u64, 1u64 << 20);
+    assert!(completes(hi));
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if completes(mid) { hi = mid } else { lo = mid + 1 }
+    }
+    lo
+}
+
+#[test]
+fn retained_proposals_stay_charged_under_every_later_subset() {
+    let base = base();
+    let mut candidates = fig_1_candidates(&base);
+    candidates.push(candidate(&base, "b_do_z1_again", 2, vec![proposed(5, "b", &[(Z1, false)])]));
+    let cap = smallest_completing_cap(&candidates);
+    // One byte less stops the plan after a proposal was kept, on a later subset.
+    let stopped = memory_plan(&candidates, cap - 1).unwrap();
+    let receipt = stopped.receipt().expect("one byte short stops the plan");
+    assert_eq!(receipt.stop, SearchStop::Memory);
+    assert!(!stopped.proposals.is_empty(), "the stop falls after a retained proposal");
+    let at = receipt.unevaluated.first().cloned().unwrap();
+    // The same subset planned alone (its own subsets first, no proposal kept
+    // before it) fits under that cap: only the retained proposal made the
+    // full plan stop there.
+    let members =
+        at.trim_start_matches("subset:[").trim_end_matches(']').split(',').collect::<Vec<_>>();
+    let alone =
+        candidates.iter().filter(|c| members.contains(&c.id.as_ref())).cloned().collect::<Vec<_>>();
+    assert_eq!(alone.len(), members.len());
+    let solo = memory_plan(&alone, cap - 1).unwrap();
+    assert!(solo.stop.is_none(), "{at} alone fits under {}: {:?}", cap - 1, solo.stop);
+    let solo_record = solo.subsets.iter().find(|s| s.label() == at).unwrap();
+    assert!(solo_record.outcome.conclusive());
+}
+
+#[test]
+fn the_plan_memory_bound_accepts_512_mib_and_refuses_one_byte_more() {
+    use antecedent_identify::STUDY_PLAN_MEMORY_BYTES;
+    assert_eq!(STUDY_PLAN_MEMORY_BYTES, 512 * 1024 * 1024);
+    let base = base();
+    let candidates = fig_1_candidates(&base);
+    let at = memory_plan(&candidates, STUDY_PLAN_MEMORY_BYTES).unwrap();
+    assert_eq!(at.limits.memory_limit_bytes, STUDY_PLAN_MEMORY_BYTES);
+    let refusal = memory_plan(&candidates, STUDY_PLAN_MEMORY_BYTES + 1).unwrap_err();
+    assert_eq!(
+        (refusal.code, refusal.detail),
+        ("route_not_supported", "study_plan.bounds_exceeded")
+    );
+    assert!(refusal.receipt.is_none());
+    // Refused before any work: even a cancelled context reports the bound.
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    let limits = StudyPlanLimits {
+        memory_limit_bytes: STUDY_PLAN_MEMORY_BYTES + 1,
+        ..StudyPlanLimits::default()
+    };
+    let refusal = plan(&mz(fig_1_sources()), &base, &candidates, limits, &cancelled).unwrap_err();
+    assert_eq!(refusal.detail, "study_plan.bounds_exceeded");
+}

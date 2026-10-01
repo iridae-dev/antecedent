@@ -423,6 +423,14 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     };
     let error = original.consume_with_limits(small, &cancelled).unwrap_err();
     assert_eq!((error.code, error.detail), ("route_not_supported", "study_plan.bounds_exceeded"));
+    // What replay does NOT protect: lineage. Re-sealed with every base binding
+    // (snapshot) cleared, the plan replays identically and is accepted; only
+    // `receive` compares an arrival against the stored bindings.
+    let mut unbound = original.clone();
+    unbound.data.catalog.bindings.clear();
+    let unbound = unbound.sealed().unwrap();
+    assert_ne!(unbound.data_digest, original.data_digest);
+    assert!(consume(&unbound).is_ok(), "replay does not exercise lineage");
 }
 
 #[test]
@@ -652,4 +660,230 @@ fn a_value_restricted_study_is_refused_on_the_mixed_route() {
             .unwrap_err();
     assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.invalid_candidate"));
     assert!(error.message.contains("restricts its levels"), "{}", error.message);
+}
+
+// ------------------------------------------------------- stops and bounds
+
+struct CancelAfter {
+    token: antecedent_core::CancellationToken,
+    reports: std::sync::Mutex<usize>,
+    after: usize,
+}
+
+impl antecedent_core::ProgressSink for CancelAfter {
+    fn report(&self, _fraction: f64, _stage: &str) {
+        let mut reports = self.reports.lock().unwrap();
+        *reports += 1;
+        if *reports == self.after {
+            self.token.cancel();
+        }
+    }
+}
+
+fn cancelling_after(reports: usize) -> ExecutionContext {
+    let mut ctx = ExecutionContext::for_tests(9);
+    ctx.progress = Some(Arc::new(CancelAfter {
+        token: ctx.cancellation.clone(),
+        reports: std::sync::Mutex::new(0),
+        after: reports,
+    }));
+    ctx
+}
+
+const BUDGET: (&str, &str) = ("transport_budget_cancel", "study_plan.budget");
+
+#[test]
+fn a_cancelled_replay_is_a_budget_stop_never_a_verdict_on_the_artifact() {
+    let wire = mz_plan().to_artifact().unwrap();
+    // Cancelled before the replay starts (the stored limits are affordable).
+    let cancelled = ExecutionContext::for_tests(9);
+    cancelled.cancellation.cancel();
+    let error =
+        wire.consume_with_limits(StudyPlanConsumeLimits::default(), &cancelled).unwrap_err();
+    assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
+    // Cancelled in the middle of the replay, after two subsets were decided.
+    let error = wire
+        .consume_with_limits(StudyPlanConsumeLimits::default(), &cancelling_after(2))
+        .unwrap_err();
+    assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
+    assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Cancelled));
+    // The same artifact replays once nothing cancels it.
+    assert!(consume(&wire).is_ok());
+    // A plan that cancellation stopped cannot be exported: no consumer could
+    // replay it.
+    let stopped = plan_studies(
+        &graph(),
+        &mz_route(),
+        &mz_base(),
+        &mz_candidates(),
+        StudyPlanLimits::default(),
+        &cancelling_after(2),
+    )
+    .unwrap();
+    assert!(stopped.plan().receipt().is_some());
+    let error = stopped.to_artifact().unwrap_err();
+    assert_eq!((error.code, error.detail), BUDGET);
+}
+
+#[test]
+fn an_arrival_the_public_route_cannot_finish_is_a_budget_stop() {
+    let plan = mz_plan();
+    let top = plan.proposal(0).unwrap();
+    let (actual, _) =
+        arrive(&mz_base(), None, &top.delta().proposed_regimes, "arrival-1", &scm_for, &|_, p| p);
+    // Cancellation.
+    let cancelled = ExecutionContext::for_tests(3);
+    cancelled.cancellation.cancel();
+    let error = top.receive(&actual, "arrival-1", &cancelled).unwrap_err();
+    assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
+    assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Cancelled));
+    // Exhaustion: the context's hard memory limit stops the public route.
+    let mut tight = ExecutionContext::for_tests(3);
+    tight.memory =
+        antecedent_core::MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(64) };
+    let error = top.receive(&actual, "arrival-1", &tight).unwrap_err();
+    assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
+    assert_eq!(error.receipt.map(|r| r.stop), Some(antecedent_core::SearchStop::Memory));
+    // The mixed route: the same, never arrival_not_identified.
+    let (g, base, _) = surrogate_base();
+    let route = surrogate_route();
+    let candidates = vec![study("trial_y", "target", &[FZ], None, &[FY], 2)];
+    let ctx = ExecutionContext::for_tests(5);
+    let mixed =
+        plan_studies(&g, &route, &base, &candidates, StudyPlanLimits::for_route(&route), &ctx)
+            .unwrap();
+    let proposal = mixed.proposal(0).unwrap();
+    let (actual, _) = arrive(
+        &base,
+        None,
+        &proposal.delta().proposed_regimes,
+        "trial-y",
+        &|_| frontdoor_scm(),
+        &|_, p| p,
+    );
+    for (ctx, stop) in [
+        (&cancelled, antecedent_core::SearchStop::Cancelled),
+        (&tight, antecedent_core::SearchStop::Memory),
+    ] {
+        let error = proposal.receive(&actual, "trial-y", ctx).unwrap_err();
+        assert_eq!((error.code, error.detail), BUDGET, "{}", error.message);
+        assert_eq!(error.receipt.map(|r| r.stop), Some(stop));
+    }
+    assert!(proposal.receive(&actual, "trial-y", &ctx).is_ok());
+}
+
+#[test]
+fn a_placeholder_snapshot_never_poses_as_delivered_data() {
+    let plan = mz_plan();
+    let top = plan.proposal(0).unwrap();
+    let ctx = ExecutionContext::for_tests(3);
+    let regimes = top.delta().proposed_regimes.to_vec();
+    // Every arriving regime bound to a placeholder-namespace snapshot.
+    let (actual, _) = arrive(&mz_base(), None, &regimes, "hypothetical:1", &scm_for, &|_, p| p);
+    let error = top.receive(&actual, "hypothetical:1", &ctx).unwrap_err();
+    assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.arrival_mismatch"));
+    assert!(error.message.contains("planning preview"), "{}", error.message);
+    // The planner's own placeholder bindings are in that namespace.
+    let preview = top.delta().preview_catalog(&mz_base()).unwrap();
+    let placeholders = top.delta().with_placeholder_bindings(&preview).unwrap();
+    let placeholder = placeholders
+        .bindings
+        .iter()
+        .find(|b| b.regime == regimes[0].id)
+        .map(|b| b.snapshot_identity.clone())
+        .unwrap();
+    let error = top.receive(&placeholders, placeholder, &ctx).unwrap_err();
+    assert_eq!(error.detail, "study_plan.arrival_mismatch");
+    assert!(error.message.contains("planning preview"), "{}", error.message);
+    // A real provider snapshot is accepted.
+    let (actual, _) = arrive(&mz_base(), None, &regimes, "arrival-1", &scm_for, &|_, p| p);
+    assert!(top.receive(&actual, "arrival-1", &ctx).is_ok());
+}
+
+#[test]
+fn bounds_are_checked_before_any_candidate_compiles() {
+    let ctx = ExecutionContext::for_tests(3);
+    let refuse = |candidates: &[StudyCandidate], limits: StudyPlanLimits| {
+        let error =
+            plan_studies(&graph(), &mz_route(), &mz_base(), candidates, limits, &ctx).unwrap_err();
+        (error.code, error.detail)
+    };
+    let bound = ("route_not_supported", "study_plan.bounds_exceeded");
+    // A candidate that cannot compile (no recruitment declaration), sorted first.
+    let mut broken = study("a_broken", "b", &[], None, &[X], 1);
+    broken.recruitment = Arc::from(" ");
+    assert_eq!(
+        refuse(&[broken.clone()], StudyPlanLimits::default()),
+        ("invalid_argument", "study_plan.invalid_candidate")
+    );
+    // Seventeen candidates: the count refuses before the broken one compiles.
+    let mut many = vec![broken.clone()];
+    many.extend((0..16).map(|i| study(&format!("obs{i:02}"), "b", &[], None, &[X], 1)));
+    assert_eq!(refuse(&many, StudyPlanLimits::default()), bound);
+    // Nine level combinations in one candidate, likewise.
+    let wide = study("z_wide", "a", &[Z2], Some(vec![vec![(Z2, false)]; 9]), &[Z1, X, Y], 1);
+    assert_eq!(refuse(&[broken.clone(), wide], StudyPlanLimits::default()), bound);
+    // Plan limits above the caps, likewise.
+    let over = StudyPlanLimits {
+        search: SearchLimits { operations: 200_001, depth: 24 },
+        ..StudyPlanLimits::default()
+    };
+    assert_eq!(refuse(&[broken], over), bound);
+}
+
+#[test]
+fn a_candidate_label_that_a_base_regime_already_uses_is_refused() {
+    let base = mz_base();
+    let mut regimes = base.regimes.to_vec();
+    regimes[0].label = Some(Arc::from("b_do_z1#0"));
+    let base = EvidenceCatalog::try_new(
+        Arc::clone(&base.environments),
+        regimes,
+        base.bindings.to_vec(),
+        None,
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(3);
+    let error = plan_studies(
+        &graph(),
+        &mz_route(),
+        &base,
+        &mz_candidates(),
+        StudyPlanLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!((error.code, error.detail), ("invalid_argument", "study_plan.invalid_candidate"));
+    assert!(error.message.contains("b_do_z1#0"), "{}", error.message);
+}
+
+#[test]
+fn a_consumer_refuses_a_stored_memory_cap_above_its_own_or_the_context_s_before_work() {
+    use antecedent_identify::STUDY_PLAN_MEMORY_BYTES;
+    let wire = mz_plan().to_artifact().unwrap();
+    assert_eq!(wire.premises.limits.memory_limit_bytes, STUDY_PLAN_MEMORY_BYTES);
+    let bound = ("route_not_supported", "study_plan.bounds_exceeded");
+    // A cancelled consumer: a refusal here is taken before any replay work.
+    let cancelled = || {
+        let ctx = ExecutionContext::for_tests(9);
+        ctx.cancellation.cancel();
+        ctx
+    };
+    let lower = StudyPlanConsumeLimits {
+        memory_limit_bytes: STUDY_PLAN_MEMORY_BYTES - 1,
+        ..StudyPlanConsumeLimits::default()
+    };
+    let error = wire.consume_with_limits(lower, &cancelled()).unwrap_err();
+    assert_eq!((error.code, error.detail), bound);
+    let mut hard = cancelled();
+    hard.memory = antecedent_core::MemoryBudget {
+        soft_limit_bytes: None,
+        hard_limit_bytes: Some(STUDY_PLAN_MEMORY_BYTES - 1),
+    };
+    let error = wire.consume_with_limits(StudyPlanConsumeLimits::default(), &hard).unwrap_err();
+    assert_eq!((error.code, error.detail), bound);
+    // At exactly the stored cap the replay proceeds (here to the cancellation).
+    let error =
+        wire.consume_with_limits(StudyPlanConsumeLimits::default(), &cancelled()).unwrap_err();
+    assert_eq!((error.code, error.detail), BUDGET);
 }
