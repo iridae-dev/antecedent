@@ -227,7 +227,15 @@ struct AdmgConditionalTransportStage {
 
 #[pymethods]
 impl AdmgConditionalTransportStage {
-    /// `identified`, `missing_evidence`, `not_certified` or `exhausted`.
+    /// Identification status in the shared transport vocabulary: `identified`,
+    /// `proven_non_transportable`, `missing_evidence`, `not_certified` or
+    /// `budget_cancel`. `outcome` keeps its earlier spelling.
+    #[getter]
+    fn identification_status(&self) -> &'static str {
+        self.decision.identification_status().as_str()
+    }
+    /// Legacy spelling (deprecated; read `identification_status`): `identified`,
+    /// `missing_evidence`, `not_certified` or `exhausted`.
     #[getter]
     #[doc(hidden)]
     fn outcome(&self) -> &'static str {
@@ -242,7 +250,9 @@ impl AdmgConditionalTransportStage {
     /// The decision in variable names.
     #[doc(hidden)]
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        to_py_json(py, &decision_json(&self.decision, &self.graph.names))
+        let mut value = decision_json(&self.decision, &self.graph.names);
+        value["identification_status"] = self.decision.identification_status().as_str().into();
+        to_py_json(py, &value)
     }
 
     /// Prepare exact-law evaluation for one request mapping (binding the

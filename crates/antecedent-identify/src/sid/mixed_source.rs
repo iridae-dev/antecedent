@@ -1874,6 +1874,26 @@ pub enum MixedSourceDecision {
 }
 
 impl MixedSourceDecision {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    ///
+    /// A named route is identified by that theorem-scoped route (prepare it there); its
+    /// legacy Python `outcome` spellings `named_route` and `exhausted` read as
+    /// `identified` and `budget_cancel`.
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified { .. } | Self::NamedRoute { .. } => {
+                antecedent_core::TransportOutcomeKind::Identified
+            }
+            Self::NotCertified(_) => antecedent_core::TransportOutcomeKind::NotCertified,
+            Self::MissingEvidence(_) => antecedent_core::TransportOutcomeKind::MissingEvidence,
+            Self::Exhausted(_) => antecedent_core::TransportOutcomeKind::BudgetCancel,
+        }
+    }
+}
+
+impl MixedSourceDecision {
     /// Top-level reason code of a non-identified outcome; `None` when identified.
     #[must_use]
     pub const fn reason_code(&self) -> Option<&'static str> {

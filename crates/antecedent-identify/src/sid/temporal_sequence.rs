@@ -683,6 +683,25 @@ pub enum TemporalOutcome {
 }
 
 impl TemporalOutcome {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    ///
+    /// [`Self::status`] keeps the spellings `structurally_unidentified` and `stopped`; they read as `proven_non_transportable` and `budget_cancel`.
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::StructurallyUnidentified(_) => {
+                antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+            }
+            Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
+            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+            Self::Stopped { .. } => antecedent_core::TransportOutcomeKind::BudgetCancel,
+        }
+    }
+}
+
+impl TemporalOutcome {
     /// Stable status name.
     #[must_use]
     pub const fn status(&self) -> &'static str {

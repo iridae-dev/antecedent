@@ -174,6 +174,21 @@ pub enum ClassicalTransportResult {
     /// Independently verified single-source s-hedge obstruction.
     ProvenNonTransportable(SHedgeCertificate),
 }
+
+impl ClassicalTransportResult {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::NotCertified => antecedent_core::TransportOutcomeKind::NotCertified,
+            Self::ProvenNonTransportable(_) => {
+                antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+            }
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[allow(missing_docs)]
 #[serde(rename_all = "snake_case")]
@@ -2134,6 +2149,19 @@ pub enum CatalogTransportResult {
         /// Scope notes for each attempted strategy.
         obligations: Arc<[Arc<str>]>,
     },
+}
+
+impl CatalogTransportResult {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
+            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+        }
+    }
 }
 
 /// Search stages of catalog-aware transport identification, in the order they are tried.

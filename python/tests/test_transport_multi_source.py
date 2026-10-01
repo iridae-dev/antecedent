@@ -255,6 +255,8 @@ def test_an_exhausted_search_returns_a_receipt():
         graph=graph(), query=query(source_a(), source_b()), catalog=catalog(), max_operations=3
     )
     assert stage.outcome == "exhausted"
+    assert stage.identification_status == "budget_cancel"
+    assert stage.decision()["identification_status"] == "budget_cancel"
     receipt = stage.decision()["limits_receipt"]
     assert receipt["stop"] == "search.operations"
     assert "stage:multi_source" in receipt["unevaluated"]

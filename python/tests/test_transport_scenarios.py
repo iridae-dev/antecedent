@@ -125,6 +125,11 @@ def test_unidentified_scenarios_are_retained_not_filtered():
     report = json.loads(prepare().estimate())
     shift = by_name(report)["outcome_shift"]
     assert shift["status"] == "structurally_unidentified"
+    assert shift["identification_status"] == "proven_non_transportable"
+    assert {row["identification_status"] for row in report["scenarios"]} == {
+        "identified",
+        "proven_non_transportable",
+    }
     assert shift["point"] is None
     counts = {m["status"]: m["count"] for m in report["masses"]}
     assert counts["identified"] == 2 and counts["structurally_unidentified"] == 1

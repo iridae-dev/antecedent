@@ -146,6 +146,16 @@ fn decision_json(
     catalog: &antecedent_core::EvidenceCatalog,
     names: &[String],
 ) -> serde_json::Value {
+    let mut value = decision_body(decision, catalog, names);
+    value["identification_status"] = decision.identification_status().as_str().into();
+    value
+}
+
+fn decision_body(
+    decision: &ZTransportDecision,
+    catalog: &antecedent_core::EvidenceCatalog,
+    names: &[String],
+) -> serde_json::Value {
     match decision {
         ZTransportDecision::Identified(proof) => serde_json::json!({
             "outcome": "identified",
@@ -207,6 +217,7 @@ fn limits_receipt_json(
 ) -> serde_json::Value {
     serde_json::json!({
         "outcome": "exhausted",
+        "identification_status": antecedent_core::TransportOutcomeKind::BudgetCancel.as_str(),
         "limits_receipt": {
             "budget": receipt.budget,
             "steps_limit": receipt.steps_limit,
@@ -333,6 +344,13 @@ impl ZTransportStage {
         to_py_json(py, &value)
     }
 
+    /// Identification status in the shared transport vocabulary: `identified`,
+    /// `proven_non_transportable`, `missing_evidence`, `not_certified` or
+    /// `budget_cancel`. `outcome` keeps its earlier spelling.
+    #[getter]
+    fn identification_status(&self) -> &'static str {
+        self.result.identification_status().as_str()
+    }
     #[getter]
     fn outcome(&self) -> &'static str {
         match &self.result {
@@ -1314,7 +1332,8 @@ fn decide_two_source_z_transport_stage(
             &ctx,
         )
         .map_err(error)?;
-        Ok(match decision {
+        let status = decision.identification_status().as_str();
+        let mut value = match decision {
             TwoSourceZTransportDecision::Identified { source, derivation } => {
                 let index = usize::from(query.sources[1].population == source);
                 serde_json::json!({
@@ -1359,7 +1378,9 @@ fn decide_two_source_z_transport_stage(
                 "outcome": "not_certified",
                 "reason": reason,
             }),
-        })
+        };
+        value["identification_status"] = status.into();
+        Ok(value)
     })?;
     to_py_json(py, &value)
 }

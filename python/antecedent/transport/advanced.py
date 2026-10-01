@@ -127,6 +127,11 @@ from ._smoothed_dose import (
     prepare_smoothed_dose,
     smoothed_dose_estimator_menu,
 )
+from ._status import (
+    IDENTIFICATION_STATUSES,
+    LEGACY_IDENTIFICATION_STATUSES,
+    identification_status,
+)
 from ._study_planning import StudyCandidate, plan_studies, replay_study_plan
 from ._temporal import (
     TemporalSequenceSpec,
@@ -135,6 +140,9 @@ from ._temporal import (
 )
 
 __all__ = [
+    "IDENTIFICATION_STATUSES",
+    "LEGACY_IDENTIFICATION_STATUSES",
+    "identification_status",
     "JointDeviation",
     "consume_joint_mechanism_sensitivity_artifact",
     "export_joint_mechanism_sensitivity",

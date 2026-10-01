@@ -84,6 +84,17 @@ fn parse_coordinates(
         .collect()
 }
 
+/// A scenario row's identification status in the shared transport vocabulary.
+///
+/// `status` keeps the serialized scenario spellings (`structurally_unidentified`,
+/// `unevaluated`); the execution statuses `unsupported_provider` and
+/// `support_failure` belong to identified scenarios whose evaluation then failed.
+fn scenario_identification_status(status: &str) -> &'static str {
+    antecedent_core::TransportOutcomeKind::from_identification_status(status)
+        .unwrap_or(antecedent_core::TransportOutcomeKind::Identified)
+        .as_str()
+}
+
 fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Value {
     let name = |v: &VariableId| names[v.as_usize()].clone();
     serde_json::json!({
@@ -100,6 +111,7 @@ fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Valu
                 "name": s.name.as_ref(),
                 "weight": s.weight,
                 "status": s.status,
+                "identification_status": scenario_identification_status(s.status),
                 "detail": s.detail.as_ref().map(|d| crate::transport_common::resolve_variable_ids(d, names)),
                 "point": point,
             })

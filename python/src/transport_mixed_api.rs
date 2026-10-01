@@ -286,7 +286,15 @@ struct MixedSourceStage {
 
 #[pymethods]
 impl MixedSourceStage {
-    /// `identified`, `named_route`, `missing_evidence`, `not_certified` or `exhausted`.
+    /// Identification status in the shared transport vocabulary: `identified`,
+    /// `proven_non_transportable`, `missing_evidence`, `not_certified` or
+    /// `budget_cancel`. `outcome` keeps its earlier spelling.
+    #[getter]
+    fn identification_status(&self) -> &'static str {
+        self.decision.identification_status().as_str()
+    }
+    /// Legacy spelling (deprecated; read `identification_status`): `identified`,
+    /// `named_route`, `missing_evidence`, `not_certified` or `exhausted`.
     #[getter]
     #[doc(hidden)]
     fn outcome(&self) -> &'static str {
@@ -302,10 +310,10 @@ impl MixedSourceStage {
     /// The decision in variable names and catalog regime labels.
     #[doc(hidden)]
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        to_py_json(
-            py,
-            &decision_json(&self.decision, &self.catalog, &self.graph.names, self.memory_bytes),
-        )
+        let mut value =
+            decision_json(&self.decision, &self.catalog, &self.graph.names, self.memory_bytes);
+        value["identification_status"] = self.decision.identification_status().as_str().into();
+        to_py_json(py, &value)
     }
 
     /// Prepare exact-law evaluation of the identified formula for one request

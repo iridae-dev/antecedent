@@ -111,6 +111,13 @@ impl ClassicalTransportStage {
         })
         .to_string())
     }
+    /// Identification status in the shared transport vocabulary: `identified`,
+    /// `proven_non_transportable`, `missing_evidence`, `not_certified` or
+    /// `budget_cancel`. `outcome` keeps its earlier spelling.
+    #[getter]
+    fn identification_status(&self) -> &'static str {
+        self.result.identification_status().as_str()
+    }
     #[getter]
     fn outcome(&self) -> &'static str {
         match &self.result {
@@ -175,7 +182,8 @@ impl ClassicalTransportStage {
                 .filter(|r| !r.evidence_kind.can_satisfy_factor())
                 .map(|r| r.label.as_deref().unwrap_or("unlabelled"))
                 .collect();
-            let value = match result {
+            let status = result.identification_status().as_str();
+            let mut value = match result {
                 antecedent_identify::CatalogTransportResult::Identified(bound) => {
                     serde_json::json!({
                     "outcome":"identified", "searched":bound.searched_alternatives().iter().map(AsRef::as_ref).collect::<Vec<_>>(),
@@ -196,6 +204,7 @@ impl ClassicalTransportStage {
                     "missing_factors":obligations.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"future_experiments":future,
                     "exhausted":!obligations.iter().any(|note|note.contains("capped")),"finite_catalog_complete":false}),
             };
+            value["identification_status"] = status.into();
             Ok(value.to_string())
         })
     }
@@ -482,7 +491,22 @@ pub(crate) fn validate_artifact_names(
     Ok(())
 }
 
+/// The shared transport identification vocabulary: the canonical spellings,
+/// strongest first, and each deprecated binding-local spelling with the canonical
+/// spelling it reads as.
+#[pyfunction]
+fn transport_identification_statuses() -> (Vec<&'static str>, Vec<(&'static str, &'static str)>) {
+    use antecedent_core::TransportOutcomeKind as K;
+    (
+        K::IDENTIFICATION.iter().map(|kind| kind.as_str()).collect(),
+        K::LEGACY_IDENTIFICATION_SPELLINGS
+            .iter()
+            .map(|(spelling, kind)| (*spelling, kind.as_str()))
+            .collect(),
+    )
+}
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(transport_identification_statuses, m)?)?;
     m.add_class::<ClassicalTransportStage>()?;
     m.add_function(wrap_pyfunction!(consume_transport_certificate, m)?)?;
     m.add_function(wrap_pyfunction!(identify_meta_transport_stage, m)?)?;

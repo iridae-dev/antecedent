@@ -7,12 +7,12 @@ A not-certified transport outcome is a conservative refusal, not a proof of impo
 
 | Outcome | Where to read it | Neighbor |
 | --- | --- | --- |
-| Not certified | `ident.status`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_exact.py) |
-| Theorem-scoped impossibility | `ident.status == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_meta_grid.py) |
+| Not certified | `ident.certificate["identification_status"] == "not_certified"`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_exact.py) |
+| Theorem-scoped impossibility | `ident.certificate["identification_status"] == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_meta_grid.py) |
 | Missing evidence | `ident.inspect().support`, `answer.kind="unavailable"` | Full vs partial catalog in the same meta-grid example |
 | Local support / positivity | `result.support` | Fixture family `transport_support_local` |
 | Uncalibrated / unavailable interval | `result.calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/transport_statistical.rs) |
-| Budget exhaustion | raised `transport.identification_budget` | Same query under default `SidLimits`; fixture `transport_budget_refusal` |
+| Budget exhaustion | raised `transport.identification_budget`, or a stage whose `identification_status` is `budget_cancel` | Same query under default `SidLimits`; fixture `transport_budget_refusal` |
 
 ## Not certified
 
@@ -23,8 +23,43 @@ and evaluates.
 
 ```python
 ident = ant.identify(graph=graph, query=query)
-print(ident.status, ident.inspect().identification.summary)
+print(ident.certificate["identification_status"], ident.inspect().identification.summary)
 ```
+
+`ident.status` is the general identification status (`NotIdentified` here, for
+every refusal); the transport kind is `identification_status`.
+
+## One identification-status vocabulary
+
+Every transport binding reports `identification_status` with one of five
+spellings, the Rust `TransportOutcomeKind` names: `identified`,
+`proven_non_transportable`, `missing_evidence`, `not_certified` and
+`budget_cancel`. In Rust it is `identification_status()` on each decision type
+(`ClassicalTransportResult`, `CatalogTransportResult`, `ZTransportResult`,
+`ZTransportDecision`, `TwoSourceZTransportDecision`, `MzTransportDecision`,
+`MixedSourceDecision`, `ConditionalTransportDecision`, `ScenarioOutcome`,
+`TemporalOutcome`); in Python it is the `identification_status` property of
+each stage and identification, the `identification_status` key of each
+`decision()` and scenario row, and `certificate["identification_status"]` on
+`ant.identify`.
+
+The spellings used before 2.2 are kept where they are serialized or public and
+are deprecated:
+
+| Earlier spelling | Where | Canonical |
+| --- | --- | --- |
+| `exhausted` | a stage's `outcome` (z, multi-source z, mixed-source, ADMG-conditional) | `budget_cancel` |
+| `unevaluated` | a scenario row's `status` | `budget_cancel` |
+| `stopped` | `TemporalOutcome::status()` | `budget_cancel` |
+| `structurally_unidentified` | a scenario row's `status`, `TemporalOutcome::status()` | `proven_non_transportable` |
+| `combined_identified` | a two-source z decision's `outcome` | `identified` |
+| `named_route` | a mixed-source stage's `outcome` (another theorem-scoped route identifies it) | `identified` |
+
+`antecedent.transport.advanced.identification_status(value)` reads any of these
+(a string, a stage, or a decision mapping) as its canonical spelling, and
+`TransportOutcomeKind::from_identification_status` does the same in Rust.
+Reason codes (`transport_budget_cancel`, `transport_not_certified`, ...) are
+unchanged.
 
 ## Theorem-scoped impossibility
 

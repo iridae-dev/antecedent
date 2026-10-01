@@ -532,6 +532,25 @@ pub enum ScenarioOutcome {
 }
 
 impl ScenarioOutcome {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    ///
+    /// [`Self::status`] keeps the serialized scenario spellings `structurally_unidentified` and `unevaluated`; they read as `proven_non_transportable` and `budget_cancel`.
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::StructurallyUnidentified(_) => {
+                antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+            }
+            Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
+            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+            Self::Unevaluated { .. } => antecedent_core::TransportOutcomeKind::BudgetCancel,
+        }
+    }
+}
+
+impl ScenarioOutcome {
     /// The registered runtime-refusal code of an outcome that is a budget or
     /// cancellation stop ([`SCENARIO_UNEVALUATED_CODE`]); `None` for a decided
     /// outcome.

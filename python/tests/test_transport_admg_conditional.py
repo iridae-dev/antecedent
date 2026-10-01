@@ -309,6 +309,8 @@ def test_not_certified_bounds_and_invalid_queries_carry_reason_codes():
     # A budget stop is a receipt, never a verdict.
     exhausted = decide(max_operations=2)
     assert exhausted.outcome == "exhausted"
+    assert exhausted.identification_status == "budget_cancel"
+    assert exhausted.decision()["identification_status"] == "budget_cancel"
     receipt = exhausted.decision()["receipt"]
     assert receipt["stop"] == "search.operations" and receipt["operations_consumed"] == 2
     # Limits above the frozen maxima refuse as bounds_exceeded.
@@ -360,7 +362,9 @@ def test_a_missing_source_experiment_is_a_missing_evidence_stage():
         graph=graph(), query=query(), catalog=catalog(drop=("x",))
     )
     assert stage.outcome == "missing_evidence"
+    assert stage.identification_status == "missing_evidence"
     decision = stage.decision()
+    assert decision["identification_status"] == "missing_evidence"
     assert decision["reason_code"] == "transport_missing_evidence"
     assert decision["detail"] == "admg_transport.missing_evidence"
     assert decision["remaining"] == ["w"]

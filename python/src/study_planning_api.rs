@@ -240,6 +240,14 @@ impl StudyPlanStage {
             },
         };
         let mut payload = payload;
+        // The collapsed `not_identified` outcome is kept for 2.1 callers; the
+        // canonical status says which kind of non-identification it was.
+        payload["identification_status"] = match &arrival.decision {
+            StudyArrivalDecision::Mz(decision) => decision.identification_status(),
+            StudyArrivalDecision::Mixed(decision) => decision.identification_status(),
+        }
+        .as_str()
+        .into();
         payload["provider_snapshot"] = arrival.provider_snapshot.as_ref().into();
         to_py_json(py, &payload)
     }

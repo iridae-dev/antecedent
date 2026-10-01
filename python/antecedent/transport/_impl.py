@@ -44,6 +44,7 @@ from ..query import (
     ResponseJacobian,
     SemiElasticity,
 )
+from ._status import identification_status as _canonical_status
 
 
 class TransportStage(TypedDict):
@@ -586,6 +587,13 @@ class TransportIdentification:
     @property
     def transportable(self) -> bool:
         return self.formula is not None
+
+    @property
+    def identification_status(self) -> str:
+        """Canonical identification status (``identified``, ``proven_non_transportable``,
+        ``missing_evidence``, ``not_certified`` or ``budget_cancel``); ``outcome`` keeps
+        its earlier spelling."""
+        return _canonical_status(self.outcome)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1213,6 +1221,13 @@ class ClassicalTransportIdentification:
     rules: tuple[str, ...]
     outcomes: tuple[str, ...]
     _native: Any = field(repr=False, compare=False)
+
+    @property
+    def identification_status(self) -> str:
+        """Canonical identification status (``identified``, ``proven_non_transportable``,
+        ``missing_evidence``, ``not_certified`` or ``budget_cancel``); ``outcome`` keeps
+        its earlier spelling."""
+        return _canonical_status(self.outcome)
 
     def export(self) -> bytes:
         """Export the retained checked proof or conservative/negative certificate."""

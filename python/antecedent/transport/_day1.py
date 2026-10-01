@@ -59,6 +59,7 @@ from ._impl import (
 from ._impl import (
     prepare as prepare_stage,
 )
+from ._status import identification_status as canonical_identification_status
 
 _RESPONSE_FAMILY = (
     ResponseCurve,
@@ -981,6 +982,8 @@ def _identification_from_restricted(graph: Admg, query: Transport, identified: A
         note = outcome
     certificate = {
         "outcome": note,
+        # The shared transport vocabulary; ``outcome`` keeps its earlier spelling.
+        "identification_status": canonical_identification_status(note),
         "rules": list(identified.rules),
         "native_outcome": outcome,
         "scope": identified.scope,
@@ -1066,6 +1069,11 @@ def identification_from_transport(
         note = outcome
     certificate = {
         "outcome": note,
+        # The shared transport vocabulary; ``outcome`` keeps its earlier spelling. A
+        # catalog search that a limit or cancellation stopped is ``budget_cancel``.
+        "identification_status": "budget_cancel"
+        if note == "catalog_search_incomplete"
+        else canonical_identification_status(note),
         "rules": list(identified.rules),
         "native_outcome": outcome,
         "missing_detail": (

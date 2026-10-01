@@ -221,6 +221,8 @@ def test_a_bounded_unsuccessful_search_stays_unresolved():
     # A budget stop is a resource outcome with a receipt, never a verdict.
     exhausted = decide(chain_graph(), CHAIN_STUDIES, max_operations=30)
     assert exhausted.outcome == "exhausted"
+    assert exhausted.identification_status == "budget_cancel"
+    assert exhausted.decision()["identification_status"] == "budget_cancel"
     receipt = exhausted.decision()["limits_receipt"]
     assert receipt["stop"] == "search.operations" and receipt["operations_consumed"] == 30
     assert "stage:target_first_sid" in receipt["explored"]
@@ -234,7 +236,10 @@ def test_a_bounded_unsuccessful_search_stays_unresolved():
 def test_a_named_route_that_solves_the_query_is_never_searched():
     stage = decide(chain_graph(), [("full", "study", (), ("x", "z", "y"), "joint")])
     assert stage.outcome == "named_route"
+    # A theorem-scoped route identifies it: the canonical status says so.
+    assert stage.identification_status == "identified"
     decision = stage.decision()
+    assert decision["identification_status"] == "identified"
     assert decision["route"] == "target_first_sid" and decision["reason"] == "route_not_supported"
     with pytest.raises(CausalUnsupportedError, match="route_not_supported"):
         stage.prepare_exact((), {"x": 1.0})

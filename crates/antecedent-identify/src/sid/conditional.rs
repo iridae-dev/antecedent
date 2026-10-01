@@ -538,6 +538,22 @@ pub enum ConditionalTransportDecision {
 }
 
 impl ConditionalTransportDecision {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    ///
+    /// Its legacy Python `outcome` spelling `exhausted` reads as `budget_cancel`.
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
+            Self::NotCertified(_) => antecedent_core::TransportOutcomeKind::NotCertified,
+            Self::Exhausted(_) => antecedent_core::TransportOutcomeKind::BudgetCancel,
+        }
+    }
+}
+
+impl ConditionalTransportDecision {
     /// Top-level reason code of a non-identified outcome; `None` when identified.
     #[must_use]
     pub const fn reason_code(&self) -> Option<&'static str> {

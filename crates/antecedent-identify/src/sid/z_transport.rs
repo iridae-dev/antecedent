@@ -116,6 +116,24 @@ pub enum ZTransportDecision {
     },
 }
 
+impl ZTransportDecision {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    /// A budget or cancellation stop is not a decision; its limits receipt reports
+    /// `budget_cancel` (legacy Python `outcome` spelling `exhausted`).
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::ProvenNonTransportable(_) => {
+                antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+            }
+            Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
+            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+        }
+    }
+}
+
 /// Why the bounded `TRz` search stopped without an identifying formula or a
 /// checked line-11 obstruction. Neither variant is an impossibility claim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -303,6 +321,25 @@ pub enum TwoSourceZTransportDecision {
         /// Stable reason. Combination is refused by `z_transport.multi_source_combination_not_searched`.
         reason: &'static str,
     },
+}
+
+impl TwoSourceZTransportDecision {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    ///
+    /// Its legacy Python `outcome` spelling `combined_identified` reads as `identified`.
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified { .. } | Self::CombinedIdentified { .. } => {
+                antecedent_core::TransportOutcomeKind::Identified
+            }
+            Self::ProvenNonTransportable { .. } => {
+                antecedent_core::TransportOutcomeKind::ProvenNonTransportable
+            }
+            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+        }
+    }
 }
 
 /// A checked `TRz` line-11 failure for the declared controllable set.
@@ -637,6 +674,18 @@ pub enum ZTransportResult {
         /// certified because no catalog was consulted.
         inspection: ZTransportNotCertifiedInspection,
     },
+}
+
+impl ZTransportResult {
+    /// Identification status in the shared transport vocabulary
+    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
+    #[must_use]
+    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
+        match self {
+            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
+            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+        }
+    }
 }
 
 /// Validate the graph/query portion of the bounded z-transport contract.

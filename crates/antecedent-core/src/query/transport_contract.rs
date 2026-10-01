@@ -437,6 +437,49 @@ impl TransportOutcomeKind {
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|kind| kind.as_str() == name)
     }
+
+    /// The kinds a transport identification decision reports, strongest first.
+    ///
+    /// Every transport binding (classical, catalog, z, two-source z, mz, mixed-source,
+    /// ADMG-conditional, scenario and temporal decisions) reports its identification
+    /// status with one of these spellings ([`Self::as_str`]), in Rust through an
+    /// `identification_status()` method and in Python through `identification_status`.
+    pub const IDENTIFICATION: [Self; 5] = [
+        Self::Identified,
+        Self::ProvenNonTransportable,
+        Self::MissingEvidence,
+        Self::NotCertified,
+        Self::BudgetCancel,
+    ];
+
+    /// Binding-local identification spellings that predate [`Self::IDENTIFICATION`].
+    ///
+    /// Deprecated. They stay where they are already serialized or public (a stage's
+    /// `outcome`, a scenario or temporal `status()`), so earlier artifacts and code keep
+    /// working; [`Self::from_identification_status`] reads each as its canonical kind.
+    /// `combined_identified` is identified by combining sources, and `named_route` is
+    /// identified by a theorem-scoped route other than the one asked (use that route).
+    pub const LEGACY_IDENTIFICATION_SPELLINGS: [(&'static str, Self); 6] = [
+        ("exhausted", Self::BudgetCancel),
+        ("stopped", Self::BudgetCancel),
+        ("unevaluated", Self::BudgetCancel),
+        ("structurally_unidentified", Self::ProvenNonTransportable),
+        ("combined_identified", Self::Identified),
+        ("named_route", Self::Identified),
+    ];
+
+    /// Read an identification status in its canonical or a legacy spelling.
+    ///
+    /// `None` for anything else, including execution outcomes such as
+    /// `support_failure`, which are not identification statuses.
+    #[must_use]
+    pub fn from_identification_status(name: &str) -> Option<Self> {
+        Self::IDENTIFICATION.into_iter().find(|kind| kind.as_str() == name).or_else(|| {
+            Self::LEGACY_IDENTIFICATION_SPELLINGS
+                .into_iter()
+                .find_map(|(spelling, kind)| (spelling == name).then_some(kind))
+        })
+    }
 }
 
 /// Typed transport result. Callers match [`Self::kind`]; they must not parse prose.
@@ -584,6 +627,46 @@ mod tests {
         }
         assert!(TransportOutcomeKind::from_name("not_implemented").is_none());
         assert_eq!(TransportOutcomeKind::ALL.len(), 10);
+    }
+
+    #[test]
+    fn identification_status_has_one_canonical_spelling_per_kind() {
+        let canonical: Vec<_> =
+            TransportOutcomeKind::IDENTIFICATION.iter().map(|kind| kind.as_str()).collect();
+        assert_eq!(
+            canonical,
+            [
+                "identified",
+                "proven_non_transportable",
+                "missing_evidence",
+                "not_certified",
+                "budget_cancel"
+            ]
+        );
+        for kind in TransportOutcomeKind::IDENTIFICATION {
+            assert_eq!(TransportOutcomeKind::from_identification_status(kind.as_str()), Some(kind));
+        }
+        // Binding-local spellings that predate the shared vocabulary still read, each as
+        // exactly one canonical kind; none of them is itself a canonical spelling.
+        let legacy = [
+            ("exhausted", TransportOutcomeKind::BudgetCancel),
+            ("stopped", TransportOutcomeKind::BudgetCancel),
+            ("unevaluated", TransportOutcomeKind::BudgetCancel),
+            ("structurally_unidentified", TransportOutcomeKind::ProvenNonTransportable),
+            ("combined_identified", TransportOutcomeKind::Identified),
+            ("named_route", TransportOutcomeKind::Identified),
+        ];
+        assert_eq!(TransportOutcomeKind::LEGACY_IDENTIFICATION_SPELLINGS, legacy);
+        for (spelling, kind) in legacy {
+            assert!(!canonical.contains(&spelling));
+            assert!(TransportOutcomeKind::IDENTIFICATION.contains(&kind));
+            assert_eq!(TransportOutcomeKind::from_identification_status(spelling), Some(kind));
+        }
+        // Execution outcomes are not identification statuses, and the strict parser is
+        // unchanged: a legacy spelling is not a stable outcome name.
+        assert_eq!(TransportOutcomeKind::from_identification_status("support_failure"), None);
+        assert_eq!(TransportOutcomeKind::from_identification_status("NotIdentified"), None);
+        assert_eq!(TransportOutcomeKind::from_name("exhausted"), None);
     }
 
     #[test]
