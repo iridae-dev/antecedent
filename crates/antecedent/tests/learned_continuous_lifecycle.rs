@@ -966,3 +966,21 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
     let point = mutate(&original, |w| w.result.estimate += 1e-9, false);
     assert_eq!(coded(&point, limits), Refusal::EvidenceMismatch);
 }
+
+/// Source identity re-sealed: a relabelled source population is a different
+/// premise set. The rows carry no population name, so replay cannot contradict
+/// the label itself; the consumed identity differs from the producer's, which
+/// is what a consumer pinning the producer's artifact identity checks.
+#[test]
+fn a_resealed_source_relabel_changes_the_consumed_identity() {
+    let (bytes, original) = exported(Design::NestedCohort);
+    let consume = |bytes: &[u8]| {
+        consume_learned_continuous_artifact(bytes, LearnedContinuousConsumeLimits::default())
+    };
+    let live = consume(&bytes).unwrap();
+    let relabelled = mutate(&original, |w| w.query.source_population = "elsewhere".into(), true);
+    match consume(&relabelled) {
+        Ok(forged) => assert_ne!(forged.identity(), live.identity()),
+        Err(error) => panic!("unexpected: {error:?}"),
+    }
+}

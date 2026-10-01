@@ -367,3 +367,19 @@ fn an_unknown_required_feature_or_another_version_is_refused() {
         Err(IoError::UnsupportedVersion { .. })
     ));
 }
+
+/// A re-sealed edit of the result body: both digests are valid again and the
+/// replayed point refuses.
+#[test]
+fn a_resealed_result_mutation_fails_replay() {
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, vec![request(X, true)]);
+    let ctx = ExecutionContext::for_tests(4);
+    let names = ["x", "z", "y"].map(String::from);
+    let bytes = prepared.estimate(&ctx).unwrap().export_named(&prepared, &names).unwrap();
+    let mut wire = MixedSourceArtifactWire::decode(&bytes).unwrap();
+    wire.results[0].probabilities[0] += 1e-9;
+    wire.premises_digest = wire.expected_premises_digest().unwrap();
+    wire.data_digest = wire.expected_data_digest().unwrap();
+    assert_eq!(refused(&wire.export().unwrap()), MixedSourceArtifactError::PointMismatch);
+}

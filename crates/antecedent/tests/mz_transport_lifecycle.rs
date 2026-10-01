@@ -765,3 +765,26 @@ fn another_format_version_or_an_unknown_required_feature_is_refused() {
         consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).is_ok()
     );
 }
+
+/// Re-sealed mutations of source identity and of the result body: every digest
+/// is valid again, and the replay still refuses.
+#[test]
+fn resealed_source_identity_and_result_mutations_fail_replay() {
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, false);
+    let ctx = ExecutionContext::for_tests(4);
+    let names = ["z1", "x", "z2", "y"].map(String::from);
+    let bytes = prepared.estimate(&ctx).unwrap().export_named(&prepared, &names, &ctx).unwrap();
+    let original = MzTransportArtifactWire::decode(&bytes).unwrap();
+    let resealed = |edit: &dyn Fn(&mut MzTransportArtifactWire)| {
+        let mut wire = original.clone();
+        edit(&mut wire);
+        wire.premises_digest = wire.expected_premises_digest().unwrap();
+        wire.data_digest = wire.expected_data_digest().unwrap();
+        wire.export().unwrap()
+    };
+    let source = refused(&resealed(&|w| w.query.sources[1].population = "c".into()));
+    assert_ne!(source, MzTransportArtifactError::PremisesMismatch, "{source:?}");
+    let point = refused(&resealed(&|w| w.results[0].probabilities[0] += 1e-9));
+    assert_eq!(point, MzTransportArtifactError::PointMismatch);
+}
