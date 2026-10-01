@@ -20,8 +20,8 @@ use antecedent_graph::{DenseNodeId, Endpoint, NodeRef};
 
 use crate::error::ValidationError;
 
-use super::gapped_block_bootstrap;
 use super::pcmci_grid::{LinkStability, report_from_counts};
+use super::{gap_masking_constraints, gapped_block_bootstrap};
 
 /// Undirected contemporaneous edge retention frequency.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -75,9 +75,14 @@ impl OrientationStability {
 
     /// Run orientation stability assessment.
     ///
+    /// Only the default `yxz` CI `mask_type` drops the block-junction gap rows in every role; a
+    /// partial mask is replaced by `yxz` on data with no missing or masked row (it selects
+    /// nothing there).
+    ///
     /// # Errors
     ///
-    /// Data or discovery failures.
+    /// Data or discovery failures; [`ValidationError::NotApplicable`] for a partial CI
+    /// `mask_type` on data with missing or masked rows.
     pub fn run(
         &self,
         data: &TimeSeriesData,
@@ -103,11 +108,18 @@ impl OrientationStability {
         // PCMCI+ materializes lags up to twice its maximum lag: separate blocks by that many
         // missing rows so no lag window mixes two blocks (see `gapped_block_bootstrap`).
         let gap = 2 * self.pcmci_plus.engine().constraints.temporal.max_lag.raw() as usize;
+        let pcmci_plus = match gap_masking_constraints(
+            &self.pcmci_plus.engine().constraints,
+            data,
+            variables,
+        )? {
+            Some(constraints) => self.pcmci_plus.clone().with_constraints(constraints),
+            None => self.pcmci_plus.clone(),
+        };
         for _ in 0..self.replicates {
             let boot =
                 gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
-            let result = self
-                .pcmci_plus
+            let result = pcmci_plus
                 .run(&boot.series, variables, workspace, ctx)
                 .map_err(ValidationError::from)?;
             let mut had_conflict = false;
@@ -189,9 +201,13 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
+    use antecedent_discovery::{
+        CiMaskType, DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints,
+    };
 
     use super::*;
+    use crate::stability::GAP_MASK_REFUSAL;
+    use crate::test_support::series_with_missing;
 
     fn contemp_chain() -> (TimeSeriesData, Vec<VariableId>) {
         let n = 250usize;
@@ -269,5 +285,52 @@ mod tests {
             "expected contemp edge retention; directed={:?} undirected={:?}",
             report.directed, report.undirected
         );
+    }
+
+    fn masked_orientation(mask_type: CiMaskType) -> OrientationStability {
+        let mut constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints {
+                max_lag: Lag::from_raw(1),
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            max_cond_size: 1,
+            alpha: 0.1,
+            ..Default::default()
+        };
+        constraints.mask_type = mask_type;
+        OrientationStability {
+            pcmci_plus: PcmciPlus::new().with_fdr(false).with_constraints(constraints),
+            replicates: 4,
+            block_size: 20,
+        }
+    }
+
+    fn offset_noise(n: usize, missing: &[(usize, usize)]) -> TimeSeriesData {
+        let mut rng = ExecutionContext::for_tests(41).rng.stream(7);
+        let cols: Vec<Vec<f64>> =
+            (0..2).map(|_| (0..n).map(|_| 100.0 + rng.next_f64()).collect()).collect();
+        series_with_missing(&cols, missing)
+    }
+
+    #[test]
+    fn partial_ci_mask_runs_as_full_mask_on_complete_data_and_refuses_otherwise() {
+        let vars = vec![VariableId::from_raw(0), VariableId::from_raw(1)];
+        let ctx = ExecutionContext::for_tests(9);
+        let complete = offset_noise(200, &[]);
+        let run = |mask_type| {
+            masked_orientation(mask_type)
+                .run(&complete, &vars, &mut DiscoveryWorkspace::default(), &ctx)
+                .unwrap()
+        };
+        let (full, partial) = (run(CiMaskType::Yxz), run(CiMaskType::Z));
+        assert_eq!(partial.directed, full.directed);
+        assert_eq!(partial.undirected, full.undirected);
+        assert!((partial.conflict_rate - full.conflict_rate).abs() < f64::EPSILON);
+
+        let gappy = offset_noise(200, &[(1, 40)]);
+        let err = masked_orientation(CiMaskType::Y)
+            .run(&gappy, &vars, &mut DiscoveryWorkspace::default(), &ctx)
+            .unwrap_err();
+        assert_eq!(err, ValidationError::NotApplicable { message: GAP_MASK_REFUSAL });
     }
 }

@@ -11,11 +11,12 @@ mod regime;
 
 use std::sync::Arc;
 
-use antecedent_core::CausalRng;
+use antecedent_core::{CausalRng, VariableId};
 use antecedent_data::{
     ColumnView, Float64Column, OwnedColumn, OwnedColumnarStorage, ResamplingPlan, TableView,
-    TimeIndex, TimeSeriesData, resample_timeseries,
+    TimeIndex, TimeSeriesData, ValidityBitmap, resample_timeseries,
 };
+use antecedent_discovery::{CiMaskType, DiscoveryConstraints};
 
 use crate::common::validity_from_flags;
 use crate::error::ValidationError;
@@ -29,6 +30,48 @@ pub use pcmci_grid::{
     DiscoveryStabilityReport, LagWindowSensitivity, LinkStability,
 };
 pub use regime::{RegimeStability, RegimeStabilityReport};
+
+/// Refusal detail when a partial CI `mask_type` meets data that already has missing or masked
+/// rows (see [`gap_masking_constraints`]).
+pub(crate) const GAP_MASK_REFUSAL: &str = "block-bootstrap stability drops its block-junction gap rows only under the full yxz CI \
+     mask_type; a partial mask_type on data with missing or masked rows cannot keep that mask \
+     and drop the gap rows, so use mask_type yxz or complete the data";
+
+/// Discovery constraints under which a [`gapped_block_bootstrap`] replicate drops its gap rows.
+///
+/// The gap rows are invalid in every column, but a lagged CI test drops an invalid row only for
+/// the `(y, x, z)` roles its `mask_type` names; under a partial mask the zero-filled gap rows of
+/// the other roles enter the test as data. Only the default [`CiMaskType::Yxz`] drops them in
+/// every role.
+///
+/// - Already `yxz`: `None` (run the configuration as given).
+/// - Partial mask on data whose `variables` have no missing or masked row: the mask selects
+///   nothing in the original analysis (every row is complete), so running the replicates under
+///   `yxz` is the same procedure with the gap rows dropped; returns the overridden constraints.
+/// - Partial mask on data with missing or masked rows: the mask is part of the analysis and no
+///   single mask both keeps it and drops the gap rows; refuses with [`GAP_MASK_REFUSAL`].
+pub(crate) fn gap_masking_constraints(
+    constraints: &DiscoveryConstraints,
+    data: &TimeSeriesData,
+    variables: &[VariableId],
+) -> Result<Option<DiscoveryConstraints>, ValidationError> {
+    if constraints.mask_type == CiMaskType::Yxz {
+        return Ok(None);
+    }
+    let mut complete = data.storage().analysis_mask().is_none_or(ValidityBitmap::is_all_valid);
+    for &variable in variables {
+        if !complete {
+            break;
+        }
+        complete = data.column(variable).map_err(ValidationError::from)?.validity().is_all_valid();
+    }
+    if !complete {
+        return Err(ValidationError::NotApplicable { message: GAP_MASK_REFUSAL });
+    }
+    let mut full = constraints.clone();
+    full.mask_type = CiMaskType::Yxz;
+    Ok(Some(full))
+}
 
 /// A moving-block resample of a series whose block junctions are unusable to a lagged analysis.
 pub(crate) struct GappedBootstrap {

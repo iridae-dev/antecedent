@@ -18,8 +18,8 @@ use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, RegimeAssignment, Rpc
 
 use crate::error::ValidationError;
 
-use super::gapped_block_bootstrap;
 use super::pcmci_grid::{DiscoveryStabilityReport, report_from_counts};
+use super::{gap_masking_constraints, gapped_block_bootstrap};
 
 /// Per-regime link-frequency stability under fixed caller labels.
 #[derive(Clone, Debug)]
@@ -59,11 +59,15 @@ impl RegimeStability {
 
     /// Run regime stability assessment.
     ///
-    /// Bootstraps the series, re-applies the same regime labels, and re-runs RPCMCI.
+    /// Bootstraps the series, re-applies the same regime labels, and re-runs RPCMCI. Only the
+    /// default `yxz` CI `mask_type` drops the block-junction gap rows in every role; a partial
+    /// mask is replaced by `yxz` on data with no missing or masked row (it selects nothing there).
     ///
     /// # Errors
     ///
-    /// Length mismatch, empty configs, or discovery failures.
+    /// Length mismatch, empty configs, or discovery failures;
+    /// [`ValidationError::NotApplicable`] for a partial CI `mask_type` on data with missing or
+    /// masked rows.
     pub fn run(
         &self,
         data: &TimeSeriesData,
@@ -97,6 +101,15 @@ impl RegimeStability {
         // by that many missing rows so no lag window mixes two blocks, and so none straddles
         // two regimes at a junction (see `gapped_block_bootstrap`).
         let gap = 2 * self.rpcmci.pcmci_plus.engine().constraints.temporal.max_lag.raw() as usize;
+        let pcmci_plus = &self.rpcmci.pcmci_plus;
+        let rpcmci =
+            match gap_masking_constraints(&pcmci_plus.engine().constraints, data, variables)? {
+                Some(constraints) => self
+                    .rpcmci
+                    .clone()
+                    .with_pcmci_plus(pcmci_plus.clone().with_constraints(constraints)),
+                None => self.rpcmci.clone(),
+            };
         for _ in 0..self.replicates {
             let boot =
                 gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
@@ -109,8 +122,7 @@ impl RegimeStability {
                 .collect();
             let boot_assign =
                 RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
-            let result = self
-                .rpcmci
+            let result = rpcmci
                 .run(&boot.series, variables, &boot_assign, workspace, ctx)
                 .map_err(ValidationError::from)?;
             for (idx, &(regime, _)) in result.graphs.graphs.iter().enumerate() {
@@ -147,12 +159,13 @@ mod tests {
         TimeSeriesData, ValidityBitmap,
     };
     use antecedent_discovery::{
-        DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints,
+        CiMaskType, DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints,
         two_regime_half_split,
     };
     use std::sync::Arc;
 
     use super::*;
+    use crate::stability::GAP_MASK_REFUSAL;
 
     fn two_regime_series(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
@@ -227,5 +240,45 @@ mod tests {
         let report = stab.run(&data, &vars, &mut ws, &ctx).unwrap();
         assert_eq!(report.replicates, 3);
         assert!(!report.per_regime.is_empty());
+    }
+
+    #[test]
+    fn partial_ci_mask_on_data_with_missing_rows_is_refused() {
+        let n = 200usize;
+        let (data, vars) = two_regime_series(n);
+        // Same series with one missing outcome row.
+        let cols: Vec<Vec<f64>> = vars
+            .iter()
+            .map(|&v| {
+                let antecedent_data::ColumnView::Float64(c) = data.column(v).unwrap() else {
+                    panic!("float64")
+                };
+                c.values.as_slice().to_vec()
+            })
+            .collect();
+        let gappy = crate::test_support::series_with_missing(&cols, &[(1, 70)]);
+        let mut constraints = DiscoveryConstraints {
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(1) },
+            max_cond_size: 1,
+            alpha: 0.15,
+            ..Default::default()
+        };
+        constraints.mask_type = CiMaskType::Yx;
+        let rpcmci = Rpcmci::new()
+            .with_pcmci_plus(PcmciPlus::new().with_fdr(false).with_constraints(constraints))
+            .with_min_regime_len(40)
+            .with_alternating_iters(0);
+        let stab = RegimeStability {
+            rpcmci,
+            assignment: two_regime_half_split(n),
+            replicates: 2,
+            block_size: 25,
+        };
+        let ctx = ExecutionContext::for_tests(3);
+        let err = stab.run(&gappy, &vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap_err();
+        assert_eq!(err, ValidationError::NotApplicable { message: GAP_MASK_REFUSAL });
+        // Complete data: the partial mask is replaced by yxz and the check runs.
+        let report = stab.run(&data, &vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap();
+        assert_eq!(report.replicates, 2);
     }
 }

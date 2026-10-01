@@ -18,7 +18,7 @@ use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, Pcmci, ci_from_name};
 
 use crate::error::ValidationError;
-use crate::stability::gapped_block_bootstrap;
+use crate::stability::{gap_masking_constraints, gapped_block_bootstrap};
 
 /// Stability frequency for one lagged link.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,6 +52,10 @@ pub struct DiscoveryStabilityReport {
 /// the bare concatenation would pair outcomes with regressors from unrelated blocks and bias link
 /// frequencies toward independence). The complete windows PCMCI keeps are therefore genuine
 /// within-block windows, and the effective sample shrinks by the separators.
+///
+/// Only the default `yxz` CI `mask_type` drops the separator rows in every role. A partial mask
+/// is replaced by `yxz` when the data has no missing or masked row (it selects nothing there),
+/// and refused as [`ValidationError::NotApplicable`] otherwise.
 #[derive(Clone, Debug)]
 pub struct BlockBootstrapStability {
     /// PCMCI configuration to re-run.
@@ -79,7 +83,8 @@ impl BlockBootstrapStability {
     ///
     /// # Errors
     ///
-    /// Data or discovery failures.
+    /// Data or discovery failures; [`ValidationError::NotApplicable`] for a partial CI
+    /// `mask_type` on data with missing or masked rows.
     pub fn run(
         &self,
         data: &TimeSeriesData,
@@ -103,11 +108,15 @@ impl BlockBootstrapStability {
         // PCMCI materializes lags up to twice its maximum lag; that is the separator width that
         // keeps every lag window inside one block (see `gapped_block_bootstrap`).
         let gap = 2 * self.pcmci.engine().constraints.temporal.max_lag.raw() as usize;
+        let pcmci =
+            match gap_masking_constraints(&self.pcmci.engine().constraints, data, variables)? {
+                Some(constraints) => self.pcmci.clone().with_constraints(constraints),
+                None => self.pcmci.clone(),
+            };
         for _ in 0..self.replicates {
             let boot =
                 gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
-            let result = self
-                .pcmci
+            let result = pcmci
                 .run(&boot.series, variables, workspace, ctx)
                 .map_err(ValidationError::from)?;
             for s in result.evidence.links.iter() {
@@ -306,9 +315,13 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
+    use antecedent_discovery::{
+        CiMaskType, DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints,
+    };
 
     use super::*;
+    use crate::stability::GAP_MASK_REFUSAL;
+    use crate::test_support::series_with_missing;
 
     fn linked_series() -> (TimeSeriesData, Vec<VariableId>) {
         let n = 300usize;
@@ -401,6 +414,72 @@ mod tests {
             "expected true link to appear; report={:?}",
             report.frequencies
         );
+    }
+
+    /// Two independent white-noise series centred far from zero: a zero-filled block-junction gap
+    /// row read as data is an extreme joint outlier that fabricates every cross link.
+    fn independent_offset_series(n: usize) -> Vec<Vec<f64>> {
+        let mut rng = ExecutionContext::for_tests(41).rng.stream(7);
+        (0..2).map(|_| (0..n).map(|_| 100.0 + rng.next_f64()).collect()).collect()
+    }
+
+    fn masked_pcmci(mask_type: CiMaskType) -> Pcmci {
+        let mut constraints = base_pcmci().engine().constraints.clone();
+        constraints.mask_type = mask_type;
+        base_pcmci().with_constraints(constraints)
+    }
+
+    fn sorted_frequencies(report: &DiscoveryStabilityReport) -> Vec<(LaggedLink, f64)> {
+        let mut out: Vec<_> = report.frequencies.iter().map(|f| (f.link, f.frequency)).collect();
+        out.sort_by_key(|(link, _)| *link);
+        out
+    }
+
+    #[test]
+    fn partial_ci_mask_does_not_let_gap_rows_into_the_test() {
+        // Under mask_type `z` an empty conditioning set masks no column, so before the fix the
+        // zero-filled separator rows entered every lag-0 marginal test as (0, 0) points and
+        // fabricated cross links between independent series. On fully valid data a partial mask
+        // changes nothing for the original analysis, so the bootstrap must run as under `yxz`.
+        let data = series_with_missing(&independent_offset_series(240), &[]);
+        let vars = vec![VariableId::from_raw(0), VariableId::from_raw(1)];
+        let ctx = ExecutionContext::for_tests(5);
+        let run = |mask_type| {
+            let stab = BlockBootstrapStability {
+                pcmci: masked_pcmci(mask_type),
+                replicates: 6,
+                block_size: 20,
+            };
+            stab.run(&data, &vars, &mut DiscoveryWorkspace::default(), &ctx)
+                .map_err(|e| format!("{mask_type:?}: {e}"))
+                .unwrap()
+        };
+        let full = run(CiMaskType::Yxz);
+        for mask_type in [CiMaskType::Z, CiMaskType::Y, CiMaskType::X, CiMaskType::Yx] {
+            assert_eq!(
+                sorted_frequencies(&run(mask_type)),
+                sorted_frequencies(&full),
+                "mask_type {mask_type:?} let gap rows into a block-bootstrap replicate"
+            );
+        }
+    }
+
+    #[test]
+    fn partial_ci_mask_on_data_with_missing_rows_is_refused() {
+        // With genuinely missing rows a partial mask is part of the analysis; no single mask both
+        // keeps it and drops the separator rows in every role, so the check refuses.
+        let data = series_with_missing(&independent_offset_series(240), &[(0, 50)]);
+        let vars = vec![VariableId::from_raw(0), VariableId::from_raw(1)];
+        let ctx = ExecutionContext::for_tests(5);
+        let stab = BlockBootstrapStability {
+            pcmci: masked_pcmci(CiMaskType::Y),
+            replicates: 2,
+            block_size: 20,
+        };
+        let err = stab.run(&data, &vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap_err();
+        assert_eq!(err, ValidationError::NotApplicable { message: GAP_MASK_REFUSAL });
+        let default_mask = BlockBootstrapStability { pcmci: base_pcmci(), ..stab };
+        default_mask.run(&data, &vars, &mut DiscoveryWorkspace::default(), &ctx).unwrap();
     }
 
     #[test]
