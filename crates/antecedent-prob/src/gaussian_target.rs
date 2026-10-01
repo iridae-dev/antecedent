@@ -11,7 +11,7 @@
 
 use crate::backend::BayesDesignRef;
 use crate::error::ProbError;
-use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel};
+use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel};
 
 /// Unconstrained posterior density and gradient used by HMC leapfrog steps.
 pub trait PosteriorTarget {
@@ -100,7 +100,7 @@ pub(crate) fn rss_and_xtwr(
 /// Prior quadratic `Q(β) = (β − m₀)' P (β − m₀)` and `P(β − m₀)` into `p_diff`.
 pub(crate) fn prior_quadratic(
     coef_prior: &GaussianCoefficientPrior,
-    prec: &[f64],
+    prec: &CoefficientPrecision,
     beta: &[f64],
     p_diff: &mut [f64],
 ) -> Result<f64, ProbError> {
@@ -109,10 +109,21 @@ pub(crate) fn prior_quadratic(
         return Err(ProbError::Shape { message: "prior quadratic length mismatch" });
     }
     let mut q = 0.0;
-    for i in 0..p {
-        let diff = beta[i] - coef_prior.mean[i];
-        p_diff[i] = prec[i] * diff;
-        q += diff * p_diff[i];
+    match prec {
+        CoefficientPrecision::Diagonal(d) => {
+            for i in 0..p {
+                let diff = beta[i] - coef_prior.mean[i];
+                p_diff[i] = d[i] * diff;
+                q += diff * p_diff[i];
+            }
+        }
+        CoefficientPrecision::Dense { .. } => {
+            let diff: Vec<f64> = (0..p).map(|i| beta[i] - coef_prior.mean[i]).collect();
+            prec.mul_into(&diff, p_diff);
+            for i in 0..p {
+                q += diff[i] * p_diff[i];
+            }
+        }
     }
     if !q.is_finite() {
         return Err(ProbError::Numerical { message: "non-finite prior quadratic".into() });
@@ -125,7 +136,7 @@ pub(crate) fn prior_quadratic(
 pub struct GaussianKnownTarget<'a> {
     design: BayesDesignRef<'a>,
     coef_prior: GaussianCoefficientPrior,
-    prec: Vec<f64>,
+    prec: CoefficientPrecision,
     sigma2: f64,
     stats: GaussianSufficientStats,
     xtwr: Vec<f64>,
@@ -143,6 +154,21 @@ impl<'a> GaussianKnownTarget<'a> {
         coef_prior: GaussianCoefficientPrior,
         sigma2: f64,
     ) -> Result<Self, ProbError> {
+        let prec = CoefficientPrecision::Diagonal(coef_prior.precision());
+        Self::with_precision(design, coef_prior, prec, sigma2)
+    }
+
+    /// Build a known-variance target with an explicit (possibly dense) `V0⁻¹`.
+    ///
+    /// # Errors
+    ///
+    /// Invalid σ², design / prior shape errors, or a precision of the wrong size.
+    pub fn with_precision(
+        design: BayesDesignRef<'a>,
+        coef_prior: GaussianCoefficientPrior,
+        prec: CoefficientPrecision,
+        sigma2: f64,
+    ) -> Result<Self, ProbError> {
         if !(sigma2 > 0.0) || !sigma2.is_finite() {
             return Err(ProbError::InvalidPrior {
                 message: "known residual variance must be finite and > 0",
@@ -153,8 +179,10 @@ impl<'a> GaussianKnownTarget<'a> {
         if coef_prior.len() != ncols {
             return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
         }
+        if prec.len() != ncols {
+            return Err(ProbError::InvalidPrior { message: "coefficient precision size != ncols" });
+        }
         let stats = GaussianSufficientStats::from_design(design, ncols)?;
-        let prec = coef_prior.precision();
         Ok(Self {
             design,
             coef_prior,
@@ -210,7 +238,7 @@ impl PosteriorTarget for GaussianKnownTarget<'_> {
 pub struct GaussianInvGammaTarget<'a> {
     design: BayesDesignRef<'a>,
     coef_prior: GaussianCoefficientPrior,
-    prec: Vec<f64>,
+    prec: CoefficientPrecision,
     shape: f64,
     scale: f64,
     /// `A = a₀ + (n_eff + p) / 2`.
@@ -232,6 +260,23 @@ impl<'a> GaussianInvGammaTarget<'a> {
         shape: f64,
         scale: f64,
     ) -> Result<Self, ProbError> {
+        let prec = CoefficientPrecision::Diagonal(coef_prior.precision());
+        Self::with_precision(design, coef_prior, prec, shape, scale)
+    }
+
+    /// Build a joint `(β, λ)` target with an explicit (possibly dense) `V0⁻¹`.
+    ///
+    /// # Errors
+    ///
+    /// Invalid InvGamma params, design / prior shape errors, or a precision of
+    /// the wrong size.
+    pub fn with_precision(
+        design: BayesDesignRef<'a>,
+        coef_prior: GaussianCoefficientPrior,
+        prec: CoefficientPrecision,
+        shape: f64,
+        scale: f64,
+    ) -> Result<Self, ProbError> {
         if !(shape > 0.0) || !(scale > 0.0) || !shape.is_finite() || !scale.is_finite() {
             return Err(ProbError::InvalidPrior {
                 message: "InvGamma shape and scale must be finite and > 0",
@@ -243,8 +288,10 @@ impl<'a> GaussianInvGammaTarget<'a> {
             return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
         }
         let stats = GaussianSufficientStats::from_design(design, ncols)?;
+        if prec.len() != ncols {
+            return Err(ProbError::InvalidPrior { message: "coefficient precision size != ncols" });
+        }
         let a_const = shape + 0.5 * (stats.n_eff + stats.p as f64);
-        let prec = coef_prior.precision();
         Ok(Self {
             design,
             coef_prior,
@@ -326,12 +373,28 @@ pub fn gaussian_target_from_model(
     coef_prior: GaussianCoefficientPrior,
     model: GaussianVarianceModel,
 ) -> Result<GaussianTarget<'_>, ProbError> {
+    let prec = CoefficientPrecision::Diagonal(coef_prior.precision());
+    gaussian_target_from_model_with_precision(design, coef_prior, prec, model)
+}
+
+/// [`gaussian_target_from_model`] with an explicit (possibly dense) `V0⁻¹`,
+/// e.g. [`crate::PriorSet::coefficient_precision`].
+///
+/// # Errors
+///
+/// Propagates design / prior construction errors.
+pub fn gaussian_target_from_model_with_precision(
+    design: BayesDesignRef<'_>,
+    coef_prior: GaussianCoefficientPrior,
+    prec: CoefficientPrecision,
+    model: GaussianVarianceModel,
+) -> Result<GaussianTarget<'_>, ProbError> {
     match model {
-        GaussianVarianceModel::Known { sigma2 } => {
-            Ok(GaussianTarget::Known(GaussianKnownTarget::new(design, coef_prior, sigma2)?))
-        }
+        GaussianVarianceModel::Known { sigma2 } => Ok(GaussianTarget::Known(
+            GaussianKnownTarget::with_precision(design, coef_prior, prec, sigma2)?,
+        )),
         GaussianVarianceModel::InvGamma { shape, scale } => Ok(GaussianTarget::InvGamma(
-            GaussianInvGammaTarget::new(design, coef_prior, shape, scale)?,
+            GaussianInvGammaTarget::with_precision(design, coef_prior, prec, shape, scale)?,
         )),
     }
 }
@@ -461,6 +524,58 @@ mod tests {
         assert!((lp2 - lp1 / 4.0).abs() < 1e-12);
         for i in 0..2 {
             assert!((g2[i] - g1[i] / 4.0).abs() < 1e-12);
+        }
+    }
+
+    /// Both Gaussian targets differentiate the dense prior kernel correctly.
+    #[test]
+    fn dense_prior_gradient_matches_finite_differences() {
+        let (x, y) = tiny_design();
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: 4,
+            ncols: 2,
+            y: &y,
+            weights: None,
+            offsets: None,
+        };
+        let coef = GaussianCoefficientPrior {
+            mean: std::sync::Arc::from(vec![0.3, 0.8]),
+            variance: std::sync::Arc::from(vec![0.5, 0.2]),
+        };
+        let prec = CoefficientPrecision::Dense {
+            dim: 2,
+            matrix: crate::linalg::invert_spd(&[0.5, -0.25, -0.25, 0.2], 2).unwrap(),
+        };
+        for model in [
+            GaussianVarianceModel::Known { sigma2: 0.7 },
+            GaussianVarianceModel::InvGamma { shape: 2.0, scale: 1.0 },
+        ] {
+            let mut t = gaussian_target_from_model_with_precision(
+                design,
+                coef.clone(),
+                prec.clone(),
+                model,
+            )
+            .unwrap();
+            let q: Vec<f64> = (0..t.dim()).map(|i| 0.2 + 0.3 * i as f64).collect();
+            let mut grad = vec![0.0; q.len()];
+            t.logp_and_grad(&q, &mut grad).unwrap();
+            for i in 0..q.len() {
+                let h = 1e-6;
+                let (mut up, mut dn) = (q.clone(), q.clone());
+                up[i] += h;
+                dn[i] -= h;
+                let mut g = vec![0.0; q.len()];
+                let fd = (t.logp_and_grad(&up, &mut g).unwrap()
+                    - t.logp_and_grad(&dn, &mut g).unwrap())
+                    / (2.0 * h);
+                assert!(
+                    (fd - grad[i]).abs() < 1e-5 * (1.0 + fd.abs()),
+                    "{model:?} {i}: {fd} vs {}",
+                    grad[i]
+                );
+            }
         }
     }
 }

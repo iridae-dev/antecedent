@@ -63,7 +63,7 @@ pub use external_prior::{
 };
 pub use gaussian_target::{
     GaussianInvGammaTarget, GaussianKnownTarget, GaussianTarget, PosteriorTarget,
-    gaussian_target_from_model,
+    gaussian_target_from_model, gaussian_target_from_model_with_precision,
 };
 pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSamples};
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
@@ -77,8 +77,9 @@ pub use posterior::{
     PosteriorSchema, PosteriorSummary,
 };
 pub use prior::{
-    ABSOLUTE_COEFFICIENT_SCALE_ID, ContrastCoding, EffectPrior, GaussianCoefficientPrior,
-    GaussianVarianceModel, InvGammaPrior, PriorSet, PriorSpec,
+    ABSOLUTE_COEFFICIENT_SCALE_ID, CoefficientCorrelation, CoefficientPrecision, ContrastCoding,
+    EffectPrior, GaussianCoefficientPrior, GaussianVarianceModel, InvGammaPrior, PriorSet,
+    PriorSpec,
 };
 pub use transport::{
     POPULATION_TAG_KEY, TRANSPORT_ASSUMPTION_ID, TRANSPORT_MIN_KISH_ESS, TransportAdjustment,

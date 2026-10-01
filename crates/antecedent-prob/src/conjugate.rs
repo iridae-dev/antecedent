@@ -29,7 +29,7 @@ use crate::error::ProbError;
 use crate::likelihood_terms::validate_design;
 use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd_from_chol, solve_spd_into};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
-use crate::prior::{GaussianCoefficientPrior, InvGammaPrior, PriorSet};
+use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior, InvGammaPrior, PriorSet};
 
 /// Analytic conjugate Gaussian linear backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -186,13 +186,19 @@ fn fit_conjugate_gaussian_resolved(
     let known_sigma2 = prior.known_residual_variance();
     let ig = prior.residual_inv_gamma().unwrap_or_else(InvGammaPrior::weakly_informative);
 
-    let (map, draws, include_sigma2, condition) = if let Some(sigma2) = known_sigma2 {
-        let (mean, cov, condition) = posterior_known_sigma2(ncols, &coef_prior, xtx, xty, sigma2)?;
+    // Conjugate-scale precision V0⁻¹: dense when the prior set carries a
+    // coefficient correlation (a hydrated full-covariance prior).
+    let prec = prior.coefficient_precision(&coef_prior)?;
+
+    let (map, draws, include_sigma2, condition, exact_cov) = if let Some(sigma2) = known_sigma2 {
+        let (mean, cov, condition) =
+            posterior_known_sigma2(ncols, &coef_prior, &prec, xtx, xty, sigma2)?;
         let draws =
             draw_mvn_known_sigma(&mean, &cov, sigma2, options.n_draws, options.seed, workspace)?;
-        (mean, draws, false, condition)
+        (mean, draws, false, condition, Some(cov))
     } else {
-        let post = posterior_nig(ncols, &coef_prior, xtx, xty, ig, yty, n_eff, Some(design))?;
+        let post =
+            posterior_nig(ncols, &coef_prior, &prec, xtx, xty, ig, yty, n_eff, Some(design))?;
         let draws = draw_nig(
             &post.mean,
             &post.scale_chol,
@@ -202,7 +208,7 @@ fn fit_conjugate_gaussian_resolved(
             options.seed,
             workspace,
         )?;
-        (post.mean, draws, true, post.condition)
+        (post.mean, draws, true, post.condition, None)
     };
 
     let schema = if include_sigma2 {
@@ -222,7 +228,9 @@ fn fit_conjugate_gaussian_resolved(
     // merely on different scales.
     let mut diagnostics = InferenceDiagnostics::analytic("conjugate_gaussian");
     diagnostics.hessian_condition = condition;
-    Ok(BayesFitResult { draws: posterior, map, diagnostics, cov: None })
+    // The known-σ² posterior is exactly Gaussian, so its covariance is published
+    // (the NIG coefficient marginal is Student-t and has none).
+    Ok(BayesFitResult { draws: posterior, map, diagnostics, cov: exact_cov })
 }
 
 fn ensure_conjugate_gram(
@@ -294,24 +302,26 @@ fn ensure_conjugate_gram(
 fn posterior_known_sigma2(
     ncols: usize,
     prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
     xtx: &[f64],
     xty: &[f64],
     sigma2: f64,
 ) -> Result<(Vec<f64>, Vec<f64>, f64), ProbError> {
-    // Conjugate known-σ²: Cov(β|σ²) = σ² V0 with V0 = diag(prior.variance),
-    // so prior.precision() = V0^{-1}. Matches [`GaussianCoefficientPrior`] docs.
+    // Conjugate known-σ²: Cov(β|σ²) = σ² V0 (diagonal, or dense under a
+    // coefficient correlation), so `prec` = V0^{-1}. Matches [`GaussianCoefficientPrior`] docs.
     // Λn = (V0^{-1} + X'X) / σ² ; mn = Λn^{-1} (V0^{-1} μ0 + X'y) / σ²
     let mut lam = vec![0.0; ncols * ncols];
-    let prec = prior.precision();
     for i in 0..ncols {
         for j in 0..ncols {
             lam[i * ncols + j] = xtx[i * ncols + j] / sigma2;
         }
-        lam[i * ncols + i] += prec[i] / sigma2;
     }
+    prec.add_divided_to(&mut lam, ncols, sigma2);
+    let mut prec_mean = vec![0.0; ncols];
+    prec.mul_into(&prior.mean, &mut prec_mean);
     let mut rhs = vec![0.0; ncols];
     for i in 0..ncols {
-        rhs[i] = (prec[i] * prior.mean[i] + xty[i]) / sigma2;
+        rhs[i] = (prec_mean[i] + xty[i]) / sigma2;
     }
     let solved = solve_posterior_mean(&lam, ncols, &rhs)?;
     let cov = solved.inverse();
@@ -403,6 +413,7 @@ struct NigPosterior {
 fn posterior_nig(
     ncols: usize,
     prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
     xtx: &[f64],
     xty: &[f64],
     ig: InvGammaPrior,
@@ -415,16 +426,17 @@ fn posterior_nig(
     // Prefer residual RSS from the design (stable on uncentred y); fall back to
     // the three-term Gram form when only moments are available.
     let mut vn_inv = vec![0.0; ncols * ncols];
-    let prec = prior.precision();
     for i in 0..ncols {
         for j in 0..ncols {
             vn_inv[i * ncols + j] = xtx[i * ncols + j];
         }
-        vn_inv[i * ncols + i] += prec[i];
     }
+    prec.add_divided_to(&mut vn_inv, ncols, 1.0);
+    let mut prec_mean = vec![0.0; ncols];
+    prec.mul_into(&prior.mean, &mut prec_mean);
     let mut rhs = vec![0.0; ncols];
     for i in 0..ncols {
-        rhs[i] = prec[i] * prior.mean[i] + xty[i];
+        rhs[i] = prec_mean[i] + xty[i];
     }
     let solved = solve_posterior_mean(&vn_inv, ncols, &rhs)?;
     let vn = solved.inverse();
@@ -434,11 +446,7 @@ fn posterior_nig(
         Some(d) => residual_ss_from_design(d, &mean),
         None => residual_ss_from_moments(ncols, &mean, xtx, xty, yty),
     };
-    let mut prior_quad = 0.0;
-    for i in 0..ncols {
-        let d = mean[i] - prior.mean[i];
-        prior_quad += prec[i] * d * d;
-    }
+    let prior_quad = prec.quadratic(&mean, &prior.mean);
     let alpha_n = ig.shape + 0.5 * n_eff;
     let beta_n = ig.scale + 0.5 * (rss + prior_quad);
     if !(beta_n > 0.0) || !(alpha_n > 0.0) || !beta_n.is_finite() || !alpha_n.is_finite() {
@@ -979,6 +987,7 @@ mod tests {
             } = super::posterior_nig(
                 1,
                 prior.gaussian_coefficients().unwrap(),
+                &CoefficientPrecision::Diagonal(prior.gaussian_coefficients().unwrap().precision()),
                 &[xtx],
                 &[xty],
                 InvGammaPrior { shape: alpha0, scale: beta0 },
@@ -1059,6 +1068,7 @@ mod tests {
         let super::NigPosterior { alpha_n, beta_n, .. } = super::posterior_nig(
             1,
             &prior,
+            &CoefficientPrecision::Diagonal(prior.precision()),
             &[xtx],
             &[xty],
             ig,

@@ -8,7 +8,7 @@ use antecedent_kernels::norm_cdf;
 
 use crate::backend::{BayesDesignRef, BayesLikelihood};
 use crate::error::ProbError;
-use crate::prior::GaussianCoefficientPrior;
+use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior};
 
 /// Per-observation log-likelihood contribution and derivatives w.r.t. linear predictor `η`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -338,7 +338,7 @@ pub(crate) fn log_posterior_value(
     design: BayesDesignRef<'_>,
     beta: &[f64],
     prior: &GaussianCoefficientPrior,
-    prec: &[f64],
+    prec: &CoefficientPrecision,
     eta: &mut [f64],
     gaussian_sigma2: f64,
 ) -> Result<f64, ProbError> {
@@ -360,11 +360,7 @@ pub(crate) fn log_posterior_value(
         let y = design.y[r];
         ll += glm_observation_terms(likelihood, y, e, w, inv_sigma2)?.log_value;
     }
-    let mut lp = 0.0;
-    for i in 0..ncols {
-        let d = beta[i] - prior.mean[i];
-        lp -= 0.5 * prec[i] * d * d;
-    }
+    let lp = prec.log_kernel(&beta[..ncols], &prior.mean);
     Ok(ll + lp)
 }
 
@@ -426,9 +422,16 @@ mod tests {
                 )
                 .unwrap();
                 let prior = GaussianCoefficientPrior::isotropic(1, 1.0);
-                let value =
-                    log_posterior_value(family, design, &[0.0], &prior, &[1.0], &mut eta, 1.0)
-                        .unwrap();
+                let value = log_posterior_value(
+                    family,
+                    design,
+                    &[0.0],
+                    &prior,
+                    &CoefficientPrecision::Diagonal(vec![1.0]),
+                    &mut eta,
+                    1.0,
+                )
+                .unwrap();
                 results.push((grad, hess, diagnostic, value));
             }
             assert_eq!(results[0], results[1], "{family:?}");
@@ -496,7 +499,7 @@ mod tests {
             design,
             &[0.0],
             &prior,
-            &[1.0],
+            &CoefficientPrecision::Diagonal(vec![1.0]),
             &mut eta,
             1e-20,
         )

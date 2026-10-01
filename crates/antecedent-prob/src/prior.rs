@@ -104,8 +104,11 @@ impl EffectPrior {
 ///
 /// Under the conjugate Normal–Inv-Gamma (and known-σ² Normal) backends,
 /// `variance[i]` is the diagonal entry of the *scale* matrix `V0` in
-/// `β | σ² ~ N(mean, σ² · diag(V0))` — not an absolute prior variance of `β`.
+/// `β | σ² ~ N(mean, σ² · V0)` — not an absolute prior variance of `β`.
 /// Absolute prior variance of coefficient `i` is therefore `σ² · variance[i]`.
+/// `V0` is diagonal unless the enclosing [`PriorSet`] carries a
+/// [`PriorSpec::CoefficientCorrelation`], which makes it dense
+/// (see [`PriorSet::coefficient_precision`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct GaussianCoefficientPrior {
     /// Prior mean per coefficient (length = p), or a single shared mean.
@@ -314,6 +317,326 @@ pub enum PriorSpec {
     ResidualInvGamma(InvGammaPrior),
     /// Fixed residual variance (known σ²).
     KnownResidualVariance(f64),
+    /// Correlation of the coefficient prior's conjugate scale `V0`.
+    ///
+    /// Pairs with the set's [`Self::GaussianCoefficients`] entry, whose
+    /// `variance` stays the diagonal of `V0`: the dense scale is
+    /// `V0 = D^{1/2} R D^{1/2}` with `D = diag(variance)` and `R` this matrix.
+    /// Absent, `V0` is diagonal.
+    CoefficientCorrelation(CoefficientCorrelation),
+}
+
+/// Symmetric positive-definite correlation matrix (row-major `p × p`, unit
+/// diagonal) of a Gaussian coefficient prior's conjugate scale `V0`.
+///
+/// Stored as a correlation rather than a covariance so the per-coefficient
+/// diagonal in [`GaussianCoefficientPrior::variance`] keeps its meaning (and its
+/// absolute ↔ `V0` conversions) whether or not the prior is dense.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CoefficientCorrelation {
+    dim: usize,
+    matrix: Arc<[f64]>,
+}
+
+/// Off-diagonal correlations at or below this magnitude are treated as zero.
+const CORRELATION_ZERO: f64 = 1e-12;
+
+impl CoefficientCorrelation {
+    /// Validate and wrap a row-major `dim × dim` correlation matrix.
+    ///
+    /// # Errors
+    ///
+    /// Wrong length, non-finite entries, a diagonal other than 1, asymmetry,
+    /// an entry outside `[-1, 1]`, or a matrix that is not positive definite.
+    pub fn new(dim: usize, matrix: impl Into<Arc<[f64]>>) -> Result<Self, ProbError> {
+        let matrix = matrix.into();
+        if dim == 0 || matrix.len() != dim.saturating_mul(dim) {
+            return Err(ProbError::InvalidPrior {
+                message: "coefficient correlation must be a non-empty dim × dim matrix",
+            });
+        }
+        for i in 0..dim {
+            if (matrix[i * dim + i] - 1.0).abs() > 1e-12 {
+                return Err(ProbError::InvalidPrior {
+                    message: "coefficient correlation must have a unit diagonal",
+                });
+            }
+            for j in 0..dim {
+                let r = matrix[i * dim + j];
+                if !r.is_finite() || r.abs() > 1.0 + 1e-12 {
+                    return Err(ProbError::InvalidPrior {
+                        message: "coefficient correlation entries must be finite and in [-1, 1]",
+                    });
+                }
+                if (r - matrix[j * dim + i]).abs() > 1e-12 {
+                    return Err(ProbError::InvalidPrior {
+                        message: "coefficient correlation must be symmetric",
+                    });
+                }
+            }
+        }
+        crate::linalg::cholesky_spd(&matrix, dim).map_err(|_| ProbError::InvalidPrior {
+            message: "coefficient correlation must be positive definite",
+        })?;
+        Ok(Self { dim, matrix })
+    }
+
+    /// Correlation of a symmetric positive-definite covariance (row-major).
+    ///
+    /// Returns `None` when every off-diagonal correlation is zero (the
+    /// covariance is diagonal), so a diagonal prior keeps its diagonal form.
+    ///
+    /// # Errors
+    ///
+    /// Wrong length, a non-positive or non-finite diagonal, or a covariance
+    /// whose correlation is not a valid positive-definite correlation.
+    pub fn from_covariance(covariance: &[f64], dim: usize) -> Result<Option<Self>, ProbError> {
+        if dim == 0 || covariance.len() != dim.saturating_mul(dim) {
+            return Err(ProbError::InvalidPrior {
+                message: "coefficient covariance must be a non-empty dim × dim matrix",
+            });
+        }
+        let mut sd = Vec::with_capacity(dim);
+        for i in 0..dim {
+            let v = covariance[i * dim + i];
+            if !(v > 0.0) || !v.is_finite() {
+                return Err(ProbError::InvalidPrior {
+                    message: "coefficient covariance diagonal must be finite and > 0",
+                });
+            }
+            sd.push(v.sqrt());
+        }
+        let mut matrix = vec![0.0; dim * dim];
+        let mut dense = false;
+        for i in 0..dim {
+            for j in 0..dim {
+                let r = if i == j {
+                    1.0
+                } else {
+                    // Symmetrize so roundoff in the source cannot fail validation.
+                    0.5 * (covariance[i * dim + j] + covariance[j * dim + i]) / (sd[i] * sd[j])
+                };
+                if i != j && r.abs() > CORRELATION_ZERO {
+                    dense = true;
+                }
+                matrix[i * dim + j] = if i != j && r.abs() <= CORRELATION_ZERO { 0.0 } else { r };
+            }
+        }
+        if !dense {
+            return Ok(None);
+        }
+        Self::new(dim, matrix).map(Some)
+    }
+
+    /// Dimension `p`.
+    #[must_use]
+    pub const fn dim(&self) -> usize {
+        self.dim
+    }
+
+    /// Row-major `p × p` correlation matrix.
+    #[must_use]
+    pub fn matrix(&self) -> &[f64] {
+        &self.matrix
+    }
+
+    /// Lower-triangular Cholesky factor `L` of the correlation (`R = L L'`,
+    /// row-major), for drawing correlated standard normals `L z`.
+    ///
+    /// # Errors
+    ///
+    /// A correlation that is not numerically positive definite.
+    pub fn cholesky(&self) -> Result<Vec<f64>, ProbError> {
+        crate::linalg::cholesky_spd(&self.matrix, self.dim)
+    }
+
+    /// Dense conjugate scale `V0 = D^{1/2} R D^{1/2}` for diagonal `variance`.
+    ///
+    /// # Errors
+    ///
+    /// `variance` length differs from [`Self::dim`].
+    pub fn scale_matrix(&self, variance: &[f64]) -> Result<Vec<f64>, ProbError> {
+        if variance.len() != self.dim {
+            return Err(ProbError::InvalidPrior {
+                message: "coefficient correlation dimension != coefficient prior length",
+            });
+        }
+        let n = self.dim;
+        let sd: Vec<f64> = variance.iter().map(|v| v.sqrt()).collect();
+        let mut v0 = vec![0.0; n * n];
+        for i in 0..n {
+            for j in 0..n {
+                v0[i * n + j] =
+                    if i == j { variance[i] } else { sd[i] * sd[j] * self.matrix[i * n + j] };
+            }
+        }
+        Ok(v0)
+    }
+}
+
+/// Conjugate-scale prior precision `V0⁻¹` of a coefficient prior.
+///
+/// Diagonal unless the prior set carries a [`PriorSpec::CoefficientCorrelation`].
+/// The diagonal arm reproduces the per-coefficient arithmetic the backends have
+/// always used, so diagonal priors fit bit-for-bit as before.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CoefficientPrecision {
+    /// `1 / variance[i]` per coefficient.
+    Diagonal(Vec<f64>),
+    /// Dense row-major `p × p` precision.
+    Dense {
+        /// Dimension `p`.
+        dim: usize,
+        /// Row-major `V0⁻¹`.
+        matrix: Vec<f64>,
+    },
+}
+
+impl From<Vec<f64>> for CoefficientPrecision {
+    fn from(diag: Vec<f64>) -> Self {
+        Self::Diagonal(diag)
+    }
+}
+
+impl CoefficientPrecision {
+    /// Dimension `p`.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Diagonal(d) => d.len(),
+            Self::Dense { dim, .. } => *dim,
+        }
+    }
+
+    /// Whether `p == 0`.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Whether the precision has off-diagonal entries.
+    #[must_use]
+    pub const fn is_dense(&self) -> bool {
+        matches!(self, Self::Dense { .. })
+    }
+
+    /// Entry `(i, j)`.
+    #[must_use]
+    pub fn get(&self, i: usize, j: usize) -> f64 {
+        match self {
+            Self::Diagonal(d) => {
+                if i == j {
+                    d[i]
+                } else {
+                    0.0
+                }
+            }
+            Self::Dense { dim, matrix } => matrix[i * dim + j],
+        }
+    }
+
+    /// `out = P x`.
+    pub fn mul_into(&self, x: &[f64], out: &mut [f64]) {
+        match self {
+            Self::Diagonal(d) => {
+                for i in 0..d.len() {
+                    out[i] = d[i] * x[i];
+                }
+            }
+            Self::Dense { dim, matrix } => {
+                for i in 0..*dim {
+                    let mut acc = 0.0;
+                    for j in 0..*dim {
+                        acc += matrix[i * dim + j] * x[j];
+                    }
+                    out[i] = acc;
+                }
+            }
+        }
+    }
+
+    /// `grad −= P (β − m)`.
+    pub fn sub_prior_gradient(&self, beta: &[f64], mean: &[f64], grad: &mut [f64]) {
+        match self {
+            Self::Diagonal(d) => {
+                for i in 0..d.len() {
+                    let diff = beta[i] - mean[i];
+                    grad[i] -= d[i] * diff;
+                }
+            }
+            Self::Dense { dim, matrix } => {
+                let diff: Vec<f64> = (0..*dim).map(|j| beta[j] - mean[j]).collect();
+                for i in 0..*dim {
+                    let mut acc = 0.0;
+                    for j in 0..*dim {
+                        acc += matrix[i * dim + j] * diff[j];
+                    }
+                    grad[i] -= acc;
+                }
+            }
+        }
+    }
+
+    /// `m += P / divisor` on a row-major `n × n` matrix (`divisor = 1` adds `P`).
+    pub fn add_divided_to(&self, m: &mut [f64], n: usize, divisor: f64) {
+        match self {
+            Self::Diagonal(d) => {
+                for i in 0..d.len() {
+                    m[i * n + i] += d[i] / divisor;
+                }
+            }
+            Self::Dense { dim, matrix } => {
+                for i in 0..*dim {
+                    for j in 0..*dim {
+                        m[i * n + j] += matrix[i * dim + j] / divisor;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Log prior kernel `−½ (β − m)' P (β − m)`.
+    #[must_use]
+    pub fn log_kernel(&self, beta: &[f64], mean: &[f64]) -> f64 {
+        match self {
+            Self::Diagonal(d) => {
+                let mut lp = 0.0;
+                for i in 0..d.len() {
+                    let diff = beta[i] - mean[i];
+                    lp -= 0.5 * d[i] * diff * diff;
+                }
+                lp
+            }
+            Self::Dense { .. } => -0.5 * self.quadratic(beta, mean),
+        }
+    }
+
+    /// Quadratic form `(β − m)' P (β − m)`.
+    #[must_use]
+    pub fn quadratic(&self, beta: &[f64], mean: &[f64]) -> f64 {
+        match self {
+            Self::Diagonal(d) => {
+                let mut q = 0.0;
+                for i in 0..d.len() {
+                    let diff = beta[i] - mean[i];
+                    q += d[i] * diff * diff;
+                }
+                q
+            }
+            Self::Dense { dim, matrix } => {
+                let diff: Vec<f64> = (0..*dim).map(|j| beta[j] - mean[j]).collect();
+                let mut q = 0.0;
+                for i in 0..*dim {
+                    let mut acc = 0.0;
+                    for j in 0..*dim {
+                        acc += matrix[i * dim + j] * diff[j];
+                    }
+                    q += diff[i] * acc;
+                }
+                q
+            }
+        }
+    }
 }
 
 impl PriorSpec {
@@ -333,6 +656,12 @@ impl PriorSpec {
                 id: Arc::from("known_residual_variance"),
                 description: Arc::from("Known residual variance (no prior uncertainty)"),
             },
+            Self::CoefficientCorrelation(_) => PriorAssumption {
+                id: Arc::from("coefficient_correlation"),
+                description: Arc::from(
+                    "Dense coefficient prior scale V0 (off-diagonal prior covariance)",
+                ),
+            },
         }
     }
 
@@ -345,6 +674,9 @@ impl PriorSpec {
         match self {
             Self::GaussianCoefficients(p) => p.validate(),
             Self::ResidualInvGamma(p) => p.validate(),
+            Self::CoefficientCorrelation(c) => {
+                CoefficientCorrelation::new(c.dim, c.matrix.clone()).map(|_| ())
+            }
             Self::KnownResidualVariance(v) => {
                 if !(*v > 0.0) || !v.is_finite() {
                     return Err(ProbError::InvalidPrior {
@@ -408,7 +740,7 @@ impl GaussianVarianceModel {
                     }
                     inv_gamma = Some(*p);
                 }
-                PriorSpec::GaussianCoefficients(_) => {}
+                PriorSpec::GaussianCoefficients(_) | PriorSpec::CoefficientCorrelation(_) => {}
             }
         }
         if let Some(sigma2) = known {
@@ -507,6 +839,7 @@ impl PriorSet {
         self.validate_contrasts()?;
         let mut n_coef = 0usize;
         let mut n_residual = 0usize;
+        let mut n_corr = 0usize;
         for s in &self.specs {
             match s {
                 PriorSpec::GaussianCoefficients(_) => {
@@ -515,12 +848,35 @@ impl PriorSet {
                 PriorSpec::ResidualInvGamma(_) | PriorSpec::KnownResidualVariance(_) => {
                     n_residual = n_residual.saturating_add(1);
                 }
+                PriorSpec::CoefficientCorrelation(_) => {
+                    n_corr = n_corr.saturating_add(1);
+                }
             }
         }
         if n_coef > 1 {
             return Err(ProbError::InvalidPrior {
                 message: "PriorSet must contain at most one coefficient prior",
             });
+        }
+        if n_corr > 1 {
+            return Err(ProbError::InvalidPrior {
+                message: "PriorSet must contain at most one coefficient correlation",
+            });
+        }
+        if let Some(corr) = self.coefficient_correlation() {
+            match self.gaussian_coefficients() {
+                Some(coef) if coef.len() == corr.dim() => {}
+                Some(_) => {
+                    return Err(ProbError::InvalidPrior {
+                        message: "coefficient correlation dimension != coefficient prior length",
+                    });
+                }
+                None => {
+                    return Err(ProbError::InvalidPrior {
+                        message: "coefficient correlation without a Gaussian coefficient prior",
+                    });
+                }
+            }
         }
         if n_residual > 1 {
             return Err(ProbError::InvalidPrior {
@@ -555,6 +911,40 @@ impl PriorSet {
             PriorSpec::KnownResidualVariance(v) => Some(*v),
             _ => None,
         })
+    }
+
+    /// Correlation of the coefficient prior's conjugate scale `V0`, if dense.
+    #[must_use]
+    pub fn coefficient_correlation(&self) -> Option<&CoefficientCorrelation> {
+        self.specs.iter().find_map(|s| match s {
+            PriorSpec::CoefficientCorrelation(c) => Some(c),
+            _ => None,
+        })
+    }
+
+    /// Conjugate-scale precision `V0⁻¹` of `coef` under this set's correlation.
+    ///
+    /// `coef` is this set's coefficient prior (or the backend default when the
+    /// set has none, in which case it carries no correlation). Diagonal when
+    /// the set carries no [`PriorSpec::CoefficientCorrelation`].
+    ///
+    /// # Errors
+    ///
+    /// A correlation whose dimension differs from `coef`, or a dense `V0`
+    /// that is not positive definite.
+    pub fn coefficient_precision(
+        &self,
+        coef: &GaussianCoefficientPrior,
+    ) -> Result<CoefficientPrecision, ProbError> {
+        let Some(corr) = self.coefficient_correlation() else {
+            return Ok(CoefficientPrecision::Diagonal(coef.precision()));
+        };
+        let v0 = corr.scale_matrix(&coef.variance)?;
+        let n = corr.dim();
+        let matrix = crate::linalg::invert_spd(&v0, n).map_err(|_| ProbError::InvalidPrior {
+            message: "dense coefficient prior scale V0 is not positive definite",
+        })?;
+        Ok(CoefficientPrecision::Dense { dim: n, matrix })
     }
 
     /// Mark coefficient `indices` as holding **absolute** prior variances.
@@ -764,5 +1154,79 @@ mod tests {
         assert_eq!(model, GaussianVarianceModel::Known { sigma2: 2.5 });
         assert_eq!(model.state_dim(4), 4);
         assert!(!model.include_sigma2());
+    }
+
+    fn dense_set() -> PriorSet {
+        let mut p = PriorSet::new();
+        p.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(vec![0.5, -1.0]),
+            variance: Arc::from(vec![4.0, 0.25]),
+        }));
+        p.push(PriorSpec::CoefficientCorrelation(
+            CoefficientCorrelation::new(2, vec![1.0, 0.6, 0.6, 1.0]).unwrap(),
+        ));
+        p
+    }
+
+    #[test]
+    fn coefficient_correlation_validates_and_pairs_with_the_coefficient_prior() {
+        dense_set().validate().unwrap();
+        assert!(CoefficientCorrelation::new(2, vec![1.0, 0.5, 0.4, 1.0]).is_err(), "asymmetric");
+        assert!(CoefficientCorrelation::new(2, vec![2.0, 0.0, 0.0, 1.0]).is_err(), "diagonal");
+        assert!(CoefficientCorrelation::new(2, vec![1.0, 1.0, 1.0, 1.0]).is_err(), "singular");
+        assert!(CoefficientCorrelation::new(3, vec![1.0; 4]).is_err(), "shape");
+        let mut orphan = PriorSet::new();
+        orphan.push(dense_set().specs[1].clone());
+        assert!(orphan.validate().is_err(), "correlation without coefficients");
+        let mut mismatch = PriorSet::weakly_informative(3);
+        mismatch.push(dense_set().specs[1].clone());
+        assert!(mismatch.validate().is_err(), "dimension mismatch");
+        assert!(
+            CoefficientCorrelation::from_covariance(&[2.0, 0.0, 0.0, 3.0], 2).unwrap().is_none(),
+            "a diagonal covariance keeps the diagonal form"
+        );
+    }
+
+    #[test]
+    fn dense_precision_matches_the_inverse_scale_matrix() {
+        let set = dense_set();
+        let coef = set.gaussian_coefficients().unwrap();
+        let prec = set.coefficient_precision(coef).unwrap();
+        assert!(prec.is_dense());
+        // V0 = [[4, 0.6·2·0.5], [0.6, 0.25]] → V0⁻¹ = adj / det.
+        let (a, b, d) = (4.0, 0.6, 0.25);
+        let det = a * d - b * b;
+        let expected = [d / det, -b / det, -b / det, a / det];
+        for i in 0..2 {
+            for j in 0..2 {
+                assert!((prec.get(i, j) - expected[i * 2 + j]).abs() < 1e-12);
+            }
+        }
+        let beta = [1.0, 0.0];
+        let diff = [0.5, 1.0];
+        let q = diff[0] * (expected[0] * diff[0] + expected[1] * diff[1])
+            + diff[1] * (expected[2] * diff[0] + expected[3] * diff[1]);
+        assert!((prec.quadratic(&beta, &coef.mean) - q).abs() < 1e-12);
+        assert!((prec.log_kernel(&beta, &coef.mean) + 0.5 * q).abs() < 1e-12);
+        let mut grad = [0.0, 0.0];
+        prec.sub_prior_gradient(&beta, &coef.mean, &mut grad);
+        assert!((grad[0] + expected[0] * diff[0] + expected[1] * diff[1]).abs() < 1e-12);
+        assert!((grad[1] + expected[2] * diff[0] + expected[3] * diff[1]).abs() < 1e-12);
+        // Without a correlation the precision is the per-coefficient diagonal.
+        let diag = PriorSet::weakly_informative(2);
+        let p = diag.coefficient_precision(diag.gaussian_coefficients().unwrap()).unwrap();
+        assert_eq!(p, CoefficientPrecision::Diagonal(vec![0.01, 0.01]));
+    }
+
+    /// Absolute-scale resolution divides the diagonal and keeps the correlation,
+    /// so the dense `V0` is the absolute covariance over `σ²`.
+    #[test]
+    fn absolute_scale_resolution_keeps_the_correlation() {
+        let mut set = dense_set();
+        set.mark_absolute_coefficient_scale(&[0, 1]);
+        let resolved = set.resolve_absolute_coefficient_scale(4.0).unwrap().unwrap();
+        let coef = resolved.gaussian_coefficients().unwrap();
+        assert_eq!(coef.variance.as_ref(), &[1.0, 0.0625]);
+        assert_eq!(resolved.coefficient_correlation(), set.coefficient_correlation());
     }
 }

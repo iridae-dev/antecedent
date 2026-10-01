@@ -263,11 +263,12 @@ fn effect_functional_bind_col(
 /// target fit converts them with its own residual-variance estimate (see
 /// [`residual_sigma2_for_hydrate`]).
 ///
-/// Hydration is **diagonal**: off-diagonal posterior covariance is dropped, so
-/// a transferred coefficient prior can be tighter than the source marginal on
-/// linear combinations (and, for a single coefficient, is the source marginal
-/// converted to `V0` — not a claim that every functional stays as wide as the
-/// source).
+/// Summaries carry no covariance, so this hydration is **diagonal**:
+/// off-diagonal posterior covariance is dropped, and a transferred coefficient
+/// prior can be tighter than the source marginal on linear combinations. Use
+/// [`hydrate_prior_from_coefficient_moments`] with the source coefficient
+/// covariance (or [`hydrate_prior_from_posterior`], which reads it from the
+/// draws) for the dense `V0` that sequential updating needs.
 ///
 /// # Errors
 ///
@@ -277,6 +278,43 @@ pub fn hydrate_prior_from_quantity_summaries(
     quantities: &[PosteriorQuantityKind],
     mean: &[f64],
     sd: &[f64],
+    expected_n_coef: Option<usize>,
+) -> Result<PriorSet, EstimationError> {
+    hydrate_prior_from_coefficient_moments(quantities, mean, sd, None, expected_n_coef)
+}
+
+/// Restriction id recorded on a prior hydrated with the source's full
+/// coefficient covariance (dense `V0`).
+pub const HYDRATED_COEFFICIENT_COVARIANCE_ID: &str = "hydrated_coefficient_covariance";
+
+/// Restriction id recorded when a supplied source coefficient covariance could
+/// not be used (not positive definite) and hydration fell back to the diagonal.
+pub const HYDRATED_COVARIANCE_DROPPED_ID: &str = "hydrated_coefficient_covariance_dropped";
+
+/// Build a Gaussian coefficient [`PriorSet`] from posterior coefficient moments.
+///
+/// As [`hydrate_prior_from_quantity_summaries`], plus the source's absolute
+/// coefficient covariance `Σ` (row-major `p × p`, coefficient-index order;
+/// see [`coefficient_covariance_from_draws`]). With it the hydrated prior is
+/// dense: the per-coefficient `V0` diagonal is converted from the summary SDs
+/// exactly as before, and the correlation of `Σ` is carried as a
+/// [`PriorSpec::CoefficientCorrelation`], so `V0 = Σ / σ²`. For a known-σ²
+/// conjugate Gaussian source this makes sequential updating reproduce the
+/// pooled posterior up to the Monte Carlo error of `Σ`. Without `Σ` (or when
+/// every off-diagonal correlation is zero) the prior is diagonal. A `Σ` whose
+/// correlation is not positive definite (e.g. a coefficient with constant
+/// draws) is dropped to the diagonal and recorded as
+/// [`HYDRATED_COVARIANCE_DROPPED_ID`].
+///
+/// # Errors
+///
+/// As [`hydrate_prior_from_quantity_summaries`], or a covariance of the wrong
+/// size or with non-finite entries.
+pub fn hydrate_prior_from_coefficient_moments(
+    quantities: &[PosteriorQuantityKind],
+    mean: &[f64],
+    sd: &[f64],
+    coefficient_covariance: Option<&[f64]>,
     expected_n_coef: Option<usize>,
 ) -> Result<PriorSet, EstimationError> {
     if mean.len() != quantities.len() || sd.len() != quantities.len() {
@@ -341,17 +379,121 @@ pub fn hydrate_prior_from_quantity_summaries(
         categorical: Vec::new(),
         restrictions: Vec::new(),
     };
+    if let Some(cov) = coefficient_covariance {
+        attach_coefficient_correlation(&mut prior, cov, n_coef)?;
+    }
     if source_sigma2.is_none() {
         prior.mark_absolute_coefficient_scale(&(0..n_coef).collect::<Vec<_>>());
     }
     Ok(prior)
 }
 
+/// Carry the correlation of the absolute source covariance `cov` on `prior`.
+fn attach_coefficient_correlation(
+    prior: &mut PriorSet,
+    cov: &[f64],
+    n_coef: usize,
+) -> Result<(), EstimationError> {
+    if cov.len() != n_coef.saturating_mul(n_coef) {
+        return Err(EstimationError::stats_msg(format!(
+            "hydrate_prior: coefficient covariance has {} entries, expected {n_coef}²",
+            cov.len()
+        )));
+    }
+    if cov.iter().any(|v| !v.is_finite()) {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: coefficient covariance is non-finite",
+        ));
+    }
+    match antecedent_prob::CoefficientCorrelation::from_covariance(cov, n_coef) {
+        Ok(Some(corr)) => {
+            prior.push(PriorSpec::CoefficientCorrelation(corr));
+            prior.restrictions.push(PriorAssumption {
+                id: Arc::from(HYDRATED_COEFFICIENT_COVARIANCE_ID),
+                description: Arc::from(
+                    "dense V0: the source posterior coefficient correlation is carried with \
+                     the per-coefficient variances (V0 = posterior covariance / source \
+                     sigma^2), so sequential updating keeps the source's joint uncertainty",
+                ),
+            });
+        }
+        Ok(None) => {}
+        Err(_) => prior.restrictions.push(PriorAssumption {
+            id: Arc::from(HYDRATED_COVARIANCE_DROPPED_ID),
+            description: Arc::from(
+                "the source posterior coefficient covariance is not positive definite; the \
+                 hydrated prior is diagonal (off-diagonal covariance dropped) and can be \
+                 tighter than the source on linear combinations",
+            ),
+        }),
+    }
+    Ok(())
+}
+
+/// Sample covariance of a posterior's coefficient columns.
+///
+/// `draws_colmajor` holds `n_draws` values per quantity of `quantities`
+/// (column-major, as in `PosteriorDraws` and the posterior artifact). The
+/// result is the row-major `p × p` covariance (denominator `n − 1`) in
+/// coefficient-index order, or `None` when the draws are absent (a summary-only
+/// artifact) or too few (`n_draws ≤ p`) to give a positive-definite estimate.
+///
+/// # Errors
+///
+/// Draw buffer length inconsistent with `quantities × n_draws`.
+pub fn coefficient_covariance_from_draws(
+    quantities: &[PosteriorQuantityKind],
+    draws_colmajor: &[f64],
+    n_draws: usize,
+) -> Result<Option<Vec<f64>>, EstimationError> {
+    if draws_colmajor.is_empty() {
+        return Ok(None);
+    }
+    if draws_colmajor.len() != quantities.len().saturating_mul(n_draws) {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: posterior draws do not match the quantity schema",
+        ));
+    }
+    let mut coef_cols: Vec<(usize, usize)> = quantities
+        .iter()
+        .enumerate()
+        .filter_map(|(col, q)| match q {
+            PosteriorQuantityKind::Coefficient { index, .. } => Some((*index, col)),
+            _ => None,
+        })
+        .collect();
+    coef_cols.sort_by_key(|(index, _)| *index);
+    let p = coef_cols.len();
+    if p == 0 || n_draws <= p {
+        return Ok(None);
+    }
+    let cols: Vec<&[f64]> = coef_cols
+        .iter()
+        .map(|(_, col)| &draws_colmajor[col * n_draws..(col + 1) * n_draws])
+        .collect();
+    let means: Vec<f64> = cols.iter().map(|c| c.iter().sum::<f64>() / n_draws as f64).collect();
+    let mut cov = vec![0.0; p * p];
+    for i in 0..p {
+        for j in i..p {
+            let mut acc = 0.0;
+            for d in 0..n_draws {
+                acc += (cols[i][d] - means[i]) * (cols[j][d] - means[j]);
+            }
+            let v = acc / (n_draws - 1) as f64;
+            cov[i * p + j] = v;
+            cov[j * p + i] = v;
+        }
+    }
+    Ok(Some(cov))
+}
+
 /// Source `σ²` for absolute→`V0` hydrate: the residual-variance posterior mean.
 ///
-/// `None` when the source posterior has no
-/// [`PosteriorQuantityKind::ResidualVariance`] column (a known-σ² Gaussian fit,
-/// a GLM, or a draws-free summary artifact): it carries no scale to convert its
+/// A known-σ² Gaussian fit records its σ² as a constant
+/// [`PosteriorQuantityKind::ResidualVariance`] column, so its mean is that σ².
+/// `None` when the source posterior has no such column (a GLM, a draws-free
+/// summary artifact, or a known-σ² artifact written before the column was
+/// recorded): it carries no scale to convert its
 /// absolute coefficient variances into the conjugate `V0` a Gaussian target
 /// prior is written in, and assuming `σ² = 1` would mis-scale the prior variance
 /// by the target's σ². The hydrated prior then keeps the **absolute** variances
@@ -379,17 +521,28 @@ fn residual_sigma2_for_hydrate(
 
 /// Build a Gaussian coefficient [`PriorSet`] from a fitted posterior (sequential Bayes).
 ///
+/// Dense: the coefficient covariance is read from the posterior draws
+/// ([`coefficient_covariance_from_draws`]) and carried as the prior's
+/// coefficient correlation (see [`hydrate_prior_from_coefficient_moments`]).
+///
 /// # Errors
 ///
-/// See [`hydrate_prior_from_quantity_summaries`].
+/// See [`hydrate_prior_from_coefficient_moments`].
 pub fn hydrate_prior_from_posterior(
     posterior: &CausalPosterior,
     expected_n_coef: Option<usize>,
 ) -> Result<PriorSet, EstimationError> {
-    hydrate_prior_from_quantity_summaries(
-        &posterior.draws.schema.quantities,
+    let quantities = &posterior.draws.schema.quantities;
+    let cov = coefficient_covariance_from_draws(
+        quantities,
+        &posterior.draws.values,
+        posterior.draws.n_draws,
+    )?;
+    hydrate_prior_from_coefficient_moments(
+        quantities,
         &posterior.summaries.mean,
         &posterior.summaries.sd,
+        cov.as_deref(),
         expected_n_coef,
     )
 }
@@ -429,6 +582,10 @@ pub enum HydrateMapping {
 /// Records `external_effect_prior` / `external_named_prior` on
 /// [`PriorSet::restrictions`].
 ///
+/// Summaries only: identical-subspace hydration is diagonal here. Use
+/// [`hydrate_prior_with_coefficient_covariance`] to carry the source's
+/// coefficient covariance (dense `V0`).
+///
 /// # Errors
 ///
 /// Dimension mismatch, missing effect column, unknown names, missing/zero Δ,
@@ -438,6 +595,41 @@ pub fn hydrate_prior(
     quantities: &[PosteriorQuantityKind],
     mean: &[f64],
     sd: &[f64],
+    baseline: &PriorSet,
+    target_coef_names: &[Arc<str>],
+    treatment_col: Option<usize>,
+    source_contrast: Option<f64>,
+) -> Result<PriorSet, EstimationError> {
+    hydrate_prior_with_coefficient_covariance(
+        mapping,
+        quantities,
+        mean,
+        sd,
+        None,
+        baseline,
+        target_coef_names,
+        treatment_col,
+        source_contrast,
+    )
+}
+
+/// [`hydrate_prior`] with the source's absolute coefficient covariance.
+///
+/// [`HydrateMapping::IdenticalCoefficientSubspace`] carries the covariance's
+/// correlation (dense `V0`, see [`hydrate_prior_from_coefficient_moments`]).
+/// [`HydrateMapping::EffectFunctional`] maps one coefficient and
+/// [`HydrateMapping::NamedParameters`] maps named moments onto a baseline, so
+/// both stay diagonal and ignore the covariance.
+///
+/// # Errors
+///
+/// As [`hydrate_prior`], or a covariance of the wrong size.
+pub fn hydrate_prior_with_coefficient_covariance(
+    mapping: &HydrateMapping,
+    quantities: &[PosteriorQuantityKind],
+    mean: &[f64],
+    sd: &[f64],
+    coefficient_covariance: Option<&[f64]>,
     baseline: &PriorSet,
     target_coef_names: &[Arc<str>],
     treatment_col: Option<usize>,
@@ -462,8 +654,13 @@ pub fn hydrate_prior(
 
     match mapping {
         HydrateMapping::IdenticalCoefficientSubspace => {
-            let mut prior =
-                hydrate_prior_from_quantity_summaries(quantities, mean, sd, Some(n_target))?;
+            let mut prior = hydrate_prior_from_coefficient_moments(
+                quantities,
+                mean,
+                sd,
+                coefficient_covariance,
+                Some(n_target),
+            )?;
             // Preserve residual specs from baseline when present.
             merge_baseline_residuals(&mut prior, baseline);
             Ok(prior)
@@ -594,7 +791,8 @@ fn merge_baseline_residuals(prior: &mut PriorSet, baseline: &PriorSet) {
                     prior.specs.push(spec.clone());
                 }
             }
-            PriorSpec::GaussianCoefficients(_) => {}
+            // The hydrated coefficient block (and its correlation) replaces the baseline's.
+            PriorSpec::GaussianCoefficients(_) | PriorSpec::CoefficientCorrelation(_) => {}
         }
     }
 }
@@ -1029,9 +1227,16 @@ impl BayesianGComputationAte {
         } else {
             "absolute coefficient SD² converted to conjugate scale V0 via source residual variance"
         };
+        let dense = prior.coefficient_correlation().is_some();
         for spec in &prior.specs {
             let mut pa = spec.as_assumption();
-            if sequential {
+            if sequential && dense {
+                pa.description = Arc::from(format!(
+                    "{} (sequential prior from posterior artifact; dense V0 carrying the source \
+                     posterior coefficient covariance; {conversion})",
+                    pa.description
+                ));
+            } else if sequential {
                 pa.description = Arc::from(format!(
                     "{} (sequential prior from posterior artifact; diagonal V0 only — \
                      off-diagonal posterior covariance dropped, so transferred priors can be \
@@ -1243,6 +1448,26 @@ impl BayesianGComputationAte {
             .enumerate()
             .find(|(_, q)| matches!(q, PosteriorQuantityKind::ResidualVariance))
             .and_then(|(i, _)| fit.draws.column(i).ok().map(<[f64]>::to_vec));
+        // A known-σ² Gaussian fit has no residual-variance draws; it records its σ²
+        // as a constant residual-variance column so a prior hydrated from this
+        // posterior converts absolute Var(β) to V0 with the source σ² instead of
+        // plugging in the target's estimate.
+        let known_sigma2 = match (likelihood, &residual_sigma2_col) {
+            (BayesLikelihood::GaussianIdentity, None) => {
+                match GaussianVarianceModel::from_prior_set(&prior).map_err(prob_err)? {
+                    GaussianVarianceModel::Known { sigma2 } => Some(sigma2),
+                    GaussianVarianceModel::InvGamma { .. } => None,
+                }
+            }
+            _ => None,
+        };
+        let residual_column = |n_draws: usize| -> Option<Vec<f64>> {
+            match (&residual_sigma2_col, known_sigma2) {
+                (Some(col), _) if col.len() == n_draws => Some(col.clone()),
+                (None, Some(sigma2)) => Some(vec![sigma2; n_draws]),
+                _ => None,
+            }
+        };
         // Adaptive MVN sampling uses the β-block covariance only; drop residual-variance
         // columns so batch merges match `PosteriorSchema::coefficients`.
         let coef_draws = coefficient_only_draws(&fit.draws)?;
@@ -1320,10 +1545,11 @@ impl BayesianGComputationAte {
 
             // Rebuild combined posterior from accumulated effects + final coef draws.
             // Re-attach ResidualVariance (same length as initial block; adaptive MVN
-            // path only runs for known-σ² Laplace, which has no residual column).
+            // path only runs for known-σ² Laplace, whose column is the constant σ²).
             let mechanism_draws = concat_coefficient_draws(&coef_draws, &extra_blocks)?;
             let mut quantities = mechanism_draws.schema.quantities.to_vec();
-            let residual_idx = if residual_sigma2_col.as_ref().is_some_and(|c| c.len() == n_draws) {
+            let residual_col = residual_column(n_draws);
+            let residual_idx = if residual_col.is_some() {
                 quantities.push(PosteriorQuantityKind::ResidualVariance);
                 Some(quantities.len() - 1)
             } else {
@@ -1342,7 +1568,7 @@ impl BayesianGComputationAte {
                 let coef_col = mechanism_draws.column(qi).map_err(EstimationError::from)?;
                 values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(coef_col);
             }
-            if let (Some(idx), Some(col)) = (residual_idx, residual_sigma2_col.as_ref()) {
+            if let (Some(idx), Some(col)) = (residual_idx, residual_col.as_ref()) {
                 values[idx * n_draws..(idx + 1) * n_draws].copy_from_slice(col);
             }
             values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
@@ -1401,7 +1627,8 @@ impl BayesianGComputationAte {
         evaluator.evaluate_batch(&compiled, batch, &mut effect_out, &mut workspace.eval, ctx)?;
 
         let mut quantities = mechanism.coefficient_draws.schema.quantities.to_vec();
-        let residual_idx = if residual_sigma2_col.as_ref().is_some_and(|c| c.len() == n_draws) {
+        let residual_col = residual_column(n_draws);
+        let residual_idx = if residual_col.is_some() {
             quantities.push(PosteriorQuantityKind::ResidualVariance);
             Some(quantities.len() - 1)
         } else {
@@ -1418,7 +1645,7 @@ impl BayesianGComputationAte {
             let col = mechanism.coefficient_draws.column(qi).map_err(EstimationError::from)?;
             values[dest * n_draws..(dest + 1) * n_draws].copy_from_slice(col);
         }
-        if let (Some(idx), Some(col)) = (residual_idx, residual_sigma2_col.as_ref()) {
+        if let (Some(idx), Some(col)) = (residual_idx, residual_col.as_ref()) {
             values[idx * n_draws..(idx + 1) * n_draws].copy_from_slice(col);
         }
         values[effect_idx * n_draws..(effect_idx + 1) * n_draws]
@@ -3501,8 +3728,8 @@ mod tests {
         assert!(post2.assumptions.entries.iter().any(|a| {
             matches!(a.source, AssumptionSource::Artifact)
                 && matches!(&a.assumption, Assumption::PriorRestriction(pa) if pa.description.contains("sequential")
-                    && pa.description.contains("diagonal")
-                    && pa.description.contains("tighter"))
+                    && pa.description.contains("dense V0")
+                    && pa.description.contains("covariance"))
         }));
         let eq = post2.effect_column().unwrap();
         assert!(post2.summaries.mean[eq].is_finite());
@@ -4008,5 +4235,218 @@ mod tests {
             "external named-parameter prior (ate->coef_t); absolute posterior Var converted to \
              V0 with source σ²=4; diagonal only (off-diagonal covariance dropped)"
         );
+    }
+
+    /// Two batches with a treatment strongly confounded by `Z`, so the
+    /// treatment and `Z` coefficients are correlated in each batch's posterior.
+    fn confounded_table(
+        batches: &[(usize, usize)],
+    ) -> (TabularData, VariableId, VariableId, VariableId) {
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("Z", RoleHint::Context),
+            ("T", RoleHint::TreatmentCandidate),
+            ("Y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let (z, t, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let (mut zv, mut tv, mut yv) = (Vec::new(), Vec::new(), Vec::new());
+        for &(n, shift) in batches {
+            for i in 0..n {
+                let k = i + shift;
+                let zk = ((k * 37 % 101) as f64) / 101.0;
+                let u = ((k * 53 % 97) as f64) / 97.0;
+                let tk = if zk + 0.25 * u > 0.6 { 1.0 } else { 0.0 };
+                let e = (((k * 29) % 11) as f64 - 5.0) * 0.12;
+                zv.push(zk);
+                tv.push(tk);
+                yv.push(2.0 * tk + 1.5 * zk + e);
+            }
+        }
+        let validity = ValidityBitmap::all_valid(zv.len());
+        let cols = vec![
+            OwnedColumn::Float64(Float64Column::new(z, Arc::from(zv), validity.clone()).unwrap()),
+            OwnedColumn::Float64(Float64Column::new(t, Arc::from(tv), validity.clone()).unwrap()),
+            OwnedColumn::Float64(Float64Column::new(y, Arc::from(yv), validity).unwrap()),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        (TabularData::new(storage), t, y, z)
+    }
+
+    /// Item: a known-σ² source records its σ² as a constant `ResidualVariance`
+    /// quantity, and hydration converts with it instead of the target's estimate.
+    #[test]
+    fn known_sigma2_source_records_its_residual_variance_for_hydration() {
+        let (data, t, y, z) = confounded_table(&[(60, 0)]);
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(t, y);
+        let sigma2 = 0.3;
+        let base = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 400,
+            seed: 4,
+            ..BayesianGComputationAte::new()
+        };
+        let prep = base.prepare(&data, &estimand, &query).unwrap();
+        let mut prior = base.prior_in_force(prep.design.ncols);
+        prior.specs.retain(|s| matches!(s, PriorSpec::GaussianCoefficients(_)));
+        prior.push(PriorSpec::KnownResidualVariance(sigma2));
+        let est = BayesianGComputationAte { prior: Some(prior), ..base };
+        let post = est
+            .fit(
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut BayesianGCompWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        let col = post
+            .draws
+            .schema
+            .quantities
+            .iter()
+            .position(|q| matches!(q, PosteriorQuantityKind::ResidualVariance))
+            .expect("a known-σ² posterior records its σ²");
+        assert!(post.draws.column(col).unwrap().iter().all(|v| v.to_bits() == sigma2.to_bits()));
+        let source_sigma2 = post.summaries.mean[col];
+        assert!((source_sigma2 - sigma2).abs() < 1e-12);
+
+        let hydrated = hydrate_prior_from_posterior(&post, Some(prep.design.ncols)).unwrap();
+        assert!(
+            hydrated.absolute_coefficient_scale().is_none(),
+            "the recorded σ² converts at hydrate time; no target plug-in"
+        );
+        let coef = hydrated.gaussian_coefficients().unwrap();
+        for i in 0..coef.len() {
+            let expected = post.summaries.sd[i] * post.summaries.sd[i] / source_sigma2;
+            assert!((coef.variance[i] - expected).abs() <= 1e-12 * expected.max(1.0));
+        }
+    }
+
+    /// Item: hydrating the full coefficient covariance (dense `V0`) makes
+    /// sequential conjugate updating agree with pooling on a confounded design,
+    /// where the diagonal hydration is measurably overconfident.
+    #[test]
+    fn dense_hydration_sequential_matches_pooled_on_confounded_batches() {
+        let (data_a, t, y, z) = confounded_table(&[(60, 0)]);
+        let (data_b, _, _, _) = confounded_table(&[(60, 500)]);
+        let (pool, _, _, _) = confounded_table(&[(60, 0), (60, 500)]);
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(vec![z]),
+            ExprId::from_raw(0),
+        );
+        let query = AverageEffectQuery::binary_ate(t, y);
+        let sigma2 = 0.2;
+        let draws = 40_000usize;
+        let base = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: draws,
+            seed: 11,
+            ..BayesianGComputationAte::new()
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = BayesianGCompWorkspace::default();
+        let prep_a = base.prepare(&data_a, &estimand, &query).unwrap();
+        let mut prior = base.prior_in_force(prep_a.design.ncols);
+        prior.specs.retain(|s| matches!(s, PriorSpec::GaussianCoefficients(_)));
+        prior.push(PriorSpec::KnownResidualVariance(sigma2));
+        let known = BayesianGComputationAte { prior: Some(prior), ..base.clone() };
+        let id = IdentificationStatus::NonparametricallyIdentified;
+        let post_a = known.fit(&prep_a, id, &mut ws, &ctx).unwrap();
+
+        let dense = hydrate_prior_from_posterior(&post_a, Some(prep_a.design.ncols)).unwrap();
+        assert!(dense.coefficient_correlation().is_some(), "confounded source is correlated");
+        assert!(
+            dense.restrictions.iter().any(|r| r.id.as_ref() == HYDRATED_COEFFICIENT_COVARIANCE_ID)
+        );
+        let mut diagonal = dense.clone();
+        diagonal.specs.retain(|s| !matches!(s, PriorSpec::CoefficientCorrelation(_)));
+        let with_known = |mut p: PriorSet| {
+            p.push(PriorSpec::KnownResidualVariance(sigma2));
+            BayesianGComputationAte { prior: Some(p), ..base.clone() }
+        };
+
+        let prep_b = base.prepare(&data_b, &estimand, &query).unwrap();
+        let post_dense = with_known(dense).fit(&prep_b, id, &mut ws, &ctx).unwrap();
+        let post_diag = with_known(diagonal).fit(&prep_b, id, &mut ws, &ctx).unwrap();
+        let prep_pool = base.prepare(&pool, &estimand, &query).unwrap();
+        let post_pool = known.fit(&prep_pool, id, &mut ws, &ctx).unwrap();
+
+        let eff = |p: &CausalPosterior| {
+            let e = p.effect_column().unwrap();
+            (p.summaries.mean[e], p.summaries.sd[e])
+        };
+        let ((m_dense, sd_dense), (_, sd_diag), (m_pool, sd_pool)) =
+            (eff(&post_dense), eff(&post_diag), eff(&post_pool));
+        // Exact in the conjugate known-σ² algebra; what remains is the Monte Carlo
+        // error of the hydrated moments and of the compared summaries (relative
+        // SE ~ 1/√(2D) per SD); 6σ bands at D = 40 000.
+        let band = 6.0 / (2.0 * draws as f64).sqrt();
+        assert!(
+            (sd_dense / sd_pool - 1.0).abs() < band,
+            "dense sequential SD {sd_dense} vs pooled {sd_pool}"
+        );
+        assert!(
+            (m_dense - m_pool).abs() < sd_pool * 6.0 * (2.0 / draws as f64).sqrt(),
+            "dense sequential mean {m_dense} vs pooled {m_pool}"
+        );
+        assert!(
+            sd_diag < sd_pool * (1.0 - 3.0 * band),
+            "diagonal hydration should be overconfident here: diag {sd_diag} vs pooled {sd_pool}"
+        );
+    }
+
+    /// Compatibility: summaries without draws (old or summary-only artifacts)
+    /// still hydrate the diagonal prior; draws too few to estimate a
+    /// positive-definite covariance give no covariance.
+    #[test]
+    fn summary_only_sources_keep_diagonal_hydration() {
+        let quantities = vec![
+            PosteriorQuantityKind::Coefficient { index: 0, name: None },
+            PosteriorQuantityKind::Coefficient { index: 1, name: None },
+            PosteriorQuantityKind::ResidualVariance,
+        ];
+        let prior = hydrate_prior_from_quantity_summaries(
+            &quantities,
+            &[0.0, 1.0, 2.0],
+            &[1.0, 0.5, 0.1],
+            None,
+        )
+        .unwrap();
+        assert!(prior.coefficient_correlation().is_none());
+        assert!(coefficient_covariance_from_draws(&quantities, &[], 0).unwrap().is_none());
+        assert!(
+            coefficient_covariance_from_draws(&quantities, &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 2)
+                .unwrap()
+                .is_none()
+        );
+        assert!(coefficient_covariance_from_draws(&quantities, &[0.0; 5], 2).is_err());
+        // A non-positive-definite covariance falls back to the diagonal, recorded.
+        let singular = [1.0, 1.0, 1.0, 1.0];
+        let prior = hydrate_prior_from_coefficient_moments(
+            &quantities,
+            &[0.0, 1.0, 2.0],
+            &[1.0, 1.0, 0.1],
+            Some(&singular),
+            None,
+        )
+        .unwrap();
+        assert!(prior.coefficient_correlation().is_none());
+        assert!(prior.restrictions.iter().any(|r| r.id.as_ref() == HYDRATED_COVARIANCE_DROPPED_ID));
     }
 }

@@ -66,7 +66,9 @@ pub fn decode_model_bundle_bytes(bytes: &[u8]) -> Result<antecedent_io::ModelBun
 
 /// Hydrate a coefficient [`antecedent_prob::PriorSet`] from posterior artifact bytes.
 ///
-/// Uses per-coefficient posterior means and SDs (identical-subspace mapping).
+/// Uses per-coefficient posterior means and SDs (identical-subspace mapping)
+/// and, when the artifact carries draws, their coefficient covariance as a
+/// dense `V0`; a summary-only artifact hydrates the diagonal prior.
 /// Effect columns are ignored. Prefer [`hydrate_prior_from_posterior_bytes`](crate::inference::hydrate_prior_from_posterior_bytes) when
 /// a heterogeneous mapping is required.
 ///
@@ -78,11 +80,13 @@ pub fn prior_set_from_posterior_bytes(
 ) -> Result<antecedent_prob::PriorSet, CausalError> {
     use std::sync::Arc;
 
-    use antecedent_estimate::hydrate_prior_from_quantity_summaries;
+    use antecedent_estimate::{
+        coefficient_covariance_from_draws, hydrate_prior_from_coefficient_moments,
+    };
     use antecedent_io::PosteriorQuantityWire;
     use antecedent_prob::PosteriorQuantityKind;
 
-    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    let (wire, draws) = decode_causal_posterior_bytes(bytes)?;
     let quantities: Vec<PosteriorQuantityKind> = wire
         .quantities
         .iter()
@@ -102,8 +106,16 @@ pub fn prior_set_from_posterior_bytes(
             }
         })
         .collect();
-    hydrate_prior_from_quantity_summaries(&quantities, &wire.mean, &wire.sd, None)
-        .map_err(CausalError::from)
+    let covariance = coefficient_covariance_from_draws(&quantities, &draws, wire.n_draws as usize)
+        .map_err(CausalError::from)?;
+    hydrate_prior_from_coefficient_moments(
+        &quantities,
+        &wire.mean,
+        &wire.sd,
+        covariance.as_deref(),
+        None,
+    )
+    .map_err(CausalError::from)
 }
 
 /// Portable checked transport proof and supplied exact-law records.

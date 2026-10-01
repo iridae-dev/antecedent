@@ -142,10 +142,12 @@ pub use ar_kernel::kernel_bias_factor;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
-    HMC_DRAW_FLOOR_NOTE_PREFIX, HMC_MIN_DRAWS, HydrateMapping, PosteriorFunctionalEvaluator,
-    PreparedBayesianProblem, coefficient_names_from_design, hmc_draw_floor_from_notes,
-    hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
-    nonidentified_with_prior, require_bayesian_n_draws,
+    HMC_DRAW_FLOOR_NOTE_PREFIX, HMC_MIN_DRAWS, HYDRATED_COEFFICIENT_COVARIANCE_ID,
+    HYDRATED_COVARIANCE_DROPPED_ID, HydrateMapping, PosteriorFunctionalEvaluator,
+    PreparedBayesianProblem, coefficient_covariance_from_draws, coefficient_names_from_design,
+    hmc_draw_floor_from_notes, hydrate_prior, hydrate_prior_from_coefficient_moments,
+    hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
+    hydrate_prior_with_coefficient_covariance, nonidentified_with_prior, require_bayesian_n_draws,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
