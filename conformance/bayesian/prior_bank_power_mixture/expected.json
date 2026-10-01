@@ -9,5 +9,9 @@
   "expected_variance": 1.3333333333333333,
   "required_assumption_ids": ["external_composed_prior"],
   "tol": 1e-12,
-  "notes": "P4C power-prior precision-add: Λ = Λ0 + α Λ_old"
+  "notes": "P4C power-prior precision-add: Λ = Λ0 + α Λ_old",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "1-D Gaussian power-prior composition: precision 0.25 + 0.5*1 = 0.75, mean 4/3, variance 4/3"
+  }
 }

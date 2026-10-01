@@ -16,5 +16,9 @@
     "treatment_effective_sample_size": 2.0
   },
   "contract": "Direct evaluation of the cited inverse-odds trial-to-target IPW and augmented estimating equations with known nuisance probabilities/regressions.",
-  "tolerance": {"atol": 1e-12}
+  "tolerance": {"atol": 1e-12},
+  "oracle": {
+    "kind": "closed_form",
+    "method": "direct evaluation of the cited inverse-odds IPW and augmented trial-to-target equations with known nuisances (see `contract`); no external package parity"
+  }
 }

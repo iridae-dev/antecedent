@@ -1,1 +1,1 @@
-{"mediated":0.44,"direct":0.25,"total":0.69,"tolerance":0.04}
+{"mediated":0.44,"direct":0.25,"total":0.69,"tolerance":0.04,"oracle":{"kind":"closed_form","method":"path-product rule of the linear temporal structural equations reproduced by the consuming staged tests (mediated a*b = 0.8*0.55, direct 0.25)"}}

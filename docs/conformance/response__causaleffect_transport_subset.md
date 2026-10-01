@@ -36,4 +36,4 @@ the positive cases above and belongs next to them.
 
 ## Expected summary
 
-Top-level keys: `cases, comparison, estimand, fixture_id, reference` (5 fields).
+Top-level keys: `cases, comparison, estimand, fixture_id, oracle, reference` (6 fields).

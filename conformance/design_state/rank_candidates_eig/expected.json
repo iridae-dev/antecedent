@@ -5,5 +5,9 @@
     "sampling"
   ],
   "objective": "ReduceGraphEntropy",
-  "notes": "CRN MC ranking reports budget; measure with informative tag should not lose to tiny sampling on average."
+  "notes": "CRN MC ranking reports budget; measure with informative tag should not lose to tiny sampling on average.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "hand-derived expectation: an informative measurement candidate must not lose to a tiny sampling candidate on average; no external package"
+  }
 }

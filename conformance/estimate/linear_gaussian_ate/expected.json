@@ -42,5 +42,11 @@
       "estimate": 1.9999999999999951,
       "method": "backdoor.linear_regression"
     }
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "DoWhy",
+    "version": "0.14",
+    "source": "the `reference` block: a black-box DoWhy 0.14 backdoor.linear_regression run (generator deleted after artifact import); the consuming test compares the estimate with reference_ate and also with true_ate = 2, the coefficient of the noiseless law in the scm field"
   }
 }

@@ -2,5 +2,9 @@
   "model": "joint Gaussian structural IV with fixed unit disturbance loading and known unit stage variances",
   "true_structural_effect": 2.0,
   "first_stage_f_threshold": 10.0,
-  "fixture": "antecedent::bayesian_iv_rd_staged::bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth"
+  "fixture": "antecedent::bayesian_iv_rd_staged::bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "synthetic structural IV design with a treatment coefficient of 2.0 by construction (README)"
+  }
 }

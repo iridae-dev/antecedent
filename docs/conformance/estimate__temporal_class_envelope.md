@@ -38,4 +38,4 @@ without `estimate.envelope.se_omits_between_atom_variance`.
 
 ## Expected summary
 
-Top-level keys: `case, columns, cpdag, law, n, pag, query, schema_version` (8 fields).
+Top-level keys: `case, columns, cpdag, law, n, oracle, pag, query, schema_version` (9 fields).

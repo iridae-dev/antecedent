@@ -41,5 +41,9 @@
     "expected_kish_ess": 1.0
   },
   "tol": 1e-12,
-  "notes": "Prior-strength ESS accounting: effective_ess = alpha_applied*ess per source; composed_ess sums it on the power path only when every contributing source declares ess (None otherwise, and always None on the mixture path since moment-matching folds in between-component spread); kish_ess is a Kish (1965) concentration diagnostic over the weights actually used (applied alphas on the power path, mixture weights on the mixture path)."
+  "notes": "Prior-strength ESS accounting: effective_ess = alpha_applied*ess per source; composed_ess sums it on the power path only when every contributing source declares ess (None otherwise, and always None on the mixture path since moment-matching folds in between-component spread); kish_ess is a Kish (1965) concentration diagnostic over the weights actually used (applied alphas on the power path, mixture weights on the mixture path).",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Gaussian precision arithmetic: effective_ess = alpha*ess per source and the composed and Kish ESS values follow from the stated weights (README, four analytic scenarios)"
+  }
 }

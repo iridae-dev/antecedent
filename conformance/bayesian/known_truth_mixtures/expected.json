@@ -130,5 +130,9 @@
       0.0
     ]
   },
-  "tolerance_class": "PosteriorDistribution"
+  "tolerance_class": "PosteriorDistribution",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "analytic data-generating processes with balanced deterministic designs (README): each atom's effect follows from the law and the mixture from the stated posterior weights"
+  }
 }

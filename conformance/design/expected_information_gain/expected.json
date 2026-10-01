@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "frozen_external_oracle",
+    "kind": "external_package",
     "executed_here": true,
     "project": "dit (discrete information theory)",
     "package": {

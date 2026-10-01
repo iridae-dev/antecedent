@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `anomaly, change` (2 fields).
+Top-level keys: `anomaly, change, oracle` (3 fields).

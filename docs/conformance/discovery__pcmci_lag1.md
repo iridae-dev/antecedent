@@ -8,4 +8,4 @@ Oracle regeneration: see `expected.json` → `reference.command` (out-of-repo).
 
 ## Expected summary
 
-Top-level keys: `alpha, fdr, generation, max_lag, n, reference, scm, tolerance_class, true_parents` (9 fields).
+Top-level keys: `alpha, fdr, generation, max_lag, n, oracle, reference, scm, tolerance_class, true_parents` (10 fields).

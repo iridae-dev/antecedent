@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `assignment, edges, expected_contrast, from, model, outcomes, to, tolerance` (8 fields).
+Top-level keys: `assignment, edges, expected_contrast, from, model, oracle, outcomes, to, tolerance` (9 fields).

@@ -7,5 +7,9 @@
     "y"
   ],
   "method": "change_point",
-  "significance_level": 0.05
+  "significance_level": 0.05,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "known synthetic two-period change (same periods as mechanism_change_detect): only y's mechanism shifts between periods, so y is the changed node by construction"
+  }
 }

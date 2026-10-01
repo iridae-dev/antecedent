@@ -8,4 +8,4 @@ Exercised by `antecedent-prob` unit/integration tests and gate.
 
 ## Expected summary
 
-Top-level keys: `backend, notes, prior, tolerance, tolerance_class, true_coefficients` (6 fields).
+Top-level keys: `backend, notes, oracle, prior, tolerance, tolerance_class, true_coefficients` (7 fields).

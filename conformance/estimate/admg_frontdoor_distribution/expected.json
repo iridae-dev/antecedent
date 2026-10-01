@@ -42,5 +42,9 @@
     "estimator": "functional.distribution",
     "n_draws": 500,
     "absolute_tolerance": 0.02
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "binary SCM with latent U: P(Y=1 | do(T=t)) = 0.25 + 0.5 P(M=1 | t) computed from the SCM directly, not from the formula under test (README)"
   }
 }

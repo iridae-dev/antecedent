@@ -18,5 +18,9 @@
     "required_assumption_ids": ["external_transport_prior"]
   },
   "tol": 1e-12,
-  "notes": "P4D TransportPolicy; unsupported shifts (environment / unidentified) not claimed"
+  "notes": "P4D TransportPolicy; unsupported shifts (environment / unidentified) not claimed",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "TransportPolicy contract stated by hand: differing population tags without a policy refuse with the named error; propensity without weights forces alpha to 0"
+  }
 }

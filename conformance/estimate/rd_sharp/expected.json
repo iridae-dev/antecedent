@@ -127,5 +127,10 @@
       "se_homoskedastic": 0.17596604558618717
     },
     "relative_tolerance": 1e-09
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "true_effect is the constant jump of the clean-room SCM generated inline by crates/antecedent/tests/estimate_conformance.rs",
+    "note": "se_reference comes from the retained dependency-free reference.py beside this file; the recorded DoWhy 0.14 run failed (reference.available = false) and is not compared"
   }
 }

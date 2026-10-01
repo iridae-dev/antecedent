@@ -86,5 +86,10 @@
       },
       "reason": "The directed causal edge is invisible in every retained MAG completion. DAG-only refinement outputs were not valid PAG adjustment evidence. Positive mixed-graph evidence is in latent.json."
     }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "noise-free stated law: each completion's adjustment regression is exact on the sample, so the per-completion effects and their equal-weight envelope follow by arithmetic",
+    "note": "identified_pag.json is rebuilt independently by identified_pag_reference.py (NumPy, retained)"
   }
 }

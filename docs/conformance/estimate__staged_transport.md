@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `formula, ipw, notes, tolerance` (4 fields).
+Top-level keys: `formula, ipw, notes, oracle, tolerance` (5 fields).

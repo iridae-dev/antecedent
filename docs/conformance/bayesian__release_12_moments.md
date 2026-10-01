@@ -101,4 +101,4 @@ E[w̄_D - w̄] = 0.
 
 ## Expected summary
 
-Top-level keys: `data, posterior, tempering` (3 fields).
+Top-level keys: `data, oracle, posterior, tempering` (4 fields).

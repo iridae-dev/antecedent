@@ -3,5 +3,9 @@
   "beta1": 2.0,
   "stable_float_tol": 1e-08,
   "expected_version_after_two_appends": 2,
-  "notes": "Incremental OLS XtX/Xty after two AppendData batches matches full-batch recompute; y = 1 + 2x."
+  "notes": "Incremental OLS XtX/Xty after two AppendData batches matches full-batch recompute; y = 1 + 2x.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "noiseless y = 1 + 2x: OLS after two appends recovers the generating coefficients and matches a full-batch recompute (internal consistency)"
+  }
 }

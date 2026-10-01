@@ -19,5 +19,10 @@
       "n": 400,
       "seed": 7
     }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "binary-treatment linear SCM: the treated interventional mean is 2",
+    "note": "the expected mean follows from the stated linear SCM; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that crates/antecedent/tests/gcm.rs does not compare against, so it is context, not the truth source"
   }
 }

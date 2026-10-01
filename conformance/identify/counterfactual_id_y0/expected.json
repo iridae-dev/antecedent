@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "oracle": {
-  "kind": "frozen_external_oracle",
+  "kind": "external_package",
   "executed_here": true,
   "note": "Every case's oracle output below was produced by running the pinned released y0 package on the documented graph and event in a temporary environment that was deleted after import: this version of y0, with these inputs, produced this output. y0's id_star returns a functional of interventional distributions (identification from all experiments); the harness also ran y0's identify_outcomes (ID from the observational law) on every interventional term it returned. The parity test parses each verbatim output, classifies it (conflict, zero, or an expression whose every term ID identifies) and compares it with Antecedent's decision on the same graph; disagreements are recorded with their reason, never bent.",
   "source": "https://pypi.org/project/y0/0.2.11/",

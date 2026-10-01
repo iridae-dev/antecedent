@@ -7,4 +7,4 @@ on a discrete T→M→Y chain (ATE along mediated path = 0.3).
 
 ## Expected summary
 
-Top-level keys: `ate, method, tolerance` (3 fields).
+Top-level keys: `ate, method, oracle, tolerance` (4 fields).

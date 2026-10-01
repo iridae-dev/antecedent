@@ -39,4 +39,4 @@ Uncertainty is omitted (`none`), same as the static 1.3 contract.
 
 ## Expected summary
 
-Top-level keys: `atol, dgp, fixture_id, grid, horizons, intervention_set_0_5, naive_gap_min, pairs, rows, seed, stream, surface, treatment_lag` (13 fields).
+Top-level keys: `atol, dgp, fixture_id, grid, horizons, intervention_set_0_5, naive_gap_min, oracle, pairs, rows, seed, stream, surface, treatment_lag` (14 fields).

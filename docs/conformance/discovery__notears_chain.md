@@ -10,4 +10,4 @@ The temporary deterministic fixture generator was deleted after artifact import.
 
 ## Expected summary
 
-Top-level keys: `algorithm_id, generation, max_false_positive_edges, n, notears, notes, reference, scm, tolerance_class, true_directed_edges, variables` (11 fields).
+Top-level keys: `algorithm_id, generation, max_false_positive_edges, n, notears, notes, oracle, reference, scm, tolerance_class, true_directed_edges, variables` (12 fields).

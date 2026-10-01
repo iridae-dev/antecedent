@@ -6,4 +6,4 @@ Append-batch OLS sufficient statistics must match a single full recomputation.
 
 ## Expected summary
 
-Top-level keys: `beta0, beta1, expected_version_after_two_appends, notes, stable_float_tol` (5 fields).
+Top-level keys: `beta0, beta1, expected_version_after_two_appends, notes, oracle, stable_float_tol` (6 fields).

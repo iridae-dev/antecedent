@@ -8,4 +8,4 @@ With an explicit policy, composition succeeds and records
 
 ## Expected summary
 
-Top-level keys: `alpha, baseline_mean, baseline_variance, error_code, notes, propensity_missing_weights, source_mean, source_population, source_variance, target_population, tol, with_policy` (12 fields).
+Top-level keys: `alpha, baseline_mean, baseline_variance, error_code, notes, oracle, propensity_missing_weights, source_mean, source_population, source_variance, target_population, tol, with_policy` (13 fields).

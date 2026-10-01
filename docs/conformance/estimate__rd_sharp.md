@@ -25,4 +25,4 @@ relative tolerance of 1e-9. Run
 
 ## Expected summary
 
-Top-level keys: `estimator, generation, identifier, notes, reference, se_reference, tolerance, true_effect` (8 fields).
+Top-level keys: `estimator, generation, identifier, notes, oracle, reference, se_reference, tolerance, true_effect` (9 fields).

@@ -101,7 +101,11 @@ library) may back known truth only for the inference modes its oracle lists in
 `independent_inferences`. Every conformance `oracle` block carries a `kind` from
 one closed vocabulary (`external_package`, `closed_form`, `enumeration`,
 `independent_reimplementation`, `regression_pin`), enforced by
-`gate_evidence_reachability.sh`. A `process_attested` row exists only in
+`gate_evidence_reachability.sh`; the same gate requires that block on every
+fixture a registry cites as `known_truth_fixture`, so a known-truth fixture
+always states where its truth comes from. A pinned upstream run is
+`external_package` (the oracle kind; `frozen_external_oracle` is a row's
+`evidence_kind`, not an oracle kind). A `process_attested` row exists only in
 `release.toml`, for a release-process fact no test can execute; its notes name the
 gate or workflow that enforces it.
 

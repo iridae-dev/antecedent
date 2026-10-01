@@ -10,4 +10,4 @@ dropping that mass.
 
 ## Expected summary
 
-Top-level keys: `effect_means, expected_mixture_mean, identified_weights, tolerance_class, unidentified_mass` (5 fields).
+Top-level keys: `effect_means, expected_mixture_mean, identified_weights, oracle, tolerance_class, unidentified_mass` (6 fields).

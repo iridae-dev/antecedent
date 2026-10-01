@@ -12,4 +12,4 @@ Expected composed precision `Λ = Λ₀ + α Λ = 0.75`, mean
 
 ## Expected summary
 
-Top-level keys: `alpha, baseline_mean, baseline_variance, expected_mean, expected_precision, expected_variance, notes, required_assumption_ids, source_mean, source_variance, tol` (11 fields).
+Top-level keys: `alpha, baseline_mean, baseline_variance, expected_mean, expected_precision, expected_variance, notes, oracle, required_assumption_ids, source_mean, source_variance, tol` (12 fields).

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "frozen_external_oracle",
+    "kind": "external_package",
     "executed_here": true,
     "note": "Every case's oracle output below was produced by running the pinned released package on the documented graph and inputs in a temporary environment that was deleted after import. Only the recorded output is durable: this version of the oracle, with these inputs, produced this output. Disagreements and out-of-scope cases are recorded, never bent. The parity test parses each verbatim output: the verdict must equal oracle_result and the distributions the oracle's formula cites must equal the distributions our recorded proof cites; a named route is an agreement of a weaker class (agree_named_route).",
     "sources": {

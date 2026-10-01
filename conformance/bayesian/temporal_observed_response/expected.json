@@ -16,5 +16,9 @@
   "sequence_atol": 0.2,
   "observation_pairs": ["selected", "right_independent", "left_independent", "right_given_x", "left_given_x"],
   "model": "time-homogeneous Gaussian mechanisms; selection-indicator or censoring-bound trajectory independent of latent outcome trajectory conditional on fully observed conditioning trajectory, with distinct nuisance parameters and independent priors",
-  "uncertainty": "observed-data Gibbs posterior; pointwise equal-tail bands, not pseudo-outcome complete-data bands"
+  "uncertainty": "observed-data Gibbs posterior; pointwise equal-tail bands, not pseudo-outcome complete-data bands",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "stated lag-2 Gaussian mechanism: horizon means and the 5.75 sequence mean follow from its coefficients (README); the consuming Rust test generates the rows"
+  }
 }

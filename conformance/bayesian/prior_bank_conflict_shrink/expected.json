@@ -14,5 +14,9 @@
   },
   "p_min": 0.05,
   "kl_scale": 1.0,
-  "notes": "P4C ConflictPolicy α shrink; never increases α"
+  "notes": "P4C ConflictPolicy α shrink; never increases α",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "ConflictPolicy rule evaluated by hand: p <= p_min gives alpha' = 0; no conflict leaves alpha unchanged"
+  }
 }

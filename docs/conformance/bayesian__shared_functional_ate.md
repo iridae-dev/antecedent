@@ -7,4 +7,4 @@ and Bayesian conjugate g-computation; posterior mean must match.
 
 ## Expected summary
 
-Top-level keys: `bayesian, frequentist, notes, tolerance, tolerance_class, true_ate` (6 fields).
+Top-level keys: `bayesian, frequentist, notes, oracle, tolerance, tolerance_class, true_ate` (7 fields).

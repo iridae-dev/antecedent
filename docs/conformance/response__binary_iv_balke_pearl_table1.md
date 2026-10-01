@@ -14,4 +14,4 @@ result fields. No upstream source code or tests are stored in this repository.
 
 ## Expected summary
 
-Top-level keys: `cell_order, cells, estimand, expected, fixture_id, reference, tolerance` (7 fields).
+Top-level keys: `cell_order, cells, estimand, expected, fixture_id, oracle, reference, tolerance` (8 fields).

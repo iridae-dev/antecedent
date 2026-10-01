@@ -23,4 +23,4 @@ diagnostics, not a general repeated-sampling coverage guarantee.
 
 ## Expected summary
 
-Top-level keys: `doses, draws, horizons, innovation_sd, intercept, lag1_coefficient, lag2_coefficient, mean_atol, model, observation_pairs, posterior_seed, rows, schema_version, seed, sequence_atol, sequence_levels, sequence_mean, uncertainty` (18 fields).
+Top-level keys: `doses, draws, horizons, innovation_sd, intercept, lag1_coefficient, lag2_coefficient, mean_atol, model, observation_pairs, oracle, posterior_seed, rows, schema_version, seed, sequence_atol, sequence_levels, sequence_mean, uncertainty` (19 fields).

@@ -40,4 +40,4 @@ MCMC/autocorrelation ESS reported elsewhere on posterior diagnostics.
 
 ## Expected summary
 
-Top-level keys: `mixture, notes, power, power_dropped_source, power_partial_coverage, tol` (6 fields).
+Top-level keys: `mixture, notes, oracle, power, power_dropped_source, power_partial_coverage, tol` (7 fields).

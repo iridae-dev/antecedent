@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `expected_case, n, outcome, tolerance, treatment_logit, truth` (6 fields).
+Top-level keys: `expected_case, n, oracle, outcome, tolerance, treatment_logit, truth` (7 fields).

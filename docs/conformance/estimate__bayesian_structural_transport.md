@@ -17,4 +17,4 @@ posterior computation and provider distinction, not interval calibration.
 
 ## Expected summary
 
-Top-level keys: `counts_x0y0_x0y1_x1y0_x1y1, draws, empirical_support_p_y1_given_do_x1, monte_carlo_tolerance, schema_version, state_space_p_y1_given_do_x1` (6 fields).
+Top-level keys: `counts_x0y0_x0y1_x1y0_x1y1, draws, empirical_support_p_y1_given_do_x1, monte_carlo_tolerance, oracle, schema_version, state_space_p_y1_given_do_x1` (7 fields).

@@ -40,5 +40,9 @@
     "n": 240,
     "deterministic": true,
     "note": "z_i = sin(i/17), t_i = z_i + cos(i/11) (i=0..n), y_i = 1 + 2*t_i + 0.8*z_i exactly (zero outcome noise). true_response = 1 + 2*0.25 + 0.8*mean(z) computed from the exact same closed-form z sequence; no RNG or external implementation is involved."
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "zero-noise linear law: E[Y | do(T=0.25)] = 1 + 2*0.25 + 0.8*mean(z) over the fixed deterministic sequence (see `generation`)"
   }
 }

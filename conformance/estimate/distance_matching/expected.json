@@ -24,5 +24,10 @@
       "n": 800,
       "seed": 7
     }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "known generating structural model: the expected values are its coefficients or functionals, derived by hand",
+    "note": "true_effect is the structural coefficient of the clean-room SCM that crates/antecedent/tests/estimate_conformance.rs generates inline; the `reference` block records a pinned DoWhy 0.14 run (generator deleted after import) that the consuming test does not compare against, so it is context, not the truth source"
   }
 }

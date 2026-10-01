@@ -15,5 +15,9 @@
   "require_finite_p_below_zero": true,
   "require_artifact_round_trip": true,
   "require_ppc_present_when_refute_enabled": true,
-  "n_draws": 256
+  "n_draws": 256,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "lag-2 SCM defect_t = 0.7 pressure_{t-2} + eps_t: the effect is the coefficient 0.7 (see `derivation`)"
+  }
 }

@@ -27,5 +27,9 @@
     "commit": null,
     "command": "python3 /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
     "note": "Frozen synthetic SEM; regeneration refreshes data.csv only — expected edges are the SCM ground truth, not an external solver dump."
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "synthetic linear SEM chain x0 -> x1 -> x2: the expected directed edges are the SCM ground truth, not an upstream NOTEARS run (see `reference.note`)"
   }
 }

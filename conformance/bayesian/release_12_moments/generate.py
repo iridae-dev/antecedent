@@ -389,4 +389,9 @@ for scale in [0.1, 10.0]:
         'confounded_mediation': [cam[1] * cbm[2], cav[1, 1] * cbv[2, 2] + cav[1, 1] * cbm[2]**2 + cbv[2, 2] * cam[1]**2],
         'dependent_pulse': [dm[1], dv[1, 1]],
     }
-Path(__file__).with_name('expected.json').write_text(json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas}, indent=2)+'\n')
+ORACLE = {
+    'kind': 'independent_reimplementation',
+    'project': 'NumPy Normal-inverse-gamma posterior equations',
+    'generator': 'conformance/bayesian/release_12_moments/generate.py (retained; imports NumPy only, no Antecedent code)',
+}
+Path(__file__).with_name('expected.json').write_text(json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n')

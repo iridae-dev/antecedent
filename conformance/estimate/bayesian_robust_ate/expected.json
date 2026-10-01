@@ -4,5 +4,9 @@
   "treatment_logit": "-0.1 + 0.8*x",
   "outcome": "1.4*x^2 + 2*treatment",
   "expected_case": "linear logistic propensity is correctly specified; linear outcome nuisance is misspecified",
-  "tolerance": 0.25
+  "tolerance": 0.25,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "stated outcome 1.4 x^2 + 2*treatment: the ATE is the treatment coefficient 2"
+  }
 }

@@ -63,4 +63,4 @@ a discovery smoke envelope or agreement between two Antecedent paths.
 
 ## Expected summary
 
-Top-level keys: `static_average_effect, static_response, temporal_effect, temporal_mediation, temporal_sustained_multistep, tolerance_class` (6 fields).
+Top-level keys: `oracle, static_average_effect, static_response, temporal_effect, temporal_mediation, temporal_sustained_multistep, tolerance_class` (7 fields).

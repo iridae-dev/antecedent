@@ -728,6 +728,17 @@ def reachability_cases() -> list[bool]:
             },
             ["`oracle` must be an object with `kind` in"],
         ),
+        # A fixture a registry cites as known truth loses its oracle block.
+        case(
+            g,
+            "known_truth_fixture_without_oracle_kind",
+            {
+                "conformance/bayesian/conjugate_gaussian/expected.json": replace(
+                    '"oracle": {', '"provenance": {'
+                )
+            },
+            ["conformance/bayesian/conjugate_gaussian/expected.json: known_truth_fixture"],
+        ),
     ]
 
 

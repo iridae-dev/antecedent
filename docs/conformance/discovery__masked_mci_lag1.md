@@ -7,4 +7,4 @@ Comparison class: Exact. Oracle: see `expected.json` → `reference`.
 
 ## Expected summary
 
-Top-level keys: `alpha, fdr, generation, mask, max_lag, n, reference, scm, tolerance_class, true_parents` (10 fields).
+Top-level keys: `alpha, fdr, generation, mask, max_lag, n, oracle, reference, scm, tolerance_class, true_parents` (11 fields).

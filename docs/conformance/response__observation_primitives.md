@@ -10,4 +10,4 @@ parity claim.
 
 ## Expected summary
 
-Top-level keys: `contract, fixture_id, gaussian_observation_likelihood, kaplan_meier_ipcw, selected_outcome, tolerance` (6 fields).
+Top-level keys: `contract, fixture_id, gaussian_observation_likelihood, kaplan_meier_ipcw, oracle, selected_outcome, tolerance` (7 fields).
