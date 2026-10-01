@@ -537,3 +537,30 @@ fn the_io_wire_replays_bytes_under_its_own_limits_and_the_stored_report() {
         Err(IoError::TemporalTransport(_))
     ));
 }
+
+/// Re-sealed data-identity mutations: with both digests valid again, a law
+/// whose cells change, or a law moved to another snapshot than its catalog
+/// binding, still fails verification.
+#[test]
+fn resealed_data_identity_mutations_fail_replay() {
+    let (_, _, bytes) = exported(1.0, 0.0);
+    let original = TemporalSequenceArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(original.data_digest, original.expected_data_digest().unwrap());
+    let resealed = |edit: &dyn Fn(&mut TemporalSequenceArtifactWire)| {
+        let mut wire = original.clone();
+        edit(&mut wire);
+        wire.data_digest = wire.expected_data_digest().unwrap();
+        wire.premises_digest = temporal_sequence_identity(&wire).unwrap();
+        wire.export().unwrap()
+    };
+    // The law's cells: the replayed report differs.
+    let cells = consume(&resealed(&|w| {
+        w.laws.iter_mut().find(|l| l.population == "target").unwrap().probabilities.reverse();
+    }));
+    assert_eq!(typed(cells), TemporalTransportArtifactError::ReportMismatch);
+    // A law moved to a snapshot its catalog binding does not name.
+    let moved = consume(&resealed(&|w| {
+        w.laws.iter_mut().find(|l| l.population == "target").unwrap().snapshot = "elsewhere".into();
+    }));
+    assert!(moved.is_err(), "a law outside its catalog binding must not replay");
+}

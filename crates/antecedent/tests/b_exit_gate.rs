@@ -418,7 +418,8 @@ fn story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() 
     );
     // Re-sealed, the relabelled population is a different premise set: the rows
     // carry no population name, so the replay itself cannot contradict the label
-    // (as for any label-only premise); the consumed identity names the forgery.
+    // (as for any label-only premise); the consumed identity names the forgery
+    // and a consumer naming the populations it expects refuses it.
     let relabelled = b2_mutate(&original, |w| w.query.source_population = "other".into(), true);
     let forged = consume_smoothed_dose_artifact(
         &relabelled,
@@ -427,6 +428,16 @@ fn story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() 
     )
     .unwrap();
     assert_ne!(forged.identity(), consumed.identity(), "re-sealed source identity");
+    let (source, target) =
+        (original.query.source_population.clone(), original.query.target_population.clone());
+    original.check_population_names(&source, &target).unwrap();
+    assert_eq!(
+        SmoothedDoseArtifactWire::decode(&relabelled)
+            .unwrap()
+            .check_population_names(&source, &target),
+        Err(SmoothedDoseArtifactError::NamesMismatch),
+        "a consumer naming its populations refuses the relabel"
+    );
     // Data identity.
     let row = (0..original.input.source.len()).find(|i| original.input.source[*i]).unwrap();
     assert_eq!(

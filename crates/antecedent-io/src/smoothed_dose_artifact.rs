@@ -444,6 +444,25 @@ impl SmoothedDoseArtifactWire {
         Ok(crate::identity::digest_wire(IdentityDomain::LearnedTrial, self)?.to_hex())
     }
 
+    /// [`Refusal::NamesMismatch`] unless the stored source and target
+    /// population keys are `source` and `target`.
+    ///
+    /// The rows carry no population name, so a relabelled population is a
+    /// premise only: the premises digest binds it against unsealed edits, but
+    /// an artifact re-sealed under another label replays. A consumer that knows
+    /// which populations it expects checks them here, exactly as it checks the
+    /// variable names with [`Self::check_variable_names`].
+    ///
+    /// # Errors
+    /// The stored populations are not the caller's.
+    pub fn check_population_names(&self, source: &str, target: &str) -> Result<(), Refusal> {
+        if self.query.source_population == source && self.query.target_population == target {
+            Ok(())
+        } else {
+            Err(Refusal::NamesMismatch)
+        }
+    }
+
     /// [`Refusal::NamesMismatch`] unless `names` equals the stored variable names.
     ///
     /// # Errors

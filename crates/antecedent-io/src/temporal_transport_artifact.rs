@@ -497,6 +497,16 @@ impl TemporalSequenceArtifactWire {
         Ok(wire)
     }
 
+    /// The data-identity digest these stored catalog bindings and law
+    /// snapshots would carry. A consumer never trusts it: re-sealing mutated
+    /// data with it still fails replay.
+    ///
+    /// # Errors
+    /// The catalog does not decode, or an encoding failure.
+    pub fn expected_data_digest(&self) -> Result<String, IoError> {
+        data_digest(&self.catalog.to_catalog()?, &self.laws)
+    }
+
     /// Encode as CBOR.
     ///
     /// # Errors

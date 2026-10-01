@@ -1458,3 +1458,47 @@ fn a_version_one_artifact_refuses_other_versions_and_unknown_features() {
         );
     }
 }
+
+/// Re-sealed premise mutations: with a valid premises digest the replayed
+/// decisions and report still refuse.
+#[test]
+fn resealed_scenario_premise_mutations_fail_replay() {
+    let prepared = prepare(three(None), bound_catalog(), laws(SOURCE, true), BUDGET);
+    let ctx = ExecutionContext::for_tests(1);
+    let bytes = prepared.export(&prepared.estimate(&ctx).unwrap()).unwrap();
+    let original = TransportScenarioArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(original.premises_digest, original.expected_premises_digest().unwrap());
+    let resealed = |edit: &dyn Fn(&mut TransportScenarioArtifactWire)| {
+        let mut wire = original.clone();
+        edit(&mut wire);
+        assert_ne!(wire.expected_premises_digest().unwrap(), original.premises_digest);
+        wire.premises_digest = wire.expected_premises_digest().unwrap();
+        let error = consume_transport_scenarios_artifact(
+            &wire.export().unwrap(),
+            TransportScenarioConsumeLimits::default(),
+            &ctx,
+        )
+        .expect_err("a re-sealed premise mutation must not replay");
+        // Valid digests: the refusal comes from replay, never the digest.
+        assert!(
+            !matches!(
+                error,
+                IoError::TransportScenario(
+                    TransportScenarioArtifactError::PremisesMismatch
+                        | TransportScenarioArtifactError::DataIdentityMismatch
+                )
+            ),
+            "{error:?}"
+        );
+    };
+    // A scenario's selection set and its graph are theorem premises.
+    resealed(&|w| {
+        let s = &mut w.scenarios[0].selections;
+        if s.is_empty() { s.push(2) } else { s.clear() }
+    });
+    resealed(&|w| {
+        w.scenarios[0].graph.directed.pop();
+    });
+    // The shared search budget the report was decided under.
+    resealed(&|w| w.scenario_operations = 1);
+}

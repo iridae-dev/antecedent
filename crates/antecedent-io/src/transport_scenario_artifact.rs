@@ -736,6 +736,16 @@ impl TransportScenarioArtifactWire {
         scenario_data_identity(self)
     }
 
+    /// The premises digest these stored premises would carry (the scientific
+    /// identity of the scenario set; see the module docs). A consumer never
+    /// trusts it: re-sealing a mutated artifact with it still fails replay.
+    ///
+    /// # Errors
+    /// Encoding failure.
+    pub fn expected_premises_digest(&self) -> Result<String, IoError> {
+        scenario_set_identity(self)
+    }
+
     /// Encode as CBOR.
     ///
     /// # Errors

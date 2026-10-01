@@ -969,8 +969,8 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
 
 /// Source identity re-sealed: a relabelled source population is a different
 /// premise set. The rows carry no population name, so replay cannot contradict
-/// the label itself; the consumed identity differs from the producer's, which
-/// is what a consumer pinning the producer's artifact identity checks.
+/// the label itself; the consumed identity differs from the producer's, and a
+/// consumer naming the populations it expects refuses it.
 #[test]
 fn a_resealed_source_relabel_changes_the_consumed_identity() {
     let (bytes, original) = exported(Design::NestedCohort);
@@ -983,6 +983,12 @@ fn a_resealed_source_relabel_changes_the_consumed_identity() {
         Ok(forged) => assert_ne!(forged.identity(), live.identity()),
         Err(error) => panic!("unexpected: {error:?}"),
     }
+    // A consumer that names the populations it expects refuses the relabel.
+    let (source, target) =
+        (original.query.source_population.clone(), original.query.target_population.clone());
+    original.check_population_names(&source, &target).unwrap();
+    let forged = LearnedContinuousArtifactWire::decode(&relabelled).unwrap();
+    assert_eq!(forged.check_population_names(&source, &target), Err(Refusal::NamesMismatch));
 }
 
 /// Cross-format: a 2.2 learned-continuous artifact is never read as a 2.1
