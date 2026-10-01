@@ -61,6 +61,10 @@ grid_group() {
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
+    # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
+    smoothed_dose_calibration:*_psi_h) return 0 ;;
+    # 2.2B X3 joint sensitivity: not registered (see run_js below); restore
+    # `joint_sensitivity_calibration:*) return 0 ;;` when it is re-registered.
     *) return 1 ;;
   esac
 }
@@ -762,6 +766,28 @@ run_lc learned_trial_aipw_nested_cohort_continuous_mean_contrast
 run_lc learned_trial_aipw_independent_samples_continuous_mean_contrast
 run_lc learned_trial_aipw_weak_overlap_boundary
 run_lc learned_trial_aipw_misspecified_nuisance_cases
+
+echo "== 2.2B smoothed dose-response transport joint bootstrap (antecedent) =="
+run_sd() {
+  local filter="$1"
+  echo "== antecedent: smoothed_dose_calibration ${filter} =="
+  check "smoothed_dose_calibration: ${filter}" \
+    cargo test --release -p antecedent --test smoothed_dose_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_sd smoothed_dose_transport_nested_cohort_psi_h
+run_sd smoothed_dose_transport_independent_samples_psi_h
+run_sd smoothed_dose_transport_grid_points
+run_sd smoothed_dose_transport_weak_overlap_boundary
+
+# 2.2B X3 joint mechanism sensitivity (conservative endpoint percentile bootstrap):
+# deliberately NOT measured at the 2.2 cut. Its record, 2.2B.X3.joint_sensitivity_uncertainty,
+# is carried forward: the positive-box target is one-sided, which the harness (two-sided band,
+# over-coverage failure, gated/named_boundary roles only) cannot express. The two ignored tests
+# stay in crates/antecedent/tests/joint_sensitivity_calibration.rs. Re-register them here, as
+#   run_js() { cargo test --release -p antecedent --test joint_sensitivity_calibration "$1" -- --ignored --exact --nocapture; }
+# over both of that file's coverage tests (and the grid_group / calibration_groups.py grid
+# entries), once the harness has a one-sided coverage role.
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

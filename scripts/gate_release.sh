@@ -65,6 +65,19 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 
+# 2.2 release closure: declared bounds agree across records, docs, Rust constants and Python
+# docstrings; the release notes describe each cell with exactly its record's claim word.
+echo "== 2.2 limits agreement (records, docs, Rust constants, Python) =="
+python3 scripts/check_limits_agreement.py
+
+echo "== 2.2 release notes claim vocabulary =="
+python3 scripts/check_release_claims.py
+
+# The calibration inventories are generated; a stale checked-in copy fails here (B8 gap closed).
+echo "== calibration backlog and readiness inventories are current =="
+python3 scripts/generate_calibration_backlog.py --check
+python3 scripts/calibration_readiness.py --check
+
 echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
 bash scripts/gate_lint_allows.sh
 
@@ -99,6 +112,11 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   # release-candidate cut can add --require-calibrated.
   echo "== 2.2 A exit gate =="
   bash scripts/gate_a_exit.sh
+  # 2.2 B exit gate scaffold: per-package table (PENDING_IMPLEMENTATION until a package registers
+  # its stories in scripts/b_exit_report.py) plus the interval check over every 2.2 record. The
+  # cut runs it with --release.
+  echo "== 2.2 B exit gate =="
+  bash scripts/gate_b_exit.sh
 fi
 
 python3 - <<'PY'

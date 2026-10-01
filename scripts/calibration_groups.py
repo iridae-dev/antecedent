@@ -154,8 +154,18 @@ def is_grid(label: str) -> bool:
         return False
     if label.startswith("learned_continuous_calibration:"):
         return label.endswith("_mean_contrast")  # the two X4 coverage records only
+    if label.startswith("smoothed_dose_calibration:"):
+        return label.endswith("_psi_h")  # the two 2.2B X4 coverage records only
     return label.startswith(
-        ("antecedent-estimate:", "v19_", "v110_", "v20_", "mz_transport_calibration:")
+        (
+            "antecedent-estimate:",
+            "v19_",
+            "v110_",
+            "v20_",
+            "mz_transport_calibration:",
+            # 2.2B X3 joint_sensitivity_calibration is not registered in the gate
+            # (record carried forward); add its prefix back when it is.
+        )
     )
 
 
