@@ -11,10 +11,12 @@
 //!
 //! 1. [`prepare_counterfactual_id`] decides the query once under one shared
 //!    search budget ([`antecedent_identify::counterfactual_id`]) and returns
-//!    the derivation, or a reason-coded refusal: `cross_world_not_identified`
-//!    with a checkable obstruction, `transport_budget_cancel` with a receipt,
+//!    the derivation, or a reason-coded refusal: `route_not_supported` with a
+//!    checkable obstruction when ID* (and, for a binary treatment, the
+//!    consistency complement) does not identify the query, which is not a
+//!    proof of non-identifiability; `transport_budget_cancel` with a receipt;
 //!    `route_not_supported` outside the contract (`path_specific_deferred` for
-//!    a world that routes edges, `bounds_exceeded` over a bound),
+//!    a world that routes edges, `bounds_exceeded` over a bound);
 //!    `cell_not_licensed` for a structure outside the graph contract,
 //!    `estimator_inference_mismatch` for an interval request.
 //! 2. [`PreparedCounterfactualId::evaluate`] evaluates the derivation on a law
@@ -24,7 +26,15 @@
 //!    `counterfactual_id_admg_v1` artifact; [`consume_counterfactual_id_artifact`]
 //!    re-derives it under the stored limits, requires the identical derivation
 //!    and point, and recomputes the point with a separate direct-sum evaluator
-//!    that shares no code with the compiled evaluator.
+//!    that shares no evaluation code with the compiled evaluator.
+//!
+//! What replay does not protect against: a producer that seals a wrong graph,
+//! query or law on purpose (the digests bind what was sealed, not what is
+//! true); and a bug shared by the identification engine and the consumer,
+//! because the consumer re-derives with the same engine and the direct-sum
+//! evaluator evaluates that same re-derived functional, so such a bug replays
+//! identically. The direct sum checks the functional's arithmetic, not its
+//! derivation.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -541,8 +551,10 @@ fn agrees(a: f64, b: f64) -> bool {
 
 /// Independent evaluation of every level's numerator: walks the functional and
 /// each term's expression with its own arithmetic, reading masses straight from
-/// the stored law's cells. It shares no code with the compiled evaluator or its
-/// factor tables. `None` when a conditional is on a zero-mass event.
+/// the stored law's cells. It shares no evaluation code with the compiled
+/// evaluator or its factor tables, but it evaluates the same re-derived
+/// functional. `None` when the value depends on how a conditional on a
+/// zero-mass event is extended, or a consistency complement is negative.
 fn direct_sum_numerators(
     derivation: &CounterfactualIdDerivation,
     law: &CounterfactualIdLawWire,
@@ -551,35 +563,48 @@ fn direct_sum_numerators(
     if !matches!(derivation.shape, CounterfactualIdShape::EffectOnTreated { .. }) {
         return Some(Vec::new());
     }
-    // A conditional on a zero-mass event is extended two ways; the value must not
-    // depend on the extension (it is multiplied by zero mass).
-    let uniform = WireCells::new(law, levels, false);
-    let first_level = WireCells::new(law, levels, true);
+    // A conditional on a zero-mass event is extended uniformly and by all mass on
+    // each level `k` of its conditioned variables; the value must not depend on
+    // the extension (it is multiplied by zero mass).
+    let most = levels.iter().map(Vec::len).max().unwrap_or(1).max(1);
+    let fills: Vec<WireCells> = std::iter::once(Fill::Uniform)
+        .chain((0..most).map(Fill::Level))
+        .map(|fill| WireCells::new(law, levels, fill))
+        .collect();
     let mut out = Vec::with_capacity(derivation.numerators.len());
     for (_, functional) in &derivation.numerators {
-        let a = uniform.functional(functional, &mut BTreeMap::new())?;
-        let b = first_level.functional(functional, &mut BTreeMap::new())?;
-        if !agrees(a, b) {
-            return None;
+        let first = fills[0].functional(functional, &mut BTreeMap::new())?;
+        for cells in &fills[1..] {
+            if !agrees(first, cells.functional(functional, &mut BTreeMap::new())?) {
+                return None;
+            }
         }
-        out.push(a);
+        out.push(first);
     }
     Some(out)
+}
+
+/// How the direct-sum evaluator extends a conditional on a zero-mass event.
+#[derive(Clone, Copy)]
+enum Fill {
+    /// Every configuration of the conditioned variables equally likely.
+    Uniform,
+    /// All mass on level `k` (clamped to the last level) of each conditioned variable.
+    Level(usize),
 }
 
 /// The stored law's cells as `(variable -> level bits, probability)` rows.
 struct WireCells {
     rows: Vec<(BTreeMap<u32, u64>, f64)>,
     levels: BTreeMap<u32, Vec<u64>>,
-    /// Extend a conditional on a zero-mass event by all mass on the first
-    /// levels (`true`) or uniformly (`false`).
-    first_level_fill: bool,
+    /// How a conditional on a zero-mass event is extended.
+    fill: Fill,
 }
 
 impl WireCells {
     /// `levels` is the declared level order per variable: sums and the choice
     /// of a free variable's level follow it, as the compiled evaluation does.
-    fn new(law: &CounterfactualIdLawWire, levels: &[Vec<u64>], first_level_fill: bool) -> Self {
+    fn new(law: &CounterfactualIdLawWire, levels: &[Vec<u64>], fill: Fill) -> Self {
         let mut rows = Vec::with_capacity(law.probabilities.len());
         let cards: Vec<usize> = law.axes.iter().map(|a| a.levels.len()).collect();
         let mut index = vec![0usize; cards.len()];
@@ -600,7 +625,7 @@ impl WireCells {
             .enumerate()
             .map(|(v, l)| (u32::try_from(v).unwrap_or(u32::MAX), l.clone()))
             .collect();
-        Self { rows, levels, first_level_fill }
+        Self { rows, levels, fill }
     }
 
     fn mass(&self, fixed: &BTreeMap<u32, u64>) -> f64 {
@@ -628,6 +653,16 @@ impl WireCells {
             CounterfactualFunctional::One => Some(1.0),
             CounterfactualFunctional::Zero => Some(0.0),
             CounterfactualFunctional::Term(term) => self.term(term, symbols),
+            CounterfactualFunctional::ConsistencyComplement { interventional, observed } => {
+                let interventional = self.term(interventional, symbols)?;
+                let mut fixed = BTreeMap::new();
+                for &(v, value) in observed {
+                    fixed.insert(v, self.resolve(value, v, symbols)?);
+                }
+                let value = interventional - self.mass(&fixed);
+                // A negative complement means a law incompatible with the graph.
+                (value >= -1e-12 * (1.0 + interventional.abs())).then_some(value.max(0.0))
+            }
             CounterfactualFunctional::Sum { symbols: summed, factors } => {
                 let Some((first, rest)) = summed.split_first() else {
                     // A zero factor ends the product: a later factor on a null
@@ -715,17 +750,21 @@ impl WireCells {
                     return Some(self.mass(&joint) / denominator);
                 }
                 let vars = arena.var_set(*variables);
-                if self.first_level_fill {
-                    let first = vars.iter().all(|v| {
-                        self.levels.get(&v.raw()).and_then(|l| l.first()) == env.get(&v.raw())
-                    });
-                    Some(if first { 1.0 } else { 0.0 })
-                } else {
-                    let configurations: usize = vars
-                        .iter()
-                        .map(|v| self.levels.get(&v.raw()).map_or(1, Vec::len))
-                        .product();
-                    Some(1.0 / configurations as f64)
+                match self.fill {
+                    Fill::Level(k) => {
+                        let at_k = vars.iter().all(|v| {
+                            self.levels.get(&v.raw()).and_then(|l| l.get(k.min(l.len() - 1)))
+                                == env.get(&v.raw())
+                        });
+                        Some(if at_k { 1.0 } else { 0.0 })
+                    }
+                    Fill::Uniform => {
+                        let configurations: usize = vars
+                            .iter()
+                            .map(|v| self.levels.get(&v.raw()).map_or(1, Vec::len))
+                            .product();
+                        Some(1.0 / configurations as f64)
+                    }
                 }
             }
             ExprNode::Product(list) => arena

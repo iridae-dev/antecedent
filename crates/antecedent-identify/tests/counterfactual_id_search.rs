@@ -129,6 +129,39 @@ fn assert_matches_truth(
     checked
 }
 
+/// As [`assert_matches_truth`], with the truth of every treatment pair from one
+/// enumeration pass.
+fn assert_table_matches_truth(
+    scm: &LatentScm,
+    problem: &CounterfactualIdProblem,
+    x: u32,
+    y: u32,
+) -> usize {
+    let joint = law(&scm.cards, scm.observational());
+    let table = scm.ett_numerator_table(x as usize, y as usize);
+    let mut checked = 0;
+    for active in 0..scm.cards[x as usize] {
+        for observed in 0..scm.cards[x as usize] {
+            if active == observed {
+                continue;
+            }
+            let derivation = decide(problem, &ett(x, active as f64, observed as f64, y, 0.0))
+                .expect("identified at one treatment pair, identified at every pair");
+            let point =
+                evaluate_counterfactual_functional(problem, &derivation, &joint, &ctx()).unwrap();
+            for (level, numerator) in &point.numerators {
+                let truth = table[active][observed][*level as usize];
+                assert!(
+                    close(*numerator, truth),
+                    "numerator {numerator} != enumerated truth {truth} at level {level}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    checked
+}
+
 // ---------------------------------------------------------------- positives
 
 /// Front door `X -> M -> Y`, `X <-> Y`: `P(Y_x = y | X = x') = sum_m P(m | x) P(y | m, x')`.
@@ -238,6 +271,7 @@ fn random_graph(rng: &mut Rng, n: usize) -> (Vec<(u32, u32)>, Vec<(u32, u32)>) {
 fn every_identified_ett_on_random_admgs_matches_the_enumerated_truth() {
     let mut rng = Rng::new(4242);
     let (mut identified, mut conflicts, mut hedges, mut checked, mut nontrivial) = (0, 0, 0, 0, 0);
+    let mut complement = 0;
     for round in 0..160 {
         let n = 3 + round % 3;
         let (mut directed, bidirected) = random_graph(&mut rng, n);
@@ -269,8 +303,11 @@ fn every_identified_ett_on_random_admgs_matches_the_enumerated_truth() {
             cards.iter().map(|&c| (0..c).map(|l| l as f64).collect()).collect();
         let problem = CounterfactualIdProblem::new(levels, &directed, &bidirected).unwrap();
         match decide(&problem, &ett(x, 1.0, 0.0, y, 0.0)) {
-            Ok(_) => {
+            Ok(derivation) => {
                 identified += 1;
+                if derivation.numerators.iter().any(|(_, f)| f.uses_consistency_complement()) {
+                    complement += 1;
+                }
                 let d: Vec<(usize, usize)> =
                     directed.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
                 let b: Vec<(usize, usize)> =
@@ -296,8 +333,8 @@ fn every_identified_ett_on_random_admgs_matches_the_enumerated_truth() {
         }
     }
     eprintln!(
-        "identified {identified}, conflicts {conflicts}, hedges {hedges}, checked {checked}, \
-         nontrivial {nontrivial}"
+        "identified {identified} (binary complement {complement}), conflicts {conflicts}, \
+         hedges {hedges}, checked {checked}, nontrivial {nontrivial}"
     );
     assert!(nontrivial >= 50, "nontrivial {nontrivial}");
     assert!(identified >= 60, "identified {identified}");
@@ -305,6 +342,152 @@ fn every_identified_ett_on_random_admgs_matches_the_enumerated_truth() {
     assert!(checked >= 200, "checked {checked}");
     // Recorded: no ID hedge was ever reached on the effect-on-the-treated shape.
     assert_eq!(hedges, 0, "an ID hedge on the ETT shape: record it");
+}
+
+/// The audit's counterexample to reading an ID* conflict as non-identification:
+/// directed 0->1, 1->2, 1->4, 2->3, 2->4, 3->4, bidirected 0<->2, 0<->3, with
+/// X = 2 and Y = 3. ID* on `{Y_x = y, X = x'}` stops at conflicting subscripts,
+/// yet complete ID identifies `P(y | do(x))` (it reduces to `P(y | x)`), and for
+/// a binary X consistency gives `P(Y_x = y, X = x') = P_x(y) - P(y, X = x)`.
+fn audit_counterexample() -> (Vec<(u32, u32)>, Vec<(u32, u32)>) {
+    (vec![(0, 1), (1, 2), (1, 4), (2, 3), (2, 4), (3, 4)], vec![(0, 2), (0, 3)])
+}
+
+#[test]
+fn the_binary_complement_identifies_the_id_star_counterexample() {
+    let (directed, bidirected) = audit_counterexample();
+    let problem = CounterfactualIdProblem::new(binary(5), &directed, &bidirected).unwrap();
+    let derivation = decide(&problem, &ett(2, 1.0, 0.0, 3, 1.0)).unwrap();
+    // ID* alone did not identify it: every level answers through the complement.
+    assert_eq!(derivation.numerators.len(), 2);
+    for (_, functional) in &derivation.numerators {
+        let CounterfactualFunctional::ConsistencyComplement { interventional, observed } =
+            functional
+        else {
+            panic!("expected the consistency complement, got {functional:?}")
+        };
+        assert_eq!(interventional.intervention.len(), 1);
+        assert_eq!(interventional.intervention[0].0, 2);
+        assert_eq!(interventional.event.len(), 1);
+        assert_eq!(interventional.event[0].0, 3);
+        // The subtrahend is P(Y = y, X = x) at the counterfactual level x.
+        assert!(observed.contains(&(2, CfValue::Level(1.0f64.to_bits()))), "{observed:?}");
+    }
+    assert!(derivation.canonical_text().contains("complement("));
+    // Sound: equal to the enumerated latent-SCM truth on several models.
+    let d: Vec<(usize, usize)> = directed.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+    let b: Vec<(usize, usize)> =
+        bidirected.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+    let mut rng = Rng::new(644);
+    let mut checked = 0;
+    for _ in 0..4 {
+        let scm = LatentScm::random(&mut rng, &[2; 5], &d, &b, 3);
+        checked += assert_matches_truth(&scm, &directed, &bidirected, 2, 3);
+    }
+    assert_eq!(checked, 16);
+}
+
+#[test]
+fn with_a_three_level_treatment_the_counterexample_stays_a_pinned_id_star_refusal() {
+    // The same graph with X at three levels: X = x' is no longer the complement
+    // of X = x, so no route answers and the ID* refusal stands. It is NOT a
+    // non-identifiability claim (nothing here decides whether this ETT is
+    // identified from P(V)); it pins the completeness gap of ID* composed with ID.
+    let (directed, bidirected) = audit_counterexample();
+    let mut levels = binary(5);
+    levels[2] = vec![0.0, 1.0, 2.0];
+    let problem = CounterfactualIdProblem::new(levels, &directed, &bidirected).unwrap();
+    let refusal = decide(&problem, &ett(2, 1.0, 0.0, 3, 1.0)).unwrap_err();
+    assert_eq!(
+        (refusal.code, refusal.detail),
+        ("route_not_supported", "counterfactual_id.conflicting_subscripts")
+    );
+    assert!(refusal.message.contains("not a proof of non-identifiability"), "{}", refusal.message);
+    refusal.obstruction.as_ref().unwrap().verify().unwrap();
+}
+
+/// The audit's wider sweep, kept: shuffled labels, 3 to 6 nodes, up to four
+/// levels (the treatment included), denser bidirected edges; every identified
+/// numerator at every treatment pair equals the enumerated latent-SCM truth.
+#[test]
+fn every_identified_ett_on_wider_shuffled_admgs_matches_the_enumerated_truth() {
+    let (mut identified, mut complement, mut conflicts, mut checked, mut wide_x) = (0, 0, 0, 0, 0);
+    // (seed, rounds, fewest nodes, most nodes, P(directed), P(bidirected), most levels, types)
+    for (seed, rounds, nmin, nmax, pd, pb, most, types) in [
+        (1u64, 120usize, 3usize, 5usize, 0.5, 0.3, 3usize, 2usize),
+        (2, 70, 4, 6, 0.45, 0.25, 3, 2),
+        (3, 70, 4, 6, 0.6, 0.15, 2, 3),
+        (4, 50, 5, 6, 0.4, 0.4, 2, 2),
+        (5, 80, 3, 4, 0.5, 0.5, 4, 3),
+    ] {
+        let mut rng = Rng::new(seed);
+        for _ in 0..rounds {
+            let n = nmin + rng.below(nmax - nmin + 1);
+            let mut label: Vec<u32> = (0..n as u32).collect();
+            for i in (1..n).rev() {
+                let j = rng.below(i + 1);
+                label.swap(i, j);
+            }
+            let (mut directed, mut bidirected) = (Vec::new(), Vec::new());
+            for a in 0..n {
+                for b in a + 1..n {
+                    if rng.unit() < pd {
+                        directed.push((label[a], label[b]));
+                    }
+                    if rng.unit() < pb {
+                        bidirected.push((label[a], label[b]));
+                    }
+                }
+            }
+            let xi = rng.below(n - 1);
+            let yi = xi + 1 + rng.below(n - 1 - xi);
+            let (x, y) = (label[xi], label[yi]);
+            let cards: Vec<usize> = (0..n).map(|_| 2 + rng.below(most - 1)).collect();
+            let levels: Vec<Vec<f64>> =
+                cards.iter().map(|&c| (0..c).map(|l| l as f64).collect()).collect();
+            let problem = CounterfactualIdProblem::new(levels, &directed, &bidirected).unwrap();
+            match decide(&problem, &ett(x, 1.0, 0.0, y, 0.0)) {
+                Ok(derivation) => {
+                    identified += 1;
+                    if derivation.numerators.iter().any(|(_, f)| f.uses_consistency_complement()) {
+                        complement += 1;
+                    }
+                    if cards[x as usize] > 2 {
+                        wide_x += 1;
+                    }
+                    let d: Vec<(usize, usize)> =
+                        directed.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+                    let b: Vec<(usize, usize)> =
+                        bidirected.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+                    let mut scm = LatentScm::random(&mut rng, &cards, &d, &b, types);
+                    if scm.state_count() > 60_000 {
+                        // Bound the enumeration: one random response type (plus the
+                        // constant ones) per variable.
+                        scm = LatentScm::random(&mut rng, &cards, &d, &b, 1);
+                    }
+                    checked += assert_table_matches_truth(&scm, &problem, x, y);
+                }
+                Err(refusal) => {
+                    assert_eq!(
+                        (refusal.code, refusal.detail),
+                        ("route_not_supported", "counterfactual_id.conflicting_subscripts"),
+                        "{}",
+                        refusal.message
+                    );
+                    refusal.obstruction.as_ref().unwrap().verify().unwrap();
+                    conflicts += 1;
+                }
+            }
+        }
+    }
+    eprintln!(
+        "identified {identified} (binary complement {complement}, treatment above two levels \
+         {wide_x}), conflicts {conflicts}, checked {checked}"
+    );
+    assert!(identified >= 250, "identified {identified}");
+    assert!(wide_x >= 40, "treatments above two levels {wide_x}");
+    assert!(conflicts >= 60, "conflicts {conflicts}");
+    assert!(checked >= 2500, "checked {checked}");
 }
 
 // ---------------------------------------------------------------- negatives
@@ -352,7 +535,7 @@ fn assert_two_models_agree_on_p_v_and_differ_on_the_ett(
 fn the_bow_arc_refuses_with_conflicting_subscripts() {
     let problem = CounterfactualIdProblem::new(binary(2), &[(0, 1)], &[(0, 1)]).unwrap();
     let refusal = decide(&problem, &ett(0, 1.0, 0.0, 1, 1.0)).unwrap_err();
-    assert_eq!(refusal.code, "cross_world_not_identified");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "counterfactual_id.conflicting_subscripts");
     let Some(obstruction) = refusal.obstruction.as_deref() else { panic!("no obstruction") };
     obstruction.verify().unwrap();
@@ -388,11 +571,11 @@ fn two_models_on_the_bow_arc_agree_on_p_v_and_differ_on_the_ett() {
 }
 
 #[test]
-fn the_instrument_graph_refuses_with_cross_world_not_identified() {
+fn the_instrument_graph_refuses_with_conflicting_subscripts() {
     // Z -> X -> Y, X <-> Y.
     let problem = CounterfactualIdProblem::new(binary(3), &[(0, 1), (1, 2)], &[(1, 2)]).unwrap();
     let refusal = decide(&problem, &ett(1, 1.0, 0.0, 2, 1.0)).unwrap_err();
-    assert_eq!(refusal.code, "cross_world_not_identified");
+    assert_eq!(refusal.code, "route_not_supported");
     assert_eq!(refusal.detail, "counterfactual_id.conflicting_subscripts");
     refusal.obstruction.as_ref().unwrap().verify().unwrap();
 }
@@ -558,6 +741,76 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
         (cyclic.code, cyclic.detail),
         ("cell_not_licensed", "counterfactual_id.graph_outside_contract")
     );
+}
+
+// ---------------------------------------------------------------- evaluation checks
+
+#[test]
+fn the_numerators_must_sum_to_the_conditioning_probability() {
+    let (directed, bidirected) = frontdoor();
+    let problem = CounterfactualIdProblem::new(binary(3), &directed, &bidirected).unwrap();
+    let derivation = decide(&problem, &ett(0, 1.0, 0.0, 2, 1.0)).unwrap();
+    let mut rng = Rng::new(8);
+    let joint = law(
+        &[2, 2, 2],
+        LatentScm::random(&mut rng, &[2, 2, 2], &[(0, 1), (1, 2)], &[(0, 2)], 2).observational(),
+    );
+    let point = evaluate_counterfactual_functional(&problem, &derivation, &joint, &ctx()).unwrap();
+    let total: f64 = point.numerators.iter().map(|(_, p)| p).sum();
+    assert!(close(total, point.conditioning_probability));
+    // A derivation whose levels no longer add up is refused, not evaluated.
+    for replacement in [CounterfactualFunctional::One, CounterfactualFunctional::Zero] {
+        let mut broken = derivation.clone();
+        broken.numerators[0].1 = replacement;
+        let refusal =
+            evaluate_counterfactual_functional(&problem, &broken, &joint, &ctx()).unwrap_err();
+        assert_eq!(
+            (refusal.code, refusal.detail),
+            ("invalid_argument", "counterfactual_id.invalid_query")
+        );
+        assert!(refusal.message.contains("numerators sum to"), "{}", refusal.message);
+    }
+}
+
+#[test]
+fn a_negative_consistency_complement_is_refused() {
+    // The counterexample's complement P_x(y) - P(y, x) evaluated on a law that
+    // does not come from the graph, with the subtrahend re-pointed at the other
+    // outcome level so it exceeds the interventional term: refused, never a
+    // negative probability.
+    let (directed, bidirected) = audit_counterexample();
+    let problem = CounterfactualIdProblem::new(binary(5), &directed, &bidirected).unwrap();
+    let derivation = decide(&problem, &ett(2, 1.0, 0.0, 3, 1.0)).unwrap();
+    // X, Y strongly dependent (P(X = 1, Y = 1) = 0.85), the rest independent uniform.
+    let xy = |x: usize, y: usize| match (x, y) {
+        (1, 1) => 0.85,
+        _ => 0.05,
+    };
+    let mut cells = vec![0.0; 32];
+    for (flat, cell) in cells.iter_mut().enumerate() {
+        let (x, y) = ((flat >> 2) & 1, (flat >> 1) & 1);
+        *cell = xy(x, y) / 8.0;
+    }
+    let joint = law(&[2; 5], cells);
+    evaluate_counterfactual_functional(&problem, &derivation, &joint, &ctx()).unwrap();
+    let mut broken = derivation;
+    let CounterfactualFunctional::ConsistencyComplement { observed, .. } =
+        &mut broken.numerators[0].1
+    else {
+        panic!("expected the complement")
+    };
+    for entry in observed.iter_mut() {
+        if entry.0 == 3 {
+            entry.1 = CfValue::Level(1.0f64.to_bits());
+        }
+    }
+    let refusal =
+        evaluate_counterfactual_functional(&problem, &broken, &joint, &ctx()).unwrap_err();
+    assert_eq!(
+        (refusal.code, refusal.detail),
+        ("invalid_argument", "counterfactual_id.invalid_query")
+    );
+    assert!(refusal.message.contains("not compatible with the graph"), "{}", refusal.message);
 }
 
 // ---------------------------------------------------------------- budget

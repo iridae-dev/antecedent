@@ -40,6 +40,14 @@
 //!    existing complete ID identifies from `P(V)` or refuses with a hedge
 //!    (`counterfactual_id.counterfactual_hedge`).
 //!
+//! When ID* stops at a conflict or a hedge and the treatment has exactly two
+//! levels, one more route is tried: by consistency,
+//! `P(Y_x = y, X = x) = P(Y = y, X = x)`, and `X = x'` is the complement of
+//! `X = x`, so `P(Y_x = y, X = x') = P_x(Y = y) - P(Y = y, X = x)`
+//! ([`CounterfactualFunctional::ConsistencyComplement`]); it answers whenever
+//! complete ID identifies `P_x(Y)` from `P(V)`, and otherwise the ID* refusal
+//! stands. With three or more treatment levels no such route is tried.
+//!
 //! Every ID* call, every make-cg merge step and every ID recursion charges one
 //! [`SearchBudget`] shared by the whole decision (every level of `Y`), with the
 //! cumulative live-state bytes; a stop returns a receipt and is never a
@@ -48,15 +56,30 @@
 //! # What is and is not claimed
 //!
 //! The identified functional is sound: every term is an interventional law
-//! identified by complete ID and the composition is the ID* identity; the tests
-//! check it against exact enumerated latent-variable structural models. A
-//! conflict failure is non-identification from all experimental distributions
-//! by the completeness of ID* (paper-inherited: Shpitser and Pearl, JMLR 2008),
-//! hence from `P(V)`. That composing ID* with ID is complete from `P(V)` alone
-//! is not claimed here (Shpitser and Pearl, UAI 2009, characterize
-//! singleton-treatment ETT identification; paper-inherited). The conflict check
-//! treats a node the event leaves free as taking an unknown level, which can
-//! only refuse more, never answer wrongly.
+//! identified by complete ID, the composition is the ID* identity or the
+//! binary-treatment consistency identity above; the tests check it against
+//! exact enumerated latent-variable structural models. A refusal is NOT a proof
+//! of non-identifiability: a conflicting-subscript refusal says only that ID*
+//! (with the binary complement where it applies) does not identify the
+//! conjunction here. ID*'s completeness (Shpitser and Pearl, JMLR 2008;
+//! paper-inherited) is from experimental distributions, and this implementation
+//! composes it with ID from `P(V)`, a composition that is not complete: a graph
+//! whose ETT is identified from `P(V)` through `P(y | do(x))` was refused by
+//! ID* alone (pinned in the tests; the binary complement now answers it, and
+//! with a three-level treatment it remains a known completeness gap).
+//! Shpitser and Pearl (UAI 2009) characterize singleton-treatment ETT
+//! identification from `P(V)` (paper-inherited); that characterization is not
+//! implemented. The conflict check treats a node the event leaves free as
+//! taking an unknown level, which can only refuse more, never answer wrongly.
+//! Refusals therefore carry `route_not_supported`, never
+//! `cross_world_not_identified`.
+//!
+//! Some guards of the recursion cannot fire on the effect-on-the-treated
+//! shape: its top-level counterfactual graph holds natural-world copies only of
+//! ancestors of `X` and treated-world copies only of descendants of `X`, so no
+//! variable has two copies and no two copies see fixed parents at two levels.
+//! They are kept for the general recursion and each is exercised by a
+//! synthetic conjunction on the engine in this module's unit tests.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -97,10 +120,13 @@ pub const COUNTERFACTUAL_ID_CONTRACT: &str = "effect_on_treated_admg_v1";
 
 /// Why a counterfactual query is refused.
 ///
-/// `cross_world_not_identified` is reserved for a checked obstruction (a
-/// conflicting-subscript district or an ID hedge); a query shape the contract
-/// does not implement is `route_not_supported`, never a claim about
-/// identification; a budget stop is `transport_budget_cancel` with a receipt.
+/// No refusal of this cell claims non-identifiability: a conflicting-subscript
+/// district or an ID hedge on a district term is `route_not_supported` with a
+/// checkable obstruction (ID* does not identify the conjunction; this is not a
+/// proof that nothing does), a query shape the contract does not implement is
+/// `route_not_supported` too, and a budget stop is `transport_budget_cancel`
+/// with a receipt. `cross_world_not_identified` is not used: nothing here
+/// proves non-identification.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CounterfactualIdRefusal {
     /// Registered reason code (`parity/reason_codes.toml`).
@@ -109,7 +135,7 @@ pub struct CounterfactualIdRefusal {
     pub detail: &'static str,
     /// Explanation naming what failed.
     pub message: String,
-    /// The checkable obstruction of a nonidentification refusal.
+    /// The checkable obstruction of an ID* refusal (not a non-identifiability proof).
     pub obstruction: Option<Box<CounterfactualObstruction>>,
     /// The receipt of a budget stop.
     pub receipt: Option<Box<SearchReceipt>>,
@@ -191,7 +217,7 @@ impl CounterfactualIdRefusal {
 
     fn conflict(obstruction: CounterfactualObstruction) -> Self {
         Self {
-            code: "cross_world_not_identified",
+            code: "route_not_supported",
             detail: "counterfactual_id.conflicting_subscripts",
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
@@ -201,7 +227,7 @@ impl CounterfactualIdRefusal {
 
     fn hedge(obstruction: CounterfactualObstruction) -> Self {
         Self {
-            code: "cross_world_not_identified",
+            code: "route_not_supported",
             detail: "counterfactual_id.counterfactual_hedge",
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
@@ -491,6 +517,31 @@ pub enum CounterfactualFunctional {
     },
     /// A district term.
     Term(Box<CfTerm>),
+    /// A binary treatment's consistency complement,
+    /// `P(Y_x = y, X = x') = P_x(Y = y) - P(Y = y, X = x)`: consistency gives
+    /// `P(Y_x = y, X = x) = P(Y = y, X = x)` and `X = x'` is the complement of
+    /// `X = x`. Used only when ID* does not identify the conjunction and ID
+    /// identifies `P_x(Y)`.
+    ConsistencyComplement {
+        /// `P_x(Y = y)`, identified from `P(V)` by ID.
+        interventional: Box<CfTerm>,
+        /// `(variable, level)` of the observed subtrahend `P(Y = y, X = x)`,
+        /// sorted.
+        observed: Vec<(u32, CfValue)>,
+    },
+}
+
+fn render_term(term: &CfTerm, out: &mut String) {
+    out.push_str("P[do(");
+    for (v, x) in &term.intervention {
+        out.push_str(&format!("v{v}={},", x.render()));
+    }
+    out.push_str(")](");
+    for (v, x) in &term.event {
+        out.push_str(&format!("v{v}={},", x.render()));
+    }
+    out.push_str(") := ");
+    out.push_str(&term.arena.pretty(term.expression));
 }
 
 impl CounterfactualFunctional {
@@ -510,17 +561,15 @@ impl CounterfactualFunctional {
                 }
                 out.push(')');
             }
-            Self::Term(term) => {
-                out.push_str("P[do(");
-                for (v, x) in &term.intervention {
+            Self::Term(term) => render_term(term, out),
+            Self::ConsistencyComplement { interventional, observed } => {
+                out.push_str("complement(");
+                render_term(interventional, out);
+                out.push_str(" - P(");
+                for (v, x) in observed {
                     out.push_str(&format!("v{v}={},", x.render()));
                 }
-                out.push_str(")](");
-                for (v, x) in &term.event {
-                    out.push_str(&format!("v{v}={},", x.render()));
-                }
-                out.push_str(") := ");
-                out.push_str(&term.arena.pretty(term.expression));
+                out.push_str("))");
             }
         }
     }
@@ -530,6 +579,18 @@ impl CounterfactualFunctional {
             Self::One | Self::Zero => {}
             Self::Sum { factors, .. } => factors.iter().for_each(|f| f.terms(out)),
             Self::Term(term) => out.push(term),
+            Self::ConsistencyComplement { interventional, .. } => out.push(interventional),
+        }
+    }
+
+    /// Whether the functional answers through the binary consistency
+    /// complement rather than ID* alone.
+    #[must_use]
+    pub fn uses_consistency_complement(&self) -> bool {
+        match self {
+            Self::One | Self::Zero | Self::Term(_) => false,
+            Self::Sum { factors, .. } => factors.iter().any(Self::uses_consistency_complement),
+            Self::ConsistencyComplement { .. } => true,
         }
     }
 }
@@ -560,7 +621,8 @@ pub struct CounterfactualGraphRecord {
     pub districts: Vec<Vec<usize>>,
 }
 
-/// A checked reason a counterfactual query is not identified.
+/// A checked reason ID* does not identify a counterfactual conjunction. It
+/// re-checks its own record; it is not a proof of non-identifiability.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum CounterfactualObstruction {
@@ -601,13 +663,15 @@ impl CounterfactualObstruction {
         match self {
             Self::ConflictingSubscripts { variable, subscript, event, .. } => format!(
                 "variable {variable} is set to {} in a subscript of a district that reads it at \
-                 {}; the conjunction is not identified",
+                 {}: the conjunction is not identified by ID* (conflicting subscripts); this is \
+                 not a proof of non-identifiability",
                 subscript.render(),
                 event.map_or_else(|| "a free level".to_string(), CfValue::render)
             ),
             Self::Hedge { treatments, outcomes, .. } => format!(
                 "the district term P(outcomes {outcomes:?} | do({treatments:?})) is not identified \
-                 from the observational law (hedge)"
+                 from the observational law (hedge), so ID* with ID does not identify the \
+                 conjunction; this is not a proof that the conjunction is not identifiable"
             ),
         }
     }
@@ -765,10 +829,12 @@ impl CounterfactualIdDerivation {
 ///
 /// # Errors
 ///
-/// A [`CounterfactualIdRefusal`]: `cross_world_not_identified` with a checked
-/// obstruction, `transport_budget_cancel` with a receipt, `route_not_supported`
-/// for a shape outside the contract (or deferred, or over a bound),
-/// `invalid_argument` for a malformed query.
+/// A [`CounterfactualIdRefusal`]: `route_not_supported` with a checked
+/// obstruction when ID* (and, for a binary treatment, the consistency
+/// complement) does not identify the query (not a non-identifiability proof),
+/// `transport_budget_cancel` with a receipt, `route_not_supported` for a shape
+/// outside the contract (or deferred, or over a bound), `invalid_argument` for
+/// a malformed query.
 pub fn decide_counterfactual_id(
     problem: &CounterfactualIdProblem,
     query: &CounterfactualEventQuery,
@@ -845,19 +911,8 @@ fn decide_under(
     let mut explored = Vec::new();
     let mut counterfactual_graph = None;
     for (index, &bits) in levels.iter().enumerate() {
-        let mut sub = BTreeMap::new();
-        sub.insert(treatment, CfValue::Level(active.to_bits()));
-        let event = vec![
-            Atom { var: outcome, value: CfValue::Level(bits), sub },
-            Atom {
-                var: treatment,
-                value: CfValue::Level(observed.to_bits()),
-                sub: BTreeMap::new(),
-            },
-        ];
         engine.first_graph = None;
-        let result = engine.id_star(event, 0);
-        let functional = match result {
+        let functional = match engine.numerator(treatment, active, observed, outcome, bits) {
             Ok(functional) => functional,
             Err(Halt::Stop(stop)) => {
                 let unevaluated =
@@ -1226,6 +1281,11 @@ impl Engine<'_, '_> {
             let mut atoms = Vec::with_capacity(district.len());
             for &c in district {
                 let mut sub = cg.nodes[c].eff_sub.clone();
+                // ID* sets every node of the district to the values of all nodes
+                // outside it; restricting that to the node's ancestors is an exact
+                // simplification (a node does not depend on a non-ancestor), so
+                // dropping the restriction gives an equal functional: a mutant
+                // that removes it is equivalent, not an unchecked guard.
                 let ancestors = cg.ancestors(c);
                 for &p in outside_parents.intersection(&ancestors) {
                     let var = cg.nodes[p].var;
@@ -1266,6 +1326,10 @@ impl Engine<'_, '_> {
         let mut event: BTreeMap<u32, CfValue> = BTreeMap::new();
         for node in &cg.nodes {
             if let Some(&set) = sub.get(&node.var) {
+                // A node read at another level, or left free (`None`: its level is
+                // summed, so it may differ), conflicts. The free case cannot occur
+                // on the effect-on-the-treated shape; a synthetic conjunction in the
+                // unit tests reaches it.
                 if node.value != Some(set) {
                     return Err(Halt::Obstruction(Box::new(
                         CounterfactualObstruction::ConflictingSubscripts {
@@ -1284,7 +1348,14 @@ impl Engine<'_, '_> {
             };
             match event.insert(node.var, value) {
                 Some(previous) if previous != value => {
-                    // Two copies of one variable read at two levels in one district.
+                    // Two unmerged copies of one variable read at two levels with
+                    // no subscript conflict: every parent pair that kept them apart
+                    // is, at its root, a node read at exactly the level the other
+                    // world fixes (anything else conflicted above), so by
+                    // consistency the copies are equal and the conjunction has
+                    // probability zero. Unreachable on the effect-on-the-treated
+                    // shape (no variable has two copies); reached by a synthetic
+                    // conjunction in the unit tests.
                     return match (previous, value) {
                         (CfValue::Level(_), CfValue::Level(_)) => {
                             Ok(CounterfactualFunctional::Zero)
@@ -1349,6 +1420,100 @@ impl Engine<'_, '_> {
         }
     }
 
+    /// The functional of `P(Y_{X = active} = level, X = observed)`: ID* on the
+    /// conjunction, and when ID* stops, the binary consistency complement (its
+    /// refusal keeps the ID* obstruction).
+    fn numerator(
+        &mut self,
+        treatment: u32,
+        active: f64,
+        observed: f64,
+        outcome: u32,
+        level: u64,
+    ) -> Result<CounterfactualFunctional, Halt> {
+        let event = vec![
+            Atom {
+                var: outcome,
+                value: CfValue::Level(level),
+                sub: BTreeMap::from([(treatment, CfValue::Level(active.to_bits()))]),
+            },
+            Atom {
+                var: treatment,
+                value: CfValue::Level(observed.to_bits()),
+                sub: BTreeMap::new(),
+            },
+        ];
+        match self.id_star(event, 0) {
+            Err(Halt::Obstruction(obstruction)) => {
+                match self.consistency_complement(treatment, active, outcome, level)? {
+                    Some(functional) => Ok(functional),
+                    None => Err(Halt::Obstruction(obstruction)),
+                }
+            }
+            other => other,
+        }
+    }
+
+    /// The binary-treatment consistency complement of
+    /// `P(Y_{X = active} = level, X = x')`: `P_x(Y = level) - P(Y = level, X = x)`
+    /// when `X` has exactly two levels (so `X = x'` is `X != x`) and complete ID
+    /// identifies `P_x(Y)` from `P(V)`; `None` otherwise (the caller keeps the
+    /// ID* refusal). Charged to the shared budget like every ID call.
+    fn consistency_complement(
+        &mut self,
+        treatment: u32,
+        active: f64,
+        outcome: u32,
+        level: u64,
+    ) -> Result<Option<CounterfactualFunctional>, Halt> {
+        if self.problem.levels[treatment as usize].len() != 2 {
+            return Ok(None);
+        }
+        self.charge(0, 0)?;
+        let n = self.problem.node_count();
+        let mut y = BitSet::with_len(n);
+        y.insert(DenseNodeId::from_raw(outcome));
+        let mut x = BitSet::with_len(n);
+        x.insert(DenseNodeId::from_raw(treatment));
+        let retained = self.retained_bytes;
+        let search = &mut self.search;
+        let mut charge = |id_depth: usize, bytes: u64| -> Result<(), IdentificationError> {
+            search.charge(id_depth, retained.saturating_add(bytes)).map_err(stop_error)
+        };
+        let outcome_id = identify_interventional_metered(
+            &self.prepared,
+            &y,
+            &x,
+            &mut self.workspace,
+            &mut charge,
+        );
+        match outcome_id {
+            Ok(MeteredId::Identified { arena, expression }) => {
+                self.retained_bytes =
+                    self.retained_bytes.saturating_add((arena.len() as u64).saturating_mul(96));
+                let active = CfValue::Level(active.to_bits());
+                let mut observed = vec![(treatment, active), (outcome, CfValue::Level(level))];
+                observed.sort_unstable();
+                Ok(Some(CounterfactualFunctional::ConsistencyComplement {
+                    interventional: Box::new(CfTerm {
+                        intervention: vec![(treatment, active)],
+                        event: vec![(outcome, CfValue::Level(level))],
+                        arena,
+                        expression,
+                    }),
+                    observed,
+                }))
+            }
+            Ok(MeteredId::Hedge(_)) => Ok(None),
+            Err(error) => Err(match error {
+                IdentificationError::Cancelled | IdentificationError::Budget { .. } => {
+                    Halt::Stop(self.search.stop_of(&error))
+                }
+                other => Halt::Failure(other.to_string()),
+            }),
+        }
+    }
+
     /// make-cg: `None` when two events on one merged node disagree.
     #[allow(
         clippy::too_many_lines,
@@ -1398,6 +1563,9 @@ impl Engine<'_, '_> {
                     }
                     let pa = parent_refs(pw[a].0, v);
                     let pb = parent_refs(pw[b].0, v);
+                    // Lemma 24. Two fixed parents at different levels never meet
+                    // on the effect-on-the-treated shape (one intervened world);
+                    // a synthetic two-world conjunction in the unit tests does.
                     let same = pa.iter().zip(&pb).all(|(x, y)| match (x, y) {
                         (ParentRef::Node(i), ParentRef::Node(j)) => {
                             find(&mut root, *i) == find(&mut root, *j)
@@ -1499,7 +1667,9 @@ impl Engine<'_, '_> {
             nodes[i].eff_sub = sub;
         }
         // Bidirected: two copies of one variable share its exogenous term; a
-        // bidirected edge of the graph joins every pair of copies.
+        // bidirected edge of the graph joins every pair of copies. (No variable
+        // has two copies on the effect-on-the-treated shape; the unit tests
+        // reach the copy edge with a synthetic two-world conjunction.)
         let mut bidirected = vec![Vec::new(); nodes.len()];
         for i in 0..nodes.len() {
             for j in i + 1..nodes.len() {
@@ -1778,6 +1948,17 @@ pub fn evaluate_counterfactual_functional(
         let value = evaluator.functional(functional, &mut symbols, ctx)?;
         numerators.push((f64::from_bits(*bits), value));
     }
+    // A cheap check of the derivation on this law: the numerators over every
+    // level of Y are P(Y_x = y, X = x') for all y, so they sum to P(X = x').
+    let total: f64 = numerators.iter().map(|(_, p)| p).sum();
+    if !total.is_finite()
+        || (total - conditioning).abs() > NUMERATOR_SUM_TOLERANCE * (1.0 + conditioning)
+    {
+        return Err(CounterfactualIdRefusal::invalid_query(format!(
+            "the derivation failed its check on this law: the numerators sum to {total}, not \
+             P(X = x') = {conditioning}"
+        )));
+    }
     let probability = numerators
         .iter()
         .find(|(level, _)| level.to_bits() == outcome_level.to_bits())
@@ -1808,29 +1989,52 @@ pub fn evaluate_counterfactual_functional(
 }
 
 /// Evaluates district terms through the compiled evaluator, one provider per
-/// term built from the joint.
+/// term and null-event extension built from the joint.
 struct TermEvaluator<'j> {
     joint: &'j DenseJoint,
-    /// Per term: the factor tables under both null-event extensions, and the plan.
-    compiled: HashMap<usize, ([EmpiricalTableProvider; 2], antecedent_expr::CompiledEvaluator)>,
+    /// Per term: the factor tables under every null-event extension (one when
+    /// the law has no zero-mass conditioning cell for the term), and the plan.
+    compiled: HashMap<usize, (Vec<EmpiricalTableProvider>, antecedent_expr::CompiledEvaluator)>,
     polls: usize,
 }
 
 /// How a conditional on a zero-mass conditioning event is extended. The
-/// functional is accepted only where its value is the same under both
-/// extensions (the undefined conditionals are multiplied by zero mass);
-/// otherwise the law violates positivity for this functional.
+/// functional is accepted only where its value is the same under every
+/// extension tried (the uniform one and, for each `k` below the largest
+/// cardinality, all mass on level `k` of every conditioned variable); otherwise
+/// the law violates positivity for this functional. Every level is tried, so a
+/// value that depends on the extension of one undefined conditional of one
+/// variable is caught whatever its cardinality (the value is affine in that
+/// extension, and constant on every point mass only if constant). Agreement is
+/// a check, not a proof: the same extension is applied to every zero-mass
+/// cell, and a joint conditional of several variables gets only the diagonal
+/// point masses, so a dependence that only a different point mass per cell or
+/// an off-diagonal configuration reveals is not detected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[doc(hidden)]
 pub enum NullExtension {
     /// Every value of the conditioned variables equally likely.
     Uniform,
-    /// All mass on the first level of every conditioned variable.
-    FirstLevel,
+    /// All mass on level `k` of every conditioned variable (its last level
+    /// when it has `k` or fewer).
+    Level(usize),
 }
 
-/// Relative tolerance of the agreement between the two null-event extensions.
+impl NullExtension {
+    /// The extensions tried on a law whose variables have at most
+    /// `max_levels` levels.
+    fn all(max_levels: usize) -> Vec<Self> {
+        std::iter::once(Self::Uniform).chain((0..max_levels.max(1)).map(Self::Level)).collect()
+    }
+}
+
+/// Relative tolerance of the agreement between the null-event extensions.
 const EXTENSION_TOLERANCE: f64 = 1e-12;
+/// Relative tolerance of the check that the numerators sum to `P(X = x')`.
+const NUMERATOR_SUM_TOLERANCE: f64 = 1e-9;
+/// Largest negative rounding a consistency complement may show before the law
+/// is refused as incompatible with the graph.
+const COMPLEMENT_TOLERANCE: f64 = 1e-12;
 
 impl<'j> TermEvaluator<'j> {
     fn new(joint: &'j DenseJoint) -> Self {
@@ -1847,6 +2051,21 @@ impl<'j> TermEvaluator<'j> {
             CounterfactualFunctional::One => Ok(1.0),
             CounterfactualFunctional::Zero => Ok(0.0),
             CounterfactualFunctional::Term(term) => self.term(term, symbols, ctx),
+            CounterfactualFunctional::ConsistencyComplement { interventional, observed } => {
+                let interventional = self.term(interventional, symbols, ctx)?;
+                let mut fixed = Vec::with_capacity(observed.len());
+                for &(variable, value) in observed {
+                    fixed.push((variable as usize, self.level_index(variable, value, symbols)?));
+                }
+                let value = interventional - self.joint.mass(&fixed);
+                if value < -COMPLEMENT_TOLERANCE * (1.0 + interventional.abs()) {
+                    return Err(CounterfactualIdRefusal::invalid_query(format!(
+                        "the law is not compatible with the graph: the consistency complement \
+                         P_x(y) - P(y, x) is {value}"
+                    )));
+                }
+                Ok(value.max(0.0))
+            }
             CounterfactualFunctional::Sum { symbols: summed, factors } => {
                 let cards: Vec<usize> =
                     summed.iter().map(|s| self.joint.levels[s.variable as usize].len()).collect();
@@ -1884,20 +2103,30 @@ impl<'j> TermEvaluator<'j> {
         }
     }
 
+    fn level_index(
+        &self,
+        variable: u32,
+        value: CfValue,
+        symbols: &HashMap<u32, usize>,
+    ) -> Result<usize, CounterfactualIdRefusal> {
+        let levels = &self.joint.levels[variable as usize];
+        match value {
+            CfValue::Level(bits) => levels.iter().position(|l| l.to_bits() == bits),
+            CfValue::Symbol(id) => symbols.get(&id).copied(),
+        }
+        .ok_or_else(|| {
+            CounterfactualIdRefusal::invalid_query("a functional level is not a level of the law")
+        })
+    }
+
     fn level(
         &self,
         variable: u32,
         value: CfValue,
         symbols: &HashMap<u32, usize>,
     ) -> Result<f64, CounterfactualIdRefusal> {
-        let levels = &self.joint.levels[variable as usize];
-        let index = match value {
-            CfValue::Level(bits) => levels.iter().position(|l| l.to_bits() == bits),
-            CfValue::Symbol(id) => symbols.get(&id).copied(),
-        };
-        index.map(|i| levels[i]).ok_or_else(|| {
-            CounterfactualIdRefusal::invalid_query("a functional level is not a level of the law")
-        })
+        let index = self.level_index(variable, value, symbols)?;
+        Ok(self.joint.levels[variable as usize][index])
     }
 
     fn term(
@@ -1922,8 +2151,18 @@ impl<'j> TermEvaluator<'j> {
         let key = std::ptr::from_ref(term) as usize;
         let joint = self.joint;
         if let std::collections::hash_map::Entry::Vacant(slot) = self.compiled.entry(key) {
-            let providers = [NullExtension::Uniform, NullExtension::FirstLevel]
-                .map(|fill| factor_provider(joint, &term.arena, term.expression, fill));
+            let (uniform, touched_null) =
+                factor_provider(joint, &term.arena, term.expression, NullExtension::Uniform);
+            let mut providers = vec![uniform];
+            if touched_null {
+                let most = joint.levels.iter().map(Vec::len).max().unwrap_or(1);
+                providers.extend(
+                    NullExtension::all(most)
+                        .into_iter()
+                        .skip(1)
+                        .map(|fill| factor_provider(joint, &term.arena, term.expression, fill).0),
+                );
+            }
             let compiled = term.arena.compile(term.expression).map_err(|e| {
                 CounterfactualIdRefusal::invalid_query(format!("the term does not compile: {e}"))
             })?;
@@ -1957,19 +2196,21 @@ impl<'j> TermEvaluator<'j> {
             let value = |provider: &EmpiricalTableProvider| {
                 compiled.evaluate_with(&term.arena, provider, &EvalContext::default(), &assignment)
             };
-            match (value(&providers[0]), value(&providers[1])) {
-                (Ok(a), Ok(b))
-                    if a.is_finite()
-                        && b.is_finite()
-                        && (a - b).abs() <= EXTENSION_TOLERANCE * (1.0 + a.abs().max(b.abs())) =>
-                {
-                    return Ok(a);
-                }
-                (Ok(_), Ok(_)) => {
+            let values: Result<Vec<f64>, _> = providers.iter().map(value).collect();
+            match values {
+                Ok(values) => {
+                    let first = values[0];
+                    if values.iter().all(|&b| {
+                        b.is_finite()
+                            && (first - b).abs()
+                                <= EXTENSION_TOLERANCE * (1.0 + first.abs().max(b.abs()))
+                    }) {
+                        return Ok(first);
+                    }
                     "the value depends on how a conditional on a zero-mass event is extended"
                         .clone_into(&mut last_error);
                 }
-                (Err(e), _) | (_, Err(e)) => last_error = e.to_string(),
+                Err(e) => last_error = e.to_string(),
             }
             let mut k = extra.len();
             loop {
@@ -1991,13 +2232,15 @@ impl<'j> TermEvaluator<'j> {
 
 /// Factor tables of every distribution the term's functional reads: the
 /// conditional of the joint on every conditioning assignment with positive
-/// mass, and `fill` on a zero-mass one.
+/// mass, and `fill` on a zero-mass one. The flag says whether any zero-mass
+/// conditioning assignment was met (otherwise every fill gives these tables).
 fn factor_provider(
     joint: &DenseJoint,
     arena: &CausalExprArena,
     root: ExprId,
     fill: NullExtension,
-) -> EmpiricalTableProvider {
+) -> (EmpiricalTableProvider, bool) {
+    let mut touched_null = false;
     let mut provider = EmpiricalTableProvider::new();
     for (v, levels) in joint.levels.iter().enumerate() {
         provider.set_domain(
@@ -2017,7 +2260,7 @@ fn factor_provider(
                 let vars = arena.var_set(*variables).to_vec();
                 let cond = arena.var_set(*conditioned_on).to_vec();
                 if seen.insert((vars.clone(), cond.clone())) {
-                    insert_conditional(&mut provider, joint, &vars, &cond, fill);
+                    touched_null |= insert_conditional(&mut provider, joint, &vars, &cond, fill);
                 }
             }
             ExprNode::Product(list) => stack.extend(arena.list(*list).iter().copied()),
@@ -2034,7 +2277,7 @@ fn factor_provider(
             }
         }
     }
-    provider
+    (provider, touched_null)
 }
 
 fn insert_conditional(
@@ -2043,7 +2286,8 @@ fn insert_conditional(
     vars: &[VariableId],
     cond: &[VariableId],
     fill: NullExtension,
-) {
+) -> bool {
+    let mut touched_null = false;
     let all: Vec<usize> = vars.iter().chain(cond).map(|v| v.raw() as usize).collect();
     let cond_dense: Vec<usize> = cond.iter().map(|v| v.raw() as usize).collect();
     let joint_table = joint.marginal(&all);
@@ -2065,11 +2309,17 @@ fn insert_conditional(
         let value = if denominator > 0.0 {
             numerator / denominator
         } else {
+            touched_null = true;
             match fill {
                 // One over the number of configurations of the conditioned variables.
                 NullExtension::Uniform => 1.0 / (joint_table.len() / cond_size.max(1)) as f64,
-                NullExtension::FirstLevel => {
-                    if index[..vars.len()].iter().all(|&l| l == 0) {
+                // All mass on level `k` (clamped to the last level) of each.
+                NullExtension::Level(k) => {
+                    if index[..vars.len()]
+                        .iter()
+                        .zip(&cards)
+                        .all(|(&l, &card)| l == k.min(card - 1))
+                    {
                         1.0
                     } else {
                         0.0
@@ -2095,6 +2345,7 @@ fn insert_conditional(
             index[k] = 0;
         }
     }
+    touched_null
 }
 
 #[cfg(test)]
@@ -2157,7 +2408,7 @@ mod tests {
         let refusal = CounterfactualIdRefusal::hedge(obstruction.clone());
         assert_eq!(
             (refusal.code, refusal.detail),
-            ("cross_world_not_identified", "counterfactual_id.counterfactual_hedge")
+            ("route_not_supported", "counterfactual_id.counterfactual_hedge")
         );
         // A tampered hedge fails the definition check.
         let mut tampered = obstruction;
@@ -2165,6 +2416,114 @@ mod tests {
             *f_prime = vec![0];
         }
         assert!(tampered.verify().is_err());
+    }
+
+    fn run(
+        problem: &CounterfactualIdProblem,
+        event: Vec<Atom>,
+    ) -> Result<CounterfactualFunctional, Halt> {
+        let ctx = ExecutionContext::for_tests(1);
+        engine(problem, &ctx).id_star(event, 0)
+    }
+
+    fn atom(var: u32, value: f64, sub: &[(u32, f64)]) -> Atom {
+        Atom { var, value: level(value), sub: sub.iter().map(|&(v, x)| (v, level(x))).collect() }
+    }
+
+    fn conflict_of(result: Result<CounterfactualFunctional, Halt>) -> (u32, Option<CfValue>) {
+        let Err(Halt::Obstruction(boxed)) = result else { panic!("expected an obstruction") };
+        boxed.verify().unwrap();
+        let CounterfactualObstruction::ConflictingSubscripts { variable, event, .. } = *boxed
+        else {
+            panic!("expected a conflict")
+        };
+        (variable, event)
+    }
+
+    /// The guards the effect-on-the-treated shape cannot reach (its top-level
+    /// counterfactual graph has at most one copy per variable and one
+    /// intervened world), each reached by a synthetic conjunction on the engine.
+    #[test]
+    fn synthetic_conjunctions_reach_the_guards_the_ett_shape_cannot() {
+        let binary = |n| vec![vec![0.0, 1.0]; n];
+        // X -> Y, no confounding: {Y_{x=0} = 0, Y_{x=1} = 1}. The two copies of Y
+        // see fixed parents at two levels, so Lemma 24 does not merge them (a
+        // merge would read one node at two levels: an exact zero), and the copies
+        // share Y's exogenous term, so they form one district (split, the two
+        // terms would multiply as if independent). ID* fails on X.
+        let chain = CounterfactualIdProblem::new(binary(2), &[(0, 1)], &[]).unwrap();
+        let event = vec![atom(1, 0.0, &[(0, 0.0)]), atom(1, 1.0, &[(0, 1.0)])];
+        assert_eq!(conflict_of(run(&chain, event)).0, 0);
+        // X -> Y, X -> W, X <-> Y, W <-> Y: {Y_{x=1} = 1, W = 0} keeps X as a free
+        // ancestor of W in the district that sets X: a free node conflicts.
+        let free =
+            CounterfactualIdProblem::new(binary(3), &[(0, 1), (0, 2)], &[(0, 1), (1, 2)]).unwrap();
+        let event = vec![atom(1, 1.0, &[(0, 1.0)]), atom(2, 0.0, &[])];
+        assert_eq!(conflict_of(run(&free, event)), (0, None));
+        // P -> V, P <-> V: {V_{p=1} = 0, V = 1, P = 1}. The copies of V stay
+        // unmerged (a node parent against a fixed one), no subscript conflicts
+        // (P is read at the level it is set to), and by consistency V_{p=1} = V
+        // when P = 1: an exact zero.
+        let pv = CounterfactualIdProblem::new(binary(2), &[(0, 1)], &[(0, 1)]).unwrap();
+        let event = vec![atom(1, 0.0, &[(0, 1.0)]), atom(1, 1.0, &[]), atom(0, 1.0, &[])];
+        assert!(matches!(run(&pv, event), Ok(CounterfactualFunctional::Zero)));
+        // X -> Y and an isolated W: W_{x=1} and W merge (no parents), so reading
+        // the one node at two levels is an exact zero.
+        let isolated = CounterfactualIdProblem::new(binary(3), &[(0, 1)], &[]).unwrap();
+        let event = vec![atom(2, 0.0, &[(0, 1.0)]), atom(2, 1.0, &[])];
+        assert!(matches!(run(&isolated, event), Ok(CounterfactualFunctional::Zero)));
+    }
+
+    /// A term `sum_m P(m | x) P(y | m)` with `P(X = x) = 0` and a three-level `M`:
+    /// its value is `sum_m q_m g(m)` for the extension `q` of `P(M | X = x)`,
+    /// with `g = P(y = 1 | m) = (0.5, 0.25, 0.75)`. The uniform extension and all
+    /// mass on the first level agree (0.5); all mass on level 1 gives 0.25, so
+    /// the term is refused as a positivity violation.
+    #[test]
+    fn a_summed_three_level_conditional_on_a_zero_mass_event_is_caught() {
+        let (x, m, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut arena = CausalExprArena::new();
+        let none = arena.empty_intervention_set();
+        let (xs, ms, ys) =
+            (arena.intern_var_set([x]), arena.intern_var_set([m]), arena.intern_var_set([y]));
+        let m_given_x = arena.intern_distribution(ms, xs, none, DomainRef::Observational);
+        let y_given_m = arena.intern_distribution(ys, ms, none, DomainRef::Observational);
+        let list = arena.intern_list([m_given_x, y_given_m]);
+        let product = arena.intern(ExprNode::Product(list));
+        let expression = arena.intern(ExprNode::SumOut { variables: ms, expr: product });
+        let term = CfTerm {
+            intervention: vec![(0, level(1.0))],
+            event: vec![(2, level(1.0))],
+            arena,
+            expression,
+        };
+        // X = 0 always; P(m) = (0.3, 0.3, 0.4); P(y = 1 | m) = g(m). Row-major (x, m, y).
+        let g = [0.5, 0.25, 0.75];
+        let mut probabilities = vec![0.0; 12];
+        for (level_m, (share, g)) in [0.3, 0.3, 0.4].iter().zip(g).enumerate() {
+            probabilities[level_m * 2] = share * (1.0 - g);
+            probabilities[level_m * 2 + 1] = share * g;
+        }
+        let joint = DenseJoint {
+            levels: vec![vec![0.0, 1.0], vec![0.0, 1.0, 2.0], vec![0.0, 1.0]],
+            probabilities,
+        };
+        let assignment = Assignment::from_pairs([(x, Value::f64(1.0)), (y, Value::f64(1.0))]);
+        let compiled = term.arena.compile(term.expression).unwrap();
+        let under = |fill| {
+            let (provider, touched_null) =
+                factor_provider(&joint, &term.arena, term.expression, fill);
+            assert!(touched_null);
+            compiled
+                .evaluate_with(&term.arena, &provider, &EvalContext::default(), &assignment)
+                .unwrap()
+        };
+        assert!((under(NullExtension::Uniform) - 0.5).abs() < 1e-12);
+        assert!((under(NullExtension::Level(0)) - 0.5).abs() < 1e-12);
+        assert!((under(NullExtension::Level(1)) - 0.25).abs() < 1e-12);
+        let ctx = ExecutionContext::for_tests(1);
+        let refusal = TermEvaluator::new(&joint).term(&term, &HashMap::new(), &ctx).unwrap_err();
+        assert_eq!(refusal.detail, "counterfactual_id.positivity_violation");
     }
 
     #[test]

@@ -39,7 +39,9 @@ use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag, TemporalDag};
 use antecedent_io::counterfactual_id_artifact::{
     COUNTERFACTUAL_ID_ESTIMAND, CounterfactualIdArtifactError, CounterfactualIdArtifactWire,
 };
-use antecedent_io::cross_world_artifact::CrossWorldArtifactWire;
+use antecedent_io::cross_world_artifact::{
+    CROSS_WORLD_ARTIFACT_FEATURE, CrossWorldArtifactError, CrossWorldArtifactWire,
+};
 use latent_scm::{LatentScm, Rng};
 
 fn v(i: u32) -> VariableId {
@@ -489,7 +491,7 @@ fn resealed_semantic_mutations_fail_replay_for_the_right_reason() {
     edge.directed.sort_unstable();
     let error = consume_wire(&resealed(edge)).unwrap_err();
     assert!(
-        matches!(&error, CounterfactualIdArtifactError::DerivationMismatch(m) if m.contains("cross_world_not_identified")),
+        matches!(&error, CounterfactualIdArtifactError::DerivationMismatch(m) if m.contains("route_not_supported: counterfactual_id.conflicting_subscripts")),
         "{error:?}"
     );
     // The latent confounder removed: identified differently.
@@ -623,8 +625,25 @@ fn consumer_limits_refuse_before_any_work_and_bounds_hold_at_export() {
 #[test]
 fn the_two_x8_formats_refuse_each_other() {
     let bytes = frontdoor_effect().export_artifact().unwrap();
-    // The 2.2A reader refuses these bytes, whatever it names the failure.
-    assert!(CrossWorldArtifactWire::decode(&bytes).is_err());
+    // The 2.2A reader refuses these bytes: both formats are version 1, so the
+    // refusal is the closed wire (this format's fields are unknown to it).
+    let error = CrossWorldArtifactWire::decode(&bytes).unwrap_err();
+    assert!(
+        matches!(&error, CrossWorldArtifactError::Decode(m) if m.contains("unknown field `levels`")),
+        "{error:?}"
+    );
+    // This format's bytes carrying the 2.2A feature marker: refused on the marker.
+    let mut marked = wire_of(&frontdoor_effect());
+    marked.required_features = vec![CROSS_WORLD_ARTIFACT_FEATURE.into()];
+    let marked_bytes = antecedent_io::to_cbor(&marked).unwrap();
+    let error = consume_counterfactual_id_artifact(
+        &marked_bytes,
+        CounterfactualIdConsumeLimits::default(),
+        &ctx(),
+    )
+    .unwrap_err();
+    assert_eq!(error, CounterfactualIdArtifactError::UnsupportedSemantics("required features"));
+    assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
     // A 2.2A artifact is refused by this reader.
     // Continuous columns, the 2.2A cell's linear-Gaussian fit.
     let xs: Vec<f64> = (0..40).map(|i| (f64::from(i) * 0.37).sin()).collect();
@@ -641,14 +660,17 @@ fn the_two_x8_formats_refuse_each_other() {
     let a5 = evaluate_cross_world_effect(dag, &data, &query, CrossWorldOptions::default(), &ctx())
         .unwrap();
     let a5_bytes = a5.export_artifact().unwrap();
+    let error = consume_counterfactual_id_artifact(
+        &a5_bytes,
+        CounterfactualIdConsumeLimits::default(),
+        &ctx(),
+    )
+    .unwrap_err();
     assert!(
-        consume_counterfactual_id_artifact(
-            &a5_bytes,
-            CounterfactualIdConsumeLimits::default(),
-            &ctx()
-        )
-        .is_err()
+        matches!(&error, CounterfactualIdArtifactError::Decode(m) if m.contains("unknown field `graph_edges`")),
+        "{error:?}"
     );
+    assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
 }
 
 // ---------------------------------------------------------------- refusals
@@ -711,71 +733,6 @@ fn structures_queries_and_inference_outside_the_cell_are_refused() {
             "{text}"
         );
     }
-    // Not identified: the bow arc, with the conflicting pair in the message.
-    let text = refusal_text(prepare_counterfactual_id(
-        admg(3, &[(0, 2), (1, 2)], &[(0, 2)]),
-        names(3),
-        levels(&[2, 2, 2]),
-        &query,
-        CounterfactualIdOptions::default(),
-        &ctx(),
-    ));
-    assert!(
-        text.contains(
-            "reason=cross_world_not_identified: counterfactual_id.conflicting_subscripts"
-        ),
-        "{text}"
-    );
-    // A path-specific (routed) query on an ADMG: deferred to 2.3.
-    let at = |w: u8, var: u32, level: f64| {
-        CounterfactualEvent::new(WorldId::new(w), v(var), level).unwrap()
-    };
-    let routed = CounterfactualEventQuery::new(
-        vec![
-            WorldSpec::new([], []).unwrap(),
-            WorldSpec::new(
-                [(v(0), 1.0)],
-                [EdgeRoute { parent: v(1), child: v(2), source: WorldId::new(0) }],
-            )
-            .unwrap(),
-        ],
-        ExogenousCoupling::SharedLatentExogenous,
-        [at(1, 2, 1.0)],
-        [at(0, 0, 0.0)],
-    )
-    .unwrap();
-    let text = refusal_text(prepare_counterfactual_id(
-        admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
-        names(3),
-        levels(&[2, 2, 2]),
-        &routed,
-        CounterfactualIdOptions::default(),
-        &ctx(),
-    ));
-    assert!(
-        text.contains("reason=route_not_supported: counterfactual_id.path_specific_deferred"),
-        "{text}"
-    );
-    // Another shape: a joint of two potential outcomes.
-    let joint = CounterfactualEventQuery::new(
-        vec![WorldSpec::new([], []).unwrap(), WorldSpec::new([(v(0), 1.0)], []).unwrap()],
-        ExogenousCoupling::SharedLatentExogenous,
-        [at(1, 2, 1.0), at(0, 2, 0.0)],
-        [],
-    )
-    .unwrap();
-    let text = refusal_text(prepare_counterfactual_id(
-        admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
-        names(3),
-        levels(&[2, 2, 2]),
-        &joint,
-        CounterfactualIdOptions::default(),
-        &ctx(),
-    ));
-    assert!(
-        text.contains("reason=route_not_supported: counterfactual_id.query_outside_contract"),
-        "{text}"
-    );
     // Names that do not match the graph.
     let text = refusal_text(prepare_counterfactual_id(
         admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
@@ -815,6 +772,159 @@ fn structures_queries_and_inference_outside_the_cell_are_refused() {
         &ctx(),
     ));
     assert!(text.contains("reason=transport_budget_cancel: counterfactual_id.budget"), "{text}");
+}
+
+fn at(w: u8, var: u32, level: f64) -> CounterfactualEvent {
+    CounterfactualEvent::new(WorldId::new(w), v(var), level).unwrap()
+}
+
+/// ID* refusals through the public prepare route: `route_not_supported` with
+/// the conflicting pair, never a non-identifiability claim. The audit's
+/// counterexample (ID* conflicts, `P(y | do(x))` is identified) prepares
+/// through the binary consistency complement; with a three-level treatment it
+/// stays refused (a pinned completeness gap, not a verdict).
+#[test]
+fn id_star_refusals_are_route_not_supported_through_the_facade() {
+    let query = CounterfactualEventQuery::effect_on_treated(v(0), 1.0, 0.0, v(2), 1.0).unwrap();
+    let text = refusal_text(prepare_counterfactual_id(
+        admg(3, &[(0, 2), (1, 2)], &[(0, 2)]),
+        names(3),
+        levels(&[2, 2, 2]),
+        &query,
+        CounterfactualIdOptions::default(),
+        &ctx(),
+    ));
+    assert!(
+        text.contains("reason=route_not_supported: counterfactual_id.conflicting_subscripts"),
+        "{text}"
+    );
+    assert!(text.contains("not a proof of non-identifiability"), "{text}");
+    assert!(!text.contains("cross_world_not_identified"), "{text}");
+    let directed = [(0, 1), (1, 2), (1, 4), (2, 3), (2, 4), (3, 4)];
+    let bidirected = [(0, 2), (0, 3)];
+    let query = CounterfactualEventQuery::effect_on_treated(v(2), 1.0, 0.0, v(3), 1.0).unwrap();
+    let prepared = prepare_counterfactual_id(
+        admg(5, &directed, &bidirected),
+        names(5),
+        levels(&[2; 5]),
+        &query,
+        CounterfactualIdOptions::default(),
+        &ctx(),
+    )
+    .unwrap();
+    assert!(prepared.derivation().numerators.iter().all(|(_, f)| f.uses_consistency_complement()));
+    let text = refusal_text(prepare_counterfactual_id(
+        admg(5, &directed, &bidirected),
+        names(5),
+        levels(&[2, 2, 3, 2, 2]),
+        &query,
+        CounterfactualIdOptions::default(),
+        &ctx(),
+    ));
+    assert!(
+        text.contains("reason=route_not_supported: counterfactual_id.conflicting_subscripts"),
+        "{text}"
+    );
+}
+
+/// The binary consistency complement end to end: evaluated equal to the
+/// enumerated truth, exported, replayed and recomputed by the consumer's
+/// separate direct-sum evaluator (its complement branch included).
+#[test]
+fn the_binary_complement_round_trips_and_is_recomputed_independently() {
+    let directed = [(0, 1), (1, 2), (1, 4), (2, 3), (2, 4), (3, 4)];
+    let bidirected = [(0, 2), (0, 3)];
+    let query = CounterfactualEventQuery::effect_on_treated(v(2), 1.0, 0.0, v(3), 1.0).unwrap();
+    let prepared = prepare_counterfactual_id(
+        admg(5, &directed, &bidirected),
+        names(5),
+        levels(&[2; 5]),
+        &query,
+        CounterfactualIdOptions::default(),
+        &ctx(),
+    )
+    .unwrap();
+    let d: Vec<(usize, usize)> = directed.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+    let b: Vec<(usize, usize)> =
+        bidirected.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+    let scm = LatentScm::random(&mut Rng::new(644), &[2; 5], &d, &b, 3);
+    let effect = prepared.evaluate(&exact(&[2; 5], scm.observational(), "c644"), &ctx()).unwrap();
+    let truth = scm.ett(2, 1, 0, 3, 1);
+    assert!(close(effect.probability, truth), "{} vs {truth}", effect.probability);
+    let consumed = consume_counterfactual_id_artifact(
+        &effect.export_artifact().unwrap(),
+        CounterfactualIdConsumeLimits::default(),
+        &ctx(),
+    )
+    .unwrap();
+    assert!(consumed.independently_verified);
+    assert_eq!(consumed.probability.to_bits(), effect.probability.to_bits());
+}
+
+#[test]
+fn a_routed_world_is_deferred_through_the_facade() {
+    // A path-specific (routed) query on an ADMG: deferred to 2.3.
+    let routed = CounterfactualEventQuery::new(
+        vec![
+            WorldSpec::new([], []).unwrap(),
+            WorldSpec::new(
+                [(v(0), 1.0)],
+                [EdgeRoute { parent: v(1), child: v(2), source: WorldId::new(0) }],
+            )
+            .unwrap(),
+        ],
+        ExogenousCoupling::SharedLatentExogenous,
+        [at(1, 2, 1.0)],
+        [at(0, 0, 0.0)],
+    )
+    .unwrap();
+    let text = refusal_text(prepare_counterfactual_id(
+        admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
+        names(3),
+        levels(&[2, 2, 2]),
+        &routed,
+        CounterfactualIdOptions::default(),
+        &ctx(),
+    ));
+    assert!(
+        text.contains("reason=route_not_supported: counterfactual_id.path_specific_deferred"),
+        "{text}"
+    );
+}
+
+#[test]
+fn other_query_shapes_refuse_through_the_facade() {
+    let two = || vec![WorldSpec::new([], []).unwrap(), WorldSpec::new([(v(0), 1.0)], []).unwrap()];
+    // A joint of two potential outcomes, and the fixed-DAG cell's abduction coupling.
+    for query in [
+        CounterfactualEventQuery::new(
+            two(),
+            ExogenousCoupling::SharedLatentExogenous,
+            [at(1, 2, 1.0), at(0, 2, 0.0)],
+            [],
+        )
+        .unwrap(),
+        CounterfactualEventQuery::new(
+            two(),
+            ExogenousCoupling::SharedAbducedExogenous,
+            [at(1, 2, 1.0)],
+            [at(0, 0, 0.0)],
+        )
+        .unwrap(),
+    ] {
+        let text = refusal_text(prepare_counterfactual_id(
+            admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
+            names(3),
+            levels(&[2, 2, 2]),
+            &query,
+            CounterfactualIdOptions::default(),
+            &ctx(),
+        ));
+        assert!(
+            text.contains("reason=route_not_supported: counterfactual_id.query_outside_contract"),
+            "{text}"
+        );
+    }
 }
 
 #[test]
